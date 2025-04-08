@@ -10,6 +10,34 @@ For prototype 0.0.1, our testing goals are:
 2. **Validate API Integration** - Test that API clients correctly interact with exchange interfaces
 3. **Establish Testing Infrastructure** - Set up the foundation for comprehensive testing as the system grows
 4. **Enable Safe Iteration** - Allow developers to refactor and improve code with confidence
+5. **Strategy Validation** - Confirm that the implemented trading logic aligns with the mathematical models
+6. **Robustness** - Verify the system handles errors gracefully (API issues, network problems, unexpected data) 
+
+## Testing Pyramid
+
+We adopt the testing pyramid philosophy, emphasizing a large base of fast unit tests, complemented by integration tests, and fewer, slower end-to-end/simulation tests.
+
+```mermaid
+flowchart TD
+    subgraph Testing Levels
+        direction BT
+        E2E(End-to-End / Simulation Tests) -- Slow, Brittle --> Integration(Integration Tests)
+        Integration -- Medium Speed --> Unit(Unit Tests)
+        Unit -- Fast, Isolated --> Static(Static Analysis / Linting)
+    end
+
+    subgraph Tools
+        Static --> ToolsStatic[Ruff, MyPy, Black, Isort]
+        Unit --> ToolsUnit[Pytest, pytest-asyncio, unittest.mock]
+        Integration --> ToolsInt[Pytest, pytest-asyncio, Mock API Server]
+        E2E --> ToolsE2E[Custom Simulator, Pytest]
+    end
+
+    style E2E fill:#f99,stroke:#333,stroke-width:2px
+    style Integration fill:#fca,stroke:#333,stroke-width:2px
+    style Unit fill:#cfc,stroke:#333,stroke-width:2px
+    style Static fill:#ccf,stroke:#333,stroke-width:2px
+```
 
 ## Testing Architecture
 
@@ -62,17 +90,23 @@ flowchart TD
 
 ### Core Tools
 
-1. **pytest** - Primary testing framework
+1. **Static Analysis & Linting**
+   - **Tools:** `ruff`, `mypy`
+   - **Configuration:** Defined in `pyproject.toml`
+   - **Goals:** Enforce code style (PEP8), identify potential bugs, ensure type correctness
+   - **Execution:** `pre-commit` hooks, CI pipeline step
+
+2. **pytest** - Primary testing framework
    - asyncio support via `pytest-asyncio`
    - Fixtures for common test setup
    - Parametrization for data-driven tests
 
-2. **pytest-mock** - Mocking framework
+3. **pytest-mock** - Mocking framework
    - Mock external dependencies
    - Control behavior of API responses
    - Simulate various scenarios
 
-3. **pytest-cov** - Coverage reporting
+4. **pytest-cov** - Coverage reporting
    - Track test coverage per component
    - Identify untested code paths
    - Generate coverage reports in CI
@@ -336,6 +370,20 @@ async def test_funding_arbitrage_scenario():
            (hyperliquid_position.size < 0 and backpack_position.size > 0)
 ```
 
+### Simulation Framework Diagram
+
+```mermaid
+graph TD
+    TB(TradingBot Application) -- API Calls --> SimEx[Simulated Exchanges]
+    SimEx -- Order Match/Fills --> TB
+    SimEx -- Market Data --> SimMkt[Market Data Simulator]
+    SimMkt -- Feeds Data --> TB
+    TB -- Bridge Calls --> SimBridge[Simulated Bridge]
+    SimBridge -- Transfer Status --> TB
+    SimEx -- Balances/Positions --> SimState[Simulation State]
+    TB -- Records --> Results[Test Results / Metrics]
+```
+
 ## Test Fixtures
 
 Key fixtures will include:
@@ -395,6 +443,25 @@ jobs:
       uses: codecov/codecov-action@v3
 ```
 
+### Pre-commit Configuration
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.1
+    hooks:
+    -   id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+    -   id: ruff-format
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+    -   id: mypy
+        args: [--strict]
+        additional_dependencies: []
+```
+
 ## Implementation Plan - Testing
 
 ### Phase 1: Basic Structure (Week 1)
@@ -417,6 +484,15 @@ jobs:
 - Develop exchange simulator
 - Create market scenario generator
 - Implement end-to-end simulation tests
+
+## Key Areas for Rigorous Testing
+
+1. **API Client Parsing:** Test with valid data, missing fields, unexpected types, error messages from `tests/fixtures/`.
+2. **Authentication/Signing:** Unit test the signing logic itself with known inputs/outputs. Integration tests with mock servers might verify header correctness.
+3. **State Management:** Test concurrent updates to `PortfolioTracker` state using `asyncio.gather` and locks.
+4. **Execution Logic:** Integration tests simulating partial fills, order rejections, API errors during execution, testing the compensation logic.
+5. **Risk Calculations:** Unit tests verifying VaR formula, Kelly formula. Integration tests checking pre-trade risk assessment blocks/allows trades correctly based on mocked portfolio state.
+6. **Concurrency:** Specifically test scenarios involving cancellations during operations (e.g., cancelling an API request, stopping a component during processing).
 
 ## Success Criteria - Testing
 
