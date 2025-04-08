@@ -1,0 +1,91 @@
+# Strategy Configuration
+
+strategy:
+  # Name of the primary strategy being run (e.g., 'funding_rate_arbitrage')
+  name: funding_rate_arbitrage
+  # List of exchanges to actively trade on
+  active_exchanges: ["hyperliquid", "backpack", "paradex"]
+  # List of assets/symbols to consider for trading
+  symbols:
+    - "BTC-PERP"
+    - "ETH-PERP"
+    # Add more symbols as needed
+
+# Parameters specific to the Funding Rate Arbitrage strategy
+funding_rate_params:
+  # Kelly fraction multiplier (0 < alpha <= 1)
+  kelly_alpha: 0.1
+  # Risk aversion parameter for Utility function (lambda in U = pi - lambda * sigma^2)
+  utility_lambda: 0.5
+  # Minimum expected profit threshold to consider an opportunity (after costs)
+  min_expected_profit: 0.0001 # Example: 0.01%
+  # Lookback window for volatility calculation (e.g., in hours)
+  volatility_window_hours: 24
+  # Adaptation loop settings
+  adaptation:
+    enabled: true
+    check_interval_seconds: 900 # e.g., 15 minutes
+    performance_metric: "sharpe"
+    sharpe_threshold: 1.0
+    parameter_to_adjust: "kelly_alpha"
+    adjustment_factor: 0.9 # Multiply by this factor if performance drops
+
+# Risk Management Settings
+risk:
+  # Base Value at Risk limit (e.g., as a fraction of portfolio value)
+  base_var_limit: 0.05 # 5%
+  # Reference market volatility for dynamic VaR adjustment (e.g., rolling 24h avg?)
+  base_market_volatility: 0.02 # Example: 2% daily vol
+  # Maximum allowed portfolio volatility (standard deviation)
+  max_portfolio_vol: 0.10 # 10%
+  # Maximum drawdown limit (fraction of portfolio)
+  max_drawdown: 0.15 # 15%
+  # Covariance matrix update frequency (seconds)
+  covariance_update_freq_seconds: 3600 # 1 hour
+
+# Collateral Management Settings
+collateral:
+  # Target buffer percentage on each exchange
+  target_buffer_pct: 0.10 # 10%
+  # Check interval for rebalancing (seconds)
+  rebalance_check_interval_seconds: 600 # 10 minutes
+  # Cost function weights for transfer path selection (alpha*Fees + beta*Time + gamma*Risk)
+  transfer_cost_weights:
+    alpha_fees: 1.0
+    beta_time: 0.5
+    gamma_risk: 0.2
+  # Maximum retry attempts for failed transfers
+  max_transfer_retries: 3
+  # Threshold for triggering temporary borrowing (minutes)
+  borrow_trigger_delay_minutes: 10
+
+# API Settings (Timeouts, Rate Limits - specific keys go in .env)
+api:
+  # General request timeout in seconds
+  request_timeout: 10
+  # Base delay between retries on API errors (seconds)
+  retry_delay: 1
+  # Max retries for API errors
+  max_retries: 5
+
+# Logging Configuration
+logging:
+  level: "INFO" # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  log_file: "trading_bot.log"
+  enable_file_logging: true
+
+# Exchange specific settings (can override global API settings)
+exchanges:
+  backpack:
+    rest_endpoint: "https://api.backpack.exchange/"
+    ws_endpoint: "wss://ws.backpack.exchange/"
+    # Add any other BP specific params
+  hyperliquid:
+    rest_endpoint: "https://api.hyperliquid.xyz"
+    ws_endpoint: "wss://api.hyperliquid.xyz/ws"
+    # Add any other HL specific params
+  paradex:
+    rest_endpoint: "https://api.paradex.trade/v1"
+    ws_endpoint: "wss://ws.paradex.trade/v1"
+    # Add any other PX specific params 

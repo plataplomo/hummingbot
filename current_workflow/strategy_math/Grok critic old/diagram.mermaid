@@ -1,0 +1,77 @@
+sequenceDiagram
+    participant User as Trader
+    participant CD as CyberDeltaEngine
+    participant ML as ML Module
+    participant FRS as Funding Rate Strategy
+    participant BP as Backpack API (CEX)
+    participant HL as Hyperliquid API (DEX)
+    participant PX as Paradex API (DEX)
+    participant RM as Risk Management
+
+    Note over CD,RM: Initialization Phase
+    User->>CD: Initialize trading bot (Funding Rate Strategy)
+    CD->>FRS: Initialize funding rate parameters
+    CD->>RM: Set dynamic risk limits (VaR_t = f(σ_mkt), CVaR, max position)
+    CD->>ML: Activate ML for E[FR] prediction
+
+    Note over CD,PX: Data Collection Phase
+    loop Collect Market Data
+        par Fetch CEX Data
+            CD->>BP: Fetch perp prices, funding rates, oracle data
+            BP-->>CD: Backpack Market Data (Validated)
+        and Fetch DEX Data (Hyperliquid)
+            CD->>HL: Fetch perp prices, funding rates, oracle/mark data
+            HL-->>CD: Hyperliquid Market Data (Validated)
+        and Fetch DEX Data (Paradex)
+            CD->>PX: Fetch perp prices, funding rates, oracle/mark data
+            PX-->>CD: Paradex Market Data (Validated)
+        end
+        CD->>CD: Reconcile data discrepancies
+    end
+
+    Note over CD,RM: Analysis Phase
+    CD->>FRS: Process funding rate data (BP, HL, PX)
+    FRS->>ML: Predict E[FR] = μ_FR + ε
+    FRS->>FRS: Calculate basis volatility (σ_B,t) per exchange/pair
+    FRS->>FRS: Compute no-arbitrage bounds with E[FR]
+    FRS->>FRS: Calculate NFD_adj = NFD_raw - (Txn_Costs + Slippage)
+    FRS-->>CD: Enhanced funding arbitrage signals
+
+    CD->>RM: Calculate Kelly sizing with ML signals
+    RM->>RM: Apply fractional Kelly (e.g., 0.5f*)
+    RM->>RM: Check risk constraints (√w^T Σw <= MaxRisk_t)
+    RM-->>CD: Optimized position sizing
+
+    Note over CD,User: Decision & Execution Phase
+    CD->>CD: Rank opportunities by U = E[Return] / (σ_Return * Risk_Tolerance)
+    alt Single-Exchange Funding Arbitrage (e.g., HL)
+        CD->>HL: Execute delta-neutral position (Latency-adjusted)
+        Note over CD,HL: Capturing HL funding rate
+    else Cross-Exchange Arbitrage (e.g., BP vs HL)
+        CD->>BP: Execute Leg 1 (Short Perp, t_exec modeled)
+        CD->>HL: Execute Leg 2 (Long Perp, t_exec modeled)
+        Note over CD,HL: Exploiting BP vs HL differential
+    end
+    CD->>RM: Monitor positions with real-time risk metrics
+
+    Note over CD,User: Monitoring & Adaptation
+    loop Every funding period
+        par Collect Funding
+            CD->>BP: Check/Receive funding payments
+            BP-->>CD: Funding settlement info
+            CD->>HL: Check/Receive funding payments
+            HL-->>CD: Funding settlement info
+            CD->>PX: Check/Receive funding payments
+            PX-->>CD: Funding settlement info
+        end
+        CD->>CD: Update PnL and E[Returns]
+    end
+
+    loop Real-Time Adaptation
+        CD->>FRS: Update σ_B,t and NFD_adj
+        FRS-->>CD: Refreshed estimates
+        CD->>RM: Adjust positions (ΔPosition = K_p * Error + ...)
+        CD->>ML: Refine E[FR] with feedback
+    end
+
+    CD->>User: Enhanced metrics (PnL, Sharpe Ratio, Risk Exposure)

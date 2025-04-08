@@ -1,0 +1,68 @@
+```mermaid
+graph TD
+    subgraph User Browser
+        direction TB
+        UserInterface[User Interface (React/Vue + UI Library)]
+        StateMgmt[State Management (Zustand/Pinia)]
+        DataFetching[Data Fetching (TanStack Query + Axios)]
+        WSClient[WebSocket Client]
+
+        UserInterface --> StateMgmt
+        UserInterface -- Displays --> StateMgmt
+        UserInterface -- Triggers Fetch --> DataFetching
+        UserInterface -- Sends Actions --> DataFetching # REST Actions
+        UserInterface -- Initiates/Listens --> WSClient
+        DataFetching -- Updates --> StateMgmt
+        WSClient -- Updates --> StateMgmt
+    end
+
+    subgraph Backend Services
+        direction TB
+        BFF[Backend API / BFF (FastAPI)]
+        CoreBot[Trading Bot Core (Separate Process)]
+        CommChannel{Communication Channel}
+
+        BFF -- REST Endpoints --> FE_REST(Frontend REST Calls)
+        BFF -- WebSocket Endpoint --> FE_WS(Frontend WS Connection)
+        BFF -- Reads/Writes --> CommChannel
+        CoreBot -- Reads/Writes --> CommChannel
+    end
+
+    subgraph Communication Options [Choice of CommChannel]
+         direction LR
+         Option1[Internal REST API on CoreBot]
+         Option2[Redis Pub/Sub]
+         Option3[ZeroMQ]
+         Option4[gRPC]
+    end
+
+    DataFetching -- HTTP Request --> BFF
+    WSClient -- WS Connection --> BFF
+    BFF -- Uses --> CommChannel
+    CoreBot -- Uses --> CommChannel
+
+    style UserInterface fill:#cff
+    style BFF fill:#cfc
+    style CoreBot fill:#f9f
+    style CommChannel fill:#eee,stroke-dasharray: 5 5
+```
+
+**Diagram Explanation:**
+
+1.  **User Browser:** Contains the frontend application built with a JS framework (React/Vue). Key parts include:
+    *   `UserInterface`: The actual components the user sees (tables, charts, buttons).
+    *   `StateMgmt`: Holds the frontend's state (data received from backend).
+    *   `DataFetching`: Handles fetching data via REST using libraries like TanStack Query and Axios.
+    *   `WSClient`: Manages the WebSocket connection for real-time updates.
+2.  **Backend Services:**
+    *   `BFF (Backend API)`: A FastAPI application serving REST endpoints and a WebSocket connection for the frontend. It acts as the secure gateway.
+    *   `CoreBot`: The main Python trading bot running in its own process/container.
+    *   `CommChannel`: Represents the mechanism used for the BFF and CoreBot to communicate (e.g., Redis, internal API, ZeroMQ).
+3.  **Communication Options:** Illustrates possible choices for the `CommChannel`.
+4.  **Flow:**
+    *   Frontend makes REST calls (via `DataFetching`) to the BFF.
+    *   Frontend establishes a WebSocket connection (via `WSClient`) to the BFF.
+    *   BFF interacts with the `CommChannel` to get data from or send commands to the `CoreBot`.
+    *   `CoreBot` interacts with the `CommChannel` to publish state updates or receive commands.
+    *   BFF pushes real-time updates received via the `CommChannel` to the connected `WSClient` in the frontend.
+    *   Frontend updates its state (`StateMgmt`) based on received data (REST or WS), which then re-renders the `UserInterface`.

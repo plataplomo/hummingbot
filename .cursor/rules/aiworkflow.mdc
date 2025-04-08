@@ -1,0 +1,23 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Guidelines for documenting AI-assisted development workflow.
+globs:
+alwaysApply: true
+---
+# AI Workflow Documentation (`current_workflow/`)
+
+## Purpose
+- To maintain a clear record of development progress, challenges, strategies, and decisions made during AI-assisted coding sessions.
+
+## Core Practices
+- **Document the workflow:** Record activities, context, and outcomes in Markdown files within the `.ai_workflow/` directory. Keep this directory organized (e.g., using subdirectories for specific tasks or dates).
+- **Summarize and Plan:** Create or update `.md` files summarizing the current context, goals, identified problems, and potential solutions or future improvements.
+- **Address Problems Explicitly:** Document challenges encountered (e.g., tool errors, unexpected behavior, complex bugs) and the steps taken to resolve them.
+- **Strategic Thinking:**
+    - Before implementing significant features or complex bug fixes, outline the proposed approach, rationale, and potential issues. *For major changes, aim for concise reasoning (e.g., 1-3 paragraphs) explaining the chosen approach.*
+    - Develop and document strategies for tackling larger tasks. Anticipate potential roadblocks.
+- **Continuous Improvement:** Regularly review the documented workflow to identify opportunities for improving strategies and processes.

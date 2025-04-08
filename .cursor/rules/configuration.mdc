@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Configuration
+
+- **Configuration Preservation**: Do not modify `mypy` or `ruff` configurations unless explicitly instructed to do so by the user.
+- **Handling Issues**: If an issue cannot be resolved without altering `mypy` or `ruff` configurations, document the limitations and reasoning clearly in the response and workflow documentation instead of making unauthorized changes to the configuration files.
+

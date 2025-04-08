@@ -1,0 +1,166 @@
+sequenceDiagram
+    participant User as Trader
+    participant CD as CyberDeltaEngine
+    participant RM as Risk Management
+    participant BP as Backpack API (CEX)
+    participant HL as Hyperliquid (Arbitrum)
+    participant PX as Paradex (StarkNet)
+    participant Bridge as L1/L2 Bridge (e.g., Across, Hop, Native)
+    participant Wallet as L1/L2 Wallet
+
+    Note over CD,Wallet: Enhanced Collateral Transfer Process (Critique-Informed Flow)
+
+    %% Initialization with Pre-Positioning and Caching
+    Note over RM: Initialization and Collateral Check Phase
+    RM->>RM: Predict C_target^BP, C_target^HL, C_target^PX using ML (E[C_needed] + k * σ_C)
+    RM->>BP: Get balance (ED25519-signed, check cache t_now - t_cache < 5min)
+    BP-->>RM: C_current^BP (or cached value)
+    RM->>HL: Get balance (REST, check cache t_now - t_cache < 5min)
+    HL-->>RM: C_current^HL (or cached value)
+    RM->>PX: Get balance (REST, check cache t_now - t_cache < 5min)
+    PX-->>RM: C_current^PX (or cached value)
+    RM->>RM: Check imbalance: If |C_current - C_target| < Tolerance (e.g., 0.02 * C_target), skip transfer.
+
+    %% Transfer Decision Phase with Dynamic Pathing
+    alt Significant Imbalance: |C_current^X - C_target^X| > Tolerance
+        Note over RM: Transfer Decision Phase
+        RM->>RM: Calculate transfer size: ΔC = C_target - C_current
+        RM->>RM: Evaluate Paths (Direct, Bridge) using Cost = α*Fees + β*Time + γ*Risk
+        RM->>RM: Factor in Urgency = w_urgency * t_deadline
+        RM->>RM: Select Optimal Path (e.g., Path_Best)
+
+        %% Option 1: Direct CEX → L2 Transfer (Enhanced with Batching & Contingency)
+        opt Path_Best == Direct (e.g., BP → HL)
+            Note over RM,HL: Direct Path: BP → HL
+            RM->>RM: Determine chunks if ΔC > $50k: n_chunks = ΔC / $50k
+            RM->>RM: Generate ED25519 signatures for each chunk withdrawal
+            RM->>BP: Batch withdrawal requests (parallel, signed, to L2 address)
+            Note right of BP: Handles security reviews for large amounts internally
+            BP-->>RM: Multiple tx_ids (or single if small)
+            loop Monitor Each Withdrawal (1-5min)
+                RM->>BP: Check status (signed request)
+                BP-->>RM: Status: pending → initiated → sent_to_bridge
+            end
+            Note right of BP: BP interacts with the appropriate L1/L2 bridge
+            BP->>Bridge: Submit batched txs to Arbitrum bridge
+            loop Monitor Bridge Deposit (e.g., Arbitrum 3-5min, StarkNet 10-30min)
+                RM->>Bridge: Check bridge deposit status (via API or chain query)
+                Bridge-->>RM: Status: pending → confirmed
+                alt Bridge Delay > 10min
+                    RM->>HL: Borrow ΔC temporarily (on-exchange)
+                    HL-->>RM: Borrowing confirmed (or failed)
+                    RM->>RM: Log temporary borrowing
+                end
+            end
+            Bridge->>Wallet: Funds bridged to L2
+            RM->>HL: Deposit funds from Wallet to HL exchange
+            HL-->>RM: Deposit confirmed
+            alt Borrowing was initiated
+                RM->>HL: Repay borrowed ΔC
+                HL-->>RM: Repayment confirmed
+            end
+            RM->>RM: Update C_current^BP -= ΔC, C_current^HL += ΔC
+            RM->>CD: Notify: Transfer BP→HL complete
+            CD->>User: Dashboard Update: "BP→HL: $ΔC transferred, ETA met/updated"
+
+        %% Option 2: Bridge-Mediated Transfer (BP → L1 → Bridge → L2 or L2 → Bridge → L2)
+        opt Path_Best == Bridge (e.g., BP → PX via Across)
+            Note over RM,PX: Bridge Path Example: BP → PX via Across
+            %% Step 1: Withdraw from Source (if CEX)
+            alt Source == BP
+                RM->>BP: Withdraw ΔC to L1 Wallet (signed request)
+                BP-->>RM: tx_id
+                loop Monitor Withdrawal (5-30min)
+                    RM->>BP: Check status (signed)
+                    BP-->>RM: Status update
+                end
+                BP->>Wallet: Funds on L1
+            else Source == HL or PX
+                 RM->>HL: Withdraw ΔC to L2 Wallet (e.g., Arbitrum Wallet)
+                 HL-->>Wallet: Funds in L2 Wallet
+            end
+
+            %% Step 2: Bridge Selection & Execution
+            RM->>RM: Check Liquidity: L_available(Across) vs ΔC? L_available(Hop) vs ΔC?
+            RM->>RM: Select Best Bridge (e.g., Across based on cost/speed/liquidity)
+            RM->>Bridge: Initiate Bridge Transfer (e.g., Across API Call/Contract Interaction)
+            Note right of Bridge: Payload specifies source/dest chain, amount, recipient, fees
+            Wallet->>Bridge: Sign & Send Transaction (Deposit to Spoke Pool if Across)
+            Bridge-->>RM: Bridge transfer initiated (e.g., relayer searching)
+
+            loop Check Bridge/Destination Status (Across: few mins, Native: longer)
+                RM->>Bridge: Query bridge transfer status
+                Bridge-->>RM: Status: Relaying / Bridging / Confirmed
+            end
+            Bridge->>Wallet: Funds arrive in Destination Wallet (e.g., StarkNet Wallet)
+
+            %% Step 3: Deposit to Destination Exchange
+            RM->>PX: Deposit funds from Wallet to PX exchange
+            PX-->>RM: Deposit confirmed
+            RM->>RM: Update C_current based on source/destination
+            RM->>CD: Notify: Transfer complete via Bridge
+            CD->>User: Dashboard Update: "Transfer Complete via Across, ETA met/updated"
+
+        %% Option 3: L2-to-L2 Transfer (Simplified via direct L2 Bridge)
+        opt Path_Best == L2_Bridge (e.g., HL → PX via Hop/Orbiter)
+            Note over HL, PX: L2-to-L2 Path via specialized bridge (e.g., Hop)
+            RM->>HL: Withdraw ΔC to Wallet (Arbitrum)
+            HL-->>Wallet: Funds in Arbitrum Wallet
+
+            RM->>Bridge: Initiate L2-L2 bridge transfer (e.g., Hop API/Contract)
+            Wallet->>Bridge: Sign & Send Tx (Deposit to Hop)
+            Bridge-->>RM: Bridge transfer initiated
+
+            loop Check Bridge Status (e.g., Hop ~5-15min)
+                 RM->>Bridge: Query bridge transfer status
+                 Bridge-->>RM: Status: Bridging / Confirmed
+            end
+            Bridge->>Wallet: Funds arrive in StarkNet Wallet
+
+            RM->>PX: Deposit funds from Wallet to PX exchange
+            PX-->>RM: Deposit confirmed
+            RM->>RM: Update C_current^HL -= ΔC, C_current^PX += ΔC
+            RM->>CD: Notify: Transfer HL→PX complete via L2 Bridge
+            CD->>User: Dashboard Update: "HL→PX: $ΔC transferred, ETA met/updated"
+        end
+
+        %% Interim Position Adjustment during transfer
+        Note over RM, CD: Adjusting positions during transfer delay
+        RM->>RM: Calculate Interim Scale Factor = C_current / C_target
+        RM->>CD: Scale active positions: w_t = w_target * InterimScaleFactor
+
+    end
+
+    %% Error Handling with Automation & Path Switching
+    alt Transfer Failure or Timeout
+        Note over RM: Automated Error Handling Phase
+        RM->>RM: Log failure: "Transfer Path_Best failed, tx_id: xyz, attempt: n"
+        alt Retry Attempts < Max (e.g., 3)
+            RM->>RM: Increment retry count n
+            RM->>RM: Reduce size: Retry_Size = ΔC / 2^n
+            RM->>RM: Evaluate alternative paths (e.g., Bridge if Direct failed)
+            RM->>RM: Select New_Path_Best
+            Note right of RM: Trigger transfer using New_Path_Best with Retry_Size
+            RM->>RM: Initiate new transfer (similar to above flows)
+        else Max Retries Reached
+            RM->>CD: Alert: "Transfer failed after max retries. Manual intervention needed."
+            CD->>User: Dashboard Alert: "TRANSFER FAILED - REQUIRES ACTION"
+            %% Trigger Full Reconciliation
+            RM->>RM: Initiate balance reconciliation across all exchanges
+            RM->>BP: Get balance (signed)
+            BP-->>RM: C_actual^BP
+            RM->>HL: Get balance
+            HL-->>RM: C_actual^HL
+            RM->>PX: Get balance
+            PX-->>RM: C_actual^PX
+            RM->>RM: Update C_current = C_actual, Log discrepancy: |C_expected - C_actual|
+        end
+    end
+
+    %% Post-Transfer Adjustment (Final)
+    Note over CD,RM: Post-Transfer Final Adjustment Phase
+    RM->>RM: Final reconciliation check (if not done in error handling)
+    RM->>RM: Update C_available = ∑ C_current^i
+    RM->>RM: Update Kelly sizing: f* = (π - Costs) / σ^2
+    RM-->>CD: Updated final parameters
+    CD->>CD: Unscale positions / Adjust to final target size 

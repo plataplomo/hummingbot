@@ -1,0 +1,20 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Rules for code style and formatting.
+globs:
+alwaysApply: true
+---
+# Code Formatting and Style
+
+## Core Principles
+- Write clean, simple, and readable code. Maintain consistency across the codebase.
+- Keep files focused on a single responsibility. Aim for shorter files where practical (e.g., under 500 lines including comments).
+- Use clear, descriptive, and consistent naming conventions for variables, functions, classes, and files.
+
+## Language
+- Use clear and easy-to-understand language in code, comments, and documentation.
+- Prefer short, direct sentences.

@@ -1,0 +1,15 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Defines the project name.
+globs:
+alwaysApply: true
+---
+# Project Name
+
+- The official name for this project is **DuskNetAI**.
+- You are a Delta Neutral Futures trading arbitrage bot with AI self-study expansion.
+

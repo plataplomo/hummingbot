@@ -1,0 +1,150 @@
+sequenceDiagram
+    participant User as Trader
+    participant CD as CyberDeltaEngine
+    participant RM as Risk Management
+    participant BP as Backpack API (CEX)
+    participant HL as Hyperliquid (Arbitrum)
+    participant PX as Paradex (StarkNet)
+    participant RF as rhino.fi Bridge
+    participant FB as Fallback Bridge (e.g., Across)
+    participant ETH as Ethereum L1
+    participant Wallet as L1/L2 Wallet
+
+    Note over CD,Wallet: Enhanced Collateral Transfer Process (Detailed Flow)
+
+    %% Initialization with Pre-Positioning and Caching
+    Note over RM: Initialization and Collateral Check Phase
+    RM->>RM: Predict C_target^BP, C_target^HL, C_target^PX using ML (E[C_needed] + σ_C)
+    RM->>BP: Get balance (ED25519-signed, cached if t_now - t_cache < 5min)
+    BP-->>RM: C_current^BP (or cached value if API fails)
+    RM->>HL: Get balance (REST, cached if t_now - t_cache < 5min)
+    HL-->>RM: C_current^HL (or cached value if API fails)
+    RM->>PX: Get balance (REST, cached if t_now - t_cache < 5min)
+    PX-->>RM: C_current^PX (or cached value if API fails)
+    RM->>RM: Check imbalance with tolerance: |C_current - C_target| < 0.02 * C_target
+    Note right of RM: Example: C_target^HL = $100k, C_current^HL = $97k, within 2% OK
+
+    %% Transfer Decision with Dynamic Pathing
+    alt Significant Imbalance: |C_current^HL - C_target^HL| > threshold
+        Note over RM: Transfer Decision Phase
+        RM->>RM: Calculate transfer size: ΔC = C_target - C_current
+        RM->>RM: Optimize path: Cost = α * Fees + β * Time + γ * Risk
+        Note right of RM: Fees = API_Fee + Gas, Time = t_exec + t_confirm, Risk = f(liquidity, reliability)
+        RM->>RM: Prioritize by urgency: Priority = w_urgency * t_deadline
+        Note right of RM: Example: t_deadline = 1h for funding rate capture
+
+        %% Option 1: Direct CEX → L2 Transfer (Enhanced with Batching)
+        opt Direct Path (BP → HL)
+            Note over RM,HL: Direct Path: BP → HL
+            RM->>RM: Split transfer: n_chunks = ΔC / $50k
+            RM->>RM: Generate ED25519 signatures for each chunk
+            RM->>BP: Batch withdrawal requests (parallel, signed)
+            BP-->>RM: Multiple tx_ids (e.g., 3 chunks of $30k each)
+            loop Monitor Each Withdrawal (1-5min)
+                RM->>BP: Check status (signed request)
+                BP-->>RM: Status: pending → initiated
+            end
+            BP->>ETH: Submit batched txs to Arbitrum bridge
+            Note right of ETH: 15-30 confirmations, ~3-5min total
+            ETH->>HL: Bridge to Arbitrum
+            loop Monitor Arbitrum Deposit (1-3min)
+                RM->>HL: Check deposit status (REST)
+                HL-->>RM: Status: pending → confirmed (2/3 validators)
+            end
+            HL-->>Wallet: USDC credited to L2 wallet
+            RM->>HL: Deposit to exchange (contract call)
+            HL-->>RM: Deposit confirmed
+            alt Bridge Delay > 10min
+                RM->>HL: Borrow ΔC temporarily (on-exchange)
+                HL-->>RM: Borrowing confirmed
+            end
+            RM->>RM: Update C_current^BP -= ΔC, C_current^HL += ΔC
+            RM->>CD: Notify: Transfer BP→HL complete
+            CD->>User: Dashboard: "BP→HL: $90k transferred, 8min"
+
+        %% Option 2: Multi-Bridge Transfer (BP → PX)
+        opt Bridge Path (BP → RF/FB → PX)
+            Note over RM,PX: Bridge Path: BP → PX via rhino.fi or Across
+            RM->>BP: Withdraw ΔC to L1 (signed request)
+            BP-->>RM: tx_id
+            loop Monitor Withdrawal (5-30min)
+                RM->>BP: Check status (signed)
+                BP-->>RM: Status update
+            end
+            BP->>ETH: Submit to L1
+            ETH-->>Wallet: USDC on L1
+            RM->>RF: GET /bridge/liquidity (API_KEY)
+            RF-->>RM: L_available^RF
+            RM->>FB: GET /bridge/liquidity (API_KEY)
+            FB-->>RM: L_available^FB
+            alt L_available^RF > ΔC * 1.1
+                RM->>RF: POST /bridge/quote & commit (API_KEY)
+                Wallet->>RF: Sign & send tx
+                RF->>PX: Bridge to StarkNet (5-15min)
+            else L_available^FB > ΔC * 1.1
+                RM->>FB: POST /bridge/quote & commit (API_KEY)
+                Wallet->>FB: Sign & send tx
+                FB->>PX: Bridge to StarkNet (5-15min)
+            else Insufficient Liquidity
+                RM->>CD: Alert: "Bridge liquidity low, manual action"
+            end
+            loop Check StarkNet Status (5-15min)
+                RM->>PX: Query status (REST)
+                PX-->>RM: Confirmed
+            end
+            RM->>PX: Deposit to exchange
+            PX-->>RM: Confirmed
+            RM->>RM: Update C_current^BP -= ΔC, C_current^PX += ΔC
+            RM->>CD: Notify: Transfer BP→PX complete
+            CD->>User: Dashboard: "BP→PX: $90k transferred, 12min"
+
+        %% Option 3: L2-to-L2 Transfer (HL → PX)
+        opt L2-to-L2 Path (HL → PX via Hop/Orbiter)
+            Note over RM,PX: L2-to-L2 Path: HL → PX
+            RM->>HL: Withdraw ΔC to L2 bridge (1 USDC fee)
+            HL-->>Wallet: Funds bridged to Hop/Orbiter
+            Wallet->>PX: Deposit via L2 bridge (5-10min)
+            loop Check Status (5-10min)
+                RM->>PX: Query status (REST)
+                PX-->>RM: Confirmed
+            end
+            RM->>PX: Deposit to exchange
+            PX-->>RM: Confirmed
+            RM->>RM: Update C_current^HL -= ΔC, C_current^PX += ΔC
+            RM->>CD: Notify: Transfer HL→PX complete
+            CD->>User: Dashboard: "HL→PX: $90k transferred, 9min"
+        end
+    end
+
+    %% Error Handling with Automation
+    alt Transfer Failure or Timeout
+        Note over RM: Error Handling Phase
+        RM->>RM: Log failure: "BP→HL failed, tx_id: xyz"
+        loop Retry (max 3 attempts)
+            RM->>RM: Reduce size: Retry_Size = ΔC / 2^n, n = retry_count
+            RM->>RM: Switch path (e.g., RF if direct fails)
+            RM->>BP: Retry transfer (signed)
+            BP-->>RM: Status: success or fail
+            alt Success
+                RM->>CD: Notify: "Retry succeeded"
+                break
+            else Fail
+                RM->>CD: Alert: "Manual intervention needed"
+            end
+        end
+        RM->>BP: Reconcile balance (signed)
+        BP-->>RM: C_actual^BP
+        RM->>HL: Reconcile balance
+        HL-->>RM: C_actual^HL
+        RM->>PX: Reconcile balance
+        PX-->>RM: C_actual^PX
+        RM->>RM: Update C_current with C_actual
+    end
+
+    %% Post-Transfer Adjustment
+    Note over CD,PX: Post-Transfer Adjustment Phase
+    RM->>RM: Adjust positions during transfer: w_t = w_target * (C_current / C_target)
+    RM->>RM: Recalculate available capital: C_available = ∑ C_current^i
+    RM->>RM: Update Kelly sizing: f* = (π - Costs) / σ^2
+    RM-->>CD: Updated parameters
+    CD->>User: Real-time dashboard: PnL, ETA = t_start + t_pred, Gas Alerts

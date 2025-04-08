@@ -1,0 +1,34 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Rules for executing Python tools within the virtual environment.
+globs:
+alwaysApply: true
+---
+# Virtual Environment Execution (`.venv`)
+
+## Core Principle
+- **ALWAYS** execute Python tools (`mypy`, `ruff`, `pip`, `pytest`, etc.) and scripts using the **explicit path** to the Python executable within the project's virtual environment (`.venv`).
+
+## Correct Usage Format
+- **Use the format:** `.venv/bin/<tool_name> [arguments...]`
+  - Mypy Example: `.venv/bin/mypy src/ tests/`
+  - Pip Example: `.venv/bin/pip install <package>`
+  - Pytest Example: `.venv/bin/pytest tests/`
+  - ruff Example: `.venv/bin/ruff check .`
+
+## Forbidden Practices
+- **DO NOT rely on shell activation** (`source .venv/bin/activate`) for programmatic execution by the AI. Always use the explicit path (`.venv/bin/python -m ...`).
+- **NEVER use system-wide installations** of Python or its tools for this project.
+- **NEVER use the `--break-system-packages` flag** with pip. Resolve installation issues within the virtual environment.
+
+## Troubleshooting
+- If you (the AI) suspect environment issues, manually check tool paths (e.g., `.venv/bin/python -m pip --version`, `which python`) or try deactivating and reactivating the venv (`deactivate && source .venv/bin/activate`).
+
+## Rationale
+- Ensures consistent use of the isolated project environment and dependencies.
+- Prevents conflicts with system Python or other projects.
+- Enhances reliability and reproducibility of development tasks.

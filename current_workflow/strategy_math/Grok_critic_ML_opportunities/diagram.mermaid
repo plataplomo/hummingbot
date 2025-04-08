@@ -1,0 +1,92 @@
+sequenceDiagram
+    participant User as Trader
+    participant CD as CyberDeltaEngine
+    participant ML as ML Module
+    participant FRS as Funding Rate Strategy
+    participant BP as Backpack API (CEX)
+    participant HL as Hyperliquid API (DEX)
+    participant PX as Paradex API (DEX)
+    participant RM as Risk Management
+
+    Note over CD,RM: Initialization Phase
+    User->>CD: Initialize trading bot (Funding Rate Strategy)
+    CD->>FRS: Initialize funding rate parameters
+    CD->>ML: Load & activate ML models (E[FR], σ_mkt, C_target)
+    ML-->>RM: Predict initial σ_mkt & E[FR] for risk limits
+    RM->>RM: Set dynamic limits: VaR_t = α * σ_mkt * PV_t
+    Note right of RM: ML forecasts market volatility
+
+    Note over CD,PX: Data Collection & Validation Phase
+    loop Every t seconds
+        par Fetch CEX Data
+            CD->>BP: Fetch prices, funding rates, depth, sentiment
+            BP-->>CD: Backpack Market Data
+        and Fetch DEX Data (Hyperliquid)
+            CD->>HL: Fetch prices, funding rates, depth, sentiment
+            HL-->>CD: Hyperliquid Market Data
+        and Fetch DEX Data (Paradex)
+            CD->>PX: Fetch prices, funding rates, depth, sentiment
+            PX-->>CD: Paradex Market Data
+        end
+        CD->>ML: Detect anomalies (e.g., z-score > 3) & impute gaps
+        ML-->>CD: Cleaned data + quality score (Q_t)
+    end
+
+    Note over CD,RM: Analysis Phase
+    CD->>FRS: Process validated data
+    FRS->>ML: Predict E[FR_t] = μ_FR + ε_t, σ_B,t = f(Features_t)
+    ML-->>FRS: Forecasts (E[FR_t], σ_B,t, confidence)
+    FRS->>FRS: Compute π^X_t = E[FR_t] - C^X_t
+    FRS->>FRS: Compute π^{AB}_t = E[FR^A_t - FR^B_t] - C^{AB}_t
+    FRS->>ML: Cluster opportunities by risk/return profile
+    ML-->>FRS: Clustered signals (e.g., K-means groups)
+    FRS-->>CD: Enhanced arbitrage signals
+    CD->>RM: Optimize sizing: w_t = (π_t / σ_t^2) * α_t
+    RM->>ML: Predict correlation shifts (Σ_t)
+    ML-->>RM: Updated Σ_t for risk: √w_t^T Σ_t w_t
+    RM-->>CD: Position weights (w_t)
+
+    Note over CD,RM: Collateral Check / Rebalancing Phase
+    RM->>ML: Predict C_target_t = E[C_needed_t] + k * σ_C_t
+    ML-->>RM: C_target^BP, C_target^HL, C_target^PX
+    RM->>BP: Compare C_current^BP vs C_target^BP
+    RM->>HL: Compare C_current^HL vs C_target^HL
+    RM->>PX: Compare C_current^PX vs C_target^PX
+    alt Rebalancing Needed
+        RM->>ML: Predict transfer cost (TC_t) & latency (L_t)
+        ML-->>RM: TC_t, L_t, optimal path (e.g., BP → HL)
+        RM->>BP: Initiate transfer (e.g., USDC)
+        RM->>HL: Receive transfer (on-chain confirmation)
+    end
+
+    Note over CD,User: Decision & Execution Phase
+    CD->>ML: Predict regime (e.g., P(VolSpike_t) via HMM)
+    ML-->>CD: Regime probs (e.g., P(VolSpike_t) = 0.75)
+    CD->>CD: Adjust timing if P(VolSpike_t) > 0.7
+    alt Single-Exchange Arbitrage
+        CD->>HL: Execute delta-neutral (Long Perp + Hedge)
+    else Cross-Exchange Arbitrage
+        CD->>BP: Execute Leg 1 (Short Perp)
+        CD->>HL: Execute Leg 2 (Long Perp, FOK)
+    end
+    CD->>RM: Update positions & risk metrics
+
+    Note over CD,User: Monitoring & Adaptation Phase
+    loop Every funding period
+        par Collect Funding
+            CD->>BP: Receive funding payments
+            BP-->>CD: Funding data
+            CD->>HL: Receive funding payments
+            HL-->>CD: Funding data
+            CD->>PX: Receive funding payments
+            PX-->>CD: Funding data
+        end
+        CD->>ML: Analyze PnL_t, Yield_t, σ_P_t
+        ML-->>CD: Performance metrics + drift alerts
+    end
+    loop Real-Time Adaptation
+        CD->>ML: Reinforcement Learning: Update α_t = α_{t-1} + η * ∇Q_t
+        ML-->>FRS: Optimized α_t for Kelly sizing
+        FRS->>RM: Adjust w_t based on α_t & σ_B,t
+    end
+    CD->>User: Report PnL_t, Yield_t, VaR_t

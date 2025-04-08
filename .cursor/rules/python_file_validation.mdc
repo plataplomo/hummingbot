@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Python File Validation
+
+- **File Check Requirement**: After editing or creating 5 consequent `.py` files, you must run `ruff` and `mypy` checks on that specific file before moving on to the next task or step.
+- **Scope of Checks**: Ensure that every modified or newly created `.py` file is individually validated with both `ruff` (for linting) and `mypy` (for type checking) to catch issues immediately.
+- **Configuration Preservation**: Do not modify `mypy` or `ruff` configurations unless explicitly instructed to do so by the user.
+- **Handling Issues**: If issues are detected by `ruff` or `mypy` that cannot be fixed without changing configurations, document the specific issues and limitations in the response instead of altering the configuration files.
+- **Workflow Enforcement**: The agent must complete and report the results of these checks (e.g., "No issues found" or "Issues detected: [details]") before proceeding to any subsequent task.

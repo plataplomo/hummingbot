@@ -1,0 +1,84 @@
+graph TD
+    subgraph User Interface / Control
+        CLI[CLI Interface]
+        Dashboard[(Future Web Dashboard)]
+    end
+
+    subgraph Core Engine (Python/Asyncio)
+        Orchestrator(main.py Orchestrator) -- Manages --> DataHandler
+        Orchestrator -- Manages --> SignalGenerator
+        Orchestrator -- Manages --> RiskManager
+        Orchestrator -- Manages --> CollateralManager
+        Orchestrator -- Manages --> ExecutionHandler
+        Orchestrator -- Manages --> PortfolioTracker
+        Orchestrator -- Manages --> AdaptationLoop
+
+        DataHandler(Data Handler) -- Feeds --> SignalGenerator
+        DataHandler -- Feeds --> RiskManager
+        DataHandler -- Feeds --> PortfolioTracker
+        DataHandler -- Uses --> APIs
+
+        SignalGenerator(Signal Generator) -- Generates Signals --> Orchestrator
+        SignalGenerator -- Uses --> CoreModels[Data Models]
+
+        RiskManager(Risk Manager) -- Provides Limits/Sizing --> Orchestrator
+        RiskManager -- Requests Checks --> PortfolioTracker
+        RiskManager -- Triggers --> CollateralManager
+        RiskManager -- Uses --> CoreModels
+
+        CollateralManager(Collateral Manager) -- Executes Transfers --> APIs
+        CollateralManager -- Updates --> PortfolioTracker
+        CollateralManager -- Uses --> APIs
+        CollateralManager -- Uses --> CoreModels
+
+        ExecutionHandler(Execution Handler) -- Executes Orders --> APIs
+        ExecutionHandler -- Updates --> PortfolioTracker
+        ExecutionHandler -- Uses --> APIs
+        ExecutionHandler -- Uses --> CoreModels
+
+        PortfolioTracker(Portfolio Tracker) -- Stores State --> StateDB[(In-Memory State / Redis?)]
+        PortfolioTracker -- Uses --> CoreModels
+
+        AdaptationLoop(Adaptation Loop) -- Reads State --> PortfolioTracker
+        AdaptationLoop -- Updates Params --> SignalGenerator
+        AdaptationLoop -- Updates Params --> RiskManager
+
+    end
+
+    subgraph External Services
+        APIs(Exchange & Bridge APIs) -- HTTP/WS --> BAPI[Backpack API]
+        APIs -- HTTP/WS --> HAPI[Hyperliquid API]
+        APIs -- HTTP/WS --> PAPI[Paradex API]
+        APIs -- HTTP --> BridgeAPI[Bridge APIs (Across, etc.)]
+        APIs -- HTTP/WS --> OracleAPI[Oracle API (Chainlink?)]
+    end
+
+    subgraph Supporting Tools
+        Config[YAML Config File]
+        Env[\.env File (API Keys)]
+        Logger[Logging Service]
+    end
+
+    CLI -- Controls --> Orchestrator
+    Orchestrator -- Reads --> Config
+    Orchestrator -- Reads --> Env
+    Orchestrator -- Writes --> Logger
+    DataHandler -- Writes --> Logger
+    SignalGenerator -- Writes --> Logger
+    RiskManager -- Writes --> Logger
+    CollateralManager -- Writes --> Logger
+    ExecutionHandler -- Writes --> Logger
+    PortfolioTracker -- Writes --> Logger
+    AdaptationLoop -- Writes --> Logger
+
+    CoreEngine -- Interacts With --> ExternalServices
+
+    style Orchestrator fill:#f9f,stroke:#333,stroke-width:2px
+    style DataHandler fill:#ccf,stroke:#333,stroke-width:1px
+    style SignalGenerator fill:#cfc,stroke:#333,stroke-width:1px
+    style RiskManager fill:#fcc,stroke:#333,stroke-width:1px
+    style CollateralManager fill:#fec,stroke:#333,stroke-width:1px
+    style ExecutionHandler fill:#cff,stroke:#333,stroke-width:1px
+    style PortfolioTracker fill:#eee,stroke:#333,stroke-width:1px
+    style AdaptationLoop fill:#ddf,stroke:#333,stroke-width:1px
+    style APIs fill:#bbb,stroke:#333,stroke-width:1px 

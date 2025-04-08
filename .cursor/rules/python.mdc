@@ -1,0 +1,27 @@
+---
+description: 
+globs: *.py,*.pyi
+alwaysApply: false
+---
+---
+description: Python-specific coding standards and tooling.
+globs: ["*.py", "*.pyi"]
+alwaysApply: false
+---
+# Python Standards and Tooling
+
+## Language Version
+- Ensure all Python code is compatible with **Python 3.13** or later.
+
+## Linting and Formatting Stack
+- Utilize the following tools consistently:
+    - **Black:** Code formatting.
+    - **ruff:** Linting (fast, comprehensive checks).
+    - **mypy:** Static type checking.
+    - **isort:** Import sorting.
+
+## Type Checking Strictness (mypy)
+- Configure `mypy` for strict checking. Refer to the project's `mypy.ini` or `pyproject.toml [tool.mypy]` section for specific settings. Aim for comprehensive type safety. *(Self-correction: Linking to config is better than vague comparisons)*
+
+## Development Workflow
+- **Always lint, format, and type-check** relevant files using the defined stack (`Black`, `ruff`, `mypy`, `isort`) before finalizing changes or requesting code reviews. Ensure checks pass according to project configuration.

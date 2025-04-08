@@ -1,0 +1,20 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Guidelines for writing code comments.
+globs:
+alwaysApply: true
+---
+# Code Comments
+
+## General Guidelines
+- **Strive to add helpful and explanatory comments** to clarify complex logic, intent, or workarounds.
+- **Write well-documented code.** Assume comments are read by others (and your future self).
+- Use clear, easy-to-understand language and short sentences in comments.
+
+## Specific Instructions
+- **Do not delete existing comments** unless they are clearly incorrect or obsolete.
+- **Document significant changes and their reasoning directly in code comments** where appropriate. Explain *why* a change was made, not just *what* was changed.
