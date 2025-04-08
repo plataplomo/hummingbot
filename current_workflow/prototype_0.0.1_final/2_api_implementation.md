@@ -638,17 +638,98 @@ class BackpackAPI(ExchangeAPI):
         return balances
         
     async def get_positions(self) -> dict:
-        """Get current positions."""
-        # Backpack doesn't have a direct position endpoint for perpetuals
-        # This would need to be implemented based on their API
-        # For demonstration, we'll construct a placeholder
+        """
+        Get current positions on Backpack by analyzing fill history.
         
-        # In a real implementation, you would need to:
-        # 1. Get open orders
-        # 2. Calculate positions based on filled orders
-        # 3. Or use a dedicated positions endpoint if available
+        Since Backpack doesn't provide a direct position endpoint for perpetuals,
+        we calculate positions based on trade history.
+        """
+        positions = {}
         
-        return {}  # Placeholder
+        try:
+            # Get recent fill history with sufficient depth to capture all open positions
+            # Using a 30-day lookback as a reasonable default
+            current_time = int(time.time() * 1000)
+            thirty_days_ago = current_time - (30 * 24 * 60 * 60 * 1000)
+            
+            fills_payload = {
+                "from": thirty_days_ago,
+                "to": current_time,
+                "limit": 1000  # Maximum allowed limit
+            }
+            
+            fills_response = await self._request(
+                "GET", 
+                "/api/v1/history/fills", 
+                data=fills_payload, 
+                authenticated=True
+            )
+            
+            if "data" not in fills_response:
+                self.logger.error("Failed to retrieve fill history from Backpack")
+                return positions
+                
+            # Get all perpetual symbols
+            markets = await self.get_markets()
+            perp_symbols = [m["symbol"] for m in markets if m.get("type") == "perp"]
+            
+            # Process fills to calculate positions
+            for symbol in perp_symbols:
+                symbol_fills = [f for f in fills_response["data"] if f.get("symbol") == symbol]
+                
+                # Skip if no fills for this symbol
+                if not symbol_fills:
+                    continue
+                    
+                # Calculate net position
+                net_size = 0.0
+                avg_entry_price = 0.0
+                total_cost = 0.0
+                
+                for fill in symbol_fills:
+                    side = fill.get("side", "").upper()
+                    quantity = float(fill.get("quantity", 0))
+                    price = float(fill.get("price", 0))
+                    
+                    # Buy increases position, sell decreases
+                    fill_size = quantity if side == "BUY" else -quantity
+                    net_size += fill_size
+                    
+                    # Track for average entry price calculation
+                    if (net_size > 0 and fill_size > 0) or (net_size < 0 and fill_size < 0):
+                        total_cost += abs(fill_size) * price
+                
+                # Skip if no position
+                if abs(net_size) < 0.00001:
+                    continue
+                    
+                # Calculate average entry price
+                if net_size != 0:
+                    avg_entry_price = total_cost / abs(net_size)
+                    
+                # Get current price for mark-to-market
+                ticker = await self.get_ticker(symbol)
+                current_price = ticker["price"]
+                
+                # Calculate unrealized PnL
+                unrealized_pnl = net_size * (current_price - avg_entry_price) if net_size > 0 else net_size * (avg_entry_price - current_price)
+                
+                positions[symbol] = {
+                    "symbol": symbol,
+                    "size": net_size,
+                    "entry_price": avg_entry_price,
+                    "mark_price": current_price,
+                    "unrealized_pnl": unrealized_pnl,
+                    "position_value": abs(net_size * current_price),
+                    "note": "Calculated from fill history - may not reflect exchange's internal accounting"
+                }
+            
+            self.logger.info(f"Calculated {len(positions)} positions from Backpack fill history")
+            return positions
+            
+        except Exception as e:
+            self.logger.error(f"Error calculating Backpack positions: {e}")
+            return {}
         
     async def place_order(self, symbol: str, side: str, quantity: float,
                         order_type: str = "limit", price: float = None,
@@ -1016,11 +1097,159 @@ For Prototype 0.0.1, the implementation priority is:
    - Proper signing of requests
    - Validation of responses
 
-## 8. Fallback Strategy for Backpack Funding Rate Data
+## 8. Backpack Funding Rate Strategy: Validation and Fallback
 
-If direct calculation of Backpack funding rates proves unreliable, we will implement a two-tier strategy:
+### 8.1 Funding Rate Calculation Validation
 
-1. **Primary Strategy**: Use Hyperliquid funding rates for trading when they meet our opportunity criteria
-2. **Fallback Strategy**: Implement a spot vs perpetual arbitrage between Backpack spot and Hyperliquid perpetual markets
+The funding rate calculation for Backpack is **highly speculative** and requires rigorous validation before being used in production:
 
-This ensures the prototype will be functional even if complete funding rate data from Backpack is unavailable.
+1. **Initial Implementation Approach**:
+   - Calculate estimated funding rates using mark/index price data
+   - Log all calculations with timestamps for comparison
+   - Store all prediction values with actual observed funding payments
+   - Calculate error metrics (RMSE, MAE) to assess accuracy
+   - Immediately implement validation logic that compares predicted vs. actual
+
+2. **Live Validation**:
+   ```python
+   def validate_funding_calculation(predicted_rate, actual_payment, position_size, mark_price):
+       """
+       Validate funding rate calculation against actual payments.
+       Returns False if prediction error exceeds threshold.
+       """
+       if position_size == 0 or mark_price == 0:
+           return True  # No position to validate
+           
+       expected_payment = position_size * mark_price * predicted_rate
+       payment_error = abs(expected_payment - actual_payment)
+       relative_error = payment_error / abs(actual_payment) if actual_payment != 0 else float('inf')
+       
+       # Log validation results
+       logger.info(f"Funding validation: predicted={predicted_rate:.6f}, " 
+                  f"implied_actual={actual_payment/(position_size*mark_price):.6f}, "
+                  f"relative_error={relative_error:.2%}")
+       
+       # Use tighter threshold in production
+       ERROR_THRESHOLD = 0.25  # 25% error margin for prototype, tighten later
+       return relative_error <= ERROR_THRESHOLD
+   ```
+
+3. **Validation Schedule**:
+   - Immediately after each funding payment
+   - Daily validation report for all funding pairs
+   - Weekly calibration of calculation parameters (dampening factor)
+
+### 8.2 Fallback Implementation (REQUIRED)
+
+Due to the high uncertainty in funding rate calculations for Backpack, the fallback strategy **MUST** be fully implemented in Prototype 0.0.1:
+
+1. **Primary Strategy**: Use only when funding rate validation consistently shows < 15% error
+2. **Fallback Strategy**: Spot vs. Perpetual arbitrage between:
+   - Backpack spot markets (high certainty)
+   - Hyperliquid perpetual markets (reliable funding data)
+
+3. **Fallback Activation Triggers**:
+   - Funding rate validation fails for 3 consecutive periods
+   - Calculated funding rates show high volatility (> 3 std dev)
+   - Any evidence of data issues in mark/index prices
+
+4. **Fallback Strategy Implementation**:
+   ```python
+   # Pseudocode for fallback strategy determination
+   def determine_active_strategy():
+       validation_failures = get_recent_validation_failures()
+       if validation_failures >= 3:
+           return "FALLBACK_SPOT_VS_PERP"
+       
+       funding_volatility = calculate_funding_volatility()
+       if funding_volatility > 3 * historical_std_dev:
+           return "FALLBACK_SPOT_VS_PERP"
+       
+       return "PRIMARY_FUNDING_ARBITRAGE"
+   ```
+
+The prototype MUST include both strategies fully implemented, with clear metrics for determining which is active. We will **NOT** rely on the speculative funding rate calculation without confirming its accuracy through real-world validation.
+
+## 9. Exchange-Specific Funding Rate Mechanics
+
+Understanding the exact funding rate calculation methods for each exchange is critical for accurate arbitrage opportunity detection.
+
+### 9.1 Hyperliquid Funding Rate Mechanics
+
+Hyperliquid's 8-hour funding rate typically incorporates:
+
+```python
+# Hyperliquid funding rate calculation (conceptual)
+def calculate_hyperliquid_funding_rate(premium_index, interest_component):
+    """
+    Calculate Hyperliquid funding rate based on documentation and observed behavior.
+    
+    Parameters:
+    - premium_index: The premium/discount of mark price to oracle price
+    - interest_component: Interest rate component (typically small)
+    
+    Returns:
+    - 8-hour funding rate, clamped to prevent excessive values
+    """
+    # Calculate raw funding rate
+    funding_rate = premium_index + interest_component
+    
+    # Apply clamping (standard limit is ±0.75% per 8h period)
+    max_rate = 0.0075  # 0.75%
+    min_rate = -0.0075  # -0.75%
+    clamped_rate = max(min(funding_rate, max_rate), min_rate)
+    
+    return clamped_rate
+```
+
+For Hyperliquid's funding rate implementation:
+- The funding is paid hourly at 1/8th of the 8-hour rate
+- The premium index is based on the difference between market price and reference price (typically oracle price)
+- Actual values are paid/received every hour based on your position
+- The hourly payment is position_size * mark_price * (hourly_funding_rate)
+
+### 9.2 Backpack Funding Rate Mechanics
+
+For Backpack, since direct funding rate data might be less accessible, we'll derive it:
+
+```python
+# Backpack funding rate estimation (conceptual)
+def estimate_backpack_funding_rate(mark_price, index_price, funding_interval=8):
+    """
+    Estimate Backpack funding rate based on mark-index price difference.
+    
+    Parameters:
+    - mark_price: Current mark price
+    - index_price: Current index (reference) price
+    - funding_interval: Hours between funding payments (typically 8)
+    
+    Returns:
+    - Estimated funding rate for the specified interval
+    """
+    # Calculate price premium/discount
+    premium = (mark_price - index_price) / index_price
+    
+    # Convert to funding rate (typical dampening factor of ~0.75)
+    dampening = 0.75
+    estimated_rate = premium * dampening
+    
+    return estimated_rate
+```
+
+For Backpack's implementation:
+- The calculation is an estimation; actual calculations may vary
+- The API endpoint `/api/v1/ticker/index/{symbol}` (or equivalent) will be needed for index prices
+- Validation against actual funding payments will be necessary to refine the model
+- Alternate data sources may be required if this approach proves unreliable
+
+### 9.3 Implementation Approach for Prototype 0.0.1
+
+For the initial prototype, we'll focus on:
+
+1. **Reliable Data Collection**: Prioritize accurate collection of Hyperliquid funding rates from their API
+2. **Simple Estimation Model**: Use the basic premium/discount approach for Backpack with appropriate safeguards
+3. **Verification Loop**: Compare estimated rates with actual funding payments for validation
+4. **Conservative Thresholds**: Apply wider safety margins for estimated funding rates
+5. **Fallback Ready**: Keep spot vs perpetual strategy prepared as a fallback
+
+Subsequent versions can implement more sophisticated funding rate models as we gather data and better understand exchange-specific mechanics.

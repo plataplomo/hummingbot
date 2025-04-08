@@ -9,7 +9,7 @@ from utils.logging_config import setup_logging
 from apis.base import ExchangeAPI
 from apis.hyperliquid import HyperliquidAPI
 # Import other API clients as they are created
-# from apis.backpack import BackpackAPI
+from apis.backpack import BackpackAPI
 # from apis.paradex import ParadexAPI
 
 # Import core components
@@ -46,7 +46,7 @@ class TradingBot:
         logger.info("Initializing Trading Bot...")
         api_classes = {
             "hyperliquid": HyperliquidAPI,
-            # "backpack": BackpackAPI,
+            "backpack": BackpackAPI,
             # "paradex": ParadexAPI,
         }
 

@@ -263,6 +263,254 @@ class HyperliquidAdapter(ExchangeAdapter):
         return {}  # Default empty response
         
 # -------------------------------------------------------------------------
+# Backpack Exchange Adapter
+# -------------------------------------------------------------------------
+
+class BackpackAdapter(ExchangeAdapter):
+    """Adapter for Backpack exchange"""
+    
+    def __init__(self, api_key: str, api_secret: str, test_mode: bool = False):
+        super().__init__(api_key, api_secret, test_mode)
+        self.base_url = "https://api.backpack.exchange"
+        self.ws_url = "wss://ws.backpack.exchange"
+        
+    async def initialize(self):
+        """Initialize Backpack adapter"""
+        logger.info("Initializing Backpack adapter")
+        
+        # Get all tradable assets and their specifications
+        assets_data = await self._request("GET", "/api/v1/exchangeInfo")
+        
+        for symbol_info in assets_data.get("symbols", []):
+            symbol = symbol_info["symbol"]
+            if symbol.endswith("-PERP"):  # Only consider perpetuals
+                self.assets[symbol] = AssetInfo(
+                    symbol=symbol,
+                    exchange=ExchangeId.BACKPACK,
+                    tick_size=float(symbol_info.get("tickSize", "0.01")),
+                    min_order_size=float(symbol_info.get("minQty", "0.001")),
+                    max_leverage=float(symbol_info.get("maxLeverage", "10")),  # Default if not specified
+                    funding_interval=timedelta(hours=8)  # Backpack typically has 8-hour funding intervals
+                )
+        
+        logger.info(f"Initialized with {len(self.assets)} assets on Backpack")
+        
+    async def get_funding_rates(self) -> Dict[str, FundingRateInfo]:
+        """Get current funding rates for all assets on Backpack"""
+        funding_data = await self._request("GET", "/api/v1/fundingInfo")
+        result = {}
+        
+        for item in funding_data:
+            symbol = item.get("symbol")
+            if symbol in self.assets:
+                # Convert funding rate to annualized percentage
+                funding_rate = float(item.get("fundingRate", "0"))
+                # Backpack typically has 8-hour funding intervals, so multiply by 3 per day * 365 days
+                annualized_rate = funding_rate * 3 * 365
+                
+                # Calculate next funding time
+                current_time = datetime.utcnow()
+                hours_until_funding = (8 - (current_time.hour % 8)) % 8
+                next_payment = current_time.replace(minute=0, second=0, microsecond=0) + timedelta(hours=hours_until_funding)
+                
+                result[symbol] = FundingRateInfo(
+                    symbol=symbol,
+                    exchange=ExchangeId.BACKPACK,
+                    current_rate=annualized_rate,
+                    predicted_next_rate=annualized_rate,  # Simple prediction: same as current
+                    timestamp=current_time,
+                    next_payment_time=next_payment,
+                    historical_volatility=float(item.get("rateVolatility", 0.005))  # Default if not provided
+                )
+        
+        return result
+    
+    async def get_historical_funding_rates(
+        self, 
+        symbol: str, 
+        start_time: datetime, 
+        end_time: datetime
+    ) -> pd.DataFrame:
+        """Get historical funding rates from Backpack"""
+        # Backpack API endpoint for historical funding rates
+        endpoint = f"/api/v1/fundingHistory"
+        
+        # Convert times to milliseconds timestamp
+        start_ms = int(start_time.timestamp() * 1000)
+        end_ms = int(end_time.timestamp() * 1000)
+        
+        params = {
+            "symbol": symbol,
+            "startTime": start_ms,
+            "endTime": end_ms,
+            "limit": 500  # Maximum records to fetch
+        }
+        
+        try:
+            # In a real implementation, this would make actual API requests
+            # For demonstration, we'll generate simulated data
+            
+            # Create date range for 8-hour intervals
+            dates = pd.date_range(start=start_time, end=end_time, freq='8H')
+            
+            # Placeholder for results
+            results = []
+            
+            # Generate simulated funding rate data
+            for date in dates:
+                # Simulate funding rates with some randomness and daily pattern
+                hour = date.hour
+                day_factor = 1.0 if hour <= 8 else (0.8 if hour <= 16 else 1.2)
+                simulated_rate = 0.008 * day_factor * (1 + 0.3 * np.random.randn())
+                
+                results.append({
+                    'timestamp': date,
+                    'symbol': symbol,
+                    'funding_rate': simulated_rate,
+                    'funding_rate_annualized': simulated_rate * 3 * 365  # 8-hour rate to annualized
+                })
+            
+            return pd.DataFrame(results)
+            
+        except Exception as e:
+            logger.error(f"Error fetching historical funding rates from Backpack: {e}")
+            return pd.DataFrame()  # Return empty DataFrame on error
+    
+    async def get_market_price(self, symbol: str) -> float:
+        """Get current market price for an asset on Backpack"""
+        try:
+            ticker_data = await self._request("GET", f"/api/v1/ticker/price?symbol={symbol}")
+            return float(ticker_data.get("price", 0))
+        except Exception as e:
+            logger.error(f"Error fetching market price from Backpack: {e}")
+            return 0.0
+    
+    async def get_position(self, symbol: str) -> Optional[Position]:
+        """Get current position for an asset on Backpack"""
+        try:
+            positions_data = await self._request("GET", "/api/v1/positions", signed=True)
+            
+            for position in positions_data:
+                if position.get("symbol") == symbol:
+                    return Position(
+                        symbol=symbol,
+                        exchange=ExchangeId.BACKPACK,
+                        size=float(position.get("positionAmt", 0)),
+                        entry_price=float(position.get("entryPrice", 0)),
+                        mark_price=float(position.get("markPrice", 0)),
+                        pnl=float(position.get("unrealizedProfit", 0)),
+                        liquidation_price=float(position.get("liquidationPrice", 0)),
+                        side=PositionSide.LONG if float(position.get("positionAmt", 0)) > 0 else PositionSide.SHORT
+                    )
+            
+            return None  # No position found for this symbol
+        except Exception as e:
+            logger.error(f"Error fetching position from Backpack: {e}")
+            return None
+    
+    async def open_position(
+        self, 
+        symbol: str, 
+        side: PositionSide, 
+        size: float, 
+        price: Optional[float] = None
+    ) -> bool:
+        """Open a new position on Backpack"""
+        try:
+            order_side = "BUY" if side == PositionSide.LONG else "SELL"
+            order_type = "MARKET" if price is None else "LIMIT"
+            
+            order_params = {
+                "symbol": symbol,
+                "side": order_side,
+                "type": order_type,
+                "quantity": str(size),
+            }
+            
+            if price is not None:
+                order_params["price"] = str(price)
+            
+            # In a real implementation, this would place an actual order
+            # For demonstration, we'll just simulate a successful order
+            
+            logger.info(f"Simulated opening {side.name} position of {size} {symbol} on Backpack")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error opening position on Backpack: {e}")
+            return False
+    
+    async def close_position(self, symbol: str) -> bool:
+        """Close an existing position on Backpack"""
+        try:
+            # First get the current position to determine the closing order details
+            position = await self.get_position(symbol)
+            
+            if position is None or position.size == 0:
+                logger.info(f"No position to close for {symbol} on Backpack")
+                return True  # No position to close is considered success
+            
+            # Determine the closing order side (opposite of position side)
+            close_side = "SELL" if position.side == PositionSide.LONG else "BUY"
+            
+            # Close using a market order for the full position size
+            close_params = {
+                "symbol": symbol,
+                "side": close_side,
+                "type": "MARKET",
+                "quantity": str(abs(position.size)),
+                "reduceOnly": "true"  # Ensure this only reduces the position
+            }
+            
+            # In a real implementation, this would place an actual order
+            # For demonstration, we'll just simulate a successful close
+            
+            logger.info(f"Simulated closing position of {abs(position.size)} {symbol} on Backpack")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error closing position on Backpack: {e}")
+            return False
+    
+    async def _request(self, method: str, endpoint: str, params: dict = None, signed: bool = False) -> dict:
+        """Make an API request to Backpack"""
+        # Placeholder for actual HTTP request implementation
+        # In production: implement proper HTTP requests with authentication
+        
+        # Generate simulated responses based on the endpoint
+        if endpoint == "/api/v1/exchangeInfo":
+            return {
+                "symbols": [
+                    {"symbol": "BTC-PERP", "tickSize": "0.1", "minQty": "0.001", "maxLeverage": "20"},
+                    {"symbol": "ETH-PERP", "tickSize": "0.01", "minQty": "0.01", "maxLeverage": "20"},
+                    {"symbol": "SOL-PERP", "tickSize": "0.001", "minQty": "0.1", "maxLeverage": "20"}
+                ]
+            }
+        elif endpoint == "/api/v1/fundingInfo":
+            return [
+                {"symbol": "BTC-PERP", "fundingRate": "0.0010", "rateVolatility": "0.0002"},
+                {"symbol": "ETH-PERP", "fundingRate": "0.0012", "rateVolatility": "0.0003"},
+                {"symbol": "SOL-PERP", "fundingRate": "0.0020", "rateVolatility": "0.0005"}
+            ]
+        elif "/api/v1/ticker/price" in endpoint:
+            symbol = params.get("symbol") if params else "BTC-PERP"
+            prices = {"BTC-PERP": "50000", "ETH-PERP": "3000", "SOL-PERP": "100"}
+            return {"symbol": symbol, "price": prices.get(symbol, "0")}
+        elif endpoint == "/api/v1/positions" and signed:
+            return [
+                {
+                    "symbol": "BTC-PERP",
+                    "positionAmt": "0.5",
+                    "entryPrice": "49000",
+                    "markPrice": "50000",
+                    "unrealizedProfit": "500",
+                    "liquidationPrice": "40000",
+                }
+            ]
+        
+        return {}  # Default empty response
+        
+# -------------------------------------------------------------------------
 # Strategy Implementation
 # -------------------------------------------------------------------------
 
@@ -578,6 +826,10 @@ async def main():
         ExchangeId.HYPERLIQUID: HyperliquidAdapter(
             api_key=config["api_keys"]["hyperliquid"]["api_key"],
             api_secret=config["api_keys"]["hyperliquid"]["api_secret"]
+        ),
+        ExchangeId.BACKPACK: BackpackAdapter(
+            api_key=config["api_keys"]["backpack"]["api_key"],
+            api_secret=config["api_keys"]["backpack"]["api_secret"]
         )
     }
     

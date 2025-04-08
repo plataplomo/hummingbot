@@ -128,12 +128,33 @@ graph TD
 
 **Key Responsibilities**:
 - Monitor funding rates across exchanges
-- Calculate Net Funding Differentials (NFD)
-- Apply funding fee adjustments
-- Calculate basis volatility metrics
-- Compute expected profit metrics
-- Generate and rank arbitrage opportunities
-- Apply basic filtering on opportunities
+- Calculate Net Funding Differential (NFD) between exchanges:
+  ```
+  NFD[A,B] = FR[A] - FR[B]
+  ```
+  where FR[A] and FR[B] are funding rates on exchanges A and B
+- Calculate basis volatility for risk assessment:
+  ```
+  σ[B] = StandardDeviation(Basis[t-N:t])
+  ```
+  where Basis = F[t] - S[t] or F[A,t] - F[B,t] for cross-exchange
+- Compute expected profit metrics including costs:
+  ```
+  ExpectedProfit = NFD * Size - TotalCosts
+  ```
+  where TotalCosts = Fees + EstimatedSlippage + PotentialLegLagCost
+- Estimate slippage based on order size and liquidity:
+  ```
+  EstimatedSlippage = β * (OrderSize / AvailableDepth)
+  ```
+  where β is a scaling factor (e.g., 0.1)
+- Calculate utility function for opportunity ranking:
+  ```
+  Utility = ExpectedProfit - λ * σ[B]²
+  ```
+  where λ is a risk aversion parameter (e.g., 1.0)
+- Generate and rank arbitrage opportunities based on Utility score
+- Apply basic filtering (minimum NFD, minimum profit)
 - Validate signal quality (reject abnormal/outlier signals)
 
 ### 3.5 Risk Manager
@@ -142,14 +163,36 @@ graph TD
 
 **Key Responsibilities**:
 - Validate incoming opportunities against risk constraints
-- Apply position sizing logic (simplified Kelly)
+- Apply Kelly-based position sizing:
+  ```
+  f* = ExpectedProfit / (VarianceRisk * Price)
+  ```
+  where VarianceRisk is the basis volatility squared (σ[B]²)
+- Apply fractional Kelly for conservative sizing:
+  ```
+  f_actual = α * f*
+  ```
+  where α is typically 0.3-0.5 for conservative sizing
+- Apply position size constraints:
+  ```
+  SizeLimit = Min(MaxPositionSize, f_actual * PortfolioValue)
+  ```
 - Calculate portfolio-level risk metrics 
 - Enforce hard position size limits per asset (absolute USD cap)
 - Enforce total exposure limits across all positions (% of total capital)
 - Enforce per-exchange exposure limits (% of total capital)
 - Calculate and monitor liquidation risk on leveraged positions
+- Calculate Value-at-Risk (VaR) for the portfolio:
+  ```
+  VaR_α = μ * Δt + σ * √Δt * Φ⁻¹(α)
+  ```
+  where α is the confidence level (e.g., 0.95)
+- Adjust VaR dynamically based on market volatility:
+  ```
+  VaR_t = VaR_0 * (σ_mkt,t / σ_mkt,0)
+  ```
 - Reject trades that would exceed maximum allowed leverage
-- Prioritize viable opportunities
+- Prioritize viable opportunities by Utility score
 
 **Concrete Risk Parameters (0.0.1)**:
 - Maximum position size: Fixed USD cap per position
@@ -157,6 +200,8 @@ graph TD
 - Maximum leverage: Per-position leverage cap
 - Maximum exchange concentration: % of capital per exchange
 - Kelly fraction: Fixed conservative multiplier (0.3-0.5)
+- Risk aversion parameter (λ): Controls trade-off between profit and risk
+- VaR confidence level: Typically 95% or 99%
 
 ### 3.6 Execution Handler
 
