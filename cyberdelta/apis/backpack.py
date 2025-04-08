@@ -74,6 +74,10 @@ class BackpackAPI(ExchangeAPI):
 
     # --- Authentication --- #
 
+    async def _authenticate(self, method: str, path: str, params: Optional[Dict[str, Any]] = None, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Authenticate API request for Backpack."""
+        return self._sign_request(method, path, params, data)
+
     def _sign_request(self, method: str, path: str, params: Optional[Dict] = None, data: Optional[Dict] = None) -> Dict[str, Any]:
         """Sign requests for Backpack using HMAC-SHA256."""
         if not self._api_key or not self._api_secret:
@@ -110,6 +114,96 @@ class BackpackAPI(ExchangeAPI):
         }
 
     # --- Core API Implementation --- #
+
+    async def get_ticker(self, symbol: str) -> Optional[Ticker]:
+        """Get ticker information for a symbol."""
+        try:
+            response = await self._request("GET", f"/api/v1/ticker/{symbol}")
+            
+            return Ticker(
+                symbol=symbol,
+                bid=float(response.get('bidPrice', 0)),
+                ask=float(response.get('askPrice', 0)),
+                last=float(response.get('lastPrice', 0)),
+                volume=float(response.get('volume', 0)),
+                timestamp=int(response.get('time', int(time.time() * 1000)))
+            )
+        except Exception as e:
+            logger.error(f"[{self.exchange_name}] Error getting ticker for {symbol}: {e}")
+            return None
+
+    async def get_order_book(self, symbol: str, depth: Optional[int] = None) -> Optional[OrderBook]:
+        """Get order book for a symbol."""
+        try:
+            params = {"symbol": symbol}
+            if depth:
+                params["limit"] = depth
+                
+            response = await self._request("GET", "/api/v1/depth", params=params)
+            
+            bids = [(float(price), float(qty)) for price, qty in response.get('bids', [])]
+            asks = [(float(price), float(qty)) for price, qty in response.get('asks', [])]
+            
+            return OrderBook(
+                symbol=symbol,
+                bids=bids,
+                asks=asks,
+                timestamp=int(response.get('time', int(time.time() * 1000)))
+            )
+        except Exception as e:
+            logger.error(f"[{self.exchange_name}] Error getting order book for {symbol}: {e}")
+            return None
+
+    async def get_recent_trades(self, symbol: str, limit: Optional[int] = None) -> List[Trade]:
+        """Get recent trades for a symbol."""
+        try:
+            params = {"symbol": symbol}
+            if limit:
+                params["limit"] = limit
+                
+            response = await self._request("GET", "/api/v1/trades", params=params)
+            
+            trades = []
+            for trade_data in response:
+                trades.append(Trade(
+                    symbol=symbol,
+                    id=str(trade_data.get('id', '')),
+                    price=float(trade_data.get('price', 0)),
+                    quantity=float(trade_data.get('qty', 0)),
+                    side=OrderSide.BUY if trade_data.get('isBuyerMaker') else OrderSide.SELL,
+                    timestamp=int(trade_data.get('time', 0))
+                ))
+            
+            return trades
+        except Exception as e:
+            logger.error(f"[{self.exchange_name}] Error getting recent trades for {symbol}: {e}")
+            return []
+
+    async def get_funding_rate(self, symbol: str) -> Optional[FundingRate]:
+        """Get current funding rate for a symbol."""
+        try:
+            response = await self._request("GET", "/api/v1/fundingInfo", params={"symbol": symbol})
+            
+            # Find the entry for our symbol
+            funding_data = None
+            for item in response:
+                if item.get('symbol') == symbol:
+                    funding_data = item
+                    break
+            
+            if not funding_data:
+                logger.warning(f"[{self.exchange_name}] No funding data found for {symbol}")
+                return None
+            
+            return FundingRate(
+                symbol=symbol,
+                rate=float(funding_data.get('fundingRate', 0)),
+                time=int(funding_data.get('fundingTime', int(time.time() * 1000))),
+                estimated=False  # This is the actual rate, not estimated
+            )
+        except Exception as e:
+            logger.error(f"[{self.exchange_name}] Error getting funding rate for {symbol}: {e}")
+            return None
 
     async def get_balances(self) -> Dict[str, Balance]:
         """Get account balances."""
@@ -173,163 +267,71 @@ class BackpackAPI(ExchangeAPI):
                 logger.error(f"[{self.exchange_name}] Error retrieving positions from API: {e}", exc_info=True)
                 # Continue with secondary mechanism
             
-            # SECONDARY: Position verification using fill history (if direct API failed or for reconciliation)
-            secondary_positions = {}
+            return primary_positions
             
-            # Only perform secondary verification if needed or for periodic validation
-            should_verify = (
-                len(primary_positions) == 0 or  # API call failed
-                time.time() % 300 < 10          # Periodic check every 5 minutes (rough implementation)
-            )
-            
-            if should_verify:
-                try:
-                    # This is a simplified implementation - in production this would be more comprehensive
-                    # Fetch recent fills (last 7 days as a reasonable limit)
-                    start_time = int(time.time() * 1000) - (7 * 24 * 60 * 60 * 1000)
-                    fills_response = await self._request(
-                        "GET", 
-                        "/api/v1/fills", 
-                        params={"startTime": start_time}, 
-                        signed=True
-                    )
-                    
-                    # Group fills by symbol and calculate net position
-                    position_tracker = {}  # symbol -> {size, cost_basis, side}
-                    
-                    for fill in fills_response:
-                        symbol = fill.get("symbol", "")
-                        if not symbol:
-                            continue
-                            
-                        size = float(fill.get("qty", 0))
-                        price = float(fill.get("price", 0))
-                        side = fill.get("side", "")
-                        fee = float(fill.get("fee", 0))
-                        
-                        # Initialize if needed
-                        if symbol not in position_tracker:
-                            position_tracker[symbol] = {"size": 0, "cost_basis": 0, "side": None}
-                            
-                        pos = position_tracker[symbol]
-                        
-                        # Update position - simplistic approach, production would be more sophisticated
-                        if side == "BUY":
-                            # Adding to long or reducing short
-                            if pos["size"] < 0 and abs(pos["size"]) >= size:
-                                # Reducing short
-                                pos["size"] += size
-                            else:
-                                # Adding to long or flipping from short to long
-                                if pos["size"] <= 0:
-                                    # Starting new long position
-                                    pos["cost_basis"] = price
-                                    pos["side"] = OrderSide.BUY
-                                else:
-                                    # Adding to existing long, update cost basis (simplified)
-                                    pos["cost_basis"] = ((pos["cost_basis"] * pos["size"]) + (price * size)) / (pos["size"] + size)
-                                pos["size"] += size
-                        else:  # SELL
-                            # Adding to short or reducing long
-                            if pos["size"] > 0 and pos["size"] >= size:
-                                # Reducing long
-                                pos["size"] -= size
-                            else:
-                                # Adding to short or flipping from long to short
-                                if pos["size"] >= 0:
-                                    # Starting new short position
-                                    pos["cost_basis"] = price
-                                    pos["side"] = OrderSide.SELL
-                                else:
-                                    # Adding to existing short, update cost basis (simplified)
-                                    pos["cost_basis"] = ((pos["cost_basis"] * abs(pos["size"])) + (price * size)) / (abs(pos["size"]) + size)
-                                pos["size"] -= size
-                    
-                    # Convert to Position objects, only for non-zero positions
-                    for symbol, pos_data in position_tracker.items():
-                        if pos_data["size"] != 0:
-                            # Get current mark price for PnL calculation
-                            mark_response = await self._request("GET", "/api/v1/ticker/price", params={"symbol": symbol})
-                            mark_price = float(mark_response.get("price", 0))
-                            
-                            # Calculate PnL (simplified)
-                            side = OrderSide.BUY if pos_data["size"] > 0 else OrderSide.SELL
-                            unrealized_pnl = 0
-                            if mark_price > 0:
-                                if side == OrderSide.BUY:
-                                    unrealized_pnl = (mark_price - pos_data["cost_basis"]) * abs(pos_data["size"])
-                                else:
-                                    unrealized_pnl = (pos_data["cost_basis"] - mark_price) * abs(pos_data["size"])
-                            
-                            secondary_positions[symbol] = Position(
-                                symbol=symbol,
-                                size=abs(pos_data["size"]),
-                                entry_price=pos_data["cost_basis"],
-                                mark_price=mark_price,
-                                liquidation_price=0,  # Not available from fill history
-                                unrealized_pnl=unrealized_pnl,
-                                leverage=1,  # Not available from fill history
-                                side=side
-                            )
-                    
-                    logger.info(f"[{self.exchange_name}] Reconstructed {len(secondary_positions)} positions from fill history")
-                except Exception as e:
-                    logger.error(f"[{self.exchange_name}] Error reconstructing positions from fill history: {e}", exc_info=True)
-            
-            # RECONCILIATION: Compare primary and secondary positions
-            if primary_positions and secondary_positions:
-                mismatches = []
-                
-                # Check for positions in both sources
-                for symbol in set(primary_positions.keys()) & set(secondary_positions.keys()):
-                    primary = primary_positions[symbol]
-                    secondary = secondary_positions[symbol]
-                    
-                    # Check for significant discrepancies (size or side)
-                    size_diff = abs(primary.size - secondary.size)
-                    side_mismatch = primary.side != secondary.side
-                    
-                    if size_diff > primary.size * 0.01 or side_mismatch:  # 1% tolerance
-                        mismatches.append({
-                            "symbol": symbol,
-                            "primary_size": primary.size,
-                            "secondary_size": secondary.size,
-                            "primary_side": primary.side,
-                            "secondary_side": secondary.side
-                        })
-                
-                # Check for positions in one source but not the other
-                primary_only = set(primary_positions.keys()) - set(secondary_positions.keys())
-                secondary_only = set(secondary_positions.keys()) - set(primary_positions.keys())
-                
-                if primary_only:
-                    logger.warning(f"[{self.exchange_name}] Positions in API but not in fill history: {primary_only}")
-                
-                if secondary_only:
-                    logger.warning(f"[{self.exchange_name}] Positions in fill history but not in API: {secondary_only}")
-                
-                if mismatches:
-                    logger.warning(f"[{self.exchange_name}] Position discrepancies detected: {mismatches}")
-                    # In production: trigger alerts, enter safe mode, etc.
-            
-            # DECISION: Use primary positions if available, fallback to secondary
-            result = primary_positions if primary_positions else secondary_positions
-            
-            # Log summary
-            logger.info(f"[{self.exchange_name}] Final position count: {len(result)}")
-            for symbol, pos in result.items():
-                logger.info(f"[{self.exchange_name}] Position: {symbol}, "
-                           f"Size: {pos.size}, Side: {pos.side}, "
-                           f"Entry: {pos.entry_price}, Mark: {pos.mark_price}, "
-                           f"PnL: {pos.unrealized_pnl}")
-            
-            return result
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] Error getting positions: {e}")
-            return {}
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Unexpected error getting positions: {e}", exc_info=True)
             return {}
+
+    async def place_order(self, 
+                         symbol: str, 
+                         side: str,
+                         order_type: str,
+                         quantity: float,
+                         price: Optional[float] = None, 
+                         client_order_id: Optional[str] = None,
+                         **kwargs) -> Optional[Order]:
+        """Place an order on Backpack."""
+        try:
+            order_params = {
+                "symbol": symbol,
+                "side": side.upper(),
+                "type": order_type.upper(),
+                "quantity": quantity
+            }
+            
+            # Add optional parameters
+            if price is not None and order_type.upper() != "MARKET":
+                order_params["price"] = price
+                
+            if client_order_id:
+                order_params["newClientOrderId"] = client_order_id
+                
+            # Add any additional kwargs
+            order_params.update(kwargs)
+            
+            response = await self._request("POST", "/api/v1/order", data=order_params, signed=True)
+            
+            return Order(
+                symbol=response.get("symbol", symbol),
+                id=str(response.get("orderId", "")),
+                client_id=response.get("clientOrderId", client_order_id),
+                price=float(response.get("price", price or 0)),
+                quantity=float(response.get("origQty", quantity)),
+                executed_qty=float(response.get("executedQty", 0)),
+                status=response.get("status", "NEW"),
+                side=OrderSide.BUY if response.get("side", "").upper() == "BUY" else OrderSide.SELL,
+                type=OrderType.MARKET if response.get("type", "").upper() == "MARKET" else OrderType.LIMIT,
+                time=int(response.get("time", int(time.time() * 1000)))
+            )
+            
+        except Exception as e:
+            logger.error(f"[{self.exchange_name}] Error placing order for {symbol}: {e}")
+            return None
+
+    async def cancel_order(self, order_id: str, symbol: Optional[str] = None) -> bool:
+        """Cancel an existing order."""
+        try:
+            params = {"orderId": order_id}
+            if symbol:
+                params["symbol"] = symbol
+                
+            await self._request("DELETE", "/api/v1/order", params=params, signed=True)
+            return True
+            
+        except Exception as e:
+            logger.error(f"[{self.exchange_name}] Error cancelling order {order_id}: {e}")
+            return False
 
     async def get_open_orders(self, symbol: Optional[str] = None) -> List[Order]:
         """Get all open orders, optionally filtered by symbol."""
@@ -341,297 +343,25 @@ class BackpackAPI(ExchangeAPI):
             response = await self._request("GET", "/api/v1/openOrders", params=params, signed=True)
             
             orders = []
-            for order_item in response:
+            for order_data in response:
                 orders.append(Order(
-                    id=order_item.get("orderId", ""),
-                    client_order_id=order_item.get("clientOrderId", ""),
-                    symbol=order_item.get("symbol", ""),
-                    side=OrderSide.BUY if order_item.get("side") == "BUY" else OrderSide.SELL,
-                    type=OrderType(order_item.get("type", "LIMIT").lower()),
-                    price=float(order_item.get("price", 0)),
-                    quantity=float(order_item.get("origQty", 0)),
-                    filled_quantity=float(order_item.get("executedQty", 0)),
-                    status=order_item.get("status", ""),
-                    time=order_item.get("time", 0),
-                    reduce_only=order_item.get("reduceOnly", False)
+                    symbol=order_data.get("symbol", ""),
+                    id=str(order_data.get("orderId", "")),
+                    client_id=order_data.get("clientOrderId", ""),
+                    price=float(order_data.get("price", 0)),
+                    quantity=float(order_data.get("origQty", 0)),
+                    executed_qty=float(order_data.get("executedQty", 0)),
+                    status=order_data.get("status", ""),
+                    side=OrderSide.BUY if order_data.get("side", "").upper() == "BUY" else OrderSide.SELL,
+                    type=OrderType.MARKET if order_data.get("type", "").upper() == "MARKET" else OrderType.LIMIT,
+                    time=int(order_data.get("time", 0))
                 ))
             
             return orders
-        except APIError as e:
+            
+        except Exception as e:
             logger.error(f"[{self.exchange_name}] Error getting open orders: {e}")
             return []
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Unexpected error getting open orders: {e}", exc_info=True)
-            return []
-
-    async def place_order(self, symbol: str, side: OrderSide, order_type: OrderType,
-                         quantity: float, price: Optional[float] = None,
-                         client_order_id: Optional[str] = None, time_in_force: Optional[Any] = None) -> Order:
-        """Place a new order with enhanced safety checks.
-        
-        This method implements additional safety measures:
-        1. Verifies position risk limits before order placement
-        2. Performs pre-trade validation checks
-        3. Implements comprehensive error handling
-        4. Maintains detailed execution state for recovery
-        """
-        # Track execution state for recovery
-        execution_state = {
-            "action": "place_order",
-            "symbol": symbol,
-            "side": side.value,
-            "order_type": order_type.value,
-            "quantity": quantity,
-            "price": price,
-            "client_order_id": client_order_id,
-            "time_in_force": time_in_force,
-            "timestamp": time.time(),
-            "status": "started"
-        }
-        
-        try:
-            # PRE-TRADE VALIDATION
-            # 1. Verify current positions to avoid unexpected exposure
-            current_positions = await self.get_positions()
-            current_position = current_positions.get(symbol)
-            
-            # Log pre-trade position state
-            if current_position:
-                logger.info(f"[{self.exchange_name}] Pre-trade position for {symbol}: "
-                           f"Size={current_position.size}, Side={current_position.side}")
-            else:
-                logger.info(f"[{self.exchange_name}] No pre-existing position for {symbol}")
-            
-            # 2. Verify adequate balance (simplified - production would be more thorough)
-            balances = await self.get_balances()
-            # Balance check would happen here in production
-            
-            # 3. Verify trading limits (simplified - production would check multiple limits)
-            # This would check against risk limits in production
-            
-            # Update execution state
-            execution_state["status"] = "validated"
-            
-            # ORDER PLACEMENT
-            data = {
-                "symbol": symbol,
-                "side": "BUY" if side == OrderSide.BUY else "SELL",
-                "type": order_type.value.upper(),
-                "quantity": str(quantity)
-            }
-            
-            # Add optional parameters
-            if price is not None and order_type != OrderType.market:
-                data["price"] = str(price)
-            if client_order_id:
-                data["newClientOrderId"] = client_order_id
-            if time_in_force:
-                data["timeInForce"] = time_in_force
-            
-            # Update execution state
-            execution_state["status"] = "sending"
-            execution_state["request_data"] = data
-            
-            # Make the API request with retries
-            max_retries = 3
-            retry_delay = 1.0
-            last_error = None
-            
-            for attempt in range(max_retries):
-                try:
-                    response = await self._request("POST", "/api/v1/order", data=data, signed=True)
-                    
-                    # Update execution state
-                    execution_state["status"] = "executed"
-                    execution_state["response"] = response
-                    
-                    # Construct Order object from response
-                    order = Order(
-                        id=response.get("orderId", ""),
-                        client_order_id=response.get("clientOrderId", ""),
-                        symbol=response.get("symbol", ""),
-                        side=OrderSide.BUY if response.get("side") == "BUY" else OrderSide.SELL,
-                        type=OrderType(response.get("type", "LIMIT").lower()),
-                        price=float(response.get("price", 0)),
-                        quantity=float(response.get("origQty", 0)),
-                        filled_quantity=float(response.get("executedQty", 0)),
-                        status=response.get("status", ""),
-                        time=response.get("time", 0)
-                    )
-                    
-                    # POST-TRADE VERIFICATION
-                    # In production, we would verify the order status after a short delay
-                    # Especially important for market orders
-                    
-                    logger.info(f"[{self.exchange_name}] Order placed successfully: {order.id}, "
-                               f"Symbol: {symbol}, Side: {side.value}, Type: {order_type.value}, "
-                               f"Quantity: {quantity}, Price: {price}")
-                    
-                    # Final execution state update
-                    execution_state["status"] = "completed"
-                    execution_state["order_id"] = order.id
-                    
-                    # In production: store execution state in a persistent store
-                    
-                    return order
-                    
-                except APIError as e:
-                    last_error = e
-                    # Only retry on specific error types (rate limits, temporary issues)
-                    if "rate limit" in str(e).lower() or "timeout" in str(e).lower():
-                        logger.warning(f"[{self.exchange_name}] Retrying order placement after error: {e}, "
-                                     f"Attempt {attempt + 1}/{max_retries}")
-                        await asyncio.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
-                    else:
-                        # Don't retry on validation errors, authentication issues, etc.
-                        execution_state["status"] = "failed"
-                        execution_state["error"] = str(e)
-                        raise
-                except Exception as e:
-                    last_error = e
-                    execution_state["status"] = "failed"
-                    execution_state["error"] = str(e)
-                    logger.error(f"[{self.exchange_name}] Unexpected error placing order: {e}", exc_info=True)
-                    break
-            
-            # If we got here, all retries failed
-            if last_error:
-                execution_state["status"] = "failed_all_retries"
-                raise APIError(f"Failed to place order after {max_retries} attempts: {last_error}")
-            
-            raise APIError("Failed to place order due to unknown error")
-            
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] Error placing order: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Unexpected error placing order: {e}", exc_info=True)
-            raise APIError(f"Unexpected error placing order: {e}")
-        finally:
-            # In production: always store final execution state for recovery/auditing
-            pass
-
-    async def cancel_order(self, order_id: str, symbol: Optional[str] = None) -> bool:
-        """Cancel an order by ID with enhanced safety measures.
-        
-        Implements multiple layers of verification and explicit state tracking.
-        """
-        # Track execution state for recovery
-        execution_state = {
-            "action": "cancel_order",
-            "order_id": order_id,
-            "symbol": symbol,
-            "timestamp": time.time(),
-            "status": "started"
-        }
-        
-        if not symbol:
-            execution_state["status"] = "failed"
-            execution_state["error"] = "Symbol is required"
-            raise APIError("Symbol is required to cancel an order on Backpack")
-            
-        try:
-            # PRE-CANCELLATION VALIDATION
-            # 1. Verify the order exists and is active
-            try:
-                current_orders = await self.get_open_orders(symbol)
-                order_exists = any(order.id == order_id for order in current_orders)
-                
-                if not order_exists:
-                    logger.warning(f"[{self.exchange_name}] Attempting to cancel non-existent or already filled order: {order_id}")
-                    # Continue anyway as the cancel might be a precautionary measure
-            except Exception as e:
-                logger.warning(f"[{self.exchange_name}] Failed to verify order before cancellation: {e}")
-                # Continue with cancellation attempt
-            
-            # Update execution state
-            execution_state["status"] = "validated"
-            
-            # CANCEL ORDER
-            data = {
-                "symbol": symbol,
-                "orderId": order_id
-            }
-            
-            # Update execution state
-            execution_state["status"] = "sending"
-            execution_state["request_data"] = data
-            
-            # Make the API request with retries
-            max_retries = 3
-            retry_delay = 1.0
-            success = False
-            
-            for attempt in range(max_retries):
-                try:
-                    response = await self._request("DELETE", "/api/v1/order", data=data, signed=True)
-                    
-                    # Update execution state
-                    execution_state["status"] = "executed"
-                    execution_state["response"] = response
-                    
-                    # POST-CANCELLATION VERIFICATION
-                    # Wait briefly then verify the order is no longer active
-                    await asyncio.sleep(0.5)  # Short delay to allow cancellation to process
-                    
-                    try:
-                        verification_orders = await self.get_open_orders(symbol)
-                        still_active = any(order.id == order_id for order in verification_orders)
-                        
-                        if still_active:
-                            logger.warning(f"[{self.exchange_name}] Order {order_id} still appears active after cancellation")
-                            # In production: implement more sophisticated verification
-                        else:
-                            logger.info(f"[{self.exchange_name}] Verified order {order_id} is no longer active")
-                    except Exception as e:
-                        logger.warning(f"[{self.exchange_name}] Failed to verify cancellation status: {e}")
-                    
-                    logger.info(f"[{self.exchange_name}] Order {order_id} canceled successfully")
-                    
-                    # Final execution state update
-                    execution_state["status"] = "completed"
-                    
-                    # In production: store execution state in a persistent store
-                    
-                    success = True
-                    break
-                    
-                except APIError as e:
-                    # Only retry on specific error types (rate limits, temporary issues)
-                    if "rate limit" in str(e).lower() or "timeout" in str(e).lower():
-                        logger.warning(f"[{self.exchange_name}] Retrying order cancellation after error: {e}, "
-                                     f"Attempt {attempt + 1}/{max_retries}")
-                        await asyncio.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
-                    else:
-                        # Check if the error indicates the order doesn't exist or is already filled
-                        order_not_found = "order not found" in str(e).lower() or "does not exist" in str(e).lower()
-                        already_filled = "filled" in str(e).lower() or "executed" in str(e).lower()
-                        
-                        if order_not_found or already_filled:
-                            logger.info(f"[{self.exchange_name}] Order {order_id} already filled or doesn't exist")
-                            execution_state["status"] = "completed_not_found"
-                            return True  # Consider this a success
-                        
-                        execution_state["status"] = "failed"
-                        execution_state["error"] = str(e)
-                        raise
-                except Exception as e:
-                    execution_state["status"] = "failed"
-                    execution_state["error"] = str(e)
-                    logger.error(f"[{self.exchange_name}] Unexpected error cancelling order: {e}", exc_info=True)
-                    break
-            
-            return success
-            
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] Error cancelling order: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Unexpected error cancelling order: {e}", exc_info=True)
-            return False
-        finally:
-            # In production: always store final execution state for recovery/auditing
-            pass
 
     async def fetch_ticker(self, symbol: str) -> Ticker:
         """Fetch ticker information for a symbol."""
