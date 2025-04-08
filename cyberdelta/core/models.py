@@ -1,134 +1,132 @@
-import time
-from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Dict, List
+from dataclasses import dataclass
+from typing import List, Tuple, Optional, Dict, Any
+import time
+from datetime import datetime
+
 
 class OrderSide(Enum):
-    BUY = "BUY"
-    SELL = "SELL"
+    """Enum representing the side of an order (BUY or SELL)."""
+    BUY = "buy"
+    SELL = "sell"
+
 
 class OrderType(Enum):
-    MARKET = "MARKET"
-    LIMIT = "LIMIT"
+    """Enum representing the type of an order."""
+    LIMIT = "limit"
+    MARKET = "market"
+    STOP = "stop"
+    STOP_LIMIT = "stop_limit"
+    TAKE_PROFIT = "take_profit"
+    TAKE_PROFIT_LIMIT = "take_profit_limit"
 
-class OrderStatus(Enum):
-    NEW = "NEW"
-    PARTIALLY_FILLED = "PARTIALLY_FILLED"
-    FILLED = "FILLED"
-    CANCELED = "CANCELED"
-    REJECTED = "REJECTED"
-    EXPIRED = "EXPIRED"
-
-class TimeInForce(Enum):
-    GTC = "GTC"  # Good 'Til Canceled
-    IOC = "IOC"  # Immediate or Cancel
-    FOK = "FOK"  # Fill or Kill
-
-@dataclass
-class Ticker:
-    symbol: str
-    timestamp: float = field(default_factory=time.time)
-    last_price: Optional[float] = None
-    bid_price: Optional[float] = None
-    ask_price: Optional[float] = None
-    volume_24h: Optional[float] = None
-
-@dataclass
-class OrderBookLevel:
-    price: float
-    quantity: float
-
-@dataclass
-class OrderBook:
-    symbol: str
-    timestamp: float = field(default_factory=time.time)
-    bids: List[OrderBookLevel] = field(default_factory=list)
-    asks: List[OrderBookLevel] = field(default_factory=list)
-
-@dataclass
-class Trade:
-    symbol: str
-    trade_id: str
-    timestamp: float # Exchange timestamp if available, otherwise reception time
-    price: float
-    quantity: float
-    side: OrderSide
-    is_taker: Optional[bool] = None
-
-@dataclass
-class FundingRate:
-    symbol: str
-    timestamp: float = field(default_factory=time.time)
-    predicted_rate: Optional[float] = None # Rate for the next interval
-    mark_price: Optional[float] = None
-    index_price: Optional[float] = None
-    time_to_next_funding: Optional[float] = None # Seconds
 
 @dataclass
 class Balance:
+    """Represents an account balance for a single asset."""
     asset: str
-    total: float
-    available: float # Total - Locked in orders/positions
+    free: float = 0.0  # Amount available for use
+    locked: float = 0.0  # Amount locked in orders
+    total: float = 0.0  # Total balance (free + locked)
+
 
 @dataclass
 class Position:
+    """Represents an open position."""
     symbol: str
-    side: OrderSide # Long (BUY) or Short (SELL)
-    quantity: float
-    entry_price: float
-    mark_price: Optional[float] = None
-    unrealized_pnl: Optional[float] = None
-    leverage: Optional[float] = None
-    liquidation_price: Optional[float] = None
-    margin: Optional[float] = None
+    size: float  # Position size (absolute value)
+    entry_price: float  # Average entry price
+    mark_price: float  # Current mark price
+    liquidation_price: float = 0.0  # Liquidation price
+    unrealized_pnl: float = 0.0  # Unrealized profit/loss
+    leverage: float = 1.0  # Position leverage
+    side: OrderSide = OrderSide.BUY  # Position side (long/short)
+    
 
 @dataclass
 class Order:
-    order_id: str # Exchange-provided ID
-    client_order_id: Optional[str] = None # Optional ID provided by us
+    """Represents an order."""
+    id: str  # Exchange order ID
+    symbol: str  # Trading pair symbol
+    side: OrderSide  # BUY or SELL
+    type: OrderType  # LIMIT, MARKET, etc.
+    price: float  # Order price
+    quantity: float  # Order quantity
+    filled_quantity: float = 0.0  # Executed quantity
+    status: str = ""  # Order status (NEW, FILLED, CANCELED, etc.)
+    time: int = 0  # Order creation time (timestamp)
+    client_order_id: str = ""  # Custom client order ID
+    reduce_only: bool = False  # Whether the order is reduce-only
+
+
+@dataclass
+class Trade:
+    """Represents a trade execution."""
+    id: str  # Trade ID
+    symbol: str  # Trading pair symbol
+    price: float  # Execution price
+    quantity: float  # Executed quantity
+    time: int  # Execution time (timestamp)
+    side: OrderSide  # BUY or SELL
+    fee: float = 0.0  # Fee paid
+    fee_asset: str = ""  # Asset in which fee was paid
+
+
+@dataclass
+class Ticker:
+    """Represents ticker information for a symbol."""
     symbol: str
-    side: OrderSide
-    order_type: OrderType
-    quantity: float
-    price: Optional[float] = None # Required for LIMIT orders
-    status: OrderStatus
-    time_in_force: Optional[TimeInForce] = None
-    filled_quantity: float = 0.0
-    average_fill_price: Optional[float] = None
-    created_at: float = field(default_factory=time.time) # Timestamp when created by our system
-    updated_at: float = field(default_factory=time.time) # Timestamp of last update from exchange
+    price: float  # Last price
+    bid: float = 0.0  # Best bid price
+    ask: float = 0.0  # Best ask price
+    volume: float = 0.0  # 24h volume
+    timestamp: int = 0  # Ticker timestamp
+
 
 @dataclass
+class OrderBook:
+    """Represents an order book for a symbol."""
+    symbol: str
+    bids: List[Tuple[float, float]]  # List of [price, quantity] for bids
+    asks: List[Tuple[float, float]]  # List of [price, quantity] for asks
+    timestamp: int = 0  # Order book timestamp
+
+
+@dataclass
+class FundingRate:
+    """Represents funding rate information for a perpetual contract."""
+    symbol: str
+    funding_rate: float  # Current funding rate
+    predicted_rate: float = 0.0  # Predicted next funding rate
+    mark_price: float = 0.0  # Current mark price
+    index_price: float = 0.0  # Current index price
+    next_funding_time: int = 0  # Next funding timestamp
+    historical_rates: List[Dict[str, Any]] = None  # Historical funding rates
+
+
 class ArbitrageOpportunity:
-    # Identifies the specific opportunity (e.g., HL_vs_BP_BTC-PERP)
-    opportunity_id: str
-    # Cross-exchange or single-exchange
-    opportunity_type: str # 'cross' or 'single'
-    # List of symbols involved (e.g., ['BTC-PERP@HL', 'BTC-PERP@BP'])
-    legs: List[str]
-    # Calculated expected profit (net of estimated costs)
-    expected_profit_adj: float
-    # Calculated basis volatility relevant to this opportunity
-    basis_volatility: float
-    # Calculated Utility Score
-    utility_score: float
-    # Recommended size (constrained by risk, collateral, Kelly)
-    recommended_size: float
-    # Details for execution (e.g., side per leg)
-    execution_details: Dict = field(default_factory=dict)
-    timestamp: float = field(default_factory=time.time)
-
-@dataclass
-class TransferInfo:
-    transfer_id: str # Our internal ID or bridge/exchange ID
-    asset: str
-    amount: float
-    source_exchange: str
-    destination_exchange: str
-    status: str # PENDING, CONFIRMING, COMPLETED, FAILED
-    start_time: float = field(default_factory=time.time)
-    end_time: Optional[float] = None
-    tx_hash: Optional[str] = None
-    path_details: Dict = field(default_factory=dict) # e.g., {'type': 'bridge', 'name': 'across', 'steps': ...}
-
-# Add more models as needed (e.g., OraclePrice, MarketVolatility) 
+    """Represents a funding rate arbitrage opportunity."""
+    
+    def __init__(
+        self,
+        asset: Dict[str, str],  # Contains symbol and exchange information
+        funding_rate: float,  # Current funding rate
+        expected_return: float,  # Expected return (annualized)
+        optimal_size: float,  # Optimal position size
+        side: OrderSide,  # Position side (BUY or SELL)
+        confidence: float,  # Confidence level (0-1)
+        timestamp: datetime  # When the opportunity was identified
+    ):
+        self.asset = asset
+        self.funding_rate = funding_rate
+        self.expected_return = expected_return
+        self.optimal_size = optimal_size
+        self.side = side
+        self.confidence = confidence
+        self.timestamp = timestamp
+        self.expiration = timestamp.timestamp() + 3600  # 1 hour expiration
+    
+    @property
+    def is_expired(self) -> bool:
+        """Check if the opportunity has expired."""
+        return time.time() > self.expiration 
