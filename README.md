@@ -57,6 +57,7 @@ CyberDeltaEngine is designed to identify and exploit funding rate differentials 
 - **Data Handler**: Collects and processes market data from exchanges
 - **Portfolio Tracker**: Tracks positions, balances, and orders across exchanges
 - **Signal Generator**: Identifies funding rate arbitrage opportunities
+- **Strategy Manager**: Manages multiple trading strategies, controls their lifecycle, and distributes market data
 - **Risk Manager**: Evaluates and sizes trading opportunities based on risk parameters
 - **Execution Handler**: Executes trades on exchanges with error handling
 - **Balance Monitor**: Monitors exchange balances and generates alerts
@@ -74,6 +75,17 @@ The primary strategy for v0.0.1 is the `FundingRateArbitrageStrategy` which:
 5. Implements a utility function for opportunity ranking
 6. Takes delta-neutral positions across exchanges (perp on Hyperliquid, spot on Backpack)
 7. Monitors and rebalances positions as needed
+
+## Strategy Management
+
+The `StrategyManager` component provides centralized management of trading strategies:
+
+1. **Strategy Registration**: Register and unregister strategies dynamically
+2. **Lifecycle Control**: Enable, disable, start, and stop strategies
+3. **Market Data Distribution**: Route market data to appropriate strategies based on symbols
+4. **Signal Collection**: Collect and prioritize signals from multiple strategies
+5. **Risk Integration**: Apply consistent risk management across strategies
+6. **Performance Tracking**: Monitor strategy performance metrics
 
 ## Validation and Safety Systems
 
@@ -293,4 +305,122 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Backtesting Framework
+
+The CyberDeltaEngine includes a comprehensive backtesting framework for testing and evaluating trading strategies before deploying them in live markets.
+
+### Backtesting Features
+
+- **Strategy Testing**: Backtest strategies with historical or synthetic data
+- **Performance Metrics**: Calculate key metrics including returns, Sharpe ratio, drawdowns, and win rates
+- **Visualization**: Generate equity curves and drawdown charts
+- **Data Splitting**: Built-in training/testing data splits for strategy optimization
+- **Results Export**: Save backtest results as JSON for further analysis
+- **Strategy Adaptation**: Adapter pattern to use production strategies in backtests
+- **Transaction Cost Modeling**: Account for commissions and slippage
+
+### Using the Backtesting Framework
+
+Basic usage with a custom strategy:
+
+```python
+from cyberdelta.core.backtesting import BacktestEngine, BacktestStrategy, generate_synthetic_data
+
+# Create or load your data
+data = generate_synthetic_data(days=60, symbols=['BTC-PERP', 'ETH-PERP'], data_type='funding_rate')
+
+# Create your strategy (implementing the BacktestStrategy interface)
+class MyStrategy(BacktestStrategy):
+    def __init__(self):
+        super().__init__("MyCustomStrategy")
+        
+    def initialize(self, data):
+        # Strategy initialization logic here
+        return True
+        
+    def update(self, current_data):
+        # Strategy update logic here
+        signals = []
+        # Generate signals based on current_data
+        return {'signals': signals}
+
+# Create strategy instance
+strategy = MyStrategy()
+
+# Create backtest engine
+engine = BacktestEngine(
+    strategy=strategy,
+    data=data,
+    initial_capital=100000.0,
+    commission=0.001,  # 0.1% commission
+    slippage=0.001     # 0.1% slippage
+)
+
+# Run backtest
+results = engine.run(training_portion=0.3)
+
+# Plot and save results
+engine.plot_results(show=True)
+engine.save_results("my_strategy_results.json")
+```
+
+### Testing Production Strategies
+
+To backtest actual production strategies:
+
+```python
+from cyberdelta.core.backtesting import BacktestEngine, StrategyAdapter
+from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
+
+# Create dependencies (or mocks)
+data_handler = ...
+portfolio_tracker = ...
+execution_handler = ...
+
+# Create your production strategy
+strategy = FundingRateArbitrageStrategy(
+    name="funding_arb_test",
+    symbol="BTC-PERP",
+    data_handler=data_handler,
+    portfolio_tracker=portfolio_tracker,
+    execution_handler=execution_handler,
+    params={"min_funding_differential": 0.01}
+)
+
+# Create adapter
+adapter = StrategyAdapter(strategy)
+
+# Create backtest engine with adapter
+engine = BacktestEngine(
+    strategy=adapter,
+    data=historical_data,
+    initial_capital=100000.0
+)
+
+# Run backtest
+results = engine.run()
+```
+
+### Synthetic Data Generation
+
+The framework includes utilities for generating synthetic test data:
+
+```python
+from cyberdelta.core.backtesting import generate_synthetic_data
+
+# Generate funding rate data
+funding_data = generate_synthetic_data(
+    days=60,
+    symbols=['BTC-PERP', 'ETH-PERP', 'SOL-PERP'],
+    data_type='funding_rate'
+)
+
+# Generate price data
+price_data = generate_synthetic_data(
+    days=100,
+    symbols=['BTC', 'ETH'],
+    data_type='price'
+)
+``` 

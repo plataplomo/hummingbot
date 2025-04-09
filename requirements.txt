@@ -4,6 +4,7 @@ numpy>=1.26.0
 PyYAML>=6.0
 python-dotenv>=1.0.0
 ed25519>=1.5
+matplotlib>=3.8.0
 
 # Testing
 pytest>=7.0.0

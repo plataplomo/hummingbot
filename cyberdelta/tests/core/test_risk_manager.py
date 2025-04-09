@@ -280,16 +280,265 @@ class TestRiskManager:
                 assert sized_opportunities[i-1].risk_adjusted_return >= sized_opportunities[i].risk_adjusted_return
     
     def test_validate_opportunities_all_invalid(self, risk_manager, sample_opportunity, portfolio_tracker):
-        """Test validating opportunities when all are invalid."""
+        """Test validating a list of opportunities where all are invalid."""
         # Set up portfolio tracker to make all opportunities fail constraints
         portfolio_tracker.get_total_exposure.return_value = 20000.0  # Already at max
         
-        # Create a list of opportunities
-        opportunities = [sample_opportunity]
+        # Run validation on a list with one opportunity
+        valid_opportunities = risk_manager.validate_opportunities([sample_opportunity])
         
-        # Call the method
-        sized_opportunities = risk_manager.validate_opportunities(opportunities)
+        # Should return empty list
+        assert isinstance(valid_opportunities, list)
+        assert len(valid_opportunities) == 0
+    
+    def test_apply_volatility_adjustment_normal_volatility(self, risk_manager):
+        """Test volatility adjustment with normal market volatility."""
+        # Mock data handler for volatility data
+        risk_manager.data_handler = MagicMock()
+        risk_manager.data_handler.get_recent_volatility.return_value = 0.02  # 2% recent volatility
+        risk_manager.data_handler.get_historical_volatility.return_value = 0.015  # 1.5% baseline volatility
         
-        # Verify empty list is returned
-        assert isinstance(sized_opportunities, list)
-        assert len(sized_opportunities) == 0 
+        # Set up configuration 
+        risk_manager.config.get.side_effect = lambda key, default=None: {
+            'risk.volatility_scaling_factor': 0.7,
+            'risk.max_volatility_reduction': 0.8,
+            'risk.volatility_ratio_threshold': 1.5
+        }.get(key, default)
+        
+        # Test with volatility ratio of 1.33 (below threshold)
+        base_size = 1000.0
+        adjusted_size = risk_manager._apply_volatility_adjustment(
+            base_size, 'BTC', 'hyperliquid', 'backpack'
+        )
+        
+        # Volatility is below threshold, so no adjustment
+        assert adjusted_size == base_size
+    
+    def test_apply_volatility_adjustment_high_volatility(self, risk_manager):
+        """Test volatility adjustment with elevated market volatility."""
+        # Mock data handler for volatility data
+        risk_manager.data_handler = MagicMock()
+        risk_manager.data_handler.get_recent_volatility.return_value = 0.045  # 4.5% recent volatility
+        risk_manager.data_handler.get_historical_volatility.return_value = 0.015  # 1.5% baseline volatility
+        
+        # Set up configuration 
+        risk_manager.config.get.side_effect = lambda key, default=None: {
+            'risk.volatility_scaling_factor': 0.7,
+            'risk.max_volatility_reduction': 0.8,
+            'risk.volatility_ratio_threshold': 1.5
+        }.get(key, default)
+        
+        # Test with volatility ratio of 3.0 (above threshold)
+        base_size = 1000.0
+        adjusted_size = risk_manager._apply_volatility_adjustment(
+            base_size, 'BTC', 'hyperliquid', 'backpack'
+        )
+        
+        # Expected reduction: 0.7 * (3.0 - 1.5) = 1.05, capped at 0.8
+        # Adjustment factor = 1.0 - 0.8 = 0.2
+        expected_size = base_size * 0.2
+        
+        # Should reduce position size due to high volatility
+        assert adjusted_size == expected_size
+    
+    def test_apply_volatility_adjustment_no_data(self, risk_manager):
+        """Test volatility adjustment handling when data is missing."""
+        # Mock data handler returning None for volatility
+        risk_manager.data_handler = MagicMock()
+        risk_manager.data_handler.get_recent_volatility.return_value = None
+        risk_manager.data_handler.get_historical_volatility.return_value = 0.015
+        
+        # Test with missing data
+        base_size = 1000.0
+        adjusted_size = risk_manager._apply_volatility_adjustment(
+            base_size, 'BTC', 'hyperliquid', 'backpack'
+        )
+        
+        # Should return original size when data is missing
+        assert adjusted_size == base_size
+    
+    def test_apply_drawdown_protection_no_drawdown(self, risk_manager):
+        """Test drawdown protection with no current drawdown."""
+        # Mock portfolio tracker
+        risk_manager.portfolio_tracker.get_current_drawdown.return_value = 0.0
+        
+        # Set configuration
+        risk_manager.config.get.side_effect = lambda key, default=None: {
+            'risk.max_drawdown': 0.2,
+            'risk.drawdown_scaling_factor': 2.0,
+            'risk.min_drawdown_sizing_factor': 0.1
+        }.get(key, default)
+        
+        # Test with no drawdown
+        base_size = 1000.0
+        adjusted_size = risk_manager._apply_drawdown_protection(
+            base_size, 'hyperliquid', 'backpack'
+        )
+        
+        # No drawdown, so no adjustment
+        assert adjusted_size == base_size
+    
+    def test_apply_drawdown_protection_significant_drawdown(self, risk_manager):
+        """Test drawdown protection with significant drawdown."""
+        # Mock portfolio tracker with 15% drawdown
+        risk_manager.portfolio_tracker.get_current_drawdown.return_value = 0.15
+        
+        # Set configuration
+        risk_manager.config.get.side_effect = lambda key, default=None: {
+            'risk.max_drawdown': 0.2,
+            'risk.drawdown_scaling_factor': 2.0,
+            'risk.min_drawdown_sizing_factor': 0.1
+        }.get(key, default)
+        
+        # Test with significant drawdown (15% of 20% max)
+        base_size = 1000.0
+        adjusted_size = risk_manager._apply_drawdown_protection(
+            base_size, 'hyperliquid', 'backpack'
+        )
+        
+        # Calculate expected size:
+        # drawdown_ratio = 0.15 / 0.2 = 0.75
+        # ratio > 0.5, so calculate sizing_factor
+        # sizing_factor = 1.0 - ((0.75 - 0.5) * 2.0 * (1.0 - 0.1))
+        # = 1.0 - (0.25 * 2.0 * 0.9) = 1.0 - 0.45 = 0.55
+        expected_size = base_size * 0.55
+        
+        # Should reduce position size due to drawdown
+        assert abs(adjusted_size - expected_size) < 0.01  # Allow for small floating point differences
+    
+    def test_apply_correlation_limits_no_positions(self, risk_manager):
+        """Test correlation limits with no existing positions."""
+        # Mock data handler
+        risk_manager.data_handler = MagicMock()
+        
+        # Mock portfolio tracker with no active positions
+        risk_manager.portfolio_tracker.get_active_positions.return_value = {}
+        
+        # Set configuration
+        risk_manager.config.get.side_effect = lambda key, default=None: {
+            'risk.correlation_threshold': 0.7,
+            'risk.max_correlation_group_exposure': 0.3
+        }.get(key, default)
+        
+        # Test with no active positions
+        base_size = 1000.0
+        adjusted_size = risk_manager._apply_correlation_limits(base_size, 'BTC')
+        
+        # No positions, so no adjustment
+        assert adjusted_size == base_size
+    
+    def test_apply_correlation_limits_correlated_assets(self, risk_manager):
+        """Test correlation limits with correlated existing positions."""
+        # Mock data handler with correlation data
+        risk_manager.data_handler = MagicMock()
+        risk_manager.data_handler.get_correlation.side_effect = lambda symbol1, symbol2, days: {
+            ('BTC', 'ETH'): 0.85,  # Highly correlated
+            ('BTC', 'SOL'): 0.65,  # Below threshold
+            ('BTC', 'BNB'): 0.75   # Above threshold
+        }.get((symbol1, symbol2), None)
+        
+        # Mock active positions
+        mock_eth_position = MagicMock()
+        mock_eth_position.size_usd = 20000.0
+        
+        mock_sol_position = MagicMock()
+        mock_sol_position.size_usd = 10000.0
+        
+        mock_bnb_position = MagicMock()
+        mock_bnb_position.size_usd = 5000.0
+        
+        risk_manager.portfolio_tracker.get_active_positions.return_value = {
+            'ETH': mock_eth_position,
+            'SOL': mock_sol_position,
+            'BNB': mock_bnb_position
+        }
+        
+        # Configure total capital
+        risk_manager.portfolio_tracker.get_total_capital.return_value = 100000.0
+        
+        # Set configuration
+        risk_manager.config.get.side_effect = lambda key, default=None: {
+            'risk.correlation_threshold': 0.7,
+            'risk.max_correlation_group_exposure': 0.3
+        }.get(key, default)
+        
+        # Test with correlated assets
+        base_size = 10000.0
+        adjusted_size = risk_manager._apply_correlation_limits(base_size, 'BTC')
+        
+        # Calculate expected size:
+        # Correlated symbols: ETH (0.85) and BNB (0.75)
+        # Total correlated exposure: 20000 + 5000 = 25000
+        # Correlation ratio: 25000 / 100000 = 0.25
+        # Max additional: (0.3 - 0.25) * 100000 = 5000
+        expected_size = 5000.0
+        
+        # Should reduce position size due to correlation limits
+        assert adjusted_size == expected_size
+    
+    def test_apply_portfolio_level_controls_normal_conditions(self, risk_manager):
+        """Test portfolio-level controls under normal market conditions."""
+        # Mock portfolio tracker
+        risk_manager.portfolio_tracker.get_total_capital.return_value = 100000.0
+        risk_manager.portfolio_tracker.get_active_positions.return_value = {}
+        
+        # Set configuration
+        risk_manager.config.get.side_effect = lambda key, default=None: {
+            'risk.max_leverage': 3.0,
+            'risk.target_leverage': 2.0,
+            'risk.max_exposure_per_strategy': 0.4,
+            'risk.max_exchange_concentration': 0.6,
+            'risk.risk_parity_factor': 0.5
+        }.get(key, default)
+        
+        # Create opportunity
+        opportunity = MagicMock()
+        opportunity.symbol = 'BTC'
+        opportunity.long_exchange = 'hyperliquid'
+        opportunity.short_exchange = 'backpack'
+        opportunity.basis_volatility = 0.01
+        
+        # Test under normal conditions
+        base_size = 1000.0
+        adjusted_size = risk_manager._apply_portfolio_level_controls(base_size, opportunity)
+        
+        # No portfolio constraints triggered, so no adjustment
+        assert adjusted_size == base_size
+    
+    def test_apply_portfolio_level_controls_high_leverage(self, risk_manager):
+        """Test portfolio-level controls with high leverage."""
+        # Mock active positions for high exposure
+        mock_position1 = MagicMock()
+        mock_position1.size_usd = 150000.0
+        mock_position1.exchange = 'hyperliquid'
+        mock_position1.volatility = 0.01
+        
+        risk_manager.portfolio_tracker.get_active_positions.return_value = {
+            'ETH': mock_position1
+        }
+        
+        # Configure total capital and exposure
+        risk_manager.portfolio_tracker.get_total_capital.return_value = 100000.0
+        
+        # Set configuration
+        risk_manager.config.get.side_effect = lambda key, default=None: {
+            'risk.max_leverage': 3.0,
+            'risk.target_leverage': 2.0,
+            'risk.max_exposure_per_strategy': 0.4,
+            'risk.max_exchange_concentration': 0.6,
+            'risk.risk_parity_factor': 0.5
+        }.get(key, default)
+        
+        # Create opportunity
+        opportunity = MagicMock()
+        opportunity.symbol = 'BTC'
+        opportunity.long_exchange = 'hyperliquid'
+        opportunity.short_exchange = 'backpack'
+        opportunity.basis_volatility = 0.01
+        
+        # Test with high leverage
+        base_size = 1000.0
+        adjusted_size = risk_manager._apply_portfolio_level_controls(base_size, opportunity)
+        
+        # Should reduce size due to high leverage
+        assert adjusted_size < base_size 

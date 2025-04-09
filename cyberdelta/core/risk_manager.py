@@ -6,6 +6,7 @@ import math
 from cyberdelta.core.signal_generator import ArbitrageOpportunity
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.utils.config import Config
+from cyberdelta.core.types import TradeSignal
 
 logger = logging.getLogger(__name__)
 
@@ -249,17 +250,6 @@ class RiskManager:
         
         # Apply correlation-based exposure limits if we have other active positions
         active_positions = self.portfolio_tracker.get_active_positions()
-        if active_positions:
-            # Get correlation data from portfolio tracker or data handler (simplified here)
-            # In a real implementation, this would use historical correlation data
-            correlated_exposure = self._calculate_correlated_exposure(symbol, active_positions)
-            correlated_exposure_ratio = correlated_exposure / total_capital
-            
-            # Calculate available room for correlated exposure
-            available_correlated = max(0, self.max_correlated_exposure - correlated_exposure_ratio) * total_capital
-            
-            # Update available exposure with correlation constraint
-            available_exposure = min(available_exposure, available_correlated)
         
         # Determine maximum position size based on available exposure
         # For a balanced arbitrage position, we need room for both sides
@@ -272,6 +262,130 @@ class RiskManager:
             logger.info(f"Position size reduced from ${base_size:.2f} to ${adjusted_size:.2f} due to portfolio exposure limits")
         
         return adjusted_size
+    
+    def _apply_portfolio_level_controls(self, 
+                                      base_size: float, 
+                                      opportunity: ArbitrageOpportunity) -> float:
+        """
+        Apply comprehensive portfolio-level controls to manage overall risk
+        
+        Args:
+            base_size: Base position size after previous adjustments
+            opportunity: The arbitrage opportunity
+            
+        Returns:
+            Position size adjusted for portfolio-level controls
+        """
+        # Configuration parameters
+        MAX_LEVERAGE = self.config.get('risk.max_leverage', 3.0)
+        TARGET_LEVERAGE = self.config.get('risk.target_leverage', 2.0)
+        MAX_EXPOSURE_PER_STRATEGY = self.config.get('risk.max_exposure_per_strategy', 0.4)  # 40% max per strategy
+        MAX_EXCHANGE_CONCENTRATION = self.config.get('risk.max_exchange_concentration', 0.6)  # 60% max on any exchange
+        RISK_PARITY_FACTOR = self.config.get('risk.risk_parity_factor', 0.5)  # How strongly to enforce risk parity
+        
+        total_capital = self.portfolio_tracker.get_total_capital()
+        if total_capital <= 0:
+            logger.warning("Cannot apply portfolio-level controls: total capital is zero or negative")
+            return base_size
+        
+        symbol = opportunity.symbol
+        long_exchange = opportunity.long_exchange
+        short_exchange = opportunity.short_exchange
+        strategy_type = getattr(opportunity, 'strategy_type', 'funding_rate_arbitrage')
+        
+        # Get current portfolio state
+        exchange_exposures = {}
+        strategy_exposures = {}
+        total_exposure = 0.0
+        total_risk = 0.0
+        
+        # Collect current exposures and risk levels
+        active_positions = self.portfolio_tracker.get_active_positions()
+        for pos_symbol, position in active_positions.items():
+            # Accumulate exposures by exchange
+            pos_exchange = position.exchange
+            if pos_exchange not in exchange_exposures:
+                exchange_exposures[pos_exchange] = 0.0
+            exchange_exposures[pos_exchange] += position.size_usd
+            
+            # Accumulate exposures by strategy
+            pos_strategy = getattr(position, 'strategy_type', 'funding_rate_arbitrage')
+            if pos_strategy not in strategy_exposures:
+                strategy_exposures[pos_strategy] = 0.0
+            strategy_exposures[pos_strategy] += position.size_usd
+            
+            # Accumulate total exposure
+            total_exposure += position.size_usd
+            
+            # Accumulate risk (weighted by volatility)
+            position_volatility = getattr(position, 'volatility', 0.01)  # Default if not available
+            total_risk += position.size_usd * position_volatility
+        
+        # Calculate portfolio-level metrics
+        current_leverage = total_exposure / total_capital if total_capital > 0 else 0
+        
+        # Get opportunity-specific metrics
+        opportunity_volatility = opportunity.basis_volatility
+        
+        # Apply risk-parity adjustment if we have existing positions
+        risk_parity_size = base_size
+        if total_risk > 0 and opportunity_volatility > 0:
+            # Calculate target risk contribution based on existing portfolio
+            # Higher RISK_PARITY_FACTOR = stronger enforcement of risk parity
+            target_risk_contrib = (total_risk / total_exposure) if total_exposure > 0 else opportunity_volatility
+            risk_weight = target_risk_contrib / opportunity_volatility
+            risk_adjustment = (risk_weight ** RISK_PARITY_FACTOR)  # Dampen the adjustment
+            risk_parity_size = base_size * risk_adjustment
+            logger.debug(f"Risk parity adjustment: {risk_adjustment:.2f}")
+        
+        # Apply leverage constraints
+        leverage_adjusted_size = base_size
+        if current_leverage >= TARGET_LEVERAGE:
+            # We're at or above target leverage, reduce position size
+            leverage_factor = max(0.0, (MAX_LEVERAGE - current_leverage) / (MAX_LEVERAGE - TARGET_LEVERAGE))
+            leverage_adjusted_size = base_size * leverage_factor
+            logger.debug(f"Leverage control: current={current_leverage:.2f}x, factor={leverage_factor:.2f}")
+            
+        # Apply strategy concentration limits
+        strategy_adjusted_size = base_size
+        current_strategy_exposure = strategy_exposures.get(strategy_type, 0.0)
+        strategy_ratio = current_strategy_exposure / total_capital
+        if strategy_ratio >= MAX_EXPOSURE_PER_STRATEGY:
+            # Already at max for this strategy
+            strategy_adjusted_size = 0.0
+            logger.debug(f"Strategy {strategy_type} at maximum exposure ({strategy_ratio:.2%})")
+        else:
+            available_strategy_room = (MAX_EXPOSURE_PER_STRATEGY - strategy_ratio) * total_capital
+            strategy_adjusted_size = min(base_size, available_strategy_room)
+            
+        # Apply exchange concentration limits
+        exchange_adjusted_size = base_size
+        for exchange in [long_exchange, short_exchange]:
+            current_exchange_exposure = exchange_exposures.get(exchange, 0.0)
+            exchange_ratio = current_exchange_exposure / total_capital
+            if exchange_ratio >= MAX_EXCHANGE_CONCENTRATION:
+                # Already at max for this exchange
+                exchange_adjusted_size = 0.0
+                logger.debug(f"Exchange {exchange} at maximum concentration ({exchange_ratio:.2%})")
+                break
+            else:
+                available_exchange_room = (MAX_EXCHANGE_CONCENTRATION - exchange_ratio) * total_capital
+                exchange_adjusted_size = min(exchange_adjusted_size, available_exchange_room)
+        
+        # Take the most restrictive adjustment
+        final_size = min(
+            risk_parity_size,
+            leverage_adjusted_size,
+            strategy_adjusted_size,
+            exchange_adjusted_size,
+            base_size  # Never increase size
+        )
+        
+        # Log significant adjustments
+        if final_size < base_size * 0.9:  # More than 10% reduction
+            logger.info(f"Portfolio-level controls reduced position size: ${base_size:.2f} -> ${final_size:.2f}")
+            
+        return final_size
     
     def _calculate_correlated_exposure(self, symbol: str, active_positions: List[Dict[str, Any]]) -> float:
         """
@@ -305,54 +419,270 @@ class RiskManager:
                                        opportunity: ArbitrageOpportunity, 
                                        base_size: float) -> float:
         """
-        Apply adjustments based on safety systems like circuit breakers and validators.
+        Apply adjustments based on safety systems (circuit breakers, validation metrics).
         
         Args:
             opportunity: Arbitrage opportunity
-            base_size: Base position size
+            base_size: Base position size from portfolio constraints
             
         Returns:
-            Adjusted position size respecting safety systems
+            Adjusted position size
         """
-        adjusted_size = base_size
+        # Check circuit breaker status first
+        cb_adjustment = 1.0
         
-        # Adjust based on circuit breaker status
+        # Apply circuit breaker adjustments if system available
         if self.circuit_breaker_system:
-            # Check circuit breakers for symbol and exchanges
-            symbol = opportunity.symbol
-            long_exchange = opportunity.long_exchange
-            short_exchange = opportunity.short_exchange
+            # Check breakers related to the exchanges
+            long_breaker_status = self.circuit_breaker_system.get_status(
+                "exchange", opportunity.long_exchange)
+            short_breaker_status = self.circuit_breaker_system.get_status(
+                "exchange", opportunity.short_exchange)
             
-            # Check symbol circuit breaker
-            symbol_state = self.circuit_breaker_system.get_status(f"symbol:{symbol}")
-            long_state = self.circuit_breaker_system.get_status(f"exchange:{long_exchange}")
-            short_state = self.circuit_breaker_system.get_status(f"exchange:{short_exchange}")
+            # Check symbol-specific breakers
+            symbol_breaker_status = self.circuit_breaker_system.get_status(
+                "symbol", opportunity.symbol)
             
-            # If any circuit breaker is fully open, return zero size
-            if "OPEN" in [symbol_state, long_state, short_state]:
-                logger.warning(f"Circuit breaker active, preventing trade for {symbol}")
-                return 0.0
-            
-            # If any circuit breaker is in recovery mode, reduce size
-            if "HALF_OPEN" in [symbol_state, long_state, short_state]:
-                logger.info(f"Circuit breaker in recovery mode, reducing position size")
-                adjusted_size *= self.circuit_breaker_recovery_factor
+            # Determine most restrictive breaker
+            if any(status in ["OPEN", "HALF_OPEN"] for status in [long_breaker_status, short_breaker_status, symbol_breaker_status]):
+                logger.info(f"Circuit breaker active for opportunity: {opportunity.symbol}, "
+                           f"{opportunity.long_exchange}, {opportunity.short_exchange}")
+                
+                # In recovery mode (HALF_OPEN), allow smaller position sizes
+                if any(status == "HALF_OPEN" for status in [long_breaker_status, short_breaker_status, symbol_breaker_status]):
+                    cb_adjustment = self.circuit_breaker_recovery_factor
+                else:
+                    # Breaker fully open - no trades
+                    return 0.0
+                    
+        # Next, check validation metrics
+        validation_adjustment = 1.0
         
-        # Adjust based on funding rate validation metrics
-        if self.funding_rate_validator:
-            # Get validation metrics for both exchanges
-            long_metrics = self._get_validation_metrics(opportunity.long_exchange, symbol)
-            short_metrics = self._get_validation_metrics(opportunity.short_exchange, symbol)
-            
-            # Use the worst metrics to adjust size
-            validation_factor = min(long_metrics, short_metrics)
-            adjusted_size *= validation_factor
-            
-            if validation_factor < 1.0:
-                logger.info(f"Position size reduced to {validation_factor:.2f}x due to funding rate validation metrics")
+        # Get validation metrics for both sides
+        long_validation = self._get_validation_metrics(opportunity.long_exchange, opportunity.symbol)
+        short_validation = self._get_validation_metrics(opportunity.short_exchange, opportunity.symbol)
         
-        return adjusted_size
-    
+        # Use more conservative validation factor
+        validation_adjustment = min(long_validation, short_validation)
+        
+        # Apply compound adjustment
+        final_adjustment = min(cb_adjustment, validation_adjustment)
+        
+        return base_size * final_adjustment
+        
+    def _apply_volatility_adjustment(
+        self, 
+        base_size: float, 
+        symbol: str, 
+        long_exchange: str,
+        short_exchange: str
+    ) -> float:
+        """
+        Adjust position size based on recent market volatility
+        
+        Args:
+            base_size: Base position size from Kelly calculation
+            symbol: Trading symbol
+            long_exchange: Exchange for long position
+            short_exchange: Exchange for short position
+            
+        Returns:
+            Volatility-adjusted position size
+        """
+        # Constants for volatility adjustment
+        VOLATILITY_SCALING_FACTOR = self.config.get('risk.volatility_scaling_factor', 0.7)
+        MAX_VOLATILITY_REDUCTION = self.config.get('risk.max_volatility_reduction', 0.8)  # Maximum 80% reduction
+        VOLATILITY_RATIO_THRESHOLD = self.config.get('risk.volatility_ratio_threshold', 1.5)  # Threshold above which we reduce position
+        
+        # Assume data_handler is accessible through portfolio_tracker or directly
+        # In a real implementation, this would be injected or accessible through a service
+        data_handler = getattr(self, 'data_handler', None)
+        if not data_handler:
+            logger.warning("No data handler available for volatility adjustment")
+            return base_size
+        
+        # Get recent volatility data for both exchanges
+        try:
+            # Get recent volatility (e.g., 3-day)
+            long_recent_vol = data_handler.get_recent_volatility(long_exchange, symbol, days=3)
+            short_recent_vol = data_handler.get_recent_volatility(short_exchange, symbol, days=3)
+            
+            # Get baseline volatility (e.g., 30-day average)
+            long_baseline_vol = data_handler.get_historical_volatility(long_exchange, symbol, days=30)
+            short_baseline_vol = data_handler.get_historical_volatility(short_exchange, symbol, days=30)
+            
+            # Skip adjustment if data is missing
+            if any(vol is None for vol in [long_recent_vol, short_recent_vol, long_baseline_vol, short_baseline_vol]):
+                logger.debug(f"Missing volatility data for {symbol} on {long_exchange} or {short_exchange}")
+                return base_size
+                
+            # Skip adjustment if baseline volatility is zero or near-zero
+            if long_baseline_vol < 0.0001 or short_baseline_vol < 0.0001:
+                logger.debug(f"Baseline volatility too low for {symbol}")
+                return base_size
+                
+            # Calculate volatility ratios
+            long_vol_ratio = long_recent_vol / long_baseline_vol
+            short_vol_ratio = short_recent_vol / short_baseline_vol
+            
+            # Use the higher ratio (more conservative approach)
+            vol_ratio = max(long_vol_ratio, short_vol_ratio)
+            
+            # Calculate adjustment factor
+            # Higher recent volatility = lower position size
+            if vol_ratio > VOLATILITY_RATIO_THRESHOLD:
+                # Volatility is above threshold, reduce position size
+                # The reduction increases as vol_ratio increases
+                reduction_factor = min(
+                    MAX_VOLATILITY_REDUCTION,
+                    VOLATILITY_SCALING_FACTOR * (vol_ratio - VOLATILITY_RATIO_THRESHOLD)
+                )
+                adjustment_factor = 1.0 - reduction_factor
+                
+                # Ensure adjustment factor is at least 0.2 (never reduce by more than 80%)
+                adjustment_factor = max(1.0 - MAX_VOLATILITY_REDUCTION, adjustment_factor)
+                
+                logger.info(f"Reducing position size for {symbol} due to high volatility: "
+                           f"ratio={vol_ratio:.2f}, adjustment={adjustment_factor:.2f}")
+                
+                return base_size * adjustment_factor
+            else:
+                # Volatility is within acceptable range, no adjustment needed
+                return base_size
+                
+        except Exception as e:
+            logger.error(f"Error calculating volatility adjustment: {e}", exc_info=True)
+            return base_size  # In case of error, return unadjusted size
+
+    def _apply_drawdown_protection(
+        self, 
+        base_size: float,
+        long_exchange: str,
+        short_exchange: str
+    ) -> float:
+        """
+        Implement drawdown protection to reduce position sizes during periods of losses
+        
+        Args:
+            base_size: Base position size after previous adjustments
+            long_exchange: Exchange for long position
+            short_exchange: Exchange for short position
+            
+        Returns:
+            Position size adjusted for drawdown protection
+        """
+        # Configuration parameters
+        MAX_DRAWDOWN = self.config.get('risk.max_drawdown', 0.2)  # 20% max drawdown
+        DRAWDOWN_SCALING_FACTOR = self.config.get('risk.drawdown_scaling_factor', 2.0)  # How aggressively to scale down
+        MIN_SIZING_FACTOR = self.config.get('risk.min_drawdown_sizing_factor', 0.1)  # Minimum 10% of normal size
+        
+        # Get current drawdown from portfolio tracker
+        current_drawdown = self.portfolio_tracker.get_current_drawdown()
+        
+        # If drawdown exceeds threshold, reduce position size
+        if current_drawdown > 0:
+            # Calculate reduction factor based on drawdown relative to max allowed
+            drawdown_ratio = current_drawdown / MAX_DRAWDOWN
+            
+            if drawdown_ratio > 0.5:  # If we're past half of max drawdown
+                # Scale down position size based on drawdown ratio
+                # As drawdown approaches MAX_DRAWDOWN, sizing approaches MIN_SIZING_FACTOR
+                sizing_factor = 1.0 - ((drawdown_ratio - 0.5) * 2.0 * (1.0 - MIN_SIZING_FACTOR))
+                
+                # Ensure we never go below minimum sizing
+                sizing_factor = max(MIN_SIZING_FACTOR, sizing_factor)
+                
+                logger.info(f"Reducing position size due to drawdown protection: "
+                           f"current drawdown={current_drawdown:.2%}, sizing factor={sizing_factor:.2f}")
+                
+                return base_size * sizing_factor
+                
+        # If drawdown is within acceptable range, return base size
+        return base_size
+
+    def _apply_correlation_limits(
+        self, 
+        base_size: float, 
+        symbol: str
+    ) -> float:
+        """
+        Apply position size limits based on correlation with existing positions
+        
+        Args:
+            base_size: Base position size after previous adjustments
+            symbol: Trading symbol
+            
+        Returns:
+            Position size adjusted for correlation limits
+        """
+        # Configuration parameters
+        CORRELATION_THRESHOLD = self.config.get('risk.correlation_threshold', 0.7)  # Correlation threshold for limiting exposure
+        MAX_CORRELATION_GROUP_EXPOSURE = self.config.get('risk.max_correlation_group_exposure', 0.3)  # Max 30% of capital in correlated assets
+        
+        # Skip if we have no data handler for correlation calculations
+        data_handler = getattr(self, 'data_handler', None)
+        if not data_handler:
+            logger.warning("No data handler available for correlation calculation")
+            return base_size
+        
+        # Get active positions from portfolio tracker
+        active_positions = self.portfolio_tracker.get_active_positions()
+        if not active_positions:
+            # No active positions, so no correlation concerns
+            return base_size
+        
+        # Get total capital
+        total_capital = self.portfolio_tracker.get_total_capital()
+        if total_capital <= 0:
+            logger.warning("Total capital is zero or negative")
+            return base_size
+        
+        try:
+            # Calculate current exposure to correlated assets
+            correlated_symbols = []
+            correlated_exposure = 0.0
+            
+            # Identify correlated assets
+            for pos_symbol, position in active_positions.items():
+                if pos_symbol == symbol:
+                    # Skip the current symbol itself
+                    continue
+                    
+                # Calculate correlation between symbol and current position
+                correlation = data_handler.get_correlation(symbol, pos_symbol, days=30)
+                
+                # If correlation exceeds threshold, add to correlated group
+                if correlation is not None and abs(correlation) >= CORRELATION_THRESHOLD:
+                    correlated_symbols.append(pos_symbol)
+                    correlated_exposure += position.size_usd
+                    logger.debug(f"Symbol {symbol} correlated with {pos_symbol}: {correlation:.2f}")
+            
+            # If we have correlated assets, apply exposure limits
+            if correlated_symbols:
+                # Calculate current correlation group exposure ratio
+                correlated_ratio = correlated_exposure / total_capital
+                
+                # Calculate maximum additional exposure allowed
+                max_additional = (MAX_CORRELATION_GROUP_EXPOSURE - correlated_ratio) * total_capital
+                
+                # Ensure it's not negative
+                max_additional = max(0, max_additional)
+                
+                if max_additional < base_size:
+                    logger.info(f"Reducing position size due to correlation limits: "
+                               f"{base_size:.2f} -> {max_additional:.2f} "
+                               f"(correlated with {', '.join(correlated_symbols)})")
+                    return max_additional
+            
+            # No correlated assets or within limits
+            return base_size
+            
+        except Exception as e:
+            logger.error(f"Error applying correlation limits: {e}", exc_info=True)
+            # In case of error, return unadjusted size but with a warning
+            logger.warning("Using unadjusted position size due to correlation calculation error")
+            return base_size
+
     def _get_validation_metrics(self, exchange: str, symbol: str) -> float:
         """
         Get validation metrics adjustment factor for an exchange/symbol pair.
@@ -426,11 +756,35 @@ class RiskManager:
         # Apply exchange risk modifier
         modified_size = raw_size * exchange_modifier
         
+        # Apply volatility-based position scaling
+        volatility_adjusted_size = self._apply_volatility_adjustment(
+            modified_size,
+            opportunity.symbol,
+            opportunity.long_exchange,
+            opportunity.short_exchange
+        )
+        
+        # Apply drawdown protection
+        drawdown_adjusted_size = self._apply_drawdown_protection(
+            volatility_adjusted_size,
+            opportunity.long_exchange,
+            opportunity.short_exchange
+        )
+        
+        # Apply correlation-based position limits
+        correlation_adjusted_size = self._apply_correlation_limits(
+            drawdown_adjusted_size,
+            opportunity.symbol
+        )
+        
         # Apply portfolio exposure management
-        exposure_adjusted_size = self._apply_portfolio_exposure_management(opportunity, modified_size)
+        exposure_adjusted_size = self._apply_portfolio_exposure_management(opportunity, correlation_adjusted_size)
+        
+        # Apply portfolio-level controls
+        portfolio_adjusted_size = self._apply_portfolio_level_controls(exposure_adjusted_size, opportunity)
         
         # Apply safety system adjustments (circuit breakers, validation metrics)
-        safety_adjusted_size = self._apply_safety_system_adjustments(opportunity, exposure_adjusted_size)
+        safety_adjusted_size = self._apply_safety_system_adjustments(opportunity, portfolio_adjusted_size)
         
         # Apply absolute position size cap
         capped_size = min(safety_adjusted_size, self.max_position_size)
@@ -553,3 +907,95 @@ class RiskManager:
             "status": status,
             "timestamp": datetime.now().timestamp()
         }
+
+    def size_signal(self, signal: TradeSignal) -> TradeSignal:
+        """
+        Apply position sizing to a trade signal.
+        
+        Args:
+            signal: The trade signal to size
+            
+        Returns:
+            Sized trade signal with adjusted quantities
+        """
+        if signal is None:
+            return None
+            
+        # Extract key information from the signal
+        symbol = signal.symbol
+        exchange_id = signal.exchange_id
+        direction = signal.direction
+        
+        # Get total available capital
+        total_capital = self.portfolio_tracker.get_total_capital()
+        exchange_balance = self.portfolio_tracker.get_exchange_balance(exchange_id)
+        
+        # Check if we have any capital to work with
+        if total_capital <= 0 or exchange_balance <= 0:
+            logger.warning(f"Insufficient capital to size signal for {symbol} on {exchange_id}")
+            return signal
+            
+        # Calculate base position size
+        # For simplicity, we'll start with a fixed percentage of exchange balance
+        # In practice, this would use the Kelly criterion or other risk-based sizing
+        base_size_usd = exchange_balance * 0.1  # 10% of exchange balance
+        
+        # Apply position limits
+        max_position_size = self.max_position_size
+        
+        # Apply exchange-specific risk modifier
+        exchange_modifier = self.exchange_risk_modifiers.get(exchange_id, 1.0)
+        adjusted_size_usd = min(base_size_usd, max_position_size) * exchange_modifier
+        
+        # Apply portfolio constraints
+        # Check if adding this position would exceed total exposure limits
+        current_exposure = self.portfolio_tracker.get_total_exposure()
+        if current_exposure + adjusted_size_usd > self.max_total_exposure:
+            # Scale down to fit within limits
+            available_exposure = max(0, self.max_total_exposure - current_exposure)
+            adjusted_size_usd = min(adjusted_size_usd, available_exposure)
+            logger.info(f"Sizing limited by total exposure constraint: ${adjusted_size_usd:.2f}")
+        
+        # Apply symbol-specific exposure limit
+        symbol_exposure = self.portfolio_tracker.get_symbol_exposure(symbol)
+        max_symbol_exposure = total_capital * self.max_exposure_per_asset
+        if symbol_exposure + adjusted_size_usd > max_symbol_exposure:
+            available_symbol_exposure = max(0, max_symbol_exposure - symbol_exposure)
+            adjusted_size_usd = min(adjusted_size_usd, available_symbol_exposure)
+            logger.info(f"Sizing limited by symbol exposure constraint: ${adjusted_size_usd:.2f}")
+        
+        # Apply exchange-specific exposure limit
+        exchange_exposure = self.portfolio_tracker.get_exchange_exposure(exchange_id)
+        max_exchange_exposure = total_capital * self.max_exposure_per_exchange
+        if exchange_exposure + adjusted_size_usd > max_exchange_exposure:
+            available_exchange_exposure = max(0, max_exchange_exposure - exchange_exposure)
+            adjusted_size_usd = min(adjusted_size_usd, available_exchange_exposure)
+            logger.info(f"Sizing limited by exchange exposure constraint: ${adjusted_size_usd:.2f}")
+        
+        # Apply any safety system adjustments
+        if self.circuit_breaker_system and self.circuit_breaker_system.is_active():
+            adjusted_size_usd *= self.circuit_breaker_recovery_factor
+            logger.info(f"Circuit breaker active - reducing size to ${adjusted_size_usd:.2f}")
+        
+        # Create a copy of the signal with the updated size
+        sized_signal = TradeSignal(
+            id=signal.id,
+            timestamp=signal.timestamp,
+            symbol=signal.symbol,
+            exchange_id=signal.exchange_id,
+            direction=signal.direction,
+            price=signal.price,
+            quantity=adjusted_size_usd / signal.price if signal.price > 0 else 0,  # Convert USD to quantity
+            signal_type=signal.signal_type,
+            confidence=signal.confidence,
+            expiration=signal.expiration,
+            metadata={
+                **signal.metadata,  # Preserve existing metadata
+                "original_quantity": signal.quantity,
+                "sized_usd": adjusted_size_usd,
+                "risk_manager_applied": True
+            }
+        )
+        
+        logger.info(f"Sized signal for {symbol} on {exchange_id}: ${adjusted_size_usd:.2f}")
+        return sized_signal
