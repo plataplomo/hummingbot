@@ -1,0 +1,120 @@
+# CyberDeltaEngine Configuration Example for Prototype 0.0.1
+# This is an example file. Copy to config.yaml and modify as needed.
+
+# General settings
+general:
+  log_level: INFO  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  safe_mode: true  # Start in safe mode (read-only)
+  state_file: "data/state.json"  # Path to state persistence file
+  state_backup_directory: "data/state_backups"  # Directory for state backups
+  state_save_interval: 300  # Seconds between state saves
+  state_backup_count: 5     # Number of previous state files to keep
+
+# Exchange configuration
+exchanges:
+  hyperliquid:
+    enabled: true  # Set to false to disable this exchange
+    api_base_url: "https://api.hyperliquid.xyz"
+    ws_url: "wss://api.hyperliquid.xyz/ws"
+    rate_limit_per_minute: 120  # API rate limit
+    
+  backpack:
+    enabled: true  # Set to false to disable this exchange
+    api_base_url: "https://api.backpack.exchange"
+    ws_url: "wss://ws.backpack.exchange"
+    rate_limit_per_minute: 120  # API rate limit
+
+# Strategy configuration
+strategies:
+  # Hyperliquid Perpetual vs Backpack Spot Strategy
+  hl_perp_bp_spot:
+    enabled: true  # Set to false to disable this strategy
+    symbols:
+      hl_symbol: "BTC"  # Symbol for Hyperliquid
+      bp_symbol: "BTC_USDC"  # Symbol for Backpack
+    params:
+      funding_threshold: 0.0001  # 0.01% min funding rate to trigger trades
+      min_spread: 0.0002  # 0.02% max price spread between exchanges
+      min_profit_usd: 1.0  # Minimum profit in USD to execute a trade
+    
+  # Hyperliquid Perpetual vs Backpack Perpetual Strategy (Experimental)
+  hl_perp_bp_perp:
+    enabled: false  # Disabled by default until primary strategy is proven
+    symbols:
+      hl_symbol: "BTC"  # Symbol for Hyperliquid
+      bp_symbol: "BTC-PERP"  # Symbol for Backpack
+    params:
+      min_funding_diff: 0.0002  # 0.02% min funding differential between exchanges
+      max_basis_spread: 0.005  # 0.5% max basis spread
+      min_profit_usd: 2.0  # Higher min profit for riskier strategy
+
+# Risk management
+risk:
+  global:
+    max_position_usd: 1000.0  # Maximum position size in USD
+    max_total_exposure_usd: 5000.0  # Maximum total exposure across all positions
+    max_portfolio_leverage: 2.0  # Maximum leverage across portfolio
+  
+  strategies:
+    # Strategy-specific risk parameters
+    hl_perp_bp_spot:
+      max_position_usd: 1000.0  # Maximum position size for this strategy
+      max_leverage: 3.0  # Maximum leverage for this strategy
+    
+    hl_perp_bp_perp:
+      max_position_usd: 500.0  # More conservative limit for experimental strategy
+      max_leverage: 1.5  # More conservative leverage for experimental strategy
+
+# Execution parameters
+execution:
+  max_slippage: 0.002  # 0.2% max allowed slippage
+  max_retries: 3  # Maximum retry attempts for failed API calls
+  retry_delay_base: 1.0  # Base delay for exponential backoff (seconds)
+
+# Circuit breaker configuration
+circuit_breakers:
+  enabled: true  # Master switch for all circuit breakers
+  global:
+    failure_threshold: 3  # Number of failures before circuit opens
+    reset_timeout: 300  # 5 minutes timeout before half-open state
+  
+  # Exchange-specific circuit breaker settings
+  hyperliquid:
+    failure_threshold: 3
+  
+  backpack:
+    failure_threshold: 3
+
+# Validation systems
+validation:
+  funding_rates:
+    enabled: true
+    max_error_threshold: 0.0005  # 0.05% max tolerated error in funding rate
+    check_interval_seconds: 300  # 5 minutes between validation checks
+  
+  positions:
+    enabled: true
+    reconcile_interval_seconds: 600  # 10 minutes between reconciliation
+    max_discrepancy_pct: 0.05  # 5% max discrepancy allowed
+
+# Monitoring and Notifications
+monitoring:
+  balance_check_interval: 300  # Seconds between balance checks
+  min_balance_thresholds:
+    hyperliquid: 100.0  # Minimum USD balance for alerts
+    backpack: 100.0  # Minimum USD balance for alerts
+  
+notifications:
+  enabled: true  # Master switch for all notifications
+  methods:
+    telegram:
+      enabled: true  # Enable Telegram notifications
+    discord:
+      enabled: true  # Enable Discord notifications
+  
+  # Notification triggers
+  alerts:
+    low_balance: true  # Alert when balance is below threshold
+    position_reconciliation_error: true  # Alert on position reconciliation errors
+    execution_error: true  # Alert on execution errors
+    circuit_breaker_triggered: true  # Alert when circuit breaker triggers 
