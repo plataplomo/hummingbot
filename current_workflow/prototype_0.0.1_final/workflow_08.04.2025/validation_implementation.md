@@ -21,11 +21,11 @@ cyberdelta/
         └── test_funding_rate_validator.py
 ```
 
-The implementation follows a database-backed approach with SQLite, which offers several benefits:
-- Persistent storage of predictions and actual payments
-- Efficient querying and analysis capabilities
-- Simple deployment with no external database dependencies
-- Easy backup and restoration
+The implementation uses a simple in-memory approach with Python data structures, which offers several benefits:
+- Lightweight with minimal dependencies
+- Simple implementation and maintenance
+- Fast access and manipulation of data
+- Easy to understand and debug
 
 ### Core Components
 
@@ -33,33 +33,41 @@ The implementation follows a database-backed approach with SQLite, which offers 
 
 The main `FundingRateValidator` class provides the following functionality:
 
-- **Database Management**: Creation and management of SQLite tables for storing predictions and payments
+- **Data Storage**: In-memory storage of predictions and actual payments
 - **Prediction Recording**: Recording of funding rate predictions with metadata
 - **Payment Recording**: Recording of actual funding payments received
 - **Metric Calculation**: Computation of accuracy metrics (RMSE, MAE, bias)
 - **Reporting**: Generation of validation reports and historical data
 
-#### 2. Database Schema
+#### 2. Data Structures
 
-Two primary tables are used to store validation data:
+Two primary lists store validation data:
 
-**funding_predictions**:
-- `id`: Primary key
-- `timestamp`: Time when prediction was made
-- `exchange`: Exchange identifier
-- `symbol`: Trading symbol
-- `predicted_rate`: Predicted funding rate
-- `prediction_method`: Method used for prediction (api, model, etc.)
-- `confidence`: Confidence level in prediction (0-1)
+**predictions**: List of dictionaries with the following structure:
+```python
+{
+    "timestamp": int,  # Millisecond timestamp
+    "datetime": datetime,  # Python datetime object
+    "exchange": str,  # Exchange identifier
+    "symbol": str,  # Trading symbol
+    "predicted_rate": float,  # Predicted funding rate
+    "method": str,  # Prediction method used (api, model, etc.)
+    "confidence": float  # Confidence level (0-1)
+}
+```
 
-**funding_payments**:
-- `id`: Primary key
-- `timestamp`: Time when payment was received
-- `exchange`: Exchange identifier
-- `symbol`: Trading symbol
-- `actual_rate`: Actual funding rate applied
-- `payment_amount`: Amount of funding paid/received
-- `position_size`: Position size at time of payment
+**payments**: List of dictionaries with the following structure:
+```python
+{
+    "timestamp": int,  # Millisecond timestamp
+    "datetime": datetime,  # Python datetime object
+    "exchange": str,  # Exchange identifier
+    "symbol": str,  # Trading symbol
+    "actual_rate": float,  # Actual funding rate
+    "payment_amount": float,  # Amount paid/received
+    "position_size": float  # Position size at time of payment
+}
+```
 
 ### Key Features
 
@@ -89,12 +97,12 @@ The system maintains a historical record of all predictions and payments, enabli
 - Visualization of prediction accuracy over time
 - Identification of market conditions where predictions are less reliable
 
-#### 4. Validation Reporting
+#### 4. Data Management
 
-Comprehensive validation reports can be generated on demand, showing:
-- Prediction accuracy by exchange and symbol
-- Confidence-weighted metrics
-- Missing or incomplete prediction coverage
+The system includes features for managing the in-memory data:
+- Filtering by exchange, symbol, and time range
+- Retrieving recent predictions and payments
+- Clearing old data to manage memory usage
 
 ## Integration Points
 
@@ -175,6 +183,13 @@ for exchange, symbols in report.items():
         print(f"  {symbol}: RMSE={metrics['rmse']:.6f}, MAE={metrics['mae']:.6f}")
 ```
 
+### Managing Data
+
+```python
+# Clear old data to manage memory usage
+validator.clear_old_data(days_to_keep=90)
+```
+
 ## Future Improvements
 
 The current implementation lays a solid foundation for funding rate validation, with several potential enhancements for future development:
@@ -184,6 +199,7 @@ The current implementation lays a solid foundation for funding rate validation, 
 3. **Machine Learning Integration**: Use historical prediction-actual pairs to train ML models
 4. **Alert System**: Implement alerts for significant prediction errors
 5. **Auto-Correction**: Develop mechanisms to automatically adjust predictions based on historical accuracy
+6. **Persistent Storage**: Add optional serialization to disk for long-term data storage
 
 ## Conclusion
 

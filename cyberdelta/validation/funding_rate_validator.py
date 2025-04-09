@@ -6,14 +6,11 @@ against actual payments received/paid.
 """
 
 import logging
-import sqlite3
 import time
-import os
-import math
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
-import pandas as pd
-import numpy as np
+import statistics
+import math
 
 class FundingRateValidator:
     """
@@ -31,53 +28,9 @@ class FundingRateValidator:
         self.config = config
         self.logger = logging.getLogger(__name__)
         
-        # Database for tracking predictions and actuals
-        self.db_path = config.get("validation.db_path", "data/validation.db")
-        
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        
-        # Initialize the database
-        self._init_db()
-    
-    def _init_db(self):
-        """Initialize the SQLite database for storing validation data"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # Create tables if they don't exist
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS funding_predictions (
-            id INTEGER PRIMARY KEY,
-            timestamp INTEGER,
-            exchange TEXT,
-            symbol TEXT,
-            predicted_rate REAL,
-            prediction_method TEXT,
-            confidence REAL
-        )
-        ''')
-        
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS funding_payments (
-            id INTEGER PRIMARY KEY,
-            timestamp INTEGER,
-            exchange TEXT,
-            symbol TEXT,
-            actual_rate REAL,
-            payment_amount REAL,
-            position_size REAL
-        )
-        ''')
-        
-        conn.commit()
-        conn.close()
-        
-        self.logger.info(f"Initialized funding rate validation database at {self.db_path}")
-    
-    def _get_db_connection(self) -> sqlite3.Connection:
-        """Get a database connection."""
-        return sqlite3.connect(self.db_path)
+        # Simple in-memory storage for predictions and payments
+        self.predictions = []
+        self.payments = []
     
     def record_prediction(self, exchange: str, symbol: str, 
                           predicted_rate: float, 
@@ -95,18 +48,17 @@ class FundingRateValidator:
         """
         timestamp = int(time.time() * 1000)
         
-        conn = self._get_db_connection()
-        cursor = conn.cursor()
+        prediction = {
+            "timestamp": timestamp,
+            "datetime": datetime.fromtimestamp(timestamp / 1000),
+            "exchange": exchange,
+            "symbol": symbol,
+            "predicted_rate": predicted_rate,
+            "method": method,
+            "confidence": confidence
+        }
         
-        cursor.execute(
-            "INSERT INTO funding_predictions (timestamp, exchange, symbol, predicted_rate, prediction_method, confidence) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (timestamp, exchange, symbol, predicted_rate, method, confidence)
-        )
-        
-        conn.commit()
-        conn.close()
-        
+        self.predictions.append(prediction)
         self.logger.debug(f"Recorded funding rate prediction: {exchange}/{symbol}, rate={predicted_rate:.6f}, method={method}")
     
     def record_payment(self, exchange: str, symbol: str, 
@@ -124,18 +76,17 @@ class FundingRateValidator:
         """
         timestamp = int(time.time() * 1000)
         
-        conn = self._get_db_connection()
-        cursor = conn.cursor()
+        payment = {
+            "timestamp": timestamp,
+            "datetime": datetime.fromtimestamp(timestamp / 1000),
+            "exchange": exchange,
+            "symbol": symbol,
+            "actual_rate": actual_rate,
+            "payment_amount": payment_amount,
+            "position_size": position_size
+        }
         
-        cursor.execute(
-            "INSERT INTO funding_payments (timestamp, exchange, symbol, actual_rate, payment_amount, position_size) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (timestamp, exchange, symbol, actual_rate, payment_amount, position_size)
-        )
-        
-        conn.commit()
-        conn.close()
-        
+        self.payments.append(payment)
         self.logger.info(f"Recorded funding payment: {exchange}/{symbol}, rate={actual_rate:.6f}, amount={payment_amount:.8f}")
     
     def calculate_metrics(self, exchange: str, symbol: str, days: int = 7) -> Dict[str, float]:
@@ -151,52 +102,50 @@ class FundingRateValidator:
             Dictionary with accuracy metrics (RMSE, MAE, bias, etc.)
         """
         # Calculate time threshold (milliseconds)
-        threshold = int((time.time() - (days * 86400)) * 1000)
+        threshold_time = datetime.now() - timedelta(days=days)
+        threshold_ms = int(threshold_time.timestamp() * 1000)
         
-        conn = self._get_db_connection()
+        # Filter predictions for the given exchange, symbol, and time range
+        filtered_predictions = [
+            p for p in self.predictions
+            if p["exchange"] == exchange and p["symbol"] == symbol and p["timestamp"] >= threshold_ms
+        ]
         
-        # Get predictions and payments within time range
-        predictions_df = pd.read_sql_query(
-            "SELECT timestamp, predicted_rate, prediction_method, confidence FROM funding_predictions "
-            "WHERE exchange = ? AND symbol = ? AND timestamp >= ? "
-            "ORDER BY timestamp",
-            conn, params=(exchange, symbol, threshold)
-        )
-        
-        payments_df = pd.read_sql_query(
-            "SELECT timestamp, actual_rate FROM funding_payments "
-            "WHERE exchange = ? AND symbol = ? AND timestamp >= ? "
-            "ORDER BY timestamp",
-            conn, params=(exchange, symbol, threshold)
-        )
-        
-        conn.close()
+        # Filter payments for the given exchange, symbol, and time range
+        filtered_payments = [
+            p for p in self.payments
+            if p["exchange"] == exchange and p["symbol"] == symbol and p["timestamp"] >= threshold_ms
+        ]
         
         # If we don't have enough data, return empty metrics
-        if len(predictions_df) == 0 or len(payments_df) == 0:
+        if not filtered_predictions or not filtered_payments:
             self.logger.warning(f"Insufficient data to calculate metrics for {exchange}/{symbol}")
             return {
                 "rmse": None,
                 "mae": None,
                 "bias": None,
-                "prediction_count": len(predictions_df),
-                "payment_count": len(payments_df)
+                "prediction_count": len(filtered_predictions),
+                "payment_count": len(filtered_payments)
             }
+        
+        # Sort by timestamp
+        filtered_predictions.sort(key=lambda x: x["timestamp"])
+        filtered_payments.sort(key=lambda x: x["timestamp"])
         
         # Merge predictions with closest actual payments
         # For each payment, find the most recent prediction before the payment
         merged_data = []
-        for _, payment_row in payments_df.iterrows():
-            payment_time = payment_row["timestamp"]
-            actual_rate = payment_row["actual_rate"]
+        for payment in filtered_payments:
+            payment_time = payment["timestamp"]
+            actual_rate = payment["actual_rate"]
             
             # Find the most recent prediction before this payment
-            relevant_predictions = predictions_df[predictions_df["timestamp"] < payment_time]
-            if len(relevant_predictions) > 0:
-                # Get the most recent prediction
-                latest_prediction = relevant_predictions.iloc[-1]
+            relevant_predictions = [p for p in filtered_predictions if p["timestamp"] < payment_time]
+            if relevant_predictions:
+                # Get the most recent prediction before the payment
+                latest_prediction = max(relevant_predictions, key=lambda x: x["timestamp"])
                 predicted_rate = latest_prediction["predicted_rate"]
-                method = latest_prediction["prediction_method"]
+                method = latest_prediction["method"]
                 confidence = latest_prediction["confidence"]
                 
                 merged_data.append({
@@ -209,30 +158,28 @@ class FundingRateValidator:
                 })
         
         # If we couldn't match any predictions with payments
-        if len(merged_data) == 0:
+        if not merged_data:
             self.logger.warning(f"No matching prediction-payment pairs for {exchange}/{symbol}")
             return {
                 "rmse": None,
                 "mae": None,
                 "bias": None,
-                "prediction_count": len(predictions_df),
-                "payment_count": len(payments_df)
+                "prediction_count": len(filtered_predictions),
+                "payment_count": len(filtered_payments)
             }
         
-        # Convert to DataFrame for calculations
-        df = pd.DataFrame(merged_data)
-        
         # Calculate metrics
-        rmse = math.sqrt(np.mean(df["error"] ** 2))
-        mae = np.mean(np.abs(df["error"]))
-        bias = np.mean(df["error"])
+        errors = [item["error"] for item in merged_data]
+        rmse = math.sqrt(sum(e ** 2 for e in errors) / len(errors))
+        mae = sum(abs(e) for e in errors) / len(errors)
+        bias = sum(errors) / len(errors)
         
         metrics = {
             "rmse": rmse,
             "mae": mae,
             "bias": bias,
-            "prediction_count": len(predictions_df),
-            "payment_count": len(payments_df),
+            "prediction_count": len(filtered_predictions),
+            "payment_count": len(filtered_payments),
             "matched_count": len(merged_data)
         }
         
@@ -249,22 +196,18 @@ class FundingRateValidator:
         Returns:
             Dictionary with validation metrics by exchange and symbol
         """
-        conn = self._get_db_connection()
+        # Get unique exchange-symbol pairs from all predictions and payments
+        exchange_symbols = set()
         
-        # Get unique exchange-symbol pairs
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT DISTINCT exchange, symbol FROM funding_payments "
-            "UNION "
-            "SELECT DISTINCT exchange, symbol FROM funding_predictions"
-        )
-        pairs = cursor.fetchall()
-        
-        conn.close()
+        for prediction in self.predictions:
+            exchange_symbols.add((prediction["exchange"], prediction["symbol"]))
+            
+        for payment in self.payments:
+            exchange_symbols.add((payment["exchange"], payment["symbol"]))
         
         # Generate report for each pair
         report = {}
-        for exchange, symbol in pairs:
+        for exchange, symbol in exchange_symbols:
             if exchange not in report:
                 report[exchange] = {}
                 
@@ -286,46 +229,18 @@ class FundingRateValidator:
         Returns:
             List of prediction records
         """
-        conn = self._get_db_connection()
-        cursor = conn.cursor()
+        # Filter predictions
+        filtered_predictions = self.predictions
         
-        query = "SELECT timestamp, exchange, symbol, predicted_rate, prediction_method, confidence FROM funding_predictions "
-        params = []
-        
-        if exchange or symbol:
-            query += "WHERE "
-            conditions = []
+        if exchange:
+            filtered_predictions = [p for p in filtered_predictions if p["exchange"] == exchange]
             
-            if exchange:
-                conditions.append("exchange = ?")
-                params.append(exchange)
-                
-            if symbol:
-                conditions.append("symbol = ?")
-                params.append(symbol)
-                
-            query += " AND ".join(conditions)
+        if symbol:
+            filtered_predictions = [p for p in filtered_predictions if p["symbol"] == symbol]
         
-        query += " ORDER BY timestamp DESC LIMIT ?"
-        params.append(limit)
-        
-        cursor.execute(query, params)
-        
-        predictions = []
-        for row in cursor.fetchall():
-            timestamp, exchange, symbol, rate, method, confidence = row
-            predictions.append({
-                "timestamp": timestamp,
-                "datetime": datetime.fromtimestamp(timestamp / 1000),
-                "exchange": exchange,
-                "symbol": symbol,
-                "predicted_rate": rate,
-                "method": method,
-                "confidence": confidence
-            })
-        
-        conn.close()
-        return predictions
+        # Sort by timestamp (newest first) and apply limit
+        sorted_predictions = sorted(filtered_predictions, key=lambda x: x["timestamp"], reverse=True)
+        return sorted_predictions[:limit]
     
     def get_recent_payments(self, exchange: str = None, symbol: str = None, 
                             limit: int = 100) -> List[Dict]:
@@ -340,49 +255,21 @@ class FundingRateValidator:
         Returns:
             List of payment records
         """
-        conn = self._get_db_connection()
-        cursor = conn.cursor()
+        # Filter payments
+        filtered_payments = self.payments
         
-        query = "SELECT timestamp, exchange, symbol, actual_rate, payment_amount, position_size FROM funding_payments "
-        params = []
-        
-        if exchange or symbol:
-            query += "WHERE "
-            conditions = []
+        if exchange:
+            filtered_payments = [p for p in filtered_payments if p["exchange"] == exchange]
             
-            if exchange:
-                conditions.append("exchange = ?")
-                params.append(exchange)
-                
-            if symbol:
-                conditions.append("symbol = ?")
-                params.append(symbol)
-                
-            query += " AND ".join(conditions)
+        if symbol:
+            filtered_payments = [p for p in filtered_payments if p["symbol"] == symbol]
         
-        query += " ORDER BY timestamp DESC LIMIT ?"
-        params.append(limit)
-        
-        cursor.execute(query, params)
-        
-        payments = []
-        for row in cursor.fetchall():
-            timestamp, exchange, symbol, rate, amount, size = row
-            payments.append({
-                "timestamp": timestamp,
-                "datetime": datetime.fromtimestamp(timestamp / 1000),
-                "exchange": exchange,
-                "symbol": symbol,
-                "actual_rate": rate,
-                "payment_amount": amount,
-                "position_size": size
-            })
-        
-        conn.close()
-        return payments
+        # Sort by timestamp (newest first) and apply limit
+        sorted_payments = sorted(filtered_payments, key=lambda x: x["timestamp"], reverse=True)
+        return sorted_payments[:limit]
     
     def get_prediction_history(self, exchange: str, symbol: str, 
-                               days: int = 30) -> Dict[str, List]:
+                               days: int = 30) -> Dict[str, Dict[str, List]]:
         """
         Get prediction history for a specific exchange and symbol.
         
@@ -394,45 +281,53 @@ class FundingRateValidator:
         Returns:
             Dictionary with timestamp, predicted, and actual rate lists
         """
-        # Calculate time threshold (milliseconds)
-        threshold = int((time.time() - (days * 86400)) * 1000)
+        # Calculate time threshold
+        threshold_time = datetime.now() - timedelta(days=days)
+        threshold_ms = int(threshold_time.timestamp() * 1000)
         
-        conn = self._get_db_connection()
+        # Filter predictions
+        filtered_predictions = [
+            p for p in self.predictions
+            if p["exchange"] == exchange and p["symbol"] == symbol and p["timestamp"] >= threshold_ms
+        ]
         
-        # Get predictions
-        predictions_df = pd.read_sql_query(
-            "SELECT timestamp, predicted_rate FROM funding_predictions "
-            "WHERE exchange = ? AND symbol = ? AND timestamp >= ? "
-            "ORDER BY timestamp",
-            conn, params=(exchange, symbol, threshold)
-        )
+        # Filter payments
+        filtered_payments = [
+            p for p in self.payments
+            if p["exchange"] == exchange and p["symbol"] == symbol and p["timestamp"] >= threshold_ms
+        ]
         
-        # Get payments
-        payments_df = pd.read_sql_query(
-            "SELECT timestamp, actual_rate FROM funding_payments "
-            "WHERE exchange = ? AND symbol = ? AND timestamp >= ? "
-            "ORDER BY timestamp",
-            conn, params=(exchange, symbol, threshold)
-        )
-        
-        conn.close()
-        
-        # Convert timestamps to datetime for easier visualization
-        if not predictions_df.empty:
-            predictions_df["datetime"] = pd.to_datetime(predictions_df["timestamp"], unit="ms")
-        
-        if not payments_df.empty:
-            payments_df["datetime"] = pd.to_datetime(payments_df["timestamp"], unit="ms")
+        # Sort by timestamp
+        filtered_predictions.sort(key=lambda x: x["timestamp"])
+        filtered_payments.sort(key=lambda x: x["timestamp"])
         
         return {
             "predictions": {
-                "timestamps": predictions_df["timestamp"].tolist() if not predictions_df.empty else [],
-                "datetimes": predictions_df["datetime"].tolist() if not predictions_df.empty else [],
-                "rates": predictions_df["predicted_rate"].tolist() if not predictions_df.empty else []
+                "timestamps": [p["timestamp"] for p in filtered_predictions],
+                "datetimes": [p["datetime"] for p in filtered_predictions],
+                "rates": [p["predicted_rate"] for p in filtered_predictions]
             },
             "actuals": {
-                "timestamps": payments_df["timestamp"].tolist() if not payments_df.empty else [],
-                "datetimes": payments_df["datetime"].tolist() if not payments_df.empty else [],
-                "rates": payments_df["actual_rate"].tolist() if not payments_df.empty else []
+                "timestamps": [p["timestamp"] for p in filtered_payments],
+                "datetimes": [p["datetime"] for p in filtered_payments],
+                "rates": [p["actual_rate"] for p in filtered_payments]
             }
-        } 
+        }
+    
+    def clear_old_data(self, days_to_keep: int = 90):
+        """
+        Remove data older than the specified number of days.
+        
+        Args:
+            days_to_keep: Number of days of data to retain
+        """
+        threshold_time = datetime.now() - timedelta(days=days_to_keep)
+        threshold_ms = int(threshold_time.timestamp() * 1000)
+        
+        # Filter out old predictions
+        self.predictions = [p for p in self.predictions if p["timestamp"] >= threshold_ms]
+        
+        # Filter out old payments
+        self.payments = [p for p in self.payments if p["timestamp"] >= threshold_ms]
+        
+        self.logger.info(f"Cleared data older than {days_to_keep} days. Remaining: {len(self.predictions)} predictions, {len(self.payments)} payments") 

@@ -15,8 +15,8 @@ The Funding Rate Validation system has been successfully implemented, addressing
 ### Core Implementation
 
 - ✅ Implemented the `FundingRateValidator` class with comprehensive functionality
-- ✅ Created SQLite database schema for storing predictions and actual payments
-- ✅ Added data persistence mechanisms with proper file handling
+- ✅ Created in-memory data structures for storing predictions and actual payments
+- ✅ Added simple data management with time filtering
 - ✅ Implemented prediction recording with method and confidence tracking
 - ✅ Added actual payment recording with full payment details
 - ✅ Created time-based matching algorithm for prediction-actual pairs
@@ -32,7 +32,7 @@ The Funding Rate Validation system has been successfully implemented, addressing
 ### Testing
 
 - ✅ Created a comprehensive test suite for all validator functionality
-- ✅ Implemented tests for database initialization and schema validation
+- ✅ Implemented tests for data structure initialization
 - ✅ Added tests for prediction and payment recording
 - ✅ Created tests for metrics calculation with known values
 - ✅ Implemented tests for validation reporting
@@ -48,19 +48,21 @@ The Funding Rate Validation system has been successfully implemented, addressing
 
 ## Technical Implementation Details
 
-### Database Design
+### Data Structure Design
 
-The implementation uses a SQLite database with two main tables:
+The implementation uses simple in-memory Python data structures:
 
-1. **funding_predictions**:
-   - Stores predicted funding rates with metadata
-   - Includes prediction method and confidence level
-   - Timestamps all predictions for accurate matching
+1. **predictions**: A list of dictionaries containing:
+   - Prediction metadata (timestamp, exchange, symbol)
+   - Predicted funding rate value
+   - Prediction method and confidence level
+   - Python datetime objects for easy time handling
 
-2. **funding_payments**:
-   - Records actual funding payments received/paid
-   - Stores payment amount and position size
-   - Enables calculation of actual funding rate impact
+2. **payments**: A list of dictionaries containing:
+   - Payment metadata (timestamp, exchange, symbol)
+   - Actual funding rate and payment amount
+   - Position size at time of payment
+   - Python datetime objects for easy time handling
 
 ### Metrics Calculation
 
@@ -90,6 +92,15 @@ A sophisticated matching algorithm pairs predictions with actual payments:
 3. Handles cases with missing predictions or payments gracefully
 4. Supports filtering by exchange, symbol, and time range
 
+### Data Management
+
+The implementation includes features for managing the stored data:
+
+1. **Filtering**: Ability to filter data by exchange, symbol, and time range
+2. **Sorting**: Chronological and reverse chronological sorting options
+3. **Memory Management**: Methods to clear old data beyond a specified retention period
+4. **Retrieval**: Flexible methods to access specific subsets of data
+
 ## Integration Points
 
 The validation system integrates with the rest of the application at several key points:
@@ -108,11 +119,12 @@ While the core validation system is now complete, several enhancements could be 
 3. **Machine Learning Integration**: Use historical data to train prediction models
 4. **Alert System**: Implement alerts for systematic prediction errors
 5. **Auto-Adjustment**: Create automatic adjustment mechanisms for prediction algorithms
+6. **Persistent Storage**: Add optional serialization to disk for long-term storage if needed
 
 ## Development Challenges Overcome
 
-1. **Database Structure**: Designed a flexible schema that can accommodate various prediction methods
-2. **Time Matching**: Created an algorithm to correctly match predictions with actual payments
+1. **Data Structure Design**: Created efficient in-memory structures that balance simplicity with functionality
+2. **Time Matching**: Implemented an algorithm to correctly match predictions with actual payments
 3. **Metrics Calculation**: Implemented statistical measures that provide actionable insights
 4. **Test Implementation**: Developed comprehensive tests with proper isolation and mocking
 

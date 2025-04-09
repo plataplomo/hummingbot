@@ -1,3 +1,3 @@
 """
-Test suite for the validation module
+Tests for validation components of the CyberDeltaEngine.
 """ 

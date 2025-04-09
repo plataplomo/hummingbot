@@ -3,13 +3,9 @@ Tests for the FundingRateValidator class.
 """
 
 import pytest
-import sqlite3
 import time
-from unittest.mock import MagicMock, patch
-import pandas as pd
-import numpy as np
-import os
-import tempfile
+from unittest.mock import MagicMock
+from datetime import datetime, timedelta
 
 from cyberdelta.validation.funding_rate_validator import FundingRateValidator
 
@@ -19,48 +15,9 @@ class TestFundingRateValidator:
     
     @pytest.fixture
     def validator(self):
-        """Create a validator with in-memory SQLite database for testing."""
-        # Create a mock config that returns in-memory SQLite database
+        """Create a validator instance for testing."""
         config = MagicMock()
-        config.get.return_value = ":memory:"
-        
         return FundingRateValidator(config)
-    
-    @pytest.fixture
-    def validator_with_file(self):
-        """Create a validator with temporary file-based SQLite database."""
-        # Create a temporary directory for the test database
-        temp_dir = tempfile.mkdtemp()
-        db_path = os.path.join(temp_dir, "test_validation.db")
-        
-        # Create a mock config
-        config = MagicMock()
-        config.get.return_value = db_path
-        
-        validator = FundingRateValidator(config)
-        
-        yield validator
-        
-        # Clean up
-        if os.path.exists(db_path):
-            os.remove(db_path)
-        os.rmdir(temp_dir)
-    
-    def test_init_db(self, validator):
-        """Test database initialization."""
-        # Get a connection to verify tables exist
-        conn = validator._get_db_connection()
-        cursor = conn.cursor()
-        
-        # Check funding_predictions table
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='funding_predictions'")
-        assert cursor.fetchone() is not None
-        
-        # Check funding_payments table
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='funding_payments'")
-        assert cursor.fetchone() is not None
-        
-        conn.close()
     
     def test_record_prediction(self, validator):
         """Test recording a funding rate prediction."""
@@ -68,19 +25,16 @@ class TestFundingRateValidator:
         validator.record_prediction("hyperliquid", "BTC", 0.0001, "api", 0.9)
         
         # Verify it was stored
-        conn = validator._get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM funding_predictions WHERE exchange = ? AND symbol = ?", 
-                      ("hyperliquid", "BTC"))
-        result = cursor.fetchone()
-        conn.close()
+        assert len(validator.predictions) == 1
+        prediction = validator.predictions[0]
         
-        assert result is not None
-        assert result[2] == "hyperliquid"  # exchange
-        assert result[3] == "BTC"  # symbol
-        assert result[4] == 0.0001  # predicted_rate
-        assert result[5] == "api"  # prediction_method
-        assert result[6] == 0.9  # confidence
+        assert prediction["exchange"] == "hyperliquid"
+        assert prediction["symbol"] == "BTC"
+        assert prediction["predicted_rate"] == 0.0001
+        assert prediction["method"] == "api"
+        assert prediction["confidence"] == 0.9
+        assert "timestamp" in prediction
+        assert isinstance(prediction["datetime"], datetime)
     
     def test_record_payment(self, validator):
         """Test recording an actual funding payment."""
@@ -88,19 +42,16 @@ class TestFundingRateValidator:
         validator.record_payment("hyperliquid", "BTC", 0.0001, 0.5, 10.0)
         
         # Verify it was stored
-        conn = validator._get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM funding_payments WHERE exchange = ? AND symbol = ?", 
-                      ("hyperliquid", "BTC"))
-        result = cursor.fetchone()
-        conn.close()
+        assert len(validator.payments) == 1
+        payment = validator.payments[0]
         
-        assert result is not None
-        assert result[2] == "hyperliquid"  # exchange
-        assert result[3] == "BTC"  # symbol
-        assert result[4] == 0.0001  # actual_rate
-        assert result[5] == 0.5  # payment_amount
-        assert result[6] == 10.0  # position_size
+        assert payment["exchange"] == "hyperliquid"
+        assert payment["symbol"] == "BTC"
+        assert payment["actual_rate"] == 0.0001
+        assert payment["payment_amount"] == 0.5
+        assert payment["position_size"] == 10.0
+        assert "timestamp" in payment
+        assert isinstance(payment["datetime"], datetime)
     
     def test_calculate_metrics_no_data(self, validator):
         """Test calculating metrics with no data."""
@@ -263,17 +214,48 @@ class TestFundingRateValidator:
         assert history["predictions"]["rates"] == [0.0010, 0.0008]
         assert history["actuals"]["rates"] == [0.0012, 0.0009]
     
-    def test_file_db_persistence(self, validator_with_file):
-        """Test that data is persisted in file-based database."""
-        validator = validator_with_file
-        
-        # Add data
+    def test_clear_old_data(self, validator):
+        """Test clearing old data."""
+        # Create some data
+        # Current data
         validator.record_prediction("hyperliquid", "BTC", 0.0010, "api", 0.9)
         validator.record_payment("hyperliquid", "BTC", 0.0012, 1.2, 100.0)
         
-        # Verify data exists
-        predictions = validator.get_recent_predictions()
-        payments = validator.get_recent_payments()
+        # Manually add old data (100 days ago)
+        old_time = datetime.now() - timedelta(days=100)
+        old_timestamp = int(old_time.timestamp() * 1000)
         
-        assert len(predictions) == 1
-        assert len(payments) == 1 
+        validator.predictions.append({
+            "timestamp": old_timestamp,
+            "datetime": old_time,
+            "exchange": "hyperliquid",
+            "symbol": "ETH",
+            "predicted_rate": 0.0005,
+            "method": "api",
+            "confidence": 0.8
+        })
+        
+        validator.payments.append({
+            "timestamp": old_timestamp,
+            "datetime": old_time,
+            "exchange": "hyperliquid",
+            "symbol": "ETH",
+            "actual_rate": 0.0006,
+            "payment_amount": 0.6,
+            "position_size": 80.0
+        })
+        
+        # Verify we have 4 total records
+        assert len(validator.predictions) == 2
+        assert len(validator.payments) == 2
+        
+        # Clear old data (keep only last 30 days)
+        validator.clear_old_data(days_to_keep=30)
+        
+        # Verify old data is removed
+        assert len(validator.predictions) == 1
+        assert len(validator.payments) == 1
+        
+        # Verify remaining data is the current data
+        assert validator.predictions[0]["symbol"] == "BTC"
+        assert validator.payments[0]["symbol"] == "BTC" 

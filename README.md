@@ -19,6 +19,7 @@ CyberDeltaEngine is designed to identify and exploit funding rate differentials 
 - **Robust State Management**: Reliable state persistence with backup and recovery mechanisms
 - **Balance Monitoring**: Tracks balances across exchanges and alerts on low balances
 - **Extensible Architecture**: Modular design with clear separation of concerns
+- **Safety Systems**: Comprehensive safety measures including position reconciliation and circuit breakers
 
 ## System Architecture
 
@@ -31,7 +32,7 @@ CyberDeltaEngine is designed to identify and exploit funding rate differentials 
         │                                                   │
         │                   ┌──────────────┐               │
         │                   │  Validation  │               │
-        │                   │  System      │               │
+        │                   │  Systems     │               │
         │                   └──────┬───────┘               │
         │                          │                       │
 ┌───────▼─────────┐               │                ┌───────▼────────┐
@@ -60,7 +61,7 @@ CyberDeltaEngine is designed to identify and exploit funding rate differentials 
 - **Execution Handler**: Executes trades on exchanges with error handling
 - **Balance Monitor**: Monitors exchange balances and generates alerts
 - **State Manager**: Provides reliable state persistence with backup and recovery
-- **Validation System**: Validates funding rate predictions and tracks accuracy
+- **Validation Systems**: Comprehensive safety systems for monitoring and protection
 
 ## Strategy Implementation
 
@@ -74,9 +75,9 @@ The primary strategy for v0.0.1 is the `FundingRateArbitrageStrategy` which:
 6. Takes delta-neutral positions across exchanges (perp on Hyperliquid, spot on Backpack)
 7. Monitors and rebalances positions as needed
 
-## Validation Systems
+## Validation and Safety Systems
 
-The system incorporates robust validation to ensure accuracy and safety:
+The system incorporates robust validation and safety measures:
 
 1. **Funding Rate Validation**: Tracks funding rate predictions against actual payments
    - Records predictions from multiple sources (API, model, historical)
@@ -84,15 +85,19 @@ The system incorporates robust validation to ensure accuracy and safety:
    - Calculates accuracy metrics (RMSE, MAE, bias)
    - Generates validation reports for ongoing improvement
 
-2. **Position Reconciliation**: (Coming soon) Verifies position consistency between:
+2. **Position Reconciliation**: Verifies position consistency between:
    - Exchange API-reported positions
    - Fill history-derived positions
    - Local state tracking
+   - Automatic or manual correction of discrepancies
+   - Historical tracking of reconciliation issues
 
-3. **Circuit Breaker System**: (Coming soon) Implements safety cutoffs when:
+3. **Circuit Breaker System**: Implements safety cutoffs when:
+   - Market volatility exceeds thresholds
+   - Portfolio drawdown exceeds limits
    - API errors exceed thresholds
-   - Position discrepancies are detected
-   - Funding rate prediction errors exceed tolerance
+   - Market liquidity falls below minimums
+   - Automatic recovery testing when conditions normalize
 
 ## Installation
 
@@ -198,13 +203,32 @@ strategies:
       min_spread: 0.0002  # 0.02% max price spread
       min_profit_usd: 1.0  # Minimum profit to execute
 
-# Validation configuration
+# Validation and safety systems configuration
 validation:
-  db_path: "data/validation.db"  # Database for storing validation data
-  funding_rate:
+  funding_rate_validator:
     enabled: true
     accuracy_threshold: 0.0005  # Maximum tolerated prediction error
     alert_on_threshold: true    # Alert when threshold is exceeded
+    data_retention_days: 90     # Days to keep validation data
+    
+  position_reconciliation:
+    enabled: true
+    threshold: 0.05            # 5% discrepancy threshold
+    auto_correct: false        # Whether to auto-correct discrepancies
+    check_interval: 3600       # Seconds between checks
+    
+  circuit_breaker:
+    enabled: true
+    exchanges:
+      hyperliquid:
+        volatility:
+          threshold: 0.05      # 5% volatility threshold
+          lookback_periods: 12 # Number of periods to consider
+        drawdown:
+          threshold: 0.10      # 10% drawdown threshold
+        api_errors:
+          threshold: 3         # Number of errors before tripping
+          window_seconds: 60   # Time window for errors
 ```
 
 ### Example Secrets File
@@ -248,58 +272,24 @@ api_key = secrets.get('exchanges.hyperliquid.api_key')
 
 Environment variables can be used to override configuration:
 
-- `CYBERDELTA_CONFIG_PATH`: Path to configuration file
-- `CYBERDELTA_SECRETS_PATH`: Path to secrets file
-- `LOG_LEVEL`: Override logging level
-- `SAFE_MODE`: Force safe mode (true/false)
+- `CYBERDELTA_CONFIG_PATH`: Custom path to config.yaml
+- `CYBERDELTA_SECRETS_PATH`: Custom path to secrets.yaml
+- `CYBERDELTA_LOG_LEVEL`: Override logging level
+- `CYBERDELTA_SAFE_MODE`: Enable/disable safe mode (true/false)
 
-## Development
+## Development Status
 
-### Project Structure
+The CyberDeltaEngine is under active development with the following progress:
 
-```
-cyberdelta/
-├── apis/
-│   ├── base.py              # Base ExchangeAPI abstract class
-│   ├── hyperliquid.py       # Hyperliquid API implementation
-│   ├── backpack.py          # Backpack API implementation
-│   └── errors.py            # API-related exceptions
-├── core/
-│   ├── data_handler.py      # Market data management
-│   ├── portfolio_tracker.py # Position and balance tracking
-│   ├── signal_generator.py  # Funding rate opportunity detection
-│   ├── risk_manager.py      # Risk assessment and sizing
-│   ├── execution_handler.py # Order execution
-│   ├── balance_monitor.py   # Balance monitoring
-│   ├── strategy.py          # Base Strategy abstract class
-│   ├── engine.py            # Trading engine
-│   └── types.py             # Data models and types
-├── strategies/
-│   ├── funding_rate_arbitrage.py  # Funding rate arbitrage strategy
-│   └── ma_crossover.py            # Sample moving average strategy
-├── utils/
-│   ├── config.py            # Configuration handling
-│   ├── logging_config.py    # Logging setup
-│   ├── state_manager.py     # State persistence
-│   └── constants.py         # Constant values
-├── config/
-│   ├── config.yaml          # Main configuration
-│   └── secrets.yaml         # API keys and secrets
-├── tests/                   # Test suite
-├── main.py                  # Entry point
-└── requirements.txt         # Dependencies
-```
+- Phase 1 (Configuration Security & Cleanup): ✅ **COMPLETED**
+- Phase 2 (Fix & Expand Test Suite): ✅ **COMPLETED**
+- Phase 3 (Implement Safety Systems): ✅ **COMPLETED**
+- Phase 4 (Core Strategy Implementation): 🟡 **IN PROGRESS**
+- Phase 5 (Experimental Strategy & Additional Features): ⏱️ **PLANNED**
 
-### Running Tests
+## Contributing
 
-Run unit tests:
-```bash
-python -m unittest discover -s cyberdelta/tests
-```
-
-## Disclaimer
-
-This software is for educational purposes only. Trading cryptocurrencies involves significant risk and you should only risk capital you are willing to lose. The authors assume no responsibility for financial losses incurred through the use of this software.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
