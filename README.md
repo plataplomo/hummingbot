@@ -15,6 +15,7 @@ CyberDeltaEngine is designed to identify and exploit funding rate differentials 
 - **Cross-Exchange Arbitrage**: Exploits funding rate differentials between exchanges
 - **Delta-Neutral Trading**: Maintains hedged positions to minimize directional risk
 - **Risk Management**: Implements position sizing, risk controls, and maximum exposure limits
+- **Validation Systems**: Tracks prediction accuracy and validates funding rates and positions
 - **Robust State Management**: Reliable state persistence with backup and recovery mechanisms
 - **Balance Monitoring**: Tracks balances across exchanges and alerts on low balances
 - **Extensible Architecture**: Modular design with clear separation of concerns
@@ -28,20 +29,23 @@ CyberDeltaEngine is designed to identify and exploit funding rate differentials 
 │                 │      │                  │      │                │
 └───────┬─────────┘      └──────────────────┘      └────────┬───────┘
         │                                                   │
-        │                                                   │
-        │                                                   │
-┌───────▼─────────┐                                ┌────────▼───────┐
-│                 │                                │                │
-│  API Clients    │                                │ Execution      │
-│  - Hyperliquid  │◄──────────────────────────────►│ Handler        │
-│  - Backpack     │                                │                │
-│                 │                                │                │
-└───────┬─────────┘                                └────────┬───────┘
-        │                                                   │
-        │                                                   │
-┌───────▼─────────┐                                ┌────────▼───────┐
-│                 │                                │                │
-│  Portfolio      │◄──────────────────────────────►│ Balance        │
+        │                   ┌──────────────┐               │
+        │                   │  Validation  │               │
+        │                   │  System      │               │
+        │                   └──────┬───────┘               │
+        │                          │                       │
+┌───────▼─────────┐               │                ┌───────▼────────┐
+│                 │               │                │                │
+│  API Clients    │◄─────────────►│◄───────────────│ Execution      │
+│  - Hyperliquid  │               │                │ Handler        │
+│  - Backpack     │               │                │                │
+│                 │               │                │                │
+└───────┬─────────┘               │                └────────┬───────┘
+        │                         │                         │
+        │                         │                         │
+┌───────▼─────────┐              │                 ┌────────▼───────┐
+│                 │              │                 │                │
+│  Portfolio      │◄─────────────┘                 │ Balance        │
 │  Tracker        │                                │ Monitor        │
 │                 │                                │                │
 └─────────────────┘                                └────────────────┘
@@ -56,6 +60,7 @@ CyberDeltaEngine is designed to identify and exploit funding rate differentials 
 - **Execution Handler**: Executes trades on exchanges with error handling
 - **Balance Monitor**: Monitors exchange balances and generates alerts
 - **State Manager**: Provides reliable state persistence with backup and recovery
+- **Validation System**: Validates funding rate predictions and tracks accuracy
 
 ## Strategy Implementation
 
@@ -68,6 +73,26 @@ The primary strategy for v0.0.1 is the `FundingRateArbitrageStrategy` which:
 5. Implements a utility function for opportunity ranking
 6. Takes delta-neutral positions across exchanges (perp on Hyperliquid, spot on Backpack)
 7. Monitors and rebalances positions as needed
+
+## Validation Systems
+
+The system incorporates robust validation to ensure accuracy and safety:
+
+1. **Funding Rate Validation**: Tracks funding rate predictions against actual payments
+   - Records predictions from multiple sources (API, model, historical)
+   - Stores actual funding payments received
+   - Calculates accuracy metrics (RMSE, MAE, bias)
+   - Generates validation reports for ongoing improvement
+
+2. **Position Reconciliation**: (Coming soon) Verifies position consistency between:
+   - Exchange API-reported positions
+   - Fill history-derived positions
+   - Local state tracking
+
+3. **Circuit Breaker System**: (Coming soon) Implements safety cutoffs when:
+   - API errors exceed thresholds
+   - Position discrepancies are detected
+   - Funding rate prediction errors exceed tolerance
 
 ## Installation
 
@@ -172,6 +197,14 @@ strategies:
       funding_threshold: 0.0001  # 0.01% min funding rate
       min_spread: 0.0002  # 0.02% max price spread
       min_profit_usd: 1.0  # Minimum profit to execute
+
+# Validation configuration
+validation:
+  db_path: "data/validation.db"  # Database for storing validation data
+  funding_rate:
+    enabled: true
+    accuracy_threshold: 0.0005  # Maximum tolerated prediction error
+    alert_on_threshold: true    # Alert when threshold is exceeded
 ```
 
 ### Example Secrets File
