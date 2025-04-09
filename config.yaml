@@ -77,14 +77,26 @@ logging:
 
 # Exchange specific settings (can override global API settings)
 exchanges:
-  backpack:
-    rest_endpoint: "https://api.backpack.exchange/"
-    ws_endpoint: "wss://ws.backpack.exchange/"
-    # Add any other BP specific params
   hyperliquid:
     rest_endpoint: "https://api.hyperliquid.xyz"
     ws_endpoint: "wss://api.hyperliquid.xyz/ws"
-    # Add any other HL specific params
+    rate_limits:
+      default_rate: 5.0
+      default_bucket: 10
+      endpoints:
+        "POST:/exchange":
+          rate: 2.0
+          bucket: 5
+  backpack:
+    rest_endpoint: "https://api.backpack.exchange"
+    ws_endpoint: "wss://ws.backpack.exchange"
+    rate_limits:
+      default_rate: 5.0
+      default_bucket: 10
+      endpoints:
+        "POST:/api/v1/order":
+          rate: 2.0
+          bucket: 5
   paradex:
     rest_endpoint: "https://api.paradex.trade/v1"
     ws_endpoint: "wss://ws.paradex.trade/v1"

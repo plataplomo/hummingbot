@@ -1,6 +1,6 @@
 # Backpack Integration Implementation Approach
 
-Based on the critic's feedback, we need to approach Backpack integration with more caution and well-defined fallback mechanisms for the 0.0.1 prototype. This document outlines our implementation strategy specifically for Backpack integration.
+Based on the critic's feedback and recent API updates, we need to approach Backpack integration with more caution and well-defined fallback mechanisms for the 0.0.1 prototype. This document outlines our implementation strategy specifically for Backpack integration.
 
 ## 1. Core Challenges
 
@@ -14,13 +14,16 @@ The critic identified several critical issues with our Backpack implementation p
 
 ### 2.1 Funding Rate Calculation Strategy
 
-We will implement a multi-tiered approach to funding rate calculation for Backpack:
+We will implement a multi-tiered approach to funding rate calculation for Backpack, updated based on the latest API documentation:
 
-#### Tier 1: Direct API (Experimental and Validating)
-- Implement the proposed direct funding rate calculation using mark/index price
-- Treat this as an **experimental module** requiring continuous validation
-- Log all discrepancies between calculated and actual funding payments
-- Do not rely on this approach for critical trading decisions until validated
+#### Tier 1: Direct API (Using new endpoints)
+- Implement funding rate calculation using the new endpoints:
+  - `/api/v1/funding/rates` for current funding rates
+  - `/api/v1/funding/predictedRates` for predicted rates
+  - `/api/v1/funding/history` for historical data
+- Still treat this as an **experimental module** requiring validation
+- Log all discrepancies between reported and actual funding payments
+- Pay special attention to timestamp precision (microseconds in WebSocket vs milliseconds in REST API)
 
 #### Tier 2: Fallback Strategy (Primary for 0.0.1)
 - Implement the Hyperliquid vs Backpack Spot strategy as the **primary approach** for 0.0.1
@@ -39,21 +42,28 @@ We will implement a multi-tiered approach to funding rate calculation for Backpa
 
 ### 2.2 Position Tracking Approach
 
-We will implement a defensive approach to position tracking for Backpack:
+We will implement a defensive approach to position tracking for Backpack, taking advantage of the updated WebSocket API:
 
 #### Primary Mechanism: API Position Queries
-- Continue using direct position queries (`get_positions`) as primary source of truth
+- Continue using direct position queries (`get_position`) as primary source of truth
 - Implement robust error handling and retry mechanisms
 - Log all API errors and response patterns for analysis
 
+#### WebSocket Position Updates
+- Use the new WebSocket API format (`account.positionUpdate`) to receive real-time position changes
+- Properly handle timestamp precision (microseconds)
+- Implement WebSocket ping/pong to maintain connection (server sends ping every 60s)
+- Add proper reconnection logic with exponential backoff
+
 #### Reconciliation Mechanism: Fill History
 - Implement fill history tracking as a **reconciliation mechanism**, not a primary source
+- Use the updated endpoint `/api/v1/history/fills` which now supports time ranges
 - Use it to validate position data returned by the API
 - Implement aggressive multi-source reconciliation:
   - Balance changes
   - Order status updates
   - Fill notifications
-  - WebSocket position updates if available
+  - WebSocket position updates
 - Generate critical alerts for any discrepancies between sources
 
 #### Risk Mitigation
@@ -80,6 +90,25 @@ To address the critics concerns about execution failure compensation:
 - Record all attempts, responses, and failures
 - Implement recovery mechanisms for various failure scenarios
 - Create a dedicated recovery process for manual intervention
+- Pay special attention to new order ID format (no longer based on timestamp)
+
+### 2.4 WebSocket Implementation (Updated)
+
+Based on the latest documentation, we'll implement these WebSocket improvements:
+
+#### Connection Management
+- Connect to new WebSocket API endpoint `wss://ws.backpack.exchange`
+- Implement the updated subscription format with multiple streams
+- Use proper `subscribe` instruction type (not `accountQuery`)
+- Handle microsecond timestamps in all event processing
+- Implement ping/pong handler to maintain connection (60s timeout)
+- Handle graceful reconnection on Close frames
+
+#### Data Streams Tracking
+- Properly parse streams with new format (e.g., `depth.SOL_USDC` instead of `SOL_USDC@depth`)
+- Handle flattened K-Line format in kline streams
+- Record trade IDs, engine timestamps, and event timestamps for reconciliation
+- Pay close attention to the origin field (`O`) in order updates to detect liquidations, etc.
 
 ## 3. Phased Implementation
 
@@ -131,19 +160,25 @@ To ensure reliability, we'll focus testing especially on:
    - Test all error scenarios and responses
    - Validate rate limiting behavior
    - Test recovery from disconnections
+   - Test WebSocket reconnection logic
+   - Validate timestamp precision handling (microseconds vs milliseconds)
 
 2. **Position Verification**:
    - Test reconciliation between different data sources
    - Verify position updates after every action
    - Test recovery from discrepancies
+   - Compare WebSocket updates with REST API responses
 
 3. **Funding Rate Validation**:
    - Compare calculated vs actual funding over time
    - Test prediction accuracy during different market conditions
    - Validate accuracy metrics with statistical analysis
+   - Test both Direct API (Tier 1) and Cross-Exchange (Tier 2) approaches
 
 ## 6. Conclusion
 
 This approach acknowledges that Backpack integration has significant challenges while providing a pragmatic path forward. By treating certain components as experimental, implementing robust fallbacks, and focusing on validation, we can include Backpack in 0.0.1 while mitigating risks.
 
 The primary focus will remain on having a rock-solid implementation of the core trading loop with Hyperliquid first, with Backpack integration following the defensive approach outlined here. 
+
+Despite the API updates, we maintain our cautious approach with strong validation mechanisms and fallbacks until the Backpack integration proves its reliability in production. 

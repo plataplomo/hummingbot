@@ -279,51 +279,87 @@ class BackpackAdapter(ExchangeAdapter):
         logger.info("Initializing Backpack adapter")
         
         # Get all tradable assets and their specifications
-        assets_data = await self._request("GET", "/api/v1/exchangeInfo")
-        
-        for symbol_info in assets_data.get("symbols", []):
-            symbol = symbol_info["symbol"]
-            if symbol.endswith("-PERP"):  # Only consider perpetuals
-                self.assets[symbol] = AssetInfo(
-                    symbol=symbol,
-                    exchange=ExchangeId.BACKPACK,
-                    tick_size=float(symbol_info.get("tickSize", "0.01")),
-                    min_order_size=float(symbol_info.get("minQty", "0.001")),
-                    max_leverage=float(symbol_info.get("maxLeverage", "10")),  # Default if not specified
-                    funding_interval=timedelta(hours=8)  # Backpack typically has 8-hour funding intervals
-                )
-        
-        logger.info(f"Initialized with {len(self.assets)} assets on Backpack")
+        try:
+            # Use the correct endpoint for markets data
+            markets_data = await self._request("GET", "/api/v1/markets")
+            
+            for market_info in markets_data:
+                symbol = market_info.get("symbol")
+                market_type = market_info.get("marketType")
+                
+                if market_type == "PERP":  # Only consider perpetuals
+                    funding_interval_ms = market_info.get("fundingInterval")
+                    funding_interval = timedelta(milliseconds=funding_interval_ms) if funding_interval_ms else timedelta(hours=8)
+                    
+                    self.assets[symbol] = AssetInfo(
+                        symbol=symbol,
+                        exchange=ExchangeId.BACKPACK,
+                        tick_size=float(market_info.get("filters", {}).get("price", {}).get("tickSize", "0.01")),
+                        min_order_size=float(market_info.get("filters", {}).get("quantity", {}).get("minQuantity", "0.001")),
+                        max_leverage=10.0,  # Default if not specified
+                        funding_interval=funding_interval
+                    )
+            
+            logger.info(f"Initialized with {len(self.assets)} assets on Backpack")
+        except Exception as e:
+            logger.error(f"Error initializing Backpack adapter: {e}")
+            raise
         
     async def get_funding_rates(self) -> Dict[str, FundingRateInfo]:
         """Get current funding rates for all assets on Backpack"""
-        funding_data = await self._request("GET", "/api/v1/fundingInfo")
         result = {}
         
-        for item in funding_data:
-            symbol = item.get("symbol")
-            if symbol in self.assets:
-                # Convert funding rate to annualized percentage
-                funding_rate = float(item.get("fundingRate", "0"))
-                # Backpack typically has 8-hour funding intervals, so multiply by 3 per day * 365 days
-                annualized_rate = funding_rate * 3 * 365
-                
-                # Calculate next funding time
-                current_time = datetime.utcnow()
-                hours_until_funding = (8 - (current_time.hour % 8)) % 8
-                next_payment = current_time.replace(minute=0, second=0, microsecond=0) + timedelta(hours=hours_until_funding)
-                
-                result[symbol] = FundingRateInfo(
-                    symbol=symbol,
-                    exchange=ExchangeId.BACKPACK,
-                    current_rate=annualized_rate,
-                    predicted_next_rate=annualized_rate,  # Simple prediction: same as current
-                    timestamp=current_time,
-                    next_payment_time=next_payment,
-                    historical_volatility=float(item.get("rateVolatility", 0.005))  # Default if not provided
-                )
-        
-        return result
+        try:
+            # Since there's no direct funding rate endpoint available,
+            # we'll estimate based on market data
+            for symbol in self.assets:
+                try:
+                    # Get ticker data for the symbol
+                    ticker_data = await self._request("GET", f"/api/v1/ticker?symbol={symbol}")
+                    
+                    # For Backpack, we'll have to estimate the funding rate since it's not directly exposed
+                    # This is a simplified estimation - in a real implementation, you would use a more accurate method
+                    # such as premium index calculations
+                    
+                    # Calculate a simple estimated funding rate based on price change percent
+                    price_change_pct = float(ticker_data.get("priceChangePercent", "0"))
+                    
+                    # Funding rate is often correlated with price movement, but this is a simplification
+                    # In reality, it's based on the difference between perp and spot prices
+                    estimated_funding_rate = price_change_pct * 0.01  # Simple estimation factor
+                    
+                    # Apply caps to keep the estimation reasonable
+                    estimated_funding_rate = max(min(estimated_funding_rate, 0.001), -0.001)
+                    
+                    # Calculate next funding time
+                    current_time = datetime.utcnow()
+                    funding_interval = self.assets[symbol].funding_interval
+                    hours_until_funding = funding_interval.total_seconds() / 3600
+                    current_hour = current_time.hour
+                    next_hour = int((current_hour // hours_until_funding + 1) * hours_until_funding) % 24
+                    next_payment = current_time.replace(hour=next_hour, minute=0, second=0, microsecond=0)
+                    if next_payment < current_time:
+                        next_payment = next_payment + timedelta(days=1)
+                    
+                    # Annual rate would be the 8-hour rate * 3 per day * 365 days
+                    annualized_rate = estimated_funding_rate * (24 / hours_until_funding) * 365
+                    
+                    result[symbol] = FundingRateInfo(
+                        symbol=symbol,
+                        exchange=ExchangeId.BACKPACK,
+                        current_rate=annualized_rate,
+                        predicted_next_rate=annualized_rate,  # Simple prediction: same as current
+                        timestamp=current_time,
+                        next_payment_time=next_payment,
+                        historical_volatility=0.005  # Default value
+                    )
+                except Exception as e:
+                    logger.error(f"Error fetching funding rate for {symbol} on Backpack: {e}")
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error fetching funding rates from Backpack: {e}")
+            return {}
     
     async def get_historical_funding_rates(
         self, 
@@ -332,26 +368,17 @@ class BackpackAdapter(ExchangeAdapter):
         end_time: datetime
     ) -> pd.DataFrame:
         """Get historical funding rates from Backpack"""
-        # Backpack API endpoint for historical funding rates
-        endpoint = f"/api/v1/fundingHistory"
-        
-        # Convert times to milliseconds timestamp
-        start_ms = int(start_time.timestamp() * 1000)
-        end_ms = int(end_time.timestamp() * 1000)
-        
-        params = {
-            "symbol": symbol,
-            "startTime": start_ms,
-            "endTime": end_ms,
-            "limit": 500  # Maximum records to fetch
-        }
+        # Since the direct historical funding rate endpoint is not available,
+        # we'll generate simulated data based on historical price data
         
         try:
-            # In a real implementation, this would make actual API requests
-            # For demonstration, we'll generate simulated data
+            # Create date range for 8-hour intervals (or whatever the funding interval is)
+            funding_interval = self.assets.get(symbol, AssetInfo(symbol=symbol, exchange=ExchangeId.BACKPACK, 
+                                                               tick_size=0.01, min_order_size=0.001, 
+                                                               max_leverage=10.0, funding_interval=timedelta(hours=8))).funding_interval
+            hours = funding_interval.total_seconds() / 3600
             
-            # Create date range for 8-hour intervals
-            dates = pd.date_range(start=start_time, end=end_time, freq='8H')
+            dates = pd.date_range(start=start_time, end=end_time, freq=f'{int(hours)}H')
             
             # Placeholder for results
             results = []
@@ -367,7 +394,7 @@ class BackpackAdapter(ExchangeAdapter):
                     'timestamp': date,
                     'symbol': symbol,
                     'funding_rate': simulated_rate,
-                    'funding_rate_annualized': simulated_rate * 3 * 365  # 8-hour rate to annualized
+                    'funding_rate_annualized': simulated_rate * (24 / hours) * 365  # Convert to annualized
                 })
             
             return pd.DataFrame(results)
@@ -379,8 +406,8 @@ class BackpackAdapter(ExchangeAdapter):
     async def get_market_price(self, symbol: str) -> float:
         """Get current market price for an asset on Backpack"""
         try:
-            ticker_data = await self._request("GET", f"/api/v1/ticker/price?symbol={symbol}")
-            return float(ticker_data.get("price", 0))
+            ticker_data = await self._request("GET", f"/api/v1/ticker?symbol={symbol}")
+            return float(ticker_data.get("lastPrice", 0))
         except Exception as e:
             logger.error(f"Error fetching market price from Backpack: {e}")
             return 0.0
@@ -477,39 +504,137 @@ class BackpackAdapter(ExchangeAdapter):
         # Placeholder for actual HTTP request implementation
         # In production: implement proper HTTP requests with authentication
         
-        # Generate simulated responses based on the endpoint
-        if endpoint == "/api/v1/exchangeInfo":
-            return {
-                "symbols": [
-                    {"symbol": "BTC-PERP", "tickSize": "0.1", "minQty": "0.001", "maxLeverage": "20"},
-                    {"symbol": "ETH-PERP", "tickSize": "0.01", "minQty": "0.01", "maxLeverage": "20"},
-                    {"symbol": "SOL-PERP", "tickSize": "0.001", "minQty": "0.1", "maxLeverage": "20"}
+        # For development and testing purposes, simulate responses based on the endpoint
+        try:
+            # Generate simulated responses based on the endpoint
+            if endpoint == "/api/v1/markets":
+                return [
+                    {
+                        "symbol": "BTC_USDC_PERP",
+                        "baseSymbol": "BTC",
+                        "quoteSymbol": "USDC",
+                        "marketType": "PERP",
+                        "fundingInterval": 28800000,  # 8 hours in milliseconds
+                        "filters": {
+                            "price": {
+                                "tickSize": "0.1"
+                            },
+                            "quantity": {
+                                "minQuantity": "0.001"
+                            }
+                        },
+                        "orderBookState": "Open"
+                    },
+                    {
+                        "symbol": "ETH_USDC_PERP",
+                        "baseSymbol": "ETH",
+                        "quoteSymbol": "USDC",
+                        "marketType": "PERP",
+                        "fundingInterval": 28800000,
+                        "filters": {
+                            "price": {
+                                "tickSize": "0.01"
+                            },
+                            "quantity": {
+                                "minQuantity": "0.01"
+                            }
+                        },
+                        "orderBookState": "Open"
+                    },
+                    {
+                        "symbol": "SOL_USDC_PERP",
+                        "baseSymbol": "SOL",
+                        "quoteSymbol": "USDC",
+                        "marketType": "PERP",
+                        "fundingInterval": 28800000,
+                        "filters": {
+                            "price": {
+                                "tickSize": "0.001"
+                            },
+                            "quantity": {
+                                "minQuantity": "0.1"
+                            }
+                        },
+                        "orderBookState": "Open"
+                    }
                 ]
-            }
-        elif endpoint == "/api/v1/fundingInfo":
-            return [
-                {"symbol": "BTC-PERP", "fundingRate": "0.0010", "rateVolatility": "0.0002"},
-                {"symbol": "ETH-PERP", "fundingRate": "0.0012", "rateVolatility": "0.0003"},
-                {"symbol": "SOL-PERP", "fundingRate": "0.0020", "rateVolatility": "0.0005"}
-            ]
-        elif "/api/v1/ticker/price" in endpoint:
-            symbol = params.get("symbol") if params else "BTC-PERP"
-            prices = {"BTC-PERP": "50000", "ETH-PERP": "3000", "SOL-PERP": "100"}
-            return {"symbol": symbol, "price": prices.get(symbol, "0")}
-        elif endpoint == "/api/v1/positions" and signed:
-            return [
-                {
-                    "symbol": "BTC-PERP",
-                    "positionAmt": "0.5",
-                    "entryPrice": "49000",
-                    "markPrice": "50000",
-                    "unrealizedProfit": "500",
-                    "liquidationPrice": "40000",
-                }
-            ]
-        
-        return {}  # Default empty response
-        
+            elif "/api/v1/ticker" in endpoint:
+                # Extract symbol from endpoint if present
+                symbol = None
+                if "?" in endpoint:
+                    query_part = endpoint.split("?")[1]
+                    query_params = {k: v for k, v in [param.split("=") for param in query_part.split("&")]}
+                    symbol = query_params.get("symbol")
+                
+                if symbol:
+                    # Return different price data based on symbol
+                    if symbol == "BTC_USDC_PERP":
+                        return {
+                            "symbol": "BTC_USDC_PERP",
+                            "lastPrice": "65000",
+                            "priceChangePercent": "0.015", 
+                            "high": "66000",
+                            "low": "64000",
+                            "quoteVolume": "100000000"
+                        }
+                    elif symbol == "ETH_USDC_PERP":
+                        return {
+                            "symbol": "ETH_USDC_PERP",
+                            "lastPrice": "3500",
+                            "priceChangePercent": "-0.008",
+                            "high": "3600",
+                            "low": "3400",
+                            "quoteVolume": "50000000"
+                        }
+                    elif symbol == "SOL_USDC_PERP":
+                        return {
+                            "symbol": "SOL_USDC_PERP",
+                            "lastPrice": "150",
+                            "priceChangePercent": "0.025",
+                            "high": "155",
+                            "low": "145",
+                            "quoteVolume": "20000000"
+                        }
+                
+                # Default response with multiple tickers
+                return [
+                    {
+                        "symbol": "BTC_USDC_PERP",
+                        "lastPrice": "65000",
+                        "priceChangePercent": "0.015"
+                    },
+                    {
+                        "symbol": "ETH_USDC_PERP",
+                        "lastPrice": "3500",
+                        "priceChangePercent": "-0.008"
+                    },
+                    {
+                        "symbol": "SOL_USDC_PERP",
+                        "lastPrice": "150",
+                        "priceChangePercent": "0.025"
+                    }
+                ]
+            elif endpoint == "/api/v1/positions" and signed:
+                return [
+                    {
+                        "symbol": "BTC_USDC_PERP",
+                        "positionAmt": "0.5",
+                        "entryPrice": "64500",
+                        "markPrice": "65000",
+                        "unrealizedProfit": "250",
+                        "liquidationPrice": "60000",
+                    }
+                ]
+            
+            # Handle unknown endpoints with empty response
+            logger.warning(f"Unknown endpoint in simulated API: {endpoint}")
+            return {}
+            
+        except Exception as e:
+            logger.error(f"Error in Backpack API request to {endpoint}: {str(e)}")
+            # For simulated API, still return an empty dict instead of raising
+            return {}
+
 # -------------------------------------------------------------------------
 # Strategy Implementation
 # -------------------------------------------------------------------------

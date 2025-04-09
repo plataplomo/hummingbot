@@ -17,8 +17,12 @@ load_dotenv()
 
 # Load configuration
 def load_config():
-    with open('config.yaml', 'r') as file:
-        return yaml.safe_load(file)
+    try:
+        with open('config.yaml', 'r') as file:
+            return yaml.safe_load(file)
+    except Exception as e:
+        logger.error(f"Error loading config.yaml: {e}")
+        return {}
 
 async def test_adapters():
     """Test the exchange adapters."""
@@ -35,7 +39,11 @@ async def test_adapters():
     hyperliquid_config = config.get('exchanges', {}).get('hyperliquid', {})
     backpack_config = config.get('exchanges', {}).get('backpack', {})
     
-    # Setup secrets
+    # Ensure the configurations are correct
+    logger.info(f"Hyperliquid config: {hyperliquid_config}")
+    logger.info(f"Backpack config: {backpack_config}")
+    
+    # Setup secrets from environment variables
     hyperliquid_secrets = {
         "HYPERLIQUID_WALLET_PRIVATE_KEY": os.environ.get("HYPERLIQUID_WALLET_PRIVATE_KEY"),
         "HYPERLIQUID_WALLET_ADDRESS": os.environ.get("HYPERLIQUID_WALLET_ADDRESS")
@@ -46,16 +54,20 @@ async def test_adapters():
         "BACKPACK_API_SECRET": os.environ.get("BACKPACK_API_SECRET")
     }
     
+    logger.info("Initializing API clients...")
+    
     # Initialize API clients
     hyperliquid_api = HyperliquidAPI(hyperliquid_config, hyperliquid_secrets)
     backpack_api = BackpackAPI(backpack_config, backpack_secrets)
     
     # Connect to exchanges
+    logger.info("Connecting to exchanges...")
     await hyperliquid_api.connect()
     await backpack_api.connect()
     
     try:
         # Initialize adapters
+        logger.info("Creating adapters...")
         hyperliquid_adapter = HyperliquidAdapter(hyperliquid_config, hyperliquid_api)
         backpack_adapter = BackpackAdapter(backpack_config, backpack_api)
         
@@ -132,8 +144,11 @@ async def test_adapters():
         
         logger.info(f"Found {len(opportunities)} potential arbitrage opportunities")
         
+    except Exception as e:
+        logger.error(f"Error during test: {e}", exc_info=True)
     finally:
         # Cleanup
+        logger.info("Closing API connections...")
         await hyperliquid_api.close()
         await backpack_api.close()
         logger.info("Test completed")

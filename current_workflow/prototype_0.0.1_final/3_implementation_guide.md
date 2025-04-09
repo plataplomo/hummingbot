@@ -94,6 +94,11 @@ exchanges:
       default_bucket: 5
       endpoints:
         "GET:/api/v1/ticker": { rate: 10.0, bucket: 20 }
+    websocket:
+      ping_interval: 60  # Backpack sends ping every 60s
+      pong_timeout: 120  # Connection closes if no pong within 120s
+      reconnect_delay: 5  # Initial reconnect delay
+      max_reconnect_delay: 300  # Maximum reconnect delay
 
 # Strategy parameters
 strategy:
@@ -140,7 +145,12 @@ balance:
    - Focus on core methods: get_funding_rates, get_balances, place_order
    - Implement comprehensive error handling and rate limiting
    - **For Backpack specifically**:
-     - Implement aggressive error recovery and retry mechanisms
+     - Implement ED25519 signature generation for authentication
+     - Handle microsecond vs millisecond timestamp precision differences
+     - Implement the updated WebSocket subscription format
+     - Use proper stream naming format with dot notation (e.g., `depth.SOL_USDC`)
+     - Add ping/pong handlers to maintain WebSocket connections
+     - Add aggressive error recovery and retry mechanisms
      - Add explicit validation layers for all critical responses
      - Implement multi-source data reconciliation
      - Add comprehensive logging for all API interactions
@@ -152,6 +162,10 @@ balance:
    - Implement data validation and normalization
    - Add data timestamp tracking and staleness detection
    - **For Backpack specifically**:
+     - Convert between microsecond WebSocket and millisecond REST timestamps
+     - Implement proper parsing of the new WebSocket stream formats
+     - Properly handle WebSocket reconnection with exponential backoff
+     - Implement the WebSocket ping/pong handler (60s ping interval)
      - Implement separate validation tracking for funding rate calculations
      - Create a dedicated module to compare calculated vs actual funding payments
      - Store all raw API responses for post-analysis
@@ -164,9 +178,11 @@ balance:
    - Add regular reconciliation with exchange data
    - **For Backpack specifically**:
      - Implement multi-source position verification
+     - Use `account.positionUpdate` WebSocket stream for real-time updates
      - Use order fills as a cross-check against reported positions
      - Add automatic alerts for any position discrepancies
      - Implement "safe mode" triggers for inconsistent data
+     - Track the `O` field in order updates to detect liquidations
 
 4. **State Manager**:
    - Implement atomic state persistence with validation
@@ -267,8 +283,9 @@ Focus on implementing the authentication and core API methods correctly:
 
 1. **Authentication**:
    - For Hyperliquid: Implement EIP-712 signing using library
-   - For Backpack: Implement ED25519 signing according to docs
+   - For Backpack: Implement ED25519 signing with proper instruction types
    - Always validate authentication success
+   - For Backpack WebSocket: Use `subscribe` instruction type (not `accountQuery`)
 
 2. **Error Handling**:
    - Map HTTP error codes to specific exception types
@@ -294,6 +311,12 @@ Focus on reliable data collection and validation:
    - Implement keep-alive mechanism (ping/pong)
    - Buffer messages to prevent data loss during reconnection
    - Validate all incoming data before processing
+   - **For Backpack specifically**:
+     - Handle the new WebSocket API format (`wss://ws.backpack.exchange`)
+     - Use the new stream naming format (e.g., `depth.SOL_USDC`)
+     - Handle microsecond timestamps in WebSocket events
+     - Implement proper ping/pong handling (ping every 60s, reconnect if no pong in 120s)
+     - Handle the Close frame scenario (reconnect within 30s grace period)
 
 2. **Data Validation**:
    - Check data against expected schema
@@ -301,6 +324,10 @@ Focus on reliable data collection and validation:
    - Detect and handle stale data (older than threshold)
    - Normalize data from different sources into consistent formats
    - Add anomaly detection for extreme values
+   - **For Backpack specifically**:
+     - Convert between microsecond (WebSocket) and millisecond (REST) timestamps
+     - Validate order origin field (`O`) to detect liquidations
+     - Track the updated order ID format (no longer timestamp-based)
 
 ### 3.3 Portfolio Tracker Implementation
 
@@ -318,6 +345,10 @@ Focus on accurate position and balance tracking:
    - Add automatic correction of minor discrepancies
    - Generate alerts for significant state inconsistencies
    - Maintain audit log of all reconciliation actions
+   - **For Backpack specifically**:
+     - Use position WebSocket (`account.positionUpdate`) as primary source with API verification
+     - Compare real-time WebSocket updates with REST API responses
+     - Implement cross-verification between fill history and position data
 
 ### 3.4 State Manager Implementation
 
@@ -374,6 +405,10 @@ Focus on reliable order execution and recovery:
    - Test rate limiting behavior under load
    - Verify data parsing and normalization
    - **For Backpack specifically**:
+     - Test WebSocket subscription with the new format
+     - Test microsecond vs millisecond timestamp conversion
+     - Test ping/pong handler with simulated timeouts
+     - Test the ED25519 signature generation with various instruction types
      - Test with a wider range of error conditions and edge cases
      - Validate the funding rate calculation logic with known examples
      - Test position reconstruction from multiple data sources

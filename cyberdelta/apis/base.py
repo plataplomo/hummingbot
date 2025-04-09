@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+import random
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Dict, List, Optional, Callable, Coroutine, Tuple, Union
@@ -171,8 +172,10 @@ class ExchangeAPI(ABC):
         self._secrets = secrets
         
         # Extract key configurations
-        self.rest_endpoint = config.get('base_url')
-        self.ws_endpoint = config.get('ws_url')
+        # Check for both rest_endpoint (standard) and base_url (alternative naming)
+        self.rest_endpoint = config.get('rest_endpoint', config.get('base_url'))
+        # Check for both ws_endpoint (standard) and ws_url (alternative naming)
+        self.ws_endpoint = config.get('ws_endpoint', config.get('ws_url'))
         
         # Initialize HTTP session
         self._session = None  # type: Optional[aiohttp.ClientSession]
@@ -282,6 +285,13 @@ class ExchangeAPI(ABC):
         if not self._session:
             raise APIError(
                 "HTTP session not initialized. Call connect() first.",
+                code=APIErrorCode.CONNECTION_ERROR
+            )
+        
+        # Check for missing endpoint configuration
+        if not self.rest_endpoint:
+            raise APIError(
+                f"REST endpoint not configured for {self.exchange_name}. Check configuration.",
                 code=APIErrorCode.CONNECTION_ERROR
             )
         
