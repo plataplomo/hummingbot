@@ -36,6 +36,19 @@ class APIErrorCode(Enum):
     CONNECTION_ERROR = 8
     TIMEOUT = 9
     MAINTENANCE = 10
+    # New error codes for exchange-specific failures
+    ORDER_REJECTED = 11
+    PRICE_OUT_OF_RANGE = 12
+    MARKET_CLOSED = 13
+    DUPLICATE_ORDER = 14
+    MIN_NOTIONAL_NOT_MET = 15
+    MAX_POSITION_EXCEEDED = 16
+    LIQUIDATION_IN_PROGRESS = 17
+    FUNDING_RATE_UNAVAILABLE = 18
+    EXCHANGE_SPECIFIC = 19  # For truly exchange-specific errors that don't fit other categories
+    NETWORK_ISSUE = 20  # Specific network connectivity issues (DNS, routing, etc.)
+    QUANTITY_OUT_OF_RANGE = 21  # For min/max quantity violations
+    PRECISION_ERROR = 22  # When price/quantity doesn't match required precision
 
 class APIError(Exception):
     """
@@ -470,6 +483,12 @@ class ExchangeAPI(ABC):
             code = APIErrorCode.SYMBOL_NOT_FOUND
         elif status_code == 429:
             code = APIErrorCode.RATE_LIMITED
+        elif status_code == 400:
+            code = APIErrorCode.INVALID_PARAMS
+        elif status_code == 500:
+            code = APIErrorCode.SERVER_ERROR
+        elif status_code == 503:
+            code = APIErrorCode.MAINTENANCE
         elif 400 <= status_code < 500:
             code = APIErrorCode.INVALID_PARAMS
         elif 500 <= status_code < 600:
@@ -477,16 +496,79 @@ class ExchangeAPI(ABC):
         else:
             code = APIErrorCode.UNKNOWN
         
-        # Extract message from error data if available
+        # Extract message and exchange-specific code from error data if available
         message = "Unknown error"
+        exchange_code = None
+        retry_after = None
+        
         if isinstance(error_data, dict):
-            message = error_data.get('message', error_data.get('error', message))
+            # Handle various message field names in different exchange responses
+            message = (
+                error_data.get('message') or 
+                error_data.get('msg') or 
+                error_data.get('error') or 
+                error_data.get('error_message') or 
+                error_data.get('description') or 
+                message
+            )
+            
+            # Extract exchange-specific error code if present
+            exchange_code = (
+                error_data.get('code') or 
+                error_data.get('error_code') or 
+                error_data.get('err') or 
+                None
+            )
+            
+            # Extract retry-after if present (rate limiting)
+            retry_after = (
+                error_data.get('retry_after') or 
+                error_data.get('retryAfter') or 
+                error_data.get('Retry-After') or 
+                None
+            )
+            
+            # Try to map known error patterns to our standard codes
+            if any(keyword in message.lower() for keyword in ['insufficient', 'not enough', 'balance']):
+                code = APIErrorCode.INSUFFICIENT_FUNDS
+            elif any(keyword in message.lower() for keyword in ['order', 'not found', 'unknown order']):
+                code = APIErrorCode.ORDER_NOT_FOUND
+            elif any(keyword in message.lower() for keyword in ['symbol', 'instrument', 'market', 'not found']):
+                code = APIErrorCode.SYMBOL_NOT_FOUND
+            elif any(keyword in message.lower() for keyword in ['precision', 'decimal']):
+                code = APIErrorCode.PRECISION_ERROR
+            elif any(keyword in message.lower() for keyword in ['min notional', 'minimum notional']):
+                code = APIErrorCode.MIN_NOTIONAL_NOT_MET
+            elif any(keyword in message.lower() for keyword in ['quantity', 'size', 'amount', 'out of range']):
+                code = APIErrorCode.QUANTITY_OUT_OF_RANGE
+            elif any(keyword in message.lower() for keyword in ['max position', 'position limit']):
+                code = APIErrorCode.MAX_POSITION_EXCEEDED
+            elif any(keyword in message.lower() for keyword in ['liquidation', 'liquidating']):
+                code = APIErrorCode.LIQUIDATION_IN_PROGRESS
+            elif any(keyword in message.lower() for keyword in ['price', 'out of range']):
+                code = APIErrorCode.PRICE_OUT_OF_RANGE
+            elif any(keyword in message.lower() for keyword in ['market closed', 'not open']):
+                code = APIErrorCode.MARKET_CLOSED
+            elif any(keyword in message.lower() for keyword in ['duplicate', 'already exists']):
+                code = APIErrorCode.DUPLICATE_ORDER
+            elif any(keyword in message.lower() for keyword in ['rate limit', 'ratelimit', 'too many requests']):
+                code = APIErrorCode.RATE_LIMITED
+            elif any(keyword in message.lower() for keyword in ['maintenance', 'unavailable']):
+                code = APIErrorCode.MAINTENANCE
+            elif any(keyword in message.lower() for keyword in ['rejected', 'cancel reject']):
+                code = APIErrorCode.ORDER_REJECTED
+            elif any(keyword in message.lower() for keyword in ['funding', 'rate', 'unavailable']):
+                code = APIErrorCode.FUNDING_RATE_UNAVAILABLE
+            elif any(keyword in message.lower() for keyword in ['network', 'connection', 'timeout']):
+                code = APIErrorCode.NETWORK_ISSUE
         
         return APIError(
             message=f"API error: {message}",
             code=code,
             http_status=status_code,
-            exchange_message=message
+            exchange_code=exchange_code,
+            exchange_message=message,
+            retry_after=retry_after
         )
     
     async def connect(self):

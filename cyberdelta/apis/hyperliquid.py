@@ -587,3 +587,93 @@ class HyperliquidAPI(ExchangeAPI):
 
     # --- Helper Methods Specific to Hyperliquid --- #
     # e.g., methods for wallet interaction/signing if not using a library
+
+    def _map_error_response(
+        self, 
+        status_code: int, 
+        error_body: str,
+        error_data: Dict[str, Any]
+    ) -> APIError:
+        """
+        Map Hyperliquid-specific error responses to standardized APIError.
+        
+        Args:
+            status_code: HTTP status code
+            error_body: Raw error response body
+            error_data: Parsed error data (if JSON)
+            
+        Returns:
+            Standardized APIError
+        """
+        # Start with default mapping from base class
+        code = APIErrorCode.UNKNOWN
+        message = "Unknown error"
+        exchange_code = None
+        
+        # Hyperliquid errors are typically nested in data->statuses->[0]->err or error field
+        if isinstance(error_data, dict):
+            # Case 1: Exchange endpoint statuses format
+            if "data" in error_data and "statuses" in error_data["data"] and error_data["data"]["statuses"]:
+                status = error_data["data"]["statuses"][0]
+                err_message = status.get("err") or status.get("error")
+                if err_message:
+                    message = err_message
+                    exchange_code = "STATUS_ERROR"
+                    
+                    # Map common Hyperliquid errors to standardized codes
+                    if "insufficient margin" in err_message.lower() or "insufficient balance" in err_message.lower():
+                        code = APIErrorCode.INSUFFICIENT_FUNDS
+                    elif "position does not exist" in err_message.lower():
+                        code = APIErrorCode.ORDER_NOT_FOUND
+                    elif "coin not found" in err_message.lower() or "invalid coin" in err_message.lower():
+                        code = APIErrorCode.SYMBOL_NOT_FOUND
+                    elif "invalid order id" in err_message.lower() or "order not found" in err_message.lower():
+                        code = APIErrorCode.ORDER_NOT_FOUND
+                    elif "price out of range" in err_message.lower():
+                        code = APIErrorCode.PRICE_OUT_OF_RANGE
+                    elif "size too small" in err_message.lower() or "size too large" in err_message.lower():
+                        code = APIErrorCode.QUANTITY_OUT_OF_RANGE
+                    elif "liquidation" in err_message.lower():
+                        code = APIErrorCode.LIQUIDATION_IN_PROGRESS
+                    elif "precision" in err_message.lower():
+                        code = APIErrorCode.PRECISION_ERROR
+                    elif "max position" in err_message.lower() or "position limit" in err_message.lower():
+                        code = APIErrorCode.MAX_POSITION_EXCEEDED
+                    elif "already exists" in err_message.lower():
+                        code = APIErrorCode.DUPLICATE_ORDER
+                    else:
+                        code = APIErrorCode.INVALID_PARAMS
+            
+            # Case 2: Direct error message
+            elif "error" in error_data or "message" in error_data:
+                message = error_data.get("error") or error_data.get("message", "Unknown error")
+                exchange_code = error_data.get("code")
+                
+                # Map common Hyperliquid errors
+                if "rate limit" in message.lower():
+                    code = APIErrorCode.RATE_LIMITED
+                elif "authentication" in message.lower() or "signature" in message.lower():
+                    code = APIErrorCode.AUTHENTICATION_FAILED
+                elif "maintenance" in message.lower():
+                    code = APIErrorCode.MAINTENANCE
+                else:
+                    code = APIErrorCode.SERVER_ERROR
+                
+        # Default HTTP status code based mapping as fallback
+        if code == APIErrorCode.UNKNOWN:
+            if status_code == 401 or status_code == 403:
+                code = APIErrorCode.AUTHENTICATION_FAILED
+            elif status_code == 429:
+                code = APIErrorCode.RATE_LIMITED
+            elif status_code == 400:
+                code = APIErrorCode.INVALID_PARAMS
+            elif status_code >= 500:
+                code = APIErrorCode.SERVER_ERROR
+        
+        return APIError(
+            message=f"Hyperliquid API error: {message}",
+            code=code,
+            http_status=status_code,
+            exchange_code=exchange_code,
+            exchange_message=message
+        )

@@ -1,6 +1,7 @@
 import logging
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, Any, List, Tuple
 from datetime import datetime
+import math
 
 from cyberdelta.core.signal_generator import ArbitrageOpportunity
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
@@ -63,16 +64,20 @@ class RiskManager:
     - Calculating risk metrics
     """
     
-    def __init__(self, config: Config, portfolio_tracker: PortfolioTracker):
+    def __init__(self, config: Config, portfolio_tracker: PortfolioTracker, circuit_breaker_system=None, funding_rate_validator=None):
         """
         Initialize the risk manager.
         
         Args:
             config: Application configuration
             portfolio_tracker: Portfolio state tracking
+            circuit_breaker_system: Optional system for circuit breakers
+            funding_rate_validator: Optional validator for funding rate predictions
         """
         self.config = config
         self.portfolio_tracker = portfolio_tracker
+        self.circuit_breaker_system = circuit_breaker_system
+        self.funding_rate_validator = funding_rate_validator
         
         # Load risk parameters from config
         self.max_position_size = config.get('risk.max_position_size', 1000.0)  # USD
@@ -81,6 +86,18 @@ class RiskManager:
         self.max_collateral_per_exchange = config.get('risk.max_collateral_per_exchange', 0.8)  # 80% max on any exchange
         self.max_leverage = config.get('risk.max_leverage', 5.0)  # Maximum allowed leverage
         self.min_liquidation_buffer = config.get('risk.min_liquidation_buffer', 0.2)  # 20% buffer from liquidation
+        
+        # Portfolio-level risk management parameters
+        self.max_exposure_per_asset = config.get('risk.max_exposure_per_asset', 0.2)  # 20% max exposure to any single asset
+        self.max_exposure_per_exchange = config.get('risk.max_exposure_per_exchange', 0.5)  # 50% max exposure to any exchange
+        self.max_correlated_exposure = config.get('risk.max_correlated_exposure', 0.3)  # 30% max exposure to correlated assets
+        self.correlation_threshold = config.get('risk.correlation_threshold', 0.7)  # Correlation threshold for grouping assets
+        self.circuit_breaker_recovery_factor = config.get('risk.circuit_breaker_recovery_factor', 0.3)  # 30% sizing during recovery
+        
+        # Validation metric thresholds
+        self.max_acceptable_rmse = config.get('risk.max_acceptable_rmse', 0.05)  # 5% max acceptable RMSE for funding rate predictions
+        self.max_acceptable_bias = config.get('risk.max_acceptable_bias', 0.02)  # 2% max acceptable bias
+        self.min_validation_factor = config.get('risk.min_validation_factor', 0.2)  # Minimum factor when validation metrics are poor
         
         # Exchange-specific risk modifiers (can be used to be more conservative on certain exchanges)
         self.exchange_risk_modifiers: Dict[str, float] = {}
@@ -183,6 +200,202 @@ class RiskManager:
         
         return True
     
+    def _apply_portfolio_exposure_management(self, opportunity: ArbitrageOpportunity, base_size: float) -> float:
+        """
+        Apply portfolio-level exposure management constraints to the position size.
+        
+        Args:
+            opportunity: Arbitrage opportunity
+            base_size: Base position size calculated by Kelly
+            
+        Returns:
+            Adjusted position size respecting portfolio constraints
+        """
+        symbol = opportunity.symbol
+        long_exchange = opportunity.long_exchange
+        short_exchange = opportunity.short_exchange
+        
+        # Get portfolio metrics
+        total_capital = self.portfolio_tracker.get_total_capital()
+        if total_capital <= 0:
+            logger.warning("Cannot apply portfolio constraints: total capital is zero or negative")
+            return min(base_size, self.max_position_size)
+        
+        # Calculate current exposures
+        current_total_exposure = self.portfolio_tracker.get_total_exposure()
+        current_symbol_exposure = self.portfolio_tracker.get_symbol_exposure(symbol)
+        current_long_exchange_exposure = self.portfolio_tracker.get_exchange_exposure(long_exchange)
+        current_short_exchange_exposure = self.portfolio_tracker.get_exchange_exposure(short_exchange)
+        
+        # Calculate exposure ratios (as percentage of total capital)
+        total_exposure_ratio = current_total_exposure / total_capital
+        symbol_exposure_ratio = current_symbol_exposure / total_capital
+        long_exchange_ratio = current_long_exchange_exposure / total_capital
+        short_exchange_ratio = current_short_exchange_exposure / total_capital
+        
+        # Calculate available room for each constraint
+        available_total_exposure = max(0, self.max_total_exposure / total_capital - total_exposure_ratio) * total_capital
+        available_symbol_exposure = max(0, self.max_exposure_per_asset - symbol_exposure_ratio) * total_capital
+        available_long_exchange = max(0, self.max_exposure_per_exchange - long_exchange_ratio) * total_capital
+        available_short_exchange = max(0, self.max_exposure_per_exchange - short_exchange_ratio) * total_capital
+        
+        # Find the most restrictive constraint
+        available_exposure = min(
+            available_total_exposure,
+            available_symbol_exposure,
+            available_long_exchange,
+            available_short_exchange
+        )
+        
+        # Apply correlation-based exposure limits if we have other active positions
+        active_positions = self.portfolio_tracker.get_active_positions()
+        if active_positions:
+            # Get correlation data from portfolio tracker or data handler (simplified here)
+            # In a real implementation, this would use historical correlation data
+            correlated_exposure = self._calculate_correlated_exposure(symbol, active_positions)
+            correlated_exposure_ratio = correlated_exposure / total_capital
+            
+            # Calculate available room for correlated exposure
+            available_correlated = max(0, self.max_correlated_exposure - correlated_exposure_ratio) * total_capital
+            
+            # Update available exposure with correlation constraint
+            available_exposure = min(available_exposure, available_correlated)
+        
+        # Determine maximum position size based on available exposure
+        # For a balanced arbitrage position, we need room for both sides
+        max_position_size = min(available_exposure / 2, self.max_position_size)
+        
+        # Adjust base size to respect the exposure limits
+        adjusted_size = min(base_size, max_position_size)
+        
+        if adjusted_size < base_size:
+            logger.info(f"Position size reduced from ${base_size:.2f} to ${adjusted_size:.2f} due to portfolio exposure limits")
+        
+        return adjusted_size
+    
+    def _calculate_correlated_exposure(self, symbol: str, active_positions: List[Dict[str, Any]]) -> float:
+        """
+        Calculate the existing exposure to assets correlated with the given symbol.
+        
+        Args:
+            symbol: Trading symbol to check
+            active_positions: List of active positions in the portfolio
+            
+        Returns:
+            Total exposure to correlated assets in USD
+        """
+        # Simplified correlation calculation - in practice would use market data
+        # For now, assume assets with the same base currency are correlated
+        base_currency = symbol.split('/')[0] if '/' in symbol else symbol[:3]  # Simple currency extraction, improve for real implementation
+        
+        correlated_exposure = 0.0
+        for position in active_positions:
+            position_symbol = position.get('symbol', '')
+            position_base = position_symbol.split('/')[0] if '/' in position_symbol else position_symbol[:3]
+            
+            # Check if assets share the same base currency or have known correlation
+            if position_base == base_currency:
+                # Consider this position correlated
+                correlated_exposure += abs(position.get('size_usd', 0.0))
+            # In a real implementation, could use actual correlation matrix here
+        
+        return correlated_exposure
+    
+    def _apply_safety_system_adjustments(self, 
+                                       opportunity: ArbitrageOpportunity, 
+                                       base_size: float) -> float:
+        """
+        Apply adjustments based on safety systems like circuit breakers and validators.
+        
+        Args:
+            opportunity: Arbitrage opportunity
+            base_size: Base position size
+            
+        Returns:
+            Adjusted position size respecting safety systems
+        """
+        adjusted_size = base_size
+        
+        # Adjust based on circuit breaker status
+        if self.circuit_breaker_system:
+            # Check circuit breakers for symbol and exchanges
+            symbol = opportunity.symbol
+            long_exchange = opportunity.long_exchange
+            short_exchange = opportunity.short_exchange
+            
+            # Check symbol circuit breaker
+            symbol_state = self.circuit_breaker_system.get_status(f"symbol:{symbol}")
+            long_state = self.circuit_breaker_system.get_status(f"exchange:{long_exchange}")
+            short_state = self.circuit_breaker_system.get_status(f"exchange:{short_exchange}")
+            
+            # If any circuit breaker is fully open, return zero size
+            if "OPEN" in [symbol_state, long_state, short_state]:
+                logger.warning(f"Circuit breaker active, preventing trade for {symbol}")
+                return 0.0
+            
+            # If any circuit breaker is in recovery mode, reduce size
+            if "HALF_OPEN" in [symbol_state, long_state, short_state]:
+                logger.info(f"Circuit breaker in recovery mode, reducing position size")
+                adjusted_size *= self.circuit_breaker_recovery_factor
+        
+        # Adjust based on funding rate validation metrics
+        if self.funding_rate_validator:
+            # Get validation metrics for both exchanges
+            long_metrics = self._get_validation_metrics(opportunity.long_exchange, symbol)
+            short_metrics = self._get_validation_metrics(opportunity.short_exchange, symbol)
+            
+            # Use the worst metrics to adjust size
+            validation_factor = min(long_metrics, short_metrics)
+            adjusted_size *= validation_factor
+            
+            if validation_factor < 1.0:
+                logger.info(f"Position size reduced to {validation_factor:.2f}x due to funding rate validation metrics")
+        
+        return adjusted_size
+    
+    def _get_validation_metrics(self, exchange: str, symbol: str) -> float:
+        """
+        Get validation metrics adjustment factor for an exchange/symbol pair.
+        
+        Args:
+            exchange: Exchange identifier
+            symbol: Trading symbol
+            
+        Returns:
+            Adjustment factor (0.0-1.0) based on validation metrics
+        """
+        # Default to 1.0 (no adjustment) if validator is not available
+        if not self.funding_rate_validator:
+            return 1.0
+            
+        try:
+            # Get validation metrics from validator
+            metrics = self.funding_rate_validator.get_metrics(exchange, symbol)
+            
+            # If no metrics available, use conservative default
+            if not metrics:
+                return 0.8  # 20% reduction when we have no validation data
+            
+            # Calculate adjustment based on RMSE (root mean square error)
+            # Higher RMSE = lower factor = smaller position
+            rmse = metrics.get('rmse', 0.0)
+            rmse_factor = max(0.0, 1.0 - (rmse / self.max_acceptable_rmse))
+            
+            # Calculate adjustment based on bias
+            # Higher absolute bias = lower factor
+            bias = abs(metrics.get('bias', 0.0))
+            bias_factor = max(0.0, 1.0 - (bias / self.max_acceptable_bias))
+            
+            # Combine factors (weighted average)
+            combined_factor = (rmse_factor * 0.7) + (bias_factor * 0.3)
+            
+            # Ensure we don't go below the minimum factor
+            return max(self.min_validation_factor, combined_factor)
+            
+        except Exception as e:
+            logger.warning(f"Error getting validation metrics: {e}")
+            return 0.8  # Conservative default on error
+    
     def size_opportunity(self, opportunity: ArbitrageOpportunity) -> Optional[SizedOpportunity]:
         """
         Calculate appropriate position size for an arbitrage opportunity.
@@ -213,8 +426,14 @@ class RiskManager:
         # Apply exchange risk modifier
         modified_size = raw_size * exchange_modifier
         
+        # Apply portfolio exposure management
+        exposure_adjusted_size = self._apply_portfolio_exposure_management(opportunity, modified_size)
+        
+        # Apply safety system adjustments (circuit breakers, validation metrics)
+        safety_adjusted_size = self._apply_safety_system_adjustments(opportunity, exposure_adjusted_size)
+        
         # Apply absolute position size cap
-        capped_size = min(modified_size, self.max_position_size)
+        capped_size = min(safety_adjusted_size, self.max_position_size)
         
         # Ensure equal sizes for delta neutrality
         long_size = capped_size
@@ -234,7 +453,7 @@ class RiskManager:
         
         # Calculate return metrics
         allocation_percentage = (total_size / total_capital) * 100
-        expected_return = (expected_profit / total_size) * 100
+        expected_return = (expected_profit / total_size) * 100 if total_size > 0 else 0
         risk_adjusted_return = expected_return / (opportunity.basis_volatility + 0.0001)  # Avoid division by zero
         
         # Create sized opportunity
@@ -275,3 +494,62 @@ class RiskManager:
         logger.info(f"Validated {len(sized_opportunities)} of {len(opportunities)} opportunities")
         
         return sized_opportunities
+        
+    def get_portfolio_exposure_summary(self) -> Dict[str, Any]:
+        """
+        Get a summary of current portfolio exposure metrics.
+        
+        Returns:
+            Dictionary with exposure metrics
+        """
+        total_capital = self.portfolio_tracker.get_total_capital()
+        if total_capital <= 0:
+            return {
+                "total_capital": 0,
+                "total_exposure": 0,
+                "total_exposure_ratio": 0,
+                "exchanges": {},
+                "symbols": {},
+                "status": "INVALID"
+            }
+            
+        total_exposure = self.portfolio_tracker.get_total_exposure()
+        
+        # Calculate exchange exposures
+        exchange_exposures = {}
+        for exchange in self.portfolio_tracker.get_active_exchanges():
+            exposure = self.portfolio_tracker.get_exchange_exposure(exchange)
+            exchange_exposures[exchange] = {
+                "exposure": exposure,
+                "ratio": exposure / total_capital if total_capital > 0 else 0,
+                "available": max(0, self.max_exposure_per_exchange * total_capital - exposure)
+            }
+            
+        # Calculate symbol exposures
+        symbol_exposures = {}
+        for symbol in self.portfolio_tracker.get_active_symbols():
+            exposure = self.portfolio_tracker.get_symbol_exposure(symbol)
+            symbol_exposures[symbol] = {
+                "exposure": exposure,
+                "ratio": exposure / total_capital if total_capital > 0 else 0,
+                "available": max(0, self.max_exposure_per_asset * total_capital - exposure)
+            }
+            
+        # Calculate overall status
+        if total_exposure / total_capital > self.max_total_exposure:
+            status = "OVEREXPOSED"
+        elif total_exposure / total_capital > self.max_total_exposure * 0.9:
+            status = "NEAR_LIMIT"
+        else:
+            status = "NORMAL"
+            
+        return {
+            "total_capital": total_capital,
+            "total_exposure": total_exposure,
+            "total_exposure_ratio": total_exposure / total_capital if total_capital > 0 else 0,
+            "available_exposure": max(0, self.max_total_exposure * total_capital - total_exposure),
+            "exchanges": exchange_exposures,
+            "symbols": symbol_exposures,
+            "status": status,
+            "timestamp": datetime.now().timestamp()
+        }

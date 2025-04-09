@@ -6,7 +6,7 @@ import time
 from typing import Any, Dict, List, Optional, Callable, Coroutine
 from datetime import datetime
 
-from .base import ExchangeAPI, APIError, MessageHandler
+from .base import ExchangeAPI, APIError, APIErrorCode, MessageHandler
 from ..core.models import (
     Order, OrderBook, Ticker, Trade, Position, Balance, FundingRate, OrderType, OrderSide
 )
@@ -549,4 +549,113 @@ class BackpackAPI(ExchangeAPI):
             raise
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Unexpected error initiating withdrawal: {e}", exc_info=True)
-            raise APIError(f"Unexpected error initiating withdrawal: {e}") 
+            raise APIError(f"Unexpected error initiating withdrawal: {e}")
+
+    def _map_error_response(
+        self, 
+        status_code: int, 
+        error_body: str,
+        error_data: Dict[str, Any]
+    ) -> APIError:
+        """
+        Map Backpack-specific error responses to standardized APIError.
+        
+        Args:
+            status_code: HTTP status code
+            error_body: Raw error response body
+            error_data: Parsed error data (if JSON)
+            
+        Returns:
+            Standardized APIError
+        """
+        # Initialize with base values
+        code = APIErrorCode.UNKNOWN
+        message = "Unknown error"
+        exchange_code = None
+        retry_after = None
+        
+        # Backpack typically returns errors in a structured format with 'code' and 'msg' fields
+        if isinstance(error_data, dict):
+            # Extract message and code
+            if "msg" in error_data:
+                message = error_data["msg"]
+            elif "message" in error_data:
+                message = error_data["message"]
+            
+            if "code" in error_data:
+                exchange_code = str(error_data["code"])
+            
+            # Extract retry-after for rate limiting
+            if "retry-after" in error_data:
+                retry_after = float(error_data["retry-after"])
+            
+            # Map Backpack error codes to our standardized codes
+            # Reference: https://docs.backpack.exchange/ (error codes)
+            if exchange_code:
+                # Try to map based on known Backpack error codes
+                if exchange_code in ["401", "-1010", "-1011", "-2010", "-2011"]:
+                    code = APIErrorCode.AUTHENTICATION_FAILED
+                elif exchange_code in ["-1013", "-1016", "-2010"]:
+                    code = APIErrorCode.INSUFFICIENT_FUNDS
+                elif exchange_code in ["-1021", "-1003"]:
+                    code = APIErrorCode.TIMEOUT
+                elif exchange_code in ["-1015", "-1022"]:
+                    code = APIErrorCode.RATE_LIMITED
+                elif exchange_code in ["-1121", "-2011"]:
+                    code = APIErrorCode.INVALID_PARAMS
+                elif exchange_code in ["-1100", "-1102", "-1103"]:
+                    code = APIErrorCode.INVALID_PARAMS
+                elif exchange_code in ["-2013", "-2014"]:
+                    code = APIErrorCode.ORDER_NOT_FOUND
+                elif exchange_code in ["-1119", "-1116"]:
+                    code = APIErrorCode.QUANTITY_OUT_OF_RANGE
+                elif exchange_code in ["-1004", "-1005", "-1006", "-1007"]:
+                    code = APIErrorCode.SERVER_ERROR
+                elif exchange_code in ["-1120", "-2012"]:
+                    code = APIErrorCode.PRICE_OUT_OF_RANGE
+                elif exchange_code in ["-2015"]:
+                    code = APIErrorCode.DUPLICATE_ORDER
+            
+            # Map based on error message patterns if we still have an unknown code
+            if code == APIErrorCode.UNKNOWN and message:
+                lower_message = message.lower()
+                if any(term in lower_message for term in ["insufficient", "balance", "not enough"]):
+                    code = APIErrorCode.INSUFFICIENT_FUNDS
+                elif any(term in lower_message for term in ["precision", "decimal", "lot", "step"]):
+                    code = APIErrorCode.PRECISION_ERROR
+                elif any(term in lower_message for term in ["min notional", "minimum notional"]):
+                    code = APIErrorCode.MIN_NOTIONAL_NOT_MET
+                elif any(term in lower_message for term in ["quantity", "size", "amount", "too small", "too large"]):
+                    code = APIErrorCode.QUANTITY_OUT_OF_RANGE
+                elif any(term in lower_message for term in ["price", "range", "invalid"]):
+                    code = APIErrorCode.PRICE_OUT_OF_RANGE
+                elif any(term in lower_message for term in ["order", "not found"]):
+                    code = APIErrorCode.ORDER_NOT_FOUND
+                elif any(term in lower_message for term in ["rate limit", "too many requests"]):
+                    code = APIErrorCode.RATE_LIMITED
+                elif any(term in lower_message for term in ["duplicate", "already exists"]):
+                    code = APIErrorCode.DUPLICATE_ORDER
+            
+        # Fallback to HTTP status code mapping if we still have unknown code
+        if code == APIErrorCode.UNKNOWN:
+            if status_code == 401 or status_code == 403:
+                code = APIErrorCode.AUTHENTICATION_FAILED
+            elif status_code == 400:
+                code = APIErrorCode.INVALID_PARAMS
+            elif status_code == 404:
+                code = APIErrorCode.SYMBOL_NOT_FOUND
+            elif status_code == 429:
+                code = APIErrorCode.RATE_LIMITED
+            elif status_code == 503:
+                code = APIErrorCode.MAINTENANCE
+            elif status_code >= 500:
+                code = APIErrorCode.SERVER_ERROR
+        
+        return APIError(
+            message=f"Backpack API error: {message}",
+            code=code,
+            http_status=status_code,
+            exchange_code=exchange_code,
+            exchange_message=message,
+            retry_after=retry_after
+        ) 
