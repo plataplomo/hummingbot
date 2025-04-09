@@ -109,8 +109,14 @@ class CircuitBreaker:
         self.config = config
         
         # Load circuit breaker parameters
-        self.loss_threshold = config.get('execution.circuit_breaker.loss_threshold', 0.05)
-        self.failed_trades_threshold = config.get('execution.circuit_breaker.failed_trades', 3)
+        try:
+            self.loss_threshold = config.get('execution.circuit_breaker.loss_threshold', 100.0)
+            self.failed_trades_threshold = config.get('execution.circuit_breaker.failed_trades', 3)
+        except Exception as e:
+            # Set default values if config is not accessible
+            logger.warning(f"Failed to load circuit breaker configuration: {e}. Using defaults.")
+            self.loss_threshold = 100.0
+            self.failed_trades_threshold = 3
         
         # State
         self.failed_trades_count = 0
@@ -139,10 +145,10 @@ class CircuitBreaker:
         if self.consecutive_failures >= self.failed_trades_threshold:
             self.open = True
             logger.warning(f"Circuit breaker opened after {self.consecutive_failures} consecutive failures")
-        
-        if self.total_loss >= self.loss_threshold:
+        elif self.total_loss >= self.loss_threshold:
             self.open = True
             logger.warning(f"Circuit breaker opened after losses of ${self.total_loss:.2f}")
+        # Don't automatically open the circuit breaker if thresholds aren't reached
     
     def reset(self):
         """Reset the circuit breaker."""

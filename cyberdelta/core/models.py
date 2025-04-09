@@ -21,6 +21,28 @@ class OrderType(Enum):
     TAKE_PROFIT_LIMIT = "take_profit_limit"
 
 
+class OrderStatus(Enum):
+    """Enum representing the status of an order."""
+    NEW = "NEW"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
+    FILLED = "FILLED"
+    CANCELED = "CANCELED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+
+
+@dataclass
+class MarketData:
+    """Represents market data for a symbol, including OHLCV information."""
+    symbol: str
+    timestamp: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float = 0.0
+
+
 @dataclass
 class Balance:
     """Represents an account balance for a single asset."""
@@ -57,6 +79,22 @@ class Order:
     time: int = 0  # Order creation time (timestamp)
     client_order_id: str = ""  # Custom client order ID
     reduce_only: bool = False  # Whether the order is reduce-only
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert order to dictionary representation."""
+        return {
+            "id": self.id,
+            "symbol": self.symbol,
+            "side": self.side.value if isinstance(self.side, OrderSide) else self.side,
+            "type": self.type.value if isinstance(self.type, OrderType) else self.type,
+            "price": self.price,
+            "quantity": self.quantity,
+            "filled_quantity": self.filled_quantity,
+            "status": self.status,
+            "time": self.time,
+            "client_order_id": self.client_order_id,
+            "reduce_only": self.reduce_only
+        }
 
 
 @dataclass
