@@ -96,7 +96,7 @@ class FundingRateArbitrageStrategy(Strategy):
             return None
         
         # Calculate basis (price differential)
-        basis = perp_ticker.close - spot_ticker.close
+        basis = perp_ticker.price - spot_ticker.price
         
         # Update historical basis data
         if self.symbol not in self.historical_basis:
@@ -230,7 +230,8 @@ class FundingRateArbitrageStrategy(Strategy):
         if (self.last_opportunity_check is None or 
             (now - self.last_opportunity_check).total_seconds() >= self.check_interval):
             
-            # Schedule opportunity check to run asynchronously
+            # Create task but don't await immediately - it will run in the background
+            # This avoids blocking the main strategy loop
             asyncio.create_task(self._check_and_generate_signal())
             self.last_opportunity_check = now
         
@@ -249,7 +250,11 @@ class FundingRateArbitrageStrategy(Strategy):
             opportunity = await self._check_opportunity()
             if opportunity:
                 self.active_opportunities.append(opportunity)
-                return self._generate_entry_signal(opportunity)
+                signal = self._generate_entry_signal(opportunity)
+                # Store the signal for later retrieval or directly submit it to the execution engine
+                # For now, we'll just log it
+                logger.info(f"Generated trade signal: {signal}")
+                return signal
         except Exception as e:
             logger.error(f"Error checking opportunities: {e}")
         
