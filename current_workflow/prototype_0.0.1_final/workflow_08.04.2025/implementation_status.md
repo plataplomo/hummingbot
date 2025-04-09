@@ -41,10 +41,10 @@
 - ✅ Added integration tests for configuration components 
 - ✅ Created tests for configuration example script
 - ✅ API Client tests (HyperliquidAPI, BackpackAPI)
-- [ ] Data Handler tests 
-- [ ] Portfolio Tracker tests
+- ✅ Execution Handler tests
+- ✅ Data Handler tests
+- 🟡 Portfolio Tracker tests (IN PROGRESS)
 - [ ] Risk Manager tests
-- [ ] Execution Handler tests
 
 ## Upcoming Tasks
 
@@ -67,12 +67,16 @@
 | Multiple config formats | Standardized on a single, well-documented format |
 | Environment-specific paths | Created robust path resolution for tests |
 | Temporary test files | Used `tempfile` module with proper cleanup |
+| Pytest compatibility issues | Installed compatible pytest (7.4.0) and pytest-asyncio (0.21.1) versions |
+| Circuit breaker test failures | Fixed threshold handling logic and added proper default initialization |
+| Data Handler test failures | Improved handling of MarketData objects and fixed staleness checks |
+| Exchange API mocking | Updated mocks to properly handle API calls and websocket messages |
 
 ## Next Steps
 
 The immediate focus will be on:
-1. Implementing API client tests for HyperliquidAPI and BackpackAPI
-2. Creating tests for the Data Handler components
-3. Implementing Portfolio Tracker tests
+1. Implementing tests for the Portfolio Tracker components
+2. Creating Risk Manager tests
+3. Developing integration tests across components
 
 Once the core component tests are complete, we'll move on to integration tests for the system as a whole. 
