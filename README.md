@@ -119,74 +119,106 @@ python cyberdelta/main.py --dry-run
 
 ## Configuration
 
-The bot is configured through YAML files:
+The system uses a secure, validated configuration approach with two main files:
 
-### config.yaml
-Contains general settings, strategy parameters, and exchange configurations.
+### Configuration Files
+
+1. **config.yaml**: Contains non-sensitive settings like strategy parameters and exchange URLs
+2. **secrets.yaml**: Contains sensitive information like API keys (stored securely outside the repository)
+
+### Secure Secrets Management
+
+For security, secrets are stored **outside** the Git repository:
+
+- Default location: `~/.cyberdelta/secrets.yaml`
+- Custom location: Set via `CYBERDELTA_SECRETS_PATH` environment variable
+
+**IMPORTANT: Never add secrets.yaml to version control!**
+
+### Example Configuration
 
 ```yaml
 # General settings
 general:
   log_level: INFO
-  state_file: state.json
-  state_backup_directory: state_backups
-  state_backup_count: 5
-  check_interval: 60  # seconds
+  safe_mode: true  # Start in safe mode (read-only)
+  state_file: "data/state.json"
+  state_backup_directory: "data/state_backups"
+  state_save_interval: 300  # seconds
+  state_backup_count: 5     # Number of previous state files to keep
 
 # Exchange configuration
 exchanges:
   hyperliquid:
     enabled: true
-    base_url: https://api.hyperliquid.xyz
-    ws_url: wss://api.hyperliquid.xyz/ws
-    symbols:
-      - BTC-PERP
-      - ETH-PERP
-      - SOL-PERP
-  
+    api_base_url: "https://api.hyperliquid.xyz"
+    ws_url: "wss://api.hyperliquid.xyz/ws"
+    rate_limit_per_minute: 120
+    
   backpack:
     enabled: true
-    base_url: https://api.backpack.exchange
-    ws_url: wss://ws.backpack.exchange
+    api_base_url: "https://api.backpack.exchange"
+    ws_url: "wss://ws.backpack.exchange"
+    rate_limit_per_minute: 120
+
+# Strategy configuration
+strategies:
+  hl_perp_bp_spot:
+    enabled: true
     symbols:
-      - BTC_USDC
-      - ETH_USDC
-      - SOL_USDC
-
-# Strategy parameters
-strategy:
-  symbols:
-    - BTC-PERP
-    - ETH-PERP
-    - SOL-PERP
-  funding_rate:
-    min_funding_differential: 0.0001  # Minimum funding rate differential to consider
-    min_profit_threshold: 5.0  # Minimum expected profit in USD
-    risk_aversion: 1.0  # Risk aversion parameter for utility function
-    rebalance_threshold: 0.05  # 5% threshold for rebalancing
-
-# Risk parameters
-risk:
-  max_position_size: 1000.0  # USD
-  max_total_exposure: 5000.0  # USD
-  kelly_fraction: 0.5  # Conservative Kelly criterion
-  max_collateral_per_exchange: 0.8  # 80% max on any exchange
-  max_leverage: 5.0  # Maximum allowed leverage
+      hl_symbol: "BTC"
+      bp_symbol: "BTC_USDC"
+    params:
+      funding_threshold: 0.0001  # 0.01% min funding rate
+      min_spread: 0.0002  # 0.02% max price spread
+      min_profit_usd: 1.0  # Minimum profit to execute
 ```
 
-### secrets.yaml
-Contains sensitive API keys and credentials. Never commit this file to version control.
+### Example Secrets File
 
 ```yaml
-# API Secrets
-secrets:
+# CyberDeltaEngine Secrets Configuration
+# 
+# IMPORTANT: DO NOT STORE REAL SECRETS IN THE REPOSITORY
+# Store this file at: ~/.cyberdelta/secrets.yaml
+
+# Exchange credentials
+exchanges:
+  # HyperLiquid exchange credentials
   hyperliquid:
-    WALLET_PRIVATE_KEY: "your_private_key_here"
-  
+    api_key: "YOUR_HYPERLIQUID_API_KEY"
+    api_secret: "YOUR_HYPERLIQUID_API_SECRET"
+    private_key: "YOUR_HYPERLIQUID_PRIVATE_KEY"  # If applicable
+
+  # Backpack exchange credentials
   backpack:
-    API_KEY: "your_api_key_here"
-    API_SECRET: "your_api_secret_here"
+    api_key: "YOUR_BACKPACK_API_KEY"
+    api_secret: "YOUR_BACKPACK_API_SECRET"
 ```
+
+### Configuration Usage
+
+Access configuration in code:
+
+```python
+from cyberdelta.config import config, secrets
+
+# Access configuration with dot notation
+log_level = config.get('general.log_level', 'INFO')
+hyperliquid_url = config.get('exchanges.hyperliquid.api_base_url')
+
+# Access secrets securely
+api_key = secrets.get('exchanges.hyperliquid.api_key')
+```
+
+### Environment Variables
+
+Environment variables can be used to override configuration:
+
+- `CYBERDELTA_CONFIG_PATH`: Path to configuration file
+- `CYBERDELTA_SECRETS_PATH`: Path to secrets file
+- `LOG_LEVEL`: Override logging level
+- `SAFE_MODE`: Force safe mode (true/false)
 
 ## Development
 

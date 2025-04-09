@@ -1,13 +1,4 @@
-.venv
-.env
-
-# Secrets and sensitive files
-secrets.yaml
-**/secrets.yaml
-.env.local
-.env.*.local
-
-# Python
+# Python artifacts
 __pycache__/
 *.py[cod]
 *$py.class
@@ -29,9 +20,35 @@ wheels/
 .installed.cfg
 *.egg
 
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
 # IDE files
 .idea/
 .vscode/
 *.swp
 *.swo
 .DS_Store
+
+# Testing
+.tox/
+.coverage
+htmlcov/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+
+# Secrets - IMPORTANT: Never commit secrets!
+secrets.yaml
+**/secrets.yaml
+/config/secrets.yaml
+/cyberdelta/config/secrets.yaml
+~/.cyberdelta/secrets.yaml
+/home/*/.cyberdelta/secrets.yaml

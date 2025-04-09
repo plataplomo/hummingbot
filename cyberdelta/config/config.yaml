@@ -111,4 +111,4 @@ notifications:
     low_balance: true
     position_reconciliation_error: true
     execution_error: true
-    circuit_breaker_triggered: true 
+    circuit_breaker_triggered: true

@@ -42,13 +42,13 @@ def main():
         "--config",
         type=str,
         help="Path to the configuration file",
-        default=os.path.join(os.path.dirname(__file__), "../config/config.yaml"),
+        default=os.path.join(os.path.dirname(__file__), "../cyberdelta/config/config.yaml"),
     )
     parser.add_argument(
         "--secrets",
         type=str,
         help="Path to the secrets file",
-        default=os.path.join(os.path.dirname(__file__), "../config/secrets.yaml"),
+        default=os.path.join(Path.home(), ".cyberdelta/secrets.yaml"),
     )
     parser.add_argument(
         "--create-example",
@@ -93,10 +93,10 @@ def main():
         return
     
     print(f"Loading secrets from: {secrets_path}")
+    # Set environment variable for SecretsManager
+    os.environ['CYBERDELTA_SECRETS_PATH'] = secrets_path
     # Create secrets manager
     secrets = SecretsManager()
-    # Set CYBERDELTA_SECRETS_PATH environment variable for SecretsManager
-    os.environ['CYBERDELTA_SECRETS_PATH'] = secrets_path
     if not secrets.load_secrets():
         print("Failed to load secrets")
         return
@@ -105,7 +105,6 @@ def main():
     print("\n=== Configuration Information ===")
     print(f"Safe Mode: {config.get('general.safe_mode', False)}")
     print(f"Log Level: {config.get('general.log_level', 'Not Set')}")
-    print(f"Timezone: {config.get('general.timezone', 'Not Set')}")
     
     # Display exchanges information
     print("\n=== Exchange Information ===")
@@ -113,8 +112,9 @@ def main():
     for exchange_name, exchange_config in exchanges.items():
         status = 'Enabled' if exchange_config.get('enabled', False) else 'Disabled'
         print(f"  - {exchange_name}: {status}")
-        print(f"    Base URL: {exchange_config.get('base_url', 'Not Set')}")
-        print(f"    WebSocket URL: {exchange_config.get('websocket_url', 'Not Set')}")
+        print(f"    API Base URL: {exchange_config.get('api_base_url', 'Not Set')}")
+        print(f"    WebSocket URL: {exchange_config.get('ws_url', 'Not Set')}")
+        print(f"    Rate Limit: {exchange_config.get('rate_limit_per_minute', 'Not Set')} per minute")
     
     # Display strategies information
     strategies = config.get('strategies', {})
@@ -122,128 +122,291 @@ def main():
     for strategy_name, strategy_config in strategies.items():
         status = 'Enabled' if strategy_config.get('enabled', False) else 'Disabled'
         print(f"  - {strategy_name}: {status}")
-        print(f"    Min Rate Difference: {strategy_config.get('min_rate_difference', 'Not Set')}")
-        print(f"    Max Position Size: {strategy_config.get('max_position_size', 'Not Set')}")
-        symbols = strategy_config.get('symbols', [])
-        print(f"    Symbols: {', '.join(symbols) if symbols else 'None'}")
+        
+        # Display strategy symbols
+        symbols = strategy_config.get('symbols', {})
+        if symbols:
+            print(f"    Symbols:")
+            for symbol_name, symbol_value in symbols.items():
+                print(f"      {symbol_name}: {symbol_value}")
+        
+        # Display strategy parameters
+        params = strategy_config.get('params', {})
+        if params:
+            print(f"    Parameters:")
+            for param_name, param_value in params.items():
+                print(f"      {param_name}: {param_value}")
     
     # Display risk management information
     print("\n=== Risk Management Information ===")
     risk = config.get('risk', {})
-    print(f"  Max Drawdown: {risk.get('max_drawdown_percent', 'Not Set')}%")
-    print(f"  Max Daily Loss: ${risk.get('max_daily_loss_usd', 'Not Set')}")
     
     global_risk = risk.get('global', {})
     print(f"  Global Risk Settings:")
     print(f"    Max Position Size: ${global_risk.get('max_position_usd', 'Not Set')}")
-    print(f"    Max Leverage: {global_risk.get('max_leverage', 'Not Set')}x")
+    print(f"    Max Total Exposure: ${global_risk.get('max_total_exposure_usd', 'Not Set')}")
+    print(f"    Max Portfolio Leverage: {global_risk.get('max_portfolio_leverage', 'Not Set')}x")
+    
+    strategy_risk = risk.get('strategies', {})
+    print(f"  Strategy-Specific Risk Settings:")
+    for strategy_name, risk_config in strategy_risk.items():
+        print(f"    - {strategy_name}:")
+        print(f"      Max Position Size: ${risk_config.get('max_position_usd', 'Not Set')}")
+        print(f"      Max Leverage: {risk_config.get('max_leverage', 'Not Set')}x")
+    
+    # Display circuit breakers
+    print("\n=== Circuit Breakers ===")
+    circuit_breakers = config.get('circuit_breakers', {})
+    print(f"  Enabled: {circuit_breakers.get('enabled', False)}")
     
     # Display API information (without exposing secret values)
-    print("\n=== API Information ===")
-    apis = config.get('apis', {})
-    for api_name, api_config in apis.items():
-        print(f"  - {api_name}")
-        # Display base URL
-        print(f"    Base URL: {api_config.get('base_url', 'Not Set')}")
+    print("\n=== API Credentials Status ===")
+    for exchange_name in exchanges.keys():
+        print(f"  - {exchange_name}")
         # Only show if a key exists, not its value
-        has_key = bool(secrets.get(f'{api_name}_api_key', None))
-        has_secret = bool(secrets.get(f'{api_name}_api_secret', None))
+        has_key = bool(secrets.get(f'exchanges.{exchange_name}.api_key', None))
+        has_secret = bool(secrets.get(f'exchanges.{exchange_name}.api_secret', None))
         print(f"    API Key: {'Present' if has_key else 'Missing'}")
         print(f"    API Secret: {'Present' if has_secret else 'Missing'}")
 
 
 def create_example_files():
     """Create example configuration and secrets files."""
-    config_dir = os.path.join(os.path.dirname(__file__), "../config")
-    os.makedirs(config_dir, exist_ok=True)
+    # Create paths for both locations
+    cyberdelta_config_dir = os.path.join(os.path.dirname(__file__), "../cyberdelta/config")
+    root_config_dir = os.path.join(os.path.dirname(__file__), "../config")
     
-    example_config_path = os.path.join(config_dir, "config.example.yaml")
-    example_secrets_path = os.path.join(config_dir, "secrets.example.yaml")
+    for config_dir in [cyberdelta_config_dir, root_config_dir]:
+        os.makedirs(config_dir, exist_ok=True)
     
-    # Example configuration content
-    config_content = """# CyberDelta Configuration
+    # Example configuration content matching the proper structure
+    config_content = """# CyberDeltaEngine Configuration for Prototype 0.0.1
 
 # General settings
 general:
-  log_level: "INFO"
-  timezone: "UTC"
-  safe_mode: true
+  log_level: INFO
+  safe_mode: true  # Start in safe mode (read-only)
+  state_file: "data/state.json"
+  state_backup_directory: "data/state_backups"
+  state_save_interval: 300  # seconds
+  state_backup_count: 5     # Number of previous state files to keep
 
-# Exchange configurations
+# Exchange configuration
 exchanges:
   hyperliquid:
     enabled: true
-    base_url: "https://api.hyperliquid.xyz"
-    websocket_url: "wss://api.hyperliquid.xyz/ws"
+    api_base_url: "https://api.hyperliquid.xyz"
+    ws_url: "wss://api.hyperliquid.xyz/ws"
+    rate_limit_per_minute: 120
+    
   backpack:
     enabled: true
-    base_url: "https://api.backpack.exchange"
-    websocket_url: "wss://ws.backpack.exchange"
+    api_base_url: "https://api.backpack.exchange"
+    ws_url: "wss://ws.backpack.exchange"
+    rate_limit_per_minute: 120
 
-# API configurations
-apis:
-  hyperliquid:
-    base_url: "https://api.hyperliquid.xyz"
-    websocket_url: "wss://api.hyperliquid.xyz/ws"
-  backpack:
-    base_url: "https://api.backpack.exchange"
-    websocket_url: "wss://ws.backpack.exchange"
-
-# Strategy configurations  
+# Strategy configuration
 strategies:
-  funding_rate_arbitrage:
+  hl_perp_bp_spot:
     enabled: true
-    min_rate_difference: 0.0001
-    max_position_size: 1000
-    target_exchanges: ["hyperliquid", "backpack"]
     symbols:
-      - "BTC-PERP"
-      - "ETH-PERP"
+      hl_symbol: "BTC"
+      bp_symbol: "BTC_USDC"
+    params:
+      funding_threshold: 0.0001  # 0.01% min funding rate
+      min_spread: 0.0002  # 0.02% max price spread
+      min_profit_usd: 1.0  # Minimum profit to execute
+    
+  hl_perp_bp_perp:
+    enabled: false  # Disabled by default until primary strategy is proven
+    symbols:
+      hl_symbol: "BTC"
+      bp_symbol: "BTC-PERP"
+    params:
+      min_funding_diff: 0.0002  # 0.02% min funding differential
+      max_basis_spread: 0.005  # 0.5% max basis spread
+      min_profit_usd: 2.0  # Higher min profit for riskier strategy
 
-# Risk management settings
+# Risk management
 risk:
-  max_drawdown_percent: 5
-  max_daily_loss_usd: 1000
   global:
-    max_position_usd: 5000
-    max_leverage: 2.0
+    max_position_usd: 1000.0  # Maximum position size in USD
+    max_total_exposure_usd: 5000.0  # Maximum total exposure
+    max_portfolio_leverage: 2.0  # Maximum leverage across portfolio
+  
+  strategies:
+    hl_perp_bp_spot:
+      max_position_usd: 1000.0
+      max_leverage: 3.0
+    
+    hl_perp_bp_perp:
+      max_position_usd: 500.0  # More conservative
+      max_leverage: 1.5  # More conservative
+
+# Execution parameters
+execution:
+  max_slippage: 0.002  # 0.2% max allowed slippage
+  max_retries: 3  # Maximum retry attempts for failed API calls
+  retry_delay_base: 1.0  # Base delay for exponential backoff (seconds)
+
+# Circuit breaker configuration
+circuit_breakers:
+  enabled: true
+  global:
+    failure_threshold: 3
+    reset_timeout: 300  # 5 minutes
+  
+  hyperliquid:
+    failure_threshold: 3  # Exchange-specific settings
+  
+  backpack:
+    failure_threshold: 3  # Exchange-specific settings
+
+# Validation systems
+validation:
+  funding_rates:
+    enabled: true
+    max_error_threshold: 0.0005  # 0.05% max tolerated error
+    check_interval_seconds: 300  # 5 minutes
+  
+  positions:
+    enabled: true
+    reconcile_interval_seconds: 600  # 10 minutes
+    max_discrepancy_pct: 0.05  # 5% max discrepancy
+
+# Monitoring and Notifications
+monitoring:
+  balance_check_interval: 300  # seconds
+  min_balance_thresholds:
+    hyperliquid: 100.0  # USD
+    backpack: 100.0  # USD
+  
+notifications:
+  enabled: true
+  methods:
+    telegram:
+      enabled: true
+    discord:
+      enabled: true
+  
+  alerts:
+    low_balance: true
+    position_reconciliation_error: true
+    execution_error: true
+    circuit_breaker_triggered: true
 """
     
-    # Example secrets content
-    secrets_content = """# CyberDelta Secrets
-# WARNING: This file contains sensitive information. 
-# DO NOT share or commit this file to version control.
+    # Example secrets content matching the proper structure
+    secrets_content = """# CyberDeltaEngine Secrets Configuration
+# 
+# IMPORTANT: DO NOT STORE REAL SECRETS IN THE REPOSITORY
+# This is only an example file. Actual secrets should be stored outside the repository at:
+# ~/.cyberdelta/secrets.yaml, /etc/cyberdelta/secrets.yaml, or a location specified by the CYBERDELTA_SECRETS_PATH environment variable.
 
-# API credentials
-hyperliquid_api_key: "your_hyperliquid_api_key_here"
-hyperliquid_api_secret: "your_hyperliquid_api_secret_here"
+# Exchange credentials
+exchanges:
+  # HyperLiquid exchange credentials
+  hyperliquid:
+    api_key: "YOUR_HYPERLIQUID_API_KEY"
+    api_secret: "YOUR_HYPERLIQUID_API_SECRET"
+    private_key: "YOUR_HYPERLIQUID_PRIVATE_KEY"  # If applicable
+    passphrase: "YOUR_HYPERLIQUID_PASSPHRASE"    # If applicable
 
-backpack_api_key: "your_backpack_api_key_here"
-backpack_api_secret: "your_backpack_api_secret_here"
+  # Backpack exchange credentials
+  backpack:
+    api_key: "YOUR_BACKPACK_API_KEY"
+    api_secret: "YOUR_BACKPACK_API_SECRET"
+    private_key: "YOUR_BACKPACK_PRIVATE_KEY"  # If applicable
+    passphrase: "YOUR_BACKPACK_PASSPHRASE"    # If applicable
+
+# Database credentials
+database:
+  host: "localhost"
+  port: 5432
+  username: "db_user"
+  password: "db_password"
+  database_name: "cyberdelta"
+
+# Notification services
+notifications:
+  telegram:
+    bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
+    chat_id: "YOUR_TELEGRAM_CHAT_ID"
+
+  discord:
+    webhook_url: "YOUR_DISCORD_WEBHOOK_URL"
+
+# Other service credentials
+third_party_services:
+  service_name:
+    api_key: "YOUR_SERVICE_API_KEY"
+    api_secret: "YOUR_SERVICE_API_SECRET"
 """
     
-    # Write example files
-    with open(example_config_path, "w") as f:
+    # Create example files in cyberdelta/config directory (used by the application)
+    cyberdelta_config_example_path = os.path.join(cyberdelta_config_dir, "config.yaml.example")
+    cyberdelta_secrets_example_path = os.path.join(cyberdelta_config_dir, "secrets.yaml.example")
+    
+    # Create example files in root config directory
+    root_config_example_path = os.path.join(root_config_dir, "config.example.yaml")
+    root_secrets_example_path = os.path.join(root_config_dir, "secrets.example.yaml")
+    
+    # Write example files to cyberdelta/config
+    with open(cyberdelta_config_example_path, "w") as f:
         f.write(config_content)
     
-    with open(example_secrets_path, "w") as f:
+    with open(cyberdelta_secrets_example_path, "w") as f:
         f.write(secrets_content)
     
-    # Also create the actual config and secrets files
-    config_path = os.path.join(config_dir, "config.yaml")
-    secrets_path = os.path.join(config_dir, "secrets.yaml")
-    
-    with open(config_path, "w") as f:
+    # Write example files to root/config
+    with open(root_config_example_path, "w") as f:
         f.write(config_content)
     
-    with open(secrets_path, "w") as f:
+    with open(root_secrets_example_path, "w") as f:
         f.write(secrets_content)
     
-    print(f"Example config created at: {example_config_path}")
-    print(f"Example secrets created at: {example_secrets_path}")
-    print(f"Config created at: {config_path}")
-    print(f"Secrets created at: {secrets_path}")
-    print("\nIMPORTANT: Edit secrets.yaml and add your actual API keys")
+    # Create actual config files in cyberdelta/config (main location used by the application)
+    cyberdelta_config_path = os.path.join(cyberdelta_config_dir, "config.yaml")
+    
+    # Create config files in root/config (used by the example script)
+    root_config_path = os.path.join(root_config_dir, "config.yaml")
+    root_secrets_path = os.path.join(root_config_dir, "secrets.yaml")
+    
+    # Write actual config files
+    with open(cyberdelta_config_path, "w") as f:
+        f.write(config_content)
+    
+    with open(root_config_path, "w") as f:
+        f.write(config_content)
+    
+    with open(root_secrets_path, "w") as f:
+        f.write(secrets_content)
+    
+    # Create a user secrets directory outside the repository (as recommended in the guide)
+    home_dir = Path.home()
+    user_secrets_dir = home_dir / '.cyberdelta'
+    os.makedirs(user_secrets_dir, exist_ok=True)
+    
+    # Create or update example secrets in the user's home directory
+    user_secrets_example_path = user_secrets_dir / 'secrets.yaml.example'
+    with open(user_secrets_example_path, "w") as f:
+        f.write(secrets_content)
+    
+    print(f"Example config created at:")
+    print(f"  - {cyberdelta_config_example_path}")
+    print(f"  - {root_config_example_path}")
+    print(f"Example secrets created at:")
+    print(f"  - {cyberdelta_secrets_example_path}")
+    print(f"  - {root_secrets_example_path}")
+    print(f"  - {user_secrets_example_path}")
+    print(f"\nActual config files created at:")
+    print(f"  - {cyberdelta_config_path}")
+    print(f"  - {root_config_path}")
+    print(f"  - {root_secrets_path}")
+    print("\nIMPORTANT:")
+    print("1. Copy secrets.yaml to ~/.cyberdelta/secrets.yaml (recommended secure location)")
+    print("2. Add your actual API keys to the secrets file")
+    print("3. Set CYBERDELTA_SECRETS_PATH environment variable to your secrets file location")
 
 
 def run_benchmark(config_path, secrets_path):
@@ -269,13 +432,13 @@ def run_benchmark(config_path, secrets_path):
     # Measure config value access time (1000 lookups)
     start_time = time.time()
     for _ in range(1000):
-        config.get('strategies.funding_rate_arbitrage.min_rate_difference')
+        config.get('strategies.hl_perp_bp_spot.params.funding_threshold')
     config_access_time = time.time() - start_time
     
     # Measure secrets value access time (1000 lookups)
     start_time = time.time()
     for _ in range(1000):
-        secrets.get('hyperliquid_api_key')
+        secrets.get('exchanges.hyperliquid.api_key')
     secrets_access_time = time.time() - start_time
     
     # Print results
