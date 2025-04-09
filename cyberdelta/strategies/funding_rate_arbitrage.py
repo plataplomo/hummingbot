@@ -8,6 +8,7 @@ from cyberdelta.core.types import TradeSignal, MarketData, SignalType
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.signal_generator import ArbitrageOpportunity
+from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class FundingRateArbitrageStrategy(Strategy):
                  symbol: str, 
                  data_handler: DataHandler,
                  portfolio_tracker: PortfolioTracker,
+                 risk_manager: Optional[RiskManager] = None,
                  params: Optional[Dict[str, Any]] = None):
         """
         Initialize the funding rate arbitrage strategy.
@@ -38,11 +40,13 @@ class FundingRateArbitrageStrategy(Strategy):
             symbol: Trading symbol this strategy operates on (e.g., "BTC-PERP")
             data_handler: Data handler for market data access
             portfolio_tracker: Portfolio tracker for position management
+            risk_manager: Risk manager for position sizing and risk controls
             params: Dictionary of strategy parameters
         """
         super().__init__(name, symbol, params)
         self.data_handler = data_handler
         self.portfolio_tracker = portfolio_tracker
+        self.risk_manager = risk_manager
         
         # Load strategy parameters from config or use defaults
         self.min_funding_differential = self.get_param('min_funding_differential', 0.0001)  # 0.01% minimum
@@ -67,6 +71,9 @@ class FundingRateArbitrageStrategy(Strategy):
             # Default mapping if not provided
             base = symbol.split('-')[0] if '-' in symbol else symbol.split('_')[0]
             self.symbol_mapping = {symbol: f"{base}_USDC"}
+        
+        # Position sizing info storage
+        self.sized_opportunities: Dict[str, SizedOpportunity] = {}
         
         logger.info(f"Initialized {self.name} strategy for {self.symbol} between {self.perp_exchange} and {self.spot_exchange}")
     
@@ -249,14 +256,26 @@ class FundingRateArbitrageStrategy(Strategy):
         try:
             opportunity = await self._check_opportunity()
             if opportunity:
+                # Apply enhanced position sizing via RiskManager if available
+                sized_opportunity = None
+                
+                if self.risk_manager:
+                    sized_opportunity = self.risk_manager.size_opportunity(opportunity)
+                    if sized_opportunity:
+                        logger.info(f"Sized opportunity: {sized_opportunity}")
+                        # Store sized opportunity for reference
+                        opportunity_id = str(id(opportunity))
+                        self.sized_opportunities[opportunity_id] = sized_opportunity
+                    else:
+                        logger.warning("Opportunity rejected by risk manager")
+                        return None
+                
                 self.active_opportunities.append(opportunity)
-                signal = self._generate_entry_signal(opportunity)
-                # Store the signal for later retrieval or directly submit it to the execution engine
-                # For now, we'll just log it
+                signal = self._generate_entry_signal(opportunity, sized_opportunity)
                 logger.info(f"Generated trade signal: {signal}")
                 return signal
         except Exception as e:
-            logger.error(f"Error checking opportunities: {e}")
+            logger.error(f"Error checking opportunities: {e}", exc_info=True)
         
         return None
     
@@ -295,12 +314,13 @@ class FundingRateArbitrageStrategy(Strategy):
         # Rebalance if imbalance exceeds threshold
         return imbalance > self.rebalance_threshold
     
-    def _generate_entry_signal(self, opportunity: ArbitrageOpportunity) -> TradeSignal:
+    def _generate_entry_signal(self, opportunity: ArbitrageOpportunity, sized_opportunity: Optional[SizedOpportunity] = None) -> TradeSignal:
         """
         Generate a trade signal for a new opportunity.
         
         Args:
             opportunity: The arbitrage opportunity
+            sized_opportunity: Sized opportunity from risk manager (optional)
             
         Returns:
             TradeSignal for the opportunity
@@ -312,12 +332,38 @@ class FundingRateArbitrageStrategy(Strategy):
         # Map spot symbol
         spot_symbol = self.symbol_mapping.get(self.symbol)
         
+        # Determine position sizes
+        default_size = 1000.0
+        
+        if sized_opportunity:
+            # Use sizes from risk manager
+            if opportunity.long_exchange == self.perp_exchange:
+                perp_size = sized_opportunity.long_size
+                spot_size = sized_opportunity.short_size
+            else:
+                perp_size = sized_opportunity.short_size
+                spot_size = sized_opportunity.long_size
+                
+            # Convert to quantity using latest prices
+            perp_price = self.data_handler.get_latest_price(self.perp_exchange, self.symbol) or default_size
+            spot_price = self.data_handler.get_latest_price(self.spot_exchange, spot_symbol) or default_size
+            
+            perp_quantity = perp_size / perp_price
+            spot_quantity = spot_size / spot_price
+        else:
+            # Use default sizes
+            perp_quantity = default_size
+            spot_quantity = default_size
+        
         self.signals_generated += 1
         self.last_signal_time = datetime.now()
         
+        # Create trade signal with enhanced metadata
+        opportunity_id = str(id(opportunity))
+        
         return TradeSignal(
             strategy_name=self.name,
-            signal_type=SignalType.ENTRY,
+            signal_type=SignalType.ENTER_LONG if perp_side == "LONG" else SignalType.ENTER_SHORT,
             symbol=self.symbol,
             timestamp=datetime.now(),
             signal_id=f"{self.name}_{self.signals_generated}",
@@ -326,23 +372,30 @@ class FundingRateArbitrageStrategy(Strategy):
                     "exchange": self.perp_exchange,
                     "symbol": self.symbol,
                     "side": perp_side,
-                    "size": 1000.0,  # Default size, will be adjusted by risk manager
+                    "size": perp_quantity,
                     "type": "LIMIT"
                 },
                 {
                     "exchange": self.spot_exchange,
                     "symbol": spot_symbol,
                     "side": spot_side,
-                    "size": 1000.0,  # Default size, will be adjusted by risk manager
+                    "size": spot_quantity,
                     "type": "LIMIT"
                 }
             ],
             metadata={
-                "opportunity_id": str(id(opportunity)),
+                "opportunity_id": opportunity_id,
                 "net_funding_differential": opportunity.net_funding_differential,
                 "expected_profit": opportunity.expected_profit,
                 "utility_score": opportunity.utility_score,
-                "basis_volatility": opportunity.basis_volatility
+                "basis_volatility": opportunity.basis_volatility,
+                "position_sizing": {
+                    "enhanced": sized_opportunity is not None,
+                    "long_size": sized_opportunity.long_size if sized_opportunity else None,
+                    "short_size": sized_opportunity.short_size if sized_opportunity else None,
+                    "allocation_percentage": sized_opportunity.allocation_percentage if sized_opportunity else None,
+                    "risk_adjusted_return": sized_opportunity.risk_adjusted_return if sized_opportunity else None
+                } if sized_opportunity else {}
             }
         )
     
@@ -418,6 +471,7 @@ class FundingRateArbitrageStrategy(Strategy):
         logger.info(f"Starting funding rate arbitrage strategy '{self.name}'")
         self.last_opportunity_check = None
         self.active_opportunities = []
+        self.sized_opportunities = {}
     
     def on_stop(self) -> None:
         """Called when the strategy is stopped"""
