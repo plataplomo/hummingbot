@@ -1,4 +1,6 @@
-# Portfolio Tracker Test Fixes
+# Portfolio Tracker Test Fixes - August 5, 2025
+
+**Note (Post-Critic Feedback Aug 6):** While fixing these unit tests was necessary, the critic highlighted that the *existence* of these basic configuration, PnL calculation, and serialization errors so late in the development cycle is concerning. This underscores the mandatory need for the comprehensive integration and failure scenario testing now prioritized in Phase 4 to ensure components work correctly together under realistic conditions.
 
 ## Overview
 We've successfully fixed all the test failures in the `PortfolioTracker` class, which is a critical component responsible for tracking balances, positions, and orders across multiple exchanges. The tests now accurately verify the functionality of the portfolio tracker, ensuring it can reliably track financial data across multiple exchanges.

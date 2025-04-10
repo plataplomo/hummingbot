@@ -1,24 +1,12 @@
 # Test Implementation Progress
 
-## Update: 2025-08-05
+## Update: 2025-08-06 (Post-Critic Feedback)
 
-We've made significant progress on fixing test failures:
+**Critical Assessment:** While unit test *coverage* is reported as high, recent fixes for basic issues and the **critically low integration test coverage (~48%)** and **complete lack of failure scenario testing (0%)** mean the system's reliability is unproven. Critic mandates immediate focus on fixing remaining unit tests and building comprehensive integration and failure tests.
 
-1. **Portfolio Tracker Tests**: ✅ All 17 tests now passing
-   - Fixed configuration loading to accept both file paths and dictionaries
-   - Fixed position and order data handling in fetch methods
-   - Improved PnL calculation to use mark_price instead of entry_price
-   - Fixed dictionary serialization in to_dict method
-   - Added proper implementation of get_current_drawdown for drawdown tracking
-
-2. **Overall Test Status**:
-   - Previously: 93 passing tests
-   - Current: 107 passing tests out of 123 total tests (87% passing)
-   - Remaining issues primarily in:
-     - Risk manager tests (mock object handling)
-     - Hyperliquid API tests (API response parsing)
-     - Execution handler tests (parameter handling)
-     - Strategy manager tests (data model compatibility)
+**Recent Progress (Aug 5):**
+- ✅ Fixed unawaited coroutine warning in DataHandler `test_shutdown`.
+- ✅ Fixed Portfolio Tracker tests (Config, PnL, Drawdown, Serialization) - All 17 passing.
 
 ## Unit Tests
 
@@ -367,10 +355,11 @@ All visualization tests have been moved to the standard test directory structure
 4. 🔄 Add stress tests for high-throughput situations
 
 ### Outstanding Issues
-
 - Need to improve mock data generation for more realistic testing scenarios
 - Some integration tests take too long to run - need optimization
-- Several edge cases in multi-exchange reconciliation still need test coverage 
+- Several edge cases in multi-exchange reconciliation still need test coverage
+- **CRITICAL GAP**: Insufficient Integration Test Coverage (<50%)
+- **CRITICAL GAP**: Lack of comprehensive Failure Injection / Scenario Testing
 
 ## 2025-08-05: Fixed Unawaited Coroutine Warning in DataHandler Tests
 
@@ -436,90 +425,79 @@ async def test_shutdown(self, data_handler):
 ### Importance:
 This fix is crucial for a trading engine where reliable cleanup of resources during shutdown is critical. The enhanced test ensures that all resources related to WebSocket connections are properly released, which helps prevent resource leaks and ensures clean shutdown behavior. 
 
-## Test Suite Roadmap - Updated August 5, 2025
+## Test Suite Roadmap - Revised August 6, 2025 (Post-Critic Feedback)
 
-### Testing Priority Matrix
+**Mandate**: Address critical testing gaps **before** implementing further strategy features. Focus on Integration and Failure scenario testing.
+
+### Critic Mandates Summary (Testing):
+*   Fix remaining Unit Tests (DH, RM, EH, Strategy, Safety Systems).
+*   Build robust Integration Tests (Core Flow, Safety Systems) - Target >70% coverage.
+*   Build Failure Scenario Tests (API errors, network drops, state corruption, etc.).
+*   Prioritize these foundational tests over new features.
+
+### Revised Testing Priority Matrix
 
 | Component | Priority | Current Status | Key Focus Areas |
 |-----------|----------|----------------|----------------|
-| Data Handler | HIGH | ✅ Core tests passing, shutdown fixed | WebSocket reconnection tests |
-| Portfolio Tracker | MEDIUM | ✅ All tests passing | Add position reconciliation tests |
-| API Clients | HIGH | ✅ Fixed critical issues | Add rate limiting tests |
-| Risk Manager | HIGH | 🟡 Parameter validation failing | Fix Config handling, add dynamic risk tests |
-| Execution Handler | MEDIUM | 🟡 Order status tests failing | Fix transaction handling |
-| Strategy Framework | MEDIUM | 🟡 Signal processing failing | Fix Config parameter handling |
-| Engine Core | LOW | ✅ Most tests passing | Add more complex scenarios |
-| Integration Tests | HIGH | 🔴 Not started | Begin implementation |
+| **Integration Tests** | **CRITICAL** | 🔴 **~48%** | Core Flow, Safety Systems | 
+| **Failure Tests** | **CRITICAL** | 🔴 **0%** | API Errors, Conn Drops, State Issues, CB Triggers |
+| Risk Manager | HIGH | 🟡 Needs Fixes (~4) | Unit test fixes, **Hard Limit/Margin Tests** |
+| Execution Handler | HIGH | 🟡 Needs Fixes (~5) | Unit test fixes, Order Status, Retry Logic |
+| Data Handler | HIGH | 🟡 Needs Fixes (~3) | Unit test fixes, WebSocket Reconnection |
+| Strategy Framework | MEDIUM | 🟡 Needs Fixes (~3) | Unit test fixes, Basic Signal Path |
+| Portfolio Tracker | LOW | ✅ (17/17) | Add recon/partial fill tests (planned) |
+| API Clients | LOW | ✅ (31/31) | Add Rate Limiting Tests (Lower Prio) |
+| Safety Systems | HIGH | 🟡 Needs Fixes/Impl (~5) | Unit tests, **Integration Tests** |
+| Engine Core | LOW | ✅ | Complex Scenario Tests (Lower Prio) |
 
-### Immediate Testing Goals (Next 48 Hours)
+### Revised Immediate Testing Goals (Next 5 Days: Aug 6-10)
 
-1. **Data Handler**:
-   - Improve WebSocket reconnection test coverage
-   - Add comprehensive error handling tests for connection failures
-   - Test message buffering and processing during reconnection
-   - Verify proper cleanup with multiple connection attempts
+**(See `workflow_plan.md` for day-by-day breakdown)**
 
-2. **Risk Manager**:
-   - Fix Config format handling in tests
-   - Add tests for dynamic position sizing with market volatility
-   - Test integration with circuit breaker system
-   - Verify proper handling of position limits and drawdown controls
+1.  **[CRITICAL]** Fix ALL Remaining Unit Tests (Aug 6-7)**:
+    *   Focus on RM, EH, DH, Strategy, PT.
+    *   Ensure 100% pass rate for planned v0.0.1 scope.
 
-3. **Execution Handler**:
-   - Fix transaction handling issues in tests
-   - Add comprehensive tests for order status tracking
-   - Test retry logic and error handling
-   - Verify proper integration with circuit breaker system
+2.  **[CRITICAL]** Build Integration Test Framework (Aug 7-8)**:
+    *   Implement functional `MockExchange`.
+    *   Develop core fixtures and helpers.
 
-### Integration Test Plan
+3.  **[CRITICAL]** Implement Core Integration Tests (Aug 8-9)**:
+    *   Test core workflow: Data -> Signal -> Risk(Simple) -> Exec -> Portfolio.
+    *   Test basic safety system integrations (CB blocks EH, etc.).
 
-Our integration testing approach will follow these steps:
+4.  **[CRITICAL]** Implement Failure Injection Tests (Aug 9-10)**:
+    *   Simulate API errors, connection drops, reconciliation failures.
+    *   Verify system response (retries, CB activation, alerts).
 
-1. **Component Pairs Testing** (Start: August 7)
-   - Test pairs of interacting components with controlled interfaces
-   - Validate correct data flow between components
-   - Test error propagation and handling
+5.  **[CRITICAL]** Implement Safety System Tests (Aug 8-10)**:
+    *   Finalize unit tests for Validation, Reconciliation, CBs.
+    *   Implement integration tests for their interactions.
 
-2. **Subsystem Testing** (Start: August 8)
-   - Test complete subsystems (e.g., data flow → strategy → execution)
-   - Validate end-to-end functionality with simulated market data
-   - Test subsystem behavior under various market conditions
+### Revised Integration Test Plan
 
-3. **System Testing** (Start: August 9)
-   - Test the complete system with simulated exchanges
-   - Validate full trading cycle from signal generation to execution
-   - Test system recovery from various failure scenarios
+Focus shifts to core stability and failure handling:
 
-4. **Exchange Integration Testing** (Start: August 10)
-   - Test with actual exchange APIs (testnet environments)
-   - Validate real API constraints and rate limiting
-   - Test with real market data streams
+1.  **Mock Exchange**: Implement basic functionality + error/latency injection.
+2.  **Core Workflow Tests**: Verify data flows correctly through the main components under normal conditions.
+3.  **Safety System Integration**: Ensure safety systems correctly interact with core components (e.g., CB blocking execution).
+4.  **Failure Scenario Tests**: Verify system resilience and recovery mechanisms.
 
-### Test Coverage Goals
+### Revised Test Coverage Goals
 
-| Component | Current Coverage | Target Coverage | Timeline |
-|-----------|------------------|-----------------|----------|
-| Core Components | 91.5% | 95% | August 7 |
-| APIs | 100% | 100% | Completed |
-| Strategies | 86.7% | 90% | August 8 |
-| Integration | 48% | 70% | August 10 |
-| Overall System | 87% | 90% | August 10 |
+| Test Type | Target Coverage | Timeline |
+|-----------|-----------------|----------|
+| Unit Tests (v0.0.1 Scope) | 100% Passing | August 7/8 |
+| Integration Tests | >70% | August 10 |
+| Failure Scenario Tests | Basic Coverage | August 10 |
+| Overall System | >85% (Meaningful) | August 10 |
 
-### Testing Tools and Approaches
+*(Note: Overall % less important than targeted integration/failure coverage)*
 
-1. **Mock Enhancement**:
-   - Develop more sophisticated exchange API mocks
-   - Create standardized market data generators
-   - Implement scenario-based testing helpers
+### Testing Tools and Approaches (Refined Focus)
 
-2. **Async Testing Improvements**:
-   - Add more robust async test fixtures
-   - Implement timeout and cancellation testing
-   - Improve WebSocket mocking for more realistic tests
+1.  **Mock Enhancement**: Priority is building a functional mock exchange capable of simulating errors and latency.
+2.  **Failure Injection Framework**: Develop helpers to easily inject simulated failures during tests.
+3.  **Scenario-Based Testing**: Design specific test scenarios for common failures (e.g., `test_api_error_during_order_placement`).
 
-3. **Performance Testing**:
-   - Add basic throughput testing for critical paths
-   - Test data processing latency
-   - Add memory usage monitoring in long-running tests
-
-This roadmap will guide our testing efforts for the next phase of development, with a focus on ensuring robust testing of asynchronous operations, proper resource management, and reliable integration of all system components. 
+This revised roadmap addresses the critic's primary concerns by prioritizing the foundational testing required for a reliable trading system before proceeding with more complex features. 

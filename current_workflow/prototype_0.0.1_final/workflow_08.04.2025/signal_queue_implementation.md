@@ -1,5 +1,9 @@
 # Signal Priority Queue Implementation
 
+**Status: Design Complete - Implementation Lower Priority (Revised Aug 6, 2025)**
+
+**Note:** Based on critic feedback prioritizing foundational stability and testing, the implementation and refinement of a dedicated signal priority queue are currently **lower priority**. Focus must remain on core testing, safety systems, and configuration fixes. Basic signal processing will be handled within the main engine loop for v0.0.1.
+
 ## Overview
 
 A robust `PrioritySignalQueue` has been successfully implemented as part of the multi-tier signal verification mechanism for the CyberDeltaEngine. This component is responsible for efficiently organizing trade signals based on utility scores, managing signal expiration, and integrating with safety systems to ensure reliable trade execution.

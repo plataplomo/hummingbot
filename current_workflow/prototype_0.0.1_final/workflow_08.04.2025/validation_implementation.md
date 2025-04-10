@@ -1,4 +1,8 @@
-# Funding Rate Validation Implementation
+# Validation System Implementation Plan
+
+**Status: Design Complete - Implementation & Testing IN PROGRESS (Revised Aug 6, 2025)**
+
+**Note:** While the design details for the Funding Rate Validator are outlined below, critic feedback mandates that **rigorous implementation completion, integration testing (with Strategy/Execution layers), and failure scenario testing** are the critical next steps. The system is not considered complete or reliable until proven through these tests, especially regarding the *meaningful* comparison of predicted vs actual rates.
 
 ## Overview
 

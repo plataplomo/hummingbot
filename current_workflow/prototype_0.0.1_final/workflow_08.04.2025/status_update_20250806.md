@@ -1,148 +1,77 @@
 # Status Update - August 6, 2025
 
-## Overall Progress Summary
+## SUBJECT: CRITICAL FEEDBACK RECEIVED - IMMEDIATE RE-PRIORITIZATION MANDATED
 
-The CyberDeltaEngine development is progressing steadily with key improvements in test quality and preparation for integration testing. We have successfully fixed the warning in the DataHandler test related to unawaited coroutines, enhancing our testing of critical resource cleanup. Our overall test coverage stands at 91.5%, with a clear action plan to address the remaining 34 tests to reach our target of 95% coverage before initiating integration testing.
+**Prepared For:** Project Stakeholders
+**Prepared By:** Development Team Lead
+**Date:** 2025-08-06
 
-## Recent Accomplishments
+**Executive Summary:**
 
-1. **DataHandler Test Enhancement**:
-   - Fixed the unawaited coroutine warning in `test_shutdown` method
-   - Enhanced the test to properly validate the complete shutdown sequence
-   - Added verification of WebSocket connection closure
-   - Improved test quality for critical resource management
+A critical review of the Prototype 0.0.1 progress was received today. The feedback was **harsh but necessary**, identifying significant foundational weaknesses that **must be addressed immediately**. While progress has been made on component implementation and design, the critic rightly pointed out **showstopper issues** in configuration management, testing (integration and failure scenarios), safety system validation, and premature complexity in risk management. 
 
-2. **Test Coverage Improvements**:
-   - DataHandler tests now at 100% completion
-   - API Client tests at 100% completion
-   - Core Engine tests at 97.5% completion
-   - Overall test coverage increased to 91.5%
+**Effective immediately, Phase 4 goals are re-aligned.** All work on new strategy features (enhanced sizing, multi-tier signals) is **halted**. The **sole focus** for the next 5 days (Aug 6-10) is achieving foundational stability by addressing the critic's mandates.
 
-3. **Implementation Planning**:
-   - Updated the Phase 4 implementation plan with detailed testing roadmap
-   - Created comprehensive timeline for remaining test completion
-   - Developed detailed approach for integration testing
-   - Established clear milestones for the next week of development
+**Critic's Key Findings & Mandates:**
 
-## Current Focus Areas
+1.  **Configuration (`config.yaml`): CRITICAL FAILURE.** Bloated, duplicates, unused params. **Mandate:** Fix immediately - clean, lean, consolidated.
+2.  **Unit Testing: INCOMPLETE.** ~20 tests failing/missing despite high coverage claims. **Mandate:** Fix all remaining tests.
+3.  **Integration Testing: CRITICAL GAP (~48% coverage).** Core workflows and safety systems untested together. **Mandate:** Build framework (Mock Exchange), achieve >70% coverage.
+4.  **Failure Scenario Testing: CRITICAL GAP (0% coverage).** System resilience unknown. **Mandate:** Implement core failure tests (API errors, network drops, etc.).
+5.  **Safety Systems: UNPROVEN.** Designs improved, but implementation incomplete and untested in integrated/failure scenarios. **Mandate:** Finalize implementation and test rigorously (unit, integration, failure).
+6.  **Risk Management: PREMATURE COMPLEXITY.** Kelly/VaR unsuitable for v0.0.1. **Mandate:** Simplify to hard limits only (size, exposure, leverage, margin checks) and test thoroughly.
+7.  **Documentation/Code Quality:** Inconsistencies noted. **Mandate:** Pin dependencies, implement basic linting/typing checks (hooks/CI), consolidate docs.
 
-### Test Completion Strategy
+**Revised Plan (Aug 6-10): Focus on Foundational Stability**
 
-We have prioritized the remaining tests to ensure critical components are tested first:
+*(See `workflow_plan.md` and `phase4_implementation_plan.md` for full details)*
 
-1. **High Priority** (August 6-7):
-   - Risk Manager tests (4 remaining)
-   - Execution Handler tests (6 remaining)
+- **Aug 6:** Fix `config.yaml`, identify/start fixing unit tests, pin dependencies, setup basic quality checks.
+- **Aug 7:** Complete unit tests (100% passing), simplify Risk Manager (hard limits), start Mock Exchange framework.
+- **Aug 8:** Build core integration tests (Data->Signal->Risk->Exec->Portfolio) using Mock Exchange.
+- **Aug 9:** Finalize safety system implementation, build failure injection framework, implement core failure tests (API errors, recon issues, CB triggers).
+- **Aug 10:** Refine tests, increase integration coverage (>70%), final safety system testing, update/consolidate documentation.
 
-2. **Medium Priority** (August 8-9):
-   - Strategy Implementation tests (6 remaining)
-   - Portfolio Tracker tests (3 remaining)
+**Key Activities Today (August 6):**
 
-### Integration Testing Preparation
+- **Completed:**
+    - Thorough review and documentation of critic feedback (`critic_response_summary.md`).
+    - Revision of all key planning documents (`phase4_summary.md`, `project_roadmap_summary.md`, `phase4_implementation_plan.md`, `workflow_plan.md`, status/gap docs) to reflect new priorities.
+- **In Progress / Starting:**
+    - Refactoring `config.yaml` (Task 1.1).
+    - Identifying all failing unit tests (Task 1.3).
+    - Pinning dependencies (Task 1.6).
+    - Setting up pre-commit hooks (Task 1.5).
 
-In parallel with unit test completion, we are developing the integration testing framework:
+**Blockers:**
+- The primary blocker is the **need to execute the mandated fixes and testing** within the tight 5-day timeframe.
 
-1. **Mock Exchange Implementation** (August 6-7)
-2. **Test Fixtures and Helpers** (August 7-8)
-3. **Component Pair Testing** (August 8-9)
-4. **System Testing** (August 9-10)
+**Risks:**
+- Underestimating the effort required for testing frameworks or fixing subtle bugs.
+- Scope creep during the fix/test phase.
+- **Mitigation:** Strict adherence to the revised plan, daily progress checks, prioritizing critical paths.
 
-## Next Steps
+**Conclusion:**
+The critic's feedback necessitates a significant course correction. While disappointing in some respects, it provides clear direction to build the necessary stable foundation. The team is fully committed to executing the revised plan and delivering a demonstrably reliable Prototype 0.0.1 by August 10th.
 
-1. **Immediate Actions (Next 24 Hours)**:
-   - Complete Risk Manager tests for Kelly criterion calculation
-   - Implement Execution Handler order status tests
-   - Begin Mock Exchange implementation for integration testing
+## Detailed Updates (Pre-Critique - Now Superseded/Contextual)
 
-2. **Short-Term Goals (48-72 Hours)**:
-   - Complete all high-priority tests
-   - Finalize Mock Exchange implementation
-   - Create initial test fixtures for integration testing
-   - Begin component pair test design
+*(The following details from the original Aug 6 plan are now less relevant but provide context)*
 
-3. **Medium-Term Goals (By August 10)**:
-   - Achieve 95%+ test coverage across all components
-   - Complete integration test framework
-   - Run initial end-to-end system tests
-   - Begin exchange API integration testing on testnet
+### Original Planned Focus for Aug 6:
+- ~~Begin implementation of enhanced position sizing (Kelly).~~ **DEFERRED**
+- ~~Implement multi-tier signal verification.~~ **DEFERRED**
+- ~~Continue integration testing for existing components.~~ **REVISED** (Focus shifted to framework + core path + safety + failure)
 
-## Challenges and Solutions
+### Progress on Previous Day (Aug 5):
+- ✅ Fixed remaining Portfolio Tracker unit tests (All 17 passing).
+- ✅ Fixed DataHandler `test_shutdown` unawaited coroutine warning.
+- ✅ Completed initial design documents for enhanced position sizing and multi-tier signals (Now deferred).
+- ✅ Updated documentation related to test fixes.
 
-1. **Challenge**: Resource Management in Async Tests
-   - **Solution**: Enhanced test fixtures to properly validate resource cleanup
-   - **Implementation**: Added proper verification of task cancellation and awaiting, connection closure
+### Metrics:
+- **Unit Test Pass Rate:** ~85-91% (Claimed) -> **REVISED:** ~118/138 (~85%) passing, but ~20 failing/missing identified as CRITICAL.
+- **Integration Test Coverage:** ~48% -> **REVISED:** Acknowledged as CRITICALLY LOW.
+- **Failure Test Coverage:** 0% -> **REVISED:** Acknowledged as CRITICAL GAP.
 
-2. **Challenge**: Test Environment Consistency
-   - **Solution**: Standardized test fixtures and configuration
-   - **Implementation**: Using consistent mock configurations across test files
-
-3. **Challenge**: Integration Testing Complexity
-   - **Solution**: Incremental approach starting with component pairs
-   - **Implementation**: Designing test framework with increasing integration complexity
-
-## Key Metrics
-
-| Metric | Current Value | Target | Timeline |
-|--------|---------------|--------|----------|
-| Unit Test Coverage | 91.5% | 95%+ | August 7 |
-| Integration Test Coverage | 48% | 70%+ | August 10 |
-| Component Tests Passing | 364/398 | 398/398 | August 9 |
-| System Tests Implemented | 12/25 | 25/25 | August 10 |
-
-## Risk Assessment
-
-1. **Test Completion Timeline**: Medium Risk
-   - Risk of some complex tests taking longer than anticipated
-   - Mitigated by prioritizing critical tests first
-
-2. **Integration Complexity**: Medium Risk
-   - Some component interactions may be more complex than expected
-   - Mitigated by incremental integration approach
-
-3. **Performance Under Load**: Low Risk
-   - Initial tests show good performance in core components
-   - Will be validated with comprehensive performance testing
-
-## Implementation Gaps Analysis
-
-After reviewing our implementation sequence document, we've identified several gaps in our previous phases that should be addressed alongside our current Phase 4 work:
-
-### Current Focus Gaps (Phase 4)
-
-#### Gap 1: Integration Test Coverage
-- Currently at only 48% integration test coverage
-- Need more comprehensive end-to-end workflow tests
-- Action Plan:
-  - Prioritize the integration testing framework development
-  - Target 70%+ integration test coverage by August 10
-  - Focus on complete trading cycle tests
-
-#### Gap 2: Safety System Integration Verification
-- Need to verify integration between different safety systems
-- May need more comprehensive failure injection tests
-- Action Plan:
-  - Add specific tests for safety system interactions
-  - Implement enhanced failure scenario testing
-  - Verify circuit breaker integration with other components
-
-#### Gap 3: Test Documentation
-- Could benefit from more comprehensive documentation of test patterns
-- Action Plan:
-  - Create documentation on test patterns and fixtures
-  - Add examples of testing best practices
-
-### Deferred to Phase 5
-
-#### Gap 4: Continuous Integration Setup
-- Missing GitHub Actions workflow for automated test running
-- No formal integration of coverage report generation
-- Action Plan (Phase 5): 
-  - Create `.github/workflows/test.yml` configuration after core functionality is complete
-  - Set up automated test runs for each pull request
-  - Integrate coverage reporting into CI workflow
-
-We will focus on addressing the integration test coverage and safety system integration gaps in Phase 4, while deferring the CI setup and coverage reporting to Phase 5 after the core functionality implementation is complete.
-
-## Conclusion
-
-We have made significant progress in improving test quality and preparing for integration testing. The fix for the DataHandler shutdown test represents our commitment to thorough testing of resource management, which is critical for a reliable trading system. With a clear roadmap for completing the remaining tests, developing the integration testing framework, and addressing the high-priority identified implementation gaps, we are on track to deliver a robust, well-tested trading system by the target date of August 12, 2025. 
+*(End of Archived Context)* 

@@ -1,8 +1,12 @@
-# Enhanced Position Sizing System
+# Enhanced Position Sizing Implementation
+
+**Status: DEFERRED (Post-Critic Feedback Aug 6, 2025)**
+
+**Note:** Based on critic feedback prioritizing foundational stability and testing, the implementation of complex position sizing models like Kelly Criterion and VaR, as detailed below, is **deferred** for Prototype 0.0.1. The immediate focus is on implementing and testing simple, robust **hard limits** within the `RiskManager`.
 
 ## Overview
 
-The Enhanced Position Sizing System is a critical component of the improved `FundingRateArbitrageStrategy`. It addresses limitations in the current implementation by providing a sophisticated approach to position sizing based on an enhanced Kelly Criterion, dynamic risk management, and portfolio-level controls.
+This document outlines the implementation details for the Enhanced Position Sizing system within the CyberDeltaEngine. This system aims to move beyond simple fixed-size or percentage-based allocations towards more sophisticated, risk-adjusted position sizing methods, primarily leveraging variations of the Kelly Criterion and incorporating dynamic risk adjustments.
 
 ## Current Limitations
 

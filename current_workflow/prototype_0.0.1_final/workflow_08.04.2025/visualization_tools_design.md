@@ -1,14 +1,24 @@
-# Strategy Performance Visualization Tools
+# Visualization Tools Design
+
+**Status: Design Complete - Implementation Lower Priority (Revised Aug 6, 2025)**
+
+**Note:** Based on critic feedback prioritizing foundational stability and testing, the implementation and refinement of these visualization tools are currently **lower priority**. Focus must remain on core testing, safety systems, and configuration fixes.
 
 ## Overview
 
+This document outlines the design for visualization tools within the CyberDeltaEngine. These tools are essential for monitoring system performance, understanding strategy behavior, and debugging issues. The design focuses on providing clear, informative, and interactive visualizations for key aspects of the trading engine.
+
+## Strategy Performance Visualization Tools
+
+### Overview
+
 This document outlines the design for comprehensive visualization tools that will analyze and display strategy performance data. These tools will empower traders and developers to gain insights through visual analytics, identify patterns, and make data-driven decisions to improve strategy performance.
 
-## Visualization Components
+### Visualization Components
 
-### 1. Performance Dashboard
+#### 1. Performance Dashboard
 
-#### Real-Time Performance View
+##### Real-Time Performance View
 - **Purpose**: Show current strategy performance at a glance
 - **Visualizations**:
   - Current positions heatmap by size and PnL
@@ -17,7 +27,7 @@ This document outlines the design for comprehensive visualization tools that wil
   - Recent trades with execution quality metrics
   - Strategy state indicators (active/paused/safety triggered)
   
-#### Key Performance Indicators
+##### Key Performance Indicators
 - **Purpose**: Display critical metrics for quick assessment
 - **Visualizations**:
   - Strategy health scorecard with color-coded indicators
@@ -26,9 +36,9 @@ This document outlines the design for comprehensive visualization tools that wil
   - Funding rate efficiency metric (realized vs. potential)
   - Position sizing effectiveness score
 
-### 2. Strategy Analysis Tools
+#### 2. Strategy Analysis Tools
 
-#### Returns Analysis
+##### Returns Analysis
 - **Purpose**: Analyze return characteristics and patterns
 - **Visualizations**:
   - Cumulative return curves with benchmark comparison
@@ -37,7 +47,7 @@ This document outlines the design for comprehensive visualization tools that wil
   - Return distribution analysis (normal vs. actual)
   - Autocorrelation of returns at different timeframes
 
-#### Trade Analysis
+##### Trade Analysis
 - **Purpose**: Analyze individual trade performance and patterns
 - **Visualizations**:
   - Trade scatter plot (duration vs. return)
@@ -46,7 +56,7 @@ This document outlines the design for comprehensive visualization tools that wil
   - Entry/exit timing efficiency charts
   - Trade clustering visualization
 
-#### Signal Analysis
+##### Signal Analysis
 - **Purpose**: Evaluate signal generation quality and execution
 - **Visualizations**:
   - Signal confidence score vs. actual outcome
@@ -55,9 +65,9 @@ This document outlines the design for comprehensive visualization tools that wil
   - Signal type distribution and success rate
   - Missed opportunity analysis
 
-### 3. Risk Visualization Suite
+#### 3. Risk Visualization Suite
 
-#### Exposure Analysis
+##### Exposure Analysis
 - **Purpose**: Analyze risk exposure across different dimensions
 - **Visualizations**:
   - Current exposure tree map by exchange/asset
@@ -66,7 +76,7 @@ This document outlines the design for comprehensive visualization tools that wil
   - Risk concentration bubble chart
   - VaR and CVaR projections with confidence intervals
 
-#### Drawdown Analysis
+##### Drawdown Analysis
 - **Purpose**: Analyze drawdown characteristics and recovery
 - **Visualizations**:
   - Underwater chart with recovery periods
@@ -75,9 +85,9 @@ This document outlines the design for comprehensive visualization tools that wil
   - Drawdown attribution by trade type
   - Recovery path prediction based on historical patterns
 
-### 4. Market Condition Analysis
+#### 4. Market Condition Analysis
 
-#### Funding Rate Visualization
+##### Funding Rate Visualization
 - **Purpose**: Analyze historical funding rates and opportunities
 - **Visualizations**:
   - Funding rate surface charts (asset vs. time)
@@ -86,7 +96,7 @@ This document outlines the design for comprehensive visualization tools that wil
   - Seasonal patterns in funding rates
   - Arbitrage opportunity density map
 
-#### Volatility Analysis
+##### Volatility Analysis
 - **Purpose**: Analyze market volatility and its impact on strategy
 - **Visualizations**:
   - Volatility regime classification chart
@@ -95,9 +105,9 @@ This document outlines the design for comprehensive visualization tools that wil
   - Volatility impact on trade execution quality
   - Volatility forecast with prediction intervals
 
-### 5. Multi-Strategy Comparison
+#### 5. Multi-Strategy Comparison
 
-#### Performance Comparison
+##### Performance Comparison
 - **Purpose**: Compare multiple strategies or parameter sets
 - **Visualizations**:
   - Side-by-side performance metrics table
@@ -106,7 +116,7 @@ This document outlines the design for comprehensive visualization tools that wil
   - Risk-return scatter plot with efficiency frontier
   - Strategy diversification potential analysis
 
-#### Ensemble Analysis
+##### Ensemble Analysis
 - **Purpose**: Analyze combined performance of strategy portfolios
 - **Visualizations**:
   - Optimal strategy weight visualization

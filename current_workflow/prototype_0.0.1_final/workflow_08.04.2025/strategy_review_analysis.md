@@ -1,4 +1,12 @@
-# Strategy Review & Analysis: FundingRateArbitrageStrategy
+# Strategy Review and Analysis
+
+**Status: Analysis Complete - Implementation DEFERRED (Revised Aug 6, 2025)**
+
+**Note:** Based on critic feedback prioritizing foundational stability and testing, the implementation of the chosen HL Perp vs BP Perp strategy (or any advanced strategy logic) is **deferred** for Prototype 0.0.1. The immediate focus is on stabilizing and testing the core engine infrastructure, safety systems, and simplified risk management. The analysis below remains relevant for future phases.
+
+## Overview
+
+This document reviews potential trading strategies for the CyberDeltaEngine, analyzes their feasibility based on available data and API capabilities (specifically addressing the Backpack data confirmation), and selects the primary strategy for initial implementation (Prototype 0.0.1).
 
 ## Initial Code Assessment
 

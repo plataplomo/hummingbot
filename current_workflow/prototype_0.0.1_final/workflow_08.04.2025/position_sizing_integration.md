@@ -1,6 +1,12 @@
-# Position Sizing Integration Documentation
+# Position Sizing Integration Strategy
+
+**Status: REVISED (Post-Critic Feedback Aug 6, 2025)**
+
+**Note:** Based on critic feedback, the integration focus for Prototype 0.0.1 has shifted. The `RiskManager` will **not** use Kelly Criterion or VaR for initial sizing. Instead, integration must focus on applying **robust hard limits** (max position size USD, max total exposure %, max leverage) and basic margin checks. Complex sizing models are deferred. Tests must verify the correct application of these hard limits.
 
 ## Overview
+
+This document outlines the strategy for integrating various position sizing components into the core trading strategies of the CyberDeltaEngine. It ensures that generated trading opportunities are correctly sized based on risk management rules before being passed to the execution handler.
 
 This document describes the integration of the Enhanced Position Sizing System with the core `FundingRateArbitrageStrategy`. This integration represents a significant improvement in risk management capabilities by leveraging the sophisticated position sizing algorithms provided by the `RiskManager` class.
 

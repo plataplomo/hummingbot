@@ -1,4 +1,8 @@
-# Atomic Execution Patterns for Cross-Exchange Trades
+# Atomic Execution Design
+
+**Status: Design Complete - Implementation/Testing DEFERRED (Revised Aug 6, 2025)**
+
+**Note:** Based on critic feedback prioritizing foundational stability and testing, the implementation and rigorous testing of atomic execution guarantees described below are **deferred** for Prototype 0.0.1. The immediate focus is on stabilizing and testing the core execution path with basic order handling, robust safety systems, and clear alerting/manual intervention for execution failures, rather than complex automated rollbacks.
 
 ## Overview
 

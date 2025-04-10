@@ -1,3 +1,7 @@
+**ARCHIVED - Historical Status Update (Pre-Critic Review)**
+
+**Note:** This status update reflects the state as of August 5th, *before* the critical review received on August 6th. The priorities and assessment herein were superseded by the critic's mandates and the subsequent re-planning documented in `status_update_20250806.md` and related workflow documents.
+
 # Status Update - August 5, 2025
 
 ## Overall Summary

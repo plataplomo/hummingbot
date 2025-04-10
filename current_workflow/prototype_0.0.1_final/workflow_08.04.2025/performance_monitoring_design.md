@@ -1,8 +1,12 @@
-# Performance Monitoring System Integration
+# Performance Monitoring System Design
+
+**Status: Design Complete - Implementation Lower Priority (Revised Aug 6, 2025)**
+
+**Note:** Based on critic feedback prioritizing foundational stability and testing, the implementation and refinement of the performance monitoring system described below are currently **lower priority**. Focus must remain on core testing, safety systems, and configuration fixes.
 
 ## Overview
 
-This document outlines the design for integrating a comprehensive performance monitoring system with the CyberDeltaEngine. The system will track, analyze, and visualize strategy performance metrics in real-time and historically to provide actionable insights and improve trading outcomes.
+This document outlines the design for the Performance Monitoring System of the CyberDeltaEngine. This system is responsible for tracking, calculating, and reporting key performance indicators (KPIs) and metrics related to the trading strategies and overall engine operation. It provides essential insights for evaluating effectiveness, managing risk, and identifying areas for improvement.
 
 ## Core Components
 
