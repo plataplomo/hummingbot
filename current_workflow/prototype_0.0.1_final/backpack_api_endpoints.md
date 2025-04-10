@@ -169,3 +169,13 @@ Common error codes include:
 - `INVALID_PRICE`: Price does not conform to tick size
 - `INVALID_QUANTITY`: Quantity does not conform to step size
 - `PRICE_BAND`: Price is outside the allowed range 
+
+# Backpack API Endpoint Analysis for Funding Rate Arbitrage
+
+**Status: Analysis Complete - Implementation/Testing Required (Revised Aug 6, 2025)**
+
+**Note:** Critic feedback acknowledged the successful identification of key Backpack API endpoints (`/markPrices`, `/positions`) needed for the HL Perp vs BP Perp strategy. However, the **correct and robust implementation and testing** of these endpoints within the `BackpackAPI` client, Data Handler, and especially the `PositionReconciliationSystem`, remain critical tasks within the revised Phase 4 focus.
+
+## Overview
+
+This document details the necessary Backpack Exchange API endpoints required to implement the funding rate arbitrage strategies, particularly the HL Perp vs BP Spot and the potential HL Perp vs BP Perp variations, within the CyberDeltaEngine (`DuskNetAI`) project. 

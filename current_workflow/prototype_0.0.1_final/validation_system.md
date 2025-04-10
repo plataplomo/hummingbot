@@ -1,8 +1,12 @@
-# Validation System Implementation
+# Validation System Implementation Plan - DuskNetAI
 
-## Overview
+**Status: Design Complete - Implementation & Testing IN PROGRESS (Revised Aug 6, 2025)**
 
-Based on the Gemini critic feedback, we're implementing a comprehensive validation system for both funding rate calculations and position tracking. This document outlines the implementation of these crucial safety features.
+**Note:** While the design details for the Funding Rate Validator and Position Reconciliation system are outlined below, critic feedback mandates that **rigorous implementation completion, integration testing (with Strategy/Execution layers/APIs/PT), and failure scenario testing** are the critical next steps. These systems are not considered complete or reliable until proven through these tests.
+
+## 1. Overview
+
+This document details the implementation plan for the Validation System within the DuskNetAI project. This system serves as a crucial safety net, ensuring the integrity of data and the consistency of state across different components and external exchanges. It comprises two main subsystems: the `FundingRateValidator` and the `PositionReconciliationSystem`.
 
 ## Architecture
 

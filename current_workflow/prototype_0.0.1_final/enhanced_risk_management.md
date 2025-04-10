@@ -1,5 +1,9 @@
 # Enhanced Risk Management for Dual-Perpetual Strategy
 
+**Status: Design Complete - Advanced Features DEFERRED (Revised Aug 6, 2025)**
+
+**Note:** Based on critic feedback prioritizing foundational stability and testing, the implementation of advanced risk management techniques described below (including Kelly Criterion variations, VaR, dynamic volatility adjustments, correlation limits, etc.) is **deferred** for Prototype 0.0.1. The immediate focus (Mandate #6) is on implementing and testing simple, robust **hard limits** (Max USD size/position, Max total exposure %, Max leverage, Max exchange concentration %) and essential **margin/liquidation monitoring** specifically for the dual-perp strategy (HL Perp vs BP Perp). The advanced concepts remain relevant for future phases *after* the core system is proven stable.
+
 ## Overview
 
 As highlighted by the Gemini critic, implementing the Hyperliquid Perp vs Backpack Perp strategy introduces significantly higher risk due to leverage on both legs. This document outlines the enhanced risk management features needed to safely implement this strategy.

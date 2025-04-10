@@ -1,4 +1,10 @@
-# Configuration Refactoring Guide
+# Configuration Refactoring Guide - CyberDeltaEngine
+
+**Note (Post-Critic Feedback Aug 6):** The critic review on Aug 6 identified that the current `config.yaml` **does not adhere to this guide**, calling it a "DISASTER" due to bloat, duplicates, and out-of-scope parameters. **Mandate #1** is to **immediately refactor `config.yaml`** to be clean, lean, consolidated, and strictly follow the principles outlined below.
+
+## 1. Overview
+
+This guide provides instructions for refactoring the configuration system of the CyberDeltaEngine (`DuskNetAI`) project. The goal is to move from the current potentially cluttered `config.yaml` to a clean, validated, and secure configuration structure.
 
 ## Critical Issues Identified by Critic
 

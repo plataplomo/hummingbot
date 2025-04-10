@@ -1,600 +1,130 @@
-# Test Implementation Plan
+# Test Implementation Plan - Revised August 6, 2025 (Post-Critic Feedback)
 
-## Critical Issues Identified by Critic
+**Mandate:** Based on critic feedback, the highest priority is **addressing the critical gaps in testing**. This plan is revised to focus **immediately** on fixing remaining unit tests and building comprehensive integration and failure scenario tests for Prototype 0.0.1. Advanced feature testing and CI setup are deferred.
 
-The Gemini critic identified testing as a critical risk:
+## 1. Overview
 
-> "Testing Status: The report openly admits tests are incomplete, logically flawed, and lack coverage/failure scenarios. This remains a CRITICAL RISK. A trading bot without solid tests is just a complicated way to donate money to the market."
+This document outlines the comprehensive testing strategy for the CyberDeltaEngine (`DuskNetAI`) project. It covers unit tests, integration tests, failure scenario tests, and performance tests, aiming to ensure the reliability, correctness, and robustness of the trading system.
 
-## Required Testing Implementation
+## 2. Testing Goals (Revised Priorities)
 
-### 1. Core Component Unit Tests
+1.  **[CRITICAL] Unit Test Completion**: Achieve 100% pass rate for all core components within the v0.0.1 scope (DH, RM, EH, PT, Strategy, Safety Systems).
+2.  **[CRITICAL] Integration Test Coverage**: Achieve >70% coverage for the core execution path (Data -> Signal -> Risk -> Exec -> Portfolio) and critical safety system interactions.
+3.  **[CRITICAL] Failure Scenario Validation**: Prove system resilience by implementing and passing tests simulating common failures (API errors, network drops, state corruption, etc.).
+4.  **Correctness**: Verify that calculations, state management, and decision logic are accurate.
+5.  **Robustness**: Ensure the system handles unexpected inputs, edge cases, and adverse conditions gracefully.
+6.  **Performance**: (Lower Priority for v0.0.1) Establish baseline performance metrics.
+7.  **Regression Prevention**: Ensure new changes do not break existing functionality (via automated checks - basic hooks first, full CI later).
 
-#### 1.1 API Client Tests
+## 3. Testing Levels & Scope (Revised Focus)
 
-```python
-# test_hyperliquid_api.py
-import pytest
-import asyncio
-from unittest.mock import patch, MagicMock
-from cyberdelta.exchanges.hyperliquid_api import HyperliquidAPI
+### 3.1. Unit Tests (Immediate Focus: Fixes)
 
-class TestHyperliquidAPI:
-    @pytest.fixture
-    def api_client(self):
-        config = MagicMock()
-        secrets = MagicMock()
-        secrets.get.return_value = "test_api_key"
-        return HyperliquidAPI(config, secrets)
-    
-    @patch('cyberdelta.exchanges.hyperliquid_api.aiohttp.ClientSession')
-    async def test_get_funding_rate(self, mock_session, api_client):
-        # Setup mock response
-        mock_resp = MagicMock()
-        mock_resp.status = 200
-        mock_resp.json.return_value = {
-            "funding_rates": [{"symbol": "BTC", "rate": 0.0001, "timestamp": 1625097600000}]
-        }
-        
-        mock_session.return_value.__aenter__.return_value.get.return_value.__aenter__.return_value = mock_resp
-        
-        # Test the method
-        result = await api_client.get_funding_rate("BTC")
-        
-        # Assertions
-        assert result is not None
-        assert result["rate"] == 0.0001
-        assert "timestamp" in result
-        
-        # Verify the correct URL was called with proper parameters
-        mock_session.return_value.__aenter__.return_value.get.assert_called_once()
-        call_args = mock_session.return_value.__aenter__.return_value.get.call_args[0][0]
-        assert "funding" in call_args
-        assert "BTC" in call_args
-    
-    @patch('cyberdelta.exchanges.hyperliquid_api.aiohttp.ClientSession')
-    async def test_get_funding_rate_network_error(self, mock_session, api_client):
-        # Setup mock to raise an exception
-        mock_session.return_value.__aenter__.return_value.get.side_effect = Exception("Network error")
-        
-        # Test the method with exception handling
-        with pytest.raises(Exception) as exc_info:
-            await api_client.get_funding_rate("BTC")
-        
-        # Verify the exception was properly handled
-        assert "Network error" in str(exc_info.value)
-```
+- **Goal**: Verify individual functions, methods, and classes in isolation.
+- **Scope**: All core components (`core/`, `apis/`, `strategies/`, `validation/`, `config/`, `utils/`).
+- **Key Areas (Mandated Fixes):**
+    - `RiskManager` (Simplified: Hard limits, margin checks)
+    - `ExecutionHandler` (Order status, transaction handling, retry logic)
+    - `DataHandler` (WebSocket connections, event handling, reconnection)
+    - `Strategy` (Basic signal path, config usage)
+    - `Safety Systems` (Validation, Reconciliation, Circuit Breaker logic)
+- **Status:** ~85% Passing, ~20 tests failing/missing. **MANDATE: Fix all by Aug 8.**
 
-#### 1.2 Data Handler Tests
+### 3.2. Integration Tests (Immediate Focus: Buildout)
 
-```python
-# test_data_handler.py
-import pytest
-from unittest.mock import patch, MagicMock
-from cyberdelta.data.data_handler import DataHandler
-from cyberdelta.models.market_data import MarketData
+- **Goal**: Verify interactions between components and subsystems.
+- **Scope (v0.0.1 Critical Path):**
+    - Core Trading Workflow: Data acquisition -> Signal generation -> Risk check (hard limits) -> Execution -> Portfolio update.
+    - Safety System Interactions: CB blocking EH, Reconciler verifying PT against MockExchange, Validator being used by Strategy.
+    - API Client Integration (using Mock Exchange).
+- **Framework:** `pytest` with `pytest-asyncio`, custom `MockExchange`.
+- **Status:** ~48% basic/mock coverage. **MANDATE: Build framework & achieve >70% by Aug 10.**
 
-class TestDataHandler:
-    @pytest.fixture
-    def data_handler(self):
-        config = MagicMock()
-        api_clients = {
-            "hyperliquid": MagicMock(),
-            "backpack": MagicMock()
-        }
-        return DataHandler(config, api_clients)
-    
-    async def test_process_funding_rate(self, data_handler):
-        # Mock the funding rate data
-        funding_data = {
-            "symbol": "BTC",
-            "rate": 0.0001,
-            "timestamp": 1625097600000
-        }
-        
-        # Mock the API client method
-        data_handler.api_clients["hyperliquid"].get_funding_rate.return_value = funding_data
-        
-        # Setup observer
-        observer = MagicMock()
-        data_handler.register_observer(observer)
-        
-        # Call the method
-        await data_handler.fetch_and_process_funding_rates("hyperliquid", "BTC")
-        
-        # Verify observer was notified with correct data
-        observer.on_market_data.assert_called_once()
-        market_data = observer.on_market_data.call_args[0][0]
-        assert isinstance(market_data, MarketData)
-        assert market_data.symbol == "BTC"
-        assert market_data.exchange == "hyperliquid"
-        assert market_data.data_type == "funding_rate"
-        assert market_data.timestamp == 1625097600000
-        assert market_data.data["rate"] == 0.0001
-```
+### 3.3. Failure Scenario Tests (Immediate Focus: Buildout)
 
-#### 1.3 Portfolio Tracker Tests
+- **Goal**: Verify system resilience and safety mechanisms under adverse conditions.
+- **Scope (v0.0.1 Basic Coverage):**
+    - API Failures: Errors during order placement/cancellation, data fetching timeouts, invalid responses.
+    - Network Issues: Connection drops (WebSocket, REST), latency spikes.
+    - State Corruption: Simulate inconsistencies detected by Reconciliation.
+    - Safety System Triggers: Verify CB activation under high volatility/errors, Reconciliation alerts.
+    - Partial Fills / Order Rejections.
+- **Framework:** `pytest`, `MockExchange` with failure injection capabilities.
+- **Status:** 0% coverage. **MANDATE: Implement basic coverage by Aug 10.**
 
-```python
-# test_portfolio_tracker.py
-import pytest
-from unittest.mock import patch, MagicMock
-from cyberdelta.portfolio.portfolio_tracker import PortfolioTracker
+### 3.4. End-to-End (E2E) Tests (Deferred)
 
-class TestPortfolioTracker:
-    @pytest.fixture
-    def portfolio_tracker(self):
-        config = MagicMock()
-        api_clients = {
-            "hyperliquid": MagicMock(),
-            "backpack": MagicMock()
-        }
-        return PortfolioTracker(config, api_clients)
-    
-    async def test_update_position(self, portfolio_tracker):
-        # Initialize with empty positions
-        portfolio_tracker.positions = {}
-        
-        # Test updating a new position
-        await portfolio_tracker.update_position("hyperliquid", "BTC", 0.5, 50000.0, "long")
-        
-        # Verify the position was added
-        assert "hyperliquid" in portfolio_tracker.positions
-        assert "BTC" in portfolio_tracker.positions["hyperliquid"]
-        assert portfolio_tracker.positions["hyperliquid"]["BTC"]["size"] == 0.5
-        assert portfolio_tracker.positions["hyperliquid"]["BTC"]["entry_price"] == 50000.0
-        assert portfolio_tracker.positions["hyperliquid"]["BTC"]["side"] == "long"
-        
-        # Test updating an existing position
-        await portfolio_tracker.update_position("hyperliquid", "BTC", 1.0, 52000.0, "long")
-        
-        # Verify the position was updated with weighted average entry price
-        assert portfolio_tracker.positions["hyperliquid"]["BTC"]["size"] == 1.0
-        assert 50000.0 < portfolio_tracker.positions["hyperliquid"]["BTC"]["entry_price"] < 52000.0
-```
+- **Goal**: Verify the complete system workflow in a production-like environment.
+- **Scope**: Full trading cycle on exchange testnets.
+- **Status:** Deferred post v0.0.1 stabilization.
 
-#### 1.4 Risk Manager Tests
+### 3.5. Performance Tests (Deferred)
 
-```python
-# test_risk_manager.py
-import pytest
-from unittest.mock import patch, MagicMock
-from cyberdelta.risk.risk_manager import RiskManager
-from cyberdelta.models.trade_opportunity import ArbitrageOpportunity, SizedOpportunity
+- **Goal**: Measure latency, throughput, and resource utilization.
+- **Scope**: Critical path performance under load.
+- **Status:** Deferred post v0.0.1 stabilization.
 
-class TestRiskManager:
-    @pytest.fixture
-    def risk_manager(self):
-        config = MagicMock()
-        config.get.return_value = 1000.0  # Default max position size
-        
-        portfolio_tracker = MagicMock()
-        portfolio_tracker.get_total_capital.return_value = 10000.0
-        portfolio_tracker.get_total_exposure.return_value = 2000.0
-        
-        return RiskManager(config, portfolio_tracker)
-    
-    async def test_size_opportunity_within_limits(self, risk_manager):
-        # Create a test opportunity
-        opportunity = ArbitrageOpportunity(
-            timestamp=1625097600000,
-            perp_exchange="hyperliquid",
-            perp_symbol="BTC",
-            spot_exchange="backpack",
-            spot_symbol="BTC_USDC",
-            expected_return=0.001,  # 0.1%
-            perp_price=50000.0,
-            spot_price=50050.0,
-            perp_side="short",
-            spot_side="long",
-            metadata={}
-        )
-        
-        # Size the opportunity
-        sized_opp = await risk_manager.size_opportunity(opportunity)
-        
-        # Verify
-        assert sized_opp is not None
-        assert sized_opp.position_size_usd <= 1000.0  # Should not exceed max position size
-        assert sized_opp.perp_qty > 0
-        assert sized_opp.spot_qty > 0
-    
-    async def test_size_opportunity_exceeds_limits(self, risk_manager):
-        # Mock portfolio tracker to show high exposure
-        risk_manager.portfolio_tracker.get_total_exposure.return_value = 9500.0  # 95% of capital
-        
-        # Create a test opportunity
-        opportunity = ArbitrageOpportunity(
-            timestamp=1625097600000,
-            perp_exchange="hyperliquid",
-            perp_symbol="BTC",
-            spot_exchange="backpack",
-            spot_symbol="BTC_USDC",
-            expected_return=0.001,  # 0.1%
-            perp_price=50000.0,
-            spot_price=50050.0,
-            perp_side="short",
-            spot_side="long",
-            metadata={}
-        )
-        
-        # Size the opportunity
-        sized_opp = await risk_manager.size_opportunity(opportunity)
-        
-        # Verify
-        assert sized_opp is None  # Should be rejected due to exposure limits
-```
+## 4. Test Implementation Strategy (Revised Aug 6-10)
 
-### 2. Key Integration Tests
+*(Aligns with `workflow_plan.md`)*
 
-#### 2.1 Funding Rate Arbitrage Signal Generation
+1.  **Fix Unit Tests (Aug 6-8):**
+    - Systematically address all ~20 failing/missing unit tests identified.
+    - Ensure 100% pass rate before proceeding further with integration.
 
-```python
-# test_funding_rate_strategy.py
-import pytest
-from unittest.mock import patch, MagicMock
-from cyberdelta.strategies.funding_rate_strategy import HLPerpBPSpotStrategy
-from cyberdelta.models.market_data import MarketData
+2.  **Build Mock Exchange (Aug 7-8):**
+    - Implement `MockExchange` in `apis/mock.py`.
+    - Simulate basic functionalities: order placement/cancellation, fill updates, market data streaming, position reporting.
+    - **Crucially:** Add capabilities to inject errors (API errors, timeouts, bad data) and simulate latency on demand for failure testing.
 
-class TestFundingRateStrategy:
-    @pytest.fixture
-    def strategy(self):
-        config = MagicMock()
-        config.get.return_value = {
-            "funding_threshold": 0.0001,
-            "min_spread": 0.0002
-        }
-        
-        symbols = {
-            "hl_symbol": "BTC",
-            "bp_symbol": "BTC_USDC"
-        }
-        
-        return HLPerpBPSpotStrategy(config, "funding_arb", symbols)
-    
-    async def test_generate_signal_positive_funding(self, strategy):
-        # Prepare market data
-        funding_data = MarketData(
-            symbol="BTC",
-            exchange="hyperliquid",
-            data_type="funding_rate",
-            timestamp=1625097600000,
-            data={"rate": 0.0005}  # Positive funding rate (0.05%)
-        )
-        
-        # Mock internal data state
-        strategy._get_latest_hl_price = MagicMock(return_value=50000.0)
-        strategy._get_latest_bp_price = MagicMock(return_value=50010.0)
-        
-        # Process the funding data
-        signal = await strategy.process_data(funding_data)
-        
-        # Verify signal is generated and correct
-        assert signal is not None
-        assert signal.strategy_name == "funding_arb"
-        assert signal.perp_exchange == "hyperliquid"
-        assert signal.perp_symbol == "BTC"
-        assert signal.spot_exchange == "backpack"
-        assert signal.spot_symbol == "BTC_USDC"
-        assert signal.perp_side == "SELL"  # Short on positive funding
-        assert signal.spot_side == "BUY"   # Long spot as hedge
-        assert signal.expected_return > 0
-    
-    async def test_generate_signal_below_threshold(self, strategy):
-        # Prepare market data with funding rate below threshold
-        funding_data = MarketData(
-            symbol="BTC",
-            exchange="hyperliquid",
-            data_type="funding_rate",
-            timestamp=1625097600000,
-            data={"rate": 0.00005}  # 0.005%, below 0.01% threshold
-        )
-        
-        # Process the funding data
-        signal = await strategy.process_data(funding_data)
-        
-        # Verify no signal is generated
-        assert signal is None
-```
+3.  **Develop Integration Test Fixtures (Aug 8):**
+    - Create `pytest` fixtures (`conftest.py`) to set up the engine with `MockExchange` instances.
+    - Fixtures for initializing components (DataHandler, PortfolioTracker, RiskManager, etc.) with controlled mock data.
 
-#### 2.2 Execution Flow Tests
+4.  **Implement Core Integration Tests (Aug 8-9):**
+    - Write tests covering the main data/execution flow.
+    - Example: `test_full_trade_cycle_successful()`.
+    - Write tests verifying safety system integrations.
+    - Example: `test_circuit_breaker_prevents_execution()`.
 
-```python
-# test_execution_handler.py
-import pytest
-from unittest.mock import patch, MagicMock
-from cyberdelta.execution.execution_handler import ExecutionHandler
-from cyberdelta.models.sized_opportunity import SizedOpportunity
+5.  **Implement Failure Scenario Tests (Aug 9-10):**
+    - Develop helpers for triggering specific failures via the `MockExchange`.
+    - Write tests for each critical failure scenario identified in Scope 3.3.
+    - Example: `test_order_placement_api_error_handling()`, `test_reconciliation_detects_discrepancy()`.
 
-class TestExecutionHandler:
-    @pytest.fixture
-    def execution_handler(self):
-        config = MagicMock()
-        api_clients = {
-            "hyperliquid": MagicMock(),
-            "backpack": MagicMock()
-        }
-        portfolio_tracker = MagicMock()
-        circuit_breaker_manager = MagicMock()
-        
-        return ExecutionHandler(config, api_clients, portfolio_tracker, circuit_breaker_manager)
-    
-    async def test_execute_perp_spot_opportunity_success(self, execution_handler):
-        # Create a sized opportunity
-        opportunity = SizedOpportunity(
-            timestamp=1625097600000,
-            perp_exchange="hyperliquid",
-            perp_symbol="BTC",
-            spot_exchange="backpack",
-            spot_symbol="BTC_USDC",
-            expected_return=0.001,
-            perp_price=50000.0,
-            spot_price=50050.0,
-            perp_side="short",
-            spot_side="long",
-            position_size_usd=500.0,
-            perp_qty=0.01,
-            spot_qty=0.01,
-            metadata={}
-        )
-        
-        # Mock successful order executions
-        execution_handler.api_clients["hyperliquid"].place_order.return_value = {
-            "order_id": "hl123",
-            "status": "filled",
-            "fill_price": 50000.0,
-            "fill_qty": 0.01
-        }
-        
-        execution_handler.api_clients["backpack"].place_order.return_value = {
-            "order_id": "bp123",
-            "status": "filled",
-            "fill_price": 50050.0,
-            "fill_qty": 0.01
-        }
-        
-        # Execute the opportunity
-        result = await execution_handler.execute_opportunity(opportunity)
-        
-        # Verify successful execution
-        assert result["success"] is True
-        assert result["perp_order_id"] == "hl123"
-        assert result["spot_order_id"] == "bp123"
-        
-        # Verify portfolio was updated
-        execution_handler.portfolio_tracker.update_position.assert_called()
-    
-    async def test_execute_perp_spot_opportunity_first_leg_failure(self, execution_handler):
-        # Create a sized opportunity
-        opportunity = SizedOpportunity(
-            timestamp=1625097600000,
-            perp_exchange="hyperliquid",
-            perp_symbol="BTC",
-            spot_exchange="backpack",
-            spot_symbol="BTC_USDC",
-            expected_return=0.001,
-            perp_price=50000.0,
-            spot_price=50050.0,
-            perp_side="short",
-            spot_side="long",
-            position_size_usd=500.0,
-            perp_qty=0.01,
-            spot_qty=0.01,
-            metadata={}
-        )
-        
-        # Mock first leg failure
-        execution_handler.api_clients["hyperliquid"].place_order.side_effect = Exception("API Error")
-        
-        # Execute the opportunity
-        result = await execution_handler.execute_opportunity(opportunity)
-        
-        # Verify execution failed
-        assert result["success"] is False
-        assert "API Error" in result["error"]
-        
-        # Verify circuit breaker was triggered
-        execution_handler.circuit_breaker_manager.get_circuit_breaker.return_value.record_failure.assert_called_once()
-        
-        # Verify second leg was never attempted
-        execution_handler.api_clients["backpack"].place_order.assert_not_called()
-```
+6.  **Increase Coverage & Refine (Aug 10):**
+    - Run coverage reports (`pytest --cov`).
+    - Add tests to cover critical gaps identified.
+    - Refine existing tests for clarity and robustness.
+    - Ensure all mandated tests (Unit, Integration >70%, Failure basic) are passing.
 
-### 3. Validation and Circuit Breaker Tests
+## 5. Tools and Frameworks
 
-#### 3.1 Funding Rate Validator Tests
+- **Test Runner:** `pytest`
+- **Asynchronous Testing:** `pytest-asyncio`
+- **Mocking:** `unittest.mock`, Custom `MockExchange`
+- **Code Coverage:** `pytest-cov`
+- **Linting/Formatting:** `ruff` (via pre-commit hook / basic CI)
+- **Type Checking:** `mypy` (via pre-commit hook / basic CI)
 
-```python
-# test_funding_rate_validator.py
-import pytest
-import time
-from unittest.mock import patch, MagicMock
-from cyberdelta.validation.funding_rate_validator import FundingRateValidator
+## 6. Test Data Management
 
-class TestFundingRateValidator:
-    @pytest.fixture
-    def validator(self):
-        config = MagicMock()
-        config.get.return_value = ":memory:"  # Use in-memory SQLite
-        return FundingRateValidator(config)
-    
-    def test_record_prediction(self, validator):
-        # Record a prediction
-        validator.record_prediction("hyperliquid", "BTC", 0.0001, "api")
-        
-        # Verify it was stored
-        conn = validator._get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM funding_predictions WHERE exchange = ? AND symbol = ?", 
-                      ("hyperliquid", "BTC"))
-        result = cursor.fetchone()
-        conn.close()
-        
-        assert result is not None
-        assert result[3] == "hyperliquid"  # exchange
-        assert result[4] == "BTC"  # symbol
-        assert result[5] == 0.0001  # rate
-    
-    def test_record_payment(self, validator):
-        # Record an actual payment
-        validator.record_payment("hyperliquid", "BTC", 0.0001, 0.5, 10.0)
-        
-        # Verify it was stored
-        conn = validator._get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM funding_payments WHERE exchange = ? AND symbol = ?", 
-                      ("hyperliquid", "BTC"))
-        result = cursor.fetchone()
-        conn.close()
-        
-        assert result is not None
-        assert result[3] == "hyperliquid"  # exchange
-        assert result[4] == "BTC"  # symbol
-        assert result[5] == 0.0001  # rate
-        assert result[6] == 0.5  # payment amount
-    
-    def test_calculate_metrics(self, validator):
-        # Insert test data
-        timestamp = int(time.time() * 1000)
-        validator.record_prediction("hyperliquid", "BTC", 0.0001, "api")
-        validator.record_payment("hyperliquid", "BTC", 0.00012, 0.6, 10.0)
-        
-        # Calculate metrics
-        metrics = validator.calculate_metrics("hyperliquid", "BTC", 1)
-        
-        # Verify metrics
-        assert metrics["count"] > 0
-        assert "rmse" in metrics
-        assert "mae" in metrics
-        assert "bias" in metrics
-```
+- **Unit Tests:** Use hardcoded mock data or simple generated data within test functions/fixtures.
+- **Integration/Failure Tests:** Leverage `MockExchange` to provide controlled data streams and API responses, including error conditions.
+- **Fixtures:** Use `pytest` fixtures to manage setup/teardown of test data and component instances.
 
-#### 3.2 Circuit Breaker Tests
+## 7. Continuous Integration (CI) - Basic Setup First
 
-```python
-# test_circuit_breaker.py
-import pytest
-import time
-from cyberdelta.circuit_breakers.circuit_breaker import CircuitBreaker
+- **Initial Goal (Aug 6-10):** Implement basic pre-commit hooks for `ruff` (check/format) and `mypy` to enforce quality locally.
+- **Deferred Goal (Post v0.0.1):** Set up a full CI pipeline (e.g., GitHub Actions) to automatically run linting, type checking, unit tests, and integration tests on every push/PR. Coverage reporting will be added then.
 
-class TestCircuitBreaker:
-    @pytest.fixture
-    def circuit_breaker(self):
-        return CircuitBreaker(
-            name="test_breaker",
-            failure_threshold=3,
-            reset_timeout=1,  # 1 second for faster testing
-            half_open_max_calls=2,
-            success_threshold=2
-        )
-    
-    def test_initial_state(self, circuit_breaker):
-        assert circuit_breaker.get_state() == CircuitBreaker.CLOSED
-        assert circuit_breaker.allow_request() is True
-    
-    def test_failure_threshold(self, circuit_breaker):
-        # Record failures up to threshold
-        for i in range(2):
-            circuit_breaker.record_failure(f"Test failure {i}")
-            assert circuit_breaker.get_state() == CircuitBreaker.CLOSED
-        
-        # One more failure should trip the breaker
-        circuit_breaker.record_failure("Final failure")
-        assert circuit_breaker.get_state() == CircuitBreaker.OPEN
-        assert circuit_breaker.allow_request() is False
-    
-    def test_reset_timeout(self, circuit_breaker):
-        # Trip the breaker
-        for i in range(3):
-            circuit_breaker.record_failure(f"Test failure {i}")
-        
-        assert circuit_breaker.get_state() == CircuitBreaker.OPEN
-        assert circuit_breaker.allow_request() is False
-        
-        # Wait for reset timeout
-        time.sleep(1.1)  # Just over the reset_timeout
-        
-        # Should be in half-open state now
-        assert circuit_breaker.allow_request() is True
-        assert circuit_breaker.get_state() == CircuitBreaker.HALF_OPEN
-    
-    def test_half_open_success(self, circuit_breaker):
-        # Trip the breaker
-        for i in range(3):
-            circuit_breaker.record_failure(f"Test failure {i}")
-        
-        # Wait for reset timeout
-        time.sleep(1.1)
-        
-        # First request in half-open state
-        assert circuit_breaker.allow_request() is True
-        circuit_breaker.record_success()
-        
-        # Still in half-open state
-        assert circuit_breaker.get_state() == CircuitBreaker.HALF_OPEN
-        
-        # Second success should close the circuit
-        assert circuit_breaker.allow_request() is True
-        circuit_breaker.record_success()
-        
-        # Circuit should be closed now
-        assert circuit_breaker.get_state() == CircuitBreaker.CLOSED
-```
+## 8. Reporting and Tracking
 
-### 4. Test Implementation Approach
+- **Test Results:** `pytest` output.
+- **Coverage:** `pytest-cov` reports (generated locally during development initially).
+- **Progress:** Updates tracked in `test_implementation_progress.md` and daily status updates.
+- **Issues:** Tracked via TODOs in code, comments, or a dedicated issue tracker if necessary.
 
-#### 4.1 Testing Priority Order
+## 9. Conclusion (Revised)
 
-1. **Fix existing tests first**
-   - Correct logical errors in current test suite
-   - Ensure all tests pass reliably
-
-2. **Basic component unit tests**
-   - API Clients
-   - Data Handler
-   - Portfolio Tracker
-   - Risk Manager
-
-3. **Integration tests for core workflows**
-   - Signal generation
-   - Risk assessment
-   - Order execution
-
-4. **Safety system tests**
-   - Validation
-   - Circuit breakers
-   - Error handling
-
-#### 4.2 Test Coverage Requirements
-
-- **API Interface Tests**: 100% coverage for API interface methods
-- **Data Processing**: 90%+ coverage for data handlers
-- **Risk Management**: 95%+ coverage for risk rules
-- **Execution Logic**: 95%+ coverage including failure scenarios
-- **Circuit Breakers**: 100% coverage for all state transitions
-- **Validation**: 90%+ coverage for validators
-
-#### 4.3 Testing Patterns
-
-- **Dependency Injection**: Mock external dependencies
-- **Fixture-Based Setup**: Standardize test fixtures
-- **Parameterized Tests**: Test boundary conditions systematically
-- **Async Testing**: Proper async fixture handling
-- **Integration Fixtures**: Shared setup for integration tests
-- **Failure Injection**: Simulate API failures, timeouts, errors
-
-#### 4.4 Test Execution
-
-- Run unit tests on every commit
-- Trigger integration tests on PR and before deployment
-- Use GitHub Actions for CI/CD integration
-- Generate coverage reports
-
-## Implementation Timeline
-
-1. **Day 1**: Fix existing tests to correct logical errors
-2. **Day 2-3**: Implement unit tests for API clients and data components
-3. **Day 4-5**: Implement unit tests for risk management and execution components
-4. **Day 6-7**: Implement integration tests for core workflows
-5. **Day 8-9**: Implement tests for validation and circuit breaker systems
-6. **Day 10**: Finalize test coverage and generate reports 
+This revised test implementation plan directly addresses the critic's feedback by **mandating a shift in focus towards foundational testing**. Fixing all unit tests and building comprehensive integration and failure scenario tests for the core v0.0.1 functionality are the **absolute priorities** for the next 5 days. This rigorous testing is essential to build confidence in the system's stability and reliability before any further feature development occurs. 

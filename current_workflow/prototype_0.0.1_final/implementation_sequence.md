@@ -1,121 +1,78 @@
-# Implementation Sequence: Addressing Critic's Feedback
+# Implementation Sequence - Revised Aug 6, 2025 (Post-Critic Feedback)
+
+**Note:** The sequence outlined below has been **revised** based on critic feedback received on August 6, 2025. The immediate priority is now to complete the foundational work described in Phases 1-4 (specifically configuration cleanup, unit test completion, integration/failure testing, safety system completion, and risk management simplification) before proceeding with the originally planned Phase 4 strategy enhancements or Phase 5/6 features.
 
 ## Overview
 
-Based on the Gemini critic feedback, we need to tackle several fundamental issues before proceeding with feature implementation. This document outlines the exact sequence of implementation tasks required to address these concerns.
+This document outlines the planned sequence for implementing the core components and features of the CyberDeltaEngine (`DuskNetAI`) Prototype 0.0.1, incorporating the revised priorities from critic feedback.
 
-## Implementation Phases
+## Phase 1: Setup & Foundational Infrastructure (Completed)
 
-### Phase 1: Configuration Security & Cleanup (Days 1-2)
+- ✅ **Project Setup**: Initialize Git repository, define project structure.
+- ✅ **Configuration System**: Implement `ConfigManager` and `SecretsManager`.
+    - **Mandate:** `config.yaml` file itself requires immediate refactoring (Phase 4 Priority 1).
+- ✅ **Core Interfaces**: Define base classes/interfaces for `ExchangeAPI`, `DataHandler`, `Strategy`, `PortfolioTracker`, `ExecutionHandler`, `RiskManager`.
+- ✅ **Basic Logging**: Set up initial logging configuration.
+- ✅ **README & Initial Docs**: Create project README and initial workflow documentation.
 
-**Goal**: Fix the configuration security issues and clean up the bloated configuration.
+## Phase 2: Core Component Implementation (Completed - Needs Unit Test Fixes)
 
-1. **Move `secrets.yaml` Out of Source Tree**
-   - Create secure location outside of Git repository
-   - Implement `SecretsManager` class for loading from external location
-   - Update all code that accesses secrets
-   - Add secrets path to `.gitignore`
+- ✅ **API Clients**: Implement wrappers for Hyperliquid and Backpack APIs (REST/WebSocket).
+- ✅ **Data Handler**: Implement logic for fetching, processing, and distributing market data (Funding rates, prices).
+- ✅ **Portfolio Tracker**: Implement tracking for balances, positions, and orders.
+- 🟡 **Unit Tests**: Implement initial unit tests for core components.
+    - **Mandate:** Significant gaps/failures remain (~20 tests). Fixing these is Phase 4 Priority 2.
 
-2. **Clean Up `config.yaml`**
-   - Remove duplicate sections and conflicting parameters
-   - Strip out all parameters for out-of-scope features
-   - Create clear, focused configuration hierarchy
-   - Implement `ConfigManager` with validation
+## Phase 3: Safety Systems & Basic Strategy (Completed - Needs Testing & Completion)
 
-3. **Documentation & Examples**
-   - Create documentation for configuration structure
-   - Add example configuration files with comments
-   - Document secrets management procedure
+- 🟡 **Safety Systems**: Design and initial implementation of `FundingRateValidator`, `PositionReconciliationSystem`, `CircuitBreakerSystem`.
+    - **Mandate:** Implementation needs finalization, and rigorous integration/failure testing is required (Phase 4 Priority 5).
+- 🟡 **Risk Manager**: Basic implementation (structure exists).
+    - **Mandate:** Needs simplification to hard limits only, removal of Kelly/VaR, and thorough testing (Phase 4 Priority 6).
+- ✅ **Basic Strategy Loop**: Implement basic `FundingRateArbitrageStrategy` structure connecting components.
 
-### Phase 2: Fix & Expand Test Suite (Days 3-7)
+## Phase 4: Foundational Stability & Testing (REVISED - Current Focus: Aug 6-10)
 
-**Goal**: Create a solid foundation of tests for core components.
+- **Goal**: Achieve a stable, reliable, and well-tested core engine based on critic mandates.
+- **[CRITICAL]** 1. **Fix `config.yaml`**: Refactor to be clean, lean, and consolidated.
+- **[CRITICAL]** 2. **Fix Unit Tests**: Achieve 100% pass rate for v0.0.1 scope.
+- **[CRITICAL]** 3. **Build Integration Test Framework**: Implement Mock Exchange.
+- **[CRITICAL]** 4. **Implement Integration Tests**: Cover core workflow and safety systems (>70% target).
+- **[CRITICAL]** 5. **Implement Failure Scenario Tests**: Cover basic API errors, network drops, state issues.
+- **[CRITICAL]** 6. **Finalize & Test Safety Systems**: Complete implementation and test thoroughly (Unit, Integration, Failure).
+- **[CRITICAL]** 7. **Simplify & Test Risk Manager**: Implement and test hard limits, margin checks.
+- **[SUPPORTING]** 8. **Pin Dependencies & Basic Quality Checks**: Implement pre-commit hooks (ruff, mypy).
+- **[SUPPORTING]** 9. **Documentation Sync**: Ensure workflow docs are consistent.
 
-1. **Fix Existing Tests**
-   - Correct logical errors in current tests
-   - Ensure all existing tests pass
+## Phase 5: Strategy Enhancement & Optimization (Deferred - Post Aug 10)
 
-2. **Core Component Unit Tests**
-   - API Client tests (HyperliquidAPI, BackpackAPI)
-   - Data Handler tests
-   - Portfolio Tracker tests
-   - Risk Manager tests
-   - Execution Handler tests
+- **Original Goal**: Implement enhanced strategy features.
+- **Revised Status**: **DEFERRED** until foundational stability (Phase 4) is achieved and verified.
+- **Tasks (Deferred):**
+    - [ ] Implement HL Perp vs BP Perp Strategy logic.
+    - [ ] Implement Enhanced Position Sizing (Kelly, VaR) - *If* justified later.
+    - [ ] Implement Multi-Tier Signal Verification - *If* justified later.
+    - [ ] Performance Optimizations.
 
-3. **Integration Tests**
-   - Funding rate signal generation tests
-   - Execution flow tests
-   - End-to-end workflow tests
+## Phase 6: Advanced Features & Deployment Prep (Deferred)
 
-4. **Test Infrastructure**
-   - Setup CI for automated test running
-   - Generate coverage reports
-   - Document test patterns and fixtures
+- **Revised Status**: **DEFERRED** significantly.
+- **Tasks (Deferred):**
+    - [ ] Refine Multi-Exchange Support.
+    - [ ] Implement Full CI/CD Pipeline.
+    - [ ] Enhance Logging/Monitoring.
+    - [ ] Advanced Risk Models (if applicable).
+    - [ ] Deployment Preparations.
 
-### Phase 3: Implement Safety Systems (Days 8-12)
+## Rationale for Sequence
 
-**Goal**: Build robust validation and circuit breaker systems.
+- **Foundation First (Revised)**: The revised sequence prioritizes addressing the critical configuration, testing, and safety system gaps identified by the critic *before* adding complexity. This ensures a stable base.
+- **Core Components**: Implementing API clients, data handling, portfolio tracking, and basic execution provides the necessary building blocks.
+- **Safety Critical**: Implementing and **testing** safety systems early is crucial for a trading bot.
+- **Testing Integrated**: Unit tests are written alongside components, but **integration and failure testing are now mandated early** to verify interactions and resilience.
+- **Iterative Refinement**: Strategy logic and advanced features are deferred until the core engine is proven stable and reliable through testing.
 
-1. **Funding Rate Validation**
-   - Implement validator for funding rate predictions vs actuals
-   - Add database schema for tracking prediction accuracy
-   - Create metrics reporting for prediction errors
-
-2. **Position Reconciliation**
-   - Implement position comparison between local state and exchange
-   - Add automated reconciliation with alerting
-   - Create safe mode trigger for significant discrepancies
-
-3. **Circuit Breaker System**
-   - Implement circuit breaker pattern for API calls
-   - Add hierarchical circuit breakers (per API, per exchange, global)
-   - Implement metrics collection and state visualization
-
-4. **Safety System Tests**
-   - Create validation system tests
-   - Implement circuit breaker tests
-   - Add failure injection tests
-
-### Phase 4: Core Strategy Implementation (Days 13-17)
-
-**Goal**: Implement and thoroughly test the primary strategy.
-
-1. **HL Perp vs BP Spot Strategy**
-   - Implement funding rate calculation
-   - Add signal generation logic
-   - Implement execution sequence with proper error handling
-   - Create comprehensive tests for all edge cases
-
-2. **Risk Management for Primary Strategy**
-   - Implement sizing algorithm
-   - Add portfolio-level risk checks
-   - Create exposure limit enforcement
-   - Implement liquidation risk monitoring for perp positions
-
-3. **End-to-End Testing**
-   - Create integration tests for the entire strategy flow
-   - Add simulated environment tests
-   - Implement position monitoring tests
-
-### Phase 5: Experimental Strategy & Additional Features (Days 18-21)
-
-**Goal**: Add the more complex dual-perp strategy with appropriate safeguards.
-
-1. **HL Perp vs BP Perp Strategy**
-   - Implement as an experimental strategy with tighter limits
-   - Add dual liquidation risk monitoring
-   - Implement basis risk checks
-   - Create detailed validation and metrics
-
-2. **Enhanced Risk Management**
-   - Add specific risk controls for dual-perp strategy
-   - Implement basis volatility monitoring
-   - Create margin requirement forecasting
-
-3. **Thorough Testing**
-   - Create comprehensive test suite for the experimental strategy
-   - Add negative test cases for all scenarios
-   - Implement comparative tests between strategies
+This revised sequence directly reflects the mandate to prioritize stability and robustness over feature velocity in the immediate term.
 
 ## Key Milestones & Dependencies
 

@@ -1,265 +1,188 @@
 # Core Architecture - CyberDeltaEngine Prototype 0.0.1
 
-This document defines the core architecture for the CyberDeltaEngine Prototype 0.0.1, implementing a funding rate arbitrage strategy between Hyperliquid and Backpack exchanges.
+**Status: Design Overview - Refinement Needed (Revised Aug 6, 2025)**
 
-## 1. Architectural Principles
+**Note:** While this document outlines the planned core architecture, critic feedback (Aug 6) mandates an immediate focus (Aug 6-10) on stabilizing and **testing** the interactions between core components and safety systems. The priority is verifying:
+*   **Core Workflow:** API Clients ↔ Data Handler ↔ Portfolio Tracker ↔ Simplified Risk Manager (Hard Limits) ↔ Execution Handler.
+*   **Safety Systems Integration:** Validation, Reconciliation, and Circuit Breakers correctly interacting with the core workflow (e.g., CBs halting EH, Reconciliation using PT/APIs).
 
-1. **Simplicity First**: Core functionality with minimal complexity
-2. **Robustness**: Prioritize error handling and recovery
-3. **Separation of Concerns**: Clear component responsibilities
-4. **Thread Safety**: Properly managed shared state 
-5. **Explicit Data Flow**: Well-defined paths for data movement
-6. **Fail-Safe Design**: Assume APIs will fail and design accordingly
+Implementation and testing of more complex architectural patterns or deferred components are secondary to achieving this foundational stability. Additionally, the critic noted potential inconsistencies in component naming (e.g., `Trading Engine` vs `Main Orchestrator`) which **must be resolved** to ensure a single, clear source of truth reflected in both documentation and code.
 
-## 2. Core Components
+## 1. Overview
+
+This document describes the core architecture of the CyberDeltaEngine (`DuskNetAI`) Prototype 0.0.1. The architecture is designed to be modular, testable, and extensible, focusing initially on funding rate arbitrage strategies.
+
+## 2. Architectural Principles
+
+- **Modularity:** Components are designed with clear responsibilities and interfaces.
+- **Asynchronous:** Leverages `asyncio` for high concurrency and non-blocking I/O.
+- **Event-Driven:** Core interactions are based on events (market data, orders, signals).
+- **Testability:** Components are designed for unit and integration testing.
+- **Reliability:** Incorporates safety mechanisms like circuit breakers and validation.
+- **Extensibility:** Allows for adding new exchanges, strategies, and components.
+
+## 3. Core Components
 
 ```mermaid
 graph TD
-    %% Main node styles (high readability)
-    classDef main fill:#f5deb3,stroke:#000,stroke-width:2px,color:black
-    classDef core fill:#d4f1f9,stroke:#000,stroke-width:1px,color:black
-    classDef api fill:#ffe0e0,stroke:#000,stroke-width:1px,color:black
-    classDef support fill:#e6e6fa,stroke:#000,stroke-width:1px,stroke-dasharray: 5 5,color:black
+    subgraph CyberDeltaEngine
+        direction LR
 
-    %% Main Application
-    Main[Main Orchestrator]:::main
+        M(Main / Engine):::core --> Cfg(Config Manager):::util
+        M --> Log(Logging):::util
+        M --> SM(State Manager):::util
+        M --> API(API Clients):::io
+        M --> DH(Data Handler):::core
+        M --> PT(Portfolio Tracker):::core
+        M --> SG(Signal Generator / Strategies):::core
+        M --> RM(Risk Manager):::core
+        M --> EH(Execution Handler):::core
+        M --> BM(Balance Monitor):::core
+        M --> V(Validation System):::safety
+        M --> CB(Circuit Breakers):::safety
 
-    %% Core Components
-    DataHandler[Data Handler]:::core
-    PortfolioTracker[Portfolio Tracker]:::core
-    SignalGenerator[Signal Generator]:::core
-    RiskManager[Risk Manager]:::core
-    ExecutionHandler[Execution Handler]:::core
-    BalanceMonitor[Balance Monitor]:::core
+        %% Interactions
+        API -->|Market Data / Account Info| DH
+        API -->|Account Info / Order Status| PT
+        API -->|Place/Cancel Orders| EH
+        API -->|Balance Info| BM
 
-    %% API Clients
-    HyperliquidAPI[Hyperliquid API]:::api
-    BackpackAPI[Backpack API]:::api
+        DH -- Market Data --> SG
+        DH -- Market Data --> RM
+        PT -- Positions / Balances --> RM
+        PT -- Order Fills --> SG # Optional, for analysis
+        SG -- Trading Signals --> RM
+        RM -- Sized Opportunities --> EH
+        EH -- Order Fills --> PT
+        BM -- Balance Status --> RM
+        V -- Validation Status --> M
+        V -- Validation Status --> SG # Strategy may use validation confidence
+        V ---> API # Position Reconciliation needs API access
+        V ---> PT  # Position Reconciliation needs PT access
+        CB -- Breaker Status --> EH
+        CB -- Breaker Status --> API # API client methods check breakers
+        SM -- Load/Save State --> PT
+        SM -- Load/Save State --> M # Engine state if any
 
-    %% Support Systems
-    Config[Configuration]:::support
-    Logger[Logging]:::support
-    StateManager[State Manager]:::support
+    end
 
-    %% Primary Connections
-    Main --> DataHandler
-    Main --> PortfolioTracker
-    Main --> SignalGenerator
-    Main --> RiskManager
-    Main --> ExecutionHandler
-    Main --> BalanceMonitor
-    Main --> Config
-    Main --> Logger
-    Main --> StateManager
+    %% Styling
+    classDef core fill:#c9d7f0,stroke:#333,stroke-width:1px;
+    classDef io fill:#d5f0c9,stroke:#333,stroke-width:1px;
+    classDef safety fill:#f0d9c9,stroke:#333,stroke-width:1px;
+    classDef util fill:#e0e0e0,stroke:#333,stroke-width:1px;
 
-    %% Data Flow
-    DataHandler -- Market Data --> SignalGenerator
-    DataHandler -- Market Data --> RiskManager
-    
-    PortfolioTracker -- Position State --> RiskManager
-    PortfolioTracker -- Balance State --> BalanceMonitor
-    
-    SignalGenerator -- Opportunities --> RiskManager
-    RiskManager -- Sized Trades --> ExecutionHandler
-    RiskManager -- Balance Requirements --> BalanceMonitor
-    
-    ExecutionHandler -- Execution Results --> PortfolioTracker
-    
-    StateManager -- Persistence --> PortfolioTracker
-    
-    %% API Connections
-    DataHandler <--> HyperliquidAPI
-    DataHandler <--> BackpackAPI
-    
-    ExecutionHandler <--> HyperliquidAPI
-    ExecutionHandler <--> BackpackAPI
-    
-    BalanceMonitor <--> HyperliquidAPI
-    BalanceMonitor <--> BackpackAPI
-    
-    PortfolioTracker <--> HyperliquidAPI
-    PortfolioTracker <--> BackpackAPI
+    class M,DH,PT,SG,RM,EH,BM core
+    class API io
+    class V,CB safety
+    class Cfg,Log,SM util
 ```
 
-## 3. Component Responsibilities
+**Component Descriptions:**
 
-### 3.1 Main Orchestrator
+1.  **Main / Engine (`main.py` / `engine.py`):**
+    -   Initializes all components.
+    -   Loads configuration and secrets securely.
+    -   Starts and manages the main application loop.
+    -   Coordinates high-level system state (e.g., startup, shutdown, safe mode).
+    -   **Note:** Resolve naming inconsistency (Engine vs. Orchestrator).
 
-**Purpose**: Central control system for initialization, coordination, and shutdown.
+2.  **API Clients (`apis/`):**
+    -   Handles communication with exchange APIs (Hyperliquid, Backpack).
+    -   Abstracts exchange-specific details behind a common `ExchangeAPI` interface.
+    -   Manages authentication, rate limiting, error handling, WebSocket connections.
+    -   Integrates with Circuit Breakers.
 
-**Key Responsibilities**:
-- Initialize all components in the correct order
-- Start and monitor asynchronous tasks
-- Handle signals for graceful shutdown
-- Coordinate the strategy execution cycle
-- Manage error handling and recovery
-- Implement circuit breakers for system-wide protection
+3.  **Data Handler (`core/data_handler.py`):**
+    -   Subscribes to market data streams (prices, funding rates) via API Clients.
+    -   Processes, normalizes, and distributes market data events.
+    -   Maintains local cache/history of relevant market data.
 
-### 3.2 Data Handler
+4.  **Portfolio Tracker (`core/portfolio_tracker.py`):**
+    -   Tracks current positions, balances, and open orders across exchanges.
+    -   Calculates P&L (realized and unrealized).
+    -   Updates state based on order fill events received from Execution Handler.
+    -   Provides consistent view of portfolio state to other components.
+    -   Integrates with State Manager for persistence.
+    -   Interacts with Position Reconciliation system.
 
-**Purpose**: Centralized market data collection and management.
+5.  **Signal Generator / Strategies (`strategies/`, `core/signal_generator.py`):**
+    -   Contains specific trading strategy logic (e.g., `FundingRateArbitrageStrategy`).
+    -   Analyzes market data received from Data Handler.
+    -   Identifies potential trading opportunities (signals).
+    -   Passes signals to the Risk Manager for evaluation.
+    -   May use metrics from Validation System.
 
-**Key Responsibilities**:
-- Establish and maintain connections to exchange APIs
-- Process market data streams (WebSocket, REST)
-- Store and manage latest market data (tickers, funding rates, orderbooks)
-- Validate and normalize data from different sources
-- Track data freshness and handle stale data conditions (data timestamping)
-- Provide clean, consistent data access for other components
-- Implement reconnection logic for WebSocket connections (with exponential backoff)
+6.  **Risk Manager (`core/risk_manager.py`):**
+    -   Receives trading signals from Strategies.
+    -   Evaluates signals against risk rules and portfolio constraints.
+    -   Determines appropriate position size based on **simplified hard limits** (Max Size USD, Max Exposure %, Max Leverage) for v0.0.1.
+    -   Performs pre-trade checks (e.g., available balance, margin).
+    -   Outputs sized opportunities to the Execution Handler.
 
-### 3.3 Portfolio Tracker
+7.  **Execution Handler (`core/execution_handler.py`):**
+    -   Receives sized opportunities from Risk Manager.
+    -   Places, monitors, and cancels orders via API Clients.
+    -   Handles order execution logic (e.g., sequential legs for arbitrage).
+    -   Manages partial fills and execution errors.
+    -   Reports fill events back to the Portfolio Tracker.
+    -   Checks Circuit Breaker status before placing orders.
 
-**Purpose**: Track and manage the current state of the portfolio.
+8.  **Balance Monitor (`core/balance_monitor.py`):**
+    -   Periodically checks collateral/margin levels on exchanges via API Clients.
+    -   Provides balance status to Risk Manager.
+    -   Can trigger alerts or actions based on low balance thresholds.
 
-**Key Responsibilities**:
-- Track balances across exchanges
-- Monitor open positions and their P&L
-- Track and reconcile order status
-- Calculate exposure metrics
-- Maintain portfolio state for risk assessment
-- Support snapshot/restore for state persistence
-- Perform regular reconciliation with exchange data (every N minutes)
-- Detect and log discrepancies between local and exchange state
+9.  **Validation System (`validation/`):**
+    -   Contains subsystems like `FundingRateValidator` and `PositionReconciliation`.
+    -   Performs background checks to ensure data integrity and state consistency.
+    -   Reports validation status and can trigger alerts or safe mode.
 
-### 3.4 Signal Generator
+10. **Circuit Breakers (`circuit_breakers/`):**
+    -   Manages Circuit Breaker instances for different operations/exchanges.
+    -   Tracks failures and successes to determine state (CLOSED, OPEN, HALF_OPEN).
+    -   Provides status checks to Execution Handler and API Clients.
 
-**Purpose**: Identify funding rate arbitrage opportunities.
+11. **State Manager (`utils/state_manager.py`):**
+    -   Handles persistent saving and loading of critical system state (e.g., Portfolio Tracker data).
+    -   Ensures atomic saves and provides backup/recovery mechanisms.
 
-**Key Responsibilities**:
-- Monitor funding rates across exchanges
-- Calculate Net Funding Differential (NFD) between exchanges:
-  ```
-  NFD[A,B] = FR[A] - FR[B]
-  ```
-  where FR[A] and FR[B] are funding rates on exchanges A and B
-- Calculate basis volatility for risk assessment:
-  ```
-  σ[B] = StandardDeviation(Basis[t-N:t])
-  ```
-  where Basis = F[t] - S[t] or F[A,t] - F[B,t] for cross-exchange
-- Compute expected profit metrics including costs:
-  ```
-  ExpectedProfit = NFD * Size - TotalCosts
-  ```
-  where TotalCosts = Fees + EstimatedSlippage + PotentialLegLagCost
-- Estimate slippage based on order size and liquidity:
-  ```
-  EstimatedSlippage = β * (OrderSize / AvailableDepth)
-  ```
-  where β is a scaling factor (e.g., 0.1)
-- Calculate utility function for opportunity ranking:
-  ```
-  Utility = ExpectedProfit - λ * σ[B]²
-  ```
-  where λ is a risk aversion parameter (e.g., 1.0)
-- Generate and rank arbitrage opportunities based on Utility score
-- Apply basic filtering (minimum NFD, minimum profit)
-- Validate signal quality (reject abnormal/outlier signals)
+12. **Config Manager (`utils/config.py`, `config/`):**
+    -   Loads and validates configuration from `config.yaml`.
+    -   Securely loads secrets (API keys) via `SecretsManager` from outside the source tree.
+    -   Provides configuration access to all components.
 
-### 3.5 Risk Manager
+13. **Logging (`utils/logging_config.py`):**
+    -   Configures structured logging for the application.
+    -   Provides consistent logging format and output (console, file).
 
-**Purpose**: Assess and size trades based on risk parameters.
+## 4. Data Flow Example (Funding Rate Arbitrage Signal)
 
-**Key Responsibilities**:
-- Validate incoming opportunities against risk constraints
-- Apply Kelly-based position sizing:
-  ```
-  f* = ExpectedProfit / (VarianceRisk * Price)
-  ```
-  where VarianceRisk is the basis volatility squared (σ[B]²)
-- Apply fractional Kelly for conservative sizing:
-  ```
-  f_actual = α * f*
-  ```
-  where α is typically 0.3-0.5 for conservative sizing
-- Apply position size constraints:
-  ```
-  SizeLimit = Min(MaxPositionSize, f_actual * PortfolioValue)
-  ```
-- Calculate portfolio-level risk metrics 
-- Enforce hard position size limits per asset (absolute USD cap)
-- Enforce total exposure limits across all positions (% of total capital)
-- Enforce per-exchange exposure limits (% of total capital)
-- Calculate and monitor liquidation risk on leveraged positions
-- Calculate Value-at-Risk (VaR) for the portfolio:
-  ```
-  VaR_α = μ * Δt + σ * √Δt * Φ⁻¹(α)
-  ```
-  where α is the confidence level (e.g., 0.95)
-- Adjust VaR dynamically based on market volatility:
-  ```
-  VaR_t = VaR_0 * (σ_mkt,t / σ_mkt,0)
-  ```
-- Reject trades that would exceed maximum allowed leverage
-- Prioritize viable opportunities by Utility score
+1.  **Data Handler** receives funding rate updates from **API Clients** (Hyperliquid, Backpack).
+2.  **Data Handler** distributes `MarketData` events.
+3.  **Strategy** receives `MarketData`, identifies an arbitrage opportunity (e.g., NFD > threshold).
+4.  **Strategy** generates a `TradeSignal` event.
+5.  **Risk Manager** receives `TradeSignal`.
+6.  **Risk Manager** checks **Portfolio Tracker** for current positions/exposure and **Balance Monitor** for collateral.
+7.  **Risk Manager** applies risk rules (hard limits) and calculates position size.
+8.  **Risk Manager** generates a `SizedOpportunity` event.
+9.  **Execution Handler** receives `SizedOpportunity`.
+10. **Execution Handler** checks **Circuit Breakers** for relevant exchanges/operations.
+11. **Execution Handler** places orders via **API Clients**.
+12. **API Clients** confirm order placement/fills.
+13. **Execution Handler** receives fill confirmations.
+14. **Execution Handler** generates `OrderFill` events.
+15. **Portfolio Tracker** receives `OrderFill` events and updates positions/balances.
+16. **Portfolio Tracker** saves state periodically via **State Manager**.
 
-**Concrete Risk Parameters (0.0.1)**:
-- Maximum position size: Fixed USD cap per position
-- Maximum total exposure: % of total capital
-- Maximum leverage: Per-position leverage cap
-- Maximum exchange concentration: % of capital per exchange
-- Kelly fraction: Fixed conservative multiplier (0.3-0.5)
-- Risk aversion parameter (λ): Controls trade-off between profit and risk
-- VaR confidence level: Typically 95% or 99%
+## 5. Key Design Considerations
 
-### 3.6 Execution Handler
+- **State Management:** Ensuring consistent and recoverable state is paramount. The `PortfolioTracker` is the primary owner of trading state, persisted by the `StateManager`.
+- **Error Handling:** Robust error handling at API, execution, and component levels is critical. Circuit breakers provide a system-level safety net.
+- **Concurrency:** Careful management of `asyncio` tasks and shared state is required to prevent race conditions.
+- **Testing:** The modular design facilitates unit testing. **Integration and failure scenario testing are now the top priority** to validate component interactions and resilience.
 
-**Purpose**: Execute trades on exchanges reliably.
-
-**Key Responsibilities**:
-- Place orders on exchanges
-- Monitor order status and fills
-- Handle partial fills and cancellations
-- Implement sequenced execution for multi-leg strategies with failure handling:
-  - Attempt to reverse leg 1 if leg 2 fails (compensation approach)
-  - Maintain detailed state of execution progress
-  - Log critical alerts for manual intervention when atomicity fails
-- Apply retry logic for temporary failures (with exponential backoff)
-- Implement circuit breakers for critical failures
-- Log detailed execution information
-
-### 3.7 Balance Monitor
-
-**Purpose**: Monitor exchange balances and alert when manual transfers are needed.
-
-**Key Responsibilities**:
-- Monitor balances across exchanges
-- Calculate if balances are sufficient for planned operations
-- Generate alerts when balances fall below thresholds
-- Log balance changes and reconcile with expected changes
-- Provide balance status information to other components
-- Track minimum required balances for each exchange
-
-### 3.8 Exchange API Clients
-
-**Purpose**: Provide standardized interface to exchanges.
-
-**Key Responsibilities**:
-- Implement exchange-specific authentication
-- Manage API rate limits
-- Handle connection lifecycle
-- Standardize data formats
-- Implement retry logic
-- Provide detailed error information
-- Map specific API error codes to appropriate actions
-
-### 3.9 State Manager
-
-**Purpose**: Provide reliable state persistence.
-
-**Key Responsibilities**:
-- Implement atomic file writes for state snapshots:
-  - Write to temporary file first
-  - Validate write success
-  - Rename to target file (atomic operation)
-- Calculate and verify checksums for state integrity
-- Implement state validation on load
-- Keep backup copies of previous states (last N states)
-- Log state operations with checksums for verification
-- Handle corrupted state recovery
-
-## 4. Implementation Strategy
+## 6. Implementation Strategy
 
 1. **Minimal Viable Product**: Focus on core funding rate arbitrage between Hyperliquid and Backpack
 2. **Sequential Execution**: Implement sequential order execution with comprehensive failure handling
@@ -268,9 +191,9 @@ graph TD
 5. **Detailed Logging**: Extensive logging for debugging, monitoring, and recovery
 6. **Balance Monitoring**: Implement monitoring with alerts rather than automated transfers for 0.0.1
 
-## 5. Scope Boundaries for Prototype 0.0.1
+## 7. Scope Boundaries for Prototype 0.0.1
 
-### 5.1 In Scope
+### 7.1 In Scope
 
 - Hyperliquid exchange integration (complete)
 - Backpack exchange integration for orderbook/execution
@@ -282,7 +205,7 @@ graph TD
 - Command-line monitoring interface
 - Comprehensive logging
 
-### 5.2 Out of Scope
+### 7.2 Out of Scope
 
 - Automated cross-exchange transfers (manual transfers with alerts instead)
 - Complex database integration (Redis, TSDB)

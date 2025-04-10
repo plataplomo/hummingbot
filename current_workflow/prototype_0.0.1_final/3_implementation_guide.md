@@ -1,6 +1,19 @@
 # Implementation Guide - CyberDeltaEngine Prototype 0.0.1
 
-This document provides a practical, step-by-step approach to implementing the CyberDeltaEngine Prototype 0.0.1, focusing on core functionality and following the "simplicity first" principle.
+**Status: REVISED (Post-Critic Feedback Aug 6, 2025)**
+
+**Note:** This guide describes the overall implementation approach. However, based on critic feedback received on August 6, 2025, the immediate implementation focus (Aug 6-10) is **strictly limited** to achieving foundational stability as outlined in `phase4_implementation_plan.md`. This includes:
+*   Fixing `config.yaml`.
+*   Fixing all remaining unit tests.
+*   Building integration (>70%) and failure scenario tests.
+*   Finalizing and testing safety systems (Validation, Reconciliation, CBs).
+*   Simplifying and testing the Risk Manager (hard limits only).
+
+Implementation of advanced strategy logic, complex risk models (Kelly/VaR), multi-tier signal verification, synchronized/atomic execution, and other features described herein beyond this core scope is **deferred** until the foundational stability is achieved and verified.
+
+## 1. Introduction
+
+This document provides a step-by-step guide for implementing the core components and features of the CyberDeltaEngine (`DuskNetAI`) Prototype 0.0.1, incorporating the necessary safety systems and testing procedures identified in response to critic feedback.
 
 ## 1. Project Setup
 

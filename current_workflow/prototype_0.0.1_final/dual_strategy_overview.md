@@ -1,4 +1,12 @@
-# Dual Strategy Implementation Plan
+# Dual Strategy Overview - DuskNetAI
+
+**Status: Analysis Complete - Implementation DEFERRED (Revised Aug 6, 2025)**
+
+**Note:** Based on critic feedback prioritizing foundational stability, the implementation of the selected HL Perp vs BP Perp strategy described below is **deferred** for Prototype 0.0.1. The immediate focus must be on fixing `config.yaml`, achieving comprehensive test coverage (unit, integration, failure), finalizing and testing safety systems, and implementing simplified risk management (hard limits, basic margin/liquidation checks). The critic specifically highlighted the **increased complexity and risk** (liquidation, margin) of the dual-perp approach, reinforcing the need for a stable foundation before implementation.
+
+## 1. Overview
+
+This document provides an overview of the two primary funding rate arbitrage strategies considered for the DuskNetAI trading bot, compares their characteristics, and outlines the rationale for selecting the primary strategy for initial implementation (Prototype 0.0.1), while acknowledging the need to potentially support both.
 
 ## Overview
 

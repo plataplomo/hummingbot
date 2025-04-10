@@ -1,8 +1,19 @@
-# API Implementation - Exchange Integration
+# API Implementation Guide - CyberDeltaEngine Prototype 0.0.1
 
-This document outlines the essential API implementations for Hyperliquid and Backpack exchanges in the CyberDeltaEngine Prototype 0.0.1.
+**Status: REVISED (Post-Critic Feedback Aug 6, 2025)**
 
-## 1. Base Exchange API Interface
+**Note:** This guide details the implementation of API clients (Hyperliquid, Backpack). Based on critic feedback received on August 6, 2025, the immediate implementation focus (Aug 6-10) is **not** on adding new API features but on achieving foundational stability. This includes:
+*   **Fixing remaining unit tests** for existing API client implementations.
+*   **Building comprehensive integration and failure scenario tests** for API clients using the `MockExchange` framework. This involves testing error handling, reconnection logic (for WebSockets), rate limit handling (simulated), and resilience to invalid data.
+*   Ensuring API clients integrate correctly with the Data Handler, Portfolio Tracker, Execution Handler, and Safety Systems (especially Reconciliation) as part of the core workflow testing.
+
+Implementation of more advanced API features or optimizations described herein is **deferred** until the foundational stability is achieved and verified.
+
+## 1. Introduction
+
+This document provides a detailed guide for implementing the Exchange API clients within the CyberDeltaEngine (`DuskNetAI`) project. It covers the design principles, core components, implementation steps, and testing strategies for creating robust and reliable connections to exchanges like Hyperliquid and Backpack.
+
+## 2. Base Exchange API Interface
 
 Both exchange implementations will inherit from a common abstract base class that defines the standard interface:
 
@@ -124,11 +135,11 @@ class ExchangeAPI(ABC):
             raise ConnectionError(error_message)
 ```
 
-## 2. Hyperliquid API Implementation
+## 3. Hyperliquid API Implementation
 
 The Hyperliquid API client implements blockchain-based EIP-712 authentication and connects to Hyperliquid's REST and WebSocket endpoints.
 
-### 2.1 Authentication and Connection
+### 3.1 Authentication and Connection
 
 ```python
 class HyperliquidAPI(ExchangeAPI):
@@ -230,7 +241,7 @@ class HyperliquidAPI(ExchangeAPI):
         }
 ```
 
-### 2.2 Core API Methods
+### 3.2 Core API Methods
 
 ```python
     async def get_funding_rates(self, symbols: List[str] = None) -> dict:
@@ -446,11 +457,11 @@ class HyperliquidAPI(ExchangeAPI):
         raise APIError(f"Failed to get orderbook for {symbol}")
 ```
 
-## 3. Backpack API Implementation
+## 4. Backpack API Implementation
 
 The Backpack API client implements ED25519 cryptographic authentication and connects to Backpack's REST and WebSocket endpoints.
 
-### 3.1 Authentication and Connection
+### 4.1 Authentication and Connection
 
 ```python
 class BackpackAPI(ExchangeAPI):
@@ -567,7 +578,7 @@ class BackpackAPI(ExchangeAPI):
         }
 ```
 
-### 3.2 Core API Methods
+### 4.2 Core API Methods
 
 ```python
     async def get_funding_rates(self, symbols: List[str] = None) -> dict:
@@ -848,7 +859,7 @@ class BackpackAPI(ExchangeAPI):
         raise APIError(f"Failed to get orderbook for {symbol}")
 ```
 
-## 4. Error Handling
+## 5. Error Handling
 
 Both API implementations include robust error handling to manage common API issues:
 
@@ -874,7 +885,7 @@ class RateLimitError(Exception):
     pass
 ```
 
-## 5. WebSocket Implementation
+## 6. WebSocket Implementation
 
 Both API clients include WebSocket support for real-time data. The WebSocket implementations handle:
 
@@ -968,7 +979,7 @@ This implementation includes:
 5. Keepalive mechanism to maintain the connection
 6. Cleanup on connection close or error
 
-## 6. Rate Limiting
+## 7. Rate Limiting
 
 Both API implementations include comprehensive rate limit handling:
 
@@ -1072,7 +1083,7 @@ This implementation:
 4. Waits when rate limits would be exceeded
 5. Properly tracks and limits usage across multiple asynchronous calls
 
-## 7. Implementation Priority
+## 8. Implementation Priority
 
 For Prototype 0.0.1, the implementation priority is:
 
@@ -1097,9 +1108,9 @@ For Prototype 0.0.1, the implementation priority is:
    - Proper signing of requests
    - Validation of responses
 
-## 8. Backpack Funding Rate Strategy: Validation and Fallback
+## 9. Backpack Funding Rate Strategy: Validation and Fallback
 
-### 8.1 Funding Rate Calculation Validation
+### 9.1 Funding Rate Calculation Validation
 
 The funding rate calculation for Backpack is **highly speculative** and requires rigorous validation before being used in production:
 
@@ -1139,7 +1150,7 @@ The funding rate calculation for Backpack is **highly speculative** and requires
    - Daily validation report for all funding pairs
    - Weekly calibration of calculation parameters (dampening factor)
 
-### 8.2 Fallback Implementation (REQUIRED)
+### 9.2 Fallback Implementation (REQUIRED)
 
 Due to the high uncertainty in funding rate calculations for Backpack, the fallback strategy **MUST** be fully implemented in Prototype 0.0.1:
 
@@ -1170,11 +1181,11 @@ Due to the high uncertainty in funding rate calculations for Backpack, the fallb
 
 The prototype MUST include both strategies fully implemented, with clear metrics for determining which is active. We will **NOT** rely on the speculative funding rate calculation without confirming its accuracy through real-world validation.
 
-## 9. Exchange-Specific Funding Rate Mechanics
+## 10. Exchange-Specific Funding Rate Mechanics
 
 Understanding the exact funding rate calculation methods for each exchange is critical for accurate arbitrage opportunity detection.
 
-### 9.1 Hyperliquid Funding Rate Mechanics
+### 10.1 Hyperliquid Funding Rate Mechanics
 
 Hyperliquid's 8-hour funding rate typically incorporates:
 
@@ -1208,7 +1219,7 @@ For Hyperliquid's funding rate implementation:
 - Actual values are paid/received every hour based on your position
 - The hourly payment is position_size * mark_price * (hourly_funding_rate)
 
-### 9.2 Backpack Funding Rate Mechanics
+### 10.2 Backpack Funding Rate Mechanics
 
 For Backpack, since direct funding rate data might be less accessible, we'll derive it:
 
@@ -1242,7 +1253,7 @@ For Backpack's implementation:
 - Validation against actual funding payments will be necessary to refine the model
 - Alternate data sources may be required if this approach proves unreliable
 
-### 9.3 Implementation Approach for Prototype 0.0.1
+### 10.3 Implementation Approach for Prototype 0.0.1
 
 For the initial prototype, we'll focus on:
 
