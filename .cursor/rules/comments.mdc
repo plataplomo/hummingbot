@@ -40,21 +40,35 @@ alwaysApply: true
 **Priority:** This is the most critical documentation and must be maintained alongside code changes.
 
 
-## 2. Workflow Documentation (Project Tracking & Context)
+## 2. Workflow & Context Documentation (`current_workflow/`)
 
-**Mandate:** Using Markdown files (`.md`, with ```mermaid ``` snippets) to document the development workflow and project context.
+**Mandate:** Maintain a clear, accessible record of the development workflow, project context, decisions, and progress using Markdown files (`.md`) located primarily within the `current_workflow/` directory. Utilize Mermaid diagrams (` ```mermaid ``` `) within these files where appropriate for visual clarity (e.g., architecture, flowcharts).
 
-**Requirements:**
+**Purpose:** To capture and share essential context *during* development, facilitate collaboration (especially in AI-assisted workflows), preserve project history, and support strategic planning.
 
-*   **Purpose:** Use these files to track:
-    *   Development progress and status.
-    *   Key design decisions and rationale.
-    *   Project plans and milestones.
-    *   Responses to critiques or feedback.
-    *   High-level architecture or system overviews (linking to code docs where appropriate).
-*   **Maintenance:** Keep these documents reasonably up-to-date to ensure team alignment and preserve project history *during* development.
-*   **Guidance:** Keep workflow documentation focused and consolidate information where possible to avoid excessive sprawl. This supports, but does not replace, code-level documentation.
+**Core Practices & Requirements:**
 
-**Rationale:** Combining rigorous code-level documentation with structured workflow documentation ensures code maintainability, facilitates collaboration, aids onboarding, and preserves essential project context throughout the development lifecycle.
+*   **Location & Organization:**
+    *   Use the dedicated `current_workflow/` directory at the project root for workflow documentation.
+    *   Keep this directory organized (e.g., using subdirectories or clear naming conventions based on date, feature, task, or session).
+*   **Content - What to Document:**
+    *   **Progress & Status:** Regularly record activities, current status, and outcomes.
+    *   **Goals & Context:** Summarize the immediate context, goals for a session or task, and link to relevant issues or requirements.
+    *   **Design Decisions & Rationale:** Document *why* specific approaches or architectures were chosen, especially for significant changes. Include rejected alternatives if informative.
+    *   **Strategic Planning:**
+        *   Before implementing significant features or complex fixes, outline the proposed approach, rationale, and potential challenges (aim for concise reasoning, e.g., 1-3 paragraphs for major decisions).
+        *   Document strategies for tackling larger tasks and anticipating roadblocks.
+    *   **Challenges & Resolutions:** Explicitly record problems encountered (e.g., tool errors, unexpected AI behavior, complex bugs) and the steps taken (or planned) to resolve them.
+    *   **High-Level Overviews:** Provide architecture or system diagrams (Mermaid is encouraged) and descriptions, linking to specific code documentation where appropriate.
+    *   **Critiques & Feedback:** Summarize key feedback received and how it's being addressed.
+    *   **(Optional) AI Interaction Summaries:** Briefly note key interactions, prompts, or insights gained during AI-assisted sessions if particularly relevant to a decision or solution.
+*   **Maintenance:** Keep these documents reasonably up-to-date to ensure they accurately reflect the current state and provide value for team alignment.
+*   **Guidance:**
+    *   Focus on clarity and conciseness. Consolidate information where logical to avoid sprawl.
+    *   This workflow documentation *supplements*, but **does not replace**, mandatory code-level documentation (Rule #1). Link *to* code docs, don't duplicate them extensively.
+    *   Regularly review documented workflows to identify patterns and opportunities for process improvement.
+
+**Rationale:** Rigorous code-level documentation combined with structured workflow documentation ensures code maintainability, enhances team collaboration and understanding (especially with AI tools), aids onboarding, preserves critical project context, and supports informed decision-making throughout the development lifecycle.
+
 
 
