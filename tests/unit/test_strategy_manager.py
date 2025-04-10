@@ -76,7 +76,7 @@ class TestStrategyManager(unittest.TestCase):
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
         self.strategy_manager.enable_strategy(self.mock_strategy2.name)
         
-        # Create test market data
+        # Create test market data (remove quote_volume and count)
         market_data = MarketData(
             symbol="BTC-USDT",
             timestamp=datetime.now(),
@@ -85,21 +85,16 @@ class TestStrategyManager(unittest.TestCase):
             low=49000.0,
             close=50500.0,
             volume=100.0,
-            quote_volume=5050000.0,
-            count=1000
         )
         
-        # Create mock signal
+        # Create mock signal (removed id)
         mock_signal = TradeSignal(
-            id="test-signal-1",
+            strategy_name=self.mock_strategy1.name,
             timestamp=datetime.now(),
             symbol="BTC-USDT",
-            exchange_id="binance",
-            direction="buy",
+            signal_type=SignalType.ENTER_LONG,
             price=50500.0,
             quantity=1.0,
-            signal_type=SignalType.MARKET,
-            confidence=0.8,
             expiration=None,
             metadata={}
         )
@@ -198,7 +193,7 @@ class TestStrategyManager(unittest.TestCase):
         self.strategy_manager.register_strategy(self.mock_strategy1)
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
         
-        # Create test market data
+        # Create test market data (remove quote_volume and count)
         market_data = MarketData(
             symbol="BTC-USDT",
             timestamp=datetime.now(),
@@ -207,8 +202,6 @@ class TestStrategyManager(unittest.TestCase):
             low=49000.0,
             close=50500.0,
             volume=100.0,
-            quote_volume=5050000.0,
-            count=1000
         )
         
         # Process market data - this should not raise an exception

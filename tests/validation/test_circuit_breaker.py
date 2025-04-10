@@ -16,7 +16,7 @@ from cyberdelta.validation.circuit_breaker import (
 class TestCircuitBreakerBase:
     """Test suite for the base CircuitBreaker class."""
     
-    class TestBreaker(CircuitBreaker):
+    class SimpleBreaker(CircuitBreaker):
         """Simple implementation for testing."""
         def __init__(self, name, cooldown_seconds=300):
             super().__init__(name, cooldown_seconds)
@@ -30,7 +30,7 @@ class TestCircuitBreakerBase:
     
     def test_init(self):
         """Test initializing the circuit breaker."""
-        breaker = self.TestBreaker("test_breaker", 600)
+        breaker = self.SimpleBreaker("test_breaker", 600)
         
         assert breaker.name == "test_breaker"
         assert breaker.cooldown_seconds == 600
@@ -42,7 +42,7 @@ class TestCircuitBreakerBase:
     
     def test_trip(self):
         """Test tripping the circuit breaker."""
-        breaker = self.TestBreaker("test_breaker")
+        breaker = self.SimpleBreaker("test_breaker")
         
         # Trip the breaker
         breaker.trip("Test reason")
@@ -60,7 +60,7 @@ class TestCircuitBreakerBase:
     
     def test_reset(self):
         """Test resetting the circuit breaker."""
-        breaker = self.TestBreaker("test_breaker")
+        breaker = self.SimpleBreaker("test_breaker")
         
         # Trip and then reset
         breaker.trip("Test reason")
@@ -76,7 +76,7 @@ class TestCircuitBreakerBase:
     
     def test_allow_operation(self):
         """Test checking if operation is allowed."""
-        breaker = self.TestBreaker("test_breaker", cooldown_seconds=1)
+        breaker = self.SimpleBreaker("test_breaker", cooldown_seconds=1)
         
         # Initially closed
         assert breaker.allow_operation() is True
@@ -92,7 +92,7 @@ class TestCircuitBreakerBase:
     
     def test_test_recovery_successful(self):
         """Test recovery check when successful."""
-        breaker = self.TestBreaker("test_breaker")
+        breaker = self.SimpleBreaker("test_breaker")
         
         # Trip and wait for cooldown
         breaker.trip("Test reason")
@@ -107,7 +107,7 @@ class TestCircuitBreakerBase:
     
     def test_test_recovery_failed(self):
         """Test recovery check when failed."""
-        breaker = self.TestBreaker("test_breaker")
+        breaker = self.SimpleBreaker("test_breaker")
         
         # Trip and wait for cooldown
         breaker.trip("Test reason")
@@ -122,7 +122,7 @@ class TestCircuitBreakerBase:
     
     def test_get_status(self):
         """Test getting the status of the breaker."""
-        breaker = self.TestBreaker("test_breaker")
+        breaker = self.SimpleBreaker("test_breaker")
         
         # Initial status
         status = breaker.get_status()

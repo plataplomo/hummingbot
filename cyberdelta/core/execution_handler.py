@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Any, Tuple, Union
 from datetime import datetime
 from enum import Enum, auto
 
-from cyberdelta.apis.base import ExchangeAPI
+from cyberdelta.apis.base import ExchangeAPI, APIError
 from cyberdelta.core.models import Order, Position, OrderStatus, OrderSide, OrderType
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
@@ -244,133 +244,245 @@ class ExecutionHandler:
         self.active_executions[execution_id] = execution
         
         try:
-            # Execute the trades
             logger.info(f"Executing opportunity: {opportunity}")
-            
-            # First, place the long order
+
             long_exchange = opportunity.opportunity.long_exchange
+            short_exchange = opportunity.opportunity.short_exchange
             long_client = self.api_clients[long_exchange]
-            
-            # Prepare long order parameters
-            symbol = opportunity.opportunity.symbol
-            side = OrderSide.BUY
-            order_type = OrderType.MARKET  # Using market orders for simplicity
-            quantity = opportunity.long_size  # In a real implementation, convert from USD to asset quantity
-            
-            # Place long order with retry
+            short_client = self.api_clients[short_exchange]
+            internal_symbol = opportunity.opportunity.symbol
+
+            # --- Calculate Long Quantity ---
+            long_exchange_symbol = self.config.get(f'exchanges.{long_exchange}.symbols.{internal_symbol}')
+            if not long_exchange_symbol:
+                raise ValueError(f"Symbol mapping not found for {internal_symbol} on {long_exchange}")
+            try:
+                long_ticker = await long_client.get_ticker(long_exchange_symbol)
+                if not long_ticker or long_ticker.ask == 0:
+                    raise ValueError(f"Invalid ticker or zero ask price for {long_exchange_symbol} on {long_exchange}")
+                long_base_quantity = opportunity.long_size / long_ticker.ask
+                logger.debug(f"Calculated long quantity for {long_exchange}: {opportunity.long_size} USD / {long_ticker.ask} = {long_base_quantity:.8f} {internal_symbol}")
+            except (APIError, ValueError, ZeroDivisionError) as e:
+                execution.status = ExecutionStatus.FAILED
+                execution.error_message = f"Failed to get ticker or calculate long quantity: {e}"
+                self.circuit_breaker.record_failure()
+                return execution
+            # --------------------------------
+
+            # Place long order with retry using base quantity and exchange symbol
             long_order = await self._place_order_with_retry(
                 client=long_client,
                 exchange_id=long_exchange,
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity
+                symbol=long_exchange_symbol, # Use EXCHANGE-SPECIFIC symbol
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=long_base_quantity # Pass calculated base quantity
             )
-            
+
             if not long_order:
-                # Failed to place long order
                 execution.status = ExecutionStatus.FAILED
                 execution.error_message = "Failed to place long order"
                 self.circuit_breaker.record_failure()
                 return execution
-            
-            # Store long order details
+
             execution.long_order_id = long_order.id
             execution.long_order_response = long_order.to_dict()
-            
-            # Now place the short order
-            short_exchange = opportunity.opportunity.short_exchange
-            short_client = self.api_clients[short_exchange]
-            
-            # Prepare short order parameters
-            side = OrderSide.SELL
-            quantity = opportunity.short_size  # In a real implementation, convert from USD to asset quantity
-            
-            # Place short order with retry
+
+            # --- Calculate Short Quantity ---
+            short_exchange_symbol = self.config.get(f'exchanges.{short_exchange}.symbols.{internal_symbol}')
+            if not short_exchange_symbol:
+                raise ValueError(f"Symbol mapping not found for {internal_symbol} on {short_exchange}")
+            try:
+                short_ticker = await short_client.get_ticker(short_exchange_symbol)
+                if not short_ticker or short_ticker.bid == 0:
+                    raise ValueError(f"Invalid ticker or zero bid price for {short_exchange_symbol} on {short_exchange}")
+                short_base_quantity = opportunity.short_size / short_ticker.bid
+                logger.debug(f"Calculated short quantity for {short_exchange}: {opportunity.short_size} USD / {short_ticker.bid} = {short_base_quantity:.8f} {internal_symbol}")
+            except (APIError, ValueError, ZeroDivisionError) as e:
+                # If short quantity calc fails, we might still need to compensate the long leg
+                execution.status = ExecutionStatus.COMPENSATING
+                execution.error_message = f"Failed to get ticker or calculate short quantity: {e}. Compensating long."
+                logger.warning(f"{execution.error_message}")
+                await self._compensate_position(
+                    client=long_client, exchange_id=long_exchange, symbol=internal_symbol,
+                    original_failed_side=OrderSide.SELL, quantity=long_order.filled_quantity # Compensate what was filled
+                )
+                execution.status = ExecutionStatus.FAILED # Mark as failed after compensation attempt
+                self.circuit_breaker.record_failure()
+                return execution
+            # ---------------------------------
+
+            # Place short order with retry using base quantity and exchange symbol
             short_order = await self._place_order_with_retry(
                 client=short_client,
                 exchange_id=short_exchange,
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity
+                symbol=short_exchange_symbol, # Use EXCHANGE-SPECIFIC symbol
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=short_base_quantity # Pass calculated base quantity
             )
-            
-            if not short_order:
-                # Failed to place short order, need to reverse the long order
+
+            # --- ADDED: Compensation logic if short fails after long succeeds ---
+            if not short_order and long_order and long_order.status == OrderStatus.FILLED:
+                # Short order failed, but long order was placed and presumably filled
                 execution.status = ExecutionStatus.COMPENSATING
-                execution.error_message = "Failed to place short order, compensating"
-                logger.warning(f"Failed to place short order, compensating by closing long position")
-                
-                # Attempt to close the long position
-                await self._compensate_position(
-                    client=long_client,
-                    exchange_id=long_exchange,
-                    symbol=symbol,
-                    side=OrderSide.SELL,  # Opposite of the long order
-                    quantity=quantity
+                execution.error_message = f"Failed to place short order ({short_exchange_symbol}), compensating long ({long_exchange_symbol})"
+                logger.warning(execution.error_message)
+                # Compensate the filled quantity of the long order
+                compensation_result = await self._compensate_position(
+                    client=long_client, 
+                    exchange_id=long_exchange, 
+                    symbol=long_exchange_symbol, # Use exchange-specific symbol for compensation
+                    original_failed_side=OrderSide.SELL, # We failed to SELL short, so compensate the BUY long
+                    quantity=long_order.filled_quantity 
                 )
-                
-                # Record the failure
-                self.circuit_breaker.record_failure()
-                
-                # Mark execution as failed
-                execution.status = ExecutionStatus.FAILED
+                # Regardless of compensation success, mark final status as FAILED
+                execution.status = ExecutionStatus.FAILED 
+                # Attach specific failure reason if compensation also failed
+                if not compensation_result:
+                    execution.error_message += "; Compensation attempt also failed."
+                # Record failure and return
+                self.circuit_breaker.record_failure() 
                 return execution
+            # --- END ADDED Compensation Logic ---
             
-            # Store short order details
+            # Original logic continues if short_order was successful (or if long failed earlier)
+            elif not short_order: # This case handles if long failed initially, short wasn't attempted, or some other error
+                # If we reach here and short_order is None, it implies long_order likely also failed or wasn't filled
+                # The initial check after long_order placement should have caught long failure.
+                # This path might be redundant or needs refinement based on _place_order_with_retry's exact return on failure.
+                # Let's assume for now the earlier checks handle long-failure returns correctly.
+                # If short fails but long didn't fill, we might not need compensation yet.
+                # Let's refine the error message if we land here unexpectedly.
+                if execution.status != ExecutionStatus.FAILED: # Avoid overwriting specific long failure message
+                    execution.status = ExecutionStatus.FAILED
+                    execution.error_message = "Failed to place short order (reason unclear, check logs)" 
+                    logger.error(f"Execution reached unexpected state: short order failed but long order status unclear or not filled. Long: {long_order}")
+                    self.circuit_breaker.record_failure()
+                return execution # Return if short failed and compensation wasn't triggered above
+
+            # --- Short order was placed successfully ---            
             execution.short_order_id = short_order.id
             execution.short_order_response = short_order.to_dict()
+
+            # Wait for orders to settle (can be improved with WS updates)
+            await asyncio.sleep(self.config.get('execution.settlement_delay', 2.0)) # Use config value
             
-            # Wait for orders to settle
-            await asyncio.sleep(2)  # In a real implementation, wait for order updates
+            # Update order status (fetch latest state)
+            updated_long_order = await self._get_order_status(long_client, long_exchange, execution.long_order_id)
+            updated_short_order = await self._get_order_status(short_client, short_exchange, execution.short_order_id)
             
-            # Update order status
-            long_order = await self._get_order_status(long_client, long_exchange, execution.long_order_id)
-            short_order = await self._get_order_status(short_client, short_exchange, execution.short_order_id)
+            # Use the updated order objects for status checks
+            long_order = updated_long_order if updated_long_order else long_order
+            short_order = updated_short_order if updated_short_order else short_order
             
             # Check if orders were filled
-            long_filled = long_order and long_order.status == OrderStatus.FILLED
-            short_filled = short_order and short_order.status == OrderStatus.FILLED
+            long_filled = long_order and long_order.status in [OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED] and long_order.filled_quantity > 0
+            short_filled = short_order and short_order.status in [OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED] and short_order.filled_quantity > 0
             
             if long_filled and short_filled:
-                # Both orders were filled
-                execution.status = ExecutionStatus.COMPLETED
-                execution.long_fill_price = long_order.price
-                execution.short_fill_price = short_order.price
-                execution.long_fill_quantity = long_order.filled_quantity
-                execution.short_fill_quantity = short_order.filled_quantity
-                
-                # Record success
-                self.circuit_breaker.record_success()
-                
-                logger.info(f"Successfully executed opportunity: {opportunity}")
-            elif long_filled or short_filled:
-                # Only one order was filled
-                execution.status = ExecutionStatus.PARTIALLY_COMPLETED
-                execution.error_message = "Only one order was filled"
-                
-                if long_filled:
-                    execution.long_fill_price = long_order.price
+                # --- Both orders have at least partial fills --- 
+                # Check for FULL completion vs PARTIAL completion of the pair
+                if long_order.status == OrderStatus.FILLED and short_order.status == OrderStatus.FILLED: 
+                    # Both legs fully filled
+                    execution.status = ExecutionStatus.COMPLETED
+                    execution.long_fill_price = long_order.price # Use price attribute
+                    execution.short_fill_price = short_order.price # Use price attribute
                     execution.long_fill_quantity = long_order.filled_quantity
-                
-                if short_filled:
-                    execution.short_fill_price = short_order.price
                     execution.short_fill_quantity = short_order.filled_quantity
+                    
+                    # Update portfolio tracker after successful execution
+                    logger.debug(f"Updating portfolio tracker for successful execution {long_order.id}/{short_order.id}")
+                    
+                    # Create Position objects from filled orders
+                    long_position = Position(
+                        symbol=opportunity.opportunity.symbol,
+                        size=long_order.filled_quantity,
+                        entry_price=long_order.price, # Use price
+                        mark_price=long_order.price, # Use fill price as initial mark price
+                        side=OrderSide.BUY,
+                        id=f"pos_{long_order.id}" # Create a simple position ID
+                    )
+                    short_position = Position(
+                        symbol=opportunity.opportunity.symbol,
+                        size=short_order.filled_quantity,
+                        entry_price=short_order.price, # Use price
+                        mark_price=short_order.price, # Use fill price as initial mark price
+                        side=OrderSide.SELL,
+                        id=f"pos_{short_order.id}" # Create a simple position ID
+                    )
+                    
+                    # Update tracker with Position objects
+                    self.portfolio_tracker.update_position(
+                        exchange_id=long_exchange,
+                        position=long_position
+                    )
+                    self.portfolio_tracker.update_position(
+                        exchange_id=short_exchange,
+                        position=short_position
+                    )
+                    
+                    # Record success
+                    self.circuit_breaker.record_success()
+                    
+                    logger.info(f"Successfully executed opportunity: {opportunity}")
+                else:
+                    # At least one leg is PARTIALLY_FILLED
+                    execution.status = ExecutionStatus.PARTIALLY_COMPLETED
+                    execution.error_message = "Trade partially completed. At least one leg not fully filled."
+                    logger.warning(f"{execution.error_message} Long: {long_order.status.name} ({long_order.filled_quantity}/{long_order.quantity}), Short: {short_order.status.name} ({short_order.filled_quantity}/{short_order.quantity})")
+                    # Record partial failure
+                    # Calculate potential loss based on unfilled portion or slippage (simplified estimate)
+                    loss_estimate = opportunity.expected_profit * 0.5 # Crude estimate
+                    self.circuit_breaker.record_failure(loss_estimate)
+                    # TODO: Implement logic to handle partial fills (e.g., try to fill remainder, or compensate unfilled portion)
+
+                # Record fill details regardless of full/partial
+                execution.long_fill_price = long_order.price if long_order and long_order.filled_quantity > 0 else None # Use price
+                execution.short_fill_price = short_order.price if short_order and short_order.filled_quantity > 0 else None # Use price
+                execution.long_fill_quantity = long_order.filled_quantity if long_order else 0
+                execution.short_fill_quantity = short_order.filled_quantity if short_order else 0
                 
-                # Record partial failure
-                self.circuit_breaker.record_failure(opportunity.expected_profit * 0.5)  # Estimate loss as half of expected profit
+                # Update portfolio tracker only if COMPLETED? Or update with partials too?
+                # Current logic updates only on FULL completion. Let's stick to that for now.
+                if execution.status == ExecutionStatus.COMPLETED:
+                    logger.debug(f"Updating portfolio tracker for successful execution {long_order.id}/{short_order.id}")
+                    # ... (Create Position objects and update tracker - logic remains the same) ...
+                    self.circuit_breaker.record_success()
+                    logger.info(f"Successfully executed opportunity: {opportunity}")
                 
-                logger.warning(f"Partially executed opportunity: {opportunity}")
+            elif long_filled or short_filled:
+                 # --- Only one leg has any fill (other is NEW, CANCELED, REJECTED etc) --- 
+                execution.status = ExecutionStatus.COMPENSATING # Need to compensate the filled leg
+                filled_leg_desc = "long" if long_filled else "short"
+                failed_leg_desc = "short" if long_filled else "long"
+                execution.error_message = f"Only {filled_leg_desc} order filled ({long_order.status.name if long_filled else short_order.status.name}). {failed_leg_desc.capitalize()} order failed ({short_order.status.name if long_filled else long_order.status.name}). Compensating."
+                logger.warning(execution.error_message)
+
+                # Determine which leg to compensate
+                if long_filled:
+                    comp_client, comp_exch, comp_symbol, comp_qty, comp_failed_side = \
+                        long_client, long_exchange, long_exchange_symbol, long_order.filled_quantity, OrderSide.SELL
+                else: # short_filled
+                    comp_client, comp_exch, comp_symbol, comp_qty, comp_failed_side = \
+                        short_client, short_exchange, short_exchange_symbol, short_order.filled_quantity, OrderSide.BUY
+
+                compensation_result = await self._compensate_position(
+                    client=comp_client, exchange_id=comp_exch, symbol=comp_symbol, 
+                    original_failed_side=comp_failed_side, quantity=comp_qty
+                )
+                
+                execution.status = ExecutionStatus.FAILED # Final status is FAILED after compensation attempt
+                if not compensation_result:
+                     execution.error_message += "; Compensation attempt also failed."
+                self.circuit_breaker.record_failure() # Record failure regardless of compensation success
+
             else:
-                # Neither order was filled
+                # --- Neither order had any fill --- 
                 execution.status = ExecutionStatus.FAILED
-                execution.error_message = "Neither order was filled"
-                
-                # Record failure
+                execution.error_message = f"Neither order was filled. Long: {long_order.status.name if long_order else 'N/A'}, Short: {short_order.status.name if short_order else 'N/A'}"
                 self.circuit_breaker.record_failure()
-                
-                logger.error(f"Failed to execute opportunity: {opportunity}")
+                logger.error(f"Failed to execute opportunity: {opportunity} - {execution.error_message}")
             
             return execution
             
@@ -443,18 +555,27 @@ class ExecutionHandler:
                 
                 return order
                 
+            except APIError as e: # Catch APIError specifically first
+                logger.error(f"API Error placing order on {exchange_id}: {e.message} (Code: {e.code})", exc_info=False) # exc_info=False for brevity unless debugging
+                # Check if the error is retryable
+                if e.is_retryable and attempt < self.max_retries - 1:
+                    # If retryable and more attempts left, continue to next iteration
+                    continue 
+                else:
+                    # If not retryable OR no retries left, LOG the error and RETURN None
+                    logger.error(f"Non-retryable API error or max retries reached for order placement on {exchange_id}. Aborting order attempt.")
+                    # raise e # DO NOT re-raise, return None
+                    return None
             except Exception as e:
-                logger.error(f"Error placing order on {exchange_id}: {str(e)}", exc_info=True)
-                
-                # Continue to retry on temporary errors
-                if "rate limit" in str(e).lower() or "timeout" in str(e).lower():
-                    continue
-                    
-                # Break on permanent errors
-                if "insufficient balance" in str(e).lower() or "invalid parameter" in str(e).lower():
-                    break
+                # Catch unexpected non-API errors
+                logger.error(f"Unexpected error placing order on {exchange_id}: {str(e)}", exc_info=True)
+                # Re-raise unexpected errors immediately? Or return None?
+                # Let's return None for consistency, the caller should handle unexpected failures.
+                # raise e 
+                return None
         
-        # All retries failed
+        # All retries failed for a retryable error
+        logger.error(f"Order placement failed on {exchange_id} after {self.max_retries} attempts (retryable error).")
         return None
     
     async def _get_order_status(self, 
@@ -489,40 +610,52 @@ class ExecutionHandler:
                                   client: ExchangeAPI,
                                   exchange_id: str,
                                   symbol: str,
-                                  side: OrderSide,
+                                  original_failed_side: OrderSide, 
                                   quantity: float) -> bool:
         """
-        Compensate for a failed trade by placing an opposite order.
-        
+        Compensate for a failed trade leg by placing an opposite market order.
+
         Args:
-            client: API client
-            exchange_id: Exchange identifier
-            symbol: Trading symbol
-            side: Order side (should be opposite of the original order)
-            quantity: Order quantity
-            
+            client: API client for the exchange where compensation is needed.
+            exchange_id: Exchange identifier.
+            symbol: Trading symbol.
+            original_failed_side: The side (BUY/SELL) of the original order that failed 
+                                   or was partially filled, requiring compensation.
+            quantity: The quantity that needs to be compensated (e.g., the unfilled amount).
+
         Returns:
-            True if compensation was successful, False otherwise
+            The compensation Order object if successful, None otherwise.
         """
         try:
-            # Place a market order to close the position
+            # Determine the side for the compensating order (opposite of the original)
+            # compensating_side = OrderSide.BUY if original_failed_side == OrderSide.SELL else OrderSide.SELL # Incorrect logic
+            # Correct logic: The compensating order side is the *same* as the side that failed elsewhere
+            # If the original SELL failed, we need to SELL the long position we opened.
+            # If the original BUY failed, we need to BUY back the short position we opened.
+            compensating_side = original_failed_side 
+            logger.info(f"Compensating position on {exchange_id} for {symbol}: placing {compensating_side.value} order for {quantity}")
+            
+            # Place a market order to close/compensate the position
             order = await client.place_order(
                 symbol=symbol,
-                side=side,
+                side=compensating_side, 
                 order_type=OrderType.MARKET,
                 quantity=quantity
             )
-            
-            # Update portfolio tracker
+
+            # Update portfolio tracker with the compensation order
             if order:
+                logger.info(f"Compensation order placed successfully: {order.id}")
                 self.portfolio_tracker.update_order(exchange_id, order)
-                return True
-            
-            return False
-            
+                # Return the compensation order object on success
+                return order 
+            else:
+                logger.error(f"Compensation order placement failed for {symbol} on {exchange_id}")
+                return None
+
         except Exception as e:
-            logger.error(f"Error compensating position on {exchange_id}: {str(e)}", exc_info=True)
-            return False
+            logger.error(f"Error compensating position on {exchange_id} for {symbol}: {str(e)}", exc_info=True)
+            return None
     
     def get_execution_history(self) -> List[TradeExecution]:
         """

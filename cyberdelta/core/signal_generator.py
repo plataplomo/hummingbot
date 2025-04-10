@@ -273,9 +273,16 @@ class SignalGenerator:
         for symbol in common_symbols:
             for i, long_exchange in enumerate(exchanges):
                 for short_exchange in exchanges[i+1:]:
-                    # Get funding rates
-                    long_rate_data = self.data_handler.get_funding_rate(long_exchange, symbol)
-                    short_rate_data = self.data_handler.get_funding_rate(short_exchange, symbol)
+                    # Get exchange-specific symbols from config map
+                    long_sym = self.config.get(f'exchanges.{long_exchange}.symbols.{symbol}')
+                    short_sym = self.config.get(f'exchanges.{short_exchange}.symbols.{symbol}')
+                    if not long_sym or not short_sym:
+                        # logger.warning(f"Missing symbol mapping for {symbol} on {long_exchange} or {short_exchange}") # Optional: Log this
+                        continue # Skip if symbol not mapped on either exchange
+                    
+                    # Get funding rates using exchange-specific symbols
+                    long_rate_data = self.data_handler.get_funding_rate(long_exchange, long_sym)
+                    short_rate_data = self.data_handler.get_funding_rate(short_exchange, short_sym)
                     
                     if not long_rate_data or not short_rate_data:
                         continue
@@ -283,34 +290,33 @@ class SignalGenerator:
                     long_rate, long_timestamp = long_rate_data
                     short_rate, short_timestamp = short_rate_data
                     
-                    # Calculate Net Funding Differential (NFD)
-                    # For funding rates, positive means longs pay shorts
-                    # We want to long the exchange with the negative funding rate (getting paid)
-                    # and short the exchange with the positive funding rate (also getting paid)
-                    nfd = short_rate - long_rate
+                    # Swap logic (use original exchange vars for now)
+                    original_long_exchange = long_exchange
+                    original_short_exchange = short_exchange
+                    original_long_sym = long_sym
+                    original_short_sym = short_sym
                     
-                    # Decide which direction to take based on funding rates
-                    # If long_rate < short_rate, keep as is
-                    # If long_rate > short_rate, swap roles
+                    nfd = short_rate - long_rate
                     if long_rate > short_rate:
                         long_exchange, short_exchange = short_exchange, long_exchange
+                        long_sym, short_sym = short_sym, long_sym # Swap symbols too
                         long_rate, short_rate = short_rate, long_rate
                         nfd = abs(nfd)
                     
+                    # DEBUGGING
+                    logger.debug(f"NFD Check: Symbol={symbol}, L_Ex={long_exchange}, S_Ex={short_exchange}, L_Sym={long_sym}, S_Sym={short_sym}, L_Rate={long_rate:.6f}, S_Rate={short_rate:.6f}, NFD={nfd:.6f}, Min_NFD={self.min_funding_differential:.6f}")
                     # Check if NFD exceeds minimum threshold
                     if abs(nfd) < self.min_funding_differential:
                         continue
                     
-                    # Calculate basis volatility
-                    basis_volatility = self.calculate_basis_volatility(symbol)
+                    # TODO: Basis volatility calculation might need fixing for exchange-specific symbols
+                    basis_volatility = self.calculate_basis_volatility(symbol) # Still uses internal symbol
                     
-                    # Calculate expected profit
-                    # Assume a standard position size for now; risk manager will size appropriately
-                    position_size = 1000.0  # $1000 USD for calculation purposes
+                    position_size = 1000.0
                     
-                    # Estimate trading costs
-                    long_slippage = self.estimate_slippage(symbol, position_size, long_exchange)
-                    short_slippage = self.estimate_slippage(symbol, position_size, short_exchange)
+                    # Estimate trading costs using exchange-specific symbols
+                    long_slippage = self.estimate_slippage(long_sym, position_size, long_exchange)
+                    short_slippage = self.estimate_slippage(short_sym, position_size, short_exchange)
                     
                     # Get exchange fee rates from config
                     long_fee_rate = self.config.get(f'exchanges.{long_exchange}.fee_rate', 0.0005)
@@ -320,13 +326,8 @@ class SignalGenerator:
                     total_costs = (position_size * (long_slippage + short_slippage + 
                                                    long_fee_rate + short_fee_rate))
                     
-                    # Calculate expected profit
-                    # Need to convert NFD to decimal (from percentage)
-                    expected_profit = (position_size * (nfd / 100)) - total_costs
-                    
-                    # Skip if expected profit is below threshold
-                    if expected_profit < self.min_profit_threshold:
-                        continue
+                    # Calculate expected profit based on NFD, adjusted for costs
+                    expected_profit = (position_size * nfd) - total_costs
                     
                     # Calculate utility score using risk-adjusted formula
                     # U = ExpectedProfit - λ * σ[B]²

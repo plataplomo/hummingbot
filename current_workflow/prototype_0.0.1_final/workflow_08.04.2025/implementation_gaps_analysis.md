@@ -37,6 +37,21 @@ This document analyzes the gaps identified during the implementation of Prototyp
     -   **Gap:** Style guides and intentions (PEP8, Ruff, Mypy) exist, but lack automated enforcement (CI not yet implemented).
     -   **Critic Assessment:** Likely inconsistent adherence. Mandated implementing basic CI/hooks ASAP and pinning dependencies.
 
+## Execution Handling (`ExecutionHandler`)
+
+*   **Gap:** Basic compensation logic uses market orders.
+    *   **Impact:** Potential for significant slippage when closing out positions after a partial failure.
+    *   **Resolution:** Refactor `_compensate_position` to use limit orders with appropriate pricing logic and potentially add slippage checks.
+*   **Gap:** Handling strategy for `PARTIALLY_COMPLETED` status is undefined (marked with `TODO`).
+    *   **Impact:** Unclear system behavior if a trade only partially fills on both legs or fills completely on one and partially on the other after the initial settlement delay.
+    *   **Resolution:** Define and implement the strategy (e.g., attempt completion, immediate compensation of filled portion, alert). Requires careful consideration of risk.
+*   **Gap:** Reliance on `asyncio.sleep` for order settlement.
+    *   **Impact:** Inefficient and potentially unreliable; adds fixed delay even if orders fill quickly, or might not wait long enough for slow fills.
+    *   **Resolution:** Integrate WebSocket listeners for real-time order status updates.
+*   **Gap:** Limited failure scenario testing.
+    *   **Impact:** Potential edge cases or less common errors (e.g., cancellation failures, timeouts) might not be handled correctly.
+    *   **Resolution:** Add more integration tests covering cancellation failures, API timeouts, and errors during status checks.
+
 ## Impact Assessment (Aligned with Critic Feedback)
 
 - **Reliability:** Critically low. The lack of integration and failure testing means the system cannot be trusted to operate reliably or safely. Configuration issues guarantee errors.

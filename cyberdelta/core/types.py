@@ -10,6 +10,7 @@ class SignalType(Enum):
     EXIT_LONG = "EXIT_LONG"
     ENTER_SHORT = "ENTER_SHORT"
     EXIT_SHORT = "EXIT_SHORT"
+    MARKET = "MARKET"
     
 
 class PositionStatus(Enum):

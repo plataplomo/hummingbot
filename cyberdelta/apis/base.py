@@ -49,6 +49,7 @@ class APIErrorCode(Enum):
     NETWORK_ISSUE = 20  # Specific network connectivity issues (DNS, routing, etc.)
     QUANTITY_OUT_OF_RANGE = 21  # For min/max quantity violations
     PRECISION_ERROR = 22  # When price/quantity doesn't match required precision
+    INVALID_REQUEST = 23 # Added for non-retryable client errors (like bad params)
 
 class APIError(Exception):
     """

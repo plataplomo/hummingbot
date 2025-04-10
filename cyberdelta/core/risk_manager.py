@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Optional, Any, List, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 import math
 
 from cyberdelta.core.signal_generator import ArbitrageOpportunity
@@ -94,6 +94,7 @@ class RiskManager:
         self.max_correlated_exposure = config.get('risk.max_correlated_exposure', 0.3)  # 30% max exposure to correlated assets
         self.correlation_threshold = config.get('risk.correlation_threshold', 0.7)  # Correlation threshold for grouping assets
         self.circuit_breaker_recovery_factor = config.get('risk.circuit_breaker_recovery_factor', 0.3)  # 30% sizing during recovery
+        self.min_exchange_balance = config.get('risk_manager.min_exchange_balance', 10.0) # Minimum balance required on an exchange
         
         # Validation metric thresholds
         self.max_acceptable_rmse = config.get('risk.max_acceptable_rmse', 0.05)  # 5% max acceptable RMSE for funding rate predictions
@@ -188,9 +189,15 @@ class RiskManager:
         
         # Check leverage constraints
         for exchange, size in [(long_exchange, long_size), (short_exchange, short_size)]:
-            available_capital = self.portfolio_tracker.get_exchange_balance(exchange)
-            if available_capital <= 0:
-                logger.warning(f"No available capital on {exchange}")
+            collateral_asset = self.config.get(f'exchanges.{exchange}.collateral_asset', 'USD') # Get collateral for the specific exchange
+            available_capital = self.portfolio_tracker.get_exchange_balance(exchange, collateral_asset)
+            # logger.info(f"Initial Validity - Capital Check for {exchange}: Asset={collateral_asset}, Available={available_capital:.2f}") # Original Debug Log
+            
+            # Check if capital is sufficient (e.g., > 0)
+            is_insufficient = available_capital <= self.min_exchange_balance # Calculate bool
+            logger.info(f"Capital Check {exchange}: Asset={collateral_asset}, Avail={available_capital:.2f}, MinReq={self.min_exchange_balance:.2f}, IsInsufficient={is_insufficient}") # DETAILED DEBUG
+            if is_insufficient:
+                logger.warning(f"No available capital on {exchange} (Balance: {available_capital:.2f}, Min: {self.min_exchange_balance:.2f})")
                 return False
                 
             implied_leverage = size / available_capital
@@ -224,21 +231,27 @@ class RiskManager:
         
         # Calculate current exposures
         current_total_exposure = self.portfolio_tracker.get_total_exposure()
-        current_symbol_exposure = self.portfolio_tracker.get_symbol_exposure(symbol)
-        current_long_exchange_exposure = self.portfolio_tracker.get_exchange_exposure(long_exchange)
-        current_short_exchange_exposure = self.portfolio_tracker.get_exchange_exposure(short_exchange)
         
-        # Calculate exposure ratios (as percentage of total capital)
-        total_exposure_ratio = current_total_exposure / total_capital
-        symbol_exposure_ratio = current_symbol_exposure / total_capital
-        long_exchange_ratio = current_long_exchange_exposure / total_capital
-        short_exchange_ratio = current_short_exchange_exposure / total_capital
+        # Calculate current symbol exposure manually from all positions
+        current_symbol_exposure = 0.0
+        all_positions = self.portfolio_tracker.get_all_positions()
+        for ex_id, pos in all_positions:
+            # NOTE: Need to ensure internal symbol vs exchange symbol consistency here
+            # Assuming opportunity.symbol is the internal symbol and pos.symbol is also internal? 
+            # Or does pos.symbol need conversion based on ex_id?
+            # For now, assume direct comparison works based on how positions are stored.
+            if pos.symbol == symbol and pos.is_active():
+                 current_symbol_exposure += abs(pos.mark_price * pos.size) # Use abs for total exposure regardless of side
+
+        # Apply max exposure per asset constraint
+        max_asset_exposure = total_capital * self.max_exposure_per_asset
+        available_asset_capacity = max_asset_exposure - current_symbol_exposure
         
         # Calculate available room for each constraint
-        available_total_exposure = max(0, self.max_total_exposure / total_capital - total_exposure_ratio) * total_capital
-        available_symbol_exposure = max(0, self.max_exposure_per_asset - symbol_exposure_ratio) * total_capital
-        available_long_exchange = max(0, self.max_exposure_per_exchange - long_exchange_ratio) * total_capital
-        available_short_exchange = max(0, self.max_exposure_per_exchange - short_exchange_ratio) * total_capital
+        available_total_exposure = max(0, self.max_total_exposure / total_capital - current_total_exposure / total_capital) * total_capital
+        available_symbol_exposure = max(0, available_asset_capacity)
+        available_long_exchange = max(0, self.max_exposure_per_exchange - current_total_exposure / total_capital) * total_capital
+        available_short_exchange = max(0, self.max_exposure_per_exchange - current_total_exposure / total_capital) * total_capital
         
         # Find the most restrictive constraint
         available_exposure = min(
@@ -249,7 +262,10 @@ class RiskManager:
         )
         
         # Apply correlation-based exposure limits if we have other active positions
-        active_positions = self.portfolio_tracker.get_active_positions()
+        # Use get_all_positions() as it returns active positions
+        active_positions = self.portfolio_tracker.get_all_positions()
+        if active_positions:
+            correlation_factor = self.calculate_portfolio_correlation(opportunity, active_positions)
         
         # Determine maximum position size based on available exposure
         # For a balanced arbitrage position, we need room for both sides
@@ -300,26 +316,32 @@ class RiskManager:
         total_risk = 0.0
         
         # Collect current exposures and risk levels
-        active_positions = self.portfolio_tracker.get_active_positions()
-        for pos_symbol, position in active_positions.items():
+        # Use get_all_positions() as it returns active positions
+        active_positions = self.portfolio_tracker.get_all_positions()
+        for ex_id, pos in active_positions:
             # Accumulate exposures by exchange
-            pos_exchange = position.exchange
-            if pos_exchange not in exchange_exposures:
-                exchange_exposures[pos_exchange] = 0.0
-            exchange_exposures[pos_exchange] += position.size_usd
+            # Assuming Position object has 'exchange' and 'size_usd' attributes
+            # or these need calculation
+            pos_exchange = getattr(pos, 'exchange', None) # Safely get exchange
+            pos_size_usd = getattr(pos, 'mark_price', 0.0) * getattr(pos, 'size', 0.0)
+            
+            if pos_exchange:
+                if pos_exchange not in exchange_exposures:
+                    exchange_exposures[pos_exchange] = 0.0
+                exchange_exposures[pos_exchange] += pos_size_usd
             
             # Accumulate exposures by strategy
-            pos_strategy = getattr(position, 'strategy_type', 'funding_rate_arbitrage')
+            pos_strategy = getattr(pos, 'strategy_type', 'funding_rate_arbitrage')
             if pos_strategy not in strategy_exposures:
                 strategy_exposures[pos_strategy] = 0.0
-            strategy_exposures[pos_strategy] += position.size_usd
+            strategy_exposures[pos_strategy] += pos_size_usd
             
             # Accumulate total exposure
-            total_exposure += position.size_usd
+            total_exposure += pos_size_usd
             
             # Accumulate risk (weighted by volatility)
-            position_volatility = getattr(position, 'volatility', 0.01)  # Default if not available
-            total_risk += position.size_usd * position_volatility
+            position_volatility = getattr(pos, 'volatility', 0.01)  # Default if not available
+            total_risk += pos_size_usd * position_volatility
         
         # Calculate portfolio-level metrics
         current_leverage = total_exposure / total_capital if total_capital > 0 else 0
@@ -836,8 +858,17 @@ class RiskManager:
             List of sized opportunities that pass risk criteria
         """
         sized_opportunities = []
+        now = datetime.now()
+        # Define a validity window (e.g., 5 minutes)
+        validity_window = timedelta(minutes=5) 
         
         for opportunity in opportunities:
+            # --- Add validity check --- 
+            if now - opportunity.timestamp > validity_window:
+                logger.debug(f"Skipping expired opportunity for {opportunity.symbol} from {opportunity.timestamp}")
+                continue # Skip expired opportunities
+            # -------------------------    
+            
             sized_opportunity = self.size_opportunity(opportunity)
             if sized_opportunity:
                 sized_opportunities.append(sized_opportunity)

@@ -638,3 +638,24 @@ With the synchronized order submission implementation complete, the next focus w
 **Status: Design Complete - Implementation/Testing DEFERRED (Revised Aug 6, 2025)**
 
 **Note:** Based on critic feedback prioritizing foundational stability and testing, the implementation and rigorous testing of synchronized order execution described below are **deferred** for Prototype 0.0.1. The immediate focus is on stabilizing and testing the core execution path with basic order handling and safety systems.
+
+### Compensation Mechanism (Implemented - Basic)
+
+*   **Trigger:** Compensation is triggered within `ExecutionHandler.execute_opportunity` if:
+    *   The short quantity calculation fails after the long order has already been placed and presumably filled.
+    *   The short order placement fails (returns `None` from `_place_order_with_retry`) after the long order was successfully placed and filled.
+    *   After the settlement delay, it's found that only one leg (long or short) has any fill (`filled_quantity > 0`), while the other leg has no fill (e.g., remains `NEW`, `CANCELED`, `REJECTED`).
+*   **Action:** The `_compensate_position` method is called for the successfully executed leg.
+    *   It currently places a **market order** of the opposite side to close out the unintentionally opened position.
+    *   The quantity is based on the `filled_quantity` of the order being compensated.
+*   **Status:** The overall `TradeExecution` status is marked as `COMPENSATING` during the attempt and finally set to `FAILED`, regardless of whether the compensation order succeeds.
+*   **Logging:** Logs warnings when compensation is triggered and info messages when the compensation order is placed.
+
+### Compensation Refinements (Future Work)
+
+*   **Order Type:** Use limit orders for compensation instead of market orders to control slippage.
+*   **Slippage Check:** Monitor the fill price of the compensation order against the original entry price or current market price to detect excessive slippage during compensation.
+*   **Compensation Failure:** Implement more robust handling if the compensation order itself fails (e.g., retry, alert). The current implementation logs an error but marks the overall execution as `FAILED`.
+*   **Partial Fill Compensation:** Define how compensation should work in `PARTIALLY_COMPLETED` scenarios (compensate the filled part, attempt to complete, etc.).
+
+### Open Questions & Challenges

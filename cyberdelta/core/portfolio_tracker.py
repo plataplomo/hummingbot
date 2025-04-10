@@ -3,6 +3,7 @@ import json
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 import asyncio
+import copy
 
 from cyberdelta.apis.base import ExchangeAPI
 from cyberdelta.core.models import Position, Order, OrderStatus
@@ -115,7 +116,8 @@ class PortfolioTracker:
             self._balances[exchange_id] = balances
             self._last_update_time[exchange_id] = datetime.now()
             
-            logger.info(f"Updated balances for {exchange_id}: {json.dumps(balances)}")
+            # Convert balances to dict before logging
+            logger.info(f"Updated balances for {exchange_id}: {json.dumps({k: v.to_dict() for k, v in balances.items() if hasattr(v, 'to_dict')})}")
             
         except Exception as e:
             logger.error(f"Error fetching balances from {exchange_id}: {str(e)}", exc_info=True)
@@ -323,9 +325,14 @@ class PortfolioTracker:
             
         balance = self._balances[exchange_id].get(asset, 0.0)
         # Handle balance as object or float
-        if hasattr(balance, 'total'):
-            return balance.total
-        return balance
+        if hasattr(balance, 'free'): # Check for and return FREE balance
+            return balance.free
+        # Fallback for simple float balances (if any)
+        if isinstance(balance, (float, int)):
+             return float(balance)
+        # Return 0.0 if balance object doesn't have 'free' or it's not a number
+        logger.warning(f"Balance for {asset} on {exchange_id} has unexpected format: {type(balance)}")
+        return 0.0
     
     def get_total_capital(self) -> float:
         """
@@ -628,3 +635,13 @@ class PortfolioTracker:
             self._high_watermark = float(state_dict['high_watermark'])
         
         logger.info("Portfolio state restored from dictionary")
+
+    def reset(self):
+        """Reset the internal state of the portfolio tracker."""
+        self._balances = {} # exchange -> asset -> Balance
+        self._positions = {} # exchange -> symbol -> Position
+        self._orders = {} # exchange -> order_id -> Order
+        self._last_update_time = {} # exchange -> last update time
+        self._last_reconciliation_time = {} # exchange -> last reconciliation time
+        self._high_watermark = 0.0 # Track highest portfolio value for drawdown calculation
+        logger.info("PortfolioTracker state reset.")

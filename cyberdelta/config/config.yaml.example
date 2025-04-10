@@ -15,100 +15,82 @@ exchanges:
     enabled: true
     api_base_url: "https://api.hyperliquid.xyz"
     ws_url: "wss://api.hyperliquid.xyz/ws"
-    rate_limit_per_minute: 120
+    rate_limit_per_minute: 120 # Placeholder - Actual logic needs per-endpoint handling
+    symbols:
+      # Map internal symbol names to exchange-specific symbols
+      BTC: "BTC" 
+      ETH: "ETH"
     
   backpack:
     enabled: true
     api_base_url: "https://api.backpack.exchange"
     ws_url: "wss://ws.backpack.exchange"
-    rate_limit_per_minute: 120
+    rate_limit_per_minute: 120 # Placeholder - Actual logic needs per-endpoint handling
+    symbols:
+      BTC: "BTC_USDC" # Example Spot market
+      # BTC: "BTC-PERP" # Example Perp market
+      ETH: "ETH_USDC"
 
-# Strategy configuration
+# Strategy configuration (Simplified for Prototype 0.0.1)
 strategies:
+  # Focus: HyperLiquid Perpetual vs. Backpack Spot
   hl_perp_bp_spot:
     enabled: true
-    symbols:
-      hl_symbol: "BTC"
-      bp_symbol: "BTC_USDC"
-    params:
-      funding_threshold: 0.0001  # 0.01% min funding rate
-      min_spread: 0.0002  # 0.02% max price spread
-      min_profit_usd: 1.0  # Minimum profit to execute
+    # Define symbols using the internal names (mapped above)
+    long_exchange: "hyperliquid" # Where we go long (buy perpetual)
+    short_exchange: "backpack"  # Where we go short (sell spot)
+    symbol_long: "BTC"        # Internal symbol for the long leg
+    symbol_short: "BTC"       # Internal symbol for the short leg
     
-  hl_perp_bp_perp:
-    enabled: false  # Disabled by default until primary strategy is proven
-    symbols:
-      hl_symbol: "BTC"
-      bp_symbol: "BTC-PERP"
     params:
-      min_funding_diff: 0.0002  # 0.02% min funding differential
-      max_basis_spread: 0.005  # 0.5% max basis spread
-      min_profit_usd: 2.0  # Higher min profit for riskier strategy
-
-# Risk management
+      funding_threshold: 0.0001  # Minimum positive funding rate on long leg (HL)
+      max_price_spread_pct: 0.002 # Maximum allowed percentage difference between perp and spot price (0.2%)
+      min_profit_usd: 1.0      # Minimum estimated profit in USD to consider the trade
+      
+# Risk management (Simplified for Prototype 0.0.1)
 risk:
   global:
-    max_position_usd: 1000.0  # Maximum position size in USD
-    max_total_exposure_usd: 5000.0  # Maximum total exposure
-    max_portfolio_leverage: 2.0  # Maximum leverage across portfolio
-  
-  strategies:
-    hl_perp_bp_spot:
-      max_position_usd: 1000.0
-      max_leverage: 3.0
+    max_position_usd: 1000.0      # Max size per single arbitrage position
+    max_total_exposure_usd: 5000.0 # Max total value across all open positions
     
-    hl_perp_bp_perp:
-      max_position_usd: 500.0  # More conservative
-      max_leverage: 1.5  # More conservative
-
 # Execution parameters
 execution:
-  max_slippage: 0.002  # 0.2% max allowed slippage
-  max_retries: 3  # Maximum retry attempts for failed API calls
-  retry_delay_base: 1.0  # Base delay for exponential backoff (seconds)
-
-# Circuit breaker configuration
-circuit_breakers:
-  enabled: true
-  global:
-    failure_threshold: 3
-    reset_timeout: 300  # 5 minutes
+  # Slippage for market orders (if used, Taker orders preferred for prototype)
+  max_slippage_pct: 0.001 # 0.1% maximum slippage tolerance
   
-  hyperliquid:
-    failure_threshold: 3  # Exchange-specific settings
-  
-  backpack:
-    failure_threshold: 3  # Exchange-specific settings
+  # Retry logic for failed API calls (e.g., temporary network issues)
+  max_retries: 3
+  retry_delay_base_sec: 1.0 # Initial delay in seconds for exponential backoff
 
-# Validation systems
-validation:
-  funding_rates:
+# Safety Systems Configuration
+safety_systems:
+  # Circuit Breakers to halt trading on excessive failures
+  circuit_breakers:
     enabled: true
-    max_error_threshold: 0.0005  # 0.05% max tolerated error
-    check_interval_seconds: 300  # 5 minutes
-  
-  positions:
-    enabled: true
-    reconcile_interval_seconds: 600  # 10 minutes
-    max_discrepancy_pct: 0.05  # 5% max discrepancy
+    # Global breaker (trips if *any* exchange hits its limit)
+    global_consecutive_failures: 5 # Trips after 5 consecutive failures globally
+    global_reset_timeout_sec: 300  # Reset after 5 minutes if tripped
+    
+    # Per-exchange breakers
+    exchange_consecutive_failures: 3 # Trips after 3 consecutive failures for a specific exchange
+    exchange_reset_timeout_sec: 180 # Reset after 3 minutes
 
-# Monitoring and Notifications
+  # Position reconciliation checker
+  position_reconciliation:
+    enabled: true
+    check_interval_sec: 600 # Check every 10 minutes
+    max_discrepancy_pct: 0.01 # Alert if discrepancy > 0.01% of expected size
+
+  # Balance checker
+  balance_monitoring:
+    enabled: true
+    check_interval_sec: 300 # Check every 5 minutes
+    min_balance_thresholds_usd:
+      hyperliquid: 100.0
+      backpack: 100.0
+
+# Monitoring and Notifications (Simplified placeholders)
 monitoring:
-  balance_check_interval: 300  # seconds
-  min_balance_thresholds:
-    hyperliquid: 100.0  # USD
-    backpack: 100.0  # USD
-  
-notifications:
-  enabled: true
-  methods:
-    telegram:
-      enabled: true
-    discord:
-      enabled: true
-  
-  alerts:
-    low_balance: true
-    position_reconciliation_error: true
-    execution_error: true
-    circuit_breaker_triggered: true
+  notifications_enabled: true
+  alert_methods: ["log"] # Start simple, just log alerts
+  # alert_methods: ["log", "telegram"] # Example for later
