@@ -9,7 +9,7 @@ import json
 from cyberdelta.apis.backpack import BackpackAPI
 from cyberdelta.apis.base import APIError, APIErrorCode
 from cyberdelta.core.models import OrderSide, OrderType, Position, Balance, FundingRate, OrderBook, Trade
-from tests.unit.conftest import MockResponse
+from tests.conftest import MockResponse
 
 class TestBackpackAPI:
     """Test suite for BackpackAPI client."""

@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, patch
 import aiohttp
 from typing import Dict, Any
 
+from cyberdelta.utils.config import Config
+
 # Mock aiohttp ClientSession and Response for API testing
 class MockResponse:
     def __init__(self, data, status=200, headers=None, content_type="application/json"):
@@ -133,4 +135,35 @@ def backpack_secrets():
     return {
         "BACKPACK_API_KEY": "backpack-api-key-123456",
         "BACKPACK_API_SECRET": "backpack-api-secret-123456"
-    } 
+    }
+
+@pytest.fixture
+def mock_config():
+    """Fixture to create a Config object with the provided data dictionary."""
+    def _create_config(config_data=None):
+        if config_data is None:
+            config_data = {
+                "general": {
+                    "log_level": "INFO",
+                    "safe_mode": True
+                },
+                "exchanges": {
+                    "hyperliquid": {
+                        "enabled": True,
+                        "api_base_url": "https://api.hyperliquid.xyz",
+                        "ws_url": "wss://api.hyperliquid.xyz/ws"
+                    },
+                    "backpack": {
+                        "enabled": True,
+                        "api_base_url": "https://api.backpack.exchange",
+                        "ws_url": "wss://ws.backpack.exchange"
+                    }
+                },
+                "risk": {
+                    "global": {
+                        "max_position_usd": 1000.0
+                    }
+                }
+            }
+        return Config(config_data)
+    return _create_config 

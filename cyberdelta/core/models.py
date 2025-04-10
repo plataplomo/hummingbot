@@ -50,6 +50,15 @@ class Balance:
     free: float = 0.0  # Amount available for use
     locked: float = 0.0  # Amount locked in orders
     total: float = 0.0  # Total balance (free + locked)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert balance to dictionary representation."""
+        return {
+            "asset": self.asset,
+            "free": self.free,
+            "locked": self.locked,
+            "total": self.total
+        }
 
 
 @dataclass
@@ -63,7 +72,40 @@ class Position:
     unrealized_pnl: float = 0.0  # Unrealized profit/loss
     leverage: float = 1.0  # Position leverage
     side: OrderSide = OrderSide.BUY  # Position side (long/short)
+    id: str = ""  # Position ID
+    status: str = "OPEN"  # Position status
     
+    @property
+    def quantity(self) -> float:
+        """Return position size (for API compatibility)."""
+        return self.size
+    
+    def is_active(self) -> bool:
+        """Check if position is active."""
+        return self.status in ["OPEN", "PENDING", "PARTIAL"]
+    
+    def calculate_unrealized_pnl(self, current_price: float) -> float:
+        """Calculate unrealized profit/loss based on current price."""
+        if self.side == OrderSide.BUY or self.side == "LONG":
+            return (current_price - self.entry_price) * self.size
+        else:  # SELL/SHORT
+            return (self.entry_price - current_price) * self.size
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert position to dictionary representation."""
+        return {
+            "id": self.id,
+            "symbol": self.symbol,
+            "size": self.size,
+            "entry_price": self.entry_price,
+            "mark_price": self.mark_price,
+            "liquidation_price": self.liquidation_price,
+            "unrealized_pnl": self.unrealized_pnl,
+            "leverage": self.leverage,
+            "side": self.side.value if isinstance(self.side, OrderSide) else self.side,
+            "status": self.status
+        }
+
 
 @dataclass
 class Order:

@@ -897,26 +897,31 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def place_order(self, 
                         symbol: str, 
-                        side: str,
-                        order_type: str,
+                        side: OrderSide,
+                        order_type: OrderType,
                         quantity: float,
                         price: Optional[float] = None, 
                         client_order_id: Optional[str] = None,
+                        time_in_force: Optional[str] = None,
                         **kwargs):
         """
-        Place a new order.
+        Place an order on the exchange.
         
         Args:
-            symbol: Trading pair symbol
-            side: Order side ('buy' or 'sell')
-            order_type: Order type ('limit', 'market', etc.)
+            symbol: Trading symbol
+            side: Order side (BUY/SELL)
+            order_type: Order type (MARKET/LIMIT/etc.)
             quantity: Order quantity
             price: Order price (required for limit orders)
-            client_order_id: Custom order ID
+            client_order_id: Custom order ID for tracking
+            time_in_force: Time in force setting (e.g. 'GTC', 'IOC')
             **kwargs: Additional exchange-specific parameters
-            
+        
         Returns:
-            Order information
+            Order object representing the placed order
+        
+        Raises:
+            APIError: If the order placement fails
         """
         pass
     

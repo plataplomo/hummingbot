@@ -18,3 +18,43 @@ alwaysApply: true
 ## Specific Instructions
 - **Do not delete existing comments** unless they are clearly incorrect or obsolete.
 - **Document significant changes and their reasoning directly in code comments** where appropriate. Explain *why* a change was made, not just *what* was changed.
+
+
+# Rule: Documentation Standards (Code-Level & Workflow)
+
+## 1. Code-Level Documentation (Docstrings & Comments) - NON-NEGOTIABLE
+
+**Mandate:** All code **must** include high-quality, up-to-date, code-level documentation. This is the primary documentation source during active development.
+
+**Requirements:**
+
+*   **Docstrings:**
+    *   Write clear, concise docstrings for **every** class and function.
+    *   **Content:** Explain *what* the class/function does (its purpose).
+    *   **Parameters:** Clearly document all parameters (`@param`, `:param:`, or idiomatic equivalent), explaining their purpose and expected type.
+    *   **Returns:** Clearly document the return value (`@return`, `:return:`, or idiomatic equivalent), explaining what is returned and its type.
+*   **Inline Comments:**
+    *   Use inline comments sparingly but effectively.
+    *   **Purpose:** Add comments primarily to explain the *why* behind complex algorithms, non-obvious logic, important decisions, or potential workarounds. Avoid comments that merely restate *what* the code does if it's already clear.
+
+**Priority:** This is the most critical documentation and must be maintained alongside code changes.
+
+
+## 2. Workflow Documentation (Project Tracking & Context)
+
+**Mandate:** Using Markdown files (`.md`, with ```mermaid ``` snippets) to document the development workflow and project context.
+
+**Requirements:**
+
+*   **Purpose:** Use these files to track:
+    *   Development progress and status.
+    *   Key design decisions and rationale.
+    *   Project plans and milestones.
+    *   Responses to critiques or feedback.
+    *   High-level architecture or system overviews (linking to code docs where appropriate).
+*   **Maintenance:** Keep these documents reasonably up-to-date to ensure team alignment and preserve project history *during* development.
+*   **Guidance:** Keep workflow documentation focused and consolidate information where possible to avoid excessive sprawl. This supports, but does not replace, code-level documentation.
+
+**Rationale:** Combining rigorous code-level documentation with structured workflow documentation ensures code maintainability, facilitates collaboration, aids onboarding, and preserves essential project context throughout the development lifecycle.
+
+

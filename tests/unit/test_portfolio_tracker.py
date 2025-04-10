@@ -13,7 +13,18 @@ class TestPortfolioTracker:
     @pytest.fixture
     def portfolio_tracker(self, mock_config, mock_exchange_api):
         """Create a PortfolioTracker instance with mocked dependencies."""
-        tracker = PortfolioTracker(mock_config)
+        # Use the mock_config fixture to create a Config instance with a dictionary
+        config = mock_config({
+            "exchanges": {
+                "hyperliquid": {"enabled": True},
+                "backpack": {"enabled": True}
+            },
+            "portfolio": {
+                "reconciliation_interval": 300
+            }
+        })
+        
+        tracker = PortfolioTracker(config)
         
         # Register API clients
         tracker.register_api_client("hyperliquid", mock_exchange_api)

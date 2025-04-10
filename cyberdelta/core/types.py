@@ -31,6 +31,22 @@ class OrderType(Enum):
 
 
 @dataclass
+class TradeOperation:
+    """
+    Represents a trade operation (buy or sell)
+    """
+    symbol: str
+    operation_type: str  # "BUY" or "SELL"
+    quantity: float
+    price: float
+    timestamp: datetime
+    exchange: str
+    order_type: OrderType = OrderType.MARKET
+    operation_id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+@dataclass
 class MarketData:
     """
     Represents a single market data point/candle

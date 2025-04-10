@@ -13,19 +13,25 @@ class Config:
     and to access configuration values with dot notation support.
     """
     
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path_or_data: Union[str, Dict[str, Any]] = None):
         """
         Initialize the configuration.
         
         Args:
-            config_path: Path to YAML configuration file
+            config_path_or_data: Path to YAML configuration file or a configuration dictionary
         """
         self.config_data: Dict[str, Any] = {}
-        self.config_path = config_path
+        self.config_path = None
         
-        # Load configuration if path is provided
-        if config_path:
-            self.load_config(config_path)
+        # Load configuration if provided
+        if config_path_or_data:
+            if isinstance(config_path_or_data, dict):
+                # Directly use the provided config dictionary
+                self.config_data = config_path_or_data
+                logger.info("Loaded configuration from provided dictionary")
+            else:
+                # Assume it's a path to a config file
+                self.load_config(config_path_or_data)
     
     def load_config(self, config_path: str) -> bool:
         """

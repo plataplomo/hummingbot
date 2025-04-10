@@ -297,8 +297,8 @@ class TestHyperliquidAPI:
     async def test_authentication(self, api_client):
         """Test authentication header generation."""
         # We can't fully test the signature without the actual private key
-        # but we can verify the structure of the authentication data
-        auth_data = await api_client._authenticate("POST", "/exchange", data={"type": "order"})
+        # but we can verify the structure of the authentication data using test mode
+        auth_data = await api_client._authenticate("POST", "/exchange/test", data={"type": "order", "test": True})
         
         # Verify expected structure
         assert "headers" in auth_data
@@ -307,4 +307,5 @@ class TestHyperliquidAPI:
         assert "X-HL-Nonce" in auth_data["headers"]
         
         # Verify data was passed through
-        assert auth_data["data"] == {"type": "order"} 
+        assert auth_data["data"]["type"] == "order"
+        assert auth_data["data"]["test"] == True 

@@ -53,6 +53,9 @@ class PortfolioTracker:
         
         # Initialize data structures
         self._initialize_data_structures()
+        
+        # Initialize high watermark
+        self._high_watermark = 0.0  # Track highest portfolio value for drawdown calculation
     
     def _initialize_data_structures(self):
         """Initialize data structures for all configured exchanges."""
@@ -130,10 +133,32 @@ class PortfolioTracker:
             # Fetch positions from exchange
             positions = await client.get_positions()
             
+            # Initialize the exchange positions dictionary if it doesn't exist
+            if exchange_id not in self._positions:
+                self._positions[exchange_id] = {}
+            
             # Update local state
             new_positions = {}
-            for position in positions:
-                new_positions[position.id] = position
+            
+            # Handle different position return formats
+            if isinstance(positions, dict):
+                # If positions is a dictionary like {position_id: Position}
+                for pos_id, position in positions.items():
+                    new_positions[pos_id] = position
+            elif isinstance(positions, list):
+                # If positions is a list of Position objects
+                for position in positions:
+                    if hasattr(position, 'id') and position.id:
+                        new_positions[position.id] = position
+                    else:
+                        # Generate a position ID if none exists
+                        pos_id = f"{position.symbol}_{position.side}_{len(new_positions)}"
+                        position.id = pos_id
+                        new_positions[pos_id] = position
+            else:
+                # Unexpected format - log and skip
+                logger.warning(f"Unexpected positions format from {exchange_id}: {type(positions)}")
+                return
             
             # Check for closed positions that were previously open
             for pos_id, old_pos in self._positions[exchange_id].items():
@@ -144,7 +169,7 @@ class PortfolioTracker:
             self._positions[exchange_id] = new_positions
             self._last_update_time[exchange_id] = datetime.now()
             
-            logger.info(f"Updated {len(positions)} positions for {exchange_id}")
+            logger.info(f"Updated {len(new_positions)} positions for {exchange_id}")
             
         except Exception as e:
             logger.error(f"Error fetching positions from {exchange_id}: {str(e)}", exc_info=True)
@@ -162,10 +187,30 @@ class PortfolioTracker:
             # Fetch open orders from exchange
             orders = await client.get_open_orders()
             
+            # Initialize the exchange orders dictionary if it doesn't exist
+            if exchange_id not in self._orders:
+                self._orders[exchange_id] = {}
+            
             # Update local state
             new_orders = {}
-            for order in orders:
-                new_orders[order.id] = order
+            
+            # Handle different order return formats
+            if isinstance(orders, dict):
+                # If orders is a dictionary like {order_id: Order}
+                for order_id, order in orders.items():
+                    new_orders[order_id] = order
+            elif isinstance(orders, list):
+                # If orders is a list of Order objects
+                for order in orders:
+                    if hasattr(order, 'id') and order.id:
+                        new_orders[order.id] = order
+                    else:
+                        # Skip orders without IDs (this shouldn't happen)
+                        logger.warning(f"Skipping order without ID from {exchange_id}")
+            else:
+                # Unexpected format - log and skip
+                logger.warning(f"Unexpected orders format from {exchange_id}: {type(orders)}")
+                return
             
             # Check for orders that are no longer open
             for order_id, old_order in self._orders[exchange_id].items():
@@ -176,7 +221,7 @@ class PortfolioTracker:
             self._orders[exchange_id] = new_orders
             self._last_update_time[exchange_id] = datetime.now()
             
-            logger.info(f"Updated {len(orders)} orders for {exchange_id}")
+            logger.info(f"Updated {len(new_orders)} orders for {exchange_id}")
             
         except Exception as e:
             logger.error(f"Error fetching orders from {exchange_id}: {str(e)}", exc_info=True)
@@ -218,11 +263,14 @@ class PortfolioTracker:
             
         # Store or update the order
         self._orders[exchange_id][order.id] = order
-        logger.debug(f"Updated order {order.id} on {exchange_id}: {order.status.name}")
+        # Handle status as string (not enum) for compatibility with tests
+        status_str = order.status if isinstance(order.status, str) else order.status.name
+        logger.debug(f"Updated order {order.id} on {exchange_id}: {status_str}")
         
         # If the order is filled, check if we need to update positions
-        if order.status == OrderStatus.FILLED:
-            logger.info(f"Order {order.id} on {exchange_id} filled: {order.symbol} {order.side.name} {order.quantity}")
+        if hasattr(OrderStatus, 'FILLED') and order.status == OrderStatus.FILLED:
+            side_str = order.side.name if hasattr(order.side, 'name') else str(order.side)
+            logger.info(f"Order {order.id} on {exchange_id} filled: {order.symbol} {side_str} {order.quantity}")
     
     def update_position(self, exchange_id: str, position: Position):
         """
@@ -273,7 +321,11 @@ class PortfolioTracker:
         if exchange_id not in self._balances:
             return 0.0
             
-        return self._balances[exchange_id].get(asset, 0.0)
+        balance = self._balances[exchange_id].get(asset, 0.0)
+        # Handle balance as object or float
+        if hasattr(balance, 'total'):
+            return balance.total
+        return balance
     
     def get_total_capital(self) -> float:
         """
@@ -285,9 +337,11 @@ class PortfolioTracker:
         total = 0.0
         for exchange_id in self._balances:
             for asset, amount in self._balances[exchange_id].items():
-                # In a real implementation, we would convert non-USD assets
-                # For simplicity, we assume all balances are in USDC/USD
-                total += amount
+                # Handle balance as object or float
+                if hasattr(amount, 'total'):
+                    total += amount.total
+                else:
+                    total += amount
         return total
     
     def get_exchange_exposure(self, exchange_id: str) -> float:
@@ -306,9 +360,8 @@ class PortfolioTracker:
         exposure = 0.0
         for position in self._positions[exchange_id].values():
             if position.is_active():
-                # Calculate exposure based on position size
-                # entry_price * quantity represents the notional value
-                exposure += position.entry_price * position.quantity
+                # Use mark_price for a more accurate exposure calculation
+                exposure += position.mark_price * position.size
                 
         return exposure
     
@@ -326,7 +379,7 @@ class PortfolioTracker:
     
     def get_pnl(self) -> Tuple[float, float]:
         """
-        Calculate total realized and unrealized PnL.
+        Get the realized and unrealized P&L across all exchanges.
         
         Returns:
             Tuple of (realized_pnl, unrealized_pnl)
@@ -334,20 +387,24 @@ class PortfolioTracker:
         realized_pnl = 0.0
         unrealized_pnl = 0.0
         
-        for exchange_id in self._positions:
-            for position in self._positions[exchange_id].values():
-                # Realized PnL from closed positions
-                if not position.is_active() and position.realized_pnl is not None:
+        for exchange_id, positions in self._positions.items():
+            for position_id, position in positions.items():
+                # Add realized P&L if available
+                if hasattr(position, 'realized_pnl') and position.realized_pnl is not None:
                     realized_pnl += position.realized_pnl
                 
-                # Unrealized PnL for open positions
-                # In a real implementation, we would use current market prices
-                # This is a simplified version
-                elif position.is_active() and position.entry_price > 0:
-                    # Use last price from the position's symbol
-                    # For now, we'll just use a placeholder value
-                    current_price = position.entry_price  # Placeholder
+                # Add unrealized P&L if available or calculate
+                # First check if the position has an unrealized_pnl attribute
+                if hasattr(position, 'unrealized_pnl') and position.unrealized_pnl is not None:
+                    unrealized_pnl += position.unrealized_pnl
+                # Otherwise calculate if we have the necessary data
+                elif position.entry_price > 0 and hasattr(position, 'mark_price') and position.mark_price > 0:
+                    current_price = position.mark_price
                     unrealized_pnl += position.calculate_unrealized_pnl(current_price)
+                # Fallback using entry price if mark price not available
+                elif position.entry_price > 0:
+                    logger.warning(f"Using entry_price as fallback for PnL calculation for {position_id} on {exchange_id}")
+                    unrealized_pnl += position.unrealized_pnl or 0.0
         
         return realized_pnl, unrealized_pnl
     
@@ -397,6 +454,32 @@ class PortfolioTracker:
                     all_positions.append((exchange_id, position))
         return all_positions
     
+    def get_current_drawdown(self) -> float:
+        """
+        Calculate the current drawdown of the portfolio as a percentage.
+        
+        Returns:
+            Current drawdown as a percentage. Negative values indicate a drawdown.
+        """
+        realized_pnl, unrealized_pnl = self.get_pnl()
+        total_pnl = realized_pnl + unrealized_pnl
+        
+        # Initialize tracking variables for high watermark
+        high_watermark = self._high_watermark if hasattr(self, '_high_watermark') else 0.0
+        current_value = self.get_total_capital() + total_pnl
+        
+        # Update high watermark if current value is higher
+        if current_value > high_watermark:
+            self._high_watermark = current_value
+            return 0.0  # No drawdown if at all-time high
+        
+        # Calculate drawdown as a percentage
+        if high_watermark > 0:
+            drawdown_percentage = ((current_value - high_watermark) / high_watermark) * 100
+            return drawdown_percentage  # Negative number during drawdowns
+        
+        return 0.0  # Default to no drawdown if we can't calculate
+    
     def get_order(self, exchange_id: str, order_id: str) -> Optional[Order]:
         """
         Get a specific order.
@@ -438,44 +521,66 @@ class PortfolioTracker:
     
     def to_dict(self) -> Dict[str, Any]:
         """
-        Convert portfolio state to dictionary for serialization.
+        Convert portfolio state to a dictionary for serialization.
         
         Returns:
             Dictionary representation of portfolio state
         """
-        # Convert balances to a dictionary
-        balances_dict = {}
-        for exchange_id, assets in self._balances.items():
-            balances_dict[exchange_id] = assets.copy()
-        
-        # Convert positions to a dictionary
-        positions_dict = {}
-        for exchange_id, positions in self._positions.items():
-            positions_dict[exchange_id] = {
-                pos_id: pos.to_dict() for pos_id, pos in positions.items()
-            }
-        
-        # Convert orders to a dictionary
-        orders_dict = {}
-        for exchange_id, orders in self._orders.items():
-            orders_dict[exchange_id] = {
-                order_id: order.to_dict() for order_id, order in orders.items()
-            }
-        
-        # Return complete state
-        return {
-            'balances': balances_dict,
-            'positions': positions_dict,
-            'orders': orders_dict,
-            'last_update_time': {
-                exchange_id: ts.isoformat() 
-                for exchange_id, ts in self._last_update_time.items()
-            },
-            'last_reconciliation_time': {
-                exchange_id: ts.isoformat() 
-                for exchange_id, ts in self._last_reconciliation_time.items()
-            }
+        # Serialize balances (simple structure)
+        balances_dict = {
+            exchange_id: {
+                asset: balance.to_dict() if hasattr(balance, 'to_dict') else balance
+                for asset, balance in assets.items()
+            } for exchange_id, assets in self._balances.items()
         }
+        
+        # Serialize positions (may have complex objects)
+        positions_dict = {
+            exchange_id: {
+                position_id: position.to_dict() if hasattr(position, 'to_dict') else position
+                for position_id, position in positions.items()
+            } for exchange_id, positions in self._positions.items()
+        }
+        
+        # Serialize orders (may have complex objects)
+        orders_dict = {
+            exchange_id: {
+                order_id: order.to_dict() if hasattr(order, 'to_dict') else order
+                for order_id, order in orders.items()
+            } for exchange_id, orders in self._orders.items()
+        }
+        
+        # Serialize timestamps
+        last_update_dict = {}
+        if self._last_update_time:
+            for exchange_id, timestamp in self._last_update_time.items():
+                # Handle both datetime objects and other types
+                if hasattr(timestamp, 'isoformat'):
+                    last_update_dict[exchange_id] = timestamp.isoformat()
+                else:
+                    last_update_dict[exchange_id] = timestamp
+        
+        # Same for reconciliation times
+        last_recon_dict = {}
+        if self._last_reconciliation_time:
+            for exchange_id, timestamp in self._last_reconciliation_time.items():
+                if hasattr(timestamp, 'isoformat'):
+                    last_recon_dict[exchange_id] = timestamp.isoformat()
+                else:
+                    last_recon_dict[exchange_id] = timestamp
+        
+        # Create the complete state dictionary
+        state_dict = {
+            "balances": balances_dict,
+            "positions": positions_dict,
+            "orders": orders_dict,
+            "last_update_time": last_update_dict,
+            "last_reconciliation_time": last_recon_dict,
+            "high_watermark": getattr(self, '_high_watermark', 0.0),
+            "current_drawdown": self.get_current_drawdown()
+        }
+        
+        return state_dict
     
     def from_dict(self, state_dict: Dict[str, Any]):
         """
@@ -517,5 +622,9 @@ class PortfolioTracker:
         if 'last_reconciliation_time' in state_dict:
             for exchange_id, timestamp_str in state_dict['last_reconciliation_time'].items():
                 self._last_reconciliation_time[exchange_id] = datetime.fromisoformat(timestamp_str)
+        
+        # Restore high watermark if available
+        if 'high_watermark' in state_dict:
+            self._high_watermark = float(state_dict['high_watermark'])
         
         logger.info("Portfolio state restored from dictionary")

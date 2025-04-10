@@ -116,20 +116,31 @@ class BackpackAPI(ExchangeAPI):
     # --- Core API Implementation --- #
 
     async def get_ticker(self, symbol: str) -> Optional[Ticker]:
-        """Get ticker information for a symbol."""
+        """
+        Get current ticker information for a symbol.
+        
+        Args:
+            symbol: Trading symbol
+            
+        Returns:
+            Ticker object or None if error
+        """
         try:
             response = await self._request("GET", f"/api/v1/ticker/{symbol}")
             
-            return Ticker(
-                symbol=symbol,
-                bid=float(response.get('bidPrice', 0)),
-                ask=float(response.get('askPrice', 0)),
-                last=float(response.get('lastPrice', 0)),
-                volume=float(response.get('volume', 0)),
-                timestamp=int(response.get('time', int(time.time() * 1000)))
+            # Process response to create Ticker object
+            ticker = Ticker(
+                symbol=response["symbol"],
+                bid=float(response["bidPrice"]),
+                ask=float(response["askPrice"]),
+                price=float(response["lastPrice"]),  # Using lastPrice as the current price
+                volume=float(response["volume"]),
+                timestamp=int(response["time"])
             )
+            
+            return ticker
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error getting ticker for {symbol}: {e}")
+            logger.error(f"[backpack] Error getting ticker for {symbol}: {e}")
             return None
 
     async def get_order_book(self, symbol: str, depth: Optional[int] = None) -> Optional[OrderBook]:
@@ -154,55 +165,75 @@ class BackpackAPI(ExchangeAPI):
             logger.error(f"[{self.exchange_name}] Error getting order book for {symbol}: {e}")
             return None
 
-    async def get_recent_trades(self, symbol: str, limit: Optional[int] = None) -> List[Trade]:
-        """Get recent trades for a symbol."""
+    async def get_recent_trades(self, symbol: str, limit: int = 50) -> List[Trade]:
+        """
+        Get recent trades for a symbol.
+        
+        Args:
+            symbol: Trading symbol
+            limit: Maximum number of trades to return
+            
+        Returns:
+            List of Trade objects
+        """
         try:
-            params = {"symbol": symbol}
-            if limit:
-                params["limit"] = limit
-                
+            params = {"symbol": symbol, "limit": limit}
             response = await self._request("GET", "/api/v1/trades", params=params)
             
             trades = []
             for trade_data in response:
-                trades.append(Trade(
+                side = OrderSide.BUY if trade_data["isBuyerMaker"] else OrderSide.SELL
+                trade = Trade(
                     symbol=symbol,
-                    id=str(trade_data.get('id', '')),
-                    price=float(trade_data.get('price', 0)),
-                    quantity=float(trade_data.get('qty', 0)),
-                    side=OrderSide.BUY if trade_data.get('isBuyerMaker') else OrderSide.SELL,
-                    timestamp=int(trade_data.get('time', 0))
-                ))
+                    id=trade_data["id"],
+                    price=float(trade_data["price"]),
+                    quantity=float(trade_data["qty"]),
+                    side=side,
+                    time=int(trade_data["time"])
+                )
+                trades.append(trade)
             
             return trades
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error getting recent trades for {symbol}: {e}")
+            logger.error(f"[backpack] Error getting recent trades for {symbol}: {e}")
             return []
 
     async def get_funding_rate(self, symbol: str) -> Optional[FundingRate]:
-        """Get current funding rate for a symbol."""
-        try:
-            response = await self._request("GET", "/api/v1/fundingInfo", params={"symbol": symbol})
+        """
+        Get funding rate information for a symbol.
+        
+        Args:
+            symbol: Trading symbol
             
-            # Find the entry for our symbol
+        Returns:
+            FundingRate object or None if error
+        """
+        try:
+            params = {"symbol": symbol}
+            response = await self._request("GET", "/api/v1/fundingInfo", params=params)
+            
+            # Find the funding rate for the requested symbol
             funding_data = None
             for item in response:
-                if item.get('symbol') == symbol:
+                if item["symbol"] == symbol:
                     funding_data = item
                     break
-            
+                
             if not funding_data:
-                logger.warning(f"[{self.exchange_name}] No funding data found for {symbol}")
+                logger.warning(f"[backpack] Funding rate not found for {symbol}")
                 return None
             
+            # Create FundingRate object
             return FundingRate(
                 symbol=symbol,
-                rate=float(funding_data.get('fundingRate', 0)),
-                time=int(funding_data.get('fundingTime', int(time.time() * 1000))),
-                estimated=False  # This is the actual rate, not estimated
+                funding_rate=float(funding_data["fundingRate"]),
+                predicted_rate=None,  # Not provided by Backpack API
+                mark_price=None,      # Not provided in this endpoint
+                index_price=None,     # Not provided in this endpoint
+                next_funding_time=int(funding_data["fundingTime"])
             )
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error getting funding rate for {symbol}: {e}")
+            logger.error(f"[backpack] Error getting funding rate for {symbol}: {e}")
             return None
 
     async def get_balances(self) -> Dict[str, Balance]:
@@ -230,94 +261,150 @@ class BackpackAPI(ExchangeAPI):
             return {}
 
     async def get_positions(self) -> Dict[str, Position]:
-        """Get all open positions with multi-source reconciliation.
+        """
+        Get current positions.
         
-        This implements a defensive approach to position tracking:
-        1. Primary: Direct API position query
-        2. Secondary: Position derived from fill history (for reconciliation)
-        3. Verification: Balance checks for additional validation
-        
-        Returns a dictionary of positions with symbol as key.
+        Returns:
+            Dictionary of positions by symbol
         """
         try:
-            # PRIMARY: Get positions from direct API
-            primary_positions = {}
+            response = await self._request("GET", "/api/v1/positions", signed=True)
             
-            try:
-                api_response = await self._request("GET", "/api/v1/positions", signed=True)
+            positions = {}
+            for position_data in response:
+                symbol = position_data.get("symbol", "")
+                position_amt = float(position_data.get("positionAmt", "0"))
                 
-                for pos_item in api_response:
-                    symbol = pos_item.get("symbol", "")
-                    if symbol and float(pos_item.get("positionAmt", 0)) != 0:
-                        position_amt = float(pos_item.get("positionAmt", 0))
-                        side = OrderSide.BUY if position_amt > 0 else OrderSide.SELL
-                        primary_positions[symbol] = Position(
-                            symbol=symbol,
-                            size=abs(position_amt),
-                            entry_price=float(pos_item.get("entryPrice", 0)),
-                            mark_price=float(pos_item.get("markPrice", 0)),
-                            liquidation_price=float(pos_item.get("liquidationPrice", 0)),
-                            unrealized_pnl=float(pos_item.get("unrealizedProfit", 0)),
-                            leverage=float(pos_item.get("leverage", 1)),
-                            side=side
-                        )
+                # Skip if no position
+                if position_amt == 0:
+                    continue
+                    
+                # Determine side based on position amount
+                side = OrderSide.BUY if position_amt > 0 else OrderSide.SELL
                 
-                logger.info(f"[{self.exchange_name}] Retrieved {len(primary_positions)} positions from direct API")
-            except Exception as e:
-                logger.error(f"[{self.exchange_name}] Error retrieving positions from API: {e}", exc_info=True)
-                # Continue with secondary mechanism
-            
-            return primary_positions
-            
+                # Create Position object
+                position = Position(
+                    symbol=symbol,
+                    size=abs(position_amt),  # Use absolute value for size
+                    entry_price=float(position_data.get("entryPrice", "0")),
+                    mark_price=float(position_data.get("markPrice", "0")),
+                    liquidation_price=float(position_data.get("liquidationPrice", "0")),
+                    unrealized_pnl=float(position_data.get("unRealizedProfit", "0")),  # Set the unrealized profit from API response
+                    leverage=float(position_data.get("leverage", "1")),
+                    side=side
+                )
+                
+                positions[symbol] = position
+                
+            return positions
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Unexpected error getting positions: {e}", exc_info=True)
+            logger.error(f"[backpack] Error getting positions: {e}")
             return {}
 
-    async def place_order(self, 
-                         symbol: str, 
-                         side: str,
-                         order_type: str,
-                         quantity: float,
-                         price: Optional[float] = None, 
-                         client_order_id: Optional[str] = None,
-                         **kwargs) -> Optional[Order]:
-        """Place an order on Backpack."""
+    async def place_order(
+        self, 
+        symbol: str, 
+        side: OrderSide, 
+        order_type: OrderType, 
+        quantity: float, 
+        price: Optional[float] = None,
+        client_order_id: Optional[str] = None,
+        time_in_force: str = "GTC",
+        **kwargs
+    ) -> Optional[Order]:
+        """
+        Place an order on Backpack Exchange.
+        
+        Args:
+            symbol: Trading symbol (e.g., 'BTC_USDC')
+            side: Order side (BUY or SELL)
+            order_type: Order type (LIMIT, MARKET, etc.)
+            quantity: Order quantity
+            price: Order price (required for limit orders)
+            client_order_id: Custom client order ID
+            time_in_force: Time in force for the order (default 'GTC' - Good Till Cancel)
+            **kwargs: Additional exchange-specific parameters like:
+                - reduce_only: Whether this is a reduce-only order (bool)
+                - post_only: Whether this is a post-only order (bool)
+            
+        Returns:
+            Order object if successful, None otherwise
+            
+        Raises:
+            APIError: On API errors or parameter validation failures
+        """
+        # Validate parameters
+        if order_type == OrderType.LIMIT and price is None:
+            raise APIError("Price is required for limit orders", code=APIErrorCode.INVALID_PARAMS)
+        
+        # Build order data
+        order_data = {
+            "symbol": symbol,
+            "side": side.name,  # "BUY" or "SELL"
+            "type": order_type.name,  # "LIMIT" or "MARKET"
+            "quantity": str(quantity),
+            "timeInForce": time_in_force,
+        }
+        
+        # Add price for limit orders
+        if order_type == OrderType.LIMIT:
+            order_data["price"] = str(price)
+        
+        # Add client order ID if provided
+        if client_order_id:
+            order_data["clientOrderId"] = client_order_id
+        
+        # Add reduce_only if provided
+        if kwargs.get('reduce_only'):
+            order_data["reduceOnly"] = "true" if kwargs['reduce_only'] else "false"
+        
+        # Add post_only if provided
+        if kwargs.get('post_only'):
+            order_data["postOnly"] = "true" if kwargs['post_only'] else "false"
+        
         try:
-            order_params = {
-                "symbol": symbol,
-                "side": side.upper(),
-                "type": order_type.upper(),
-                "quantity": quantity
-            }
+            # Place the order
+            response = await self._request("POST", "/api/v1/order", data=order_data, signed=True)
             
-            # Add optional parameters
-            if price is not None and order_type.upper() != "MARKET":
-                order_params["price"] = price
-                
-            if client_order_id:
-                order_params["newClientOrderId"] = client_order_id
-                
-            # Add any additional kwargs
-            order_params.update(kwargs)
+            # Extract order ID - could be "id" or "orderId" depending on API version/response format
+            order_id = None
+            if "id" in response:
+                order_id = response["id"]
+            elif "orderId" in response:
+                order_id = response["orderId"]
+            else:
+                logger.error(f"[{self.exchange_name}] Order response missing ID field: {response}")
+                raise APIError("Order response missing ID field", code=APIErrorCode.SERVER_ERROR)
             
-            response = await self._request("POST", "/api/v1/order", data=order_params, signed=True)
+            # Get transaction time or current time
+            transaction_time = int(response.get("transactTime", response.get("time", int(time.time() * 1000))))
             
-            return Order(
+            # Extract quantity values - either "quantity"/"executedQuantity" or "origQty"/"executedQty"
+            orig_qty = float(response.get("quantity", response.get("origQty", quantity)))
+            exec_qty = float(response.get("executedQuantity", response.get("executedQty", 0.0)))
+            
+            # Create Order object from response
+            order = Order(
+                id=order_id,
+                client_order_id=response.get("clientOrderId"),
                 symbol=response.get("symbol", symbol),
-                id=str(response.get("orderId", "")),
-                client_id=response.get("clientOrderId", client_order_id),
-                price=float(response.get("price", price or 0)),
-                quantity=float(response.get("origQty", quantity)),
-                executed_qty=float(response.get("executedQty", 0)),
+                side=OrderSide[response.get("side", side.name)],
+                type=OrderType[response.get("type", order_type.name)],
+                price=float(response.get("price", price or 0.0)),
+                quantity=orig_qty,
+                filled_quantity=exec_qty,
                 status=response.get("status", "NEW"),
-                side=OrderSide.BUY if response.get("side", "").upper() == "BUY" else OrderSide.SELL,
-                type=OrderType.MARKET if response.get("type", "").upper() == "MARKET" else OrderType.LIMIT,
-                time=int(response.get("time", int(time.time() * 1000)))
+                time=transaction_time
             )
             
+            logger.info(f"[{self.exchange_name}] Order placed: {order.id} for {symbol}")
+            return order
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error placing order for {symbol}: {e}")
-            return None
+            if isinstance(e, APIError):
+                raise
+            else:
+                logger.error(f"[{self.exchange_name}] Error placing order: {e}", exc_info=True)
+                raise APIError(f"Error placing order: {str(e)}", code=APIErrorCode.ORDER_REJECTED)
 
     async def cancel_order(self, order_id: str, symbol: Optional[str] = None) -> bool:
         """Cancel an existing order."""

@@ -16,8 +16,8 @@ import os
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
 from cyberdelta.monitoring.real_time_dashboard import RealTimeDashboard, launch_dashboard
 from cyberdelta.core.types import TradeSignal, TradeOperation
-from cyberdelta.portfolio.portfolio_tracker import PortfolioTracker
-from cyberdelta.strategies.base import TradingStrategy
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.strategy import Strategy
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class DashboardIntegration:
         self.dashboard_thread = None
         
         # Registered strategies
-        self.strategies: Dict[str, TradingStrategy] = {}
+        self.strategies: Dict[str, Strategy] = {}
         
         # Start dashboard if auto_start is True
         if auto_start:
@@ -78,12 +78,12 @@ class DashboardIntegration:
         if self.dashboard:
             self.dashboard.portfolio_tracker = portfolio_tracker
     
-    def register_strategy(self, strategy: TradingStrategy):
+    def register_strategy(self, strategy: Strategy):
         """
         Register a strategy with the dashboard.
         
         Args:
-            strategy: TradingStrategy instance
+            strategy: Strategy instance
         """
         self.strategies[strategy.name] = strategy
         logger.info(f"Registered strategy {strategy.name} with dashboard")

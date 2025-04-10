@@ -12,7 +12,38 @@ class TestDataHandler:
     @pytest.fixture
     def data_handler(self, mock_config, mock_exchange_api):
         """Create a DataHandler instance with mocked dependencies."""
-        handler = DataHandler(mock_config)
+        # Create a proper config object with the mock_config function
+        config_obj = mock_config({
+            "exchanges": {
+                "hyperliquid": {
+                    "enabled": True,
+                    "symbols": ["BTC", "ETH"],
+                    "websocket": {
+                        "reconnect_delay": 5,
+                        "max_reconnect_delay": 30,
+                        "ping_interval": 30
+                    }
+                },
+                "backpack": {
+                    "enabled": True,
+                    "symbols": ["BTCUSDC", "ETHUSDC"],
+                    "websocket": {
+                        "reconnect_delay": 5,
+                        "max_reconnect_delay": 30,
+                        "ping_interval": 30
+                    }
+                }
+            },
+            "data": {
+                "staleness_thresholds": {
+                    "ticker": 60,
+                    "funding_rate": 300,
+                    "orderbook": 60
+                }
+            }
+        })
+        
+        handler = DataHandler(config_obj)
         
         # Register API clients
         handler.register_api_client("hyperliquid", mock_exchange_api)
@@ -270,12 +301,30 @@ class TestDataHandler:
             "backpack": mock_task2
         }
         
+        # Set up websocket connections and API clients
+        data_handler.ws_connections = {
+            "hyperliquid": MagicMock(),
+            "backpack": MagicMock()
+        }
+        
+        # Mock the API clients' close_websocket method
+        for exchange_id in data_handler.api_clients:
+            data_handler.api_clients[exchange_id].close_websocket = AsyncMock()
+        
         # Call shutdown
         await data_handler.shutdown()
         
         # Verify tasks were cancelled
         assert mock_task1.cancel.called
         assert mock_task2.cancel.called
+        
+        # Verify tasks were awaited after cancellation
+        assert mock_task1.__await__.called
+        assert mock_task2.__await__.called
+        
+        # Verify websocket connections were closed
+        for exchange_id in data_handler.api_clients:
+            assert data_handler.api_clients[exchange_id].close_websocket.called
 
     @pytest.mark.asyncio
     async def test_handle_websocket_message(self, data_handler, mock_exchange_api):
@@ -336,4 +385,143 @@ class TestDataHandler:
         assert "hyperliquid" in data_handler.last_update_time
         assert "ticker" in data_handler.last_update_time["hyperliquid"]
         assert "BTC" in data_handler.last_update_time["hyperliquid"]["ticker"]
-        assert isinstance(data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"], datetime) 
+        assert isinstance(data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"], datetime)
+
+    @pytest.mark.asyncio
+    async def test_maintain_websocket_connection(self, data_handler, mock_exchange_api):
+        """Test the WebSocket connection maintenance logic."""
+        # Mock the config.get method to return test-friendly values
+        data_handler.config.get = MagicMock(side_effect=lambda key, default=None: {
+            'exchanges.hyperliquid.enabled': True,
+            'exchanges.hyperliquid.symbols': ["BTC", "ETH"],
+            'exchanges.hyperliquid.websocket.reconnect_delay': 0.1,  # Short delay for testing
+            'exchanges.hyperliquid.websocket.max_reconnect_delay': 0.2
+        }.get(key, default))
+        
+        # Set up connection tracking
+        connection_attempts = 0
+        connection_established = asyncio.Event()
+        reconnection_attempted = asyncio.Event()
+        
+        # Mock the connect_websocket method
+        async def mock_connect():
+            nonlocal connection_attempts
+            connection_attempts += 1
+            
+            # Signal different events based on which connection attempt this is
+            if connection_attempts == 1:
+                connection_established.set()
+            elif connection_attempts > 1:
+                reconnection_attempted.set()
+            
+            # Return a mock WebSocket connection
+            return MagicMock()
+        
+        # Set our mock for the connection method
+        mock_exchange_api.connect_websocket = mock_connect
+        
+        # Mock the message processing to simulate an error after first connection
+        async def mock_process_messages(exchange_id):
+            # Wait a moment
+            await asyncio.sleep(0.1)
+            # If this is the first connection, raise an exception
+            if not reconnection_attempted.is_set():
+                raise ConnectionError("Simulated connection error")
+            # Otherwise just wait indefinitely
+            await asyncio.Future()
+        
+        # Apply our mocks
+        with patch.object(data_handler, '_process_websocket_messages', mock_process_messages):
+            # Start the WebSocket maintenance task
+            task = asyncio.create_task(
+                data_handler._maintain_websocket_connection("hyperliquid")
+            )
+            
+            try:
+                # Wait for initial connection
+                await asyncio.wait_for(connection_established.wait(), timeout=1.0)
+                
+                # Verify initial setup was performed
+                assert mock_exchange_api.subscribe_to_tickers.called
+                assert mock_exchange_api.subscribe_to_orderbooks.called
+                
+                # Wait for reconnection attempt after error
+                await asyncio.wait_for(reconnection_attempted.wait(), timeout=1.0)
+                
+                # Verify multiple connection attempts were made
+                assert connection_attempts > 1
+            finally:
+                # Clean up the task
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_process_websocket_messages(self, data_handler, mock_exchange_api):
+        """Test processing WebSocket messages."""
+        # Mock config get method for ping interval
+        def mock_config_get(path, default=None):
+            if path.endswith('.websocket.ping_interval'):
+                return 0.5  # Short interval for testing
+            return default
+        
+        data_handler.config.get = mock_config_get
+        
+        # Set up test data and control flow
+        test_message = {"type": "ticker", "data": {"symbol": "BTC", "price": 42000.0}}
+        message_received = asyncio.Event()
+        ping_sent = asyncio.Event()
+        
+        # Mock the message reception - return a test message once, then no message
+        messages_received = 0
+        async def mock_receive_message():
+            nonlocal messages_received
+            if messages_received == 0:
+                messages_received += 1
+                return test_message
+            # Signal we processed a message
+            message_received.set()
+            # Return None for subsequent calls (no message)
+            await asyncio.sleep(0.1)
+            return None
+        
+        # Mock ping to signal when it's called
+        async def mock_ping():
+            ping_sent.set()
+            return None
+        
+        # Set up the mocks
+        mock_exchange_api.receive_websocket_message.side_effect = mock_receive_message
+        mock_exchange_api.ping_websocket.side_effect = mock_ping
+        
+        # Set up message handler mock
+        handle_message_mock = AsyncMock()
+        
+        # Patch the handler method
+        with patch.object(data_handler, '_handle_websocket_message', handle_message_mock):
+            # Start the processing task
+            process_task = asyncio.create_task(
+                data_handler._process_websocket_messages("hyperliquid")
+            )
+            
+            # Wait for the message to be received and handled
+            try:
+                # Wait for the ping to be sent (should happen after receiving messages)
+                await asyncio.wait_for(ping_sent.wait(), timeout=2.0)
+            except asyncio.TimeoutError:
+                pytest.fail("WebSocket ping was not sent within timeout")
+            
+            # Verify the handler was called correctly
+            handle_message_mock.assert_called_once_with("hyperliquid", test_message)
+            
+            # Verify ping was sent
+            assert mock_exchange_api.ping_websocket.called
+            
+            # Clean up the task
+            process_task.cancel()
+            try:
+                await process_task
+            except asyncio.CancelledError:
+                pass 
