@@ -1,700 +1,676 @@
 """
-Performance Monitoring System for CyberDeltaEngine.
+Strategy Performance Tracker for CyberDeltaEngine.
 
-This module provides tools for tracking, analyzing, and storing
-performance metrics for trading strategies.
+This module provides tools for tracking and managing strategy performance data.
+It stores trade, signal, and return data for analysis and visualization.
 """
 
 import logging
-import asyncio
-from typing import Dict, List, Optional, Any, Union, Tuple
-from datetime import datetime, timedelta
-import json
 import pandas as pd
 import numpy as np
-from dataclasses import dataclass, asdict, field
-
-from cyberdelta.core.types import TradeSignal, MarketData, SignalType
-from cyberdelta.core.signal_generator import ArbitrageOpportunity
-from cyberdelta.core.risk_manager import SizedOpportunity
+from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Any, Union, Tuple
+import json
+import os
+from pathlib import Path
+import threading
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class PerformanceMetrics:
-    """Storage for performance metrics data."""
-    strategy_name: str
-    timestamp: datetime
-    
-    # Signal metrics
-    signals_generated: int = 0
-    signals_executed: int = 0
-    signal_quality_score: float = 0.0
-    
-    # Trading metrics
-    trades_executed: int = 0
-    trade_win_rate: float = 0.0
-    avg_trade_duration: float = 0.0
-    
-    # PnL metrics
-    realized_pnl: float = 0.0
-    unrealized_pnl: float = 0.0
-    total_pnl: float = 0.0
-    
-    # Risk metrics
-    current_drawdown: float = 0.0
-    max_drawdown: float = 0.0
-    volatility: float = 0.0
-    
-    # Ratio metrics
-    sharpe_ratio: float = 0.0
-    sortino_ratio: float = 0.0
-    calmar_ratio: float = 0.0
 
 @dataclass
-class TradeMetrics:
-    """Metrics for an individual trade."""
-    trade_id: str
-    strategy_name: str
-    symbol: str
-    exchange: str
-    entry_time: datetime
-    exit_time: Optional[datetime] = None
-    entry_price: float = 0.0
-    exit_price: float = 0.0
-    direction: str = ""  # "LONG" or "SHORT"
-    size: float = 0.0
-    pnl: float = 0.0
-    pnl_percentage: float = 0.0
-    duration: float = 0.0  # In seconds
-    execution_quality: float = 0.0  # 0.0 to 1.0
-    slippage: float = 0.0
-    fees: float = 0.0
-    is_completed: bool = False
-    tags: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-@dataclass
-class SignalMetrics:
-    """Metrics for a trading signal."""
-    signal_id: str
-    strategy_name: str
-    signal_type: str
-    symbol: str
-    timestamp: datetime
-    generation_time: float = 0.0  # Time taken to generate the signal in ms
-    confidence_score: float = 0.0  # 0.0 to 1.0
-    utility_score: float = 0.0
-    expected_profit: float = 0.0
-    sized_position: bool = False
-    execution_status: str = "PENDING"  # PENDING, EXECUTED, REJECTED, EXPIRED
-    execution_latency: float = 0.0  # Time from generation to execution in ms
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
 class PerformanceTracker:
     """
-    Track and record performance metrics for a trading strategy.
+    Tracks and manages strategy performance data.
     
-    This class hooks into various points in the strategy execution flow to
-    collect metrics on signals, trades, and overall performance.
+    This class collects and stores trade, signal, and return data for strategies.
+    It provides methods for retrieving this data for analysis and visualization.
     """
     
-    def __init__(self, strategy_name: str, config: Optional[Dict[str, Any]] = None):
+    output_dir: str = field(default_factory=lambda: os.path.join(os.getcwd(), "performance_data"))
+    
+    def __init__(self, output_dir: Optional[str] = None):
         """
         Initialize the performance tracker.
         
         Args:
-            strategy_name: Name of the strategy to track
-            config: Configuration parameters
+            output_dir: Directory for saving performance data
         """
-        self.strategy_name = strategy_name
-        self.config = config or {}
+        self.output_dir = output_dir or os.path.join(os.getcwd(), "performance_data")
         
-        # Storage for metrics
-        self.metrics_history: List[PerformanceMetrics] = []
-        self.trade_history: Dict[str, TradeMetrics] = {}
-        self.signal_history: Dict[str, SignalMetrics] = {}
-        self.opportunity_history: Dict[str, ArbitrageOpportunity] = {}
-        self.sized_opportunity_history: Dict[str, SizedOpportunity] = {}
+        # Create output directory if it doesn't exist
+        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
         
-        # Current state
-        self.current_trades: Dict[str, TradeMetrics] = {}
-        self.pending_signals: Dict[str, SignalMetrics] = {}
+        # Initialize data structures
+        self.returns = {}  # {strategy_name: {timestamp: return}}
+        self.trades = []  # List of trade dictionaries
+        self.signals = []  # List of signal dictionaries
+        self.funding_rates = []  # List of funding rate dictionaries
         
-        # Performance summary statistics
-        self.total_pnl = 0.0
-        self.total_signals_generated = 0
-        self.total_signals_executed = 0
-        self.total_trades_executed = 0
-        self.winning_trades = 0
-        self.losing_trades = 0
+        # Lock for thread safety
+        self.lock = threading.RLock()
         
-        # Configuration
-        self.metrics_interval = self.config.get('metrics_interval', 60)  # seconds
-        self.persistence_enabled = self.config.get('persistence_enabled', True)
-        self.persistence_path = self.config.get('persistence_path', f"metrics/{self.strategy_name}")
-        self.max_history_length = self.config.get('max_history_length', 10000)
-        
-        # Start metrics collection task
-        if self.config.get('auto_collect', True):
-            self._start_metrics_collection()
+        # Load existing data
+        self._load_data()
     
-    def _start_metrics_collection(self):
-        """Start the background task for periodic metrics collection."""
-        asyncio.create_task(self._periodic_metrics_collection())
-    
-    async def _periodic_metrics_collection(self):
-        """Periodically collect and store performance metrics."""
-        while True:
-            try:
-                self.collect_metrics()
-                
-                # Persist metrics if enabled
-                if self.persistence_enabled:
-                    self.persist_metrics()
-                
-                # Prune history if it exceeds the maximum length
-                self._prune_history()
-                
-                # Wait for the next collection interval
-                await asyncio.sleep(self.metrics_interval)
-            except Exception as e:
-                logger.error(f"Error in periodic metrics collection: {e}", exc_info=True)
-                await asyncio.sleep(10)  # Wait a bit before retrying
-    
-    def collect_metrics(self) -> PerformanceMetrics:
+    def track_return(self, strategy_name: str, timestamp: datetime, return_value: float):
         """
-        Collect current performance metrics.
-        
-        Returns:
-            PerformanceMetrics object with current metrics
-        """
-        metrics = PerformanceMetrics(
-            strategy_name=self.strategy_name,
-            timestamp=datetime.now(),
-            signals_generated=self.total_signals_generated,
-            signals_executed=self.total_signals_executed,
-            trades_executed=self.total_trades_executed,
-            realized_pnl=self.total_pnl
-        )
-        
-        # Calculate trade win rate
-        total_completed_trades = self.winning_trades + self.losing_trades
-        if total_completed_trades > 0:
-            metrics.trade_win_rate = (self.winning_trades / total_completed_trades) * 100
-        
-        # Calculate average trade duration
-        completed_trades = [t for t in self.trade_history.values() if t.is_completed]
-        if completed_trades:
-            metrics.avg_trade_duration = sum(t.duration for t in completed_trades) / len(completed_trades)
-        
-        # Add to history
-        self.metrics_history.append(metrics)
-        
-        # Return the collected metrics
-        return metrics
-    
-    def track_signal(self, signal: TradeSignal, metrics: Optional[Dict[str, Any]] = None) -> SignalMetrics:
-        """
-        Track a trading signal.
+        Track a return for a strategy.
         
         Args:
-            signal: The trade signal to track
-            metrics: Additional metrics about the signal
+            strategy_name: Name of the strategy
+            timestamp: Timestamp of the return
+            return_value: Return value
+        """
+        with self.lock:
+            if strategy_name not in self.returns:
+                self.returns[strategy_name] = {}
             
-        Returns:
-            SignalMetrics object
-        """
-        # Create signal metrics
-        signal_metrics = SignalMetrics(
-            signal_id=signal.signal_id,
-            strategy_name=self.strategy_name,
-            signal_type=signal.signal_type.name,
-            symbol=signal.symbol,
-            timestamp=signal.timestamp,
-            metadata=signal.metadata or {}
-        )
-        
-        # Add additional metrics if provided
-        if metrics:
-            for key, value in metrics.items():
-                if hasattr(signal_metrics, key):
-                    setattr(signal_metrics, key, value)
-                else:
-                    signal_metrics.metadata[key] = value
-        
-        # Update metadata with expected profit if available
-        if 'expected_profit' in signal.metadata:
-            signal_metrics.expected_profit = signal.metadata['expected_profit']
-        
-        # Update metadata with utility score if available
-        if 'utility_score' in signal.metadata:
-            signal_metrics.utility_score = signal.metadata['utility_score']
-        
-        # Check if the signal was sized by a risk manager
-        if 'position_sizing' in signal.metadata and signal.metadata['position_sizing'].get('enhanced', False):
-            signal_metrics.sized_position = True
-        
-        # Update counter and store signal metrics
-        self.total_signals_generated += 1
-        self.signal_history[signal.signal_id] = signal_metrics
-        self.pending_signals[signal.signal_id] = signal_metrics
-        
-        return signal_metrics
+            # Store the return
+            self.returns[strategy_name][timestamp] = return_value
+            
+            # Save to file
+            self._save_returns(strategy_name)
     
-    def track_signal_execution(self, signal_id: str, executed: bool, latency: float = 0.0, reason: str = ""):
+    def track_trade(
+        self,
+        trade_id: str,
+        strategy_name: str,
+        symbol: str,
+        exchange: str,
+        direction: str,
+        size: float,
+        entry_price: float,
+        entry_time: datetime,
+        exit_price: Optional[float] = None,
+        exit_time: Optional[datetime] = None,
+        pnl: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
         """
-        Track the execution of a signal.
+        Track a trade.
         
         Args:
-            signal_id: ID of the signal
-            executed: Whether the signal was executed successfully
-            latency: Time from signal generation to execution in ms
-            reason: Reason for rejection if not executed
-        """
-        if signal_id in self.pending_signals:
-            signal_metrics = self.pending_signals[signal_id]
-            
-            # Update execution status and latency
-            signal_metrics.execution_status = "EXECUTED" if executed else "REJECTED"
-            signal_metrics.execution_latency = latency
-            
-            # Add rejection reason if provided
-            if not executed and reason:
-                signal_metrics.metadata['rejection_reason'] = reason
-            
-            # Update executed signals counter
-            if executed:
-                self.total_signals_executed += 1
-            
-            # Remove from pending signals
-            del self.pending_signals[signal_id]
-    
-    def track_trade(self, trade_id: str, symbol: str, exchange: str, direction: str, 
-                   size: float, entry_price: float, entry_time: datetime,
-                   signal_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> TradeMetrics:
-        """
-        Track a new trade.
-        
-        Args:
-            trade_id: Unique identifier for the trade
-            symbol: Trading symbol
-            exchange: Exchange where the trade was executed
-            direction: "LONG" or "SHORT"
+            trade_id: Unique ID for the trade
+            strategy_name: Name of the strategy
+            symbol: Symbol traded
+            exchange: Exchange used
+            direction: Trade direction (LONG/SHORT)
             size: Trade size
             entry_price: Entry price
             entry_time: Entry timestamp
-            signal_id: ID of the signal that generated this trade
-            metadata: Additional trade metadata
-            
-        Returns:
-            TradeMetrics object
+            exit_price: Exit price (optional)
+            exit_time: Exit timestamp (optional)
+            pnl: Profit/loss (optional)
+            metadata: Additional trade metadata (optional)
         """
-        # Create trade metrics
-        trade_metrics = TradeMetrics(
-            trade_id=trade_id,
-            strategy_name=self.strategy_name,
-            symbol=symbol,
-            exchange=exchange,
-            direction=direction,
-            size=size,
-            entry_price=entry_price,
-            entry_time=entry_time,
-            metadata=metadata or {}
-        )
-        
-        # Link to signal if provided
-        if signal_id:
-            trade_metrics.metadata['signal_id'] = signal_id
-        
-        # Update counter and store trade metrics
-        self.total_trades_executed += 1
-        self.trade_history[trade_id] = trade_metrics
-        self.current_trades[trade_id] = trade_metrics
-        
-        return trade_metrics
+        with self.lock:
+            # Create trade dictionary
+            trade = {
+                'trade_id': trade_id,
+                'strategy': strategy_name,
+                'symbol': symbol,
+                'exchange': exchange,
+                'direction': direction,
+                'size': size,
+                'entry_price': entry_price,
+                'entry_time': entry_time,
+                'exit_price': exit_price,
+                'exit_time': exit_time,
+                'pnl': pnl,
+                'duration': (exit_time - entry_time).total_seconds() / 60 if exit_time and entry_time else None,
+                'metadata': metadata or {},
+                'is_completed': exit_price is not None and exit_time is not None
+            }
+            
+            # Check if trade already exists
+            for i, existing_trade in enumerate(self.trades):
+                if existing_trade['trade_id'] == trade_id:
+                    # Update existing trade
+                    self.trades[i] = trade
+                    break
+            else:
+                # Add new trade
+                self.trades.append(trade)
+            
+            # Save to file
+            self._save_trades()
     
-    def track_trade_update(self, trade_id: str, current_price: float, 
-                          unrealized_pnl: float, tags: Optional[List[str]] = None):
-        """
-        Update tracking for an open trade.
-        
-        Args:
-            trade_id: Unique identifier for the trade
-            current_price: Current price of the asset
-            unrealized_pnl: Current unrealized PnL
-            tags: Tags to add to the trade
-        """
-        if trade_id in self.current_trades:
-            trade = self.current_trades[trade_id]
-            
-            # Update PnL
-            trade.pnl = unrealized_pnl
-            
-            # Calculate PnL percentage
-            trade.pnl_percentage = (unrealized_pnl / (trade.entry_price * trade.size)) * 100
-            
-            # Add tags if provided
-            if tags:
-                for tag in tags:
-                    if tag not in trade.tags:
-                        trade.tags.append(tag)
-    
-    def track_trade_exit(self, trade_id: str, exit_price: float, exit_time: datetime, 
-                        realized_pnl: float, fees: float = 0.0, slippage: float = 0.0):
+    def track_trade_exit(
+        self,
+        trade_id: str,
+        exit_price: float,
+        exit_time: datetime,
+        pnl: float,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
         """
         Track the exit of a trade.
         
         Args:
-            trade_id: Unique identifier for the trade
+            trade_id: ID of the trade to update
             exit_price: Exit price
             exit_time: Exit timestamp
-            realized_pnl: Realized PnL
-            fees: Trading fees
-            slippage: Price slippage
+            pnl: Profit/loss
+            metadata: Additional exit metadata (optional)
         """
-        if trade_id in self.current_trades:
-            trade = self.current_trades[trade_id]
+        with self.lock:
+            # Find the trade
+            for i, trade in enumerate(self.trades):
+                if trade['trade_id'] == trade_id:
+                    # Update the trade
+                    self.trades[i]['exit_price'] = exit_price
+                    self.trades[i]['exit_time'] = exit_time
+                    self.trades[i]['pnl'] = pnl
+                    self.trades[i]['is_completed'] = True
+                    self.trades[i]['duration'] = (exit_time - trade['entry_time']).total_seconds() / 60
+                    
+                    # Update metadata
+                    if metadata:
+                        if 'metadata' not in self.trades[i]:
+                            self.trades[i]['metadata'] = {}
+                        self.trades[i]['metadata'].update(metadata)
+                    
+                    # Save to file
+                    self._save_trades()
+                    
+                    # Track return
+                    if pnl is not None:
+                        strategy_name = trade['strategy']
+                        initial_value = trade['entry_price'] * trade['size']
+                        if initial_value > 0:
+                            return_value = pnl / initial_value
+                            self.track_return(strategy_name, exit_time, return_value)
+                    
+                    return
             
-            # Update trade metrics
-            trade.exit_price = exit_price
-            trade.exit_time = exit_time
-            trade.pnl = realized_pnl
-            trade.fees = fees
-            trade.slippage = slippage
-            trade.is_completed = True
-            
-            # Calculate duration
-            if trade.entry_time and exit_time:
-                duration = (exit_time - trade.entry_time).total_seconds()
-                trade.duration = max(0, duration)  # Ensure non-negative
-            
-            # Calculate PnL percentage
-            if trade.entry_price > 0 and trade.size > 0:
-                trade.pnl_percentage = (realized_pnl / (trade.entry_price * trade.size)) * 100
-            
-            # Update win/loss counters
-            if realized_pnl > 0:
-                self.winning_trades += 1
-            else:
-                self.losing_trades += 1
-            
-            # Update total PnL
-            self.total_pnl += realized_pnl
-            
-            # Remove from current trades
-            del self.current_trades[trade_id]
+            # Trade not found
+            logger.warning(f"Trade with ID {trade_id} not found for exit tracking")
     
-    def track_opportunity(self, opportunity: ArbitrageOpportunity) -> str:
+    def track_signal(
+        self,
+        signal_id: str,
+        strategy_name: str,
+        symbol: str,
+        signal_type: str,
+        timestamp: datetime,
+        confidence: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
         """
-        Track an arbitrage opportunity.
+        Track a trading signal.
         
         Args:
-            opportunity: ArbitrageOpportunity object
+            signal_id: Unique ID for the signal
+            strategy_name: Name of the strategy
+            symbol: Symbol the signal is for
+            signal_type: Type of signal (ENTER_LONG, ENTER_SHORT, EXIT, etc.)
+            timestamp: Signal timestamp
+            confidence: Signal confidence score (optional)
+            metadata: Additional signal metadata (optional)
+        """
+        with self.lock:
+            # Create signal dictionary
+            signal = {
+                'signal_id': signal_id,
+                'strategy': strategy_name,
+                'symbol': symbol,
+                'signal_type': signal_type,
+                'timestamp': timestamp,
+                'confidence': confidence,
+                'metadata': metadata or {},
+                'executed': False
+            }
+            
+            # Check if signal already exists
+            for i, existing_signal in enumerate(self.signals):
+                if existing_signal['signal_id'] == signal_id:
+                    # Update existing signal
+                    self.signals[i] = signal
+                    break
+            else:
+                # Add new signal
+                self.signals.append(signal)
+            
+            # Save to file
+            self._save_signals()
+    
+    def track_signal_execution(self, signal_id: str, executed: bool, metadata: Optional[Dict[str, Any]] = None):
+        """
+        Track the execution of a signal.
+        
+        Args:
+            signal_id: ID of the signal to update
+            executed: Whether the signal was executed
+            metadata: Additional execution metadata (optional)
+        """
+        with self.lock:
+            # Find the signal
+            for i, signal in enumerate(self.signals):
+                if signal['signal_id'] == signal_id:
+                    # Update the signal
+                    self.signals[i]['executed'] = executed
+                    
+                    # Update metadata
+                    if metadata:
+                        if 'metadata' not in self.signals[i]:
+                            self.signals[i]['metadata'] = {}
+                        self.signals[i]['metadata'].update(metadata)
+                    
+                    # Save to file
+                    self._save_signals()
+                    return
+            
+            # Signal not found
+            logger.warning(f"Signal with ID {signal_id} not found for execution tracking")
+    
+    def track_funding_rate(
+        self,
+        timestamp: datetime,
+        exchange: str,
+        symbol: str,
+        funding_rate: float,
+        predicted_rate: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Track a funding rate.
+        
+        Args:
+            timestamp: Funding rate timestamp
+            exchange: Exchange
+            symbol: Symbol
+            funding_rate: Funding rate value
+            predicted_rate: Predicted funding rate (optional)
+            metadata: Additional metadata (optional)
+        """
+        with self.lock:
+            # Create funding rate dictionary
+            funding_data = {
+                'timestamp': timestamp,
+                'exchange': exchange,
+                'symbol': symbol,
+                'funding_rate': funding_rate,
+                'predicted_rate': predicted_rate,
+                'metadata': metadata or {}
+            }
+            
+            # Add to list
+            self.funding_rates.append(funding_data)
+            
+            # Save to file
+            self._save_funding_rates()
+    
+    def get_strategy_names(self) -> List[str]:
+        """
+        Get the names of all tracked strategies.
+        
+        Returns:
+            List of strategy names
+        """
+        with self.lock:
+            strategies = set()
+            
+            # Get strategies from returns
+            for strategy in self.returns.keys():
+                strategies.add(strategy)
+            
+            # Get strategies from trades
+            for trade in self.trades:
+                strategies.add(trade['strategy'])
+            
+            # Get strategies from signals
+            for signal in self.signals:
+                strategies.add(signal['strategy'])
+            
+            return sorted(list(strategies))
+    
+    def get_returns_dataframe(
+        self,
+        strategy_names: Optional[List[str]] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None
+    ) -> pd.DataFrame:
+        """
+        Get returns data as a DataFrame.
+        
+        Args:
+            strategy_names: List of strategy names to include (optional)
+            start_time: Start time for data range (optional)
+            end_time: End time for data range (optional)
             
         Returns:
-            Opportunity ID for reference
+            DataFrame with returns data
         """
-        opportunity_id = str(id(opportunity))
-        self.opportunity_history[opportunity_id] = opportunity
-        return opportunity_id
+        with self.lock:
+            if not self.returns:
+                return pd.DataFrame()
+            
+            # Get all timestamps across all strategies
+            all_timestamps = set()
+            for strategy, returns in self.returns.items():
+                if not strategy_names or strategy in strategy_names:
+                    all_timestamps.update(returns.keys())
+            
+            if not all_timestamps:
+                return pd.DataFrame()
+            
+            # Create DataFrame with all timestamps
+            sorted_timestamps = sorted(all_timestamps)
+            df = pd.DataFrame(index=sorted_timestamps)
+            
+            # Fill with returns for each strategy
+            for strategy, returns in self.returns.items():
+                if not strategy_names or strategy in strategy_names:
+                    df[strategy] = pd.Series(returns)
+            
+            # Sort by timestamp
+            df = df.sort_index()
+            
+            # Filter by time range
+            if start_time:
+                df = df[df.index >= start_time]
+            if end_time:
+                df = df[df.index <= end_time]
+            
+            # Fill missing values with 0
+            df = df.fillna(0)
+            
+            return df
     
-    def track_sized_opportunity(self, opportunity_id: str, sized_opportunity: SizedOpportunity):
+    def get_trades_dataframe(
+        self,
+        strategy_names: Optional[List[str]] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None
+    ) -> pd.DataFrame:
         """
-        Track a sized arbitrage opportunity.
+        Get trade data as a DataFrame.
         
         Args:
-            opportunity_id: ID of the original opportunity
-            sized_opportunity: SizedOpportunity object
+            strategy_names: List of strategy names to include (optional)
+            start_time: Start time for data range (optional)
+            end_time: End time for data range (optional)
+            
+        Returns:
+            DataFrame with trade data
         """
-        self.sized_opportunity_history[opportunity_id] = sized_opportunity
+        with self.lock:
+            if not self.trades:
+                return pd.DataFrame()
+            
+            # Filter trades
+            filtered_trades = self.trades
+            
+            if strategy_names:
+                filtered_trades = [t for t in filtered_trades if t['strategy'] in strategy_names]
+            
+            if start_time:
+                filtered_trades = [t for t in filtered_trades if t['entry_time'] >= start_time]
+            
+            if end_time:
+                filtered_trades = [t for t in filtered_trades if t['entry_time'] <= end_time]
+            
+            if not filtered_trades:
+                return pd.DataFrame()
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(filtered_trades)
+            
+            return df
     
-    def track_position(self, symbol: str, exchange: str, size: float, 
-                      average_price: float, unrealized_pnl: float):
+    def get_signals_dataframe(
+        self,
+        strategy_names: Optional[List[str]] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None
+    ) -> pd.DataFrame:
         """
-        Track an open position.
+        Get signal data as a DataFrame.
         
         Args:
-            symbol: Trading symbol
-            exchange: Exchange where the position is held
-            size: Position size (negative for short positions)
-            average_price: Average entry price
-            unrealized_pnl: Current unrealized PnL
+            strategy_names: List of strategy names to include (optional)
+            start_time: Start time for data range (optional)
+            end_time: End time for data range (optional)
+            
+        Returns:
+            DataFrame with signal data
         """
-        # Implementation will depend on the position tracking system
-        pass
+        with self.lock:
+            if not self.signals:
+                return pd.DataFrame()
+            
+            # Filter signals
+            filtered_signals = self.signals
+            
+            if strategy_names:
+                filtered_signals = [s for s in filtered_signals if s['strategy'] in strategy_names]
+            
+            if start_time:
+                filtered_signals = [s for s in filtered_signals if s['timestamp'] >= start_time]
+            
+            if end_time:
+                filtered_signals = [s for s in filtered_signals if s['timestamp'] <= end_time]
+            
+            if not filtered_signals:
+                return pd.DataFrame()
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(filtered_signals)
+            
+            return df
     
-    def persist_metrics(self):
-        """Persist metrics to storage."""
-        if not self.persistence_enabled:
+    def get_funding_rates_dataframe(
+        self,
+        exchange: Optional[str] = None,
+        symbol: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None
+    ) -> pd.DataFrame:
+        """
+        Get funding rate data as a DataFrame.
+        
+        Args:
+            exchange: Exchange to filter by (optional)
+            symbol: Symbol to filter by (optional)
+            start_time: Start time for data range (optional)
+            end_time: End time for data range (optional)
+            
+        Returns:
+            DataFrame with funding rate data
+        """
+        with self.lock:
+            if not self.funding_rates:
+                return pd.DataFrame()
+            
+            # Filter funding rates
+            filtered_rates = self.funding_rates
+            
+            if exchange:
+                filtered_rates = [r for r in filtered_rates if r['exchange'] == exchange]
+            
+            if symbol:
+                filtered_rates = [r for r in filtered_rates if r['symbol'] == symbol]
+            
+            if start_time:
+                filtered_rates = [r for r in filtered_rates if r['timestamp'] >= start_time]
+            
+            if end_time:
+                filtered_rates = [r for r in filtered_rates if r['timestamp'] <= end_time]
+            
+            if not filtered_rates:
+                return pd.DataFrame()
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(filtered_rates)
+            
+            # Pivot to get funding rates by symbol
+            if 'symbol' in df.columns and 'funding_rate' in df.columns and len(df) > 0:
+                try:
+                    df = df.pivot(index='timestamp', columns='symbol', values='funding_rate')
+                except:
+                    # If pivot fails, return the original DataFrame
+                    df = df.set_index('timestamp')
+            
+            return df
+    
+    def _save_returns(self, strategy_name: str):
+        """
+        Save returns data to file.
+        
+        Args:
+            strategy_name: Name of the strategy to save returns for
+        """
+        if strategy_name not in self.returns:
             return
         
-        try:
-            # Implement persistence logic (e.g., to TimescaleDB, InfluxDB, files)
-            # For simplicity, we'll just log the metrics
-            logger.debug(f"Persisting metrics for {self.strategy_name}")
-        except Exception as e:
-            logger.error(f"Error persisting metrics: {e}", exc_info=True)
+        # Create directory if it doesn't exist
+        Path(os.path.join(self.output_dir, "returns")).mkdir(parents=True, exist_ok=True)
+        
+        # Convert timestamps to string
+        data = {str(ts): val for ts, val in self.returns[strategy_name].items()}
+        
+        # Save to file
+        file_path = os.path.join(self.output_dir, "returns", f"{strategy_name}.json")
+        with open(file_path, 'w') as f:
+            json.dump(data, f)
     
-    def _prune_history(self):
-        """Prune history to prevent memory issues."""
-        if len(self.metrics_history) > self.max_history_length:
-            self.metrics_history = self.metrics_history[-self.max_history_length:]
+    def _save_trades(self):
+        """Save trades data to file."""
+        if not self.trades:
+            return
         
-        # Prune other histories as needed
-        if len(self.signal_history) > self.max_history_length:
-            oldest_signals = sorted(self.signal_history.keys(), 
-                                  key=lambda x: self.signal_history[x].timestamp)[:len(self.signal_history) - self.max_history_length]
-            for signal_id in oldest_signals:
-                del self.signal_history[signal_id]
+        # Create directory if it doesn't exist
+        Path(os.path.join(self.output_dir, "trades")).mkdir(parents=True, exist_ok=True)
         
-        if len(self.trade_history) > self.max_history_length:
-            oldest_trades = sorted(self.trade_history.keys(), 
-                                 key=lambda x: self.trade_history[x].entry_time)[:len(self.trade_history) - self.max_history_length]
-            for trade_id in oldest_trades:
-                del self.trade_history[trade_id]
-    
-    def get_performance_summary(self) -> Dict[str, Any]:
-        """
-        Get a summary of performance metrics.
-        
-        Returns:
-            Dictionary with summarized performance metrics
-        """
-        # Calculate win rate
-        total_completed_trades = self.winning_trades + self.losing_trades
-        win_rate = (self.winning_trades / total_completed_trades * 100) if total_completed_trades > 0 else 0
-        
-        # Calculate signal execution rate
-        signal_execution_rate = (self.total_signals_executed / self.total_signals_generated * 100) if self.total_signals_generated > 0 else 0
-        
-        # Return summary
-        return {
-            'strategy_name': self.strategy_name,
-            'total_pnl': self.total_pnl,
-            'signals_generated': self.total_signals_generated,
-            'signals_executed': self.total_signals_executed,
-            'signal_execution_rate': signal_execution_rate,
-            'trades_executed': self.total_trades_executed,
-            'winning_trades': self.winning_trades,
-            'losing_trades': self.losing_trades,
-            'win_rate': win_rate,
-            'current_open_trades': len(self.current_trades),
-            'pending_signals': len(self.pending_signals)
-        }
-    
-    def get_metrics_dataframe(self) -> pd.DataFrame:
-        """
-        Get metrics history as a DataFrame.
-        
-        Returns:
-            DataFrame with metrics history
-        """
-        return pd.DataFrame([asdict(m) for m in self.metrics_history])
-    
-    def get_trades_dataframe(self, completed_only: bool = False) -> pd.DataFrame:
-        """
-        Get trade history as a DataFrame.
-        
-        Args:
-            completed_only: If True, include only completed trades
+        # Convert to serializable format
+        serializable_trades = []
+        for trade in self.trades:
+            trade_copy = trade.copy()
             
-        Returns:
-            DataFrame with trade history
-        """
-        trades = self.trade_history.values()
-        if completed_only:
-            trades = [t for t in trades if t.is_completed]
-        
-        return pd.DataFrame([asdict(t) for t in trades])
-    
-    def get_signals_dataframe(self) -> pd.DataFrame:
-        """
-        Get signal history as a DataFrame.
-        
-        Returns:
-            DataFrame with signal history
-        """
-        return pd.DataFrame([asdict(s) for s in self.signal_history.values()])
-
-
-class PerformanceMonitor:
-    """
-    System for monitoring performance across multiple strategies.
-    
-    This class aggregates data from individual PerformanceTrackers and
-    provides portfolio-level monitoring and alerting.
-    """
-    
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """
-        Initialize the performance monitor.
-        
-        Args:
-            config: Configuration parameters
-        """
-        self.config = config or {}
-        self.trackers: Dict[str, PerformanceTracker] = {}
-        self.alerts: List[Dict[str, Any]] = []
-        
-        # Alert thresholds
-        self.alert_thresholds = {
-            'drawdown_threshold': self.config.get('drawdown_threshold', 10.0),  # percentage
-            'pnl_threshold': self.config.get('pnl_threshold', -100.0),  # absolute value
-            'win_rate_threshold': self.config.get('win_rate_threshold', 30.0)  # percentage
-        }
-    
-    def register_tracker(self, tracker: PerformanceTracker):
-        """
-        Register a strategy performance tracker.
-        
-        Args:
-            tracker: PerformanceTracker instance
-        """
-        self.trackers[tracker.strategy_name] = tracker
-    
-    def get_tracker(self, strategy_name: str) -> Optional[PerformanceTracker]:
-        """
-        Get a tracker by strategy name.
-        
-        Args:
-            strategy_name: Name of the strategy
+            # Convert datetimes to strings
+            for key in ['entry_time', 'exit_time']:
+                if key in trade_copy and trade_copy[key] is not None:
+                    trade_copy[key] = trade_copy[key].isoformat()
             
-        Returns:
-            PerformanceTracker instance or None if not found
-        """
-        return self.trackers.get(strategy_name)
+            serializable_trades.append(trade_copy)
+        
+        # Save to file
+        file_path = os.path.join(self.output_dir, "trades", "trades.json")
+        with open(file_path, 'w') as f:
+            json.dump(serializable_trades, f)
     
-    def get_portfolio_metrics(self) -> Dict[str, Any]:
-        """
-        Get aggregated metrics across all strategies.
+    def _save_signals(self):
+        """Save signals data to file."""
+        if not self.signals:
+            return
         
-        Returns:
-            Dictionary with portfolio-level metrics
-        """
-        # Initialize aggregated metrics
-        portfolio_metrics = {
-            'total_pnl': 0.0,
-            'total_signals_generated': 0,
-            'total_signals_executed': 0,
-            'total_trades_executed': 0,
-            'total_winning_trades': 0,
-            'total_losing_trades': 0,
-            'active_strategies': len(self.trackers),
-            'strategies_with_open_trades': 0
-        }
+        # Create directory if it doesn't exist
+        Path(os.path.join(self.output_dir, "signals")).mkdir(parents=True, exist_ok=True)
         
-        # Aggregate metrics from all trackers
-        for tracker in self.trackers.values():
-            summary = tracker.get_performance_summary()
+        # Convert to serializable format
+        serializable_signals = []
+        for signal in self.signals:
+            signal_copy = signal.copy()
             
-            portfolio_metrics['total_pnl'] += summary['total_pnl']
-            portfolio_metrics['total_signals_generated'] += summary['signals_generated']
-            portfolio_metrics['total_signals_executed'] += summary['signals_executed']
-            portfolio_metrics['total_trades_executed'] += summary['trades_executed']
-            portfolio_metrics['total_winning_trades'] += summary['winning_trades']
-            portfolio_metrics['total_losing_trades'] += summary['losing_trades']
+            # Convert datetimes to strings
+            if 'timestamp' in signal_copy and signal_copy['timestamp'] is not None:
+                signal_copy['timestamp'] = signal_copy['timestamp'].isoformat()
             
-            if summary['current_open_trades'] > 0:
-                portfolio_metrics['strategies_with_open_trades'] += 1
+            serializable_signals.append(signal_copy)
         
-        # Calculate portfolio-level rates
-        total_completed_trades = portfolio_metrics['total_winning_trades'] + portfolio_metrics['total_losing_trades']
-        if total_completed_trades > 0:
-            portfolio_metrics['portfolio_win_rate'] = (portfolio_metrics['total_winning_trades'] / total_completed_trades) * 100
-        else:
-            portfolio_metrics['portfolio_win_rate'] = 0
-        
-        if portfolio_metrics['total_signals_generated'] > 0:
-            portfolio_metrics['portfolio_execution_rate'] = (portfolio_metrics['total_signals_executed'] / portfolio_metrics['total_signals_generated']) * 100
-        else:
-            portfolio_metrics['portfolio_execution_rate'] = 0
-        
-        return portfolio_metrics
+        # Save to file
+        file_path = os.path.join(self.output_dir, "signals", "signals.json")
+        with open(file_path, 'w') as f:
+            json.dump(serializable_signals, f)
     
-    def check_alerts(self) -> List[Dict[str, Any]]:
-        """
-        Check for alert conditions.
+    def _save_funding_rates(self):
+        """Save funding rate data to file."""
+        if not self.funding_rates:
+            return
         
-        Returns:
-            List of triggered alerts
-        """
-        new_alerts = []
+        # Create directory if it doesn't exist
+        Path(os.path.join(self.output_dir, "funding_rates")).mkdir(parents=True, exist_ok=True)
         
-        # Check alerts for each strategy
-        for strategy_name, tracker in self.trackers.items():
-            summary = tracker.get_performance_summary()
+        # Convert to serializable format
+        serializable_rates = []
+        for rate in self.funding_rates:
+            rate_copy = rate.copy()
             
-            # Check drawdown alert
-            latest_metrics = tracker.metrics_history[-1] if tracker.metrics_history else None
-            if latest_metrics and latest_metrics.current_drawdown > self.alert_thresholds['drawdown_threshold']:
-                new_alerts.append({
-                    'timestamp': datetime.now(),
-                    'strategy': strategy_name,
-                    'type': 'DRAWDOWN_ALERT',
-                    'message': f"Drawdown of {latest_metrics.current_drawdown:.2f}% exceeds threshold of {self.alert_thresholds['drawdown_threshold']}%",
-                    'level': 'WARNING',
-                    'value': latest_metrics.current_drawdown
-                })
+            # Convert datetimes to strings
+            if 'timestamp' in rate_copy and rate_copy['timestamp'] is not None:
+                rate_copy['timestamp'] = rate_copy['timestamp'].isoformat()
             
-            # Check PnL alert
-            if summary['total_pnl'] < self.alert_thresholds['pnl_threshold']:
-                new_alerts.append({
-                    'timestamp': datetime.now(),
-                    'strategy': strategy_name,
-                    'type': 'PNL_ALERT',
-                    'message': f"PnL of ${summary['total_pnl']:.2f} is below threshold of ${self.alert_thresholds['pnl_threshold']:.2f}",
-                    'level': 'WARNING',
-                    'value': summary['total_pnl']
-                })
-            
-            # Check win rate alert
-            if summary['win_rate'] < self.alert_thresholds['win_rate_threshold'] and total_completed_trades > 10:
-                total_completed_trades = summary['winning_trades'] + summary['losing_trades']
-                new_alerts.append({
-                    'timestamp': datetime.now(),
-                    'strategy': strategy_name,
-                    'type': 'WIN_RATE_ALERT',
-                    'message': f"Win rate of {summary['win_rate']:.2f}% is below threshold of {self.alert_thresholds['win_rate_threshold']}%",
-                    'level': 'WARNING',
-                    'value': summary['win_rate']
-                })
+            serializable_rates.append(rate_copy)
         
-        # Add new alerts to history
-        self.alerts.extend(new_alerts)
-        
-        return new_alerts
+        # Save to file
+        file_path = os.path.join(self.output_dir, "funding_rates", "funding_rates.json")
+        with open(file_path, 'w') as f:
+            json.dump(serializable_rates, f)
     
-    def send_alerts(self, alerts: List[Dict[str, Any]]):
-        """
-        Send alerts to configured channels.
+    def _load_data(self):
+        """Load data from files."""
+        # Load returns
+        returns_dir = os.path.join(self.output_dir, "returns")
+        if os.path.exists(returns_dir):
+            for file_name in os.listdir(returns_dir):
+                if file_name.endswith(".json"):
+                    strategy_name = file_name[:-5]  # Remove .json
+                    file_path = os.path.join(returns_dir, file_name)
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                    
+                    # Convert string timestamps to datetime
+                    self.returns[strategy_name] = {
+                        datetime.fromisoformat(ts): val for ts, val in data.items()
+                    }
         
-        Args:
-            alerts: List of alerts to send
-        """
-        # Implement alert sending logic (e.g., email, Slack, Telegram)
-        for alert in alerts:
-            logger.warning(f"ALERT: {alert['type']} - {alert['message']}")
-    
-    async def run_monitoring_loop(self, interval: int = 60):
-        """
-        Run the monitoring loop.
-        
-        Args:
-            interval: Monitoring interval in seconds
-        """
-        while True:
-            try:
-                # Check for alerts
-                new_alerts = self.check_alerts()
+        # Load trades
+        trades_file = os.path.join(self.output_dir, "trades", "trades.json")
+        if os.path.exists(trades_file):
+            with open(trades_file, 'r') as f:
+                serialized_trades = json.load(f)
+            
+            for trade in serialized_trades:
+                # Convert string timestamps to datetime
+                for key in ['entry_time', 'exit_time']:
+                    if key in trade and trade[key] is not None:
+                        try:
+                            trade[key] = datetime.fromisoformat(trade[key])
+                        except:
+                            trade[key] = None
                 
-                # Send alerts if any
-                if new_alerts:
-                    self.send_alerts(new_alerts)
+                self.trades.append(trade)
+        
+        # Load signals
+        signals_file = os.path.join(self.output_dir, "signals", "signals.json")
+        if os.path.exists(signals_file):
+            with open(signals_file, 'r') as f:
+                serialized_signals = json.load(f)
+            
+            for signal in serialized_signals:
+                # Convert string timestamp to datetime
+                if 'timestamp' in signal and signal['timestamp'] is not None:
+                    try:
+                        signal['timestamp'] = datetime.fromisoformat(signal['timestamp'])
+                    except:
+                        signal['timestamp'] = None
                 
-                # Wait for the next check
-                await asyncio.sleep(interval)
-            except Exception as e:
-                logger.error(f"Error in monitoring loop: {e}", exc_info=True)
-                await asyncio.sleep(10)  # Wait a bit before retrying 
+                self.signals.append(signal)
+        
+        # Load funding rates
+        funding_file = os.path.join(self.output_dir, "funding_rates", "funding_rates.json")
+        if os.path.exists(funding_file):
+            with open(funding_file, 'r') as f:
+                serialized_rates = json.load(f)
+            
+            for rate in serialized_rates:
+                # Convert string timestamp to datetime
+                if 'timestamp' in rate and rate['timestamp'] is not None:
+                    try:
+                        rate['timestamp'] = datetime.fromisoformat(rate['timestamp'])
+                    except:
+                        rate['timestamp'] = None
+                
+                self.funding_rates.append(rate) 

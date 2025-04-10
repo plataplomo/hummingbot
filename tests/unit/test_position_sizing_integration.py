@@ -89,7 +89,7 @@ def test_strategy_initialization_with_risk_manager(strategy_with_risk_manager, s
     assert strategy_with_risk_manager.sized_opportunities == {}
 
 
-@pytest.mark.asyncio(loop_scope="function")
+@pytest.mark.asyncio
 @patch('cyberdelta.strategies.funding_rate_arbitrage.logger')
 async def test_position_sizing_integration(mock_logger, strategy_with_risk_manager, setup_dependencies, mock_opportunity):
     """Test integration between strategy and risk manager"""
@@ -176,7 +176,7 @@ async def test_position_sizing_integration(mock_logger, strategy_with_risk_manag
     assert metadata['position_sizing']['risk_adjusted_return'] == 0.28
 
 
-@pytest.mark.asyncio(loop_scope="function")
+@pytest.mark.asyncio
 @patch('cyberdelta.strategies.funding_rate_arbitrage.logger')
 async def test_risk_manager_rejection(mock_logger, strategy_with_risk_manager, setup_dependencies, mock_opportunity):
     """Test case where risk manager rejects an opportunity"""

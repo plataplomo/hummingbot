@@ -141,14 +141,8 @@ def backpack_secrets():
         "BACKPACK_API_SECRET": "backpack-api-secret-123456"
     }
 
-@pytest.fixture(scope="function")
-def event_loop():
-    """Create an instance of the default event loop for each test."""
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
+# The event_loop fixture is now provided by pytest-asyncio
+# No need to define it ourselves
 
 # Additional fixtures for component testing
 
