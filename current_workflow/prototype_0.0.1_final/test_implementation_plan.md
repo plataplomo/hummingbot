@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-This document outlines the comprehensive testing strategy for the CyberDeltaEngine (`DuskNetAI`) project. It covers unit tests, integration tests, failure scenario tests, and performance tests, aiming to ensure the reliability, correctness, and robustness of the trading system.
+This document outlines the comprehensive testing strategy for the CyberDeltaEngine (`CyberDeltaEngine`) project. It covers unit tests, integration tests, failure scenario tests, and performance tests, aiming to ensure the reliability, correctness, and robustness of the trading system.
 
 ## 2. Testing Goals (Revised Priorities)
 

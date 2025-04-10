@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 
-**Project Name**: CyberDeltaEngine (Internally referred to as DuskNetAI)
+**Project Name**: CyberDeltaEngine (Internally referred to as CyberDeltaEngine)
 
 **Goal**: To develop a sophisticated, automated trading engine focused on delta-neutral futures arbitrage strategies, primarily funding rate arbitrage. The system aims to connect to multiple cryptocurrency exchanges, identify arbitrage opportunities, execute trades efficiently, manage risk, and provide robust monitoring and safety features. It also includes provisions for AI-driven self-study and strategy expansion.
 

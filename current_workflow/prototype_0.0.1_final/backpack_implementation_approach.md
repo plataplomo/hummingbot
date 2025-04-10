@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document outlines the proposed approach for implementing the Backpack exchange API client within the CyberDeltaEngine (`DuskNetAI`) framework. The goal is to create a reliable, well-tested, and maintainable API client that integrates seamlessly with the core engine components.
+This document outlines the proposed approach for implementing the Backpack exchange API client within the CyberDeltaEngine (`CyberDeltaEngine`) framework. The goal is to create a reliable, well-tested, and maintainable API client that integrates seamlessly with the core engine components.
 
 Based on the critic's feedback and recent API updates, we need to approach Backpack integration with more caution and well-defined fallback mechanisms for the 0.0.1 prototype. This document outlines our implementation strategy specifically for Backpack integration.
 

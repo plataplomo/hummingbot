@@ -10,7 +10,7 @@ Implementation and testing of more complex architectural patterns or deferred co
 
 ## 1. Overview
 
-This document describes the core architecture of the CyberDeltaEngine (`DuskNetAI`) Prototype 0.0.1. The architecture is designed to be modular, testable, and extensible, focusing initially on funding rate arbitrage strategies.
+This document describes the core architecture of the CyberDeltaEngine (`CyberDeltaEngine`) Prototype 0.0.1. The architecture is designed to be modular, testable, and extensible, focusing initially on funding rate arbitrage strategies.
 
 ## 2. Architectural Principles
 

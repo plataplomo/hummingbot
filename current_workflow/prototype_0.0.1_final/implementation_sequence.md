@@ -4,7 +4,7 @@
 
 ## Overview
 
-This document outlines the planned sequence for implementing the core components and features of the CyberDeltaEngine (`DuskNetAI`) Prototype 0.0.1, incorporating the revised priorities from critic feedback.
+This document outlines the planned sequence for implementing the core components and features of the CyberDeltaEngine (`CyberDeltaEngine`) Prototype 0.0.1, incorporating the revised priorities from critic feedback.
 
 ## Phase 1: Setup & Foundational Infrastructure (Completed)
 

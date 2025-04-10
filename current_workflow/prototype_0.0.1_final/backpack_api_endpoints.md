@@ -178,4 +178,4 @@ Common error codes include:
 
 ## Overview
 
-This document details the necessary Backpack Exchange API endpoints required to implement the funding rate arbitrage strategies, particularly the HL Perp vs BP Spot and the potential HL Perp vs BP Perp variations, within the CyberDeltaEngine (`DuskNetAI`) project. 
+This document details the necessary Backpack Exchange API endpoints required to implement the funding rate arbitrage strategies, particularly the HL Perp vs BP Spot and the potential HL Perp vs BP Perp variations, within the CyberDeltaEngine (`CyberDeltaEngine`) project. 

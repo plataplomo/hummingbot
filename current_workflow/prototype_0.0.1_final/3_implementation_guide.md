@@ -13,7 +13,7 @@ Implementation of advanced strategy logic, complex risk models (Kelly/VaR), mult
 
 ## 1. Introduction
 
-This document provides a step-by-step guide for implementing the core components and features of the CyberDeltaEngine (`DuskNetAI`) Prototype 0.0.1, incorporating the necessary safety systems and testing procedures identified in response to critic feedback.
+This document provides a step-by-step guide for implementing the core components and features of the CyberDeltaEngine (`CyberDeltaEngine`) Prototype 0.0.1, incorporating the necessary safety systems and testing procedures identified in response to critic feedback.
 
 ## 1. Project Setup
 

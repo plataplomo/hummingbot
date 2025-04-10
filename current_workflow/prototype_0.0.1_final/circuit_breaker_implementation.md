@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-This document provides the detailed implementation plan for the Circuit Breaker system within the CyberDeltaEngine (`DuskNetAI`). This system is designed as a crucial safety mechanism to automatically halt or limit trading operations when potentially harmful market conditions or system failures are detected.
+This document provides the detailed implementation plan for the Circuit Breaker system within the CyberDeltaEngine (`CyberDeltaEngine`). This system is designed as a crucial safety mechanism to automatically halt or limit trading operations when potentially harmful market conditions or system failures are detected.
 
 ## Overview
 

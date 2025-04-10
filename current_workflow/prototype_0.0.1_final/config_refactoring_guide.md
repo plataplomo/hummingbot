@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-This guide provides instructions for refactoring the configuration system of the CyberDeltaEngine (`DuskNetAI`) project. The goal is to move from the current potentially cluttered `config.yaml` to a clean, validated, and secure configuration structure.
+This guide provides instructions for refactoring the configuration system of the CyberDeltaEngine (`CyberDeltaEngine`) project. The goal is to move from the current potentially cluttered `config.yaml` to a clean, validated, and secure configuration structure.
 
 ## Critical Issues Identified by Critic
 

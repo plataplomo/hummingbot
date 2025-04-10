@@ -6,7 +6,7 @@
 
 ## Overview
 
-The Funding Rate Validation system has been implemented to ensure the accuracy of funding rate predictions and calculations. This system allows the DuskNetAI to track, compare, and analyze the accuracy of predicted funding rates against actual funding payments received.
+The Funding Rate Validation system has been implemented to ensure the accuracy of funding rate predictions and calculations. This system allows the CyberDeltaEngine to track, compare, and analyze the accuracy of predicted funding rates against actual funding payments received.
 
 ## Implementation Details
 

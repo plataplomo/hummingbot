@@ -11,7 +11,7 @@ Implementation of more advanced API features or optimizations described herein i
 
 ## 1. Introduction
 
-This document provides a detailed guide for implementing the Exchange API clients within the CyberDeltaEngine (`DuskNetAI`) project. It covers the design principles, core components, implementation steps, and testing strategies for creating robust and reliable connections to exchanges like Hyperliquid and Backpack.
+This document provides a detailed guide for implementing the Exchange API clients within the CyberDeltaEngine (`CyberDeltaEngine`) project. It covers the design principles, core components, implementation steps, and testing strategies for creating robust and reliable connections to exchanges like Hyperliquid and Backpack.
 
 ## 2. Base Exchange API Interface
 

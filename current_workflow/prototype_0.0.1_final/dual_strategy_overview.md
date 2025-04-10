@@ -1,4 +1,4 @@
-# Dual Strategy Overview - DuskNetAI
+# Dual Strategy Overview - CyberDeltaEngine
 
 **Status: Analysis Complete - Implementation DEFERRED (Revised Aug 6, 2025)**
 
@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-This document provides an overview of the two primary funding rate arbitrage strategies considered for the DuskNetAI trading bot, compares their characteristics, and outlines the rationale for selecting the primary strategy for initial implementation (Prototype 0.0.1), while acknowledging the need to potentially support both.
+This document provides an overview of the two primary funding rate arbitrage strategies considered for the CyberDeltaEngine trading bot, compares their characteristics, and outlines the rationale for selecting the primary strategy for initial implementation (Prototype 0.0.1), while acknowledging the need to potentially support both.
 
 ## Overview
 
