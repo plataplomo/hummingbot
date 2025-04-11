@@ -22,6 +22,7 @@ class ExecutionStatus(Enum):
     FAILED = auto()
     PARTIALLY_COMPLETED = auto()
     COMPENSATING = auto()
+    REJECTED = auto()
 
 
 class TradeExecution:
@@ -227,28 +228,33 @@ class ExecutionHandler:
         Returns:
             Trade execution result
         """
-        # Check if circuit breaker is open
-        if self.circuit_breaker.is_open():
-            logger.warning("Circuit breaker is open, rejecting execution")
-            execution = TradeExecution(opportunity)
-            execution.status = ExecutionStatus.FAILED
-            execution.error_message = "Circuit breaker is open"
-            return execution
-        
-        # Create execution object
-        execution = TradeExecution(opportunity)
-        execution.start_time = datetime.now()
-        execution.status = ExecutionStatus.EXECUTING
-        
-        # Generate a unique execution ID
-        execution_id = f"{opportunity.opportunity.symbol}_{int(time.time())}"
-        self.active_executions[execution_id] = execution
-        
-        try:
-            logger.info(f"Executing opportunity: {opportunity}")
+        # Create execution record
+        execution = TradeExecution(opportunity=opportunity)
+        self.active_executions[execution.id] = execution
+        execution_id = execution.id # Store execution id for finally block
 
+        try:
+            # --- Check Circuit Breaker --- 
+            if self.circuit_breaker.is_global_open():
+                execution.status = ExecutionStatus.REJECTED
+                execution.error_message = "Execution rejected: Global circuit breaker is open."
+                logger.warning(execution.error_message)
+                return execution
+            
             long_exchange = opportunity.opportunity.long_exchange
             short_exchange = opportunity.opportunity.short_exchange
+            
+            if self.circuit_breaker.is_exchange_open(long_exchange) or \
+               self.circuit_breaker.is_exchange_open(short_exchange):
+                 execution.status = ExecutionStatus.REJECTED
+                 execution.error_message = f"Execution rejected: Circuit breaker open for {long_exchange} or {short_exchange}."
+                 logger.warning(execution.error_message)
+                 return execution
+            # -----------------------------
+
+            execution.start_time = datetime.now()
+            execution.status = ExecutionStatus.EXECUTING
+            
             long_client = self.api_clients[long_exchange]
             short_client = self.api_clients[short_exchange]
             internal_symbol = opportunity.opportunity.symbol
@@ -423,8 +429,9 @@ class ExecutionHandler:
                         position=short_position
                     )
                     
-                    # Record success
+                    # --- ADDED: Record success with Circuit Breaker ---
                     self.circuit_breaker.record_success()
+                    # -----------------------------------------------
                     
                     logger.info(f"Successfully executed opportunity: {opportunity}")
                 else:

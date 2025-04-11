@@ -209,4 +209,18 @@ The current implementation lays a solid foundation for funding rate validation, 
 
 The Funding Rate Validation system provides a robust framework for tracking and analyzing the accuracy of funding rate predictions. By maintaining detailed records of both predictions and actual payments, the system enables continuous improvement of prediction methods and enhances the overall reliability of the trading strategy.
 
-The implementation satisfies the key requirements specified in the validation system requirements document and provides a foundation for future enhancements as the system evolves. 
+The implementation satisfies the key requirements specified in the validation system requirements document and provides a foundation for future enhancements as the system evolves.
+
+## August 9, 2025: Testing Status & Blockers
+
+**Funding Rate Validator:**
+*   The integration test (`test_funding_rate_validator_reduces_size`) passes `mypy` checks after fixture refactoring.
+*   It is currently **blocked** by a runtime error: `decimal.InvalidOperation: [<class 'decimal.ConversionSyntax'>]`.
+*   This occurs in `RiskManager.size_opportunity` when attempting `Decimal(str(opportunity.expected_profit))`. The `basic_opportunity` fixture provides `None` for this optional field, which `RiskManager` doesn't currently handle gracefully.
+*   **Next Step:** Update `basic_opportunity` fixture to provide a default `Decimal` value for `expected_profit` or modify `RiskManager` to handle `None`.
+
+**Position Reconciliation System:**
+*   The integration test (`test_position_reconciler_detects_discrepancy`) passes `mypy` checks after fixture refactoring.
+*   It is currently **blocked** by a runtime error: `AttributeError: 'PortfolioTracker' object has no attribute 'get_api_client'`.
+*   This occurs within `PositionReconciliationSystem.check_positions` when it tries to access the portfolio tracker's API clients.
+*   **Next Step:** Investigate how `PortfolioTracker` stores/exposes its API clients and update `PositionReconciliationSystem` accordingly. 

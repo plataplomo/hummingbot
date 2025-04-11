@@ -333,13 +333,13 @@ Comprehensive tests have been implemented for the visualization components:
    - Validates the dashboard creation with multiple visualization components
    - Tests configuration options and customization capabilities
 
-2. **Visualization Metrics Calculator Tests**
+2.  **Visualization Metrics Calculator Tests**
    - Tests for the `PerformanceMetricsCalculator` class to validate all performance metrics calculations
    - Confirms accurate calculation of Sharpe ratio, Sortino ratio, max drawdown, Calmar ratio
    - Validates trade-specific metrics like win rate and profit factor
    - Ensures all metrics are properly integrated into visualization components
 
-3. **Simplified Visualizer Tests**
+3.  **Simplified Visualizer Tests**
    - Tests for the `SimpleVisualizer` class for standalone visualization functionality
    - Validates file output capabilities and correct file generation
    - Tests empty data handling and edge cases
@@ -611,4 +611,31 @@ Significant progress was made in resolving failures within the `test_core_workfl
 
 **Overall Status:** The core workflow integration test suite is now fully passing. Several bugs related to mock behavior, `Decimal` handling, and test assertion logic were identified and fixed, improving confidence in the execution handler and related components.
 
---- 
+## 2025-08-09: Fixture Refactoring & Runtime Errors in Safety System Tests
+
+Following the completion of core workflow integration tests, focus shifted to the safety system tests in `tests/integration/test_safety_systems.py`.
+
+**Progress:**
+
+*   **Mypy Resolution:** Successfully resolved all `mypy` errors within `test_safety_systems.py`. This involved significant refactoring:
+    *   Created `tests/integration/conftest.py`.
+    *   Moved numerous fixtures (`create_mock_ticker`, `mock_hl_api`, `mock_bp_api`, `data_handler`, `signal_generator`, `risk_manager`, `execution_handler`, `real_portfolio_tracker`) from `test_core_workflow.py` and the top-level `tests/conftest.py` into `tests/integration/conftest.py`.
+    *   Defined missing fixtures (`basic_opportunity`, `funding_rate_validator`, `position_reconciler`) within `tests/integration/conftest.py`.
+    *   Corrected the `ArbitrageOpportunity.__init__` signature in `cyberdelta/core/models.py` to match fixture usage.
+    *   Resolved fixture dependency issues (e.g., `mock_secrets` availability, `portfolio_tracker` vs `real_portfolio_tracker` usage) by defining fixtures locally in the integration conftest or updating test function signatures.
+    *   Added `__init__.py` files to `tests/` and `tests/integration/`.
+*   **Outcome:** The file `test_safety_systems.py` now passes `mypy` checks.
+
+**Current Blockers (Runtime Errors):**
+
+Despite passing type checks, `pytest tests/integration/test_safety_systems.py` fails with runtime errors:
+
+1.  **`AttributeError: 'list' object has no attribute 'items'`:** Occurs during test setup when the `signal_generator` fixture initializes `SignalGenerator`. Despite `mock_config_dict` using dicts for symbols, the `SignalGenerator` init receives a list. Suspected issue with `mock_config` fixture's `get` method or its interaction with the captured `mock_config_dict`.
+2.  **`decimal.InvalidOperation: [<class 'decimal.ConversionSyntax'>]`:** Occurs in `test_funding_rate_validator_reduces_size` within `RiskManager.size_opportunity`. The code attempts `Decimal(str(opportunity.expected_profit))` which is `None` in the `basic_opportunity` fixture.
+3.  **`AttributeError: 'PortfolioTracker' object has no attribute 'get_api_client'`:** Occurs in `test_position_reconciler_detects_discrepancy` within `PositionReconciliationSystem.check_positions`. The method incorrectly tries to access API clients via `get_api_client` instead of the actual attribute/method on `PortfolioTracker`.
+
+**Next Steps:**
+
+1.  Debug the `SignalGenerator` setup error by further investigating `mock_config`/`_deep_get` and potentially modifying the `signal_generator` fixture logic.
+2.  Update the `basic_opportunity` fixture to provide a default `Decimal` for `expected_profit`.
+3.  Investigate `PortfolioTracker` to find the correct way to access API clients and fix `PositionReconciliationSystem`. 

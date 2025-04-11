@@ -2,7 +2,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional, Dict, Any, Union
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 
@@ -48,9 +48,15 @@ class MarketData:
 class Balance:
     """Represents an account balance for a single asset."""
     asset: str
-    free: float = 0.0  # Amount available for use
-    locked: float = 0.0  # Amount locked in orders
-    total: float = 0.0  # Total balance (free + locked)
+    total: Decimal  # Changed to Decimal
+    free: Decimal   # Changed to Decimal
+    locked: Decimal = Decimal("0.0")  # Changed to Decimal, default 0
+    timestamp: Optional[datetime] = None
+    
+    def __post_init__(self):
+        """Post-initialization method to ensure total is sum of free and locked."""
+        if self.total != self.free + self.locked:
+            raise ValueError("Total must be sum of free and locked.")
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert balance to dictionary representation."""
@@ -196,22 +202,34 @@ class ArbitrageOpportunity:
     
     def __init__(
         self,
-        asset: Dict[str, str],  # Contains symbol and exchange information
-        funding_rate: float,  # Current funding rate
-        expected_return: float,  # Expected return (annualized)
-        optimal_size: float,  # Optimal position size
-        side: OrderSide,  # Position side (BUY or SELL)
-        confidence: float,  # Confidence level (0-1)
-        timestamp: datetime  # When the opportunity was identified
+        symbol: str,
+        long_exchange: str,
+        short_exchange: str,
+        long_price: Decimal,
+        short_price: Decimal,
+        long_funding_rate: Decimal,
+        short_funding_rate: Decimal,
+        net_funding_differential: Decimal,
+        timestamp: datetime,
+        # Optional fields can be added if needed later
+        optimal_size: Optional[Decimal] = None, 
+        expected_profit: Optional[Decimal] = None, 
+        confidence: Optional[float] = None,
     ):
-        self.asset = asset
-        self.funding_rate = funding_rate
-        self.expected_return = expected_return
-        self.optimal_size = optimal_size
-        self.side = side
-        self.confidence = confidence
+        self.symbol = symbol
+        self.long_exchange = long_exchange
+        self.short_exchange = short_exchange
+        self.long_price = long_price
+        self.short_price = short_price
+        self.long_funding_rate = long_funding_rate
+        self.short_funding_rate = short_funding_rate
+        self.net_funding_differential = net_funding_differential
         self.timestamp = timestamp
-        self.expiration = timestamp.timestamp() + 3600  # 1 hour expiration
+        self.optimal_size = optimal_size
+        self.expected_profit = expected_profit
+        self.confidence = confidence
+        # Keep expiration logic or adapt if needed
+        self.expiration = timestamp.timestamp() + 3600  # 1 hour expiration, maybe adjust
     
     @property
     def is_expired(self) -> bool:

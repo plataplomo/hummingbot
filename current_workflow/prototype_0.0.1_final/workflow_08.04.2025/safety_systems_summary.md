@@ -159,6 +159,26 @@ The improved testing of our shutdown procedure provides several safety benefits:
 
 This enhancement aligns with our broader safety philosophy: even auxiliary processes like shutdown need the same level of careful testing and validation as core trading functionality.
 
+## 2025-08-09: Integration Test Refactoring and Blockers
+
+Significant effort was spent refactoring the integration test setup for safety systems, primarily within `tests/integration/test_safety_systems.py` and its supporting fixtures.
+
+**Progress:**
+*   All `mypy` errors in `test_safety_systems.py` were resolved.
+*   A dedicated `tests/integration/conftest.py` file was created.
+*   Numerous fixtures previously defined locally in `test_core_workflow.py` or in the top-level `tests/conftest.py` were moved or redefined in `tests/integration/conftest.py` to ensure proper scope and discovery. This included mock APIs, core components (`DataHandler`, `SignalGenerator`, `RiskManager`, `ExecutionHandler`), a real `PortfolioTracker` instance, and safety system components (`CircuitBreakerSystem`, mock `FundingRateValidator`, `PositionReconciliationSystem`).
+*   Fixture dependency issues were resolved (e.g., ensuring `mock_secrets` was available, using `real_portfolio_tracker` consistently).
+*   The `ArbitrageOpportunity` class `__init__` signature was corrected to align with its usage in fixtures.
+
+**Current Status:**
+While the test file `test_safety_systems.py` is now type-correct, the tests themselves are **blocked by runtime errors** encountered during `pytest` execution:
+
+1.  **`SignalGenerator` Init Error:** `AttributeError: 'list' object has no attribute 'items'` suggests an issue with how the `mock_config` fixture provides the `symbols` configuration (list instead of dict).
+2.  **`RiskManager` Decimal Error:** `decimal.InvalidOperation` occurs when sizing an opportunity because the `basic_opportunity` fixture provides `None` for `expected_profit`, which isn't handled before `Decimal` conversion.
+3.  **`PositionReconciler` Client Access Error:** `AttributeError: 'PortfolioTracker' object has no attribute 'get_api_client'` shows the reconciler uses an incorrect method to access API clients from the tracker.
+
+**Next Steps:** Debugging these three runtime errors is the immediate priority to unblock safety system integration testing.
+
 ## Conclusion
 
 The completion of Phase 3 marks a significant milestone in the development of the CyberDeltaEngine. With these three safety systems in place, the trading engine now has multiple layers of protection against errors, inconsistencies, and dangerous market conditions. These systems provide a solid foundation for the strategy optimization work in Phase 4, ensuring that the trading strategies operate within a secure and validated environment. 

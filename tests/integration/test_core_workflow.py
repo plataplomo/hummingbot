@@ -21,14 +21,14 @@ from cyberdelta.core.models import (
 )
 
 # Mocks & Config
-from tests.integration.mocks.mock_exchange import MockExchangeAPI, MockAPIError # Import MockAPIError
+from tests.integration.mocks.mock_exchange import MockExchangeAPI # Import MockAPIError
 from cyberdelta.utils.config import Config # Assuming Config class is used
 from cyberdelta.apis.base import APIError, APIErrorCode # <--- Added APIErrorCode here
 
 # Helper Functions
-def create_mock_ticker(symbol, bid, ask, price, timestamp): # Corrected price arg
-    # Convert inputs to Decimal
-    return Ticker(symbol=symbol, bid=Decimal(bid), ask=Decimal(ask), price=Decimal(price), timestamp=timestamp)
+# def create_mock_ticker(symbol, bid, ask, price, timestamp): # Moved to integration/conftest.py
+#     # Convert inputs to Decimal
+#     return Ticker(symbol=symbol, bid=Decimal(bid), ask=Decimal(ask), price=Decimal(price), timestamp=timestamp)
 
 def create_mock_funding_rate(symbol, rate, next_time):
     # Convert rate to Decimal
@@ -54,7 +54,7 @@ def mock_config_dict():
                 "api_secret": "mock_hl_secret",
                 "api_base_url": "mock",
                 "ws_url": "mock",
-                "symbols": {"BTC": "BTC-PERP"},
+                "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
                 "fee_rate": 0.0005,
                 "collateral_asset": "USD"
             },
@@ -64,7 +64,7 @@ def mock_config_dict():
                 "api_secret": "mock_bp_secret",
                 "api_base_url": "mock",
                 "ws_url": "mock",
-                "symbols": {"BTC": "BTC-PERP"},
+                "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
                 "fee_rate": 0.0005,
                 "collateral_asset": "USDC"
             }
@@ -147,15 +147,16 @@ def mock_secrets():
         "mock_bp": {"api_key": "bp_key", "api_secret": "bp_secret"}
     }
 
-@pytest.fixture
-def mock_hl_api(mock_config, mock_secrets):
-    """Mock API for Hyperliquid, passes full config."""
-    return MockExchangeAPI("mock_hl", mock_config.config_data['exchanges']['mock_hl'], mock_secrets['mock_hl'], config_obj=mock_config)
+# Moved mock_hl_api and mock_bp_api to integration/conftest.py
+# @pytest.fixture
+# def mock_hl_api(mock_config, mock_secrets):
+#     """Mock API for Hyperliquid, passes full config."""
+#     return MockExchangeAPI("mock_hl", mock_config.config_data['exchanges']['mock_hl'], mock_secrets['mock_hl'], config_obj=mock_config)
 
-@pytest.fixture
-def mock_bp_api(mock_config, mock_secrets):
-    """Mock API for Backpack, passes full config."""
-    return MockExchangeAPI("mock_bp", mock_config.config_data['exchanges']['mock_bp'], mock_secrets['mock_bp'], config_obj=mock_config)
+# @pytest.fixture
+# def mock_bp_api(mock_config, mock_secrets):
+#     """Mock API for Backpack, passes full config."""
+#     return MockExchangeAPI("mock_bp", mock_config.config_data['exchanges']['mock_bp'], mock_secrets['mock_bp'], config_obj=mock_config)
 
 @pytest.fixture
 def portfolio_tracker(mock_config):

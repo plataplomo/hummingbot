@@ -47,4 +47,13 @@
     *   Fixed `TypeError` in `PortfolioTracker` logging related to JSON serialization of `Decimal` values.
 *   **Outcome:** All integration tests in `test_core_workflow.py` are now passing.
 *   **Blockers:** None currently.
-*   **Next Steps:** Monitor integration tests; potentially add more edge cases. Begin work on integrating actual API implementations or other pending tasks. 
+*   **Next Steps:** Monitor integration tests; potentially add more edge cases. Begin work on integrating actual API implementations or other pending tasks.
+
+## Update (End of Session - Auto-Save)
+
+*   **Progress:** Resolved all `mypy` type errors in `tests/integration/test_safety_systems.py` after significant refactoring. Created `tests/integration/conftest.py` and moved numerous shared fixtures (mock APIs, core components, safety system mocks/instances) there from `test_core_workflow.py` and parent `conftest.py` to improve structure and resolve discovery issues.
+*   **Current Status:** `pytest` execution for `test_safety_systems.py` is currently blocked by three distinct runtime errors encountered during test setup or execution:
+    1.  `AttributeError: 'list' object has no attribute 'items'` during `SignalGenerator` initialization (likely config handling issue in mock).
+    2.  `decimal.InvalidOperation` in `RiskManager` when processing `None` profit from `basic_opportunity` fixture.
+    3.  `AttributeError: 'PortfolioTracker' object has no attribute 'get_api_client'` within `PositionReconciliationSystem`.
+*   **Next Steps:** Debug these three runtime errors by investigating `mock_config`/`SignalGenerator` interaction, updating the `basic_opportunity` fixture, and correcting client access in `PositionReconciliationSystem`. 

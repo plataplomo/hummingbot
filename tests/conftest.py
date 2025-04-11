@@ -261,6 +261,38 @@ def mock_exchange_api():
     return mock_api
 
 @pytest.fixture
+def circuit_breaker_system(mock_config):
+    """Create a CircuitBreakerSystem instance using mock config."""
+    # Need to ensure mock_config has the necessary circuit_breaker settings
+    # Let's add a basic structure if it's missing from the default mock_config
+    if "circuit_breaker" not in mock_config.config:
+        mock_config.config["circuit_breaker"] = {
+            "global": {
+                "failure_threshold": 3,
+                "cooldown_seconds": 60,
+                "enabled": True,
+            },
+            "exchanges": {
+                "mock_bp": {
+                    "api_error": {"enabled": True, "error_threshold": 2, "window_seconds": 30},
+                    "drawdown": {"enabled": False},
+                    "volatility": {"enabled": False},
+                    "liquidity": {"enabled": False},
+                },
+                "mock_hl": {
+                    "api_error": {"enabled": True, "error_threshold": 2, "window_seconds": 30},
+                    "drawdown": {"enabled": False},
+                    "volatility": {"enabled": False},
+                    "liquidity": {"enabled": False},
+                }
+            }
+        }
+    
+    from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+    system = CircuitBreakerSystem(mock_config) 
+    return system
+
+@pytest.fixture
 def mock_portfolio_tracker():
     """Create a mock PortfolioTracker for testing."""
     mock_tracker = MagicMock()
