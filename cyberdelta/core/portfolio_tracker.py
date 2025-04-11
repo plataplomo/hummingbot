@@ -4,9 +4,10 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 import asyncio
 import copy
+from decimal import Decimal
 
 from cyberdelta.apis.base import ExchangeAPI
-from cyberdelta.core.models import Position, Order, OrderStatus
+from cyberdelta.core.models import Position, Order, OrderStatus, Balance
 from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
@@ -34,8 +35,8 @@ class PortfolioTracker:
         self.config = config
         self.api_clients: Dict[str, ExchangeAPI] = {}
         
-        # Balance tracking
-        self._balances: Dict[str, Dict[str, float]] = {}  # exchange -> asset -> amount
+        # Balance tracking (Store as Decimal)
+        self._balances: Dict[str, Dict[str, Balance]] = {}  # exchange -> asset -> Balance object
         
         # Position tracking
         self._positions: Dict[str, Dict[str, Position]] = {}  # exchange -> position_id -> Position
@@ -55,8 +56,8 @@ class PortfolioTracker:
         # Initialize data structures
         self._initialize_data_structures()
         
-        # Initialize high watermark
-        self._high_watermark = 0.0  # Track highest portfolio value for drawdown calculation
+        # Initialize high watermark (as Decimal)
+        self._high_watermark = Decimal("0.0")  # Track highest portfolio value for drawdown calculation
     
     def _initialize_data_structures(self):
         """Initialize data structures for all configured exchanges."""
@@ -112,12 +113,50 @@ class PortfolioTracker:
             # Fetch balances from exchange
             balances = await client.get_balances()
             
-            # Update local state
-            self._balances[exchange_id] = balances
+            # Update local state - Ensure stored balances are Decimal
+            updated_balances = {}
+            for asset, balance_obj in balances.items():
+                 # Ensure the balance object itself uses Decimal internally if possible
+                 # Or at least store the object which should contain Decimal amounts
+                 if not isinstance(balance_obj, Balance):
+                      logger.warning(f"Balance data for {asset} on {exchange_id} is not a Balance object: {type(balance_obj)}")
+                      # Attempt conversion if it's a dict
+                      if isinstance(balance_obj, dict):
+                          try:
+                              # Ensure values are Decimal
+                              total = Decimal(str(balance_obj.get('total', '0')))
+                              free = Decimal(str(balance_obj.get('free', '0')))
+                              locked = Decimal(str(balance_obj.get('locked', '0')))
+                              updated_balances[asset] = Balance(asset=asset, total=total, free=free, locked=locked)
+                          except Exception as conv_err:
+                              logger.error(f"Could not convert balance dict to Balance object for {asset}: {conv_err}")
+                      continue # Skip if not a Balance object or convertible dict
+                 else:
+                     # Optional: Add checks here to ensure balance_obj.total etc. are Decimal
+                     # if balance_obj.total is not None and not isinstance(balance_obj.total, Decimal):
+                     #     balance_obj.total = Decimal(str(balance_obj.total))
+                     # if balance_obj.free is not None and not isinstance(balance_obj.free, Decimal):
+                     #     balance_obj.free = Decimal(str(balance_obj.free))
+                     updated_balances[asset] = balance_obj
+                     
+            self._balances[exchange_id] = updated_balances
             self._last_update_time[exchange_id] = datetime.now()
             
-            # Convert balances to dict before logging
-            logger.info(f"Updated balances for {exchange_id}: {json.dumps({k: v.to_dict() for k, v in balances.items() if hasattr(v, 'to_dict')})}")
+            # Convert balances to dict with stringified Decimals before logging
+            loggable_balances = {}
+            for k, v in updated_balances.items():
+                if hasattr(v, 'to_dict'):
+                    balance_dict = v.to_dict()
+                    # Convert Decimal values in the dict to strings
+                    for key, val in balance_dict.items():
+                        if isinstance(val, Decimal):
+                            balance_dict[key] = str(val)
+                    loggable_balances[k] = balance_dict
+                else:
+                    # Handle cases where balance might not have to_dict (shouldn't happen ideally)
+                    loggable_balances[k] = str(v)
+                    
+            logger.info(f"Updated balances for {exchange_id}: {json.dumps(loggable_balances)}")
             
         except Exception as e:
             logger.error(f"Error fetching balances from {exchange_id}: {str(e)}", exc_info=True)
@@ -154,7 +193,15 @@ class PortfolioTracker:
                         new_positions[position.id] = position
                     else:
                         # Generate a position ID if none exists
-                        pos_id = f"{position.symbol}_{position.side}_{len(new_positions)}"
+                        # Ensure size and prices are Decimal
+                        size = Decimal(str(position.size)) if position.size is not None else Decimal('0')
+                        entry_price = Decimal(str(position.entry_price)) if position.entry_price is not None else Decimal('0')
+                        mark_price = Decimal(str(position.mark_price)) if position.mark_price is not None else Decimal('0')
+                        position.size = size
+                        position.entry_price = entry_price
+                        position.mark_price = mark_price
+                        
+                        pos_id = f"{position.symbol}_{position.side.value}_{len(new_positions)}" # Use side.value
                         position.id = pos_id
                         new_positions[pos_id] = position
             else:
@@ -334,22 +381,52 @@ class PortfolioTracker:
         logger.warning(f"Balance for {asset} on {exchange_id} has unexpected format: {type(balance)}")
         return 0.0
     
-    def get_total_capital(self) -> float:
+    def get_total_capital(self, valuation_asset: str = 'USDT') -> Decimal:
         """
-        Get the total capital across all exchanges.
-        
+        Calculate the total capital across all exchanges in a common valuation asset.
+
+        Args:
+            valuation_asset: The asset to value the portfolio in (e.g., USDT, USD).
+
         Returns:
-            Total capital in USD
+            Total portfolio value as a Decimal. Returns Decimal('0') if valuation fails.
         """
-        total = 0.0
-        for exchange_id in self._balances:
-            for asset, amount in self._balances[exchange_id].items():
-                # Handle balance as object or float
-                if hasattr(amount, 'total'):
-                    total += amount.total
+        total_value = Decimal("0.0")
+        # This method needs a proper implementation using market data to convert assets.
+        # For now, we'll return a placeholder or a simplified sum if possible.
+        # A simplified approach (assuming all balances are already in valuation_asset or similar value):
+        for exchange_balances in self._balances.values():
+            for asset, balance in exchange_balances.items():
+                # Ensure balance object and its values are valid
+                if not isinstance(balance, Balance) or balance.total is None:
+                    logger.warning(f"Invalid balance object for {asset} on an exchange: {balance}. Skipping.")
+                    continue
+
+                # Ensure balance.total is Decimal
+                balance_total = balance.total
+                if not isinstance(balance_total, Decimal):
+                    try:
+                        balance_total = Decimal(str(balance_total))
+                    except Exception:
+                        logger.error(f"Could not convert balance total '{balance.total}' for {asset} to Decimal. Skipping.")
+                        continue
+
+                if asset.upper() == valuation_asset.upper(): # Simple check
+                    total_value += balance_total
                 else:
-                    total += amount
-        return total
+                    # TODO: Add conversion logic using market data for other assets
+                    # For now, we might just add the balance if it's a stablecoin assumed to be near 1:1 with USDT/USD
+                    if asset.upper() in ['USDC', 'USD', 'BUSD']: # Example stablecoins
+                         total_value += balance_total
+                    else:
+                         # Placeholder: Log that conversion is needed
+                         logger.debug(f"Asset {asset} requires price conversion to {valuation_asset} for total capital calculation.")
+
+
+        # Update high watermark
+        self._high_watermark = max(self._high_watermark, total_value)
+        logger.debug(f"Calculated total capital: {total_value} {valuation_asset}, High Watermark: {self._high_watermark}")
+        return total_value # Ensure this returns Decimal
     
     def get_exchange_exposure(self, exchange_id: str) -> float:
         """
@@ -372,48 +449,84 @@ class PortfolioTracker:
                 
         return exposure
     
-    def get_total_exposure(self) -> float:
+    def get_total_exposure(self, valuation_asset: str = 'USDT') -> Decimal:
         """
-        Get the total exposure across all exchanges.
-        
+        Calculate the total market exposure across all positions in a common valuation asset.
+
+        Args:
+            valuation_asset: The asset to value the exposure in.
+
         Returns:
-            Total exposure in USD
+            Total exposure value as a Decimal.
         """
-        total = 0.0
-        for exchange_id in self._positions:
-            total += self.get_exchange_exposure(exchange_id)
-        return total
+        total_exposure = Decimal("0.0")
+        # TODO: Implement exposure calculation using position sizes and market prices
+        # Needs access to market data (e.g., from DataHandler)
+        # Simplified example:
+        for exchange_positions in self._positions.values():
+            for position in exchange_positions.values():
+                 if not isinstance(position, Position) or not position.is_active() or position.size is None or position.mark_price is None:
+                     continue # Skip inactive or invalid positions
+
+                 # Ensure values are Decimal
+                 try:
+                     pos_size = Decimal(str(position.size))
+                     mark_price = Decimal(str(position.mark_price))
+                 except Exception:
+                     logger.error(f"Could not convert position size '{position.size}' or mark price '{position.mark_price}' to Decimal for {position.symbol}. Skipping.")
+                     continue
+
+                 # Simple exposure calculation (Size * Mark Price)
+                 # Assumes mark_price is in the quote currency, need conversion to valuation_asset
+                 exposure_value = pos_size * mark_price
+                 # TODO: Convert exposure_value to valuation_asset using market data
+
+                 # For now, assume quote asset is valuation asset if it matches (e.g., BTC/USDT exposure in USDT)
+                 # This is a MAJOR simplification
+                 symbol_parts = position.symbol.split('/') # e.g., ['BTC', 'USDT']
+                 if len(symbol_parts) > 1 and symbol_parts[-1].upper() == valuation_asset.upper():
+                      total_exposure += abs(exposure_value)
+                 else:
+                      logger.debug(f"Position {position.symbol} requires price conversion for exposure calculation in {valuation_asset}.")
+
+
+        logger.debug(f"Calculated total exposure (simplified): {total_exposure} {valuation_asset}")
+        return total_exposure # Ensure this returns Decimal
     
-    def get_pnl(self) -> Tuple[float, float]:
+    def get_pnl(self) -> Tuple[Decimal, Decimal]:
         """
-        Get the realized and unrealized P&L across all exchanges.
-        
+        Calculate the total and unrealized P&L across all positions.
+        Returns PnL values as Decimal.
+
         Returns:
-            Tuple of (realized_pnl, unrealized_pnl)
+            Tuple containing total P&L and unrealized P&L (Decimal, Decimal).
         """
-        realized_pnl = 0.0
-        unrealized_pnl = 0.0
-        
+        # Perform Decimal calculations for P&L
+        total_pnl = Decimal("0.0")
+        unrealized_pnl = Decimal("0.0")
+        realized_pnl = Decimal("0.0") # Needs proper tracking if required
+
         for exchange_id, positions in self._positions.items():
-            for position_id, position in positions.items():
-                # Add realized P&L if available
-                if hasattr(position, 'realized_pnl') and position.realized_pnl is not None:
-                    realized_pnl += position.realized_pnl
-                
-                # Add unrealized P&L if available or calculate
-                # First check if the position has an unrealized_pnl attribute
-                if hasattr(position, 'unrealized_pnl') and position.unrealized_pnl is not None:
-                    unrealized_pnl += position.unrealized_pnl
-                # Otherwise calculate if we have the necessary data
-                elif position.entry_price > 0 and hasattr(position, 'mark_price') and position.mark_price > 0:
-                    current_price = position.mark_price
-                    unrealized_pnl += position.calculate_unrealized_pnl(current_price)
-                # Fallback using entry price if mark price not available
-                elif position.entry_price > 0:
-                    logger.warning(f"Using entry_price as fallback for PnL calculation for {position_id} on {exchange_id}")
-                    unrealized_pnl += position.unrealized_pnl or 0.0
+            for pos_id, position in positions.items():
+                if position.is_active():
+                    # Ensure values are Decimal
+                    size = position.size if isinstance(position.size, Decimal) else Decimal(str(position.size))
+                    entry_price = position.entry_price if isinstance(position.entry_price, Decimal) else Decimal(str(position.entry_price))
+                    mark_price = position.mark_price if isinstance(position.mark_price, Decimal) else Decimal(str(position.mark_price))
+                    
+                    # PnL = Size * (Mark Price - Entry Price)
+                    # Handle potential None values gracefully
+                    if mark_price is not None and entry_price is not None:
+                        pos_pnl = size * (mark_price - entry_price)
+                        unrealized_pnl += pos_pnl
+                    else:
+                         logger.warning(f"Cannot calculate PnL for position {pos_id} due to missing prices.")
+
+        # Total PnL (simplified as unrealized for now)
+        total_pnl = unrealized_pnl
         
-        return realized_pnl, unrealized_pnl
+        # Return as Tuple[Decimal, Decimal]
+        return total_pnl, unrealized_pnl
     
     def get_position(self, exchange_id: str, position_id: str) -> Optional[Position]:
         """
@@ -461,31 +574,25 @@ class PortfolioTracker:
                     all_positions.append((exchange_id, position))
         return all_positions
     
-    def get_current_drawdown(self) -> float:
+    def get_current_drawdown(self) -> Optional[Decimal]:
         """
-        Calculate the current drawdown of the portfolio as a percentage.
-        
-        Returns:
-            Current drawdown as a percentage. Negative values indicate a drawdown.
+        Calculate the current portfolio drawdown from the high watermark.
+        Returns Decimal percentage or None if not enough data.
         """
-        realized_pnl, unrealized_pnl = self.get_pnl()
-        total_pnl = realized_pnl + unrealized_pnl
+        current_capital = self.get_total_capital()
         
-        # Initialize tracking variables for high watermark
-        high_watermark = self._high_watermark if hasattr(self, '_high_watermark') else 0.0
-        current_value = self.get_total_capital() + total_pnl
+        if current_capital is None or self._high_watermark == Decimal("0.0"):
+            # Cannot calculate drawdown without current capital or a high watermark
+            return None
+            
+        # Update high watermark
+        self._high_watermark = max(self._high_watermark, current_capital)
         
-        # Update high watermark if current value is higher
-        if current_value > high_watermark:
-            self._high_watermark = current_value
-            return 0.0  # No drawdown if at all-time high
+        # Calculate drawdown
+        drawdown = (self._high_watermark - current_capital) / self._high_watermark
         
-        # Calculate drawdown as a percentage
-        if high_watermark > 0:
-            drawdown_percentage = ((current_value - high_watermark) / high_watermark) * 100
-            return drawdown_percentage  # Negative number during drawdowns
-        
-        return 0.0  # Default to no drawdown if we can't calculate
+        # Return drawdown as a positive Decimal percentage
+        return max(Decimal("0.0"), drawdown)
     
     def get_order(self, exchange_id: str, order_id: str) -> Optional[Order]:
         """
@@ -583,7 +690,7 @@ class PortfolioTracker:
             "orders": orders_dict,
             "last_update_time": last_update_dict,
             "last_reconciliation_time": last_recon_dict,
-            "high_watermark": getattr(self, '_high_watermark', 0.0),
+            "high_watermark": getattr(self, '_high_watermark', Decimal("0.0")),
             "current_drawdown": self.get_current_drawdown()
         }
         
@@ -632,16 +739,259 @@ class PortfolioTracker:
         
         # Restore high watermark if available
         if 'high_watermark' in state_dict:
-            self._high_watermark = float(state_dict['high_watermark'])
+            self._high_watermark = Decimal(state_dict['high_watermark'])
         
         logger.info("Portfolio state restored from dictionary")
 
     def reset(self):
-        """Reset the internal state of the portfolio tracker."""
-        self._balances = {} # exchange -> asset -> Balance
-        self._positions = {} # exchange -> symbol -> Position
-        self._orders = {} # exchange -> order_id -> Order
-        self._last_update_time = {} # exchange -> last update time
-        self._last_reconciliation_time = {} # exchange -> last reconciliation time
-        self._high_watermark = 0.0 # Track highest portfolio value for drawdown calculation
+        """Reset the portfolio state."""
+        self._balances = {}
+        self._positions = {}
+        self._orders = {}
+        self._last_update_time = {}
+        self._last_reconciliation_time = {}
+        self._high_watermark = Decimal("0.0")
+        self._initialize_data_structures()
         logger.info("PortfolioTracker state reset.")
+
+    # --- STUB METHODS --- 
+    # Add stubs for methods expected by RiskManager but not yet implemented
+
+    def get_asset_volatility(self, symbol: str) -> Optional[float]:
+        """ STUB: Get current volatility for an asset. Returns float. """
+        logger.debug(f"STUB: get_asset_volatility called for {symbol}. Returning default 0.01")
+        # In a real implementation, fetch from DataHandler or calculate
+        return 0.01 # Return float as RiskManager expects float for this specific calc for now
+        
+    def get_historical_volatility(self, symbol: str) -> Optional[float]:
+        """ STUB: Get historical volatility for an asset. Returns float. """
+        logger.debug(f"STUB: get_historical_volatility called for {symbol}. Returning default 0.01")
+        # In a real implementation, fetch from DataHandler or calculate
+        return 0.01 # Return float as RiskManager expects float for this specific calc for now
+        
+    def get_exchange_drawdown(self, exchange_id: str) -> Optional[float]:
+        """ STUB: Get current drawdown for a specific exchange. Returns float percentage. """
+        logger.debug(f"STUB: get_exchange_drawdown called for {exchange_id}. Returning default 0.0")
+        # Requires tracking per-exchange high watermarks
+        return 0.0 # Return float for now
+
+    def get_asset_correlation(self, symbol1: str, symbol2: str) -> Optional[float]:
+        """ STUB: Get correlation between two assets. Returns float. """
+        logger.debug(f"STUB: get_asset_correlation called for {symbol1} and {symbol2}. Returning default 0.0")
+        # Requires correlation matrix/calculation logic
+        return 0.0 # Return float for now
+
+    def get_exchange_collateral_balance(self, exchange_id: str) -> Decimal:
+        """ Get the balance of the primary collateral asset for an exchange. Returns Decimal. """
+        collateral_asset = self.config.get(f'exchanges.{exchange_id}.collateral_asset')
+        if not collateral_asset:
+             logger.warning(f"Collateral asset not defined for exchange {exchange_id}. Cannot get specific balance.")
+             # Fallback: sum all balances? Or return zero? Returning zero is safer.
+             return Decimal("0.0")
+             
+        balance_obj = self._balances.get(exchange_id, {}).get(collateral_asset)
+        if balance_obj and hasattr(balance_obj, 'total') and balance_obj.total is not None:
+            # Ensure it returns Decimal
+             return balance_obj.total if isinstance(balance_obj.total, Decimal) else Decimal(str(balance_obj.total))
+        else:
+             logger.debug(f"Collateral asset {collateral_asset} balance not found for {exchange_id}. Returning zero.")
+             return Decimal("0.0")
+
+    def get_active_exchanges(self) -> List[str]:
+        """ STUB: Returns a list of active exchange IDs."""
+        return list(self.api_clients.keys())
+
+    def get_active_symbols(self) -> List[str]:
+        """ STUB: Get a list of symbols with active positions or orders. """
+        active_symbols = set()
+        for exchange_positions in self._positions.values():
+            for pos in exchange_positions.values():
+                 if pos.is_active():
+                     active_symbols.add(pos.symbol)
+        for exchange_orders in self._orders.values():
+             for order in exchange_orders.values():
+                  if order.status in [OrderStatus.NEW, OrderStatus.PARTIALLY_FILLED]:
+                       active_symbols.add(order.symbol)
+        return list(active_symbols)
+        
+    def get_symbol_exposure(self, symbol: str) -> Decimal:
+        """ Calculate total exposure for a specific symbol across all exchanges. Returns Decimal. """
+        symbol_exposure = Decimal("0.0")
+        for exchange_id, positions in self._positions.items():
+            for pos_id, pos in positions.items():
+                 if pos.symbol == symbol and pos.is_active():
+                      price = pos.mark_price if isinstance(pos.mark_price, Decimal) else Decimal(str(pos.mark_price))
+                      size = pos.size if isinstance(pos.size, Decimal) else Decimal(str(pos.size))
+                      symbol_exposure += abs(price * size)
+        return symbol_exposure
+
+    def get_positions_by_exchange(self, exchange_id: str) -> List[Position]:
+        """ Get all positions for a specific exchange. """
+        return list(self._positions.get(exchange_id, {}).values())
+    
+    def get_portfolio_drawdown(self) -> Decimal:
+        """
+        Calculate the current portfolio drawdown from its peak value.
+
+        Returns:
+            Current drawdown as a positive Decimal percentage (e.g., 0.1 for 10%).
+            Returns Decimal('0') if high watermark is zero or current value is unknown/invalid.
+        """
+        # Use the internal method to avoid redundant logging if called frequently
+        current_value = self.get_total_capital() # Ensures calculation and high watermark update
+
+        if not isinstance(current_value, Decimal):
+             logger.error(f"get_total_capital returned non-Decimal value: {current_value}. Cannot calculate drawdown.")
+             return Decimal("0.0")
+
+        if self._high_watermark <= Decimal("0.0"):
+             # Don't log warning every time if peak hasn't been established yet
+             # logger.debug("Cannot calculate drawdown: High watermark is zero or negative.")
+             return Decimal("0.0") # No drawdown if no peak value recorded
+
+
+        # Drawdown calculation
+        drawdown = (self._high_watermark - current_value) / self._high_watermark
+        drawdown_percentage = max(Decimal("0.0"), drawdown) # Drawdown cannot be negative
+
+        # Log only if drawdown is significant or changes? Maybe not here.
+        # logger.debug(f"Calculated drawdown: {drawdown_percentage:.4f} (Current: {current_value}, Peak: {self._high_watermark})")
+        return drawdown_percentage # Returns Decimal
+
+
+    def get_asset_balance(self, exchange_id: str, asset: str) -> Balance:
+        """
+        Get the balance details for a specific asset on an exchange.
+
+        Args:
+            exchange_id: Exchange identifier.
+            asset: Asset symbol (e.g., 'BTC', 'USDT').
+
+        Returns:
+            Balance object for the asset. Returns a zero Balance object if not found or invalid.
+        """
+        asset_upper = asset.upper()
+        balance = self._balances.get(exchange_id, {}).get(asset_upper)
+        zero_balance = Balance(asset=asset_upper, total=Decimal("0.0"), free=Decimal("0.0"), locked=Decimal("0.0"))
+
+        if balance is None:
+            # logger.debug(f"No balance found for {asset_upper} on {exchange_id}. Returning zero balance.")
+            return zero_balance
+
+        # Validate and ensure the returned balance uses Decimal
+        if not isinstance(balance, Balance):
+             logger.warning(f"Stored balance data for {asset} on {exchange_id} is not a Balance object: {type(balance)}. Returning zero balance.")
+             return zero_balance
+
+        try:
+            # Create a new Balance object with converted Decimal values
+            total = Decimal(str(balance.total)) if balance.total is not None else Decimal("0.0")
+            free = Decimal(str(balance.free)) if balance.free is not None else Decimal("0.0")
+            locked = Decimal(str(balance.locked)) if balance.locked is not None else Decimal("0.0")
+            return Balance(asset=asset_upper, total=total, free=free, locked=locked)
+        except Exception as e:
+            logger.error(f"Failed to convert balance values to Decimal for {asset} on {exchange_id}: {e}. Original: {balance}. Returning zero balance.")
+            return zero_balance
+
+
+    def get_position_size(self, exchange_id: str, symbol: str) -> Decimal:
+        """
+        Get the current size of a position for a specific symbol on an exchange.
+        Assumes the Position model stores signed size (positive for long, negative for short).
+
+        Args:
+            exchange_id: Exchange identifier.
+            symbol: Trading pair symbol (e.g., 'BTC-PERP').
+
+        Returns:
+            Position size as a Decimal. Returns Decimal('0') if no active position exists or size is invalid.
+        """
+        total_size = Decimal("0.0")
+        symbol_upper = symbol.upper()
+        positions = self._positions.get(exchange_id, {})
+
+        for position in positions.values():
+            if not isinstance(position, Position):
+                continue # Skip invalid entries
+
+            # Normalize symbol for comparison (e.g., BTC/USDT vs BTC-PERP)
+            position_symbol_norm = position.symbol.upper().replace('-', '/')
+            symbol_norm = symbol_upper.replace('-', '/')
+
+            if position_symbol_norm == symbol_norm and position.is_active():
+                 # Ensure position.size is Decimal
+                 pos_size = position.size
+                 if pos_size is None:
+                     continue # Skip positions with null size
+
+                 if not isinstance(pos_size, Decimal):
+                     try:
+                         pos_size = Decimal(str(pos_size))
+                     except Exception:
+                         logger.error(f"Position size '{pos_size}' for {symbol} on {exchange_id} is not Decimal. Skipping this position.")
+                         continue
+
+                 # Assuming size is signed in the Position model
+                 total_size += pos_size
+
+        # logger.debug(f"Position size for {symbol_upper} on {exchange_id}: {total_size}")
+        return total_size # Returns Decimal
+
+    def get_position_pnl(self, exchange_id: str, symbol: str) -> Decimal:
+        """
+        Get the unrealized P&L for a specific position.
+
+        Args:
+            exchange_id: Exchange identifier.
+            symbol: Trading pair symbol.
+
+        Returns:
+            Unrealized P&L as a Decimal. Returns Decimal('0') if no active position or P&L data/invalid.
+        """
+        total_pnl = Decimal("0.0")
+        symbol_upper = symbol.upper()
+        positions = self._positions.get(exchange_id, {})
+
+        for position in positions.values():
+             if not isinstance(position, Position):
+                continue # Skip invalid entries
+
+             # Normalize symbol for comparison
+             position_symbol_norm = position.symbol.upper().replace('-', '/')
+             symbol_norm = symbol_upper.replace('-', '/')
+
+             if position_symbol_norm == symbol_norm and position.is_active():
+                # Assuming position object has a 'pnl' attribute that is Decimal
+                if hasattr(position, 'pnl') and position.pnl is not None:
+                    position_pnl = position.pnl
+                    if not isinstance(position_pnl, Decimal):
+                         try:
+                             position_pnl = Decimal(str(position_pnl))
+                         except Exception:
+                             logger.error(f"Position PNL '{position_pnl}' for {symbol} on {exchange_id} is not Decimal. Treating as zero for this position.")
+                             position_pnl = Decimal("0.0")
+                    total_pnl += position_pnl # Sum PNL
+                else:
+                     # Calculate PNL if not directly available (requires mark_price)
+                     if hasattr(position, 'mark_price') and position.mark_price is not None and \
+                        hasattr(position, 'entry_price') and position.entry_price is not None and \
+                        hasattr(position, 'size') and position.size is not None:
+                         try:
+                             mark_price = Decimal(str(position.mark_price))
+                             entry_price = Decimal(str(position.entry_price))
+                             size = Decimal(str(position.size)) # Assuming signed size
+
+                             # Basic PNL calculation for linear contracts
+                             calculated_pnl = (mark_price - entry_price) * size
+                             # TODO: Add logic for inverse contracts if needed
+                             total_pnl += calculated_pnl
+                         except Exception as e:
+                             logger.error(f"Could not calculate PNL for position {position.id} on {exchange_id}: {e}")
+                     else:
+                          logger.debug(f"Cannot calculate PNL for position {position.id} on {exchange_id}: Missing mark_price, entry_price, or size.")
+
+
+        # logger.debug(f"Unrealized PNL for {symbol_upper} on {exchange_id} (summed): {total_pnl}")
+        return total_pnl # Returns Decimal
+
+    # --- END STUB METHODS ---

@@ -103,3 +103,15 @@ def get_current_drawdown(self) -> float:
 2. Ensure all components interact correctly in integration tests
    - Fix the API client method parameter mismatches
    - Document proper risk manager usage in the strategy implementations 
+
+## August 9, 2025: Decimal Handling Fixes
+
+Debugging of integration tests (`test_core_workflow.py`) revealed and led to fixes for several issues related to `Decimal` handling within the `PortfolioTracker` and related components:
+
+*   **JSON Serialization:** Resolved `TypeError: Object of type Decimal is not JSON serializable` in `_fetch_exchange_balances` logging by explicitly converting `Decimal` values to strings before passing them to `json.dumps`.
+*   **Mock API Balance Storage:** Corrected `MockExchangeAPI.set_mock_balance` to ensure `total`, `free`, and `locked` values are stored internally as `Decimal`, preventing downstream `TypeError`s during balance updates.
+*   **Position Model:** Updated the `Position` dataclass in `models.py` to use `Decimal` for key financial fields (`size`, `entry_price`, `mark_price`, etc.).
+*   **Mock API Position Handling:** Updated `MockExchangeAPI._update_balance_and_position` to correctly initialize and calculate position attributes (`size`, `entry_price`) using `Decimal` arithmetic, resolving `TypeError`s.
+*   **Signed Position Size:** Ensured consistent handling of signed `Decimal` position sizes (positive for long, negative for short) between the `Position` model, `MockExchangeAPI`, and test assertions.
+
+These changes significantly improve the numerical stability and type consistency of portfolio tracking, particularly in test environments. 

@@ -2,11 +2,15 @@ import logging
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
+from decimal import Decimal, getcontext # Import Decimal
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
+
+# Set precision for Decimal
+getcontext().prec = 28 
 
 class ArbitrageOpportunity:
     """
@@ -17,13 +21,13 @@ class ArbitrageOpportunity:
                  symbol: str,
                  long_exchange: str,
                  short_exchange: str,
-                 long_funding_rate: float,
-                 short_funding_rate: float,
-                 net_funding_differential: float,
+                 long_funding_rate: Decimal, # Changed to Decimal
+                 short_funding_rate: Decimal, # Changed to Decimal
+                 net_funding_differential: Decimal, # Changed to Decimal
                  timestamp: datetime,
-                 expected_profit: float,
-                 utility_score: float,
-                 basis_volatility: float):
+                 expected_profit: Decimal, # Changed to Decimal
+                 utility_score: float, # Keep float
+                 basis_volatility: float): # Keep float
         """
         Initialize an arbitrage opportunity.
         
@@ -31,11 +35,11 @@ class ArbitrageOpportunity:
             symbol: Trading symbol
             long_exchange: Exchange to take long position
             short_exchange: Exchange to take short position
-            long_funding_rate: Funding rate on long exchange
-            short_funding_rate: Funding rate on short exchange
-            net_funding_differential: Difference between funding rates
+            long_funding_rate: Funding rate on long exchange (Decimal)
+            short_funding_rate: Funding rate on short exchange (Decimal)
+            net_funding_differential: Difference between funding rates (Decimal)
             timestamp: When the opportunity was identified
-            expected_profit: Expected profit after costs
+            expected_profit: Expected profit after costs (Decimal)
             utility_score: Ranking score considering profit and risk
             basis_volatility: Volatility of the basis between exchanges
         """
@@ -50,13 +54,19 @@ class ArbitrageOpportunity:
         self.utility_score = utility_score
         self.basis_volatility = basis_volatility
         
+        # Add attributes expected by RiskManager Kelly calc if not already present
+        # These might be better set during sizing, but ensure they exist
+        self.long_entry_price: Optional[Decimal] = None
+        self.short_entry_price: Optional[Decimal] = None
+        
     def __str__(self) -> str:
         """String representation of the opportunity."""
+        # Format Decimal rates as percentages with higher precision if needed
         return (f"ArbitrageOpportunity: {self.symbol} - "
-                f"Long: {self.long_exchange} ({self.long_funding_rate:.4f}%), "
-                f"Short: {self.short_exchange} ({self.short_funding_rate:.4f}%), "
-                f"NFD: {self.net_funding_differential:.4f}%, "
-                f"ExpProfit: ${self.expected_profit:.2f}, "
+                f"Long: {self.long_exchange} ({self.long_funding_rate * 100:.6f}%), "
+                f"Short: {self.short_exchange} ({self.short_funding_rate * 100:.6f}%), "
+                f"NFD: {self.net_funding_differential * 100:.6f}%, "
+                f"ExpProfit: ${self.expected_profit:.4f}, " # Increased precision for profit
                 f"Utility: {self.utility_score:.4f}")
 
 
@@ -82,19 +92,19 @@ class SignalGenerator:
         self.config = config
         self.data_handler = data_handler
         
-        # Parameters from config
-        self.min_funding_differential = config.get(
-            'strategy.funding_rate.min_funding_differential', 0.0001)
-        self.min_profit_threshold = config.get(
-            'strategy.funding_rate.min_profit_threshold', 5.0)
+        # Parameters from config - ensure Decimal where appropriate
+        self.min_funding_differential = Decimal(str(config.get(
+            'strategy.funding_rate.min_funding_differential', 0.0001)))
+        self.min_profit_threshold = Decimal(str(config.get(
+            'strategy.funding_rate.min_profit_threshold', 5.0)))
         
         # Historical funding rates for volatility calculation
-        # exchange -> symbol -> List[(timestamp, rate)]
-        self.historical_funding_rates: Dict[str, Dict[str, List[Tuple[datetime, float]]]] = {}
+        # exchange -> symbol -> List[(timestamp, rate: Decimal)]
+        self.historical_funding_rates: Dict[str, Dict[str, List[Tuple[datetime, Decimal]]]] = {}
         
         # Historical basis data for volatility calculation
-        # symbol -> List[(timestamp, basis)]
-        self.historical_basis: Dict[str, List[Tuple[datetime, float]]] = {}
+        # symbol -> List[(timestamp, basis: Decimal)]
+        self.historical_basis: Dict[str, List[Tuple[datetime, Decimal]]] = {}
         
         # Sample period and count for funding rate history
         self.funding_sample_period = config.get(
@@ -102,7 +112,7 @@ class SignalGenerator:
         self.funding_sample_count = config.get(
             'strategy.funding_rate.funding_sample_count', 24)
         
-        # Risk aversion parameter (λ) for utility function
+        # Risk aversion parameter (λ) for utility function (float is fine here)
         self.risk_aversion = config.get('strategy.funding_rate.risk_aversion', 1.0)
         
         # Initialize data structures
@@ -119,13 +129,15 @@ class SignalGenerator:
         # Initialize historical funding rate storage
         for exchange in exchanges:
             self.historical_funding_rates[exchange] = {}
-            symbols = self.config.get(f'exchanges.{exchange}.symbols', [])
-            for symbol in symbols:
-                self.historical_funding_rates[exchange][symbol] = []
+            # Get the symbol map {InternalSymbol: ExchangeSymbol}
+            symbol_map = self.config.get(f'exchanges.{exchange}.symbols', {})
+            for internal_symbol, exchange_symbol in symbol_map.items():
+                # Use exchange_symbol for the key in historical rates
+                self.historical_funding_rates[exchange][exchange_symbol] = []
                 
-                # Also initialize basis history for this symbol
-                if symbol not in self.historical_basis:
-                    self.historical_basis[symbol] = []
+                # Initialize basis history using the internal symbol
+                if internal_symbol not in self.historical_basis:
+                    self.historical_basis[internal_symbol] = []
     
     def update_historical_data(self):
         """
@@ -136,23 +148,30 @@ class SignalGenerator:
         
         # Get all configured exchanges and symbols
         exchanges = []
-        all_symbols = set()
+        all_internal_symbols = set()
+        exchange_symbol_map: Dict[str, Dict[str, str]] = {}
         
         for exchange_id in self.config.get('exchanges', {}).keys():
             if self.config.get(f'exchanges.{exchange_id}.enabled', False):
                 exchanges.append(exchange_id)
-                symbols = self.config.get(f'exchanges.{exchange_id}.symbols', [])
-                all_symbols.update(symbols)
+                symbols_config = self.config.get(f'exchanges.{exchange_id}.symbols', {})
+                exchange_symbol_map[exchange_id] = symbols_config
+                all_internal_symbols.update(symbols_config.keys())
         
         # Update funding rate history
         for exchange in exchanges:
-            for symbol in self.historical_funding_rates[exchange].keys():
-                funding_data = self.data_handler.get_funding_rate(exchange, symbol)
+            if exchange not in self.historical_funding_rates: continue # Skip if not initialized
+            for exchange_symbol in self.historical_funding_rates[exchange].keys():
+                # Fetch data using the exchange-specific symbol
+                funding_data = self.data_handler.get_funding_rate(exchange, exchange_symbol)
                 if funding_data:
-                    rate, timestamp = funding_data
-                    
+                    rate, timestamp = funding_data # Assuming rate is Decimal
+                    if not isinstance(rate, Decimal):
+                        logger.warning(f"Funding rate for {exchange}/{exchange_symbol} is not Decimal: {rate}. Converting.")
+                        rate = Decimal(str(rate))
+                        
                     # Add to historical data
-                    history = self.historical_funding_rates[exchange][symbol]
+                    history = self.historical_funding_rates[exchange][exchange_symbol]
                     history.append((timestamp, rate))
                     
                     # Trim to keep only recent samples
@@ -161,81 +180,99 @@ class SignalGenerator:
                         history.pop(0)
         
         # Update basis history (price difference between exchanges)
-        for symbol in all_symbols:
-            # We need at least two exchanges with this symbol
-            valid_exchanges = []
+        for internal_symbol in all_internal_symbols:
+            # Find exchanges that map this internal symbol
+            valid_exchanges_for_symbol = []
+            exchange_tickers: Dict[str, Any] = {}
             for exchange in exchanges:
-                if (exchange in self.historical_funding_rates and 
-                    symbol in self.historical_funding_rates[exchange]):
-                    valid_exchanges.append(exchange)
+                 if internal_symbol in exchange_symbol_map.get(exchange, {}):
+                     exchange_symbol = exchange_symbol_map[exchange][internal_symbol]
+                     ticker = self.data_handler.get_ticker(exchange, exchange_symbol)
+                     if ticker and ticker.price is not None:
+                          valid_exchanges_for_symbol.append(exchange)
+                          exchange_tickers[exchange] = ticker # Store the valid ticker
             
-            if len(valid_exchanges) >= 2:
+            if len(valid_exchanges_for_symbol) >= 2:
                 # Calculate basis between the first two valid exchanges
-                # In a real implementation, we would calculate for all exchange pairs
-                exchange1, exchange2 = valid_exchanges[0], valid_exchanges[1]
+                exchange1, exchange2 = valid_exchanges_for_symbol[0], valid_exchanges_for_symbol[1]
+                ticker1 = exchange_tickers[exchange1]
+                ticker2 = exchange_tickers[exchange2]
                 
-                ticker1 = self.data_handler.get_ticker(exchange1, symbol)
-                ticker2 = self.data_handler.get_ticker(exchange2, symbol)
+                # Tickers should have Decimal prices
+                price1 = ticker1.price
+                price2 = ticker2.price
+                if not isinstance(price1, Decimal): price1 = Decimal(str(price1))
+                if not isinstance(price2, Decimal): price2 = Decimal(str(price2))
                 
-                if ticker1 and ticker2:
-                    # Calculate basis (price differential)
-                    basis = ticker1.close - ticker2.close
-                    
-                    # Add to historical data
-                    self.historical_basis[symbol].append((now, basis))
-                    
-                    # Trim to keep only recent samples
-                    cutoff_time = now - timedelta(seconds=self.funding_sample_period * self.funding_sample_count)
-                    while self.historical_basis[symbol] and self.historical_basis[symbol][0][0] < cutoff_time:
-                        self.historical_basis[symbol].pop(0)
+                # Calculate basis (price differential)
+                basis = price1 - price2 # Decimal - Decimal = Decimal
+                
+                # Add to historical data (using internal symbol key)
+                if internal_symbol not in self.historical_basis:
+                     self.historical_basis[internal_symbol] = []
+                     
+                self.historical_basis[internal_symbol].append((now, basis))
+                
+                # Trim to keep only recent samples
+                cutoff_time = now - timedelta(seconds=self.funding_sample_period * self.funding_sample_count)
+                while self.historical_basis[internal_symbol] and self.historical_basis[internal_symbol][0][0] < cutoff_time:
+                    self.historical_basis[internal_symbol].pop(0)
     
     def calculate_basis_volatility(self, symbol: str) -> float:
         """
         Calculate the standard deviation of the basis for a symbol.
+        Basis values are stored as Decimal, but std deviation naturally returns float.
         
         Args:
-            symbol: Trading symbol
+            symbol: Trading symbol (internal)
             
         Returns:
-            Basis volatility or 0 if insufficient data
+            Basis volatility (float) or 0.0 if insufficient data
         """
         if symbol not in self.historical_basis or len(self.historical_basis[symbol]) < 2:
             return 0.0
         
-        # Extract basis values from historical data
-        basis_values = [b[1] for b in self.historical_basis[symbol]]
+        # Extract basis values (Decimal) from historical data, convert to float for numpy
+        basis_values_float = [float(b[1]) for b in self.historical_basis[symbol]]
         
-        # Calculate standard deviation
-        return np.std(basis_values)
+        # Calculate standard deviation using numpy (returns float)
+        volatility = np.std(basis_values_float)
+        return float(volatility) # Ensure return type is float
     
-    def estimate_slippage(self, symbol: str, order_size: float, exchange: str) -> float:
+    def estimate_slippage(self, symbol: str, order_size: Decimal, exchange: str) -> Decimal:
         """
         Estimate slippage based on order size and liquidity.
+        Returns Decimal percentage.
         
         Args:
-            symbol: Trading symbol
-            order_size: Size of the order in USD
+            symbol: Trading symbol (exchange-specific)
+            order_size: Size of the order in USD (Decimal)
             exchange: Exchange identifier
             
         Returns:
-            Estimated slippage as a percentage
+            Estimated slippage as a Decimal percentage (e.g., 0.001 for 0.1%)
         """
         # Get orderbook from data handler
         orderbook = self.data_handler.get_orderbook(exchange, symbol)
         if not orderbook:
             # Default to a conservative estimate if no orderbook data
-            return 0.001  # 0.1% default slippage
+            return Decimal("0.001")  # 0.1% default slippage
         
-        # Extract available liquidity from orderbook
-        # This is a simplified approach; real implementation would analyze bid/ask depth
-        available_depth = orderbook.get('depth', 100000)  # Default depth
+        # Extract available liquidity from orderbook (assume float, convert to Decimal)
+        # This is simplified; real implementation needs bid/ask analysis.
+        available_depth_float = orderbook.get('depth', 100000.0)  
+        available_depth = Decimal(str(available_depth_float))
         
-        # Calculate slippage with a scaling factor
-        scaling_factor = 0.1  # β parameter
-        slippage = scaling_factor * (order_size / available_depth)
+        if available_depth <= Decimal("0"):
+             logger.warning(f"Available depth is zero or negative for {exchange}/{symbol}. Using default slippage.")
+             return Decimal("0.001")
+
+        # Calculate slippage with a scaling factor (float)
+        scaling_factor = Decimal("0.1")  # β parameter as Decimal
+        slippage = scaling_factor * (order_size / available_depth) # Decimal calculation
         
-        # Cap the slippage at reasonable limits
-        return min(slippage, 0.01)  # Max 1% slippage
+        # Cap the slippage at reasonable limits (Decimal)
+        return min(slippage, Decimal("0.01"))  # Max 1% slippage
     
     def generate_opportunities(self) -> List[ArbitrageOpportunity]:
         """
@@ -249,116 +286,140 @@ class SignalGenerator:
         
         # Get all configured exchanges
         exchanges = []
+        exchange_symbol_map: Dict[str, Dict[str, str]] = {}
         for exchange_id in self.config.get('exchanges', {}).keys():
             if self.config.get(f'exchanges.{exchange_id}.enabled', False):
                 exchanges.append(exchange_id)
-        
+                exchange_symbol_map[exchange_id] = self.config.get(f'exchanges.{exchange_id}.symbols', {})
+    
         # Need at least two exchanges for arbitrage
         if len(exchanges) < 2:
             logger.warning("Fewer than 2 exchanges configured. Arbitrage not possible.")
             return []
-        
-        # Get common symbols across exchanges
-        common_symbols = set()
+    
+        # Get common internal symbols across exchanges
+        common_internal_symbols = set()
+        first_exchange = True
         for exchange in exchanges:
-            symbols = self.config.get(f'exchanges.{exchange}.symbols', [])
-            if not common_symbols:
-                common_symbols = set(symbols)
+            internal_symbols = set(exchange_symbol_map.get(exchange, {}).keys())
+            if first_exchange:
+                common_internal_symbols = internal_symbols
+                first_exchange = False
             else:
-                common_symbols = common_symbols.intersection(symbols)
-        
-        logger.debug(f"Found {len(common_symbols)} common symbols across all exchanges")
-        
-        # For each common symbol, check all exchange pairs
-        for symbol in common_symbols:
-            for i, long_exchange in enumerate(exchanges):
-                for short_exchange in exchanges[i+1:]:
-                    # Get exchange-specific symbols from config map
-                    long_sym = self.config.get(f'exchanges.{long_exchange}.symbols.{symbol}')
-                    short_sym = self.config.get(f'exchanges.{short_exchange}.symbols.{symbol}')
-                    if not long_sym or not short_sym:
-                        # logger.warning(f"Missing symbol mapping for {symbol} on {long_exchange} or {short_exchange}") # Optional: Log this
-                        continue # Skip if symbol not mapped on either exchange
+                common_internal_symbols.intersection_update(internal_symbols)
+    
+        logger.debug(f"Found {len(common_internal_symbols)} common internal symbols across configured exchanges: {common_internal_symbols}")
+    
+        # For each common internal symbol, check all exchange pairs
+        for internal_symbol in common_internal_symbols:
+            # Get exchanges that support this internal symbol
+            supporting_exchanges = [ex for ex in exchanges if internal_symbol in exchange_symbol_map.get(ex, {})]
+            if len(supporting_exchanges) < 2:
+                continue # Need at least two supporting exchanges
+
+            for i, ex1 in enumerate(supporting_exchanges):
+                for ex2 in supporting_exchanges[i+1:]:
+                    # Get exchange-specific symbols
+                    sym1 = exchange_symbol_map[ex1][internal_symbol]
+                    sym2 = exchange_symbol_map[ex2][internal_symbol]
                     
-                    # Get funding rates using exchange-specific symbols
-                    long_rate_data = self.data_handler.get_funding_rate(long_exchange, long_sym)
-                    short_rate_data = self.data_handler.get_funding_rate(short_exchange, short_sym)
-                    
-                    if not long_rate_data or not short_rate_data:
+                    # Get funding rates (should be Decimal)
+                    rate_data1 = self.data_handler.get_funding_rate(ex1, sym1)
+                    rate_data2 = self.data_handler.get_funding_rate(ex2, sym2)
+    
+                    if not rate_data1 or not rate_data2:
+                        logger.debug(f"Missing funding rate for {internal_symbol} on {ex1} or {ex2}")
                         continue
+    
+                    rate1, timestamp1 = rate_data1
+                    rate2, timestamp2 = rate_data2
                     
-                    long_rate, long_timestamp = long_rate_data
-                    short_rate, short_timestamp = short_rate_data
+                    # Ensure rates are Decimal
+                    if not isinstance(rate1, Decimal): rate1 = Decimal(str(rate1))
+                    if not isinstance(rate2, Decimal): rate2 = Decimal(str(rate2))
+
+                    # Determine long/short sides based on rates
+                    long_exchange, short_exchange = (ex1, ex2) if rate1 < rate2 else (ex2, ex1)
+                    long_sym, short_sym = (sym1, sym2) if rate1 < rate2 else (sym2, sym1)
+                    long_rate, short_rate = (rate1, rate2) if rate1 < rate2 else (rate2, rate1)
                     
-                    # Swap logic (use original exchange vars for now)
-                    original_long_exchange = long_exchange
-                    original_short_exchange = short_exchange
-                    original_long_sym = long_sym
-                    original_short_sym = short_sym
-                    
+                    # Calculate NFD (Decimal)
                     nfd = short_rate - long_rate
-                    if long_rate > short_rate:
-                        long_exchange, short_exchange = short_exchange, long_exchange
-                        long_sym, short_sym = short_sym, long_sym # Swap symbols too
-                        long_rate, short_rate = short_rate, long_rate
-                        nfd = abs(nfd)
                     
                     # DEBUGGING
-                    logger.debug(f"NFD Check: Symbol={symbol}, L_Ex={long_exchange}, S_Ex={short_exchange}, L_Sym={long_sym}, S_Sym={short_sym}, L_Rate={long_rate:.6f}, S_Rate={short_rate:.6f}, NFD={nfd:.6f}, Min_NFD={self.min_funding_differential:.6f}")
-                    # Check if NFD exceeds minimum threshold
-                    if abs(nfd) < self.min_funding_differential:
+                    logger.debug(f"NFD Check: Symbol={internal_symbol}, L_Ex={long_exchange}, S_Ex={short_exchange}, L_Sym={long_sym}, S_Sym={short_sym}, L_Rate={long_rate:.6f}, S_Rate={short_rate:.6f}, NFD={nfd:.6f}, Min_NFD={self.min_funding_differential}")
+                    
+                    # Check if NFD exceeds minimum threshold (Decimal comparison)
+                    if nfd < self.min_funding_differential:
                         continue
-                    
-                    # TODO: Basis volatility calculation might need fixing for exchange-specific symbols
-                    basis_volatility = self.calculate_basis_volatility(symbol) # Still uses internal symbol
-                    
-                    position_size = 1000.0
-                    
-                    # Estimate trading costs using exchange-specific symbols
+    
+                    # Basis volatility calculation (returns float)
+                    basis_volatility = self.calculate_basis_volatility(internal_symbol)
+    
+                    # --- Calculate Costs (using Decimal) ---
+                    position_size = Decimal("1000.0") # Reference size for cost estimation
+    
+                    # Estimate slippage (returns Decimal %)
                     long_slippage = self.estimate_slippage(long_sym, position_size, long_exchange)
                     short_slippage = self.estimate_slippage(short_sym, position_size, short_exchange)
-                    
-                    # Get exchange fee rates from config
-                    long_fee_rate = self.config.get(f'exchanges.{long_exchange}.fee_rate', 0.0005)
-                    short_fee_rate = self.config.get(f'exchanges.{short_exchange}.fee_rate', 0.0005)
-                    
-                    # Calculate total costs
-                    total_costs = (position_size * (long_slippage + short_slippage + 
-                                                   long_fee_rate + short_fee_rate))
-                    
-                    # Calculate expected profit based on NFD, adjusted for costs
+    
+                    # Get exchange fee rates from config (convert to Decimal)
+                    long_fee_rate = Decimal(str(self.config.get(f'exchanges.{long_exchange}.fee_rate', 0.0005)))
+                    short_fee_rate = Decimal(str(self.config.get(f'exchanges.{short_exchange}.fee_rate', 0.0005)))
+    
+                    # Calculate total costs (Decimal)
+                    # Costs = Size * (Slippage_L + Slippage_S + Fee_L + Fee_S)
+                    total_costs = position_size * (long_slippage + short_slippage + long_fee_rate + short_fee_rate)
+    
+                    # Calculate expected profit based on NFD, adjusted for costs (Decimal)
+                    # Profit = (Size * NFD) - Costs
                     expected_profit = (position_size * nfd) - total_costs
+    
+                    # Check if profit exceeds minimum threshold (Decimal comparison)
+                    if expected_profit < self.min_profit_threshold:
+                        logger.debug(f"Opportunity {internal_symbol} ({long_exchange} vs {short_exchange}) below profit threshold: ${expected_profit:.4f} < ${self.min_profit_threshold}")
+                        continue
                     
-                    # Calculate utility score using risk-adjusted formula
-                    # U = ExpectedProfit - λ * σ[B]²
-                    # where λ is the risk aversion parameter and σ[B] is basis volatility
-                    utility_score = expected_profit - (self.risk_aversion * (basis_volatility ** 2))
+                    # Calculate utility score (remains float based)
+                    # Convert basis_volatility (float) to Decimal for the calculation
+                    basis_volatility_dec = Decimal(str(basis_volatility))
+                    utility_score_denominator = basis_volatility_dec + Decimal('1e-9') # Avoid division by zero
                     
-                    # Create opportunity object
+                    # Perform division using Decimal
+                    utility_score_dec = expected_profit / utility_score_denominator if utility_score_denominator > Decimal('0') else Decimal('0')
+                    
+                    # Apply risk aversion (float) and convert final score to float
+                    utility_score_float = float(utility_score_dec * (Decimal('1.0') - Decimal(str(self.risk_aversion))))
+
+                    # Fetch current ticker prices to store in opportunity (for RiskManager)
+                    ticker_long = self.data_handler.get_ticker(long_exchange, long_sym)
+                    ticker_short = self.data_handler.get_ticker(short_exchange, short_sym)
+                    long_entry_p = ticker_long.ask if ticker_long else None
+                    short_entry_p = ticker_short.bid if ticker_short else None
+                    if long_entry_p and not isinstance(long_entry_p, Decimal): long_entry_p = Decimal(str(long_entry_p))
+                    if short_entry_p and not isinstance(short_entry_p, Decimal): short_entry_p = Decimal(str(short_entry_p))
+                    
+                    # Create ArbitrageOpportunity object
                     opportunity = ArbitrageOpportunity(
-                        symbol=symbol,
+                        symbol=internal_symbol,
                         long_exchange=long_exchange,
                         short_exchange=short_exchange,
-                        long_funding_rate=long_rate,
-                        short_funding_rate=short_rate,
-                        net_funding_differential=nfd,
+                        long_funding_rate=long_rate, # Decimal
+                        short_funding_rate=short_rate, # Decimal
+                        net_funding_differential=nfd, # Decimal
                         timestamp=now,
-                        expected_profit=expected_profit,
-                        utility_score=utility_score,
-                        basis_volatility=basis_volatility
+                        expected_profit=expected_profit, # Decimal
+                        utility_score=utility_score_float, # Float
+                        basis_volatility=basis_volatility # Float
                     )
+                    # Assign prices after creation
+                    opportunity.long_entry_price = long_entry_p
+                    opportunity.short_entry_price = short_entry_p
                     
                     opportunities.append(opportunity)
-                    logger.debug(f"Found opportunity: {opportunity}")
+                    logger.info(f"Generated opportunity: {opportunity}")
         
         # Sort opportunities by utility score (descending)
         opportunities.sort(key=lambda o: o.utility_score, reverse=True)
-        
-        if opportunities:
-            logger.info(f"Generated {len(opportunities)} arbitrage opportunities")
-            for i, opp in enumerate(opportunities[:3]):
-                logger.info(f"Top opportunity {i+1}: {opp}")
-        else:
-            logger.info("No arbitrage opportunities found")
         
         return opportunities

@@ -243,6 +243,14 @@ execution:
   # Retry logic for failed API calls (e.g., temporary network issues)
   max_retries: 3
   retry_delay_base_sec: 1.0 # Initial delay in seconds for exponential backoff
+  
+  # Delay after placing orders before checking status (improves reliability with mocks/latency)
+  settlement_delay: 2.0 # seconds 
+
+  # Compensation settings (NEW)
+  compensation:
+    use_limit_orders: true # Use limit orders for compensation by default
+    limit_price_offset_pct: 0.05 # % offset for limit price (0.05%)
 
 # Safety Systems Configuration
 safety_systems:

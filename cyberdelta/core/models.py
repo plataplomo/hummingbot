@@ -1,8 +1,9 @@
 from enum import Enum
-from dataclasses import dataclass
-from typing import List, Tuple, Optional, Dict, Any
+from dataclasses import dataclass, field
+from typing import List, Tuple, Optional, Dict, Any, Union
 import time
 from datetime import datetime
+from decimal import Decimal
 
 
 class OrderSide(Enum):
@@ -65,42 +66,45 @@ class Balance:
 class Position:
     """Represents an open position."""
     symbol: str
-    size: float  # Position size (absolute value)
-    entry_price: float  # Average entry price
-    mark_price: float  # Current mark price
-    liquidation_price: float = 0.0  # Liquidation price
-    unrealized_pnl: float = 0.0  # Unrealized profit/loss
+    size: Decimal  # Position size (absolute value)
+    entry_price: Decimal  # Average entry price
+    mark_price: Decimal  # Current mark price
+    liquidation_price: Decimal = Decimal("0.0")  # Liquidation price
+    unrealized_pnl: Decimal = Decimal("0.0")  # Unrealized profit/loss
     leverage: float = 1.0  # Position leverage
     side: OrderSide = OrderSide.BUY  # Position side (long/short)
     id: str = ""  # Position ID
     status: str = "OPEN"  # Position status
     
     @property
-    def quantity(self) -> float:
-        """Return position size (for API compatibility)."""
+    def quantity(self) -> Decimal:
+        """Return position size (for API compatibility). Returns Decimal."""
         return self.size
     
     def is_active(self) -> bool:
         """Check if position is active."""
         return self.status in ["OPEN", "PENDING", "PARTIAL"]
     
-    def calculate_unrealized_pnl(self, current_price: float) -> float:
-        """Calculate unrealized profit/loss based on current price."""
+    def calculate_unrealized_pnl(self, current_price: Decimal) -> Decimal:
+        """Calculate unrealized profit/loss based on current price. Uses Decimal."""
+        if not isinstance(current_price, Decimal):
+            current_price = Decimal(str(current_price))
+            
         if self.side == OrderSide.BUY or self.side == "LONG":
             return (current_price - self.entry_price) * self.size
         else:  # SELL/SHORT
             return (self.entry_price - current_price) * self.size
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert position to dictionary representation."""
+        """Convert position to dictionary representation. Converts Decimals to strings for JSON."""
         return {
             "id": self.id,
             "symbol": self.symbol,
-            "size": self.size,
-            "entry_price": self.entry_price,
-            "mark_price": self.mark_price,
-            "liquidation_price": self.liquidation_price,
-            "unrealized_pnl": self.unrealized_pnl,
+            "size": str(self.size),  # Convert Decimal to string
+            "entry_price": str(self.entry_price),  # Convert Decimal to string
+            "mark_price": str(self.mark_price),  # Convert Decimal to string
+            "liquidation_price": str(self.liquidation_price),  # Convert Decimal to string
+            "unrealized_pnl": str(self.unrealized_pnl),  # Convert Decimal to string
             "leverage": self.leverage,
             "side": self.side.value if isinstance(self.side, OrderSide) else self.side,
             "status": self.status
@@ -143,13 +147,16 @@ class Order:
 class Trade:
     """Represents a trade execution."""
     id: str  # Trade ID
+    order_id: str  # Add this field
+    exchange: str
     symbol: str  # Trading pair symbol
-    price: float  # Execution price
-    quantity: float  # Executed quantity
-    time: int  # Execution time (timestamp)
+    timestamp: int  # Unix timestamp in milliseconds
     side: OrderSide  # BUY or SELL
-    fee: float = 0.0  # Fee paid
-    fee_asset: str = ""  # Asset in which fee was paid
+    price: Decimal  # Execution price
+    quantity: Decimal  # Executed quantity
+    fee: Decimal  # Fee paid
+    fee_asset: str  # Asset in which fee was paid
+    is_maker: bool = False
 
 
 @dataclass

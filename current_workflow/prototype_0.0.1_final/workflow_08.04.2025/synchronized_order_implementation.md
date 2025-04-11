@@ -659,3 +659,13 @@ With the synchronized order submission implementation complete, the next focus w
 *   **Partial Fill Compensation:** Define how compensation should work in `PARTIALLY_COMPLETED` scenarios (compensate the filled part, attempt to complete, etc.).
 
 ### Open Questions & Challenges
+
+## August 9, 2025: Reliability Improvements from Integration Testing
+
+Recent debugging efforts focused on the `test_core_workflow.py` integration tests have resulted in fixes that improve the overall reliability of the order execution and compensation flow, relevant to achieving synchronized outcomes:
+
+*   **Partial Fill Compensation:** The immediate compensation logic for partial fills was validated (`test_partial_fill`). Fixes ensuring correct mock behavior and `Decimal` handling mean this crucial step (attempting to flatten the position immediately upon partial completion) is now working reliably in tests.
+*   **Sequential Failure Handling:** The `test_failure_during_compensation` scenario confirmed that the system correctly sequences actions when the second leg (short order) fails, triggering compensation on the first leg (long order), even when that compensation subsequently fails. The `ExecutionHandler` now produces accurate status and error messages reflecting this complex sequence.
+*   **Type Consistency:** Resolving `TypeError`s related to `Decimal` vs `float` mismatches in models (`Position`, `Balance`), mocks (`MockExchangeAPI`), and handlers (`ExecutionHandler`'s limit price offset calculation) eliminates a class of runtime errors that could previously derail the execution or compensation process.
+
+While these fixes don't introduce new synchronization mechanisms *per se*, they increase the robustness and predictability of the existing execution/compensation sequence, making it less likely to fail unexpectedly and leave the portfolio in an unintended state due to internal errors.

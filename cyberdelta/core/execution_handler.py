@@ -4,6 +4,7 @@ import time
 from typing import Dict, List, Optional, Any, Tuple, Union
 from datetime import datetime
 from enum import Enum, auto
+from decimal import Decimal
 
 from cyberdelta.apis.base import ExchangeAPI, APIError
 from cyberdelta.core.models import Order, Position, OrderStatus, OrderSide, OrderType
@@ -427,29 +428,55 @@ class ExecutionHandler:
                     
                     logger.info(f"Successfully executed opportunity: {opportunity}")
                 else:
-                    # At least one leg is PARTIALLY_FILLED
-                    execution.status = ExecutionStatus.PARTIALLY_COMPLETED
-                    execution.error_message = "Trade partially completed. At least one leg not fully filled."
-                    logger.warning(f"{execution.error_message} Long: {long_order.status.name} ({long_order.filled_quantity}/{long_order.quantity}), Short: {short_order.status.name} ({short_order.filled_quantity}/{short_order.quantity})")
-                    # Record partial failure
-                    # Calculate potential loss based on unfilled portion or slippage (simplified estimate)
-                    loss_estimate = opportunity.expected_profit * 0.5 # Crude estimate
-                    self.circuit_breaker.record_failure(loss_estimate)
-                    # TODO: Implement logic to handle partial fills (e.g., try to fill remainder, or compensate unfilled portion)
+                    # --- At least one leg is PARTIALLY_FILLED --- 
+                    execution.status = ExecutionStatus.PARTIALLY_COMPLETED # Initial status
+                    logger.warning(
+                        f"Trade partially completed. Long: {long_order.status.name} "
+                        f"({long_order.filled_quantity}/{long_order.quantity}), Short: {short_order.status.name} "
+                        f"({short_order.filled_quantity}/{short_order.quantity}). Initiating compensation."
+                    )
+                    
+                    # --- Implement Strategy A: Immediate Compensation --- 
+                    comp_long_success = False
+                    comp_short_success = False
+                    
+                    # Compensate filled portion of long leg (place SELL order)
+                    if long_order.filled_quantity > 0:
+                        logger.info(f"Attempting partial fill compensation for long leg (Qty: {long_order.filled_quantity}) on {long_exchange}")
+                        comp_long_success = await self._compensate_position(
+                            client=long_client,
+                            exchange_id=long_exchange,
+                            symbol=long_exchange_symbol,
+                            original_failed_side=OrderSide.SELL, # Compensate BUY with SELL
+                            quantity=long_order.filled_quantity
+                        )
+                        logger.info(f"Partial fill compensation result for long leg: {'Success' if comp_long_success else 'Failed'}")
+                    
+                    # Compensate filled portion of short leg (place BUY order)
+                    if short_order.filled_quantity > 0:
+                        logger.info(f"Attempting partial fill compensation for short leg (Qty: {short_order.filled_quantity}) on {short_exchange}")
+                        comp_short_success = await self._compensate_position(
+                            client=short_client,
+                            exchange_id=short_exchange,
+                            symbol=short_exchange_symbol,
+                            original_failed_side=OrderSide.BUY, # Compensate SELL with BUY
+                            quantity=short_order.filled_quantity
+                        )
+                        logger.info(f"Partial fill compensation result for short leg: {'Success' if comp_short_success else 'Failed'}")
 
-                # Record fill details regardless of full/partial
+                    # Set final status and error message
+                    execution.status = ExecutionStatus.FAILED # Final status is FAILED after partial fill compensation attempt
+                    execution.error_message = f"Trade partially completed and compensation attempted. Long Comp: {'Success' if comp_long_success else 'Failed'}, Short Comp: {'Success' if comp_short_success else 'Failed'}."
+                    
+                    # Record failure with circuit breaker
+                    self.circuit_breaker.record_failure() # Record as a failure scenario
+                    # ----------------------------------------------------
+
+                # Record fill details regardless of full/partial (Moved slightly lower)
                 execution.long_fill_price = long_order.price if long_order and long_order.filled_quantity > 0 else None # Use price
                 execution.short_fill_price = short_order.price if short_order and short_order.filled_quantity > 0 else None # Use price
                 execution.long_fill_quantity = long_order.filled_quantity if long_order else 0
                 execution.short_fill_quantity = short_order.filled_quantity if short_order else 0
-                
-                # Update portfolio tracker only if COMPLETED? Or update with partials too?
-                # Current logic updates only on FULL completion. Let's stick to that for now.
-                if execution.status == ExecutionStatus.COMPLETED:
-                    logger.debug(f"Updating portfolio tracker for successful execution {long_order.id}/{short_order.id}")
-                    # ... (Create Position objects and update tracker - logic remains the same) ...
-                    self.circuit_breaker.record_success()
-                    logger.info(f"Successfully executed opportunity: {opportunity}")
                 
             elif long_filled or short_filled:
                  # --- Only one leg has any fill (other is NEW, CANCELED, REJECTED etc) --- 
@@ -626,6 +653,40 @@ class ExecutionHandler:
         Returns:
             The compensation Order object if successful, None otherwise.
         """
+        # Configuration for limit order compensation
+        use_limit_compensation = self.config.get('execution.compensation.use_limit_orders', True)
+        price_offset_config_key = 'execution.compensation.limit_price_offset_pct'
+        default_offset = 0.05 # Default 0.05%
+        price_offset_str = str(self.config.get(price_offset_config_key, default_offset)) # Get as string
+        price_offset_dec = Decimal(price_offset_str) # Convert to Decimal
+        price_offset_fraction = price_offset_dec / Decimal("100.0") # Calculate fraction using Decimal
+
+        limit_price = None
+        order_type_to_use = OrderType.MARKET # Default to market
+
+        if use_limit_compensation:
+            try:
+                ticker = await client.get_ticker(symbol)
+                if ticker and ticker.bid > 0 and ticker.ask > 0:
+                    if original_failed_side == OrderSide.SELL:
+                        # Selling to close long: set limit slightly below current bid
+                        limit_price = ticker.bid * (Decimal("1") - price_offset_fraction) # Decimal arithmetic
+                    else: # original_failed_side == OrderSide.BUY:
+                        # Buying to close short: set limit slightly above current ask
+                        limit_price = ticker.ask * (Decimal("1") + price_offset_fraction) # Decimal arithmetic
+                    
+                    if limit_price > 0: # Ensure price is valid
+                        order_type_to_use = OrderType.LIMIT
+                        logger.info(f"Determined compensation limit price: {limit_price:.4f} (Side: {original_failed_side.value}, Offset: {price_offset_dec:.3f}%)") # Log Decimal offset
+                    else:
+                        logger.warning(f"Calculated invalid limit price ({limit_price}) for {symbol} compensation. Falling back to MARKET order.")
+                else:
+                    logger.warning(f"Could not get valid ticker bid/ask for {symbol} on {exchange_id} to set limit price. Falling back to MARKET order.")
+            except Exception as ticker_err:
+                logger.error(f"Error fetching ticker for compensation limit price on {exchange_id} for {symbol}: {ticker_err}. Falling back to MARKET order.")
+        else:
+            logger.info("Market order configured for compensation.")
+
         try:
             # Determine the side for the compensating order (opposite of the original)
             # compensating_side = OrderSide.BUY if original_failed_side == OrderSide.SELL else OrderSide.SELL # Incorrect logic
@@ -633,29 +694,29 @@ class ExecutionHandler:
             # If the original SELL failed, we need to SELL the long position we opened.
             # If the original BUY failed, we need to BUY back the short position we opened.
             compensating_side = original_failed_side 
-            logger.info(f"Compensating position on {exchange_id} for {symbol}: placing {compensating_side.value} order for {quantity}")
+            logger.info(f"Compensating position on {exchange_id} for {symbol}: placing {compensating_side.value} {order_type_to_use.value} order for {quantity}")
             
-            # Place a market order to close/compensate the position
+            # Place the order to close/compensate the position
             order = await client.place_order(
                 symbol=symbol,
-                side=compensating_side, 
-                order_type=OrderType.MARKET,
-                quantity=quantity
+                side=compensating_side,
+                order_type=order_type_to_use,
+                quantity=quantity,
+                price=limit_price, # Will be None if market order
+                reduce_only=True # Attempt to only reduce the existing position
             )
 
-            # Update portfolio tracker with the compensation order
             if order:
                 logger.info(f"Compensation order placed successfully: {order.id}")
-                self.portfolio_tracker.update_order(exchange_id, order)
-                # Return the compensation order object on success
-                return order 
+                # TODO: Monitor compensation order fill status? For now, assume success if placed.
+                return True
             else:
-                logger.error(f"Compensation order placement failed for {symbol} on {exchange_id}")
-                return None
+                logger.error(f"Compensation order placement returned None on {exchange_id} for {symbol}.")
+                return False
 
         except Exception as e:
-            logger.error(f"Error compensating position on {exchange_id} for {symbol}: {str(e)}", exc_info=True)
-            return None
+            logger.error(f"Error placing compensation order on {exchange_id} for {symbol}: {e}", exc_info=True)
+            return False
     
     def get_execution_history(self) -> List[TradeExecution]:
         """

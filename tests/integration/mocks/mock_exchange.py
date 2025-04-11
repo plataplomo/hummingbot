@@ -2,9 +2,10 @@ import asyncio
 import logging
 import time
 import uuid
-from typing import Dict, Any, Optional, List, Coroutine, Callable
+from typing import Dict, Any, Optional, List, Coroutine, Callable, Tuple
 from datetime import datetime, timezone, timedelta
 import copy
+from decimal import Decimal
 
 from cyberdelta.apis.base import ExchangeAPI, APIError, APIErrorCode
 from cyberdelta.core.models import (
@@ -45,19 +46,21 @@ class MockExchangeAPI(ExchangeAPI):
         self._balances: Dict[str, Balance] = {} # Store balances by asset
         self._mock_tickers: Dict[str, Ticker] = {}
         self._mock_funding_rates: Dict[str, FundingRate] = {}
+        self._trades: List[Trade] = [] # Added to store trades
         
-        # --- NEW: Fee attributes initialized from config ---
-        default_fee = 0.001 # Default fee rate if not in config
+        # --- NEW: Fee attributes initialized from config as Decimal ---
+        default_fee = "0.001" # Default fee rate as string for Decimal
         default_asset = 'USD' # Default fee asset if not in config
         if self.full_config:
-            self.maker_fee = self.full_config.get(f'exchanges.{exchange_name}.maker_fee', default_fee)
-            self.taker_fee = self.full_config.get(f'exchanges.{exchange_name}.taker_fee', default_fee)
+            # Convert fee rates fetched from config (potentially float) to Decimal via string
+            self.maker_fee = Decimal(str(self.full_config.get(f'exchanges.{exchange_name}.maker_fee', default_fee)))
+            self.taker_fee = Decimal(str(self.full_config.get(f'exchanges.{exchange_name}.taker_fee', default_fee)))
             # Use 'collateral_asset' as the primary indicator for fee asset
             self.fee_asset = self.full_config.get(f'exchanges.{exchange_name}.collateral_asset', default_asset)
         else:
             # Fallback if full_config not provided (less ideal)
-            self.maker_fee = config.get('maker_fee', default_fee)
-            self.taker_fee = config.get('taker_fee', default_fee)
+            self.maker_fee = Decimal(str(config.get('maker_fee', default_fee)))
+            self.taker_fee = Decimal(str(config.get('taker_fee', default_fee)))
             self.fee_asset = config.get('collateral_asset', default_asset)
         # ---------------------------------------------------
 
@@ -136,6 +139,8 @@ class MockExchangeAPI(ExchangeAPI):
         """Return a predefined mock ticker."""
         self._check_error_simulation("get_ticker")
         await self._simulate_latency()
+        logger.debug(f"[DEBUG] Mock {self.exchange_name}: get_ticker called for symbol '{symbol}'.")
+        logger.debug(f"[DEBUG] Mock {self.exchange_name}: Current _mock_tickers keys: {list(self._mock_tickers.keys())}")
         logger.debug(f"Mock {self.exchange_name}: Getting ticker for {symbol}")
         return self._mock_tickers.get(symbol)
 
@@ -197,7 +202,7 @@ class MockExchangeAPI(ExchangeAPI):
         
         # --- Simulate more realistic fill for market orders --- 
         fill_price = price # Default to limit price if provided
-        status = OrderStatus.OPEN if order_type == OrderType.LIMIT else OrderStatus.FILLED
+        status = OrderStatus.FILLED if order_type == OrderType.MARKET else OrderStatus.NEW
         
         if order_type == OrderType.MARKET:
             # Get the exchange-specific symbol
@@ -215,8 +220,8 @@ class MockExchangeAPI(ExchangeAPI):
         elif order_type == OrderType.LIMIT:
              if price is None:
                  raise ValueError("Limit price must be provided for LIMIT orders")
-             fill_price = price # Use provided limit price for status OPEN
-             status = OrderStatus.OPEN # Limit orders start as OPEN
+             fill_price = price # Use provided limit price
+             status = OrderStatus.NEW # Correct: Limit orders start as NEW
         # ------------------------------------------------------
 
         filled_quantity = quantity if status == OrderStatus.FILLED else 0.0
@@ -233,64 +238,109 @@ class MockExchangeAPI(ExchangeAPI):
             status=status,
             time=int(datetime.now(timezone.utc).timestamp() * 1000)
         )
-        # self._orders[order_id] = order # Store initial order state before potentially modifying for fill behavior
+        # Store initial order state before potentially modifying for fill behavior
+        self._orders[order_id] = copy.deepcopy(order) 
 
         # --- Apply Fill Behavior --- 
-        final_filled_quantity = 0.0
+        final_filled_quantity = Decimal("0.0") # Use Decimal
         final_status = status # Default to initial status (NEW for limit, FILLED for market)
         trade_to_record = None # Only create a trade if filled
-        
-        if self._open_orders_behavior == "fill_immediately" and status == OrderStatus.NEW:
-            # Simulate immediate fill for limit orders if requested
-            final_status = OrderStatus.FILLED
-            final_filled_quantity = quantity
-            order.status = final_status
-            order.filled_quantity = final_filled_quantity
-            logger.debug(f"Mock {self.exchange_name}: Simulating immediate fill for limit order {order_id}")
-        
-        elif self._open_orders_behavior == "partial_fill":
-            # Simulate partial fill (e.g., 50%) regardless of initial status
-            partial_fill_ratio = 0.5
-            final_filled_quantity = quantity * partial_fill_ratio
-            final_status = OrderStatus.PARTIALLY_FILLED
-            order.status = final_status
-            order.filled_quantity = final_filled_quantity
-            logger.debug(f"Mock {self.exchange_name}: Simulating partial fill ({partial_fill_ratio*100}%) for order {order_id}")
-        
-        elif status == OrderStatus.FILLED:
-            # If initially filled (e.g., market order), set final filled quantity
-            final_filled_quantity = quantity
-            final_status = OrderStatus.FILLED # Ensure it stays filled
-            order.status = final_status # Update order object just in case
-            order.filled_quantity = final_filled_quantity
-            
-        # --- Create Trade Record if Filled --- 
-        if final_filled_quantity > 0:
-             # Use the fill_price calculated earlier
-            avg_fill_price = fill_price
-            # Determine correct fee (taker for market/immediate fill, maker otherwise?)
-            # Mock simplification: Assume taker fee for any filled amount initially
-            trade_fee_rate = self.taker_fee
+        avg_fill_price = Decimal(str(fill_price)) if fill_price is not None else None # Convert fill_price to Decimal
 
-            trade_to_record = Trade(
-                id=f"trade_{uuid.uuid4()}", # Unique trade ID
-                symbol=symbol,
-                price=avg_fill_price,
-                quantity=final_filled_quantity,
-                side=side,
-                time=int(datetime.now(timezone.utc).timestamp() * 1000),
-                # Use the determined fee rate and fee asset
-                fee=abs(final_filled_quantity * avg_fill_price * trade_fee_rate),
-                fee_asset=self.fee_asset # Use the class attribute
-            )
-            # Update mock balances and positions based *only* on the trade (filled amount)
-            self._update_balance_and_position(trade_to_record)
-            
-        # --- Store Final Order State --- 
-        self._orders[order_id] = order # Store potentially modified order (status, filled_qty)
+        # Determine fee rate (use taker fee for market/immediate fills, maker otherwise - simplified)
+        # Ensure fee rate is Decimal
+        trade_fee_rate = self.taker_fee if final_status == OrderStatus.FILLED else self.maker_fee
+        if not isinstance(trade_fee_rate, Decimal):
+             trade_fee_rate = Decimal(str(trade_fee_rate))
+        
+        # --- MODIFIED: Only apply special behavior if NOT reduce_only ---
+        if not reduce_only: 
+            if self._open_orders_behavior == "fill_immediately":
+                # Simulate immediate fill for all orders if requested
+                final_status = OrderStatus.FILLED
+                final_filled_quantity = Decimal(str(quantity)) # Use Decimal quantity
+                # Update order object directly
+                order.status = final_status
+                order.filled_quantity = final_filled_quantity
+                order.price = avg_fill_price # Ensure fill price is set
+                logger.debug(f"Mock {self.exchange_name}: Immediately filling order {order_id}")
+
+            elif self._open_orders_behavior == "partial_fill" and order_type == OrderType.MARKET:
+                # Simulate partial fill for market orders if requested
+                final_filled_quantity = Decimal(str(quantity)) / Decimal("2") # Fill half, ensure Decimal
+                if final_filled_quantity > Decimal("0"):
+                    final_status = OrderStatus.PARTIALLY_FILLED
+                else:
+                     final_status = OrderStatus.NEW # If half is zero, remains new
+                # Update order object directly
+                order.status = final_status
+                order.filled_quantity = final_filled_quantity
+                order.price = avg_fill_price # Ensure fill price is set
+                logger.debug(f"Mock {self.exchange_name}: Partially filling order {order_id} ({final_filled_quantity}/{quantity})")
                 
-        logger.debug(f"Mock {self.exchange_name}: Order created/updated: {order}")
-        return order
+            elif order_type == OrderType.MARKET:
+                 # Default market order fill (full)
+                 final_status = OrderStatus.FILLED
+                 final_filled_quantity = Decimal(str(quantity)) # Use Decimal quantity
+                 order.status = final_status
+                 order.filled_quantity = final_filled_quantity
+                 order.price = avg_fill_price
+                 logger.debug(f"Mock {self.exchange_name}: Fully filling market order {order_id}")
+                 
+            #else: Limit orders remain NEW unless fill_immediately is set
+                 
+        # --- Handle reduce_only orders (assume they fill immediately) ---
+        elif reduce_only:
+             final_status = OrderStatus.FILLED
+             final_filled_quantity = Decimal(str(quantity))
+             order.status = final_status
+             order.filled_quantity = final_filled_quantity
+             order.price = avg_fill_price # Use the determined fill price
+             logger.debug(f"Mock {self.exchange_name}: Immediately filling reduce_only order {order_id}")
+             # Typically reduce_only uses TAKER fee
+             trade_fee_rate = self.taker_fee 
+             if not isinstance(trade_fee_rate, Decimal): 
+                 trade_fee_rate = Decimal(str(trade_fee_rate))
+
+        # --- Update balances and positions IF the order was filled/partially filled ---
+        if final_filled_quantity > Decimal("0") and avg_fill_price is not None:
+            try:
+                # Create Trade object for balance update
+                trade = Trade(
+                    id=f"trade_{order_id}_{int(time.time()*1000)}",
+                    order_id=order_id,
+                    exchange=self.exchange_name, # Use exchange_name
+                    symbol=symbol,
+                    side=side,
+                    quantity=final_filled_quantity,
+                    price=avg_fill_price,
+                    fee=abs(final_filled_quantity * avg_fill_price * trade_fee_rate),
+                    fee_asset=self.fee_asset,
+                    timestamp=int(datetime.now(timezone.utc).timestamp() * 1000)
+                )
+                self._trades.append(trade) # Store the trade
+                trade_to_record = trade # Assign for potential return/logging
+                
+                # Update internal state
+                self._update_balance_and_position(trade)
+                logger.debug(f"Updated balance/position for trade {trade.id} on {self.exchange_name}")
+                
+            except Exception as e:
+                 logger.error(f"Error processing trade update for order {order_id} on {self.exchange_name}: {e}", exc_info=True)
+                 # Decide how to handle this - should the order placement fail?
+                 # For mock, maybe log and continue, but return original order state?
+                 # Revert order status if update failed?
+                 order.status = status # Revert to original status before fill attempt
+                 order.filled_quantity = Decimal("0.0")
+                 # Consider raising a specific error here?
+                 raise MockAPIError(f"Failed to update internal state after fill for order {order_id}: {e}") from e
+
+        # Update the order in the store with its final state
+        self._orders[order_id] = order
+        
+        logger.info(f"Mock {self.exchange_name}: Order {order_id} placed/updated. Final Status: {order.status.name}, Filled: {order.filled_quantity}")
+        # Return a copy to prevent external modification
+        return copy.deepcopy(order)
 
     async def cancel_order(self, order_id: str, symbol: Optional[str] = None) -> Dict[str, Any]:
         """Simulate cancelling an order."""
@@ -344,9 +394,22 @@ class MockExchangeAPI(ExchangeAPI):
         self._mock_funding_rates[funding_rate.symbol] = funding_rate
         
     def set_mock_balance(self, balance: Balance):
-        """Set a balance value for the mock to return."""
+        """Set a balance value for the mock to return. Ensures values are stored as Decimal."""
         logger.debug(f"Mock {self.exchange_name}: Setting mock balance for {balance.asset}")
-        self._balances[balance.asset] = balance
+        try:
+            # Create a new Balance object with Decimal values
+            decimal_balance = Balance(
+                asset=balance.asset,
+                # Convert potential float/int/str to Decimal via string
+                total=Decimal(str(balance.total)) if balance.total is not None else Decimal("0.0"),
+                free=Decimal(str(balance.free)) if balance.free is not None else Decimal("0.0"),
+                locked=Decimal(str(balance.locked)) if balance.locked is not None else Decimal("0.0")
+            )
+            self._balances[balance.asset] = decimal_balance
+        except Exception as e:
+            logger.error(f"Error converting/setting mock balance for {balance.asset}: {e}. Original: {balance}")
+            # Fallback: store original if conversion fails, though this might lead to later TypeErrors
+            self._balances[balance.asset] = balance
 
     def set_mock_position(self, position: Position):
         """Set a position value for the mock to return."""
@@ -458,6 +521,10 @@ class MockExchangeAPI(ExchangeAPI):
         fee_balance_before = self._balances.get(fee_deduction_asset)
         logger.debug(f"Fee Balance BEFORE update ({fee_deduction_asset}): {fee_balance_before}")
 
+        # --- Add Logging before adjustment ---
+        logger.debug(f"Updating [{base_asset}] balance for trade side [{trade.side.value}] with quantity [{trade.quantity}]")
+        # --- End Logging ---
+
         # Apply cost and fee updates (using trade.fee and trade.fee_asset)
         if trade.side == OrderSide.BUY:
             # Increase base asset
@@ -485,49 +552,66 @@ class MockExchangeAPI(ExchangeAPI):
         fee_balance_after = self._balances.get(fee_deduction_asset)
         logger.debug(f"Fee Balance AFTER update ({fee_deduction_asset}): {fee_balance_after}")
 
-        # Update position (very basic) - Use 'size' instead of 'quantity'
+        # Update position (very basic) - Ensure Decimal usage
         if trade.symbol not in self._positions:
-            # Use 'size=0.0' in constructor
-            self._positions[trade.symbol] = Position(symbol=trade.symbol, size=0.0, entry_price=0.0, mark_price=trade.price, side=trade.side) # Added mark_price and side
+            # Initialize position with Decimal values
+            self._positions[trade.symbol] = Position(
+                symbol=trade.symbol, 
+                size=Decimal("0.0"), # Initialize with Decimal zero
+                entry_price=Decimal("0.0"), # Initialize with Decimal zero
+                mark_price=trade.price, # Already Decimal from Trade
+                side=trade.side, # side is enum
+                liquidation_price=Decimal("0.0"), # Initialize
+                unrealized_pnl=Decimal("0.0") # Initialize
+            )
 
         pos = self._positions[trade.symbol]
-        # Use pos.size for calculations
+        # Ensure calculations use Decimal
         if trade.side == OrderSide.BUY:
-            new_size = pos.size + trade.quantity
+            new_size = pos.size + trade.quantity # Decimal + Decimal
         else:
-            new_size = pos.size - trade.quantity
+            new_size = pos.size - trade.quantity # Decimal - Decimal
 
-        # Simple average entry price update
-        if new_size != 0:
-            # Use pos.size here
-            if pos.size == 0:
-                 new_entry_price = trade.price
-            # Use pos.size here 
-            elif (pos.size > 0 and trade.side == OrderSide.BUY) or (pos.size < 0 and trade.side == OrderSide.SELL):
-                # Averaging up/down - Use pos.size here
+        # Simple average entry price update (ensure Decimal math)
+        if new_size != Decimal("0"):
+            if pos.size == Decimal("0"):
+                 new_entry_price = trade.price # trade.price is Decimal
+            elif (pos.size > Decimal("0") and trade.side == OrderSide.BUY) or \
+                 (pos.size < Decimal("0") and trade.side == OrderSide.SELL):
+                # Averaging up/down - All operands are Decimal
                 new_entry_price = ((pos.size * pos.entry_price) + (trade.quantity * trade.price)) / new_size
             else:
                 # Reducing position size - entry price doesn't change (usually PnL is realized)
-                new_entry_price = pos.entry_price
+                new_entry_price = pos.entry_price # Already Decimal
         else:
-            new_entry_price = 0.0 # Position closed
+            new_entry_price = Decimal("0.0") # Position closed
 
-        # Set pos.size instead of pos.quantity
-        pos.size = new_size
-        pos.entry_price = new_entry_price
-        pos.mark_price = trade.price # Update mark price on trade
+        pos.size = new_size # Assign Decimal
+        pos.entry_price = new_entry_price # Assign Decimal
+        pos.mark_price = trade.price # Assign Decimal
+        
         # Ensure side is correct, especially when opening/flipping
-        if pos.size > 0:
-            pos.side = OrderSide.BUY
-        elif pos.size < 0:
+        # Store size as signed Decimal: positive for BUY, negative for SELL
+        # The 'side' attribute reflects the side of the *last* trade affecting the position,
+        # but the sign of 'size' definitively indicates long/short.
+        if new_size > Decimal("0"):
+            pos.side = OrderSide.BUY 
+        elif new_size < Decimal("0"):
             pos.side = OrderSide.SELL
-            pos.size = abs(pos.size) # Store size as positive, side indicates direction
         else:
-            # If size is zero, side doesn't strictly matter, maybe keep last or set default?
-            pass # Keep existing side or reset?
+            # Position closed, side can remain as is or be reset (e.g., to BUY by default)
+            pass
+            
+        pos.size = new_size # Assign the potentially signed Decimal size
+        pos.entry_price = new_entry_price # Assign Decimal
+        pos.mark_price = trade.price # Assign Decimal
 
-        balance_after = self._balances.get(quote_asset)
-        logger.debug(f"Balance AFTER update ({quote_asset}): {balance_after}")
+        # Recalculate PnL (optional, could be done elsewhere)
+        # Note: calculate_unrealized_pnl needs to handle signed size correctly
+        pos.unrealized_pnl = pos.calculate_unrealized_pnl(pos.mark_price)
+
+        balance_after_pos = self._balances.get(quote_asset)
+        logger.debug(f"Balance AFTER position update ({quote_asset}): {balance_after_pos}")
 
     def get_trades(self) -> List[Trade]:
         # This logic was incorrect, need to store trades separately

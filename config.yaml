@@ -1,0 +1,19 @@
+max_position_size: 10000.0 # Max size per position in USD
+max_order_value: 5000.0 # Max value per single order in USD
+min_opportunity_profit: 1.0 # Minimum expected profit in USD
+position_reconciliation_threshold: 0.01 # Percentage difference threshold
+
+execution:
+  max_slippage: 0.002 # 0.2%
+  max_retries: 3
+  retry_delay_base: 1.0 # seconds
+  settlement_delay: 2.0 # seconds
+  circuit_breaker:
+    loss_threshold: 100.0 # USD
+    failed_trades: 3
+  compensation:
+    use_limit_orders: true # NEW: Use limit orders for compensation by default
+    limit_price_offset_pct: 0.05 # NEW: % offset for limit price (0.05%)
+
+logging:
+  level: INFO # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL 
