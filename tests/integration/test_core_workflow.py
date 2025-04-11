@@ -7,14 +7,21 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cyberdelta.apis.base import APIErrorCode  # <--- Added APIErrorCode here
+from cyberdelta.apis.base import APIErrorCode, ExchangeAPI  # <--- Added ExchangeAPI here
 
 # Core Components
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus
 
 # Models
-from cyberdelta.core.models import Balance, FundingRate, OrderSide, OrderStatus, Ticker, ArbitrageOpportunity
+from cyberdelta.core.models import (
+    ArbitrageOpportunity,
+    Balance,
+    FundingRate,
+    OrderSide,
+    OrderStatus,
+    Ticker,
+)
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.signal_generator import SignalGenerator

@@ -67,12 +67,13 @@ def strategy_without_risk_manager(setup_dependencies):
         data_handler=setup_dependencies["data_handler"],
         portfolio_tracker=setup_dependencies["portfolio_tracker"],
         params={
-            "min_funding_differential": 0.01,
-            "min_profit_threshold": 1.0,
+            "min_funding_differential": Decimal("0.01"),
+            "min_profit_threshold": Decimal("1.0"),
             "risk_aversion": 0.5,
             "perp_exchange": "hyperliquid",
             "spot_exchange": "backpack",
             "symbol_mapping": {"BTC-PERP": "BTC_USDC"},
+            "default_position_size": Decimal("100.0"),
         },
     )
 

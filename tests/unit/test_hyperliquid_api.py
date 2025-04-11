@@ -1,6 +1,6 @@
 import time
-from unittest.mock import AsyncMock, patch, MagicMock
 from decimal import Decimal
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -8,13 +8,11 @@ from cyberdelta.apis.hyperliquid import HyperliquidAPI
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
+    Order,
     OrderSide,
     OrderType,
     Position,
-    Order,
-    Ticker
 )
-from tests.unit.conftest import MockResponse
 
 
 class TestHyperliquidAPI:
@@ -23,11 +21,11 @@ class TestHyperliquidAPI:
     @pytest.fixture
     def api_client(self, hyperliquid_config, hyperliquid_secrets):
         """Create a HyperliquidAPI client instance for testing."""
-        client = HyperliquidAPI(config=hyperliquid_config, secrets=hyperliquid_secrets)
+        client = HyperliquidAPI(api_config=hyperliquid_config, secrets=hyperliquid_secrets)
         # Prevent actual network calls
         client._request = AsyncMock(side_effect=RuntimeError("Network call attempted!"))
         # Ensure wallet address is set if needed for method mocks
-        client.wallet_address = hyperliquid_secrets.get("wallet_address", "0xMockAddress")
+        client._wallet_address = hyperliquid_secrets.get("HYPERLIQUID_WALLET_ADDRESS", "0xMockAddress")
         return client
 
     @pytest.mark.asyncio

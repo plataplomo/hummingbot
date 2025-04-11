@@ -5,7 +5,7 @@ This module provides validation between various position tracking systems to ens
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 from typing import Any
 
@@ -167,7 +167,7 @@ class PositionReconciliationSystem:
         Returns:
             Reconciliation results
         """
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         # Create position maps for easier comparison
         exchange_map = {p.symbol: p for p in exchange_positions}
@@ -235,16 +235,31 @@ class PositionReconciliationSystem:
 
             # Convert float threshold to Decimal for comparison
             size_threshold_dec = Decimal(str(self.reconciliation_threshold))
-            # Ensure max operands are Decimal
-            max_operand = max(abs(exch_size_dec), abs(local_size_dec), Decimal("0.000001"))
-            size_threshold = size_threshold_dec * max_operand  # Avoid div by zero
 
-            if size_discrepancy > size_threshold:
+            # --- Threshold calculation fix ---
+            # Calculate absolute threshold based on the larger of the two position sizes (or a minimum value)
+            # This handles cases where one position is zero.
+            max_abs_size = max(abs(exch_size_dec), abs(local_size_dec))
+            if max_abs_size == Decimal("0.0"):
+                # If both are zero, there's no discrepancy relative to size
+                size_threshold_amount = Decimal("0.0")
+            else:
+                # Threshold is a percentage of the larger absolute size
+                size_threshold_amount = size_threshold_dec * max_abs_size
+            # Add a small absolute minimum threshold to catch discrepancies when positions are very small
+            # or one is zero (e.g., detecting 0 vs 0.001)
+            # This value should be configurable or based on asset precision.
+            minimum_absolute_threshold = Decimal("0.000001") 
+            final_threshold = max(size_threshold_amount, minimum_absolute_threshold)
+            # --- End Threshold calculation fix ---
+
+            # Use the final calculated threshold for comparison
+            if size_discrepancy > final_threshold:
                 discrepancy_details = {
                     "symbol": symbol,
                     "type": "size",
-                    "exchange_value": str(exch_pos.size),
-                    "local_value": str(local_pos.size),
+                    "exchange_value": str(exch_pos.size), # Keep original string representation
+                    "local_value": str(local_pos.size), # Keep original string representation
                     "discrepancy": str(size_discrepancy),
                 }
                 discrepancies.append(discrepancy_details)
@@ -371,7 +386,8 @@ class PositionReconciliationSystem:
         Returns:
             List of discrepancy records
         """
-        cutoff_time = datetime.now() - timedelta(days=days)
+        # Use timezone-aware UTC for comparison with stored aware timestamps
+        cutoff_time = datetime.now(UTC) - timedelta(days=days)
         return [r for r in self.discrepancy_history if r["timestamp"] >= cutoff_time]
 
     def get_latest_results(self) -> dict[str, dict[str, Any]]:

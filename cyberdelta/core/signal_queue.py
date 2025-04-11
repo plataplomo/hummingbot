@@ -1,4 +1,4 @@
-from __future__ import annotations # Enable postponed evaluation
+from __future__ import annotations  # Enable postponed evaluation
 
 """
 Priority Signal Queue for trade signals.
@@ -13,16 +13,20 @@ import heapq
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any # Added TYPE_CHECKING
+from typing import TYPE_CHECKING  # Added TYPE_CHECKING
+
+# from cyberdelta.validation.funding_data import ArbitrageOpportunity # Moved below
+from cyberdelta.core.models import ArbitrageOpportunity, SignalType, TradeSignal
+from cyberdelta.utils.config import Config
 
 # from cyberdelta.core.models import SignalType, TradeSignal # Moved below
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
-# from cyberdelta.validation.funding_data import ArbitrageOpportunity # Moved below
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import SignalType, TradeSignal
     from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+# Setup logging
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +39,7 @@ class PrioritySignalQueue:
     """
 
     def __init__(
-        self, config: dict[str, Any], circuit_breaker_system: CircuitBreakerSystem | None = None
+        self, config: Config, circuit_breaker_system: CircuitBreakerSystem | None = None
     ) -> None:
         """
         Initialize the priority signal queue.
@@ -46,10 +50,12 @@ class PrioritySignalQueue:
         """
         self.config = config
         self.circuit_breaker_system = circuit_breaker_system
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}") # Initialize logger
+        self.circuit_breaker = circuit_breaker_system
 
         # Priority queue: [(negative_utility_score, unique_id, signal)]
         # Using negative utility score for max-heap behavior
-        self.signal_queue: list[tuple[float, int, "TradeSignal"]] = []
+        self.signal_queue: list[tuple[float, int, TradeSignal]] = []
 
         # Counter for generating unique IDs
         self.counter = 0
@@ -62,7 +68,7 @@ class PrioritySignalQueue:
 
         logger.info("Initialized priority signal queue")
 
-    def add_signal(self, signal: "TradeSignal") -> bool:
+    def add_signal(self, signal: TradeSignal) -> bool:
         """
         Add a signal to the priority queue.
 
@@ -125,8 +131,8 @@ class PrioritySignalQueue:
         return True
 
     def add_from_opportunity(
-        self, opportunity: "ArbitrageOpportunity", strategy_name: str
-    ) -> "TradeSignal" | None:
+        self, opportunity: ArbitrageOpportunity, strategy_name: str
+    ) -> TradeSignal | None:
         """
         Create and add a trade signal from an arbitrage opportunity.
 
@@ -167,7 +173,7 @@ class PrioritySignalQueue:
 
         return None
 
-    def get_next_signal(self) -> "TradeSignal" | None:
+    def get_next_signal(self) -> TradeSignal | None:
         """
         Get highest priority unexpired signal.
 
@@ -197,7 +203,7 @@ class PrioritySignalQueue:
         logger.warning(f"Retrieved invalid signal for {signal.symbol}, trying next")
         return self.get_next_signal()
 
-    def peek_next_signal(self) -> "TradeSignal" | None:
+    def peek_next_signal(self) -> TradeSignal | None:
         """
         Peek at highest priority unexpired signal without removing it.
 
@@ -222,7 +228,7 @@ class PrioritySignalQueue:
         self._clean_expired_signals()
         return self.peek_next_signal() if self.signal_queue else None
 
-    def get_signals(self, max_count: int = 10) -> list["TradeSignal"]:
+    def get_signals(self, max_count: int = 10) -> list[TradeSignal]:
         """
         Get multiple signals in priority order.
 
@@ -314,7 +320,7 @@ class PrioritySignalQueue:
         logger.debug(f"Trimmed signal queue to {self.max_queue_size} items")
         return True
 
-    def _calculate_expiration(self, signal: "TradeSignal") -> datetime:
+    def _calculate_expiration(self, signal: TradeSignal) -> datetime:
         """
         Calculate signal expiration time.
 
@@ -339,7 +345,7 @@ class PrioritySignalQueue:
         # Create expiration time using timezone-aware datetime
         return datetime.now(UTC) + timedelta(seconds=expiration_seconds)
 
-    def _check_circuit_breakers(self, signal: "TradeSignal") -> bool:
+    def _check_circuit_breakers(self, signal: TradeSignal) -> bool:
         """
         Check if any circuit breakers are active for this signal.
 
@@ -353,20 +359,25 @@ class PrioritySignalQueue:
             return True
 
         try:
-            # Check exchange circuit breakers
-            if signal.metadata and "long_exchange" in signal.metadata:
-                long_exchange = signal.metadata["long_exchange"]
-                if not self.circuit_breaker_system.check_exchange(long_exchange):
-                    return False
+            # Check circuit breakers
+            if self.circuit_breaker:
+                exchange = signal.metadata.get("exchange") # Attempt to get exchange from metadata
+                if not exchange:
+                     # Try inferring from symbol if possible (e.g., "EXCHANGE-SYMBOL")
+                     parts = signal.symbol.split('-', 1)
+                     if len(parts) == 2:
+                          exchange = parts[0].lower() # Assume first part is exchange
+                     else:
+                          logger.warning(f"Cannot determine exchange for circuit breaker check on signal {signal.symbol}. Skipping check.")
+                          return True # Allow signal if exchange unknown
 
-            if signal.metadata and "short_exchange" in signal.metadata:
-                short_exchange = signal.metadata["short_exchange"]
-                if not self.circuit_breaker_system.check_exchange(short_exchange):
+                # Use check_symbol which implicitly checks exchange and global
+                can_exec, reason = self.circuit_breaker.can_execute(exchange, signal.symbol)
+                if not can_exec:
+                    self.logger.warning(
+                        f"Signal for {signal.symbol} blocked by circuit breaker: {reason}"
+                    )
                     return False
-
-            # Check symbol circuit breakers
-            if not self.circuit_breaker_system.check_symbol(signal.symbol):
-                return False
 
             # All checks passed
             return True
@@ -376,9 +387,9 @@ class PrioritySignalQueue:
             # Fail safe on error
             return False
 
-    def get_pending_signals(self) -> list["TradeSignal"]:
+    def get_pending_signals(self) -> list[TradeSignal]:
         """Get a list of all signals currently pending in the queue."""
-        result: list["TradeSignal"] = []
+        result: list[TradeSignal] = []
         with self.lock:
             # Create a sorted list for a snapshot view
             sorted_heap = sorted(list(self.signal_queue), key=lambda x: (x[0], x[1]))
@@ -399,7 +410,7 @@ class PrioritySignalQueue:
 
     def _process_priority_levels(self) -> None:
         """Internal method to process signals based on priority levels."""
-        processed_signals: list["TradeSignal"] = []
+        processed_signals: list[TradeSignal] = []
         while self.signal_queue:
             score, count, signal = heapq.heappop(self.signal_queue)
             if True:
@@ -448,7 +459,7 @@ class PrioritySignalQueue:
                     )
                     # ... existing code ...
 
-    def _add_signal(self, signal: "TradeSignal", priority_score: float) -> None:
+    def _add_signal(self, signal: TradeSignal, priority_score: float) -> None:
         """Adds a signal to the internal queue with appropriate priority."""
         with self.lock:
             # Use a counter to maintain FIFO for signals with the same priority/timestamp
@@ -490,7 +501,7 @@ class PrioritySignalQueue:
                 priority=priority_score,
             )
 
-    async def wait_for_signal(self, timeout: float | None = None) -> "TradeSignal" | None:
+    async def wait_for_signal(self, timeout: float | None = None) -> TradeSignal | None:
         """Waits for a signal to become available in the queue."""
         # ... (existing implementation)
         processed_signal = None
@@ -524,7 +535,7 @@ class PrioritySignalQueue:
 
         return processed_signal
 
-    def get_prioritized_signals(self, max_signals: int = 1) -> list["TradeSignal"]:
+    def get_prioritized_signals(self, max_signals: int = 1) -> list[TradeSignal]:
         """Retrieves a list of the highest priority signals without waiting."""
         signals = []
         with self.lock:
@@ -546,28 +557,74 @@ class PrioritySignalQueue:
 
         return signals
 
-    def clear_expired_signals(self) -> int:
-        """Removes signals that have passed their expiration time."""
-        removed_count = 0
-        with self.lock:
-            now = datetime.now(UTC)
-            valid_signals_heap = []
-            while self.signal_heap:
-                item = heapq.heappop(self.signal_heap)
-                priority, timestamp, count, signal = item
-                is_expired = signal.expiration is not None and signal.expiration <= now
-                # Placeholder validity check
-                # Removed: is_valid_check = signal.is_valid()
-                is_valid_check = True  # Placeholder
+    async def clear_expired_signals(self) -> None:
+        """Periodically remove expired signals from the queue."""
+        while True:
+            # Sleep for the configured interval
+            await asyncio.sleep(self.cleanup_interval)
+            removed_count = 0
+            with self.lock:
+                now = datetime.now(UTC)
+                valid_signals_heap = []
+                while self.signal_queue:
+                    score, count, signal = heapq.heappop(self.signal_queue)
+                    is_expired = signal.expiration is not None and signal.expiration <= now
+                    # Placeholder validity check
+                    is_valid_check = signal.is_valid()
 
-                if is_valid_check and not is_expired:
-                    heapq.heappush(valid_signals_heap, item)
-                else:
-                    removed_count += 1
-                    self.logger.debug(
-                        "Removing signal",
-                        reason="Expired" if is_expired else "Invalid",
-                        signal=signal,
-                    )
-            self.signal_heap = valid_signals_heap
-        return removed_count
+                    if is_valid_check and not is_expired:
+                        heapq.heappush(valid_signals_heap, (score, count, signal))
+                    else:
+                        removed_count += 1
+                        self.logger.debug(
+                            "Removing signal",
+                            reason="Expired" if is_expired else "Invalid",
+                            signal=signal,
+                        )
+                self.signal_queue = valid_signals_heap
+            if removed_count > 0:
+                self.logger.info(f"Cleared {removed_count} expired/invalid signals.")
+
+    def _check_circuit_breakers(self, signal: TradeSignal) -> bool:
+        """Check if a signal is blocked by circuit breakers."""
+        try:
+            # Check circuit breakers using the assigned instance attribute
+            if self.circuit_breaker:
+                exchange = signal.metadata.get("exchange")
+                long_exchange = signal.metadata.get("long_exchange")
+                short_exchange = signal.metadata.get("short_exchange")
+
+                # Determine relevant exchange(s)
+                exchanges_to_check = set()
+                if exchange:
+                    exchanges_to_check.add(exchange)
+                if long_exchange:
+                    exchanges_to_check.add(long_exchange)
+                if short_exchange:
+                    exchanges_to_check.add(short_exchange)
+
+                if not exchanges_to_check:
+                    # Try to infer from symbol if possible
+                    parts = signal.symbol.split('-', 1)
+                    if len(parts) == 2:
+                        inferred_exchange = parts[0].lower()
+                        exchanges_to_check.add(inferred_exchange)
+                        self.logger.debug(f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} for CB check.")
+                    else:
+                        self.logger.warning(f"Cannot determine exchange for circuit breaker check on signal {signal.symbol}. Skipping check.")
+                        return True # Allow signal if exchange unknown
+
+                # Check each relevant exchange and the specific symbol
+                for ex in exchanges_to_check:
+                    can_exec, reason = self.circuit_breaker.can_execute(ex, signal.symbol)
+                    if not can_exec:
+                        self.logger.warning(f"Signal for {signal.symbol} on exchange {ex} blocked by circuit breaker: {reason}")
+                        return False
+
+            # All checks passed
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error checking circuit breakers: {e}")
+            # Fail safe on error
+            return False

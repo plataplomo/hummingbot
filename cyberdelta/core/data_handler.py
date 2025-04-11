@@ -476,7 +476,7 @@ class DataHandler:
             logger.warning(
                 f"No last update time found for ticker {symbol} on {exchange_id}, data might be stale."
             )
-            return ticker_data # Return potentially stale data if no timestamp exists
+            return None
 
         # Calculate staleness
         now = datetime.now(last_update.tzinfo) # Ensure timezone comparison if applicable
@@ -487,9 +487,8 @@ class DataHandler:
             logger.warning(
                 f"Ticker data for {symbol} on {exchange_id} is stale ({staleness:.1f}s old, threshold: {self.staleness_thresholds['ticker']}s)"
             )
-            # Consider triggering a refresh here or returning None based on strategy
-            # return None
-            return ticker_data # Example: Returning stale data with warning
+            # Explicitly return None for stale data as per robust handling requirement
+            return None
 
         # Data is valid
         return ticker_data

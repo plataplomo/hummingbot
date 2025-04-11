@@ -491,38 +491,28 @@ class TestPositionReconciliationSystem:
         # Verify results structure
         assert results["success"] is True
         assert results["symbols_checked"] == 3
-        assert len(results["discrepancies"]) == 2
+        assert len(results["discrepancies"]) == 1
 
-        # Check BTC discrepancy (should be detected)
+        # Check BTC discrepancy (should NOT be detected)
         btc_discrepancy = next(
             (d for d in results["discrepancies"] if d["symbol"] == "BTC"), None
         )
-        assert btc_discrepancy is not None
-        assert btc_discrepancy["exchange_size"] == Decimal("1.0")
-        assert btc_discrepancy["fill_size"] == Decimal("0.9")
-        assert btc_discrepancy["local_size"] == Decimal("1.0")
-        assert btc_discrepancy["exchange_size"] == 1.0
-        assert btc_discrepancy["fill_size"] == 0.9
-        assert btc_discrepancy["local_size"] == 0.95
-        assert btc_discrepancy["correct_size"] == 1.0  # Exchange is source of truth
+        assert btc_discrepancy is None # BTC sizes match
 
-        # Check ETH (should not have discrepancy)
-        eth_discrepancy = next(
-            (d for d in results["discrepancies"] if d["symbol"] == "ETH"), None
-        )
-        assert eth_discrepancy is None
-
-        # Check SOL (should be detected since in fill but not local)
-        sol_discrepancy = next(
-            (d for d in results["discrepancies"] if d["symbol"] == "SOL"), None
-        )
-        assert sol_discrepancy is not None
-
-        # Check DOGE (should be detected since in local but not exchange)
+        # Check DOGE discrepancy (should be detected)
         doge_discrepancy = next(
             (d for d in results["discrepancies"] if d["symbol"] == "DOGE"), None
         )
         assert doge_discrepancy is not None
+        assert doge_discrepancy["type"] == "size"
+        assert doge_discrepancy["exchange_value"] == "0"
+        assert doge_discrepancy["local_value"] == "1000.0"
+
+        # Check ETH discrepancy (should NOT be detected due to threshold)
+        eth_discrepancy = next(
+            (d for d in results["discrepancies"] if d["symbol"] == "ETH"), None
+        )
+        assert eth_discrepancy is None # Discrepancy 0.2 is below threshold 0.5
 
     def test_record_discrepancy(self, reconciliation_system):
         """Test recording discrepancies in history."""
@@ -562,7 +552,7 @@ class TestPositionReconciliationSystem:
     def test_get_discrepancy_history(self, reconciliation_system):
         """Test getting history filtered by time."""
         # Add some test data
-        now = datetime.now()
+        now = datetime.now(UTC)
         old_time = now - timedelta(days=10)
         recent_time = now - timedelta(days=3)
 

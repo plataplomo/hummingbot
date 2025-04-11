@@ -15,7 +15,7 @@ import os
 import pathlib
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
 import matplotlib.pyplot as plt
@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 from numpy.random import Generator
 
-from cyberdelta.core.models import MarketData, TradeSignal
+from cyberdelta.core.models import MarketData, TradeSignal, SignalType
 from cyberdelta.core.strategy import Strategy
 
 # Configure logging
@@ -42,6 +42,8 @@ class DateTimeEncoder(json.JSONEncoder):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, Decimal):
+            return float(obj)  # Convert Decimal to float for JSON
         return super(DateTimeEncoder, self).default(obj)
 
 
@@ -90,7 +92,7 @@ class BacktestEngine:
     def __init__(
         self,
         strategy: BacktestStrategy,
-        data: pd.DataFrame,
+        data: pd.DataFrame | str,  # Allow path string
         initial_capital: float = 100000.0,
         commission: float = 0.001,  # 0.1% per trade
         slippage: float = 0.001,  # 0.1% slippage
@@ -101,18 +103,68 @@ class BacktestEngine:
 
         Args:
             strategy: Strategy instance
-            data: Historical data for backtesting
+            data: Historical data (DataFrame or path to CSV) for backtesting
             initial_capital: Initial capital
             commission: Commission rate per trade
             slippage: Slippage per trade
             results_dir: Directory to save results
         """
         self.strategy = strategy
-        self.data = data
-        self.initial_capital = initial_capital
-        self.capital = initial_capital
-        self.commission = commission
-        self.slippage = slippage
+        if isinstance(data, str):
+            try:
+                # Load data, attempt date parsing for index
+                # Explicitly define header for MultiIndex columns
+                self.data = pd.read_csv(data, index_col=0, header=[0, 1], parse_dates=True)
+                logger.info(f"Loaded backtest data from {data}")
+            except Exception as e:
+                logger.error(f"Failed to load backtest data from path '{data}': {e}")
+                raise ValueError(f"Invalid data path or format: {data}") from e
+        elif isinstance(data, pd.DataFrame):
+            self.data = data.copy() # Use a copy to avoid modifying original DataFrame
+        else:
+            raise TypeError("Data must be a pandas DataFrame or a string path to a data file.")
+
+        # Verify data is loaded and not empty
+        if self.data is None or self.data.empty:
+             raise ValueError("Backtest data is empty or failed to load.")
+
+        # Robust check and conversion for DatetimeIndex
+        if not isinstance(self.data.index, pd.DatetimeIndex):
+            logger.warning(f"Data index type is {type(self.data.index)}, not DatetimeIndex. Attempting conversion.")
+            try:
+                original_index_name = self.data.index.name
+                # Attempt conversion, coercing errors to NaT
+                converted_index = pd.to_datetime(self.data.index, errors='coerce')
+                if converted_index.isna().any():
+                    num_failed = converted_index.isna().sum()
+                    logger.error(f"Failed to parse {num_failed} index values as datetime.")
+                    # Optionally show some failed values
+                    failed_examples = self.data.index[converted_index.isna()].tolist()[:5]
+                    logger.error(f"Examples of failed index values: {failed_examples}")
+                    raise ValueError("Failed to convert all index values to datetime objects.")
+                self.data.index = converted_index
+                self.data.index.name = original_index_name
+                logger.info("Successfully converted data index to DatetimeIndex.")
+            except Exception as e:
+                logger.error(f"Error during index conversion to DatetimeIndex: {e}")
+                raise ValueError("Data index could not be converted to datetime objects.") from e
+
+        # Ensure capital is Decimal
+        try:
+            self.initial_capital = Decimal(str(initial_capital))
+            self.capital = self.initial_capital
+        except InvalidOperation:
+             logger.error(f"Invalid initial_capital value: {initial_capital}. Cannot convert to Decimal.")
+             raise ValueError("initial_capital must be a valid number.")
+
+        # Ensure commission and slippage are Decimal
+        try:
+             self.commission = Decimal(str(commission))
+             self.slippage = Decimal(str(slippage))
+        except InvalidOperation:
+             logger.error(f"Invalid commission or slippage value: {commission}, {slippage}")
+             raise ValueError("commission and slippage must be valid numbers.")
+
         self.results_dir = results_dir
 
         # Results containers
@@ -151,8 +203,22 @@ class BacktestEngine:
         logger.info(f"Strategy initialized. Backtesting on {len(test_data)} data points")
 
         # Initialize backtest state
-        self.capital = self.initial_capital
-        self.equity_curve = [(test_data.index[0], self.capital)]
+        self.capital = self.initial_capital # Ensure capital starts as Decimal
+
+        # Ensure the first timestamp is a valid datetime object
+        first_timestamp = test_data.index[0]
+        if isinstance(first_timestamp, pd.Timestamp):
+             first_timestamp = first_timestamp.to_pydatetime() # Convert pd.Timestamp
+        elif not isinstance(first_timestamp, datetime):
+             # This should ideally not happen due to the __init__ check, but as a safeguard:
+             logger.error(f"First timestamp in test data is not a datetime object: {first_timestamp}")
+             # Attempt conversion or raise error
+             try:
+                 first_timestamp = pd.to_datetime(first_timestamp).to_pydatetime()
+             except Exception as e:
+                 raise TypeError(f"Could not convert first timestamp {first_timestamp} to datetime: {e}") from e
+
+        self.equity_curve = [(first_timestamp, self.capital)]
 
         # Backtest on each data point
         for i in range(len(test_data)):
@@ -215,11 +281,23 @@ class BacktestEngine:
             size = signal.get("size", 0)
             price = signal.get("price", 0)
 
-            # Calculate trade size in capital terms
-            trade_size = self.capital * size
+            # Ensure size is Decimal before calculation
+            try:
+                # Size comes from signal.quantity, which should be Decimal
+                signal_size_decimal = signal.get("size") # 'size' key holds the quantity value
+                if not isinstance(signal_size_decimal, Decimal):
+                     # Attempt conversion if not already Decimal (shouldn't happen ideally)
+                     signal_size_decimal = Decimal(str(signal_size_decimal))
 
-            # Apply commission and slippage
-            transaction_cost = trade_size * (self.commission + self.slippage)
+            except (TypeError, InvalidOperation, KeyError) as e:
+                 logger.error(f"Invalid signal size {signal.get('size')} for {symbol} at {timestamp}: {e}. Skipping signal.")
+                 continue # Skip processing this signal
+
+            # Calculate trade size in capital terms (Decimal * Decimal)
+            trade_size_capital = self.capital * signal_size_decimal # Now Decimal * Decimal
+
+            # Apply commission and slippage (Decimal math)
+            transaction_cost = trade_size_capital * (self.commission + self.slippage) # Decimal * (Decimal + Decimal)
 
             # Process based on signal type
             if signal_type in ["enter", "ENTER_LONG", "ENTER_SHORT"]:
@@ -230,13 +308,15 @@ class BacktestEngine:
                         "symbol": symbol,
                         "action": signal_type,
                         "side": side,
-                        "price": float(price),  # Store as float for JSON compatibility if needed
-                        "size": float(trade_size),
+                        # Convert Decimal to float/str for JSON if needed, but keep internal as Decimal
+                        "price": float(signal.get("price", Decimal('0'))),
+                        "size": float(trade_size_capital), # Size in capital terms
                         "cost": float(transaction_cost),
+                        "quantity": float(signal_size_decimal) # Original quantity from signal
                     }
                 )
 
-                # Deduct transaction costs
+                # Deduct transaction costs (Decimal - Decimal)
                 self.capital -= transaction_cost
 
                 # Update positions
@@ -245,14 +325,23 @@ class BacktestEngine:
                         "timestamp": timestamp,
                         "symbol": symbol,
                         "side": side,
-                        "size": trade_size,
+                        "size": trade_size_capital,
                         "entry_price": price,
                     }
                 )
 
             elif signal_type in ["exit", "EXIT_LONG", "EXIT_SHORT"]:
-                # Calculate PnL
-                pnl = signal.get("pnl", 0) * trade_size
+                # Calculate PnL (Ensure pnl from signal is Decimal or converted)
+                try:
+                     pnl_value = signal.get("pnl", Decimal('0'))
+                     if not isinstance(pnl_value, Decimal):
+                          pnl_value = Decimal(str(pnl_value))
+                except (InvalidOperation, TypeError) as e:
+                     logger.error(f"Invalid PnL value {signal.get('pnl')} for exit signal {symbol}: {e}. Assuming PnL=0.")
+                     pnl_value = Decimal('0')
+
+                # Scale PnL by trade size (Decimal * Decimal)
+                total_pnl = pnl_value * trade_size_capital
 
                 # Record trade
                 self.trades.append(
@@ -261,15 +350,17 @@ class BacktestEngine:
                         "symbol": symbol,
                         "action": signal_type,
                         "side": side,
-                        "price": float(price),  # Store as float for JSON compatibility if needed
-                        "size": float(trade_size),
+                        # Convert Decimal to float/str for JSON if needed, but keep internal as Decimal
+                        "price": float(signal.get("price", Decimal('0'))),
+                        "size": float(trade_size_capital), # Size in capital terms
                         "cost": float(transaction_cost),
-                        "pnl": float(pnl),  # Ensure PnL is stored
+                        "pnl": float(total_pnl), # Store calculated total PnL
+                        "quantity": float(signal_size_decimal) # Original quantity from signal
                     }
                 )
 
-                # Update capital with PnL and deduct transaction costs
-                self.capital += pnl - transaction_cost
+                # Update capital with PnL and deduct costs (Decimal + Decimal - Decimal)
+                self.capital += total_pnl - transaction_cost
 
                 # Remove from positions
                 self.positions = [p for p in self.positions if p["symbol"] != symbol]
@@ -284,7 +375,10 @@ class BacktestEngine:
         equity_df = pd.DataFrame(self.equity_curve, columns=["timestamp", "equity"])
         equity_df.set_index("timestamp", inplace=True)
 
-        if equity_df["equity"].std() == 0:
+        # Convert equity to float for pandas/numpy calculations
+        equity_float = equity_df["equity"].astype(float)
+
+        if equity_float.std() == 0:
             logger.warning("Equity standard deviation is zero, cannot calculate Sharpe ratio.")
             # Calculate other metrics if possible
             total_return = (self.capital / self.initial_capital) - 1
@@ -299,10 +393,10 @@ class BacktestEngine:
             }
             return
 
-        # Calculate returns
-        returns = equity_df["equity"].pct_change().dropna()
+        # Calculate returns using float equity
+        returns = equity_float.pct_change().dropna()
 
-        # Total Return
+        # Total Return (can still use Decimal capital for precision)
         total_return = (self.capital / self.initial_capital) - 1
 
         # Sharpe Ratio (assuming risk-free rate = 0)
@@ -315,9 +409,9 @@ class BacktestEngine:
             sharpe_ratio = 0.0  # Or np.nan or indicate error state
             logger.warning("Could not calculate Sharpe Ratio (returns empty or std=0).")
 
-        # Max Drawdown
-        cumulative_max = equity_df["equity"].cummax()
-        drawdown = (equity_df["equity"] - cumulative_max) / cumulative_max
+        # Max Drawdown using float equity
+        cumulative_max = equity_float.cummax()
+        drawdown = (equity_float - cumulative_max) / cumulative_max
         max_drawdown = drawdown.min() if not drawdown.empty else 0.0
 
         # --- Metrics requiring trade PnL ---
@@ -420,11 +514,12 @@ class BacktestEngine:
         # Prepare a serializable version of the results
         results = {
             "strategy": self.strategy.name,
-            "initial_capital": self.initial_capital,
-            "final_capital": self.capital,
-            "metrics": self.metrics,
-            "trades": self.trades,  # Will be handled by the DateTimeEncoder
-            "equity_curve": [(ts.isoformat(), float(equity)) for ts, equity in self.equity_curve],
+            "initial_capital": float(self.initial_capital), # Convert Decimal for JSON
+            "final_capital": float(self.capital), # Convert Decimal for JSON
+            "metrics": self.metrics, # Metrics should already be float/int/str
+            "trades": self.trades,  # Assumes floats were stored
+            # Ensure timestamp is datetime before isoformat
+            "equity_curve": [(ts.isoformat() if isinstance(ts, (datetime, pd.Timestamp)) else str(ts), float(equity)) for ts, equity in self.equity_curve],
         }
 
         with open(filename, "w") as f:
@@ -500,10 +595,17 @@ class StrategyAdapter(BacktestStrategy):
                 self._logger.warning("No MarketData converted from input, cannot update strategy.")
                 return {"signals": []}
 
-            # 2. Call the core strategy's update method
-            # Assuming update takes a list of MarketData
-            # TODO: Review if core strategy update expects list or single MarketData
-            trade_signals: list[TradeSignal] = self.strategy.update(market_data_list)
+            # 2. Call the core strategy's process_data method for each MarketData object
+            trade_signals: list[TradeSignal] = []
+            for md in market_data_list:
+                # Assuming process_data is synchronous and returns TradeSignal | None
+                signal = self.strategy.process_data(md)
+                if signal:
+                    # Ensure it's a list of TradeSignal for _convert_signals
+                    if isinstance(signal, TradeSignal):
+                        trade_signals.append(signal)
+                    else:
+                        self._logger.warning(f"Strategy process_data returned unexpected type: {type(signal)}")
 
             # 3. Convert core TradeSignal objects back to backtester's signal format (dict)
             backtest_signals: list[dict[str, Any]] = self._convert_signals(
@@ -554,14 +656,6 @@ class StrategyAdapter(BacktestStrategy):
                             low=Decimal(str(row.get("low", "NaN"))),
                             close=Decimal(str(row.get("close", "NaN"))),
                             volume=Decimal(str(row.get("volume", "NaN"))),
-                            # Add other fields if necessary, e.g., funding_rate
-                            funding_rate=Decimal(str(row.get("funding_rate", "NaN")))
-                            if "funding_rate" in row
-                            else None,
-                            # Add exchange_id if available
-                            exchange_id=str(row.get("exchange_id", "UNKNOWN"))
-                            if "exchange_id" in row
-                            else None,
                         )
                         market_data_list.append(md)
                     except Exception as e:
@@ -582,12 +676,6 @@ class StrategyAdapter(BacktestStrategy):
                         low=Decimal(str(data.get("low", "NaN"))),
                         close=Decimal(str(data.get("close", "NaN"))),
                         volume=Decimal(str(data.get("volume", "NaN"))),
-                        funding_rate=Decimal(str(data.get("funding_rate", "NaN")))
-                        if "funding_rate" in data
-                        else None,
-                        exchange_id=str(data.get("exchange_id", "UNKNOWN"))
-                        if "exchange_id" in data
-                        else None,
                     )
                     market_data_list.append(md)
                 except Exception as e:
@@ -676,9 +764,8 @@ class StrategyAdapter(BacktestStrategy):
                 "symbol": signal.symbol,
                 "type": signal.signal_type.name,  # Use Enum name string
                 "side": signal.side.name,  # Use Enum name string
-                "size": signal.size,  # Position size (e.g., percentage of capital)
+                "size": signal.quantity,  # Use quantity instead of size
                 "price": signal.price,  # Execution price estimate from strategy
-                "exchange_id": signal.exchange_id,
                 "pnl": 0.0,  # Initialize PnL
             }
 

@@ -1,21 +1,24 @@
-from __future__ import annotations # Enable postponed evaluation
+from __future__ import annotations  # Enable postponed evaluation
 
+import decimal
 import logging
+from collections import deque
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, getcontext  # Import Decimal
-from typing import TYPE_CHECKING, Any # Added TYPE_CHECKING
+from typing import TYPE_CHECKING  # Added TYPE_CHECKING and Optional
 
 import numpy as np
-import decimal
 
 from cyberdelta.core.data_handler import DataHandler
+from cyberdelta.core.models import ArbitrageOpportunity, FundingRate, Ticker
+
 # from cyberdelta.core.models import ( # Moved below
 #     ArbitrageOpportunity,
 # )
 from cyberdelta.utils.config import Config
 
 if TYPE_CHECKING:
-    from cyberdelta.core.models import ArbitrageOpportunity, MarketData, TradeSignal
+    from cyberdelta.core.models import ArbitrageOpportunity
 
 
 logger = logging.getLogger(__name__)
@@ -53,14 +56,26 @@ class SignalGenerator:
         self.min_profit_threshold = Decimal(
             str(config.get("strategy.funding_rate.min_profit_threshold", 5.0))
         )
+        self.default_slippage = Decimal(
+            str(config.get("strategy.funding_rate.default_slippage", 0.001))  # 0.1%
+        )
+        self.slippage_sensitivity = Decimal(
+            str(config.get("strategy.funding_rate.slippage_sensitivity", 0.5))
+        )
+        self.liquidity_threshold_usd = Decimal(
+            str(config.get("strategy.funding_rate.liquidity_threshold_usd", 10000))
+        )
+        self.max_slippage_percent = Decimal(
+            str(config.get("strategy.funding_rate.max_slippage_percent", 0.01))  # 1%
+        )
 
         # Historical funding rates for volatility calculation
-        # exchange -> symbol -> List[(timestamp, rate: Decimal)]
-        self.historical_funding_rates: dict[str, dict[str, list[tuple[datetime, Decimal]]]] = {}
+        # exchange -> internal_symbol -> deque[(timestamp, rate: Decimal)]
+        self.historical_funding_rates: dict[str, dict[str, deque[tuple[datetime, Decimal]]]] = {}
 
         # Historical basis data for volatility calculation
-        # symbol -> List[(timestamp, basis: Decimal)]
-        self.historical_basis: dict[str, list[tuple[datetime, Decimal]]] = {}
+        # internal_symbol -> deque[(timestamp, basis: Decimal)]
+        self.historical_basis: dict[str, deque[tuple[datetime, Decimal]]] = {}
 
         # Sample period and count for funding rate history
         self.funding_sample_period = config.get(
@@ -78,89 +93,129 @@ class SignalGenerator:
         """Initialize data structures for historical data."""
         # Get all configured exchanges and symbols
         exchanges = []
+        all_internal_symbols = set()
         for exchange_id in self.config.get("exchanges", {}).keys():
             if self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 exchanges.append(exchange_id)
+                # Collect all unique internal symbols
+                symbol_map = self.config.get(f"exchanges.{exchange_id}.symbols", {})
+                all_internal_symbols.update(symbol_map.keys())
 
-        # Initialize historical funding rate storage
+        # Initialize historical funding rate storage per exchange
         for exchange in exchanges:
             self.historical_funding_rates[exchange] = {}
-            # Get the symbol map {InternalSymbol: ExchangeSymbol}
             symbol_map = self.config.get(f"exchanges.{exchange}.symbols", {})
-            for internal_symbol, exchange_symbol in symbol_map.items():
-                # Use exchange_symbol for the key in historical rates
-                self.historical_funding_rates[exchange][exchange_symbol] = []
+            for internal_symbol in symbol_map.keys():
+                # Use internal_symbol for the key, initialize with deque
+                self.historical_funding_rates[exchange][internal_symbol] = deque()
 
-                # Initialize basis history using the internal symbol
-                if internal_symbol not in self.historical_basis:
-                    self.historical_basis[internal_symbol] = []
+        # Initialize basis history using internal symbols
+        for internal_symbol in all_internal_symbols:
+            self.historical_basis[internal_symbol] = deque()
 
     def update_historical_data(self) -> None:
         """
         Update historical funding rate and basis data with latest information.
         Should be called regularly to maintain up-to-date volatility calculations.
         """
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         # Get all configured exchanges and symbols
         exchanges = []
         all_internal_symbols = set()
-        exchange_symbol_map: dict[str, dict[str, str]] = {}
+        exchange_symbol_map: dict[
+            str, dict[str, str]
+        ] = {}  # {exchange: {internal: exchange_symbol}}
+        internal_to_exchange_map: dict[
+            str, dict[str, str]
+        ] = {}  # {exchange: {exchange_symbol: internal}}
 
         for exchange_id in self.config.get("exchanges", {}).keys():
             if self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 exchanges.append(exchange_id)
                 symbols_config = self.config.get(f"exchanges.{exchange_id}.symbols", {})
                 exchange_symbol_map[exchange_id] = symbols_config
+                internal_to_exchange_map[exchange_id] = {
+                    v: k for k, v in symbols_config.items()
+                }  # Build reverse map
                 all_internal_symbols.update(symbols_config.keys())
 
         # Update funding rate history
         for exchange in exchanges:
-            if exchange not in self.historical_funding_rates:
-                continue  # Skip if not initialized
-            for exchange_symbol in self.historical_funding_rates[exchange].keys():
+            # Iterate through the expected internal symbols for this exchange based on init
+            expected_internal_symbols = self.historical_funding_rates.get(exchange, {}).keys()
+            for internal_symbol in expected_internal_symbols:
+                # Get the corresponding exchange symbol needed for the data handler
+                exchange_symbol = exchange_symbol_map.get(exchange, {}).get(internal_symbol)
+                if not exchange_symbol:
+                    logger.warning(
+                        f"No exchange symbol mapping found for "
+                        f"internal symbol {internal_symbol} on {exchange}"
+                    )
+                    continue
+
                 # Fetch data using the exchange-specific symbol
-                funding_data = self.data_handler.get_funding_rate(exchange, exchange_symbol)
+                funding_data: FundingRate | None = self.data_handler.get_funding_rate(
+                    exchange, exchange_symbol
+                )
+
                 if funding_data:
-                    rate, timestamp = funding_data  # Assuming rate is Decimal
-                    # Ensure rate is not None before attempting conversion
-                    if rate is not None and not isinstance(rate, Decimal):
-                        logger.warning(
-                            f"Funding rate for {exchange}/{exchange_symbol} is not Decimal: "
-                            f"{rate}. Converting."
-                        )
+                    rate = funding_data.funding_rate
+                    timestamp = now  # Use current time as timestamp
+
+                    # Ensure rate is Decimal
+                    if not isinstance(rate, Decimal):
                         try:
                             rate = Decimal(str(rate))
-                        except decimal.InvalidOperation:
-                            logger.error(f"Could not convert funding rate '{rate}' to Decimal.")
-                            continue # Skip this update if conversion fails
-                    # Add to historical data (only if rate is valid Decimal)
-                    if isinstance(rate, Decimal):
-                        history = self.historical_funding_rates[exchange][exchange_symbol]
-                        history.append((timestamp, rate))
+                        except Exception as e:
+                            logger.warning(
+                                f"Could not convert funding rate '{rate}' to Decimal for "
+                                f"{exchange}/{exchange_symbol} (Internal: {internal_symbol}). "
+                                f"Error: {e}"
+                            )
+                            continue
 
-                    # Trim to keep only recent samples
+                    # Add to history using internal_symbol key
+                    history_deque = self.historical_funding_rates[exchange][internal_symbol]
+                    history_deque.append((timestamp, rate))
+
+                    # Trim history using deque's efficient popleft
                     cutoff_time = now - timedelta(
                         seconds=self.funding_sample_period * self.funding_sample_count
                     )
-                    while history and history[0][0] < cutoff_time:
-                        history.pop(0)
+                    while history_deque and history_deque[0][0] < cutoff_time:
+                        history_deque.popleft()
 
         # Update basis history (price difference between exchanges)
         for internal_symbol in all_internal_symbols:
             # Find exchanges that map this internal symbol
             valid_exchanges_for_symbol = []
-            exchange_tickers: dict[str, Any] = {}
+            exchange_tickers: dict[str, Ticker] = {}  # Changed type hint to Ticker
             for exchange in exchanges:
                 if internal_symbol in exchange_symbol_map.get(exchange, {}):
                     exchange_symbol = exchange_symbol_map[exchange][internal_symbol]
-                    ticker = self.data_handler.get_ticker(exchange, exchange_symbol)
+                    ticker: Ticker | None = self.data_handler.get_ticker(
+                        exchange, exchange_symbol
+                    )  # Added type hint
+                    # Ensure ticker and price are valid
                     if ticker and ticker.price is not None:
-                        valid_exchanges_for_symbol.append(exchange)
-                        exchange_tickers[exchange] = ticker  # Store the valid ticker
+                        # Attempt to convert price to Decimal immediately for validation
+                        try:
+                            price_decimal = Decimal(str(ticker.price))
+                            valid_exchanges_for_symbol.append(exchange)
+                            # Store the ticker *after* ensuring its price is valid and convertible
+                            exchange_tickers[exchange] = ticker
+                            # Overwrite price with validated Decimal for consistency downstream
+                            ticker.price = price_decimal
+                        except decimal.InvalidOperation:
+                            logger.warning(
+                                f"Could not convert ticker price '{ticker.price}' to Decimal for "
+                                f"{exchange}/{exchange_symbol} (Internal: {internal_symbol})"
+                            )
+                            # Do not add this exchange/ticker if price is invalid
 
             if len(valid_exchanges_for_symbol) >= 2:
-                # Calculate basis between the first two valid exchanges
+                # Use the first two valid exchanges found
                 exchange1, exchange2 = (
                     valid_exchanges_for_symbol[0],
                     valid_exchanges_for_symbol[1],
@@ -168,50 +223,42 @@ class SignalGenerator:
                 ticker1 = exchange_tickers[exchange1]
                 ticker2 = exchange_tickers[exchange2]
 
-                # Tickers should have Decimal prices
+                # Prices should already be Decimal due to checks above
                 price1 = ticker1.price
                 price2 = ticker2.price
-                # Ensure prices are not None before conversion
-                if price1 is not None and not isinstance(price1, Decimal):
-                    try:
-                        price1 = Decimal(str(price1))
-                    except decimal.InvalidOperation:
-                        logger.error(f"Could not convert ticker price '{price1}' to Decimal for {exchange1}/{internal_symbol}")
-                        price1 = None # Set to None if conversion fails
-                if price2 is not None and not isinstance(price2, Decimal):
-                    try:
-                        price2 = Decimal(str(price2))
-                    except decimal.InvalidOperation:
-                        logger.error(f"Could not convert ticker price '{price2}' to Decimal for {exchange2}/{internal_symbol}")
-                        price2 = None # Set to None if conversion fails
 
-                # Calculate basis (price differential) only if both prices are valid Decimals
+                # Double-check types just in case (defensive programming)
                 if isinstance(price1, Decimal) and isinstance(price2, Decimal):
-                    basis = price1 - price2  # Decimal - Decimal = Decimal
+                    basis = price1 - price2
 
-                    # Add to historical data (using internal symbol key)
-                    if internal_symbol not in self.historical_basis:
-                        self.historical_basis[internal_symbol] = []
+                    # Add to historical data using internal symbol key
+                    basis_deque = self.historical_basis[
+                        internal_symbol
+                    ]  # Already initialized as deque
+                    basis_deque.append((now, basis))
 
-                    self.historical_basis[internal_symbol].append((now, basis))
-
-                    # Trim to keep only recent samples
+                    # Trim to keep only recent samples using popleft
                     cutoff_time = now - timedelta(
                         seconds=self.funding_sample_period * self.funding_sample_count
                     )
-                    while (
-                        self.historical_basis[internal_symbol]
-                        and self.historical_basis[internal_symbol][0][0] < cutoff_time
-                    ):
-                        self.historical_basis[internal_symbol].pop(0)
+                    while basis_deque and basis_deque[0][0] < cutoff_time:
+                        basis_deque.popleft()
+                else:
+                    # This case should ideally not be reached due to earlier checks
+                    logger.error(
+                        f"Unexpected non-Decimal price found when calculating basis for "
+                        f"{internal_symbol} between {exchange1} and {exchange2}. "
+                        f"Prices: {price1}, {price2}"
+                    )
 
-    def calculate_funding_rate_volatility(self, exchange: str, symbol: str) -> Decimal:
+    def calculate_funding_rate_volatility(self, exchange: str, internal_symbol: str) -> Decimal:
         """Calculates the volatility of historical funding rates."""
-        history = self.historical_funding_rates.get(exchange, {}).get(symbol, [])
+        # Access history using internal_symbol
+        history = self.historical_funding_rates.get(exchange, {}).get(internal_symbol, deque())
         if len(history) < 2:
             return Decimal("0.0")
 
-        # Extract Decimal rates for calculation
+        # Extract Decimal rates for calculation (deque supports iteration)
         rates = [rate for _, rate in history]
         # Ensure rates are float for numpy calculation, then convert result back to Decimal
         if not rates:
@@ -252,32 +299,82 @@ class SignalGenerator:
         """
         # Get orderbook from data handler
         orderbook = self.data_handler.get_orderbook(exchange, symbol)
-        if not orderbook:
-            # Default to a conservative estimate if no orderbook data
-            return Decimal("0.001")  # 0.1% default slippage
-
-        # Extract available liquidity from orderbook (assume float, convert to Decimal)
-        # This is simplified; real implementation needs bid/ask analysis.
-        available_depth_float = orderbook.get("depth", 100000.0)
-        available_depth = Decimal(str(available_depth_float))
-
-        # Convert available depth to Decimal for comparison
-        available_depth_dec = Decimal(str(available_depth))
-        if available_depth_dec <= Decimal("0"):
+        if (
+            orderbook is None
+            or not hasattr(orderbook, "bids")
+            or not hasattr(orderbook, "asks")
+            or not orderbook.bids
+            or not orderbook.asks
+        ):
             logger.warning(
-                f"Available depth is zero or negative for {exchange}/{symbol}. "
+                f"Orderbook data incomplete or missing for {symbol} on {exchange}. "
+                f"Using default slippage: {self.default_slippage}"
+            )
+            return self.default_slippage  # Return default if no depth info
+
+        # Find relevant price level based on size
+        cumulative_size = Decimal("0")
+        impacted_price = None
+
+        # Determine if it's likely a buy (hitting asks) or sell (hitting bids)
+        # This is an estimation; actual order type might vary
+        # Assume order_size > 0 means buying, < 0 means selling (convention)
+        if order_size > 0:  # Estimate buy slippage
+            ref_price = orderbook.asks[0][0]  # Best ask
+            for price, size in orderbook.asks:
+                cumulative_size += price * size  # Value at this level
+                if cumulative_size >= order_size:
+                    impacted_price = price
+                    break
+            if impacted_price is None:  # Order larger than visible book depth
+                impacted_price = orderbook.asks[-1][0]  # Use worst visible ask
+                logger.warning(
+                    f"Order size {order_size} exceeds visible ask depth for {symbol}. "
+                    f"Using worst ask price {impacted_price} for slippage estimate."
+                )
+
+        elif order_size < 0:  # Estimate sell slippage
+            ref_price = orderbook.bids[0][0]  # Best bid
+            abs_order_size = abs(order_size)
+            for price, size in orderbook.bids:
+                cumulative_size += price * size
+                if cumulative_size >= abs_order_size:
+                    impacted_price = price
+                    break
+            if impacted_price is None:
+                impacted_price = orderbook.bids[-1][0]  # Use worst visible bid
+                logger.warning(
+                    f"Order size {order_size} exceeds visible bid depth for {symbol}. "
+                    f"Using worst bid price {impacted_price} for slippage estimate."
+                )
+        else:
+            return Decimal("0")  # No slippage for zero size order
+
+        if impacted_price is None or ref_price is None or ref_price == Decimal("0"):
+            logger.warning(
+                f"Could not determine valid reference or impacted price for {symbol}. "
                 f"Using default slippage."
             )
-            return Decimal("0.001")
+            return self.default_slippage
 
-        # Calculate slippage factor (e.g., inverse relationship with depth)
-        scaling_factor = Decimal("0.1")  # β parameter as Decimal
-        slippage = scaling_factor * (order_size / available_depth)  # Decimal calculation
+        # Calculate slippage percentage
+        slippage = abs(impacted_price - ref_price) / ref_price
 
-        # Cap the slippage at reasonable limits (Decimal)
-        return min(slippage, Decimal("0.01"))  # Max 1% slippage
+        # Ensure a tiny minimum slippage for non-zero orders if calculation yields zero
+        # to account for potential execution nuances not captured by simple LOB scan.
+        MIN_SLIPPAGE = Decimal("1e-9")
+        if order_size != Decimal("0") and slippage == Decimal("0"):
+            slippage = MIN_SLIPPAGE
 
-    def generate_opportunities(self) -> list["ArbitrageOpportunity"]:
+        # Apply sensitivity/scaling if needed (optional)
+        # slippage *= (order_size / self.liquidity_threshold_usd) ** self.slippage_sensitivity
+
+        # Cap slippage
+        slippage = min(slippage, self.max_slippage_percent)
+
+        return slippage
+
+    def generate_opportunities(self) -> list[ArbitrageOpportunity]:
         """
         Generate a list of arbitrage opportunities sorted by utility score.
         """
@@ -291,8 +388,10 @@ class SignalGenerator:
                 exchanges.append(exchange_id)
 
         if len(exchanges) < 2:
-            logger.info("Need at least two enabled exchanges to generate funding rate opportunities.")
-            return [] # Return early if not enough exchanges
+            logger.info(
+                "Need at least two enabled exchanges to generate funding rate opportunities."
+            )
+            return []  # Return early if not enough exchanges
 
         for i in range(len(exchanges)):
             for j in range(i + 1, len(exchanges)):
@@ -305,7 +404,7 @@ class SignalGenerator:
                 common_symbols = list(symbols1.intersection(symbols2))
 
                 if not common_symbols:
-                    continue # Skip if no common symbols
+                    continue  # Skip if no common symbols
 
                 for symbol in common_symbols:
                     # Avoid processing the same pair twice (e.g., A-B vs B-A)
@@ -369,10 +468,9 @@ class SignalGenerator:
                                 )
                                 opportunities.append(opportunity)
                             except Exception as e:
-                                self.logger.error(
-                                    "Error creating opportunity (1)",
-                                    symbol=symbol,
-                                    error=e,
+                                # Use module-level logger
+                                logger.error(
+                                    f"Error creating opportunity (1) for symbol {symbol}: {e}"
                                 )
 
                     # Opportunity 2: Long on 2, Short on 1
@@ -409,10 +507,9 @@ class SignalGenerator:
                                 )
                                 opportunities.append(opportunity)
                             except Exception as e:
-                                self.logger.error(
-                                    "Error creating opportunity (2)",
-                                    symbol=symbol,
-                                    error=e,
+                                # Use module-level logger
+                                logger.error(
+                                    f"Error creating opportunity (2) for symbol {symbol}: {e}"
                                 )
 
                     processed_pairs.add(pair_key)

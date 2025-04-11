@@ -353,8 +353,8 @@ class FundingRateArbitrageStrategy(Strategy):
             return False
 
         # Calculate position values
-        perp_value = abs(perp_position.quantity * perp_price)
-        spot_value = abs(spot_position.quantity * spot_price)
+        perp_value = abs(perp_position.size * perp_price)
+        spot_value = abs(spot_position.size * spot_price)
 
         # Calculate imbalance
         if perp_value == 0 or spot_value == 0:
@@ -479,8 +479,8 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_price = self.data_handler.get_latest_price(self.spot_exchange, spot_symbol)
 
         # Calculate position values
-        perp_value = perp_position.quantity * perp_price
-        spot_value = spot_position.quantity * spot_price
+        perp_value = abs(perp_position.size * perp_price)
+        spot_value = abs(spot_position.size * spot_price)
 
         # Calculate target delta-neutral position
         target_value = (abs(perp_value) + abs(spot_value)) / 2
@@ -492,15 +492,15 @@ class FundingRateArbitrageStrategy(Strategy):
         # Determine sides for adjustments
         perp_side = (
             "LONG"
-            if (perp_position.quantity > 0 and perp_adjustment > 0)
-            or (perp_position.quantity < 0 and perp_adjustment < 0)
+            if (perp_position.size > 0 and perp_adjustment > 0)
+            or (perp_position.size < 0 and perp_adjustment < 0)
             else "SHORT"
         )
 
         spot_side = (
             "LONG"
-            if (spot_position.quantity > 0 and spot_adjustment > 0)
-            or (spot_position.quantity < 0 and spot_adjustment < 0)
+            if (spot_position.size > 0 and spot_adjustment > 0)
+            or (spot_position.size < 0 and spot_adjustment < 0)
             else "SHORT"
         )
 

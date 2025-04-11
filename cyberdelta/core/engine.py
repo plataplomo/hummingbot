@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import time
 import uuid
 from collections.abc import Callable
-from datetime import datetime
-from decimal import Decimal
+from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -29,16 +28,17 @@ class Engine:
     - Tracking positions
     """
 
-    def __init__(self, name: str = "CyberDeltaEngine"):
+    def __init__(self, name: str = "CyberDeltaEngine") -> None:
         self.name = name
         self.strategies: dict[str, Strategy] = {}
-        self.positions: dict[str, "Position"] = {}
-        self.active_positions: dict[str, "Position"] = {}
-        self.closed_positions: dict[str, "Position"] = {}
-        self.signal_handlers: list[Callable[["TradeSignal"], None]] = []
+        self.positions: dict[str, Position] = {}
+        self.active_positions: dict[str, Position] = {}
+        self.closed_positions: list[Position] = []
+        self.signal_handlers: list[Callable[[TradeSignal], None]] = []
         self.is_running = False
         self.start_time: datetime | None = None
         self.last_update_time: datetime | None = None
+        self.logger = structlog.get_logger(engine_name=name)
 
         logger.info(f"Engine '{name}' initialized")
 
@@ -68,7 +68,7 @@ class Engine:
         else:
             logger.warning(f"Strategy '{strategy_name}' not found")
 
-    def register_signal_handler(self, handler: Callable[["TradeSignal"], None]) -> None:
+    def register_signal_handler(self, handler: Callable[[TradeSignal], None]) -> None:
         """
         Register a handler for trade signals
 
@@ -78,7 +78,7 @@ class Engine:
         self.signal_handlers.append(handler)
         logger.info(f"Registered signal handler {handler.__name__}")
 
-    def process_market_data(self, data: "MarketData") -> None:
+    def process_market_data(self, data: MarketData) -> None:
         """
         Process market data through all strategies for the relevant symbol
 
@@ -118,17 +118,28 @@ class Engine:
             raise ValueError(f"DataFrame missing required columns: {missing}")
 
         for _, row in df.iterrows():
+            # Convert to Decimal safely
+            try:
+                open_p = Decimal(str(row["open"]))
+                high_p = Decimal(str(row["high"]))
+                low_p = Decimal(str(row["low"]))
+                close_p = Decimal(str(row["close"]))
+                volume_p = Decimal(str(row["volume"]))
+            except (InvalidOperation, TypeError) as e:
+                self.logger.error("Error converting DataFrame row to Decimal", row=row, error=e)
+                continue # Skip this row if conversion fails
+
             data = MarketData(
                 symbol=symbol,
                 timestamp=row["timestamp"]
                 if isinstance(row["timestamp"], datetime)
-                else pd.to_datetime(row["timestamp"]),
-                open=float(row["open"]),
-                high=float(row["high"]),
-                low=float(row["low"]),
-                close=float(row["close"]),
-                volume=float(row["volume"]),
-                additional_data={k: v for k, v in row.items() if k not in required_cols},
+                else pd.to_datetime(row["timestamp"]).replace(tzinfo=UTC), # Ensure timezone aware
+                open=open_p,
+                high=high_p,
+                low=low_p,
+                close=close_p,
+                volume=volume_p,
+                # Removed additional_data argument
             )
             self.process_market_data(data)
 
@@ -161,7 +172,7 @@ class Engine:
             if strategy.enabled:
                 strategy.on_stop()
 
-    def _handle_signal(self, signal: "TradeSignal", strategy_name: str) -> str | None:
+    def _handle_signal(self, signal: TradeSignal, strategy_name: str) -> str | None:
         """
         Handle a trade signal from a strategy
 
@@ -183,85 +194,115 @@ class Engine:
             except Exception as e:
                 logger.error(f"Error in signal handler: {e}")
 
-        # Process the signal based on type
-        if signal.signal_type == SignalType.BUY:
-            return self._open_position(signal, strategy_name, SignalType.BUY)
-        elif signal.signal_type == SignalType.SELL:
-            return self._open_position(signal, strategy_name, SignalType.SELL)
-        elif signal.signal_type == SignalType.CLOSE:
-            # Find and close positions for this strategy and symbol
-            for pos_id, pos in self.active_positions.items():
-                if pos.strategy_name == strategy_name and pos.symbol == signal.symbol:
-                    self._close_position(pos_id, signal.price, signal.timestamp)
-            return None
+        # Process the signal based on type - Use correct SignalType members
+        if signal.signal_type == SignalType.ENTER_LONG:
+            # TODO: Determine side correctly based on SignalType?
+            # Assuming ENTER_LONG implies BUY side for opening
+            return self._open_position(signal, strategy_name, OrderSide.BUY)
+        elif signal.signal_type == SignalType.ENTER_SHORT:
+            # Assuming ENTER_SHORT implies SELL side for opening
+            return self._open_position(signal, strategy_name, OrderSide.SELL)
+        elif signal.signal_type in (SignalType.EXIT_LONG, SignalType.EXIT_SHORT):
+            # Find and close relevant active positions
+            position_closed = False
+            # Iterate over a copy of keys to allow modification during iteration
+            for pos_id in list(self.active_positions.keys()):
+                pos = self.active_positions.get(pos_id)
+                # Match strategy, symbol, and ensure side matches exit type
+                if (
+                    pos and pos.strategy_name == strategy_name and pos.symbol == signal.symbol and
+                    ((signal.signal_type == SignalType.EXIT_LONG and pos.side == OrderSide.BUY) or
+                     (signal.signal_type == SignalType.EXIT_SHORT and pos.side == OrderSide.SELL))
+                ):
+                    self.logger.info(f"Closing position {pos_id} due to {signal.signal_type} signal")
+                    # Use the timestamp from the signal if available
+                    close_timestamp = signal.timestamp or datetime.now(UTC)
+                    # Price might come from signal or market data - using signal.price for now
+                    self._close_position(pos_id, signal.price, close_timestamp)
+                    position_closed = True
+            if not position_closed:
+                 self.logger.warning(
+                     f"Received {signal.signal_type} signal from {strategy_name} for {signal.symbol}, "
+                     f"but no matching active position found to close."
+                 )
+            return None # Closing doesn't return a new position ID
+        elif signal.signal_type == SignalType.HOLD or signal.signal_type == SignalType.REBALANCE:
+             self.logger.debug(f"Ignoring {signal.signal_type} signal type for now.")
+             return None
+        else:
+             self.logger.warning(f"Unhandled signal type: {signal.signal_type}")
+             return None
 
-        return None
-
-    def _open_position(self, signal: "TradeSignal", strategy_name: str, side: "SignalType") -> str:
-        """
-        Open a new position based on a signal
-
-        Args:
-            signal: The trading signal
-            strategy_name: Name of the originating strategy
-            side: BUY or SELL
-
-        Returns:
-            Position ID
-        """
+    def _open_position(self, signal: TradeSignal, strategy_name: str, side: OrderSide) -> str:
+        """Open a new position based on a signal."""
         position_id = str(uuid.uuid4())
+        now_utc = datetime.now(UTC)
 
+        # TODO: Critical - This needs proper integration with RiskManager for sizing
+        # and ExecutionHandler for actual order placement and confirmation.
+        # Using placeholder values from signal for now, which is incorrect for a live engine.
+        entry_price = signal.price or Decimal("0") # Placeholder - Should come from fill
+        quantity = signal.quantity or Decimal("1") # Placeholder - Should come from sizing
+
+        if entry_price <= 0 or quantity <= 0:
+             self.logger.error(
+                 f"Cannot open position {position_id} for {signal.symbol}: Invalid price/quantity from signal",
+                 signal=signal
+             )
+             # Raise an error or return None/empty string to indicate failure
+             raise ValueError("Cannot open position with zero or negative price/quantity from signal")
+
+        # Create Position object using ONLY defined fields
         position = Position(
-            id=position_id,
             symbol=signal.symbol,
-            strategy_name=strategy_name,
-            entry_price=signal.price,
-            quantity=signal.quantity,
-            side=side,
-            status=PositionStatus.OPEN,
-            open_time=signal.timestamp,
-            stop_loss=signal.stop_loss,
-            take_profit=signal.take_profit,
-            metadata=signal.metadata,
+            side=side, # Use the determined OrderSide
+            size=quantity, # Placeholder
+            entry_price=entry_price, # Placeholder
+            leverage=Decimal("1"), # Placeholder - Should come from config/strategy
+            id=position_id,
+            status=PositionStatus.OPEN.value, # Use enum value
+            timestamp=int(now_utc.timestamp() * 1000),
+            strategy_name=strategy_name, # Add strategy_name if it's part of Position model
+            # Removed quantity, open_time - redundant or incorrect
+            # Removed stop_loss, take_profit, metadata - needs specific handling if Position model supports them
         )
 
-        self.positions[position_id] = position
         self.active_positions[position_id] = position
-
-        logger.info(
-            f"Opened {side.name} position {position_id} for {signal.symbol} at {signal.price}"
-        )
+        self.logger.info(f"Opened position {position_id}: {position}")
         return position_id
 
-    def _close_position(self, position_id: str, price: float, timestamp: datetime) -> None:
-        """
-        Close an existing position
-
-        Args:
-            position_id: ID of the position to close
-            price: Closing price
-            timestamp: Closing time
-        """
+    def _close_position(self, position_id: str, price: Decimal | None, timestamp: datetime) -> None:
+        """Close an active position."""
         if position_id not in self.active_positions:
-            logger.warning(f"Position {position_id} not found or already closed")
+            self.logger.warning(f"Position {position_id} not found for closing")
             return
 
-        position = self.active_positions[position_id]
-        position.status = PositionStatus.CLOSED
-        position.close_price = price
-        position.close_time = timestamp
+        position = self.active_positions.pop(position_id)
+        close_price = price or position.mark_price or position.entry_price # Best available close price
 
-        # Calculate P&L
-        if position.side == SignalType.BUY:
-            position.pnl = (price - position.entry_price) * position.quantity
-        else:  # SELL
-            position.pnl = (position.entry_price - price) * position.quantity
+        if close_price is None:
+            self.logger.error(f"Cannot determine close price for position {position_id}. Cannot calculate PNL.")
+            pnl = Decimal("0.0") # Cannot calculate PNL
+        else:
+            # Ensure Decimal math
+            close_price_dec = Decimal(str(close_price))
+            entry_price_dec = Decimal(str(position.entry_price))
+            size_dec = Decimal(str(position.size))
 
-        # Move to closed positions
-        self.closed_positions[position_id] = position
-        del self.active_positions[position_id]
+            if position.side == OrderSide.BUY:
+                pnl = (close_price_dec - entry_price_dec) * size_dec
+            else: # SELL
+                pnl = (entry_price_dec - close_price_dec) * size_dec
 
-        logger.info(f"Closed position {position_id} at {price} with PnL: {position.pnl:.2f}")
+        position.status = PositionStatus.CLOSED.value
+        position.close_price = close_price_dec if close_price is not None else None # Store close price if known
+        position.close_time = timestamp # Store close time
+        position.pnl = pnl # Store calculated PNL
+
+        self.closed_positions.append(position) # Add to list of closed positions
+        self.logger.info(f"Closed position {position_id}: PNL = {pnl:.2f}")
+
+        # TODO: Update portfolio tracker/realized PNL
 
     def _update_position_status(self, position_id: str, data: "MarketData") -> None:
         """
@@ -303,6 +344,32 @@ class Engine:
             logger.info(f"Take profit triggered for position {position_id} at {price}")
             self._close_position(position_id, price, data.timestamp)
 
+        # Update mark price (example)
+        position.mark_price = data.close # Assume close price is the mark price
+        # TODO: Proper unrealized PNL calculation requires PortfolioTracker or similar
+        # position.unrealized_pnl = self.portfolio_tracker.calculate_unrealized_pnl(position)
+
+        # Placeholder for Stop Loss / Take Profit logic
+        # This requires the Position model to actually have stop_loss/take_profit fields
+        # and for these to be set when opening.
+        # check_price = data.close
+        # if position.side == OrderSide.BUY:
+        #     if position.stop_loss and check_price <= position.stop_loss:
+        #         self.logger.info(f"Stop loss triggered for {position_id}")
+        #         # self._close_position(position_id, position.stop_loss, data.timestamp)
+        #     elif position.take_profit and check_price >= position.take_profit:
+        #         self.logger.info(f"Take profit triggered for {position_id}")
+        #         # self._close_position(position_id, position.take_profit, data.timestamp)
+        # elif position.side == OrderSide.SELL:
+        #     if position.stop_loss and check_price >= position.stop_loss:
+        #         self.logger.info(f"Stop loss triggered for {position_id}")
+        #         # self._close_position(position_id, position.stop_loss, data.timestamp)
+        #     elif position.take_profit and check_price <= position.take_profit:
+        #         self.logger.info(f"Take profit triggered for {position_id}")
+        #         # self._close_position(position_id, position.take_profit, data.timestamp)
+        # Removed references to self.portfolio_tracker for now
+        pass # Keep simplified
+
     def get_engine_info(self) -> dict[str, Any]:
         """
         Get information about the engine's current state
@@ -310,240 +377,18 @@ class Engine:
         Returns:
             Dictionary with engine information
         """
+        total_pnl_closed = sum(
+            p.pnl for p in self.closed_positions if p.pnl is not None
+        ) # Sum pnl from list
         return {
             "name": self.name,
             "running": self.is_running,
-            "start_time": self.start_time,
+            "start_time": self.start_time.isoformat() if self.start_time else None,
             "uptime": (datetime.now() - self.start_time).total_seconds() if self.start_time else 0,
-            "last_update": self.last_update_time,
+            "last_update": self.last_update_time.isoformat() if self.last_update_time else None,
             "strategy_count": len(self.strategies),
             "active_strategies": sum(1 for s in self.strategies.values() if s.enabled),
             "active_positions": len(self.active_positions),
-            "closed_positions": len(self.closed_positions),
-            "total_pnl": sum(p.pnl for p in self.closed_positions.values()),
+            "closed_positions_count": len(self.closed_positions),
+            "total_realized_pnl": total_pnl_closed, # Use calculated sum
         }
-
-    def _process_market_data(self, data: dict[str, Any]) -> None:
-        """Processes incoming market data (ticker, orderbook, etc.)."""
-        # Example: Handle ticker data
-        if data.get("type") == "ticker":
-            exchange = data.get("exchange")
-            symbol = data.get("symbol")
-            ticker_data = data.get("data")
-            if exchange and symbol and ticker_data:
-                try:
-                    # Corrected MarketData call: Remove extra kwarg, ensure Decimal
-                    market_data = MarketData(
-                        symbol=symbol,
-                        timestamp=datetime.fromtimestamp(
-                            ticker_data.get("timestamp") / 1000, tz=timezone.utc
-                        ),
-                        # Corrected: pass Decimals
-                        open=Decimal(str(ticker_data.get("open", "0"))),
-                        high=Decimal(str(ticker_data.get("high", "0"))),
-                        low=Decimal(str(ticker_data.get("low", "0"))),
-                        close=Decimal(str(ticker_data.get("close", "0"))),
-                        volume=Decimal(str(ticker_data.get("volume", "0"))),
-                    )
-                    # Update portfolio with latest price
-                    self.portfolio_tracker.update_asset_price(symbol, market_data.close)
-                    # Notify strategies
-                    asyncio.create_task(self.strategy_manager.on_market_data(market_data))
-                    # Check stop loss / take profit
-                    self._check_positions(symbol, market_data.close)
-                except Exception as e:
-                    self.logger.error("Error processing ticker data", data=ticker_data, error=e)
-
-        # TODO: Handle other data types (orderbook, trades)
-
-    def _process_signal(self, signal: TradeSignal) -> None:
-        """Processes a trading signal generated by a strategy."""
-        self.logger.info("Processing signal", signal=signal)
-        symbol = signal.symbol
-        current_position = self.portfolio_tracker.get_position(symbol)
-
-        # Corrected: Compare with enum members
-        if signal.signal_type == SignalType.ENTER_LONG:
-            if current_position and current_position.size > Decimal("0"):
-                # Corrected: Compare with enum members
-                if current_position.side == OrderSide.SELL:
-                    self._close_position(symbol, current_position)
-                else:
-                    self.logger.info("Already long, ignoring signal", symbol=symbol)
-                    return
-            self._open_position(signal)
-        elif signal.signal_type == SignalType.ENTER_SHORT:
-            if current_position and current_position.size > Decimal("0"):
-                # Corrected: Compare with enum members
-                if current_position.side == OrderSide.BUY:
-                    self._close_position(symbol, current_position)
-                else:
-                    self.logger.info("Already short, ignoring signal", symbol=symbol)
-                    return
-            self._open_position(signal)
-        elif signal.signal_type == SignalType.EXIT_LONG:
-            # Corrected: Compare with enum members
-            if (
-                current_position
-                and current_position.side == OrderSide.BUY
-                and current_position.size > Decimal("0")
-            ):
-                self._close_position(symbol, current_position)
-            else:
-                self.logger.info("No long position to exit", symbol=symbol)
-        elif signal.signal_type == SignalType.EXIT_SHORT:
-            # Corrected: Compare with enum members
-            if (
-                current_position
-                and current_position.side == OrderSide.SELL
-                and current_position.size > Decimal("0")
-            ):
-                self._close_position(symbol, current_position)
-            else:
-                self.logger.info("No short position to exit", symbol=symbol)
-        # elif signal.signal_type == SignalType.HOLD: # Explicitly handle HOLD if needed
-        #     pass
-
-    def _open_position(self, signal: TradeSignal) -> None:
-        """Opens a new position based on a signal."""
-        self.logger.info("Opening position", signal=signal)
-        # Determine order parameters (size, price, type)
-        # This requires a sizing model based on risk, capital, etc.
-        quantity = self.risk_manager.calculate_order_size(signal)  # Example
-        if not quantity or quantity <= Decimal("0"):
-            self.logger.warning("Calculated order size is zero or invalid", signal=signal)
-            return
-
-        # Map SignalType to OrderSide
-        order_side = (
-            OrderSide.BUY if signal.signal_type == SignalType.ENTER_LONG else OrderSide.SELL
-        )
-        order_type = OrderType.MARKET  # Example: Use market orders
-        price = None  # For market orders
-
-        # Create and submit order via ExecutionHandler
-        client_order_id = f"cde-open-{int(time.time() * 1000)}"
-        asyncio.create_task(
-            self.execution_handler.create_and_submit_order(
-                exchange=self.config.get(
-                    "trading.default_exchange"
-                ),  # Get exchange from config/signal
-                symbol=signal.symbol,
-                side=order_side,
-                order_type=order_type,
-                quantity=quantity,
-                price=price,
-                client_order_id=client_order_id,
-                # Add optional params from signal if available
-                stop_loss=signal.stop_loss,
-                take_profit=signal.take_profit,
-                # TODO: Link position creation to successful order execution callback
-            )
-        )
-
-    def _close_position(
-        self, symbol: str, position: Position, close_price: Decimal | None = None
-    ) -> None:
-        """Closes an existing position."""
-        self.logger.info("Closing position", symbol=symbol, position_id=position.id)
-        if position.size <= Decimal("0"):
-            self.logger.warning("Attempted to close already zero size position", symbol=symbol)
-            return
-
-        order_side = OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY
-        order_type = OrderType.MARKET  # Use market order to ensure closure
-
-        client_order_id = f"cde-close-{int(time.time() * 1000)}"
-        asyncio.create_task(
-            self.execution_handler.create_and_submit_order(
-                exchange=self.config.get(
-                    "trading.default_exchange"
-                ),  # Get exchange from config/position
-                symbol=symbol,
-                side=order_side,
-                order_type=order_type,
-                quantity=position.size,  # Close full size
-                price=None,  # Market order
-                client_order_id=client_order_id,
-                reduce_only=True,
-                # TODO: Update position status/PNL in portfolio on successful execution callback
-            )
-        )
-        # Immediate update in portfolio tracker might be premature
-        # position.close_price = close_price if close_price else self.portfolio_tracker.get_current_price(symbol)
-        # position.close_time = datetime.now(timezone.utc)
-        # position.status = PositionStatus.CLOSED
-        # # Simplified PNL calc - should happen on fill
-        # if position.entry_price and position.close_price:
-        #      pnl = (position.close_price - position.entry_price) * position.size * (-1 if position.side == OrderSide.SELL else 1)
-        #      position.realized_pnl = (position.realized_pnl or Decimal("0")) + pnl
-        # self.portfolio_tracker.update_position(position)
-
-    def _check_positions(self, symbol: str, current_price: Decimal) -> None:
-        """Checks open positions for stop loss or take profit triggers."""
-        position = self.portfolio_tracker.get_position(symbol)
-        # Corrected: Check size > 0
-        if position and position.size > Decimal("0"):
-            # Ensure prices are Decimal
-            price = (
-                current_price if isinstance(current_price, Decimal) else Decimal(str(current_price))
-            )
-            stop_loss_price = position.stop_loss
-            take_profit_price = position.take_profit
-
-            triggered_close = False
-            # Corrected: Compare with enum members & check stop_loss not None
-            if position.side == OrderSide.BUY:
-                if stop_loss_price is not None and price <= stop_loss_price:
-                    self.logger.info(
-                        f"Stop loss triggered for {symbol} (Long)",
-                        price=price,
-                        stop=stop_loss_price,
-                    )
-                    triggered_close = True
-                elif take_profit_price is not None and price >= take_profit_price:
-                    self.logger.info(
-                        f"Take profit triggered for {symbol} (Long)",
-                        price=price,
-                        take_profit=take_profit_price,
-                    )
-                    triggered_close = True
-            # Corrected: Compare with enum members & check stop_loss not None
-            elif position.side == OrderSide.SELL:
-                if stop_loss_price is not None and price >= stop_loss_price:
-                    self.logger.info(
-                        f"Stop loss triggered for {symbol} (Short)",
-                        price=price,
-                        stop=stop_loss_price,
-                    )
-                    triggered_close = True
-                elif take_profit_price is not None and price <= take_profit_price:
-                    self.logger.info(
-                        f"Take profit triggered for {symbol} (Short)",
-                        price=price,
-                        take_profit=take_profit_price,
-                    )
-                    triggered_close = True
-
-            if triggered_close:
-                self._close_position(symbol, position, close_price=price)
-
-    def _calculate_pnl(self, position: Position) -> Decimal | None:
-        """Calculates PNL for a position (potentially based on mark price)."""
-        # Corrected: Check size > 0
-        if position.size <= Decimal("0"):
-            return Decimal("0.0")
-
-        # Corrected: Use calculate method, handle None mark_price
-        mark_price = position.mark_price or self.portfolio_tracker.get_current_price(
-            position.symbol
-        )
-        if mark_price:
-            # Ensure Decimal
-            mark_price = mark_price if isinstance(mark_price, Decimal) else Decimal(str(mark_price))
-            return position.calculate_unrealized_pnl(mark_price)
-        else:
-            self.logger.warning(
-                "Cannot calculate PNL, missing mark/current price", symbol=position.symbol
-            )
-            return None

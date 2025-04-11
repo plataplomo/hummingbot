@@ -71,6 +71,13 @@ class PortfolioTracker:
             "0.0"
         )  # Track highest portfolio value for drawdown calculation
 
+        # Add internal tracking for realized PNL
+        self._realized_pnl: Decimal = Decimal("0.0")  # Track realized PNL
+
+        # Add active symbols and watchlist
+        self._active_symbols: set[str] = set()
+        self._watchlist: set[str] = set()
+
     def _initialize_data_structures(self) -> None:
         """Initialize data structures for all configured exchanges."""
         for exchange_id in self.config.get("exchanges", {}).keys():
@@ -84,6 +91,10 @@ class PortfolioTracker:
             # Default to a timezone-aware past date
             self._last_update_time[exchange_id] = datetime.min.replace(tzinfo=UTC)
             self._last_reconciliation_time[exchange_id] = datetime.min.replace(tzinfo=UTC)
+
+        # Add active symbols and watchlist
+        self._active_symbols: set[str] = set()
+        self._watchlist: set[str] = set()
 
     def register_api_client(self, exchange_id: str, client: ExchangeAPI) -> None:
         """
@@ -477,14 +488,14 @@ class PortfolioTracker:
 
     def get_pnl(self) -> tuple[Decimal, Decimal]:
         """
-        Calculate the total and unrealized P&L across all positions.
+        Calculate the total realized and unrealized P&L across all positions.
         Returns PnL values as Decimal.
-        NOTE: Simplified for unit testing - directly sums position.unrealized_pnl.
 
         Returns:
-            Tuple containing total P&L and unrealized P&L (Decimal, Decimal).
+            Tuple containing total realized P&L and total unrealized P&L (Decimal, Decimal).
         """
-        total_pnl = Decimal("0.0") # In simplified version, total = unrealized
+        # Realized PNL is tracked separately
+        realized_pnl = self._realized_pnl
         unrealized_pnl = Decimal("0.0")
 
         for exchange_id, positions in self._positions.items():
@@ -504,8 +515,14 @@ class PortfolioTracker:
                             f"Unrealized PNL is None for position {symbol} on {exchange_id}. Cannot include in sum."
                         )
 
-        total_pnl = unrealized_pnl # Simplified: total pnl = sum of unrealized
-        return total_pnl, unrealized_pnl
+        # Return tracked realized PNL and calculated unrealized PNL
+        return realized_pnl, unrealized_pnl
+
+    def _update_realized_pnl(self, amount: Decimal) -> None:
+        """Atomically update the realized PNL."""
+        # TODO: Add locking if concurrency becomes an issue
+        self._realized_pnl += amount
+        logger.debug(f"Updated realized PNL by {amount}. New total: {self._realized_pnl}")
 
     def get_position(self, exchange_id: str, symbol: str) -> Position | None:
         """Get the position for a specific symbol on an exchange."""
@@ -648,6 +665,7 @@ class PortfolioTracker:
             "last_update_time": {},
             "last_reconciliation_time": {},
             "high_watermark": str(self._high_watermark),
+            "realized_pnl": str(self._realized_pnl),
         }
 
         for ex_id, balances in self._balances.items():
@@ -794,6 +812,13 @@ class PortfolioTracker:
             logger.error(f"Error deserializing high_watermark: {state_dict.get('high_watermark')}")
             self._high_watermark = Decimal("0.0")
 
+        try:
+            realized_pnl_str = state_dict.get("realized_pnl")
+            self._realized_pnl = Decimal(str(realized_pnl_str)) if realized_pnl_str is not None else Decimal("0.0")
+        except (InvalidOperation, TypeError):
+            logger.error(f"Error deserializing realized_pnl: {state_dict.get('realized_pnl')}")
+            self._realized_pnl = Decimal("0.0")
+
         logger.info("Portfolio state deserialized from dict")
 
     def reset(self) -> None:
@@ -806,6 +831,9 @@ class PortfolioTracker:
         self._last_update_time = {}
         self._last_reconciliation_time = {}
         self._high_watermark = Decimal("0.0")
+        self._realized_pnl = Decimal("0.0")
+        self._active_symbols = set()
+        self._watchlist = set()
         self._initialize_data_structures()
         logger.info("PortfolioTracker state reset.")
 

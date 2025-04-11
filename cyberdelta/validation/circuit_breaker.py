@@ -725,57 +725,43 @@ class CircuitBreakerSystem:
         Returns:
             Tuple of (can_execute, reason_if_blocked)
         """
-        # === ADDED: Global Check ===
-        if exchange == "global":
-            global_api_breaker = self.get_breaker("global_api_error")
-            if global_api_breaker and not global_api_breaker.allow_operation():
-                return (
-                    False,
-                    f"Blocked by global circuit breaker: {global_api_breaker.name} "
-                    f"- {global_api_breaker.trip_reason}",
-                )
-            # Add checks for other potential global breakers here if needed
-            return True, None  # If no global breakers are tripped
-        # === END ADDED ===
+        now = datetime.now(UTC)
 
-        if exchange not in self.exchange_breakers:
-            return True, None
-
-        # Check exchange-level breakers
-        breakers_to_check = []
-
-        # Add exchange-wide breakers
-        for breaker_type in ["api_errors", "drawdown"]:
-            if breaker_type in self.exchange_breakers[exchange]:
-                breakers_to_check.append(self.exchange_breakers[exchange][breaker_type])
-
-        # Add symbol-specific breakers if a symbol is provided
-        if symbol:
-            for breaker_type in [f"{symbol}_volatility", f"{symbol}_liquidity"]:
-                if breaker_type in self.exchange_breakers[exchange]:
-                    breakers_to_check.append(self.exchange_breakers[exchange][breaker_type])
-
-        # Check if any specific exchange/symbol breaker is open
-        for breaker in breakers_to_check:
+        # Check global breakers
+        for breaker_name, breaker in self.breakers.items():
             if not breaker.allow_operation():
-                return (
-                    False,
-                    f"Blocked by circuit breaker: {breaker.name} - {breaker.trip_reason}",
-                )
+                reason = f"Global breaker '{breaker_name}' is OPEN due to: {breaker.trip_reason}"
+                logger.warning(f"Execution blocked: {reason}")
+                return False, reason
+            # Test recovery for HALF_OPEN global breakers
+            if breaker.state == BreakerState.HALF_OPEN and now >= breaker.trip_time + timedelta(seconds=breaker.cooldown_seconds):
+                 if not breaker.test_recovery():
+                      reason = f"Global breaker '{breaker_name}' failed recovery test."
+                      logger.warning(f"Execution blocked: {reason}")
+                      return False, reason
+                 else:
+                      logger.info(f"Global breaker '{breaker_name}' recovered and is now CLOSED.")
 
-        # === ADDED: Final Global Check ===
-        # Even if specific breakers are ok, check the global one again before allowing.
-        global_api_breaker = self.get_breaker("global_api_error")
-        if global_api_breaker and not global_api_breaker.allow_operation():
-            return (
-                False,
-                f"Blocked by global circuit breaker: {global_api_breaker.name} "
-                f"- {global_api_breaker.trip_reason}",
-            )
-        # Add checks for other global breakers if necessary
-        # === END ADDED ===
+        # Check exchange-specific breakers
+        if exchange in self.exchange_breakers:
+            for breaker_type, breaker in self.exchange_breakers[exchange].items():
+                breaker_name = f"exchange:{exchange}:{breaker_type}"
+                if not breaker.allow_operation():
+                    reason = f"Exchange breaker '{breaker_name}' for {exchange} is OPEN due to: {breaker.trip_reason}"
+                    logger.warning(f"Execution blocked for {exchange}: {reason}")
+                    return False, reason
+                # Test recovery for HALF_OPEN exchange breakers
+                if breaker.state == BreakerState.HALF_OPEN and now >= breaker.trip_time + timedelta(seconds=breaker.cooldown_seconds):
+                    if not breaker.test_recovery():
+                        reason = f"Exchange breaker '{breaker_name}' for {exchange} failed recovery test."
+                        logger.warning(f"Execution blocked for {exchange}: {reason}")
+                        return False, reason
+                    else:
+                        logger.info(f"Exchange breaker '{breaker_name}' for {exchange} recovered and is now CLOSED.")
 
-        return True, None
+        # TODO: Consider symbol-specific breakers if implemented
+
+        return True, None # Allowed if no breakers are OPEN
 
     def record_api_error(self, exchange: str, error_message: str) -> None:
         """

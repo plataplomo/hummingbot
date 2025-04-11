@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
+import decimal
 
 
 
@@ -147,6 +148,11 @@ class Position:
     margin_type: str | None = None  # Added
     margin_used: Decimal | None = None  # Added
     timestamp: int | None = None
+    # Added fields based on Engine usage:
+    strategy_name: str | None = None
+    close_price: Decimal | None = None
+    close_time: datetime | None = None
+    pnl: Decimal | None = None # Assuming this represents realized PNL upon close
 
     def is_active(self) -> bool:
         """Check if the position is actively held (size is non-zero)."""
@@ -281,14 +287,33 @@ class Ticker:
 
     def __post_init__(self) -> None:
         # Ensure numeric fields are Decimal
-        if not isinstance(self.price, Decimal):
-            self.price = Decimal(str(self.price))
-        if not isinstance(self.bid, Decimal):
-            self.bid = Decimal(str(self.bid))
-        if not isinstance(self.ask, Decimal):
-            self.ask = Decimal(str(self.ask))
-        if not isinstance(self.volume, Decimal):
-            self.volume = Decimal(str(self.volume))
+        if self.price is not None and not isinstance(self.price, Decimal):
+            try:
+                self.price = Decimal(str(self.price))
+            except decimal.InvalidOperation:
+                # Handle potential conversion error, e.g., log and set to None or raise
+                self.price = None # Or raise appropriate error
+        if self.bid is not None and not isinstance(self.bid, Decimal):
+            try:
+                self.bid = Decimal(str(self.bid))
+            except decimal.InvalidOperation:
+                self.bid = None
+        if self.ask is not None and not isinstance(self.ask, Decimal):
+            try:
+                self.ask = Decimal(str(self.ask))
+            except decimal.InvalidOperation:
+                self.ask = None
+        if self.volume is not None and not isinstance(self.volume, Decimal):
+            try:
+                self.volume = Decimal(str(self.volume))
+            except decimal.InvalidOperation:
+                self.volume = None
+        # Ensure timestamp is datetime if provided
+        # if self.timestamp is not None and not isinstance(self.timestamp, datetime):
+        #     # Attempt conversion or raise error based on expected input format
+        #     # e.g., self.timestamp = datetime.fromisoformat(self.timestamp)
+        #     pass # Add appropriate timestamp handling if needed
+        return
 
 
 @dataclass
