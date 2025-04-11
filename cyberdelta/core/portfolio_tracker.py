@@ -96,8 +96,16 @@ class PortfolioTracker:
             initialization_tasks.append(self._fetch_exchange_positions(exchange_id))
             initialization_tasks.append(self._fetch_exchange_orders(exchange_id))
             
+        logger.info(f"PortfolioTracker {id(self)}: About to gather init tasks. Balances before: {self._balances}")
         # Wait for all initialization tasks to complete
-        await asyncio.gather(*initialization_tasks, return_exceptions=True)
+        results = await asyncio.gather(*initialization_tasks, return_exceptions=True)
+        logger.info(f"PortfolioTracker {id(self)}: Finished gathering init tasks. Balances after: {self._balances}")
+        
+        # Process results for errors
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(f"Error during initialization: {result}", exc_info=True)
+        
         logger.info("Portfolio state initialized")
         
     async def _fetch_exchange_balances(self, exchange_id: str):
@@ -112,6 +120,7 @@ class PortfolioTracker:
         try:
             # Fetch balances from exchange
             balances = await client.get_balances()
+            logger.info(f"Raw balances received from {exchange_id}: {balances}")
             
             # Update local state - Ensure stored balances are Decimal
             updated_balances = {}
@@ -140,7 +149,7 @@ class PortfolioTracker:
                      updated_balances[asset] = balance_obj
                      
             self._balances[exchange_id] = updated_balances
-            self._last_update_time[exchange_id] = datetime.now()
+            logger.info(f"Internal _balances state for {exchange_id} after update: {self._balances[exchange_id]}")
             
             # Convert balances to dict with stringified Decimals before logging
             loggable_balances = {}
@@ -395,11 +404,14 @@ class PortfolioTracker:
         # This method needs a proper implementation using market data to convert assets.
         # For now, we'll return a placeholder or a simplified sum if possible.
         # A simplified approach (assuming all balances are already in valuation_asset or similar value):
-        for exchange_balances in self._balances.values():
+        logger.info(f"Calculating total capital. Current _balances: {self._balances}")
+        for exchange_id, exchange_balances in self._balances.items():
+            logger.info(f"Processing balances for exchange: {exchange_id}")
             for asset, balance in exchange_balances.items():
+                logger.info(f"Checking asset {asset}. Balance type: {type(balance)}, Value: {balance}")
                 # Ensure balance object and its values are valid
                 if not isinstance(balance, Balance) or balance.total is None:
-                    logger.warning(f"Invalid balance object for {asset} on an exchange: {balance}. Skipping.")
+                    logger.warning(f"Invalid balance object for {asset} on {exchange_id}: {balance}. Skipping.")
                     continue
 
                 # Ensure balance.total is Decimal
@@ -413,11 +425,13 @@ class PortfolioTracker:
 
                 if asset.upper() == valuation_asset.upper(): # Simple check
                     total_value += balance_total
+                    logger.info(f"Added {balance_total} for {asset} (matches valuation asset). New total: {total_value}")
                 else:
                     # TODO: Add conversion logic using market data for other assets
                     # For now, we might just add the balance if it's a stablecoin assumed to be near 1:1 with USDT/USD
                     if asset.upper() in ['USDC', 'USD', 'BUSD']: # Example stablecoins
                          total_value += balance_total
+                         logger.info(f"Added {balance_total} for {asset} (stablecoin). New total: {total_value}")
                     else:
                          # Placeholder: Log that conversion is needed
                          logger.debug(f"Asset {asset} requires price conversion to {valuation_asset} for total capital calculation.")

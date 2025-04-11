@@ -151,9 +151,9 @@ def mock_config():
     """Create a mock Config object with test settings."""
     config_data = {
         "exchanges": {
-            "hyperliquid": {
+            "mock_hl": {
                 "enabled": True,
-                "symbols": ["BTC", "ETH"],
+                "symbols": {"BTC-PERP": "BTC", "ETH-PERP": "ETH"},
                 "websocket": {
                     "reconnect_delay": 1,
                     "max_reconnect_delay": 5,
@@ -161,9 +161,9 @@ def mock_config():
                 },
                 "risk_modifier": 0.9
             },
-            "backpack": {
+            "mock_bp": {
                 "enabled": True,
-                "symbols": ["BTCUSDC", "ETHUSDC"],
+                "symbols": {"BTC-PERP": "BTCUSDC", "ETH-PERP": "ETHUSDC"},
                 "websocket": {
                     "reconnect_delay": 1,
                     "max_reconnect_delay": 5,
@@ -190,6 +190,51 @@ def mock_config():
             "circuit_breaker": {
                 "loss_threshold": 100.0,
                 "failed_trades": 3
+            }
+        },
+        "validation": {
+            "circuit_breaker": {
+                "enabled": True,
+                "global": {
+                    "api_errors": {
+                         "enabled": True,
+                         "threshold": 5,
+                         "window_seconds": 120,
+                         "cooldown_seconds": 600
+                    }
+                },
+                "exchanges": {
+                     "mock_hl": {
+                          "enabled": True,
+                          "api_errors": {
+                               "enabled": True,
+                               "threshold": 3,
+                               "window_seconds": 60,
+                               "cooldown_seconds": 300
+                          },
+                          "drawdown": {"enabled": False},
+                          "volatility": {"enabled": False},
+                          "liquidity": {"enabled": False}
+                     },
+                     "mock_bp": {
+                          "enabled": True,
+                          "api_errors": {
+                               "enabled": True,
+                               "threshold": 3,
+                               "window_seconds": 60,
+                               "cooldown_seconds": 300
+                          },
+                          "drawdown": {"enabled": False},
+                          "volatility": {"enabled": False},
+                          "liquidity": {"enabled": False}
+                     }
+                }
+            },
+            "position_reconciliation": {
+                 "enabled": True,
+                 "check_interval": 300,
+                 "reconciliation_threshold": 0.01,
+                 "auto_correct": False
             }
         },
         "data": {
@@ -263,33 +308,8 @@ def mock_exchange_api():
 @pytest.fixture
 def circuit_breaker_system(mock_config):
     """Create a CircuitBreakerSystem instance using mock config."""
-    # Need to ensure mock_config has the necessary circuit_breaker settings
-    # Let's add a basic structure if it's missing from the default mock_config
-    if "circuit_breaker" not in mock_config.config:
-        mock_config.config["circuit_breaker"] = {
-            "global": {
-                "failure_threshold": 3,
-                "cooldown_seconds": 60,
-                "enabled": True,
-            },
-            "exchanges": {
-                "mock_bp": {
-                    "api_error": {"enabled": True, "error_threshold": 2, "window_seconds": 30},
-                    "drawdown": {"enabled": False},
-                    "volatility": {"enabled": False},
-                    "liquidity": {"enabled": False},
-                },
-                "mock_hl": {
-                    "api_error": {"enabled": True, "error_threshold": 2, "window_seconds": 30},
-                    "drawdown": {"enabled": False},
-                    "volatility": {"enabled": False},
-                    "liquidity": {"enabled": False},
-                }
-            }
-        }
-    
     from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
-    system = CircuitBreakerSystem(mock_config) 
+    system = CircuitBreakerSystem(mock_config)
     return system
 
 @pytest.fixture

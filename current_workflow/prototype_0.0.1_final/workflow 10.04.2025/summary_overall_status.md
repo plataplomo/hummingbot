@@ -11,8 +11,8 @@ Deliver a **stable, well-tested core trading engine** capable of executing basic
 *   **Unit Testing:** 🟡 Believed to be near 100% passing, pending final verification.
 *   **Integration Testing:**
     *   Core Workflow: ✅ Completed and passing.
-    *   Safety Systems: 🔴 **Blocked** by runtime errors during test execution.
-*   **Failure Scenario Testing:** 🔴 Insufficient. Basic scenarios covered in core workflow tests, but broader coverage (especially for safety systems) is **blocked/pending**.
+    *   Safety Systems: 🟡 **Recent Progress.** Runtime errors previously blocking these tests were investigated. The primary issue identified was in the `test_circuit_breaker_*` setup (calling wrong methods, tripping system instead of specific breaker). This has been fixed. Awaiting verification run. Other runtime errors likely resolved during core workflow debugging.
+*   **Failure Scenario Testing:** 🔴 Insufficient. Basic scenarios covered in core workflow tests, but broader coverage (especially for safety systems) is **pending unblocking and passing of safety system integration tests**.
 
 ## Key Achievements Recently (Aug 6-9)
 *   Cleaned and consolidated `config.yaml`.

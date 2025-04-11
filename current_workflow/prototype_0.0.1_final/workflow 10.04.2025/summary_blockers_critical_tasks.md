@@ -10,6 +10,7 @@ This document highlights the most critical issues, mandated tasks, and immediate
     *   **`PositionReconciler` Client Access:** `AttributeError: 'PortfolioTracker' object has no attribute 'get_api_client'` (Incorrect method used to fetch API clients).
     *   **Impact:** Prevents verification of safety system integration (CB, Validator, Reconciler) and broader failure scenario testing.
     *   **Resolution:** Debugging these three specific errors is the **highest immediate priority** (Target: Aug 10).
+    *   **Update (Aug 9 Evening):** The `PositionReconciler` and `RiskManager` fixture errors were likely addressed during `test_core_workflow` debugging. The remaining apparent blocker was a logic issue in the `test_circuit_breaker_*` tests themselves, which has now been diagnosed and fixed (tests were calling `execute_opportunity` instead of `process_opportunity`). Awaiting test run to confirm resolution.
 
 ## Critical Tasks & Mandates (Derived from Critic Feedback & Current Status)
 

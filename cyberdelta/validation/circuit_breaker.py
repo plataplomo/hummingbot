@@ -89,9 +89,13 @@ class CircuitBreaker(ABC):
         Returns:
             True if the operation is allowed, False if blocked
         """
-        # If breaker is open, check if cooldown period has passed
+        now = datetime.now()
+        logger.info(f"Breaker {self.name}: Checking allow_operation. State={self.state.name}, Now={now}, TripTime={self.trip_time}, Cooldown={self.cooldown_seconds}")
         if self.state == BreakerState.OPEN:
-            if self.trip_time and (datetime.now() - self.trip_time).total_seconds() >= self.cooldown_seconds:
+            if self.trip_time is None:
+                logger.error(f"Breaker {self.name} is OPEN but trip_time is None!")
+                return False
+            if (now - self.trip_time).total_seconds() >= self.cooldown_seconds:
                 self.state = BreakerState.HALF_OPEN
                 logger.info(f"Circuit breaker '{self.name}' entering half-open state for testing")
         
@@ -354,8 +358,15 @@ class APIErrorBreaker(CircuitBreaker):
         cutoff_time = now - timedelta(seconds=self.window_seconds)
         self.error_times = [t for t in self.error_times if t >= cutoff_time]
         
-        # Check if threshold is exceeded
-        self.check(error_message)
+        # === ADDED Logging ===
+        error_count = len(self.error_times)
+        logger.info(f"Breaker {self.name}: Recorded error. Count={error_count}, Threshold={self.error_threshold}, Window={self.window_seconds}s")
+        # === END Logging ===
+        
+        # Check if the error count exceeds the threshold
+        if error_count >= self.error_threshold:
+            logger.info(f"Breaker {self.name}: Threshold met! Tripping breaker.")
+            self.trip(f"API errors exceeded threshold ({self.error_threshold} in {self.window_seconds}s)")
     
     def check(self, error_message: Optional[str] = None) -> None:
         """
@@ -456,6 +467,7 @@ class CircuitBreakerSystem:
         self.config = config
         self.breakers: Dict[str, CircuitBreaker] = {}
         self.exchange_breakers: Dict[str, Dict[str, CircuitBreaker]] = {}
+        self.last_status: Dict[str, Any] = {}
         
         # Load configuration
         self._load_config()
@@ -468,6 +480,22 @@ class CircuitBreakerSystem:
             logger.warning("Circuit breaker system is globally disabled")
             return
             
+        # === ADDED: Load Global API Error Breaker ===
+        global_api_config_path = 'validation.circuit_breaker.global.api_errors' # Assuming config path
+        if self.config.get(f'{global_api_config_path}.enabled', True):
+            error_threshold = self.config.get(f'{global_api_config_path}.threshold', 5) # Example threshold
+            window_seconds = self.config.get(f'{global_api_config_path}.window_seconds', 120)
+            cooldown_seconds = self.config.get(f'{global_api_config_path}.cooldown_seconds', 600)
+            global_api_breaker = APIErrorBreaker(
+                name="global_api_error",
+                error_threshold=error_threshold,
+                window_seconds=window_seconds,
+                cooldown_seconds=cooldown_seconds
+            )
+            self.register_breaker(global_api_breaker)
+            logger.info(f"Initialized global API error breaker.")
+        # === END ADDED ===
+
         # Load exchange-specific settings
         for exchange_id in self.config.get('exchanges', {}).keys():
             if not self.config.get(f'exchanges.{exchange_id}.enabled', False):
@@ -577,6 +605,7 @@ class CircuitBreakerSystem:
                     self.exchange_breakers[exchange_id][f'{symbol}_liquidity'] = liq_breaker
         
         logger.info(f"Initialized circuit breakers for {len(self.exchange_breakers)} exchanges")
+        logger.info(f"Exchange Breakers Content: {self.exchange_breakers}")
     
     def register_breaker(self, breaker: CircuitBreaker) -> None:
         """
@@ -618,15 +647,24 @@ class CircuitBreakerSystem:
     
     def can_execute(self, exchange: str, symbol: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """
-        Check if an operation can be executed for an exchange/symbol.
+        Check if an operation can be executed for an exchange/symbol or globally.
         
         Args:
-            exchange: Exchange identifier
+            exchange: Exchange identifier or "global"
             symbol: Optional symbol for symbol-specific checks
             
         Returns:
             Tuple of (can_execute, reason_if_blocked)
         """
+        # === ADDED: Global Check ===
+        if exchange == "global":
+            global_api_breaker = self.get_breaker("global_api_error")
+            if global_api_breaker and not global_api_breaker.allow_operation():
+                return False, f"Blocked by global circuit breaker: {global_api_breaker.name} - {global_api_breaker.trip_reason}"
+            # Add checks for other potential global breakers here if needed
+            return True, None # If no global breakers are tripped
+        # === END ADDED ===
+
         if exchange not in self.exchange_breakers:
             return True, None
             
@@ -653,15 +691,26 @@ class CircuitBreakerSystem:
     
     def record_api_error(self, exchange: str, error_message: str) -> None:
         """
-        Record an API error for the specified exchange.
-        
-        Args:
-            exchange: Exchange identifier
-            error_message: Description of the error
+        Record an API error for an exchange and update the global breaker.
         """
-        api_breaker = self.get_exchange_breaker(exchange, 'api_errors')
-        if api_breaker and isinstance(api_breaker, APIErrorBreaker):
-            api_breaker.record_error(error_message)
+        logger.info(f"System ID {id(self)}: record_api_error called for {exchange}")
+        # Record for exchange-specific APIErrorBreaker
+        breaker = self.get_exchange_breaker(exchange, "api_errors")
+        logger.info(f"Got exchange breaker for {exchange}: {breaker}")
+        if breaker and isinstance(breaker, APIErrorBreaker):
+            breaker.record_error(error_message)
+            logger.info(f"Recorded API error for {exchange}. Breaker status: {breaker.get_status()}")
+        else:
+            logger.warning(f"No valid APIErrorBreaker found for {exchange}")
+
+        # Update global APIErrorBreaker
+        global_breaker = self.get_breaker("global_api_error")
+        logger.info(f"Got global breaker: {global_breaker}")
+        if global_breaker and isinstance(global_breaker, APIErrorBreaker):
+            global_breaker.record_error(error_message)
+            logger.info(f"Recorded API error for global breaker. Status: {global_breaker.get_status()}")
+        else:
+            logger.warning(f"No valid global_api_error breaker found")
     
     def update_price(self, exchange: str, symbol: str, price: float) -> None:
         """

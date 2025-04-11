@@ -137,8 +137,8 @@ class RiskManager:
         # Get average price for Kelly calculation
         # Fetching from DataHandler is better practice, using opportunity prices for now
         # Ensure prices are Decimal
-        long_price = opportunity.long_entry_price # Assuming Decimal
-        short_price = opportunity.short_entry_price # Assuming Decimal
+        long_price = opportunity.long_price # Corrected attribute name
+        short_price = opportunity.short_price # Corrected attribute name
         if not long_price or not short_price:
              logger.warning("Missing prices in opportunity for Kelly calculation. Using placeholder.")
              avg_price = Decimal("1.0") # Placeholder
@@ -165,6 +165,11 @@ class RiskManager:
         
         # Ensure it's a positive value
         kelly_adjusted = max(Decimal("0"), kelly_adjusted)
+        
+        # === ADDED Logging ===
+        logger.info(f"Kelly Inputs: NFD={nfd}, Vol={basis_volatility}, AvgPx={avg_price}, KellyFrac={self.kelly_fraction}")
+        logger.info(f"Kelly Calc: RawKelly={kelly:.6f}, AdjustedKelly={kelly_adjusted:.6f}, TotalCapital={total_capital:.2f}")
+        # === END Logging ===
         
         # Calculate size based on Kelly (Decimal * Decimal = Decimal)
         size = kelly_adjusted * total_capital
@@ -225,22 +230,20 @@ class RiskManager:
         
         # Check leverage constraints
         for exchange, size in [(long_exchange, long_size), (short_exchange, short_size)]:
-            collateral_asset = self.config.get(f'exchanges.{exchange}.collateral_asset', 'USD') # Get collateral for the specific exchange
-            available_capital = self.portfolio_tracker.get_exchange_balance(exchange, collateral_asset) # Assuming returns Decimal
-            if not isinstance(available_capital, Decimal):
-                logger.warning(f"Available capital for {exchange} is not Decimal: {available_capital}. Converting.")
-                available_capital = Decimal(str(available_capital)) 
-            
-            # logger.info(f"Initial Validity - Capital Check for {exchange}: Asset={collateral_asset}, Available={available_capital:.2f}") # Original Debug Log
-            
+            # Correctly get collateral asset for the *specific* exchange
+            collateral_asset = self.config.get(f'exchanges.{exchange}.collateral_asset', 'USD') 
+            # Fetch the balance for the *correct* collateral asset
+            available_capital_dec = self.portfolio_tracker.get_exchange_collateral_balance(exchange, collateral_asset=collateral_asset) 
+
             # Check if capital is sufficient (e.g., > 0)
-            is_insufficient = available_capital <= self.min_exchange_balance # Decimal comparison
-            logger.info(f"Capital Check {exchange}: Asset={collateral_asset}, Avail={available_capital:.2f}, MinReq={self.min_exchange_balance:.2f}, IsInsufficient={is_insufficient}") # DETAILED DEBUG
+            is_insufficient = available_capital_dec <= self.min_exchange_balance # Decimal comparison
+            # Use collateral_asset in log
+            logger.info(f"Capital Check {exchange}: Asset={collateral_asset}, Avail={available_capital_dec:.2f}, MinReq={self.min_exchange_balance:.2f}, IsInsufficient={is_insufficient}") # DETAILED DEBUG
             if is_insufficient:
-                logger.warning(f"No available capital on {exchange} (Balance: {available_capital:.2f}, Min: {self.min_exchange_balance:.2f})")
+                logger.warning(f"No available capital on {exchange} ({collateral_asset}) (Balance: {available_capital_dec:.2f}, Min: {self.min_exchange_balance:.2f})")
                 return False
                 
-            implied_leverage = size / available_capital if available_capital > Decimal("0") else Decimal("Infinity")
+            implied_leverage = size / available_capital_dec if available_capital_dec > Decimal("0") else Decimal("Infinity")
             # Compare Decimal leverage to float max_leverage
             if implied_leverage > Decimal(str(self.max_leverage)):
                 logger.info(f"Trade exceeds maximum leverage for {exchange}: "
@@ -713,12 +716,15 @@ class RiskManager:
         # Ensure opportunity has Decimal values where expected
         if not isinstance(opportunity.net_funding_differential, Decimal): 
             opportunity.net_funding_differential = Decimal(str(opportunity.net_funding_differential))
-        if hasattr(opportunity, 'long_entry_price') and not isinstance(opportunity.long_entry_price, Decimal):
-            opportunity.long_entry_price = Decimal(str(opportunity.long_entry_price))
-        if hasattr(opportunity, 'short_entry_price') and not isinstance(opportunity.short_entry_price, Decimal):
-            opportunity.short_entry_price = Decimal(str(opportunity.short_entry_price))
-        if hasattr(opportunity, 'expected_profit') and not isinstance(opportunity.expected_profit, Decimal):
-             opportunity.expected_profit = Decimal(str(opportunity.expected_profit))
+        if hasattr(opportunity, 'long_price') and not isinstance(opportunity.long_price, Decimal):
+            opportunity.long_price = Decimal(str(opportunity.long_price))
+        if hasattr(opportunity, 'short_price') and not isinstance(opportunity.short_price, Decimal):
+            opportunity.short_price = Decimal(str(opportunity.short_price))
+        if hasattr(opportunity, 'expected_profit'):
+             if opportunity.expected_profit is None:
+                 opportunity.expected_profit = Decimal("0") # Handle None case
+             elif not isinstance(opportunity.expected_profit, Decimal):
+                 opportunity.expected_profit = Decimal(str(opportunity.expected_profit))
              
         # 1. Get Total Capital
         total_capital = self.portfolio_tracker.get_total_capital()
@@ -777,8 +783,8 @@ class RiskManager:
         
         # Recalculate expected profit based on final size and NFD
         # Assuming prices are available in the opportunity object
-        if opportunity.long_entry_price and opportunity.short_entry_price:
-             avg_entry_price = (opportunity.long_entry_price + opportunity.short_entry_price) / Decimal("2")
+        if opportunity.long_price and opportunity.short_price:
+             avg_entry_price = (opportunity.long_price + opportunity.short_price) / Decimal("2")
              # Quantity = Size / Price
              quantity = final_size / avg_entry_price if avg_entry_price > Decimal("0") else Decimal("0")
              # Profit = Quantity * Price_Difference * Time_Factor (Simplified: Size * NFD)

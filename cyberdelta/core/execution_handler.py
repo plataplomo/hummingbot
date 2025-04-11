@@ -1,18 +1,21 @@
-import logging
 import asyncio
 import time
+import uuid
 from typing import Dict, List, Optional, Any, Tuple, Union
 from datetime import datetime
 from enum import Enum, auto
 from decimal import Decimal
 
 from cyberdelta.apis.base import ExchangeAPI, APIError
-from cyberdelta.core.models import Order, Position, OrderStatus, OrderSide, OrderType
+from cyberdelta.core.models import Order, Position, OrderStatus, OrderSide, OrderType, ArbitrageOpportunity
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
-from cyberdelta.utils.config import Config
+from cyberdelta.config import ConfigManager
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.core.execution.synchronized_order_submission import ExecutionResult, ExecutionStatus
+from cyberdelta.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class ExecutionStatus(Enum):
     """Status of an execution."""
@@ -37,6 +40,7 @@ class TradeExecution:
         Args:
             opportunity: Sized arbitrage opportunity
         """
+        self.id = str(uuid.uuid4())
         self.opportunity = opportunity
         self.status = ExecutionStatus.PENDING
         self.error_message = None
@@ -101,12 +105,12 @@ class CircuitBreaker:
     Circuit breaker to prevent excessive trading during failing conditions.
     """
     
-    def __init__(self, config: Config):
+    def __init__(self, config: ConfigManager):
         """
         Initialize the circuit breaker.
         
         Args:
-            config: Application configuration
+            config: Application configuration (ConfigManager instance)
         """
         self.config = config
         
@@ -164,6 +168,12 @@ class CircuitBreaker:
         """Check if the circuit breaker is open."""
         return self.open
 
+    # ADDED: Compatibility method - always returns False for this simple breaker
+    def is_global_open(self) -> bool: 
+        """Check if the global breaker is open (compatibility)."""
+        # This internal breaker doesn't have a global concept
+        return False 
+
 
 class ExecutionHandler:
     """
@@ -178,16 +188,18 @@ class ExecutionHandler:
     - Implementing circuit breakers for critical failures
     """
     
-    def __init__(self, config: Config, portfolio_tracker: PortfolioTracker):
+    def __init__(self, config: ConfigManager, portfolio_tracker: PortfolioTracker, circuit_breaker_system: Optional[CircuitBreakerSystem] = None):
         """
         Initialize the execution handler.
         
         Args:
-            config: Application configuration
+            config: Application configuration (ConfigManager instance)
             portfolio_tracker: Portfolio tracker for position updates
+            circuit_breaker_system: The main circuit breaker system (optional)
         """
         self.config = config
         self.portfolio_tracker = portfolio_tracker
+        self.circuit_breaker_system = circuit_breaker_system # Store the main system
         
         # API clients
         self.api_clients: Dict[str, ExchangeAPI] = {}
@@ -196,9 +208,6 @@ class ExecutionHandler:
         self.max_slippage = config.get('execution.max_slippage', 0.002)  # 0.2% max slippage
         self.max_retries = config.get('execution.max_retries', 3)
         self.retry_delay_base = config.get('execution.retry_delay_base', 1.0)  # seconds
-        
-        # Circuit breaker
-        self.circuit_breaker = CircuitBreaker(config)
         
         # Execution history (keep last 100)
         self.execution_history: List[TradeExecution] = []
@@ -234,23 +243,33 @@ class ExecutionHandler:
         execution_id = execution.id # Store execution id for finally block
 
         try:
-            # --- Check Circuit Breaker --- 
-            if self.circuit_breaker.is_global_open():
-                execution.status = ExecutionStatus.REJECTED
-                execution.error_message = "Execution rejected: Global circuit breaker is open."
-                logger.warning(execution.error_message)
-                return execution
-            
-            long_exchange = opportunity.opportunity.long_exchange
-            short_exchange = opportunity.opportunity.short_exchange
-            
-            if self.circuit_breaker.is_exchange_open(long_exchange) or \
-               self.circuit_breaker.is_exchange_open(short_exchange):
-                 execution.status = ExecutionStatus.REJECTED
-                 execution.error_message = f"Execution rejected: Circuit breaker open for {long_exchange} or {short_exchange}."
-                 logger.warning(execution.error_message)
-                 return execution
-            # -----------------------------
+            # Check global and exchange-specific circuit breakers from the main system
+            if self.circuit_breaker_system:
+                # Access the nested opportunity object for exchange IDs
+                long_exchange = opportunity.opportunity.long_exchange
+                short_exchange = opportunity.opportunity.short_exchange
+                
+                # Check long exchange
+                can_trade_long, reason_long = self.circuit_breaker_system.can_execute(
+                    exchange=long_exchange
+                )
+                if not can_trade_long:
+                    logger.info(f"Execution blocked by main circuit breaker system: {reason_long}")
+                    execution.status = ExecutionStatus.REJECTED
+                    execution.error_message = reason_long
+                    return execution
+                
+                # Check short exchange
+                can_trade_short, reason_short = self.circuit_breaker_system.can_execute(
+                    exchange=short_exchange
+                )
+                if not can_trade_short:
+                    logger.info(f"Execution blocked by main circuit breaker system: {reason_short}")
+                    execution.status = ExecutionStatus.REJECTED
+                    execution.error_message = reason_short
+                    return execution
+            else:
+                logger.warning("No main circuit breaker system provided to ExecutionHandler. Skipping checks.")
 
             execution.start_time = datetime.now()
             execution.status = ExecutionStatus.EXECUTING
@@ -272,7 +291,6 @@ class ExecutionHandler:
             except (APIError, ValueError, ZeroDivisionError) as e:
                 execution.status = ExecutionStatus.FAILED
                 execution.error_message = f"Failed to get ticker or calculate long quantity: {e}"
-                self.circuit_breaker.record_failure()
                 return execution
             # --------------------------------
 
@@ -289,7 +307,6 @@ class ExecutionHandler:
             if not long_order:
                 execution.status = ExecutionStatus.FAILED
                 execution.error_message = "Failed to place long order"
-                self.circuit_breaker.record_failure()
                 return execution
 
             execution.long_order_id = long_order.id
@@ -315,7 +332,6 @@ class ExecutionHandler:
                     original_failed_side=OrderSide.SELL, quantity=long_order.filled_quantity # Compensate what was filled
                 )
                 execution.status = ExecutionStatus.FAILED # Mark as failed after compensation attempt
-                self.circuit_breaker.record_failure()
                 return execution
             # ---------------------------------
 
@@ -349,7 +365,6 @@ class ExecutionHandler:
                 if not compensation_result:
                     execution.error_message += "; Compensation attempt also failed."
                 # Record failure and return
-                self.circuit_breaker.record_failure() 
                 return execution
             # --- END ADDED Compensation Logic ---
             
@@ -365,7 +380,6 @@ class ExecutionHandler:
                     execution.status = ExecutionStatus.FAILED
                     execution.error_message = "Failed to place short order (reason unclear, check logs)" 
                     logger.error(f"Execution reached unexpected state: short order failed but long order status unclear or not filled. Long: {long_order}")
-                    self.circuit_breaker.record_failure()
                 return execution # Return if short failed and compensation wasn't triggered above
 
             # --- Short order was placed successfully ---            
@@ -429,10 +443,6 @@ class ExecutionHandler:
                         position=short_position
                     )
                     
-                    # --- ADDED: Record success with Circuit Breaker ---
-                    self.circuit_breaker.record_success()
-                    # -----------------------------------------------
-                    
                     logger.info(f"Successfully executed opportunity: {opportunity}")
                 else:
                     # --- At least one leg is PARTIALLY_FILLED --- 
@@ -476,7 +486,7 @@ class ExecutionHandler:
                     execution.error_message = f"Trade partially completed and compensation attempted. Long Comp: {'Success' if comp_long_success else 'Failed'}, Short Comp: {'Success' if comp_short_success else 'Failed'}."
                     
                     # Record failure with circuit breaker
-                    self.circuit_breaker.record_failure() # Record as a failure scenario
+                    self.circuit_breaker_system.record_failure() # Record as a failure scenario
                     # ----------------------------------------------------
 
                 # Record fill details regardless of full/partial (Moved slightly lower)
@@ -509,40 +519,72 @@ class ExecutionHandler:
                 execution.status = ExecutionStatus.FAILED # Final status is FAILED after compensation attempt
                 if not compensation_result:
                      execution.error_message += "; Compensation attempt also failed."
-                self.circuit_breaker.record_failure() # Record failure regardless of compensation success
+                self.circuit_breaker_system.record_failure() # Record failure regardless of compensation success
 
             else:
                 # --- Neither order had any fill --- 
                 execution.status = ExecutionStatus.FAILED
                 execution.error_message = f"Neither order was filled. Long: {long_order.status.name if long_order else 'N/A'}, Short: {short_order.status.name if short_order else 'N/A'}"
-                self.circuit_breaker.record_failure()
+                self.circuit_breaker_system.record_failure()
                 logger.error(f"Failed to execute opportunity: {opportunity} - {execution.error_message}")
             
+            # --- Record Success with Main Circuit Breaker ---
+            if self.circuit_breaker_system:
+                self.circuit_breaker_system.record_success(long_exchange)
+                self.circuit_breaker_system.record_success(short_exchange)
+                logger.debug("Recorded success with main circuit breaker system for both exchanges.")
+
             return execution
             
-        except Exception as e:
-            # Handle unexpected errors
-            logger.error(f"Error executing opportunity: {str(e)}", exc_info=True)
-            
+        except APIError as e:
+            logger.error(f"API Error during execution {execution.id}: {e}")
             execution.status = ExecutionStatus.FAILED
-            execution.error_message = f"Unexpected error: {str(e)}"
-            
-            # Record failure
-            self.circuit_breaker.record_failure()
-            
-            return execution
+            execution.error_message = str(e)
+            # --- Record Failure with Main Circuit Breaker ---
+            if self.circuit_breaker_system:
+                # Determine which exchange caused the API error if possible, otherwise record for both?
+                # For now, assume it could affect either leg if origin isn't clear from error.
+                exchange = e.exchange_id if hasattr(e, 'exchange_id') else None
+                if exchange:
+                     self.circuit_breaker_system.record_error(error_type='api_error', exchange=exchange, details=str(e))
+                else:
+                     # If exchange isn't known, maybe record globally or for involved exchanges? Be cautious.
+                     logger.warning(f"APIError without specific exchange ID for execution {execution.id}. Not recording in specific breaker.")
+                     # Optionally record against the exchanges involved in the opportunity
+                     # self.circuit_breaker_system.record_error('api_error', exchange=long_exchange, details=str(e))
+                     # self.circuit_breaker_system.record_error('api_error', exchange=short_exchange, details=str(e))
+
+        except Exception as e:
+            logger.error(f"Unexpected error during execution {execution.id}: {e}", exc_info=True)
+            execution.status = ExecutionStatus.FAILED
+            execution.error_message = str(e)
+            # --- Record Generic Failure with Main Circuit Breaker ---
+            # Avoid double-counting if it was an APIError caught above.
+            # This catches other issues like config errors, calculation problems during execution itself.
+            if self.circuit_breaker_system and not isinstance(e, APIError):
+                 # Record as a general execution failure against involved exchanges
+                 try:
+                     # Access exchange IDs directly from the SizedOpportunity
+                     long_exchange = opportunity.opportunity.long_exchange
+                     short_exchange = opportunity.opportunity.short_exchange
+                     self.circuit_breaker_system.record_error(error_type='execution_error', exchange=long_exchange, details=str(e))
+                     self.circuit_breaker_system.record_error(error_type='execution_error', exchange=short_exchange, details=str(e))
+                     logger.debug(f"Recorded general execution failure for {execution.id} in main circuit breaker system.")
+                 except Exception as cb_err:
+                     logger.error(f"Failed to record generic execution error in circuit breaker: {cb_err}")
+
         finally:
-            # Update execution history
             execution.end_time = datetime.now()
-            self.execution_history.append(execution)
-            
-            # Remove from active executions
+            # Remove from active, add to history
             if execution_id in self.active_executions:
                 del self.active_executions[execution_id]
-            
-            # Trim history if needed
+            self.execution_history.append(execution)
             if len(self.execution_history) > self.max_execution_history:
-                self.execution_history = self.execution_history[-self.max_execution_history:]
+                self.execution_history.pop(0) # Keep history size bounded
+                
+            logger.info(f"Execution {execution.id} finished with status: {execution.status.name}")
+            
+        return execution
     
     async def _place_order_with_retry(self, 
                                     client: ExchangeAPI,
@@ -745,4 +787,4 @@ class ExecutionHandler:
     
     def reset_circuit_breaker(self):
         """Reset the circuit breaker."""
-        self.circuit_breaker.reset()
+        self.circuit_breaker_system.reset()

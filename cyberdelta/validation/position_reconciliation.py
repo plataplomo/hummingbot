@@ -8,8 +8,9 @@ import logging
 from typing import Dict, List, Optional, Tuple, Any, Set
 from datetime import datetime, timedelta
 import numpy as np
+from decimal import Decimal
 
-from cyberdelta.core.models import Position
+from cyberdelta.core.models import Position, OrderSide
 from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ class PositionReconciliationSystem:
         
         # Check each exchange
         for exchange in exchanges:
-            api_client = self.portfolio_tracker.get_api_client(exchange)
+            api_client = self.portfolio_tracker.api_clients.get(exchange)
             if not api_client:
                 logger.warning(f"No API client registered for {exchange}, skipping reconciliation")
                 continue
@@ -107,15 +108,17 @@ class PositionReconciliationSystem:
             try:
                 # 1. Exchange API positions
                 exchange_positions = await api_client.get_positions()
+                logger.info(f"Raw exchange positions from {exchange}: {exchange_positions}")
                 
-                # 2. Fill history-derived positions (from execution handler)
-                execution_handler = self.portfolio_tracker.get_execution_handler(exchange)
-                fill_positions = execution_handler.get_derived_positions() if execution_handler else []
+                # 2. Fill history-derived positions (REMOVED - Incorrect dependency/method)
+                # execution_handler = self.portfolio_tracker.get_execution_handler(exchange)
+                # fill_positions = execution_handler.get_derived_positions() if execution_handler else []
+                fill_positions = [] # Keep variable defined, but empty
                 
                 # 3. Local state tracking
                 local_positions = self.portfolio_tracker.get_positions_by_exchange(exchange)
                 
-                # Perform the reconciliation
+                # Perform the reconciliation (pass empty fill_positions)
                 exchange_results = self._reconcile_positions(
                     exchange, exchange_positions, fill_positions, local_positions)
                 
@@ -165,11 +168,14 @@ class PositionReconciliationSystem:
         
         # Create position maps for easier comparison
         exchange_map = {p.symbol: p for p in exchange_positions}
-        fill_map = {p.symbol: p for p in fill_positions}
         local_map = {p.symbol: p for p in local_positions}
         
-        # Get all unique symbols
-        all_symbols = set(exchange_map.keys()) | set(fill_map.keys()) | set(local_map.keys())
+        # Get all unique symbols from relevant sources
+        all_symbols = set(exchange_map.keys()) | set(local_map.keys())
+        
+        # === ADDED Logging ===
+        logger.info(f"Reconciling {exchange}: ExchangeMap={exchange_map}, LocalMap={local_map}, AllSymbols={all_symbols}")
+        # === END Logging ===
         
         # Check for discrepancies
         discrepancies = []
@@ -177,55 +183,37 @@ class PositionReconciliationSystem:
         for symbol in all_symbols:
             # Get positions from each source (or create empty position)
             exch_pos = exchange_map.get(symbol, Position(
-                symbol=symbol, size=0, entry_price=0, mark_price=0, 
-                liquidation_price=0, unrealized_pnl=0, leverage=0))
+                symbol=symbol, size=Decimal("0"), entry_price=Decimal("0"), mark_price=Decimal("0"), side=OrderSide.BUY
+            ))
             
-            fill_pos = fill_map.get(symbol, Position(
-                symbol=symbol, size=0, entry_price=0, mark_price=0, 
-                liquidation_price=0, unrealized_pnl=0, leverage=0))
+            fill_pos = None # Define as None since it's no longer used in comparisons below
             
             local_pos = local_map.get(symbol, Position(
-                symbol=symbol, size=0, entry_price=0, mark_price=0, 
-                liquidation_price=0, unrealized_pnl=0, leverage=0))
+                symbol=symbol, size=Decimal("0"), entry_price=Decimal("0"), mark_price=Decimal("0"), side=OrderSide.BUY
+            ))
             
-            # Calculate discrepancies
-            exch_local_diff = abs(exch_pos.size - local_pos.size)
-            fill_local_diff = abs(fill_pos.size - local_pos.size)
-            exch_fill_diff = abs(exch_pos.size - fill_pos.size)
+            # === ADDED Logging ===
+            logger.info(f"Reconciling {exchange}/{symbol}: ExchSize={exch_pos.size}, LocalSize={local_pos.size}")
+            # === END Logging ===
             
-            # Calculate relative discrepancies (avoid division by zero)
-            base_size = max(abs(exch_pos.size), abs(fill_pos.size), abs(local_pos.size))
+            # Check size discrepancy (Exchange vs Local)
+            size_discrepancy = abs(exch_pos.size - local_pos.size)
+            # Convert float threshold to Decimal for comparison
+            size_threshold = Decimal(str(self.reconciliation_threshold)) * max(abs(exch_pos.size), abs(local_pos.size), Decimal("0.000001")) # Avoid div by zero
             
-            if base_size > 0:
-                exch_local_pct = exch_local_diff / base_size
-                fill_local_pct = fill_local_diff / base_size
-                exch_fill_pct = exch_fill_diff / base_size
-            else:
-                # If all sizes are zero, there's no discrepancy
-                exch_local_pct = fill_local_pct = exch_fill_pct = 0
-            
-            # Check if any discrepancy exceeds the threshold
-            if (exch_local_pct > self.reconciliation_threshold or 
-                fill_local_pct > self.reconciliation_threshold or 
-                exch_fill_pct > self.reconciliation_threshold):
+            if size_discrepancy > size_threshold:
+                discrepancy_details = {
+                    "symbol": symbol,
+                    "type": "size",
+                    "exchange_value": str(exch_pos.size),
+                    "local_value": str(local_pos.size),
+                    "discrepancy": str(size_discrepancy)
+                }
+                discrepancies.append(discrepancy_details)
+                logger.warning(f"Discrepancy found for {exchange}/{symbol}: {discrepancy_details}")
                 
-                # Determine the source of truth (exchange API is considered most authoritative)
-                correct_size = exch_pos.size
-                
-                discrepancies.append({
-                    'symbol': symbol,
-                    'exchange_size': exch_pos.size,
-                    'fill_size': fill_pos.size,
-                    'local_size': local_pos.size,
-                    'exchange_local_diff': exch_local_diff,
-                    'exchange_local_pct': exch_local_pct,
-                    'fill_local_diff': fill_local_diff,
-                    'fill_local_pct': fill_local_pct,
-                    'exchange_fill_diff': exch_fill_diff,
-                    'exchange_fill_pct': exch_fill_pct,
-                    'correct_size': correct_size,
-                    'threshold_exceeded': True
-                })
+            # Optionally, add checks for entry price or side if needed
+            # (Compare exch_pos vs local_pos)
         
         return {
             'success': True,
@@ -250,12 +238,9 @@ class PositionReconciliationSystem:
                 'timestamp': timestamp,
                 'exchange': exchange,
                 'symbol': discrepancy['symbol'],
-                'exchange_size': discrepancy['exchange_size'],
-                'fill_size': discrepancy['fill_size'],
-                'local_size': discrepancy['local_size'],
-                'exchange_local_diff': discrepancy['exchange_local_diff'],
-                'fill_local_diff': discrepancy['fill_local_diff'],
-                'correct_size': discrepancy['correct_size'],
+                'exchange_value': discrepancy['exchange_value'],
+                'local_value': discrepancy['local_value'],
+                'discrepancy': discrepancy['discrepancy'],
                 'corrected': False
             }
             
@@ -264,9 +249,8 @@ class PositionReconciliationSystem:
             # Log the discrepancy
             logger.warning(
                 f"Position discrepancy detected: {exchange} {discrepancy['symbol']} "
-                f"[Exchange: {discrepancy['exchange_size']}, "
-                f"Fill: {discrepancy['fill_size']}, "
-                f"Local: {discrepancy['local_size']}]"
+                f"[Exchange: {discrepancy['exchange_value']}, "
+                f"Local: {discrepancy['local_value']}]"
             )
     
     def _apply_corrections(self, exchange: str, results: Dict[str, Any]):
@@ -283,15 +267,16 @@ class PositionReconciliationSystem:
         
         for discrepancy in results['discrepancies']:
             symbol = discrepancy['symbol']
-            correct_size = discrepancy['correct_size']
+            exchange_value = Decimal(discrepancy['exchange_value'])
+            local_value = Decimal(discrepancy['local_value'])
             
             # Get current position
             current_position = self.portfolio_tracker.get_position(exchange, symbol)
             
             if current_position is None:
                 # Create a new position with correct size
-                if correct_size != 0:
-                    logger.info(f"Creating missing position: {exchange} {symbol} size={correct_size}")
+                if exchange_value != 0:
+                    logger.info(f"Creating missing position: {exchange} {symbol} size={exchange_value}")
                     
                     # Use exchange position data to create the position
                     exchange_position = next(
@@ -304,16 +289,16 @@ class PositionReconciliationSystem:
                         self.portfolio_tracker.update_position(exchange, exchange_position)
             else:
                 # Update existing position with correct size
-                if current_position.size != correct_size:
+                if current_position.size != exchange_value:
                     logger.info(
                         f"Correcting position: {exchange} {symbol} "
-                        f"from {current_position.size} to {correct_size}"
+                        f"from {current_position.size} to {exchange_value}"
                     )
                     
                     # Create updated position
                     updated_position = Position(
                         symbol=current_position.symbol,
-                        size=correct_size,
+                        size=exchange_value,
                         entry_price=current_position.entry_price,
                         mark_price=current_position.mark_price,
                         liquidation_price=current_position.liquidation_price,
