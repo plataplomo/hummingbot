@@ -10,10 +10,10 @@ This script shows how to:
 Usage:
     # Run the script using the default configuration paths
     python config_example.py
-    
+
     # Specify custom paths for configuration files
     python config_example.py --config /path/to/config.yaml --secrets /path/to/secrets.yaml
-    
+
     # Create example configuration files
     python config_example.py --create-example
 
@@ -42,7 +42,9 @@ def main():
         "--config",
         type=str,
         help="Path to the configuration file",
-        default=os.path.join(os.path.dirname(__file__), "../cyberdelta/config/config.yaml"),
+        default=os.path.join(
+            os.path.dirname(__file__), "../cyberdelta/config/config.yaml"
+        ),
     )
     parser.add_argument(
         "--secrets",
@@ -66,7 +68,7 @@ def main():
         create_example_files()
         print("Example configuration and secrets files created.")
         return
-    
+
     if args.benchmark:
         run_benchmark(args.config, args.secrets)
         return
@@ -74,13 +76,13 @@ def main():
     # Initialize configuration managers
     config_path = os.path.abspath(args.config)
     secrets_path = os.path.abspath(args.secrets)
-    
+
     # Check if config files exist
     if not os.path.exists(config_path):
         print(f"Error: Configuration file not found at {config_path}")
         print("Use --create-example to create sample configuration files.")
         return
-    
+
     if not os.path.exists(secrets_path):
         print(f"Error: Secrets file not found at {secrets_path}")
         print("Use --create-example to create sample configuration files.")
@@ -91,10 +93,10 @@ def main():
     if not config.load():
         print("Failed to load configuration")
         return
-    
+
     print(f"Loading secrets from: {secrets_path}")
     # Set environment variable for SecretsManager
-    os.environ['CYBERDELTA_SECRETS_PATH'] = secrets_path
+    os.environ["CYBERDELTA_SECRETS_PATH"] = secrets_path
     # Create secrets manager
     secrets = SecretsManager()
     if not secrets.load_secrets():
@@ -105,67 +107,75 @@ def main():
     print("\n=== Configuration Information ===")
     print(f"Safe Mode: {config.get('general.safe_mode', False)}")
     print(f"Log Level: {config.get('general.log_level', 'Not Set')}")
-    
+
     # Display exchanges information
     print("\n=== Exchange Information ===")
-    exchanges = config.get('exchanges', {})
+    exchanges = config.get("exchanges", {})
     for exchange_name, exchange_config in exchanges.items():
-        status = 'Enabled' if exchange_config.get('enabled', False) else 'Disabled'
+        status = "Enabled" if exchange_config.get("enabled", False) else "Disabled"
         print(f"  - {exchange_name}: {status}")
         print(f"    API Base URL: {exchange_config.get('api_base_url', 'Not Set')}")
         print(f"    WebSocket URL: {exchange_config.get('ws_url', 'Not Set')}")
-        print(f"    Rate Limit: {exchange_config.get('rate_limit_per_minute', 'Not Set')} per minute")
-    
+        print(
+            f"    Rate Limit: {exchange_config.get('rate_limit_per_minute', 'Not Set')} per minute"
+        )
+
     # Display strategies information
-    strategies = config.get('strategies', {})
+    strategies = config.get("strategies", {})
     print(f"\n=== Strategies Information ({len(strategies)}) ===")
     for strategy_name, strategy_config in strategies.items():
-        status = 'Enabled' if strategy_config.get('enabled', False) else 'Disabled'
+        status = "Enabled" if strategy_config.get("enabled", False) else "Disabled"
         print(f"  - {strategy_name}: {status}")
-        
+
         # Display strategy symbols
-        symbols = strategy_config.get('symbols', {})
+        symbols = strategy_config.get("symbols", {})
         if symbols:
-            print(f"    Symbols:")
+            print("    Symbols:")
             for symbol_name, symbol_value in symbols.items():
                 print(f"      {symbol_name}: {symbol_value}")
-        
+
         # Display strategy parameters
-        params = strategy_config.get('params', {})
+        params = strategy_config.get("params", {})
         if params:
-            print(f"    Parameters:")
+            print("    Parameters:")
             for param_name, param_value in params.items():
                 print(f"      {param_name}: {param_value}")
-    
+
     # Display risk management information
     print("\n=== Risk Management Information ===")
-    risk = config.get('risk', {})
-    
-    global_risk = risk.get('global', {})
-    print(f"  Global Risk Settings:")
+    risk = config.get("risk", {})
+
+    global_risk = risk.get("global", {})
+    print("  Global Risk Settings:")
     print(f"    Max Position Size: ${global_risk.get('max_position_usd', 'Not Set')}")
-    print(f"    Max Total Exposure: ${global_risk.get('max_total_exposure_usd', 'Not Set')}")
-    print(f"    Max Portfolio Leverage: {global_risk.get('max_portfolio_leverage', 'Not Set')}x")
-    
-    strategy_risk = risk.get('strategies', {})
-    print(f"  Strategy-Specific Risk Settings:")
+    print(
+        f"    Max Total Exposure: ${global_risk.get('max_total_exposure_usd', 'Not Set')}"
+    )
+    print(
+        f"    Max Portfolio Leverage: {global_risk.get('max_portfolio_leverage', 'Not Set')}x"
+    )
+
+    strategy_risk = risk.get("strategies", {})
+    print("  Strategy-Specific Risk Settings:")
     for strategy_name, risk_config in strategy_risk.items():
         print(f"    - {strategy_name}:")
-        print(f"      Max Position Size: ${risk_config.get('max_position_usd', 'Not Set')}")
+        print(
+            f"      Max Position Size: ${risk_config.get('max_position_usd', 'Not Set')}"
+        )
         print(f"      Max Leverage: {risk_config.get('max_leverage', 'Not Set')}x")
-    
+
     # Display circuit breakers
     print("\n=== Circuit Breakers ===")
-    circuit_breakers = config.get('circuit_breakers', {})
+    circuit_breakers = config.get("circuit_breakers", {})
     print(f"  Enabled: {circuit_breakers.get('enabled', False)}")
-    
+
     # Display API information (without exposing secret values)
     print("\n=== API Credentials Status ===")
     for exchange_name in exchanges.keys():
         print(f"  - {exchange_name}")
         # Only show if a key exists, not its value
-        has_key = bool(secrets.get(f'exchanges.{exchange_name}.api_key', None))
-        has_secret = bool(secrets.get(f'exchanges.{exchange_name}.api_secret', None))
+        has_key = bool(secrets.get(f"exchanges.{exchange_name}.api_key", None))
+        has_secret = bool(secrets.get(f"exchanges.{exchange_name}.api_secret", None))
         print(f"    API Key: {'Present' if has_key else 'Missing'}")
         print(f"    API Secret: {'Present' if has_secret else 'Missing'}")
 
@@ -173,12 +183,14 @@ def main():
 def create_example_files():
     """Create example configuration and secrets files."""
     # Create paths for both locations
-    cyberdelta_config_dir = os.path.join(os.path.dirname(__file__), "../cyberdelta/config")
+    cyberdelta_config_dir = os.path.join(
+        os.path.dirname(__file__), "../cyberdelta/config"
+    )
     root_config_dir = os.path.join(os.path.dirname(__file__), "../config")
-    
+
     for config_dir in [cyberdelta_config_dir, root_config_dir]:
         os.makedirs(config_dir, exist_ok=True)
-    
+
     # Example configuration content matching the proper structure
     config_content = """# CyberDeltaEngine Configuration for Prototype 0.0.1
 
@@ -285,7 +297,7 @@ monitoring:
   alert_methods: ["log"] # Start simple, just log alerts
   # alert_methods: ["log", "telegram"] # Example for later
 """
-    
+
     # Example secrets content matching the proper structure
     secrets_content = """# CyberDeltaEngine Secrets Configuration
 # 
@@ -332,114 +344,122 @@ third_party_services:
     api_key: "YOUR_SERVICE_API_KEY"
     api_secret: "YOUR_SERVICE_API_SECRET"
 """
-    
+
     # Create example files in cyberdelta/config directory (used by the application)
-    cyberdelta_config_example_path = os.path.join(cyberdelta_config_dir, "config.yaml.example")
-    cyberdelta_secrets_example_path = os.path.join(cyberdelta_config_dir, "secrets.yaml.example")
-    
+    cyberdelta_config_example_path = os.path.join(
+        cyberdelta_config_dir, "config.yaml.example"
+    )
+    cyberdelta_secrets_example_path = os.path.join(
+        cyberdelta_config_dir, "secrets.yaml.example"
+    )
+
     # Create example files in root config directory
     root_config_example_path = os.path.join(root_config_dir, "config.example.yaml")
     root_secrets_example_path = os.path.join(root_config_dir, "secrets.example.yaml")
-    
+
     # Write example files to cyberdelta/config
     with open(cyberdelta_config_example_path, "w") as f:
         f.write(config_content)
-    
+
     with open(cyberdelta_secrets_example_path, "w") as f:
         f.write(secrets_content)
-    
+
     # Write example files to root/config
     with open(root_config_example_path, "w") as f:
         f.write(config_content)
-    
+
     with open(root_secrets_example_path, "w") as f:
         f.write(secrets_content)
-    
+
     # Create actual config files in cyberdelta/config (main location used by the application)
     cyberdelta_config_path = os.path.join(cyberdelta_config_dir, "config.yaml")
-    
+
     # Create config files in root/config (used by the example script)
     root_config_path = os.path.join(root_config_dir, "config.yaml")
     root_secrets_path = os.path.join(root_config_dir, "secrets.yaml")
-    
+
     # Write actual config files
     with open(cyberdelta_config_path, "w") as f:
         f.write(config_content)
-    
+
     with open(root_config_path, "w") as f:
         f.write(config_content)
-    
+
     with open(root_secrets_path, "w") as f:
         f.write(secrets_content)
-    
+
     # Create a user secrets directory outside the repository (as recommended in the guide)
     home_dir = Path.home()
-    user_secrets_dir = home_dir / '.cyberdelta'
+    user_secrets_dir = home_dir / ".cyberdelta"
     os.makedirs(user_secrets_dir, exist_ok=True)
-    
+
     # Create or update example secrets in the user's home directory
-    user_secrets_example_path = user_secrets_dir / 'secrets.yaml.example'
+    user_secrets_example_path = user_secrets_dir / "secrets.yaml.example"
     with open(user_secrets_example_path, "w") as f:
         f.write(secrets_content)
-    
-    print(f"Example config created at:")
+
+    print("Example config created at:")
     print(f"  - {cyberdelta_config_example_path}")
     print(f"  - {root_config_example_path}")
-    print(f"Example secrets created at:")
+    print("Example secrets created at:")
     print(f"  - {cyberdelta_secrets_example_path}")
     print(f"  - {root_secrets_example_path}")
     print(f"  - {user_secrets_example_path}")
-    print(f"\nActual config files created at:")
+    print("\nActual config files created at:")
     print(f"  - {cyberdelta_config_path}")
     print(f"  - {root_config_path}")
     print(f"  - {root_secrets_path}")
     print("\nIMPORTANT:")
-    print("1. Copy secrets.yaml to ~/.cyberdelta/secrets.yaml (recommended secure location)")
+    print(
+        "1. Copy secrets.yaml to ~/.cyberdelta/secrets.yaml (recommended secure location)"
+    )
     print("2. Add your actual API keys to the secrets file")
-    print("3. Set CYBERDELTA_SECRETS_PATH environment variable to your secrets file location")
+    print(
+        "3. Set CYBERDELTA_SECRETS_PATH environment variable to your secrets file location"
+    )
 
 
 def run_benchmark(config_path, secrets_path):
     """Run a simple benchmark of the configuration system."""
     import time
-    
+
     print("Running Configuration System Benchmark")
     print("======================================")
-    
+
     # Measure configuration loading time
     start_time = time.time()
     config = ConfigManager(config_path)
     config.load()
     config_load_time = time.time() - start_time
-    
+
     # Measure secrets loading time
     start_time = time.time()
     secrets = SecretsManager()
-    os.environ['CYBERDELTA_SECRETS_PATH'] = secrets_path
+    os.environ["CYBERDELTA_SECRETS_PATH"] = secrets_path
     secrets.load_secrets()
     secrets_load_time = time.time() - start_time
-    
+
     # Measure config value access time (1000 lookups)
     start_time = time.time()
     for _ in range(1000):
-        config.get('strategies.hl_perp_bp_spot.params.funding_threshold')
+        config.get("strategies.hl_perp_bp_spot.params.funding_threshold")
     config_access_time = time.time() - start_time
-    
+
     # Measure secrets value access time (1000 lookups)
     start_time = time.time()
     for _ in range(1000):
-        secrets.get('exchanges.hyperliquid.api_key')
+        secrets.get("exchanges.hyperliquid.api_key")
     secrets_access_time = time.time() - start_time
-    
+
     # Print results
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Config load time: {config_load_time:.6f} seconds")
     print(f"  Secrets load time: {secrets_load_time:.6f} seconds")
     print(f"  Config access time (1000 lookups): {config_access_time:.6f} seconds")
     print(f"  Secrets access time (1000 lookups): {secrets_access_time:.6f} seconds")
-    print(f"  Average config lookup: {(config_access_time/1000)*1000000:.2f} ns")
-    print(f"  Average secrets lookup: {(secrets_access_time/1000)*1000000:.2f} ns")
+    print(f"  Average config lookup: {(config_access_time / 1000) * 1000000:.2f} ns")
+    print(f"  Average secrets lookup: {(secrets_access_time / 1000) * 1000000:.2f} ns")
 
 
 if __name__ == "__main__":
-    main() 
+    main()

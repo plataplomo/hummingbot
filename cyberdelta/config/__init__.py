@@ -11,4 +11,4 @@ from .secrets_manager import SecretsManager
 config = ConfigManager()
 secrets = SecretsManager()
 
-__all__ = ['ConfigManager', 'SecretsManager', 'config', 'secrets']
+__all__ = ["ConfigManager", "SecretsManager", "config", "secrets"]

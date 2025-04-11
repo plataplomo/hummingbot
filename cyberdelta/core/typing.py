@@ -3,7 +3,9 @@
 from typing import TypeAlias
 
 # Represents a unique identifier for an exchange (e.g., 'binance', 'backpack', 'mock_hl')
-ExchangeID: TypeAlias = str
+type ExchangeID = str
 
 # Represents a trading symbol string (e.g., 'BTC-PERP', 'SOL-SPOT', 'BTC/USD')
-Symbol: TypeAlias = str 
+type Symbol = str
+
+# Represents an order side (BUY or SELL)

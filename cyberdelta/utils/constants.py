@@ -1,6 +1,7 @@
 """
 Constants for the CyberDeltaEngine.
 """
+
 from enum import Enum, auto
 
 # System constants
@@ -8,10 +9,12 @@ DEFAULT_CONFIG_PATH = "cyberdelta/config/config.yaml"
 DEFAULT_SECRETS_PATH = "cyberdelta/config/secrets.yaml"
 DEFAULT_STATE_FILE = "state.json"
 
+
 # Exchange identifiers
 class Exchange(Enum):
     HYPERLIQUID = "hyperliquid"
     BACKPACK = "backpack"
+
 
 # Order types
 class OrderType(Enum):
@@ -22,10 +25,12 @@ class OrderType(Enum):
     TAKE_PROFIT_MARKET = "take_profit_market"
     TAKE_PROFIT_LIMIT = "take_profit_limit"
 
+
 # Order sides
 class OrderSide(Enum):
     BUY = "buy"
     SELL = "sell"
+
 
 # Position status
 class PositionStatus(Enum):
@@ -35,11 +40,13 @@ class PositionStatus(Enum):
     PENDING_CLOSE = auto()
     ERROR = auto()
 
+
 # Position side
 class PositionSide(Enum):
     LONG = "long"
     SHORT = "short"
     NONE = "none"
+
 
 # Event types
 class EventType(Enum):
@@ -50,6 +57,7 @@ class EventType(Enum):
     ERROR = auto()
     SYSTEM = auto()
 
+
 # Market data types
 class MarketDataType(Enum):
     TRADE = auto()
@@ -57,6 +65,7 @@ class MarketDataType(Enum):
     TICKER = auto()
     FUNDING = auto()
     CANDLE = auto()
+
 
 # Timeframes
 class Timeframe(Enum):
@@ -70,6 +79,7 @@ class Timeframe(Enum):
     DAY_1 = "1d"
     WEEK_1 = "1w"
 
+
 # Strategy signals
 class Signal(Enum):
     BUY = auto()
@@ -77,10 +87,11 @@ class Signal(Enum):
     HOLD = auto()
     CLOSE = auto()
 
+
 # Default HTTP headers
 DEFAULT_HEADERS = {
     "Content-Type": "application/json",
-    "User-Agent": "CyberDeltaEngine/0.0.1"
+    "User-Agent": "CyberDeltaEngine/0.0.1",
 }
 
 # Rate limiting constants
@@ -102,4 +113,4 @@ SECONDS_PER_DAY = 86400
 
 # Asset precision defaults (can be overridden by exchange info)
 DEFAULT_PRICE_PRECISION = 6
-DEFAULT_AMOUNT_PRECISION = 8 
+DEFAULT_AMOUNT_PRECISION = 8

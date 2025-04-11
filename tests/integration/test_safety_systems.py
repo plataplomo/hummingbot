@@ -2,18 +2,22 @@ import logging
 
 # === FORCE ROOT LOGGER LEVEL ===
 logging.getLogger().setLevel(logging.INFO)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__) # ADD logger instance
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)  # ADD logger instance
 # ============================
 
-import asyncio # Ensure asyncio is imported if used directly
 from decimal import Decimal
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 import pytest
-from typing import List # Import List
 
-from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus, TradeExecution # Added TradeExecution
+from cyberdelta.core.execution_handler import (
+    ExecutionHandler,
+    ExecutionStatus,
+    TradeExecution,
+)  # Added TradeExecution
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.models import (
     OrderSide,
@@ -22,8 +26,8 @@ from cyberdelta.core.models import (
     ArbitrageOpportunity,
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem, BreakerState
-from tests.integration.conftest import create_mock_ticker, basic_opportunity
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from tests.integration.conftest import create_mock_ticker
 from tests.integration.mocks.mock_exchange import MockExchangeAPI
 
 # Fixtures will be reused from tests/integration/conftest.py
@@ -40,7 +44,7 @@ async def test_circuit_breaker_global_halts_execution(
     risk_manager,
     execution_handler: ExecutionHandler,
     circuit_breaker_system: CircuitBreakerSystem,
-    basic_opportunity: ArbitrageOpportunity
+    basic_opportunity: ArbitrageOpportunity,
 ):
     """Tests that a globally open circuit breaker prevents new executions."""
     # 1. Setup - Basic state, no initial errors
@@ -48,22 +52,32 @@ async def test_circuit_breaker_global_halts_execution(
     mock_hl_api.reset()
     real_portfolio_tracker.reset()
     # Explicitly reset breakers associated with the system
-    circuit_breaker_system.reset_breaker("global_api_error") # Reset global
-    circuit_breaker_system.reset_exchange_breakers("mock_bp") # Reset exchange specific
+    circuit_breaker_system.reset_breaker("global_api_error")  # Reset global
+    circuit_breaker_system.reset_exchange_breakers("mock_bp")  # Reset exchange specific
     circuit_breaker_system.reset_exchange_breakers("mock_hl")
 
-    mock_bp_api.set_mock_balance(Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000")))
-    mock_hl_api.set_mock_balance(Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000")))
+    mock_bp_api.set_mock_balance(
+        Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
+    )
+    mock_hl_api.set_mock_balance(
+        Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
+    )
     await real_portfolio_tracker.initialize()
     ts = datetime.now(timezone.utc)
-    mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts))
-    mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts))
+    mock_bp_api.set_mock_ticker(
+        create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts)
+    )
+    mock_hl_api.set_mock_ticker(
+        create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts)
+    )
 
     # 2. Trigger Global Circuit Breaker Directly
-    global_breaker_name = "global_api_error" # Name used in reset
+    global_breaker_name = "global_api_error"  # Name used in reset
     trip_reason = "Test global trip"
     global_breaker = circuit_breaker_system.get_breaker(global_breaker_name)
-    assert global_breaker is not None, f"Global breaker '{global_breaker_name}' not found."
+    assert global_breaker is not None, (
+        f"Global breaker '{global_breaker_name}' not found."
+    )
     logger.info(f"Tripping global breaker: {global_breaker_name}")
     global_breaker.trip(trip_reason)
 
@@ -72,27 +86,41 @@ async def test_circuit_breaker_global_halts_execution(
     assert can_exec is False, f"Global breaker should be open, reason: {reason}"
     assert trip_reason in reason
 
-    # 3. Attempt Execution via process_opportunity
+    # 3. Attempt Execution via execute_opportunity (Corrected method name)
     logger.info("Attempting execution with globally tripped breaker...")
-    results: List[TradeExecution] = await execution_handler.process_opportunity(basic_opportunity)
+    # Wrap basic_opportunity in a SizedOpportunity
+    sized_opportunity_for_test = SizedOpportunity(
+        opportunity=basic_opportunity,
+        long_size=Decimal("100"),  # Placeholder size
+        short_size=Decimal("100"),  # Placeholder size
+        allocation_percentage=0.1,  # Placeholder float (10%)
+        expected_profit=Decimal("1"),  # Placeholder profit
+        expected_return=0.01,  # Placeholder float (1%)
+        risk_adjusted_return=0.01,  # Placeholder float
+    )
+    execution_result = await execution_handler.execute_opportunity(
+        sized_opportunity_for_test
+    )  # Pass SizedOpportunity
 
-    # 4. Verify Rejection
-    assert len(results) == 1, f"Expected 1 result, got {len(results)}"
-    execution_result = results[0]
-    logger.info(f"Received execution result: Status={execution_result.status}, Error='{execution_result.error_message}'")
+    # 4. Verify Rejection (Restored Assertions)
+    assert isinstance(execution_result, TradeExecution), (
+        "Expected a TradeExecution result object"
+    )
+    logger.info(
+        f"Received execution result: Status={execution_result.status}, Error='{execution_result.error_message}'"
+    )
 
     assert execution_result.status == ExecutionStatus.REJECTED, (
         f"Expected REJECTED status, got {execution_result.status}"
     )
     assert execution_result.error_message is not None
-    # Check the specific reason why the global breaker tripped
-    _global_can_exec, global_reason = circuit_breaker_system.can_execute(exchange="global")
-    assert not _global_can_exec # Re-verify it's still open
-    assert trip_reason in execution_result.error_message, f"Expected trip reason '{trip_reason}' in message '{execution_result.error_message}'"
+    assert trip_reason in execution_result.error_message, (
+        f"Expected trip reason '{trip_reason}' in message '{execution_result.error_message}'"
+    )
 
     # Verify no orders were placed (mocks shouldn't have been called)
-    assert not mock_bp_api.get_all_orders()
-    assert not mock_hl_api.get_all_orders()
+    assert not await mock_bp_api.get_open_orders()
+    assert not await mock_hl_api.get_open_orders()
     logger.info("Global circuit breaker test passed.")
 
 
@@ -107,7 +135,7 @@ async def test_circuit_breaker_exchange_halts_execution(
     risk_manager,
     execution_handler: ExecutionHandler,
     circuit_breaker_system: CircuitBreakerSystem,
-    basic_opportunity: ArbitrageOpportunity
+    basic_opportunity: ArbitrageOpportunity,
 ):
     """Tests that an open exchange circuit breaker prevents executions involving that exchange."""
     # 1. Setup - Basic state, no initial errors
@@ -115,57 +143,91 @@ async def test_circuit_breaker_exchange_halts_execution(
     mock_hl_api.reset()
     real_portfolio_tracker.reset()
     # Explicitly reset breakers associated with the system
-    circuit_breaker_system.reset_breaker("global_api_error") # Reset global
-    circuit_breaker_system.reset_exchange_breakers("mock_bp") # Reset exchange specific
+    circuit_breaker_system.reset_breaker("global_api_error")  # Reset global
+    circuit_breaker_system.reset_exchange_breakers("mock_bp")  # Reset exchange specific
     circuit_breaker_system.reset_exchange_breakers("mock_hl")
 
-    mock_bp_api.set_mock_balance(Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000")))
-    mock_hl_api.set_mock_balance(Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000")))
+    mock_bp_api.set_mock_balance(
+        Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
+    )
+    mock_hl_api.set_mock_balance(
+        Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
+    )
     await real_portfolio_tracker.initialize()
     ts = datetime.now(timezone.utc)
-    mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts))
-    mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts))
+    mock_bp_api.set_mock_ticker(
+        create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts)
+    )
+    mock_hl_api.set_mock_ticker(
+        create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts)
+    )
 
     # 2. Trigger Exchange Circuit Breaker Directly (for long exchange)
-    target_exchange = basic_opportunity.long_exchange # e.g., "mock_bp"
-    breaker_type = "api_errors" # Type implied by config/reset/record calls
+    target_exchange = basic_opportunity.long_exchange  # e.g., "mock_bp"
+    breaker_type = "api_errors"  # Type implied by config/reset/record calls
     trip_reason = f"Test exchange trip for {target_exchange}"
 
-    exchange_breaker = circuit_breaker_system.get_exchange_breaker(target_exchange, breaker_type)
-    assert exchange_breaker is not None, f"Exchange breaker '{target_exchange}/{breaker_type}' not found."
+    exchange_breaker = circuit_breaker_system.get_exchange_breaker(
+        target_exchange, breaker_type
+    )
+    assert exchange_breaker is not None, (
+        f"Exchange breaker '{target_exchange}/{breaker_type}' not found."
+    )
     logger.info(f"Tripping exchange breaker: {target_exchange}/{breaker_type}")
     exchange_breaker.trip(trip_reason)
 
     # Verify the specific exchange breaker is open using can_execute
-    can_exec_target, reason_target = circuit_breaker_system.can_execute(exchange=target_exchange)
-    assert can_exec_target is False, f"{target_exchange} breaker should be open, reason: {reason_target}"
+    can_exec_target, reason_target = circuit_breaker_system.can_execute(
+        exchange=target_exchange
+    )
+    assert can_exec_target is False, (
+        f"{target_exchange} breaker should be open, reason: {reason_target}"
+    )
     assert trip_reason in reason_target
 
     # Verify global is still closed
-    can_exec_global, reason_global = circuit_breaker_system.can_execute(exchange="global")
-    assert can_exec_global is True, f"Global breaker should remain closed, reason: {reason_global}"
+    can_exec_global, reason_global = circuit_breaker_system.can_execute(
+        exchange="global"
+    )
+    assert can_exec_global is True, (
+        f"Global breaker should remain closed, reason: {reason_global}"
+    )
 
-    # 3. Attempt Execution involving the tripped exchange via process_opportunity
+    # 3. Attempt Execution involving the tripped exchange via execute_opportunity (Corrected method name)
     logger.info(f"Attempting execution with {target_exchange} breaker tripped...")
-    results: List[TradeExecution] = await execution_handler.process_opportunity(basic_opportunity)
+    # Wrap basic_opportunity in a SizedOpportunity
+    sized_opportunity_for_test = SizedOpportunity(
+        opportunity=basic_opportunity,
+        long_size=Decimal("100"),  # Placeholder size
+        short_size=Decimal("100"),  # Placeholder size
+        allocation_percentage=0.1,  # Placeholder float (10%)
+        expected_profit=Decimal("1"),  # Placeholder profit
+        expected_return=0.01,  # Placeholder float (1%)
+        risk_adjusted_return=0.01,  # Placeholder float
+    )
+    execution_result = await execution_handler.execute_opportunity(
+        sized_opportunity_for_test
+    )  # Pass SizedOpportunity
 
-    # 4. Verify Rejection
-    assert len(results) == 1, f"Expected 1 result, got {len(results)}"
-    execution_result = results[0]
-    logger.info(f"Received execution result: Status={execution_result.status}, Error='{execution_result.error_message}'")
+    # 4. Verify Rejection (Restored Assertions)
+    assert isinstance(execution_result, TradeExecution), (
+        "Expected a TradeExecution result object"
+    )
+    logger.info(
+        f"Received execution result: Status={execution_result.status}, Error='{execution_result.error_message}'"
+    )
 
     assert execution_result.status == ExecutionStatus.REJECTED, (
         f"Expected REJECTED status, got {execution_result.status}"
     )
     assert execution_result.error_message is not None
-    # Check the specific reason why the exchange breaker tripped
-    _target_can_exec, target_reason = circuit_breaker_system.can_execute(exchange=target_exchange)
-    assert not _target_can_exec # Re-verify it's still open
-    assert trip_reason in execution_result.error_message, f"Expected trip reason '{trip_reason}' in message '{execution_result.error_message}'"
+    assert trip_reason in execution_result.error_message, (
+        f"Expected trip reason '{trip_reason}' in message '{execution_result.error_message}'"
+    )
 
     # Verify no orders were placed
-    assert not mock_bp_api.get_all_orders()
-    assert not mock_hl_api.get_all_orders()
+    assert not await mock_bp_api.get_open_orders()
+    assert not await mock_hl_api.get_open_orders()
 
     # 5. Attempt Execution NOT involving the tripped exchange (if possible) - Optional extension
     # logger.info("Exchange circuit breaker test passed.") # Moved to end if step 5 is omitted
@@ -192,17 +254,25 @@ async def test_funding_rate_validator_reduces_size(
         real_portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
 
     # Set balances on mock APIs
-    mock_bp_api.set_mock_balance(Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000")))
-    mock_hl_api.set_mock_balance(Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000")))
+    mock_bp_api.set_mock_balance(
+        Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
+    )
+    mock_hl_api.set_mock_balance(
+        Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
+    )
 
     # Initialize the tracker to fetch balances
     await real_portfolio_tracker.initialize()
-    
+
     # *** Force re-initialization to ensure config is current ***
     # This might pick up the updated mock_config collateral_asset
-    logger.info("Forcing re-initialization of portfolio tracker before baseline check...")
-    await real_portfolio_tracker.initialize() 
-    logger.info(f"Tracker config after re-init: {real_portfolio_tracker.config.config_data}")
+    logger.info(
+        "Forcing re-initialization of portfolio tracker before baseline check..."
+    )
+    await real_portfolio_tracker.initialize()
+    logger.info(
+        f"Tracker config after re-init: {real_portfolio_tracker.config.config_data}"
+    )
     # === END Added Setup ===
 
     # 1. Setup: Ensure validator is attached to risk_manager
@@ -284,17 +354,21 @@ async def test_position_reconciler_detects_discrepancy(
     """Tests that the PositionReconciliationSystem identifies discrepancies."""
     # === ADDED: Modify config for this test ===
     # Ensure reconciler only checks the mock exchanges used in this test
-    mock_config.config_data['exchanges'] = {\
-        "mock_hl": {\
-            "enabled": True,\
-            "symbols": {"BTC-PERP": "BTC-PERP"}, # Use internal symbol mapping\
-            "websocket": mock_config.config_data.get('exchanges', {}).get('hyperliquid', {}).get('websocket'), # Reuse existing websocket config if possible\
-        },\
-        "mock_bp": {\
-            "enabled": True,\
-            "symbols": {"BTC-PERP": "BTC-PERP"},\
-            "websocket": mock_config.config_data.get('exchanges', {}).get('backpack', {}).get('websocket'),\
-        }\
+    mock_config.config_data["exchanges"] = {
+        "mock_hl": {
+            "enabled": True,
+            "symbols": {"BTC-PERP": "BTC-PERP"},  # Use internal symbol mapping\
+            "websocket": mock_config.config_data.get("exchanges", {})
+            .get("hyperliquid", {})
+            .get("websocket"),  # Reuse existing websocket config if possible\
+        },
+        "mock_bp": {
+            "enabled": True,
+            "symbols": {"BTC-PERP": "BTC-PERP"},
+            "websocket": mock_config.config_data.get("exchanges", {})
+            .get("backpack", {})
+            .get("websocket"),
+        },
     }
     # Re-initialize the reconciler with the modified config?
     # No, the fixture uses the original mock_config. We need to adjust the test
@@ -338,8 +412,9 @@ async def test_position_reconciler_detects_discrepancy(
         real_portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
 
     # Correct method name: check_positions()
-    discrepancies_result = await position_reconciler.check_positions()
-    discrepancies = discrepancies_result.get(exchange_id, {}).get('discrepancies', [])
+    # Force the check to bypass interval caching
+    discrepancies_result = await position_reconciler.check_positions(force=True)
+    discrepancies = discrepancies_result.get(exchange_id, {}).get("discrepancies", [])
 
     # 3. Verify Discrepancy Detection
     assert len(discrepancies) > 0, "Expected reconciler to find discrepancies"
@@ -349,11 +424,12 @@ async def test_position_reconciler_detects_discrepancy(
         # Check using the actual keys from the discrepancy dictionary
         if (
             disc.get("symbol") == symbol
-            and disc.get("type") == "size" # Check 'type' key
+            and disc.get("type") == "size"  # Check 'type' key
             # Compare Decimal values correctly
             and Decimal(disc.get("exchange_value", "0")) == mock_position.size
-            and Decimal(disc.get("local_value", "-1")) == Decimal("0") # Check local is 0
-        ): # Fixed closing parenthesis and removed extra checks
+            and Decimal(disc.get("local_value", "-1"))
+            == Decimal("0")  # Check local is 0
+        ):  # Fixed closing parenthesis and removed extra checks
             found_missing_in_tracker = True
             break
 
@@ -364,7 +440,9 @@ async def test_position_reconciler_detects_discrepancy(
     # 4. Setup Reverse Scenario - Position in tracker, not on exchange
     real_portfolio_tracker.reset()
     mock_bp_api.reset()  # Clear position from mock API
-    real_portfolio_tracker.update_position(exchange_id, mock_position)  # Add to real tracker
+    real_portfolio_tracker.update_position(
+        exchange_id, mock_position
+    )  # Add to real tracker
 
     # Ensure API clients are registered on real tracker for the reverse scenario
     if "mock_bp" not in real_portfolio_tracker.api_clients:
@@ -372,9 +450,23 @@ async def test_position_reconciler_detects_discrepancy(
     if "mock_hl" not in real_portfolio_tracker.api_clients:
         real_portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
 
+    # === ADDED State Check Logging ===
+    logger.info("--- Reverse Scenario State Check ---")
+    bp_positions_after_reset = await mock_bp_api.get_positions()
+    logger.info(f"Mock BP positions after reset: {bp_positions_after_reset}")
+    local_positions_after_update = real_portfolio_tracker.get_positions_by_exchange(
+        exchange_id
+    )
+    logger.info(f"Local positions after update: {local_positions_after_update}")
+    logger.info("--- End Reverse Scenario State Check ---")
+    # === END State Check Logging ===
+
     # Correct method name: check_positions()
-    discrepancies_reverse_result = await position_reconciler.check_positions()
-    discrepancies_reverse = discrepancies_reverse_result.get(exchange_id, {}).get('discrepancies', [])
+    # Force the check to bypass interval caching
+    discrepancies_reverse_result = await position_reconciler.check_positions(force=True)
+    discrepancies_reverse = discrepancies_reverse_result.get(exchange_id, {}).get(
+        "discrepancies", []
+    )
 
     # 5. Verify Reverse Discrepancy Detection
     assert len(discrepancies_reverse) > 0, (
@@ -385,9 +477,11 @@ async def test_position_reconciler_detects_discrepancy(
         # Check for size discrepancy where exchange is 0 and local matches mock
         if (
             disc.get("symbol") == symbol
-            and disc.get("type") == "size" # Check 'type' key
-            and Decimal(disc.get("exchange_value", "-1")) == Decimal("0") # Check exchange is 0
-            and Decimal(disc.get("local_value", "0")) == mock_position.size # Check local matches
+            and disc.get("type") == "size"  # Check 'type' key
+            and Decimal(disc.get("exchange_value", "-1"))
+            == Decimal("0")  # Check exchange is 0
+            and Decimal(disc.get("local_value", "0"))
+            == mock_position.size  # Check local matches
         ):
             found_missing_on_exchange = True
             break

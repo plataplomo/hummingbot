@@ -11,4 +11,4 @@ setup(
         "PyYAML>=6.0",
         "python-dotenv>=1.0.0",
     ],
-) 
+)
