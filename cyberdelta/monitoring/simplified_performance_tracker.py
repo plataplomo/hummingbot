@@ -11,13 +11,14 @@ import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from cyberdelta.core.signal_generator import ArbitrageOpportunity
-from cyberdelta.core.types import TradeSignal
+from cyberdelta.core.models import ArbitrageOpportunity
+from cyberdelta.core.models import TradeSignal
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
 logger = logging.getLogger(__name__)
 

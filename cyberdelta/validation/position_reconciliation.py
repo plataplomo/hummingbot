@@ -196,6 +196,7 @@ class PositionReconciliationSystem:
                     entry_price=Decimal("0"),
                     mark_price=Decimal("0"),
                     side=OrderSide.BUY,
+                    leverage=Decimal("1"),
                 ),
             )
 
@@ -207,6 +208,7 @@ class PositionReconciliationSystem:
                     entry_price=Decimal("0"),
                     mark_price=Decimal("0"),
                     side=OrderSide.BUY,
+                    leverage=Decimal("1"),
                 ),
             )
 
@@ -426,7 +428,8 @@ class PositionReconciliationSystem:
             exchange_stats[exchange]["symbols_affected_count"] = len(
                 exchange_stats[exchange]["symbols_affected"]
             )  # Store count in a new key
-            # Optionally remove the set if not needed further: del exchange_stats[exchange]['symbols_affected']
+            # Optionally remove the set if not needed further:
+            del exchange_stats[exchange]["symbols_affected"]
 
         return {
             "timestamp": now,

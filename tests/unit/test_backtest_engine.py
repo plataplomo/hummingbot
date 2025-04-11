@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 Unit tests for the Backtesting Framework
 """
 
 import unittest
-import numpy as np
 from datetime import datetime, timedelta
+
+import numpy as np
 
 
 # Mock the modules

@@ -1,74 +1,35 @@
 ---
-description: 
-globs: 
-alwaysApply: true
+description: Mandates comprehensive documentation within the Python source code itself.
+globs: *.py,*.pyi
+alwaysApply: false
 ---
 ---
-description: Guidelines for writing code comments.
-globs:
-alwaysApply: true
+description: Mandates comprehensive documentation within the Python source code itself.
+globs: ["*.py", "*.pyi"] # Apply to all Python source and stub files
+alwaysApply: true # This is a fundamental requirement
 ---
-# Code Comments
+# Code-Level Documentation (Docstrings & Inline Comments) - NON-NEGOTIABLE
 
-## General Guidelines
-- **Strive to add helpful and explanatory comments** to clarify complex logic, intent, or workarounds.
-- **Write well-documented code.** Assume comments are read by others (and your future self).
-- Use clear, easy-to-understand language and short sentences in comments.
+1.  **Mandate:** All Python code (`.py`, `.pyi`) **MUST** include high-quality, accurate, and up-to-date documentation *within the code itself*. This is the **primary, authoritative documentation source** during active development and for long-term maintainability.
 
-## Specific Instructions
-- **Do not delete existing comments** unless they are clearly incorrect or obsolete.
-- **Document significant changes and their reasoning directly in code comments** where appropriate. Explain *why* a change was made, not just *what* was changed.
+2.  **Docstrings (PEP 257):**
+    *   **Requirement:** Provide clear, concise docstrings for **every** module, class, method, and function.
+    *   **Content:**
+        *   **Summary Line:** Briefly explain the object's purpose (what it *does*).
+        *   **(Optional) Extended Description:** Elaborate on complex logic, usage patterns, or important context if needed.
+        *   **Arguments/Parameters:** Document **every** parameter, including its name, expected type (use type hints primarily), and purpose. Use a consistent format (e.g., Google style, reStructuredText).
+        *   **Returns/Yields:** Document the return value(s) or yielded values, including their type(s) and meaning.
+        *   **Raises:** Document any specific exceptions the code might explicitly raise under defined conditions.
+    *   **Style:** Adhere to PEP 257 conventions.
 
+3.  **Inline Comments:**
+    *   **Purpose:** Use inline comments (`#`) **sparingly** but **effectively** to clarify the **"why"** behind the code, not just the "what" (if the code isn't self-explanatory).
+    *   **Use Cases:** Explain non-obvious algorithms, complex logic sections, important assumptions, workarounds for specific issues, or the rationale behind seemingly strange code constructs. Mark TODOs or areas needing future attention clearly.
+    *   **Avoid Clutter:** Do not comment on obvious code. Avoid large blocks of commented-out code (use version control instead).
 
-# Rule: Documentation Standards (Code-Level & Workflow)
+4.  **Maintenance:**
+    *   Code-level documentation **MUST** be updated **concurrently** with code changes to ensure it remains accurate and relevant. Outdated documentation is harmful.
+    *   **Update or remove** comments/docstrings that become incorrect or obsolete due to refactoring or logic changes. Document significant removals in commit messages or workflow logs if necessary.
 
-## 1. Code-Level Documentation (Docstrings & Comments) - NON-NEGOTIABLE
-
-**Mandate:** All code **must** include high-quality, up-to-date, code-level documentation. This is the primary documentation source during active development.
-
-**Requirements:**
-
-*   **Docstrings:**
-    *   Write clear, concise docstrings for **every** class and function.
-    *   **Content:** Explain *what* the class/function does (its purpose).
-    *   **Parameters:** Clearly document all parameters (`@param`, `:param:`, or idiomatic equivalent), explaining their purpose and expected type.
-    *   **Returns:** Clearly document the return value (`@return`, `:return:`, or idiomatic equivalent), explaining what is returned and its type.
-*   **Inline Comments:**
-    *   Use inline comments sparingly but effectively.
-    *   **Purpose:** Add comments primarily to explain the *why* behind complex algorithms, non-obvious logic, important decisions, or potential workarounds. Avoid comments that merely restate *what* the code does if it's already clear.
-
-**Priority:** This is the most critical documentation and must be maintained alongside code changes.
-
-
-## 2. Workflow & Context Documentation (`current_workflow/`)
-
-**Mandate:** Maintain a clear, accessible record of the development workflow, project context, decisions, and progress using Markdown files (`.md`) located primarily within the `current_workflow/` directory. Utilize Mermaid diagrams (` ```mermaid ``` `) within these files where appropriate for visual clarity (e.g., architecture, flowcharts).
-
-**Purpose:** To capture and share essential context *during* development, facilitate collaboration (especially in AI-assisted workflows), preserve project history, and support strategic planning.
-
-**Core Practices & Requirements:**
-
-*   **Location & Organization:**
-    *   Use the dedicated `current_workflow/` directory at the project root for workflow documentation.
-    *   Keep this directory organized (e.g., using subdirectories or clear naming conventions based on date, feature, task, or session).
-*   **Content - What to Document:**
-    *   **Progress & Status:** Regularly record activities, current status, and outcomes.
-    *   **Goals & Context:** Summarize the immediate context, goals for a session or task, and link to relevant issues or requirements.
-    *   **Design Decisions & Rationale:** Document *why* specific approaches or architectures were chosen, especially for significant changes. Include rejected alternatives if informative.
-    *   **Strategic Planning:**
-        *   Before implementing significant features or complex fixes, outline the proposed approach, rationale, and potential challenges (aim for concise reasoning, e.g., 1-3 paragraphs for major decisions).
-        *   Document strategies for tackling larger tasks and anticipating roadblocks.
-    *   **Challenges & Resolutions:** Explicitly record problems encountered (e.g., tool errors, unexpected AI behavior, complex bugs) and the steps taken (or planned) to resolve them.
-    *   **High-Level Overviews:** Provide architecture or system diagrams (Mermaid is encouraged) and descriptions, linking to specific code documentation where appropriate.
-    *   **Critiques & Feedback:** Summarize key feedback received and how it's being addressed.
-    *   **(Optional) AI Interaction Summaries:** Briefly note key interactions, prompts, or insights gained during AI-assisted sessions if particularly relevant to a decision or solution.
-*   **Maintenance:** Keep these documents reasonably up-to-date to ensure they accurately reflect the current state and provide value for team alignment.
-*   **Guidance:**
-    *   Focus on clarity and conciseness. Consolidate information where logical to avoid sprawl.
-    *   This workflow documentation *supplements*, but **does not replace**, mandatory code-level documentation (Rule #1). Link *to* code docs, don't duplicate them extensively.
-    *   Regularly review documented workflows to identify patterns and opportunities for process improvement.
-
-**Rationale:** Rigorous code-level documentation combined with structured workflow documentation ensures code maintainability, enhances team collaboration and understanding (especially with AI tools), aids onboarding, preserves critical project context, and supports informed decision-making throughout the development lifecycle.
-
-
+5.  **Rationale:** High-quality code-level documentation is essential for understanding, maintaining, debugging, and safely extending the codebase, especially in a complex, asynchronous system like a trading bot. It directly aids both human developers and AI assistants.
 

@@ -3,7 +3,6 @@ import hashlib
 import hmac
 import logging
 import time
-from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -181,8 +180,12 @@ class BackpackAPI(ExchangeAPI):
 
             response = await self._request("GET", "/api/v1/depth", params=params)
 
-            bids = [(Decimal(str(price)), Decimal(str(qty))) for price, qty in response.get("bids", [])]
-            asks = [(Decimal(str(price)), Decimal(str(qty))) for price, qty in response.get("asks", [])]
+            bids = [
+                (Decimal(str(price)), Decimal(str(qty))) for price, qty in response.get("bids", [])
+            ]
+            asks = [
+                (Decimal(str(price)), Decimal(str(qty))) for price, qty in response.get("asks", [])
+            ]
 
             return OrderBook(
                 symbol=symbol,
@@ -277,32 +280,39 @@ class BackpackAPI(ExchangeAPI):
             if isinstance(response, list) and response:
                 funding_data = response[0]
             elif isinstance(response, dict):
-                 funding_data = response
+                funding_data = response
             else:
-                logger.warning(f"[{self.exchange_name}] Unexpected funding rate data format for {symbol}: {response}")
+                logger.warning(
+                    f"[{self.exchange_name}] Unexpected funding rate data format for {symbol}: {response}"
+                )
                 return None
 
             # Ensure fields exist before accessing
             if not all(k in funding_data for k in ["rate", "markPrice", "indexPrice", "time"]):
-                 logger.warning(f"[{self.exchange_name}] Missing keys in funding rate data for {symbol}: {funding_data}")
-                 return None
-
+                logger.warning(
+                    f"[{self.exchange_name}] Missing keys in funding rate data for {symbol}: {funding_data}"
+                )
+                return None
 
             # Create FundingRate object using Decimal and int
             funding_rate = FundingRate(
                 symbol=symbol,
-                rate=Decimal(str(funding_data["rate"])), # Convert string/float to Decimal
-                mark_price=Decimal(str(funding_data["markPrice"])), # Convert string/float to Decimal
-                index_price=Decimal(str(funding_data["indexPrice"])), # Convert string/float to Decimal
-                timestamp=int(funding_data["time"]), # Ensure timestamp is int
+                rate=Decimal(str(funding_data["rate"])),  # Convert string/float to Decimal
+                mark_price=Decimal(
+                    str(funding_data["markPrice"])
+                ),  # Convert string/float to Decimal
+                index_price=Decimal(
+                    str(funding_data["indexPrice"])
+                ),  # Convert string/float to Decimal
+                timestamp=int(funding_data["time"]),  # Ensure timestamp is int
             )
             return funding_rate
         except APIError as e:
-             if e.code == APIErrorCode.SYMBOL_NOT_FOUND: # type: ignore[attr-defined]
-                 logger.info(f"[{self.exchange_name}] No funding rate found for symbol {symbol}.")
-                 return None
-             logger.error(f"[{self.exchange_name}] API error getting funding rate for {symbol}: {e}")
-             return None
+            if e.code == APIErrorCode.SYMBOL_NOT_FOUND: 
+                logger.info(f"[{self.exchange_name}] No funding rate found for symbol {symbol}.")
+                return None
+            logger.error(f"[{self.exchange_name}] API error getting funding rate for {symbol}: {e}")
+            return None
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Error getting funding rate for {symbol}: {e}")
             return None
@@ -345,9 +355,13 @@ class BackpackAPI(ExchangeAPI):
                 entry_price_dec = Decimal(str(pos_data.get("entryPrice", "0")))
                 mark_price_dec = Decimal(str(pos_data.get("markPrice", "0")))
                 liq_price_str = pos_data.get("liquidationPrice")
-                liq_price_dec = Decimal(str(liq_price_str)) if liq_price_str is not None and liq_price_str != "0" else Decimal("0.0") # Default to 0 if None
+                liq_price_dec = (
+                    Decimal(str(liq_price_str))
+                    if liq_price_str is not None and liq_price_str != "0"
+                    else Decimal("0.0")
+                )  # Default to 0 if None
                 pnl_dec = Decimal(str(pos_data.get("unrealizedPnl", "0")))
-                leverage = float(pos_data.get("leverage", "1.0")) # Keep leverage as float
+                leverage = float(pos_data.get("leverage", "1.0"))  # Keep leverage as float
 
                 position = Position(
                     symbol=symbol,
@@ -373,7 +387,7 @@ class BackpackAPI(ExchangeAPI):
         order_type: OrderType,
         quantity: Decimal,
         price: Decimal | None = None,
-        time_in_force: str | None = None, # e.g., GTC, IOC, FOK
+        time_in_force: str | None = None,  # e.g., GTC, IOC, FOK
         client_order_id: str | None = None,
         reduce_only: bool = False,
     ) -> Order | None:
@@ -402,14 +416,14 @@ class BackpackAPI(ExchangeAPI):
             path = "/api/v1/order"
             order_data: dict[str, Any] = {
                 "symbol": symbol,
-                "side": side.value, # Use enum value ('BUY' or 'SELL')
-                "orderType": order_type.value, # Use enum value ('LIMIT', 'MARKET')
-                "quantity": str(quantity), # Send quantity as string
+                "side": side.value,  # Use enum value ('BUY' or 'SELL')
+                "orderType": order_type.value,  # Use enum value ('LIMIT', 'MARKET')
+                "quantity": str(quantity),  # Send quantity as string
             }
             if order_type == OrderType.LIMIT:
                 if price is None:
                     raise ValueError("Price is required for LIMIT orders")
-                order_data["price"] = str(price) # Send as string
+                order_data["price"] = str(price)  # Send as string
                 if time_in_force:
                     # Backpack uses specific strings like 'GTC', 'IOC', 'FOK'
                     order_data["timeInForce"] = time_in_force
@@ -425,7 +439,7 @@ class BackpackAPI(ExchangeAPI):
             # Backpack order creation response might differ, adapt parsing logic
             # Map API status string to OrderStatus enum
             status_str = response.get("status", "").upper()
-            status = OrderStatus.NEW # Default or map based on response
+            status = OrderStatus.NEW  # Default or map based on response
             if status_str == "FILLED":
                 status = OrderStatus.FILLED
             elif status_str == "PARTIALLY_FILLED":
@@ -433,7 +447,7 @@ class BackpackAPI(ExchangeAPI):
             elif status_str == "CANCELED":
                 status = OrderStatus.CANCELED
             elif status_str == "EXPIRED":
-                status = OrderStatus.EXPIRED # Or map to CANCELED if appropriate
+                status = OrderStatus.EXPIRED  # Or map to CANCELED if appropriate
             # Add more mappings as needed
 
             order = Order(
@@ -441,14 +455,18 @@ class BackpackAPI(ExchangeAPI):
                 symbol=response["symbol"],
                 side=OrderSide(response["side"]),
                 type=OrderType(response["orderType"]),
-                price=Decimal(str(response.get("price", "0"))) if response.get("price") else None, # Handle optional price
+                price=Decimal(str(response.get("price", "0")))
+                if response.get("price")
+                else None,  # Handle optional price
                 quantity=Decimal(str(response["quantity"])),
                 filled_quantity=Decimal(str(response.get("executedQuantity", "0"))),
-                status=status.value, # Use enum value
-                time=int(response["createdAt"]), # Ensure timestamp is int
+                status=status.value,  # Use enum value
+                time=int(response["createdAt"]),  # Ensure timestamp is int
                 client_order_id=response.get("clientId", ""),
                 reduce_only=response.get("reduceOnly", False),
-                avg_fill_price=Decimal(str(response.get("avgFillPrice", "0"))) if response.get("avgFillPrice") else None,
+                avg_fill_price=Decimal(str(response.get("avgFillPrice", "0")))
+                if response.get("avgFillPrice")
+                else None,
             )
             return order
         except Exception as e:
@@ -488,7 +506,7 @@ class BackpackAPI(ExchangeAPI):
             for order_data in response:
                 # Map API status string to OrderStatus enum
                 status_str = order_data.get("status", "").upper()
-                status = OrderStatus.NEW # Default or map based on response
+                status = OrderStatus.NEW  # Default or map based on response
                 if status_str == "FILLED":
                     status = OrderStatus.FILLED
                 elif status_str == "PARTIALLY_FILLED":
@@ -496,7 +514,7 @@ class BackpackAPI(ExchangeAPI):
                 elif status_str == "CANCELED":
                     status = OrderStatus.CANCELED
                 elif status_str == "EXPIRED":
-                    status = OrderStatus.EXPIRED # Or map to CANCELED if appropriate
+                    status = OrderStatus.EXPIRED  # Or map to CANCELED if appropriate
                 # Add more mappings as needed
 
                 order = Order(
@@ -504,14 +522,18 @@ class BackpackAPI(ExchangeAPI):
                     symbol=order_data["symbol"],
                     side=OrderSide(order_data["side"]),
                     type=OrderType(order_data["orderType"]),
-                    price=Decimal(str(order_data.get("price", "0"))) if order_data.get("price") else None,
+                    price=Decimal(str(order_data.get("price", "0")))
+                    if order_data.get("price")
+                    else None,
                     quantity=Decimal(str(order_data["quantity"])),
                     filled_quantity=Decimal(str(order_data.get("executedQuantity", "0"))),
-                    status=status.value, # Use enum value
-                    time=int(order_data["createdAt"]), # Convert string timestamp to int
+                    status=status.value,  # Use enum value
+                    time=int(order_data["createdAt"]),  # Convert string timestamp to int
                     client_order_id=order_data.get("clientId", ""),
                     reduce_only=order_data.get("reduceOnly", False),
-                    avg_fill_price=Decimal(str(order_data.get("avgFillPrice", "0"))) if order_data.get("avgFillPrice") else None, # Added avg_fill_price
+                    avg_fill_price=Decimal(str(order_data.get("avgFillPrice", "0")))
+                    if order_data.get("avgFillPrice")
+                    else None,  # Added avg_fill_price
                 )
                 # Filter for open orders based on status (adjust as needed)
                 if status in [OrderStatus.NEW, OrderStatus.PARTIALLY_FILLED]:
@@ -582,7 +604,7 @@ class BackpackAPI(ExchangeAPI):
         """Withdraw funds."""
         # Implementation depends on Backpack API for withdrawals
         logger.warning(f"[{self.exchange_name}] withdraw not implemented for Backpack.")
-        return None # Placeholder
+        return None  # Placeholder
 
     def _map_error_response(
         self,
@@ -601,46 +623,47 @@ class BackpackAPI(ExchangeAPI):
             code = error_data.get("code")
 
             # Map Backpack error codes to APIErrorCode
-            if code == -1021: # Example: Timestamp for this request was 1000ms ahead of the server time
-                error_code = APIErrorCode.INVALID_TIMESTAMP # type: ignore
-            elif code == -2014: # Example: API-key format invalid.
-                error_code = APIErrorCode.INVALID_API_KEY # type: ignore
-            elif code == -2015: # Example: Invalid API-key, IP, or permissions for action.
-                error_code = APIErrorCode.AUTHENTICATION_ERROR # type: ignore
-            elif code == -1121: # Example: Invalid symbol.
-                error_code = APIErrorCode.INVALID_SYMBOL # type: ignore
-            elif code == -1013: # Example: Filter failure: LOT_SIZE
-                error_code = APIErrorCode.INVALID_ORDER_SIZE # type: ignore
-            elif code == -2010: # Example: New order rejected.
+            if (
+                code == -1021
+            ):  # Example: Timestamp for this request was 1000ms ahead of the server time
+                error_code = APIErrorCode.INVALID_TIMESTAMP  
+            elif code == -2014:  # Example: API-key format invalid.
+                error_code = APIErrorCode.INVALID_API_KEY  
+            elif code == -2015:  # Example: Invalid API-key, IP, or permissions for action.
+                error_code = APIErrorCode.AUTHENTICATION_ERROR  
+            elif code == -1121:  # Example: Invalid symbol.
+                error_code = APIErrorCode.INVALID_SYMBOL  
+            elif code == -1013:  # Example: Filter failure: LOT_SIZE
+                error_code = APIErrorCode.INVALID_ORDER_SIZE  
+            elif code == -2010:  # Example: New order rejected.
                 error_code = APIErrorCode.ORDER_REJECTED
-            elif code == -2011: # Example: Cancel order failed.
-                error_code = APIErrorCode.ORDER_NOT_FOUND # Or other specific cancel error
-            elif code == -1022: # Signature for this request is not valid.
-                error_code = APIErrorCode.INVALID_SIGNATURE # type: ignore
-            elif status_code == 429: # Rate limit exceeded
-                error_code = APIErrorCode.RATE_LIMIT_EXCEEDED # type: ignore
-            elif status_code == 401: # Unauthorized
-                error_code = APIErrorCode.AUTHENTICATION_ERROR # type: ignore
-            elif status_code == 400: # Bad request
+            elif code == -2011:  # Example: Cancel order failed.
+                error_code = APIErrorCode.ORDER_NOT_FOUND  # Or other specific cancel error
+            elif code == -1022:  # Signature for this request is not valid.
+                error_code = APIErrorCode.INVALID_SIGNATURE  
+            elif status_code == 429:  # Rate limit exceeded
+                error_code = APIErrorCode.RATE_LIMIT_EXCEEDED  
+            elif status_code == 401:  # Unauthorized
+                error_code = APIErrorCode.AUTHENTICATION_ERROR  
+            elif status_code == 400:  # Bad request
                 error_code = APIErrorCode.BAD_REQUEST
-            elif status_code == 500: # Internal server error
-                error_code = APIErrorCode.EXCHANGE_ERROR # type: ignore
-            elif status_code == 503: # Service unavailable
-                error_code = APIErrorCode.SERVICE_UNAVAILABLE # type: ignore
+            elif status_code == 500:  # Internal server error
+                error_code = APIErrorCode.EXCHANGE_ERROR  
+            elif status_code == 503:  # Service unavailable
+                error_code = APIErrorCode.SERVICE_UNAVAILABLE 
 
         elif status_code == 429:
-            error_code = APIErrorCode.RATE_LIMIT_EXCEEDED # type: ignore
+            error_code = APIErrorCode.RATE_LIMIT_EXCEEDED  
             message = "Rate limit exceeded"
         elif status_code == 401:
-            error_code = APIErrorCode.AUTHENTICATION_ERROR # type: ignore
+            error_code = APIErrorCode.AUTHENTICATION_ERROR  
             message = "Authentication failed"
         elif status_code == 500:
-            error_code = APIErrorCode.EXCHANGE_ERROR # type: ignore
+            error_code = APIErrorCode.EXCHANGE_ERROR  
             message = "Exchange internal error"
         elif status_code == 503:
-            error_code = APIErrorCode.SERVICE_UNAVAILABLE # type: ignore
+            error_code = APIErrorCode.SERVICE_UNAVAILABLE  
             message = "Exchange service unavailable"
-
 
         return APIError(
             message=message,

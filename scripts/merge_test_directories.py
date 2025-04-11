@@ -1,14 +1,13 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 Script to merge the /cyberdelta/tests directory into /tests
 This consolidates all tests into a single directory structure
 """
 
+import glob
 import os
 import shutil
-import glob
 import sys
 
 
@@ -56,7 +55,7 @@ def update_imports(file_path):
     """
     Update imports in the file to reflect the new directory structure
     """
-    with open(file_path, "r") as file:
+    with open(file_path) as file:
         content = file.read()
 
     # Update common import patterns

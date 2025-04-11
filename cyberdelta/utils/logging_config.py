@@ -2,7 +2,8 @@ import logging
 import logging.handlers
 import os
 from datetime import datetime
-from typing import TracebackType
+from types import TracebackType
+from typing import Any
 
 from cyberdelta.utils.config import Config
 

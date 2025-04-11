@@ -1,10 +1,12 @@
-import pytest
 import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
 
+from cyberdelta.apis.base import ExchangeAPI
+from cyberdelta.core.models import Balance, MarketData, Ticker, FundingRate
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.models import MarketData
 
 
 class TestDataHandler:
@@ -564,7 +566,7 @@ class TestDataHandler:
             try:
                 # Wait for the ping to be sent (should happen after receiving messages)
                 await asyncio.wait_for(ping_sent.wait(), timeout=2.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pytest.fail("WebSocket ping was not sent within timeout")
 
             # Verify the handler was called correctly

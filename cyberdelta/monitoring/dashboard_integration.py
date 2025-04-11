@@ -5,19 +5,23 @@ This module provides tools for integrating the real-time dashboard
 with the performance tracker and other system components.
 """
 
-import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import structlog
+
+# from cyberdelta.core.types import TradeOperation, TradeSignal # Remove old imports
+from cyberdelta.core.models import TradeSignal  # Import from models
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.strategy import Strategy
-from cyberdelta.core.types import TradeOperation, TradeSignal
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
-from cyberdelta.monitoring.real_time_dashboard import launch_dashboard
+from cyberdelta.monitoring.real_time_dashboard import (  # Assuming dashboard is here
+    launch_dashboard,
+)
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class DashboardIntegration:
@@ -28,7 +32,7 @@ class DashboardIntegration:
     and other components to send data to the dashboard for visualization.
     """
 
-    def __init__(
+    def __init__( 
         self,
         output_dir: str | None = None,
         auto_start: bool = True,
@@ -161,7 +165,7 @@ class DashboardIntegration:
         exit_time: datetime | None = None,
         pnl: float | None = None,
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Track a trade.
 
@@ -201,7 +205,7 @@ class DashboardIntegration:
         exit_time: datetime,
         pnl: float,
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Track the exit of a trade.
 
@@ -220,37 +224,35 @@ class DashboardIntegration:
             metadata=metadata,
         )
 
-    def track_signal(
-        self,
-        signal_id: str,
-        strategy_name: str,
-        symbol: str,
-        signal_type: str,
-        timestamp: datetime,
-        confidence: float | None = None,
-        metadata: dict[str, Any] | None = None,
-    ):
-        """
-        Track a trading signal.
+    def track_signal(self, signal: TradeSignal):
+        if not self.dashboard or not signal:
+            return
 
-        Args:
-            signal_id: Unique ID for the signal
-            strategy_name: Name of the strategy
-            symbol: Symbol the signal is for
-            signal_type: Type of signal (ENTER_LONG, ENTER_SHORT, EXIT, etc.)
-            timestamp: Signal timestamp
-            confidence: Signal confidence score (optional)
-            metadata: Additional signal metadata (optional)
-        """
-        self.performance_tracker.track_signal(
-            signal_id=signal_id,
-            strategy_name=strategy_name,
-            symbol=symbol,
-            signal_type=signal_type,
-            timestamp=timestamp,
-            confidence=confidence,
-            metadata=metadata,
+        # Adapt to new TradeSignal definition
+        strategy_id = signal.source_strategy or "UnknownStrategy"
+        # trades_info = getattr(signal, 'trades', []) # 'trades' attribute doesn't exist
+
+        self.dashboard.add_log(
+            f"Signal Received: {strategy_id} - {signal.symbol} - "
+            f"{signal.signal_type.name} - Side: {signal.side.name}"
+            + (f" @ {signal.price}" if signal.price else "")
+            + (f" Qty: {signal.quantity}" if signal.quantity else "")
         )
+        # If performance tracking is needed based on signals:
+        if self.performance_tracker:
+            # Use available attributes
+            self.performance_tracker.record_signal(
+                timestamp=signal.timestamp or datetime.now(UTC),  # Use signal timestamp or now
+                strategy_id=strategy_id,
+                symbol=signal.symbol,
+                signal_type=signal.signal_type.name,
+                side=signal.side.name,
+                price=signal.price,
+                quantity=signal.quantity,
+                # Add other relevant fields if available/needed
+            )
+
+        # Update plots or tables if necessary
 
     def track_signal_from_trade_signal(self, trade_signal: TradeSignal):
         """

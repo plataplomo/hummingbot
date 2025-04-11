@@ -9,8 +9,11 @@ import logging
 import math
 import time
 from datetime import datetime, timedelta
+from typing import Any
 
-from cyberdelta.config import Config
+# from cyberdelta.config import Config # Incorrect path
+from cyberdelta.utils.config import Config # Correct path
+from cyberdelta.core.data_handler import DataHandler
 
 
 class FundingRateValidator:

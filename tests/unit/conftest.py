@@ -1,6 +1,7 @@
-import pytest
 from unittest.mock import MagicMock
+
 import aiohttp
+import pytest
 
 from cyberdelta.utils.config import Config
 

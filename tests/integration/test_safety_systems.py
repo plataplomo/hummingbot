@@ -8,9 +8,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)  # ADD logger instance
 # ============================
 
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, timezone
 from unittest.mock import MagicMock
+
 import pytest
 
 from cyberdelta.core.execution_handler import (
@@ -18,14 +19,14 @@ from cyberdelta.core.execution_handler import (
     ExecutionStatus,
     TradeExecution,
 )  # Added TradeExecution
-from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.models import (
-    OrderSide,
-    Balance,
-    Position,
     ArbitrageOpportunity,
+    Balance,
+    OrderSide,
+    Position,
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from tests.integration.conftest import create_mock_ticker
 from tests.integration.mocks.mock_exchange import MockExchangeAPI
@@ -57,13 +58,13 @@ async def test_circuit_breaker_global_halts_execution(
     circuit_breaker_system.reset_exchange_breakers("mock_hl")
 
     mock_bp_api.set_mock_balance(
-        Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
+        Balance(asset="USDC", total=Decimal("10000"), available=Decimal("10000"))
     )
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
+        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
     )
     await real_portfolio_tracker.initialize()
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     mock_bp_api.set_mock_ticker(
         create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts)
     )
@@ -148,13 +149,13 @@ async def test_circuit_breaker_exchange_halts_execution(
     circuit_breaker_system.reset_exchange_breakers("mock_hl")
 
     mock_bp_api.set_mock_balance(
-        Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
+        Balance(asset="USDC", total=Decimal("10000"), available=Decimal("10000"))
     )
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
+        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
     )
     await real_portfolio_tracker.initialize()
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     mock_bp_api.set_mock_ticker(
         create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts)
     )
@@ -255,10 +256,10 @@ async def test_funding_rate_validator_reduces_size(
 
     # Set balances on mock APIs
     mock_bp_api.set_mock_balance(
-        Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
+        Balance(asset="USDC", total=Decimal("10000"), available=Decimal("10000"))
     )
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
+        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
     )
 
     # Initialize the tracker to fetch balances

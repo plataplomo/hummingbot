@@ -12,11 +12,12 @@ These tests verify that:
 
 import os
 import sys
-import unittest
 import tempfile
-import yaml
+import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+import yaml
 
 # Add parent directory to path to import from cyberdelta
 sys.path.append(
@@ -129,7 +130,7 @@ general:
     def test_reload_after_change(self):
         """Test that configuration changes are detected on reload"""
         # Modify the configuration with new values
-        with open(self.config_path, "r") as f:
+        with open(self.config_path) as f:
             config_data = yaml.safe_load(f)
 
         config_data["general"]["log_level"] = "INFO"

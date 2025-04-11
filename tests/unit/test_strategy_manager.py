@@ -1,11 +1,24 @@
-import unittest
-from unittest.mock import Mock
-from datetime import datetime
+from __future__ import annotations
 
-from cyberdelta.core.strategy_manager import StrategyManager
-from cyberdelta.core.strategy import Strategy
-from cyberdelta.core.types import MarketData, TradeSignal, SignalType
+import asyncio
+import unittest
+from datetime import datetime
+from unittest.mock import Mock, MagicMock
+
+from cyberdelta.core.models import TradeSignal, MarketData, SignalType, OrderSide
+from decimal import Decimal
+import pytz
+
+# Define UTC timezone
+UTC = pytz.UTC
+
 from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.core.strategy import Strategy
+from cyberdelta.core.strategy_manager import StrategyManager
+from cyberdelta.core.signal_queue import PrioritySignalQueue
+from cyberdelta.utils.config import Config
+from cyberdelta.core.execution_handler import ExecutionHandler
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
 
 class TestStrategyManager(unittest.TestCase):
@@ -21,11 +34,26 @@ class TestStrategyManager(unittest.TestCase):
         self.mock_strategy2.symbol = "ETH-USDT"
         self.mock_strategy2.enabled = False
 
-        # Create mock risk manager
+        # --- Create mocks for required dependencies --- 
+        self.mock_config = MagicMock() # Assuming config is also needed
+        self.mock_execution_handler = Mock(spec=ExecutionHandler)
+        self.mock_portfolio_tracker = Mock(spec=PortfolioTracker)
         self.mock_risk_manager = Mock(spec=RiskManager)
+        self.mock_signal_queue = Mock(spec=PrioritySignalQueue)
+        # --- End Mocks ---
 
-        # Create strategy manager
-        self.strategy_manager = StrategyManager(self.mock_risk_manager)
+        # Create strategy manager with all required mocks
+        self.strategy_manager = StrategyManager(
+            config=self.mock_config,
+            execution_handler=self.mock_execution_handler,
+            portfolio_tracker=self.mock_portfolio_tracker,
+            risk_manager=self.mock_risk_manager,
+            signal_queue=self.mock_signal_queue,
+        )
+
+        # Register mock strategies
+        self.strategy_manager.register_strategy(self.mock_strategy1)
+        self.strategy_manager.register_strategy(self.mock_strategy2)
 
     def test_register_strategy(self):
         # Register the first strategy
@@ -94,23 +122,23 @@ class TestStrategyManager(unittest.TestCase):
         )
 
         # Create mock signal (removed id)
-        mock_signal = TradeSignal(
-            strategy_name=self.mock_strategy1.name,
-            timestamp=datetime.now(),
-            symbol="BTC-USDT",
+        signal = TradeSignal(
+            symbol="BTC-PERP",
             signal_type=SignalType.ENTER_LONG,
-            price=50500.0,
-            quantity=1.0,
-            expiration=None,
-            metadata={},
+            side=OrderSide.BUY,
+            timestamp=datetime.now(UTC),
+            price=Decimal("30000"),
+            quantity=Decimal("0.1"),
+            confidence=0.8,
+            source_strategy="MockStrategy"
         )
 
         # Configure strategy1 to return a signal, strategy2 to return None
-        self.mock_strategy1.process_data.return_value = mock_signal
+        self.mock_strategy1.process_data.return_value = signal
         self.mock_strategy2.process_data.return_value = None
 
         # Configure risk manager to return the sized signal
-        sized_signal = mock_signal
+        sized_signal = signal
         sized_signal.quantity = 0.5  # Half the original size
         self.mock_risk_manager.size_signal.return_value = sized_signal
 
@@ -125,7 +153,7 @@ class TestStrategyManager(unittest.TestCase):
         self.mock_strategy2.process_data.assert_not_called()
 
         # Verify that the risk manager was used to size the signal
-        self.mock_risk_manager.size_signal.assert_called_once_with(mock_signal)
+        self.mock_risk_manager.size_signal.assert_called_once_with(signal)
 
         # Verify that we got the sized signal back
         self.assertEqual(len(signals), 1)

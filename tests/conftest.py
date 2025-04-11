@@ -1,20 +1,22 @@
-import pytest
-from unittest.mock import MagicMock, AsyncMock
-import aiohttp
 import time
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
 
-# Import the classes we need to test
-from cyberdelta.utils.config import Config
+import aiohttp
+import pytest
+
 from cyberdelta.core.models import (
-    MarketData,
-    Position,
     Balance,
+    FundingRate,
+    MarketData,
     Order,
     OrderSide,
     OrderType,
-    FundingRate,
+    Position,
 )
+
+# Import the classes we need to test
+from cyberdelta.utils.config import Config
 
 
 # Mock aiohttp ClientSession and Response for API testing

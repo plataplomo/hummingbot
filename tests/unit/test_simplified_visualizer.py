@@ -1,10 +1,11 @@
-import unittest
 import os
-import tempfile
 import shutil
-import numpy as np
-import matplotlib.pyplot as plt
+import tempfile
+import unittest
 from datetime import datetime, timedelta
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 from cyberdelta.monitoring.simplified_performance_tracker import (
     SimplePerformanceTracker,

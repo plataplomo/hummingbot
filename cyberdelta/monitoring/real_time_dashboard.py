@@ -8,7 +8,6 @@ strategy performance using Dash and Plotly for visualization.
 import logging
 import threading
 from datetime import datetime, timedelta
-from typing import Any
 
 import dash
 import dash_bootstrap_components as dbc
@@ -287,7 +286,7 @@ class RealTimeDashboard:
             className="mt-3 mb-5",
         )
 
-    def setup_callbacks(self):
+    def setup_callbacks(self) -> None:
         """Set up the dashboard callbacks."""
 
         # Update strategy dropdown options

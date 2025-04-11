@@ -2,10 +2,11 @@
 Tests for the FundingRateValidator class.
 """
 
-import pytest
 import time
-from unittest.mock import MagicMock
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock
+
+import pytest
 
 from cyberdelta.validation.funding_rate_validator import FundingRateValidator
 
@@ -95,7 +96,9 @@ class TestFundingRateValidator:
         # Expected metrics:
         # First pair: error = 0.0010 - 0.0012 = -0.0002
         # Second pair: error = 0.0008 - 0.0009 = -0.0001
-        # RMSE = sqrt(mean([-0.0002, -0.0001]^2)) = sqrt(mean([0.00000004, 0.00000001])) = sqrt(0.000000025) = 0.00015811
+        # RMSE = sqrt(mean([-0.0002, -0.0001]^2))
+        #      = sqrt(mean([0.00000004, 0.00000001]))
+        #      = sqrt(0.000000025) = 0.00015811
         # MAE = mean(abs([-0.0002, -0.0001])) = mean([0.0002, 0.0001]) = 0.00015
         # Bias = mean([-0.0002, -0.0001]) = -0.00015
 

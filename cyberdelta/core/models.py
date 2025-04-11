@@ -1,10 +1,13 @@
+from __future__ import annotations # Enable postponed evaluation
+
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, List, Optional, Dict
-# noqa: F821
+from typing import Any
+
+
 
 
 class OrderSide(Enum):
@@ -40,8 +43,11 @@ class OrderStatus(Enum):
 
 class SignalType(Enum):
     """Enum representing the type of a trading signal."""
-    ENTRY = "ENTRY"
-    EXIT = "EXIT"
+
+    ENTER_LONG = "ENTER_LONG"
+    EXIT_LONG = "EXIT_LONG"
+    ENTER_SHORT = "ENTER_SHORT"
+    EXIT_SHORT = "EXIT_SHORT"
     HOLD = "HOLD"
     REBALANCE = "REBALANCE"
 
@@ -66,13 +72,15 @@ class MarketData:
     close: Decimal
     volume: Decimal = Decimal("0.0")
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Ensure numeric fields are Decimal
         self.open = Decimal(str(self.open)) if not isinstance(self.open, Decimal) else self.open
         self.high = Decimal(str(self.high)) if not isinstance(self.high, Decimal) else self.high
         self.low = Decimal(str(self.low)) if not isinstance(self.low, Decimal) else self.low
         self.close = Decimal(str(self.close)) if not isinstance(self.close, Decimal) else self.close
-        self.volume = Decimal(str(self.volume)) if not isinstance(self.volume, Decimal) else self.volume
+        self.volume = (
+            Decimal(str(self.volume)) if not isinstance(self.volume, Decimal) else self.volume
+        )
 
 
 @dataclass
@@ -81,9 +89,23 @@ class Balance:
 
     asset: str
     total: Decimal
-    available: Decimal
+    available: Decimal | None = None
+    free: Decimal | None = None
+    locked: Decimal | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def __post_init__(self):
+        # If available is not provided, default it to total
+        if self.available is None:
+             self.available = self.total
+        # Ensure fields are Decimal
+        self.total = Decimal(str(self.total)) if not isinstance(self.total, Decimal) else self.total
+        self.available = Decimal(str(self.available)) if not isinstance(self.available, Decimal) else self.available
+        if self.free is not None:
+             self.free = Decimal(str(self.free)) if not isinstance(self.free, Decimal) else self.free
+        if self.locked is not None:
+            self.locked = Decimal(str(self.locked)) if not isinstance(self.locked, Decimal) else self.locked
+
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @property
@@ -112,16 +134,23 @@ class Position:
     """Represents an open position."""
 
     symbol: str
-    side: OrderSide  # Changed from str to OrderSide
+    side: OrderSide
     size: Decimal
     entry_price: Decimal
-    liquidation_price: Optional[Decimal] = None
-    leverage: Decimal # Changed from float
-    unrealized_pnl: Optional[Decimal] = None
-    realized_pnl: Optional[Decimal] = None
-    margin_type: Optional[str] = None # Added
-    margin_used: Optional[Decimal] = None # Added
-    timestamp: Optional[int] = None
+    leverage: Decimal
+    id: str | None = None  # Exchange position ID (Optional)
+    status: str | None = None  # Position status (Optional, consider enum later)
+    mark_price: Decimal | None = None  # Current mark price (Optional)
+    liquidation_price: Decimal | None = None
+    unrealized_pnl: Decimal | None = None
+    realized_pnl: Decimal | None = None
+    margin_type: str | None = None  # Added
+    margin_used: Decimal | None = None  # Added
+    timestamp: int | None = None
+
+    def is_active(self) -> bool:
+        """Check if the position is actively held (size is non-zero)."""
+        return self.size is not None and self.size != Decimal("0")
 
     def calculate_unrealized_pnl(self, current_price: Decimal) -> Decimal:
         """Calculates the unrealized PNL."""
@@ -134,13 +163,13 @@ class Position:
         self.unrealized_pnl = pnl
         return pnl
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         # Convert Decimal fields back to strings for serialization if necessary
         for key, value in data.items():
             if isinstance(value, Decimal):
                 data[key] = str(value)
-            elif isinstance(value, OrderSide): # Handle OrderSide enum
+            elif isinstance(value, OrderSide):  # Handle OrderSide enum
                 data[key] = value.value
         return data
 
@@ -153,16 +182,16 @@ class Order:
     symbol: str  # Trading pair symbol
     side: OrderSide  # BUY or SELL
     type: OrderType  # LIMIT, MARKET, etc.
-    price: Optional[Decimal] = None # Order price (Decimal, Optional for MARKET)
-    quantity: Decimal # Order quantity (Decimal)
-    filled_quantity: Decimal = Decimal("0.0") # Executed quantity (Decimal)
-    status: OrderStatus = OrderStatus.UNKNOWN # Change type to OrderStatus enum, default UNKNOWN
+    quantity: Decimal  # Order quantity (Decimal) - Moved before price
+    price: Decimal | None = None  # Order price (Decimal, Optional for MARKET)
+    filled_quantity: Decimal = Decimal("0.0")  # Executed quantity (Decimal)
+    status: OrderStatus = OrderStatus.UNKNOWN  # Change type to OrderStatus enum, default UNKNOWN
     time: int = 0  # Order creation time (timestamp)
     client_order_id: str = ""  # Custom client order ID
     reduce_only: bool = False  # Whether the order is reduce-only
-    avg_fill_price: Optional[Decimal] = None # Average fill price (Decimal)
+    avg_fill_price: Decimal | None = None  # Average fill price (Decimal)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Ensure numeric fields are Decimal
         if self.price is not None and not isinstance(self.price, Decimal):
             self.price = Decimal(str(self.price))
@@ -180,8 +209,8 @@ class Order:
             "symbol": self.symbol,
             "side": self.side.value if isinstance(self.side, OrderSide) else self.side,
             "type": self.type.value if isinstance(self.type, OrderType) else self.type,
-            "price": str(self.price) if self.price is not None else None,
             "quantity": str(self.quantity),
+            "price": str(self.price) if self.price is not None else None,
             "filled_quantity": str(self.filled_quantity),
             "status": self.status,
             "time": self.time,
@@ -203,17 +232,17 @@ class Trade:
     price: Decimal
     quantity: Decimal
 
-    # Optional fields (with defaults) last
+    # Optional fields (with defaults) last - REORDERED
     order_id: str | None = None
     exchange: str | None = None
     datetime: datetime | None = None
-    cost: Decimal | None = None
     fee: Decimal | None = None
     fee_asset: str | None = None
     is_maker: bool | None = None
     client_order_id: str | None = None
+    cost: Decimal | None = None  # Moved cost here as it's calculated in post_init if None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Ensure numeric fields are Decimal
         self.price = Decimal(str(self.price)) if not isinstance(self.price, Decimal) else self.price
         self.quantity = (
@@ -240,14 +269,17 @@ class Trade:
 class Ticker:
     """Represents ticker information for a symbol."""
 
+    # Required fields (no defaults) first
     symbol: str
     price: Decimal  # Last price (Decimal)
+
+    # Optional fields (with defaults) last - REORDERED
     bid: Decimal = Decimal("0.0")  # Best bid price (Decimal)
     ask: Decimal = Decimal("0.0")  # Best ask price (Decimal)
     volume: Decimal = Decimal("0.0")  # 24h volume (Decimal)
     timestamp: int = 0  # Ticker timestamp
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Ensure numeric fields are Decimal
         if not isinstance(self.price, Decimal):
             self.price = Decimal(str(self.price))
@@ -268,14 +300,10 @@ class OrderBook:
     asks: list[tuple[Decimal, Decimal]]  # List of [price, quantity] for asks (Decimal)
     timestamp: int = 0  # Order book timestamp
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Ensure bids and asks contain Decimal tuples
-        self.bids = [
-            (Decimal(str(p)), Decimal(str(q))) for p, q in self.bids
-        ]
-        self.asks = [
-            (Decimal(str(p)), Decimal(str(q))) for p, q in self.asks
-        ]
+        self.bids = [(Decimal(str(p)), Decimal(str(q))) for p, q in self.bids]
+        self.asks = [(Decimal(str(p)), Decimal(str(q))) for p, q in self.asks]
 
 
 @dataclass
@@ -288,9 +316,9 @@ class FundingRate:
     mark_price: Decimal = Decimal("0.0")  # Current mark price (Decimal)
     index_price: Decimal = Decimal("0.0")  # Current index price (Decimal)
     next_funding_time: int = 0  # Next funding timestamp
-    historical_rates: list[dict[str, Any]] | None = None # Historical funding rates (Optional)
+    historical_rates: list[dict[str, Any]] | None = None  # Historical funding rates (Optional)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Ensure numeric fields are Decimal
         if not isinstance(self.funding_rate, Decimal):
             self.funding_rate = Decimal(str(self.funding_rate))
@@ -305,7 +333,7 @@ class FundingRate:
 class ArbitrageOpportunity:
     """Represents a funding rate arbitrage opportunity."""
 
-    def __init__(
+    def __init__( 
         self,
         symbol: str,
         long_exchange: str,
@@ -320,6 +348,9 @@ class ArbitrageOpportunity:
         optimal_size: Decimal | None = None,
         expected_profit: Decimal | None = None,
         confidence: float | None = None,
+        # Added missing fields based on errors in callers
+        basis_volatility: float | None = None,  # Optional volatility measure
+        utility_score: float | None = None,  # Optional score
     ):
         self.symbol = symbol
         self.long_exchange = long_exchange
@@ -333,10 +364,71 @@ class ArbitrageOpportunity:
         self.optimal_size = optimal_size
         self.expected_profit = expected_profit
         self.confidence = confidence
+        self.basis_volatility = basis_volatility
+        self.utility_score = utility_score
         # Keep expiration logic or adapt if needed
         self.expiration = timestamp.timestamp() + 3600  # 1 hour expiration, maybe adjust
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "symbol": self.symbol,
+            "long_exchange": self.long_exchange,
+            "short_exchange": self.short_exchange,
+            "long_price": self.long_price,
+            "short_price": self.short_price,
+            "long_funding_rate": self.long_funding_rate,
+            "short_funding_rate": self.short_funding_rate,
+            "net_funding_differential": self.net_funding_differential,
+            "timestamp": self.timestamp.isoformat(),
+            "optimal_size": self.optimal_size,
+            "expected_profit": self.expected_profit,
+            "confidence": self.confidence,
+            "basis_volatility": self.basis_volatility,
+            "utility_score": self.utility_score,
+        }
 
     @property
     def is_expired(self) -> bool:
         """Check if the opportunity has expired."""
         return time.time() > self.expiration
+
+
+@dataclass
+class TradeSignal:
+    """Represents a decision signal generated by a strategy."""
+
+    symbol: str
+    signal_type: SignalType
+    side: OrderSide
+    price: Decimal | None = None
+    quantity: Decimal | None = None
+    timestamp: datetime | None = None
+    confidence: float | None = None
+    source_strategy: str | None = None
+    # Added missing fields based on errors in callers
+    stop_loss: Decimal | None = None  # Optional stop loss price
+    take_profit: Decimal | None = None  # Optional take profit price
+    expiration: datetime | None = None  # Optional signal expiration time
+    metadata: dict[str, Any] | None = None  # Optional additional data
+
+    def is_valid(self) -> bool:
+        """Check if the signal is still valid (e.g., not expired)."""
+        if self.expiration is None:
+            return True  # No expiration set, always valid
+        return datetime.now(UTC) < self.expiration
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert TradeSignal to dictionary representation."""
+        data = asdict(self)
+        # Convert enums and Decimals for serialization
+        if isinstance(data.get("signal_type"), SignalType):
+            data["signal_type"] = data["signal_type"].value
+        if isinstance(data.get("side"), OrderSide):
+            data["side"] = data["side"].value
+        if isinstance(data.get("price"), Decimal):
+            data["price"] = str(data["price"])
+        if isinstance(data.get("quantity"), Decimal):
+            data["quantity"] = str(data["quantity"])
+        if isinstance(data.get("timestamp"), datetime):
+            data["timestamp"] = data["timestamp"].isoformat()
+        return data

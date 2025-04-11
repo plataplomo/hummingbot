@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import os
 import sys
-import unittest
 import tempfile
+import unittest
 from unittest.mock import patch
 
 # Add parent directory to path to import from cyberdelta

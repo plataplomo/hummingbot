@@ -1,6 +1,9 @@
 import logging
+import os
+import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.utils.config import Config
@@ -8,48 +11,25 @@ from cyberdelta.utils.config import Config
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class BalanceAlert:
-    """
-    Alert for balance conditions that require attention.
-    """
+    """Represents a configured balance alert threshold."""
 
-    SEVERITY_INFO = "INFO"
-    SEVERITY_WARNING = "WARNING"
-    SEVERITY_CRITICAL = "CRITICAL"
+    # Non-default fields first
+    asset: str
+    threshold_type: Literal["low", "high", "change"]  # Type of threshold
+    threshold_value: float  # Numeric threshold value
 
-    def __init__(
-        self,
-        exchange: str,
-        asset: str,
-        current_balance: float,
-        required_balance: float,
-        severity: str,
-        message: str,
-        timestamp: datetime = None,
-    ):
-        """
-        Initialize a balance alert.
-
-        Args:
-            exchange: Exchange identifier
-            asset: Asset name
-            current_balance: Current balance
-            required_balance: Required balance
-            severity: Alert severity level
-            message: Alert message
-            timestamp: Alert timestamp
-        """
-        self.exchange = exchange
-        self.asset = asset
-        self.current_balance = current_balance
-        self.required_balance = required_balance
-        self.severity = severity
-        self.message = message
-        self.timestamp = timestamp or datetime.now()
-
-    def __str__(self) -> str:
-        """String representation of the alert."""
-        return f"[{self.severity}] {self.exchange}/{self.asset}: {self.message} (Current: {self.current_balance:.2f}, Required: {self.required_balance:.2f})"
+    # Default fields last
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    comparison_operator: Literal["<", "<=", ">", ">=", "abs>"] = ">="
+    alert_message: str = "Balance threshold triggered!"
+    triggered: bool = False
+    last_triggered: datetime | None = None
+    cooldown_seconds: int = 3600  # Cooldown period in seconds (1 hour default)
+    # Changed: Make timestamp optional
+    # timestamp: datetime = field(default_factory=datetime.now) # Timestamp of creation/last update
+    timestamp: datetime | None = field(default_factory=datetime.now)
 
 
 class BalanceMonitor:
@@ -260,3 +240,52 @@ class BalanceMonitor:
             status["balances"][exchange_id] = exchange_balances
 
         return status
+
+    def _load_state(self) -> None:
+        """Loads alerts and last known balances from a state file."""
+        if not self.state_file or not os.path.exists(self.state_file):
+            # Convert Decimal balance to float for comparison
+            balance_float = float(balance.available)
+
+            if alert.threshold_type == "low" and eval(
+                f"balance_float {alert.comparison_operator} alert.threshold_value"
+            ):
+                # Pass float balance to trigger
+                self._trigger_alert(alert, balance_float)
+            elif alert.threshold_type == "high" and eval(
+                f"balance_float {alert.comparison_operator} alert.threshold_value"
+            ):
+                # Pass float balance to trigger
+                self._trigger_alert(alert, balance_float)
+            elif alert.threshold_type == "change":
+                last_known = self.last_known_balances.get(alert.asset)
+                if last_known is not None:
+                    # Ensure last_known is also float for comparison
+                    last_known_float = float(last_known.available)
+                    change = abs(balance_float - last_known_float)
+                    if eval(f"change {alert.comparison_operator} alert.threshold_value"):
+                        # Pass float balance to trigger
+                        self._trigger_alert(alert, balance_float)
+
+            # Update last known balance (store Decimal)
+            # ... existing code ...
+
+    def add_alert(self, alert: BalanceAlert) -> None:
+        """Adds a new balance alert."""
+        # Ensure threshold value is float
+        if not isinstance(alert.threshold_value, float):
+            try:
+                alert.threshold_value = float(alert.threshold_value)
+            except ValueError:
+                self.logger.error("Invalid threshold value for alert", alert=alert)
+                return
+
+        # Corrected: Use append for list
+        # Original: self.alerts[alert.id] = alert
+        # Assuming self.alerts is a list, check for duplicates first
+        if not any(a.id == alert.id for a in self.alerts):
+            self.alerts.append(alert)
+            self.logger.info("Added balance alert", alert_id=alert.id, asset=alert.asset)
+            self._save_state()
+        else:
+            self.logger.warning("Alert with this ID already exists", alert_id=alert.id)

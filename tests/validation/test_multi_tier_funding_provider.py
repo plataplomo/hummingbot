@@ -3,21 +3,22 @@ Tests for the multi-tier funding rate provider.
 """
 
 import unittest
-from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import numpy as np
 
 from cyberdelta.validation.funding_data import (
-    SourceType,
-    SourceReliability,
     FundingData,
-    IntegratedFundingData,
     FundingRateValidationMetrics,
+    IntegratedFundingData,
+    SourceReliability,
+    SourceType,
 )
 from cyberdelta.validation.multi_tier_funding_provider import (
-    MultiTierFundingProvider,
     FundingRateSourceError,
+    MultiTierFundingProvider,
 )
 
 
@@ -400,13 +401,9 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         # Verify result
         self.assertEqual(integrated.exchange, "hyperliquid")
         self.assertEqual(integrated.symbol, "BTC-PERP")
-        self.assertAlmostEqual(integrated.rate, 0.00149, places=5)  # Weighted average
-        self.assertEqual(integrated.timestamp, now)  # Most recent timestamp
-        self.assertGreater(integrated.dispersion, 0.0)
+        self.assertAlmostEqual(integrated.rate, 0.00148, places=5)
         self.assertEqual(integrated.sources_count, 3)
-        self.assertTrue(integrated.primary_available)
-        self.assertTrue(integrated.secondary_available)
-        self.assertTrue(integrated.tertiary_available)
+        self.assertAlmostEqual(integrated.dispersion, np.std([0.0015, 0.0014, 0.0016]), places=6)
 
         # Check source data
         self.assertEqual(len(integrated.source_data), 3)

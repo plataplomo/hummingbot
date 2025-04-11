@@ -2,14 +2,17 @@
 Tests for the Priority Signal Queue functionality.
 """
 
-import pytest
-from datetime import datetime, timedelta
-from unittest.mock import MagicMock
 import heapq
+from datetime import datetime, timedelta, UTC
+from decimal import Decimal
+from unittest.mock import MagicMock, patch
 
+import pytest
+
+from cyberdelta.core.models import OrderType, SignalType, TradeSignal, OrderSide
 from cyberdelta.core.signal_queue import PrioritySignalQueue
-from cyberdelta.core.types import TradeSignal, SignalType, OrderType
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 
 @pytest.fixture
@@ -17,8 +20,8 @@ def mock_config():
     """Mock configuration for testing."""
     return {
         "default_signal_expiration_seconds": 60,
-        "max_signal_queue_size": 5,
-        "queue_cleanup_interval": 1,
+        "max_signal_queue_size": 100,
+        "queue_cleanup_interval": 5,
     }
 
 
@@ -33,39 +36,45 @@ def mock_circuit_breaker():
 
 
 @pytest.fixture
-def sample_trade_signal():
+def signal_queue(mock_config):
+    """Mock signal queue for testing."""
+    return PrioritySignalQueue(mock_config)
+
+
+@pytest.fixture
+def sample_signal():
     """Sample trade signal for testing."""
+    now = datetime.now()
     return TradeSignal(
-        strategy_name="test_strategy",
-        symbol="BTC-PERP",
+        timestamp=now,
+        symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
-        timestamp=datetime.now(),
-        price=30000.0,
-        quantity=1.0,
-        order_type=OrderType.MARKET,
-        metadata={
-            "utility_score": 0.75,
-            "confidence_score": 0.8,
-            "expected_profit": 100.0,
-        },
+        side=OrderSide.BUY,
+        price=50000,
+        source_strategy="test_strategy",
+        metadata={"utility_score": 0.8}
     )
 
 
 @pytest.fixture
-def sample_arbitrage_opportunity():
-    """Sample arbitrage opportunity for testing."""
+def sample_opportunity():
+    """Fixture to create a sample ArbitrageOpportunity."""
+    now = datetime.now(UTC)
     return ArbitrageOpportunity(
-        symbol="ETH-PERP",
-        long_exchange="exchange1",
-        short_exchange="exchange2",
-        long_funding_rate=0.001,
-        short_funding_rate=-0.002,
-        net_funding_differential=0.003,
-        timestamp=datetime.now(),
-        expected_profit=150.0,
-        utility_score=0.85,
-        confidence_score=0.9,
-        basis_volatility=0.05,
+        symbol="ETH/USDT",
+        long_exchange="exA",
+        short_exchange="exB",
+        long_price=Decimal("3000.0"),
+        short_price=Decimal("3001.0"),
+        long_funding_rate=Decimal("0.0001"),
+        short_funding_rate=Decimal("-0.0001"),
+        net_funding_differential=Decimal("-0.0002"),
+        timestamp=now,
+        utility_score=0.9,
+        expected_profit=Decimal("1.5"),
+        basis_volatility=0.0005,
+        optimal_size=None,
+        confidence=None,
     )
 
 
@@ -76,16 +85,16 @@ def test_initialization(mock_config):
     assert queue.signal_queue == []
     assert queue.counter == 0
     assert queue.default_expiration_seconds == 60
-    assert queue.max_queue_size == 5
-    assert queue.cleanup_interval == 1
+    assert queue.max_queue_size == 100
+    assert queue.cleanup_interval == 5
 
 
-def test_add_signal(mock_config, sample_trade_signal):
+def test_add_signal(mock_config, sample_signal):
     """Test adding a signal to the queue."""
     queue = PrioritySignalQueue(mock_config)
 
     # Add signal
-    result = queue.add_signal(sample_trade_signal)
+    result = queue.add_signal(sample_signal)
 
     assert result is True
     assert len(queue.signal_queue) == 1
@@ -93,13 +102,13 @@ def test_add_signal(mock_config, sample_trade_signal):
 
     # Check queue contents
     priority, _, signal = queue.signal_queue[0]
-    assert priority == -0.75  # Negative for max-heap
-    assert signal.symbol == "BTC-PERP"
+    assert priority == -0.8  # Negative for max-heap
+    assert signal.symbol == "BTC/USDT"
     assert signal.expiration is not None
 
 
 def test_add_signal_with_circuit_breaker(
-    mock_config, mock_circuit_breaker, sample_trade_signal
+    mock_config, mock_circuit_breaker, sample_signal
 ):
     """Test adding a signal with circuit breaker integration."""
     queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
@@ -108,7 +117,7 @@ def test_add_signal_with_circuit_breaker(
     mock_circuit_breaker.check_symbol.return_value = False
 
     # Add signal (should be rejected)
-    result = queue.add_signal(sample_trade_signal)
+    result = queue.add_signal(sample_signal)
 
     assert result is False
     assert len(queue.signal_queue) == 0
@@ -117,55 +126,55 @@ def test_add_signal_with_circuit_breaker(
     mock_circuit_breaker.check_symbol.return_value = True
 
     # Add signal (should succeed)
-    result = queue.add_signal(sample_trade_signal)
+    result = queue.add_signal(sample_signal)
 
     assert result is True
     assert len(queue.signal_queue) == 1
 
 
-def test_add_from_opportunity(mock_config, sample_arbitrage_opportunity):
+def test_add_from_opportunity(mock_config, sample_opportunity):
     """Test creating and adding a signal from an arbitrage opportunity."""
     queue = PrioritySignalQueue(mock_config)
 
     # Add from opportunity
-    signal = queue.add_from_opportunity(sample_arbitrage_opportunity, "arb_strategy")
+    signal = queue.add_from_opportunity(sample_opportunity, "funding_arb_strategy")
 
     assert signal is not None
     assert len(queue.signal_queue) == 1
-    assert signal.strategy_name == "arb_strategy"
-    assert signal.symbol == "ETH-PERP"
-    assert signal.metadata["utility_score"] == 0.85
-    assert signal.metadata["long_exchange"] == "exchange1"
-    assert signal.metadata["short_exchange"] == "exchange2"
+    assert signal.source_strategy == "funding_arb_strategy"
+    assert signal.symbol == "ETH/USDT"
+    assert signal.metadata["utility_score"] == 0.9
+    assert signal.metadata["long_exchange"] == "exA"
+    assert signal.metadata["short_exchange"] == "exB"
 
 
-def test_get_next_signal(mock_config, sample_trade_signal):
+def test_get_next_signal(mock_config, sample_signal):
     """Test getting the next signal from the queue."""
     queue = PrioritySignalQueue(mock_config)
 
     # Add signal
-    queue.add_signal(sample_trade_signal)
+    queue.add_signal(sample_signal)
 
     # Get next signal
     signal = queue.get_next_signal()
 
     assert signal is not None
-    assert signal.symbol == "BTC-PERP"
+    assert signal.symbol == "BTC/USDT"
     assert len(queue.signal_queue) == 0  # Signal should be removed
 
 
-def test_peek_next_signal(mock_config, sample_trade_signal):
+def test_peek_next_signal(mock_config, sample_signal):
     """Test peeking at the next signal without removing it."""
     queue = PrioritySignalQueue(mock_config)
 
     # Add signal
-    queue.add_signal(sample_trade_signal)
+    queue.add_signal(sample_signal)
 
     # Peek at next signal
     signal = queue.peek_next_signal()
 
     assert signal is not None
-    assert signal.symbol == "BTC-PERP"
+    assert signal.symbol == "BTC/USDT"
     assert len(queue.signal_queue) == 1  # Signal should still be in queue
 
 
@@ -176,11 +185,12 @@ def test_get_signals(mock_config):
     # Add multiple signals with different priorities
     for i in range(3):
         signal = TradeSignal(
-            strategy_name=f"strategy_{i}",
+            source_strategy=f"strategy_{i}",
             symbol=f"BTC-{i}",
             signal_type=SignalType.ENTER_LONG,
-            timestamp=datetime.now(),
-            price=30000.0 + i,
+            side=OrderSide.BUY,
+            timestamp=datetime.now(UTC),
+            price=Decimal(str(30000.0 + i)),
             metadata={"utility_score": 0.5 + i * 0.1},
         )
         queue.add_signal(signal)
@@ -193,24 +203,24 @@ def test_get_signals(mock_config):
     assert signals[1].symbol == "BTC-1"  # Second highest
 
 
-def test_count(mock_config, sample_trade_signal):
+def test_count(mock_config, sample_signal):
     """Test counting signals in the queue."""
     queue = PrioritySignalQueue(mock_config)
 
     assert queue.count() == 0
 
     # Add signal
-    queue.add_signal(sample_trade_signal)
+    queue.add_signal(sample_signal)
 
     assert queue.count() == 1
 
 
-def test_clear(mock_config, sample_trade_signal):
+def test_clear(mock_config, sample_signal):
     """Test clearing the queue."""
     queue = PrioritySignalQueue(mock_config)
 
     # Add signal
-    queue.add_signal(sample_trade_signal)
+    queue.add_signal(sample_signal)
 
     assert len(queue.signal_queue) == 1
 
@@ -223,154 +233,176 @@ def test_clear(mock_config, sample_trade_signal):
 def test_clean_expired_signals(mock_config):
     """Test cleaning expired signals."""
     queue = PrioritySignalQueue(mock_config)
+    now_utc = datetime.now(UTC)
 
-    # Add expired signal
+    # Add expired signal (using UTC)
     expired_signal = TradeSignal(
-        strategy_name="test_strategy",
+        source_strategy="test_strategy",
         symbol="BTC-PERP",
         signal_type=SignalType.ENTER_LONG,
-        timestamp=datetime.now(),
-        price=30000.0,
-        expiration=datetime.now() - timedelta(seconds=10),
+        side=OrderSide.BUY,
+        timestamp=now_utc - timedelta(minutes=1), # Make timestamp aware
+        price=Decimal("30000.0"), # Use Decimal
+        expiration=now_utc - timedelta(seconds=10), # Make expiration aware
         metadata={"utility_score": 0.75},
     )
 
-    # Add valid signal
+    # Add valid signal (using UTC)
     valid_signal = TradeSignal(
-        strategy_name="test_strategy",
+        source_strategy="test_strategy",
         symbol="ETH-PERP",
         signal_type=SignalType.ENTER_LONG,
-        timestamp=datetime.now(),
-        price=2000.0,
-        expiration=datetime.now() + timedelta(seconds=60),
-        metadata={"utility_score": 0.5},
+        side=OrderSide.BUY,
+        timestamp=now_utc, # Make timestamp aware
+        price=Decimal("2000.0"), # Use Decimal
+        expiration=now_utc + timedelta(seconds=60), # Make expiration aware
+        metadata={"utility_score": 0.9},
     )
 
     queue.add_signal(expired_signal)
     queue.add_signal(valid_signal)
 
-    assert len(queue.signal_queue) == 2
+    assert queue.count() == 2
 
-    # Clean expired signals
-    removed = queue._clean_expired_signals()
+    # Clean expired
+    # Ensure the clean method uses timezone-aware comparison internally
+    # (Assuming PrioritySignalQueue._is_expired uses aware datetimes or handles comparison correctly)
+    queue.clean_expired_signals()
 
-    assert removed == 1
-    assert len(queue.signal_queue) == 1
-    assert queue.signal_queue[0][2].symbol == "ETH-PERP"
+    assert queue.count() == 1
+    signal = queue.peek_next_signal()
+    assert signal.symbol == "ETH-PERP"
 
 
 def test_trim_queue(mock_config):
     """Test trimming the queue to max size."""
-    # Use smaller max size for test
-    config = mock_config.copy()
-    config["max_signal_queue_size"] = 3
-
+    config = mock_config
+    config["max_signal_queue_size"] = 2
     queue = PrioritySignalQueue(config)
 
-    # Add signals without trimming
-    for i in range(5):
+    # Add 3 signals
+    for i in range(3):
         signal = TradeSignal(
-            strategy_name=f"strategy_{i}",
-            symbol=f"BTC-{i}",
-            signal_type=SignalType.ENTER_LONG,
-            timestamp=datetime.now(),
-            price=30000.0 + i,
-            metadata={"utility_score": 0.5 + i * 0.1},
+            source_strategy=f"strategy_{i}",
+            symbol=f"SYM-{i}",
+            signal_type=SignalType.ENTER_SHORT,
+            side=OrderSide.SELL,
+            timestamp=datetime.now(UTC),
+            price=Decimal(str(10000.0 + i)),
+            metadata={"utility_score": 0.1 + i * 0.1},
         )
-        # Use heapq directly to bypass the automatic trimming
-        queue.counter += 1
-        heapq.heappush(
-            queue.signal_queue,
-            (-signal.metadata["utility_score"], queue.counter, signal),
-        )
+        queue.add_signal(signal)
 
-    # Verify we have 5 signals
-    assert len(queue.signal_queue) == 5
+    assert queue.count() == 3
 
-    # Call trim_queue directly
-    queue._trim_queue()
+    # Trim queue (removes lowest priority: SYM-0)
+    removed = queue._trim_queue()
 
-    # Queue should now be at max size
-    assert len(queue.signal_queue) == 3
+    assert removed is True
+    assert queue.count() == 2
 
-    # Check that highest priority signals were kept (lowest negative values)
-    signals = queue.get_signals(max_count=3)
-    symbols = [s.symbol for s in signals]
-
-    # Should have kept highest utility scores
-    assert "BTC-4" in symbols
-    assert "BTC-3" in symbols
-    assert "BTC-2" in symbols
+    # Check remaining signals are the highest priority
+    remaining_symbols = {s[2].symbol for s in queue.signal_queue}
+    assert remaining_symbols == {"SYM-1", "SYM-2"}
 
 
-def test_calculate_expiration(mock_config, sample_trade_signal):
+def test_calculate_expiration(mock_config, sample_signal):
     """Test calculating signal expiration time."""
     queue = PrioritySignalQueue(mock_config)
 
-    # Signal with high confidence
-    high_confidence = sample_trade_signal
-    high_confidence.metadata["confidence_score"] = 1.0
+    # Test default expiration
+    now = datetime.now(UTC)
+    expiration = queue._calculate_expiration(sample_signal)
+    assert isinstance(expiration, datetime)
+    # Allow for a small time difference due to execution time
+    assert (expiration - now).total_seconds() == pytest.approx(60, abs=1)
 
-    # Signal with low confidence
-    low_confidence = TradeSignal(
-        strategy_name="test_strategy",
-        symbol="ETH-PERP",
+    # Test expiration with confidence adjustment
+    signal_with_low_confidence = TradeSignal(
+        source_strategy="test_strategy",
+        symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
-        timestamp=datetime.now(),
-        price=2000.0,
-        metadata={"utility_score": 0.5, "confidence_score": 0.0},
+        side=OrderSide.BUY,
+        timestamp=datetime.now(UTC),
+        price=50000,
+        metadata={"utility_score": 0.8, "confidence_score": 0.2},
     )
-
-    # Calculate expirations
-    high_exp = queue._calculate_expiration(high_confidence)
-    low_exp = queue._calculate_expiration(low_confidence)
-
-    # High confidence should have longer expiration
-    high_seconds = (high_exp - datetime.now()).total_seconds()
-    low_seconds = (low_exp - datetime.now()).total_seconds()
-
-    assert high_seconds > low_seconds
-    assert abs(high_seconds - 60) < 1.0  # Should be close to 60 seconds
-    assert abs(low_seconds - 30) < 1.0  # Should be close to 30 seconds
+    now = datetime.now(UTC)
+    expiration_low_conf = queue._calculate_expiration(signal_with_low_confidence)
+    expected_seconds_low_conf = 60 * (0.5 + 0.2 * 0.5)
+    assert (expiration_low_conf - now).total_seconds() == pytest.approx(expected_seconds_low_conf, abs=1)
 
 
 def test_check_circuit_breakers(mock_config, mock_circuit_breaker):
-    """Test checking circuit breakers for a signal."""
+    """Test signal validation against circuit breakers."""
     queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
 
-    # Create signal with exchange metadata
     signal = TradeSignal(
-        strategy_name="test_strategy",
+        source_strategy="test_strategy",
         symbol="BTC-PERP",
         signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,
         timestamp=datetime.now(),
         price=30000.0,
-        metadata={
-            "utility_score": 0.75,
-            "long_exchange": "exchange1",
-            "short_exchange": "exchange2",
-        },
+        metadata={"utility_score": 0.75, "exchange": "hyperliquid"},
     )
 
-    # All breakers active
-    mock_circuit_breaker.check_exchange.return_value = True
-    mock_circuit_breaker.check_symbol.return_value = True
-
+    # Test: Pass (default mock behavior)
     assert queue._check_circuit_breakers(signal) is True
+    mock_circuit_breaker.check_symbol.assert_called_once_with("hyperliquid", "BTC-PERP")
 
-    # Long exchange breaker active
-    mock_circuit_breaker.check_exchange.side_effect = lambda x: x != "exchange1"
-
-    assert queue._check_circuit_breakers(signal) is False
-
-    # Short exchange breaker active
-    mock_circuit_breaker.check_exchange.side_effect = lambda x: x != "exchange2"
-
-    assert queue._check_circuit_breakers(signal) is False
-
-    # Symbol breaker active
-    mock_circuit_breaker.check_exchange.side_effect = None
-    mock_circuit_breaker.check_exchange.return_value = True
+    # Test: Fail (exchange breaker tripped)
+    mock_circuit_breaker.reset_mock()
     mock_circuit_breaker.check_symbol.return_value = False
-
     assert queue._check_circuit_breakers(signal) is False
+    mock_circuit_breaker.check_symbol.assert_called_once_with("hyperliquid", "BTC-PERP")
+
+    # Test: Signal without exchange metadata (should pass)
+    mock_circuit_breaker.reset_mock()
+    signal_no_exchange = TradeSignal(
+        source_strategy="test_strategy",
+        symbol="BTC-PERP",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,
+        timestamp=datetime.now(),
+        price=30000.0,
+        metadata={"utility_score": 0.75},
+    )
+    assert queue._check_circuit_breakers(signal_no_exchange) is True
+    mock_circuit_breaker.check_symbol.assert_not_called()
+
+
+def test_queue_init(signal_queue):
+    """Test basic initialization of the queue."""
+    assert signal_queue is not None
+    assert signal_queue.count() == 0
+
+
+def test_add_basic_signal(signal_queue, sample_signal):
+    """Test adding a basic signal."""
+    added = signal_queue.add_signal(sample_signal)
+    assert added is True
+    assert signal_queue.count() == 1
+
+
+def test_add_from_opportunity(signal_queue, sample_opportunity):
+    """Test adding a signal created from an opportunity."""
+    created_signal = signal_queue.add_from_opportunity(sample_opportunity, "funding_arb_strategy")
+    assert created_signal is not None
+    assert signal_queue.count() == 1
+    assert created_signal.source_strategy == "funding_arb_strategy"
+    assert created_signal.symbol == "ETH/USDT"
+    assert created_signal.metadata["utility_score"] == 0.9
+
+
+def test_get_next_signal(signal_queue, sample_signal):
+    """Test retrieving the highest priority signal."""
+    signal_queue.add_signal(sample_signal)
+    next_signal = signal_queue.get_next_signal()
+    assert next_signal == sample_signal
+    assert signal_queue.count() == 0
+
+
+def test_queue_is_empty(signal_queue):
+    """Test retrieving from an empty queue."""
+    assert signal_queue.get_next_signal() is None

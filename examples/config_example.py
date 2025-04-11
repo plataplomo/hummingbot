@@ -24,9 +24,9 @@ The configuration system supports:
 - Dot notation access to nested configuration values
 """
 
+import argparse
 import os
 import sys
-import argparse
 from pathlib import Path
 
 # Add the parent directory to sys.path for relative imports

@@ -1,11 +1,24 @@
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from datetime import datetime
+from __future__ import annotations
+from datetime import UTC, datetime
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
-from cyberdelta.core.signal_generator import ArbitrageOpportunity
+import pytest
+from typing import Any
+
+from cyberdelta.core.models import (
+    ArbitrageOpportunity,
+    Balance,
+    FundingRate,
+    OrderSide,
+    OrderType,
+    Position,
+    TradeSignal,
+    SignalType,
+)
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
-from cyberdelta.core.types import SignalType, TradeSignal
+from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.utils.config import Config
 
 
@@ -68,16 +81,18 @@ def strategy_without_risk_manager(setup_dependencies):
 def mock_opportunity():
     """Create a mock opportunity for testing"""
     return ArbitrageOpportunity(
-        symbol="BTC-PERP",
-        long_exchange="hyperliquid",
-        short_exchange="backpack",
-        long_funding_rate=0,
-        short_funding_rate=0.1,
-        net_funding_differential=0.1,
-        timestamp=datetime.now(),
-        expected_profit=10.0,
-        utility_score=8.0,
-        basis_volatility=0.005,
+        symbol="BTC/USDT",
+        long_exchange="ExchangeA",
+        short_exchange="ExchangeB",
+        long_price=Decimal("50000"),
+        short_price=Decimal("50100"),
+        long_funding_rate=Decimal("0.0001"),
+        short_funding_rate=Decimal("-0.0001"),
+        net_funding_differential=Decimal("0.0002"),
+        timestamp=datetime.now(UTC),
+        expected_profit=Decimal("10.0"),
+        basis_volatility=0.001,  # Example float value
+        utility_score=0.5,  # Example float value
     )
 
 
@@ -110,16 +125,16 @@ async def test_position_sizing_integration(
     mock_trade_signal.symbol = "BTC-PERP"
     mock_trade_signal.signal_type = SignalType.ENTER_SHORT
     mock_trade_signal.trades = [
-        {"exchange": "hyperliquid", "side": "SHORT", "size": 15000.0 / 30000.0},
-        {"exchange": "backpack", "side": "LONG", "size": 15000.0 / 29990.0},
+        {"exchange": "hyperliquid", "side": "SHORT", "size": Decimal("15000.0") / Decimal("30000.0")},
+        {"exchange": "backpack", "side": "LONG", "size": Decimal("15000.0") / Decimal("29990.0")},
     ]
     mock_trade_signal.metadata = {
         "position_sizing": {
             "enhanced": True,
-            "long_size": 15000.0,
-            "short_size": 15000.0,
-            "allocation_percentage": 0.3,
-            "risk_adjusted_return": 0.28,
+            "long_size": Decimal("15000.0"),
+            "short_size": Decimal("15000.0"),
+            "allocation_percentage": Decimal("0.3"),
+            "risk_adjusted_return": Decimal("0.28"),
         }
     }
 
@@ -131,12 +146,12 @@ async def test_position_sizing_integration(
     # Setup risk manager to return a sized opportunity
     mock_sized_opportunity = SizedOpportunity(
         opportunity=mock_opportunity,
-        long_size=15000.0,
-        short_size=15000.0,
-        allocation_percentage=0.3,
-        expected_profit=50.0,
-        expected_return=0.33,
-        risk_adjusted_return=0.28,
+        long_size=Decimal("15000.0"),
+        short_size=Decimal("15000.0"),
+        expected_profit=Decimal("50.0"),
+        allocation_percentage=0.1,  # Example: 10% allocation
+        expected_return=0.001,  # Example: 0.1% return
+        risk_adjusted_return=0.15,  # Example: risk-adjusted score
     )
     setup_dependencies["risk_manager"].size_opportunity = MagicMock(
         return_value=mock_sized_opportunity
@@ -174,20 +189,20 @@ async def test_position_sizing_integration(
     # First trade should be for the perp exchange
     perp_trade = next(t for t in trades if t["exchange"] == "hyperliquid")
     assert perp_trade["side"] == "SHORT"
-    assert perp_trade["size"] == 15000.0 / 30000.0  # size in USD / price
+    assert perp_trade["size"] == Decimal("15000.0") / Decimal("30000.0")  # size in USD / price
 
     # Second trade should be for the spot exchange
     spot_trade = next(t for t in trades if t["exchange"] == "backpack")
     assert spot_trade["side"] == "LONG"
-    assert spot_trade["size"] == 15000.0 / 29990.0  # size in USD / price
+    assert spot_trade["size"] == Decimal("15000.0") / Decimal("29990.0")  # size in USD / price
 
     # Verify metadata contains position sizing details
     metadata = signal.metadata
     assert metadata["position_sizing"]["enhanced"] is True
-    assert metadata["position_sizing"]["long_size"] == 15000.0
-    assert metadata["position_sizing"]["short_size"] == 15000.0
-    assert metadata["position_sizing"]["allocation_percentage"] == 0.3
-    assert metadata["position_sizing"]["risk_adjusted_return"] == 0.28
+    assert metadata["position_sizing"]["long_size"] == Decimal("15000.0")
+    assert metadata["position_sizing"]["short_size"] == Decimal("15000.0")
+    assert metadata["position_sizing"]["allocation_percentage"] == Decimal("0.3")
+    assert metadata["position_sizing"]["risk_adjusted_return"] == Decimal("0.28")
 
 
 @pytest.mark.asyncio
@@ -236,10 +251,10 @@ def test_fallback_without_risk_manager(
     mock_trade_signal.symbol = "BTC-PERP"
     mock_trade_signal.signal_type = SignalType.ENTER_SHORT
     mock_trade_signal.trades = [
-        {"exchange": "hyperliquid", "side": "SHORT", "size": 1000.0},
-        {"exchange": "backpack", "side": "LONG", "size": 1000.0},
+        {"exchange": "hyperliquid", "side": "SHORT", "size": Decimal("100.0") / Decimal("30000.0")},
+        {"exchange": "backpack", "side": "LONG", "size": Decimal("100.0") / Decimal("29990.0")},
     ]
-    mock_trade_signal.metadata = {}
+    mock_trade_signal.metadata = {"position_sizing": {"enhanced": False}}
 
     # Mock _generate_entry_signal
     strategy_without_risk_manager._generate_entry_signal = MagicMock(
@@ -250,8 +265,15 @@ def test_fallback_without_risk_manager(
     signal = strategy_without_risk_manager._generate_entry_signal(mock_opportunity)
 
     # Verify the signal has default sizes
-    for trade in signal.trades:
-        assert trade["size"] == 1000.0
+    # Check hyperliquid trade size
+    assert signal.trades[0]["size"] == Decimal("100.0") / Decimal("30000.0")
+    # Check backpack trade size
+    assert signal.trades[1]["size"] == Decimal("100.0") / Decimal("29990.0")
 
-    # Verify no enhanced position sizing metadata
-    assert "position_sizing" not in signal.metadata
+    # Verify metadata indicates fallback sizing (moved up for clarity)
+    assert signal.metadata["position_sizing"]["enhanced"] is False
+
+    # Check config fallback values are used correctly
+    assert strategy_without_risk_manager.params["default_position_size"] == Decimal("100.0")
+    assert strategy_without_risk_manager.params["min_funding_differential"] == Decimal("0.01")
+    assert strategy_without_risk_manager.params["min_profit_threshold"] == Decimal("1.0")

@@ -2,13 +2,21 @@
 Tests for the SignalGenerator class.
 """
 
-import pytest
-from unittest.mock import MagicMock
 from datetime import datetime, timedelta
-import numpy as np
+from unittest.mock import MagicMock
+from decimal import Decimal
 
-from cyberdelta.core.signal_generator import SignalGenerator, ArbitrageOpportunity
+import numpy as np
+import pytest
+
 from cyberdelta.core.data_handler import DataHandler
+from cyberdelta.core.models import (
+    ArbitrageOpportunity,
+    FundingRate,
+    MarketData,
+    Ticker,
+)
+from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.utils.config import Config
 
 
@@ -24,10 +32,10 @@ class TestSignalGenerator:
         mock_config.get.side_effect = lambda key, default=None: {
             "exchanges": {"hyperliquid": {}, "backpack": {}},
             "exchanges.hyperliquid.enabled": True,
-            "exchanges.hyperliquid.symbols": ["BTC", "ETH"],
+            "exchanges.hyperliquid.symbols": {"BTC": "BTC", "ETH": "ETH"},
             "exchanges.hyperliquid.fee_rate": 0.0004,
             "exchanges.backpack.enabled": True,
-            "exchanges.backpack.symbols": ["BTC", "ETH"],
+            "exchanges.backpack.symbols": {"BTC": "BTC", "ETH": "ETH"},
             "exchanges.backpack.fee_rate": 0.0006,
             "strategy.funding_rate.min_funding_differential": 0.0002,
             "strategy.funding_rate.min_profit_threshold": 3.0,
@@ -43,7 +51,7 @@ class TestSignalGenerator:
         """Create a mock data handler for testing."""
         mock_handler = MagicMock(spec=DataHandler)
 
-        # Mock funding rate data
+        # Define mock data locally within the fixture scope
         funding_rates = {
             "hyperliquid": {
                 "BTC": (-0.01, datetime.now()),  # -0.01% rate (pays longs)
@@ -54,41 +62,47 @@ class TestSignalGenerator:
                 "ETH": (-0.01, datetime.now()),  # -0.01% rate (pays longs)
             },
         }
-
-        # Mock ticker data
         tickers = {
             "hyperliquid": {
-                "BTC": MagicMock(close=40000),
-                "ETH": MagicMock(close=2500),
+                "BTC": MagicMock(close=40000, price=Decimal("40000"), bid=Decimal("39995"), ask=Decimal("40005")), # Add price, bid, ask
+                "ETH": MagicMock(close=2500, price=Decimal("2500"), bid=Decimal("2498"), ask=Decimal("2502")), # Add price, bid, ask
             },
-            "backpack": {"BTC": MagicMock(close=40100), "ETH": MagicMock(close=2490)},
+            "backpack": {
+                "BTC": MagicMock(close=40100, price=Decimal("40100"), bid=Decimal("40090"), ask=Decimal("40110")), # Add price, bid, ask
+                "ETH": MagicMock(close=2490, price=Decimal("2490"), bid=Decimal("2485"), ask=Decimal("2495")), # Add price, bid, ask
+            },
         }
-
-        # Mock orderbook data
         orderbooks = {
             "hyperliquid": {"BTC": {"depth": 500000}, "ETH": {"depth": 300000}},
             "backpack": {"BTC": {"depth": 400000}, "ETH": {"depth": 250000}},
         }
 
-        # Set up the mock methods
+        # Set up the mock methods using side_effect functions
         def get_funding_rate(exchange, symbol):
-            if exchange in funding_rates and symbol in funding_rates[exchange]:
-                return funding_rates[exchange][symbol]
+            rate_info = funding_rates.get(exchange, {}).get(symbol)
+            if rate_info:
+                # Return a FundingRate object as expected by SignalGenerator
+                return FundingRate(symbol=symbol, funding_rate=Decimal(str(rate_info[0])), timestamp=rate_info[1])
             return None
 
         def get_ticker(exchange, symbol):
-            if exchange in tickers and symbol in tickers[exchange]:
-                return tickers[exchange][symbol]
-            return None
+            return tickers.get(exchange, {}).get(symbol)
 
         def get_orderbook(exchange, symbol):
-            if exchange in orderbooks and symbol in orderbooks[exchange]:
-                return orderbooks[exchange][symbol]
-            return None
+            return orderbooks.get(exchange, {}).get(symbol)
 
+        # Define the side_effect for get_common_symbols using the local tickers dict
+        def get_common_symbols(ex1, ex2):
+             symbols1 = set(tickers.get(ex1, {}).keys())
+             symbols2 = set(tickers.get(ex2, {}).keys())
+             return list(symbols1.intersection(symbols2))
+
+        # Explicitly attach methods with side_effects to the mock handler
         mock_handler.get_funding_rate.side_effect = get_funding_rate
         mock_handler.get_ticker.side_effect = get_ticker
         mock_handler.get_orderbook.side_effect = get_orderbook
+        # Ensure get_common_symbols is attached correctly
+        mock_handler.get_common_symbols = MagicMock(side_effect=get_common_symbols)
 
         return mock_handler
 
@@ -100,8 +114,8 @@ class TestSignalGenerator:
     def test_init(self, signal_generator, config, data_handler):
         """Test initializing the signal generator."""
         # Verify configuration parameters were loaded
-        assert signal_generator.min_funding_differential == 0.0002
-        assert signal_generator.min_profit_threshold == 3.0
+        assert signal_generator.min_funding_differential == Decimal("0.0002")
+        assert signal_generator.min_profit_threshold == Decimal("3.0")
         assert signal_generator.funding_sample_period == 3600
         assert signal_generator.funding_sample_count == 24
         assert signal_generator.risk_aversion == 1.0
@@ -163,40 +177,39 @@ class TestSignalGenerator:
     def test_calculate_basis_volatility(self, signal_generator):
         """Test calculating basis volatility."""
         # Empty data should return 0
-        assert signal_generator.calculate_basis_volatility("BTC") == 0.0
+        assert signal_generator.calculate_basis_volatility("BTC") == Decimal("0.0")
 
         # Add historical basis data
         now = datetime.now()
         signal_generator.historical_basis["BTC"] = [
-            (now - timedelta(hours=3), 100),
-            (now - timedelta(hours=2), 120),
-            (now - timedelta(hours=1), 90),
-            (now, 110),
+            (now - timedelta(hours=3), Decimal("100")),
+            (now - timedelta(hours=2), Decimal("120")),
+            (now - timedelta(hours=1), Decimal("90")),
+            (now, Decimal("110")),
         ]
 
         # Calculate volatility
         volatility = signal_generator.calculate_basis_volatility("BTC")
 
         # Expected volatility would be std dev of [100, 120, 90, 110]
-        expected_volatility = np.std([100, 120, 90, 110])
-        assert volatility == expected_volatility
+        expected_volatility_float = np.std([100.0, 120.0, 90.0, 110.0])
+        assert volatility == Decimal(str(expected_volatility_float))
 
     def test_estimate_slippage(self, signal_generator, data_handler):
         """Test estimating slippage based on order size and liquidity."""
         # Test with default depth
-        slippage = signal_generator.estimate_slippage("BTC", 10000, "hyperliquid")
-        # Expected: 10000 / 500000 * 0.1 = 0.002 (0.2%)
-        assert slippage == 0.002
+        slippage = signal_generator.estimate_slippage("BTC", Decimal("10000"), "hyperliquid")
+        assert slippage == Decimal("0.002")
 
         # Test with zero/missing depth (should use default slippage)
         data_handler.get_orderbook.return_value = None
-        slippage = signal_generator.estimate_slippage("BTC", 10000, "hyperliquid")
-        assert slippage == 0.001  # Default 0.1%
+        slippage = signal_generator.estimate_slippage("BTC", Decimal("10000"), "hyperliquid")
+        assert slippage == Decimal("0.001")
 
         # Test with very large order (should cap at 1%)
         data_handler.get_orderbook.return_value = {"depth": 10000}  # Small depth
-        slippage = signal_generator.estimate_slippage("BTC", 100000, "hyperliquid")
-        assert slippage == 0.01  # Capped at 1%
+        slippage = signal_generator.estimate_slippage("BTC", Decimal("100000"), "hyperliquid")
+        assert slippage == Decimal("0.01")
 
     def test_generate_opportunities(self, signal_generator, data_handler):
         """Test generating arbitrage opportunities."""
@@ -268,7 +281,7 @@ class TestSignalGenerator:
         config.get.side_effect = lambda key, default=None: {
             "exchanges": {"hyperliquid": {}},
             "exchanges.hyperliquid.enabled": True,
-            "exchanges.hyperliquid.symbols": ["BTC", "ETH"],
+            "exchanges.hyperliquid.symbols": {"BTC": "BTC", "ETH": "ETH"},
             "strategy.funding_rate.min_funding_differential": 0.0002,
             "strategy.funding_rate.min_profit_threshold": 3.0,
         }.get(key, default)
@@ -279,37 +292,44 @@ class TestSignalGenerator:
         # Verify no opportunities were found (need at least two exchanges)
         assert len(opportunities) == 0
 
-    def test_arbitrage_opportunity_object(self):
-        """Test the ArbitrageOpportunity class."""
-        # Create an opportunity object
-        opp = ArbitrageOpportunity(
-            symbol="BTC",
-            long_exchange="hyperliquid",
-            short_exchange="backpack",
-            long_funding_rate=-0.01,
-            short_funding_rate=0.02,
-            net_funding_differential=0.03,
-            timestamp=datetime.now(),
-            expected_profit=10.0,
-            utility_score=9.0,
-            basis_volatility=0.005,
-        )
+    def test_arbitrage_opportunity_creation(self, signal_generator_instance):
+        # ... setup mock data ...
+        signal_generator_instance.data_handler.get_funding_rate.side_effect = [
+            FundingRate(exchange="ExA", symbol="BTC-PERP", funding_rate=Decimal("-0.0001"), timestamp=datetime.now(UTC)), # rate1
+            FundingRate(exchange="ExB", symbol="BTC-PERP", funding_rate=Decimal("0.00015"), timestamp=datetime.now(UTC)), # rate2
+            FundingRate(exchange="ExA", symbol="ETH-PERP", funding_rate=Decimal("0.0002"), timestamp=datetime.now(UTC)), # rate1 (case 2)
+            FundingRate(exchange="ExB", symbol="ETH-PERP", funding_rate=Decimal("0.0001"), timestamp=datetime.now(UTC)), # rate2 (case 2)
+        ]
+        signal_generator_instance.data_handler.get_ticker.side_effect = [
+             Ticker(exchange="ExA", symbol="BTC-PERP", bid=Decimal("50000"), ask=Decimal("50001"), price=Decimal("50000.5"), timestamp=datetime.now(UTC)), # ticker1
+             Ticker(exchange="ExB", symbol="BTC-PERP", bid=Decimal("50004"), ask=Decimal("50005"), price=Decimal("50004.5"), timestamp=datetime.now(UTC)), # ticker2
+             Ticker(exchange="ExA", symbol="ETH-PERP", bid=Decimal("3000"), ask=Decimal("3001"), price=Decimal("3000.5"), timestamp=datetime.now(UTC)), # ticker1 (case 2)
+             Ticker(exchange="ExB", symbol="ETH-PERP", bid=Decimal("2999"), ask=Decimal("3000"), price=Decimal("2999.5"), timestamp=datetime.now(UTC)), # ticker2 (case 2)
+        ]
+        # ... other mocks ...
 
-        # Verify attributes
-        assert opp.symbol == "BTC"
-        assert opp.long_exchange == "hyperliquid"
-        assert opp.short_exchange == "backpack"
-        assert opp.long_funding_rate == -0.01
-        assert opp.short_funding_rate == 0.02
-        assert opp.net_funding_differential == 0.03
-        assert isinstance(opp.timestamp, datetime)
-        assert opp.expected_profit == 10.0
-        assert opp.utility_score == 9.0
-        assert opp.basis_volatility == 0.005
+        opportunities = signal_generator_instance.generate_opportunities()
 
-        # Verify string representation
-        assert "ArbitrageOpportunity: BTC" in str(opp)
-        assert "Long: hyperliquid (-0.0100%)" in str(opp)
-        assert "Short: backpack (0.0200%)" in str(opp)
-        assert "NFD: 0.0300%" in str(opp)
-        assert "ExpProfit: $10.00" in str(opp)
+        assert len(opportunities) == 2 # Should find two opportunities
+
+        # Check Opportunity 1 (Long ExA, Short ExB)
+        opp1 = opportunities[0]
+        assert opp1.symbol == "BTC-PERP"
+        assert opp1.long_exchange == "ExA"
+        assert opp1.short_exchange == "ExB"
+        assert opp1.long_price == Decimal("50001") # Buy at Ask A
+        assert opp1.short_price == Decimal("50004") # Sell at Bid B
+        assert opp1.long_funding_rate == Decimal("-0.0001")
+        assert opp1.short_funding_rate == Decimal("0.00015")
+        assert opp1.net_funding_differential == Decimal("0.00025") # 0.00015 - (-0.0001)
+
+        # Check Opportunity 2 (Long ExB, Short ExA)
+        opp2 = opportunities[1]
+        assert opp2.symbol == "ETH-PERP"
+        assert opp2.long_exchange == "ExB"
+        assert opp2.short_exchange == "ExA"
+        assert opp2.long_price == Decimal("3000") # Buy at Ask B
+        assert opp2.short_price == Decimal("3000") # Sell at Bid A
+        assert opp2.long_funding_rate == Decimal("0.0001")
+        assert opp2.short_funding_rate == Decimal("0.0002")
+        assert opp2.net_funding_differential == Decimal("0.0001") # 0.0002 - 0.0001

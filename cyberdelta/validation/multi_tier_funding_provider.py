@@ -37,7 +37,7 @@ class MultiTierFundingProvider:
     metrics, source reliability, and data freshness.
     """
 
-    def __init__(self, config: dict[str, Any], funding_rate_validator: Any | None = None) -> None:  # noqa: ANN401
+    def __init__(self, config: dict[str, Any], funding_rate_validator: Any | None = None) -> None:  
         """
         Initialize the multi-tier funding provider.
 
@@ -443,10 +443,12 @@ class MultiTierFundingProvider:
             rate=integrated_rate,
             timestamp=integrated_timestamp,
             confidence_score=0.0,  # To be calculated later
-            rate_dispersion=rate_dispersion,
-            sources_used=len(available_sources),
-            raw_data=raw_data_aggregate,
-            data_sources=available_sources,
+            dispersion=rate_dispersion,
+            sources_count=len(available_sources),
+            primary_available=any(s.source_type == SourceType.PRIMARY for s in available_sources),
+            secondary_available=any(s.source_type == SourceType.SECONDARY for s in available_sources),
+            tertiary_available=any(s.source_type == SourceType.TERTIARY for s in available_sources),
+            source_data={s.source_type: s for s in available_sources},
         )
 
         return integrated_data
@@ -470,11 +472,11 @@ class MultiTierFundingProvider:
 
         # Source count score
         max_sources = 3  # Assuming max 3 tiers (primary, secondary, tertiary)
-        source_count_score = integrated_data.sources_used / max_sources
+        source_count_score = integrated_data.sources_count / max_sources
 
         # Dispersion score (lower dispersion = higher confidence)
         max_dispersion = 0.001  # Example: Max acceptable std dev of 0.1%
-        dispersion_score = max(0, 1 - (integrated_data.rate_dispersion / max_dispersion))
+        dispersion_score = max(0, 1 - (integrated_data.dispersion / max_dispersion))
 
         # Freshness score (more recent = higher confidence)
         age_seconds = (datetime.now() - integrated_data.timestamp).total_seconds()

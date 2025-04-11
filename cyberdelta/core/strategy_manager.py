@@ -1,12 +1,18 @@
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any
 
-from .risk_manager import RiskManager
-from .strategy import Strategy
-from .types import MarketData, TradeSignal
+import structlog
 
-logger = logging.getLogger(__name__)
+from cyberdelta.core.execution_handler import ExecutionHandler
+from cyberdelta.core.models import MarketData, TradeSignal
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.core.signal_queue import PrioritySignalQueue
+from cyberdelta.core.strategy import Strategy
+
+logger = structlog.get_logger(__name__)
 
 
 class StrategyManager:
@@ -22,17 +28,24 @@ class StrategyManager:
     - Performance tracking and metrics collection
     """
 
-    def __init__(self, risk_manager: RiskManager | None = None) -> None:
-        """
-        Initialize the StrategyManager.
-
-        Args:
-            risk_manager: Optional risk manager to handle position sizing and risk controls
-        """
+    def __init__(
+        self,
+        config: dict[str, Any],
+        execution_handler: ExecutionHandler,
+        portfolio_tracker: PortfolioTracker,
+        risk_manager: RiskManager,
+        signal_queue: PrioritySignalQueue,
+    ) -> None:
+        self.logger = logging.getLogger(__name__)
+        self.config = config
+        self.execution_handler = execution_handler
+        self.portfolio_tracker = portfolio_tracker
+        self.risk_manager = risk_manager
         self.strategies: dict[str, Strategy] = {}
+        self._tasks: list[asyncio.Task] = []
+        self._running = False
         self.enabled_strategies: set[str] = set()
         self.active_symbols: set[str] = set()
-        self.risk_manager = risk_manager
         self.last_update_time: datetime | None = None
 
         logger.info("StrategyManager initialized")
@@ -147,6 +160,39 @@ class StrategyManager:
                     signals.append(signal)
             except Exception as e:
                 logger.error(f"Error processing data in strategy '{strategy_name}': {str(e)}")
+
+        return signals
+
+    async def on_market_data(self, market_data: MarketData) -> list[TradeSignal]:
+        """Called when new market data is available."""
+        signals = []
+        strategies = self.get_strategies_for_symbol(market_data.symbol)
+        if not strategies:
+            return []  # No strategies for this symbol
+
+        # Run strategy updates concurrently
+        tasks = [strategy.update(market_data) for strategy in strategies]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for result in results:
+            if isinstance(result, TradeSignal):
+                # Corrected: Check for None before appending
+                if result is not None:
+                    signals.append(result)
+                # Optionally handle signal generation errors if needed
+            elif isinstance(result, list):  # Strategy might return multiple signals
+                for signal in result:
+                    # Corrected: Check for None before appending
+                    if isinstance(signal, TradeSignal) and signal is not None:
+                        signals.append(signal)
+            elif isinstance(result, Exception):
+                self.logger.error("Error updating strategy", error=result)
+
+        # Send generated signals to the queue
+        for signal in signals:
+            # Assign priority based on strategy config or signal properties
+            priority = signal.confidence or 0.5  # Example priority
+            self.signal_queue.add_signal(signal, priority)
 
         return signals
 

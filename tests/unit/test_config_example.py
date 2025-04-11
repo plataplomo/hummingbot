@@ -11,8 +11,8 @@ These tests ensure that the example script correctly:
 
 import os
 import sys
-import unittest
 import tempfile
+import unittest
 from unittest.mock import patch
 
 # Add parent directory to path to import from project

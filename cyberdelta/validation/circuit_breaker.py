@@ -156,7 +156,7 @@ class CircuitBreaker(ABC):
         pass
 
     @abstractmethod
-    def check(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+    def check(self, *args: Any, **kwargs: Any) -> None: 
         """
         Check if the circuit breaker should trip.
 

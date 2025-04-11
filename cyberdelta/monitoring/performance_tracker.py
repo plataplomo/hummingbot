@@ -30,7 +30,7 @@ class PerformanceTracker:
 
     output_dir: str = field(default_factory=lambda: os.path.join(os.getcwd(), "performance_data"))
 
-    def __init__(self, output_dir: str | None = None):
+    def __init__(self, output_dir: str | None = None) -> None:
         """
         Initialize the performance tracker.
 
@@ -54,7 +54,7 @@ class PerformanceTracker:
         # Load existing data
         self._load_data()
 
-    def track_return(self, strategy_name: str, timestamp: datetime, return_value: float):
+    def track_return(self, strategy_name: str, timestamp: datetime, return_value: float) -> None:
         """
         Track a return for a strategy.
 
@@ -87,7 +87,7 @@ class PerformanceTracker:
         exit_time: datetime | None = None,
         pnl: float | None = None,
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Track a trade.
 
@@ -139,14 +139,14 @@ class PerformanceTracker:
             # Save to file
             self._save_trades()
 
-    def track_trade_exit(
+    def track_trade_exit( 
         self,
         trade_id: str,
         exit_price: float,
         exit_time: datetime,
         pnl: float,
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Track the exit of a trade.
 
@@ -192,7 +192,7 @@ class PerformanceTracker:
             # Trade not found
             logger.warning(f"Trade with ID {trade_id} not found for exit tracking")
 
-    def track_signal(
+    def track_signal( 
         self,
         signal_id: str,
         strategy_name: str,
@@ -201,7 +201,7 @@ class PerformanceTracker:
         timestamp: datetime,
         confidence: float | None = None,
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Track a trading signal.
 
@@ -240,9 +240,9 @@ class PerformanceTracker:
             # Save to file
             self._save_signals()
 
-    def track_signal_execution(
+    def track_signal_execution( 
         self, signal_id: str, executed: bool, metadata: dict[str, Any] | None = None
-    ):
+    ) -> None:
         """
         Track the execution of a signal.
 
@@ -271,7 +271,7 @@ class PerformanceTracker:
             # Signal not found
             logger.warning(f"Signal with ID {signal_id} not found for execution tracking")
 
-    def track_funding_rate(
+    def track_funding_rate( 
         self,
         timestamp: datetime,
         exchange: str,
@@ -279,7 +279,7 @@ class PerformanceTracker:
         funding_rate: float,
         predicted_rate: float | None = None,
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Track a funding rate.
 
@@ -515,11 +515,14 @@ class PerformanceTracker:
             if "symbol" in df.columns and "funding_rate" in df.columns and len(df) > 0:
                 try:
                     df = df.pivot(index="timestamp", columns="symbol", values="funding_rate")
-                except:
+                except Exception as e:
+                    # Log the error if needed
+                    logger.warning(
+                        f"Could not pivot funding rate data, keeping original format. Error: {e}"
+                    )
                     # If pivot fails, return the original DataFrame
                     df = df.set_index("timestamp")
-
-            return df
+                return df
 
     def _save_returns(self, strategy_name: str) -> None:
         """
@@ -646,7 +649,8 @@ class PerformanceTracker:
                             trade[key] = datetime.fromisoformat(trade[key])
                         except (ValueError, TypeError) as e:
                             logger.warning(
-                                f"Error parsing datetime {trade[key]} for trade {trade.get('trade_id', 'N/A')}: {e}"
+                                f"Error parsing datetime {trade[key]} for trade "
+                                f"{trade.get('trade_id', 'N/A')}: {e}"
                             )
                             trade[key] = None
 
@@ -665,7 +669,8 @@ class PerformanceTracker:
                         signal["timestamp"] = datetime.fromisoformat(signal["timestamp"])
                     except (ValueError, TypeError) as e:
                         logger.warning(
-                            f"Error parsing datetime {signal['timestamp']} for signal {signal.get('signal_id', 'N/A')}: {e}"
+                            f"Error parsing datetime {signal['timestamp']} for signal "
+                            f"{signal.get('signal_id', 'N/A')}: {e}"
                         )
                         signal["timestamp"] = None
 

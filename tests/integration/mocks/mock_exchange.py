@@ -1,25 +1,26 @@
 import asyncio
+import copy
 import logging
 import time
-from typing import Dict, Any, Optional, List, Coroutine, Callable, Tuple
-from datetime import datetime, timezone, timedelta
-import copy
-from decimal import Decimal
 from collections import defaultdict
+from collections.abc import Callable, Coroutine
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import Any
 
-from cyberdelta.apis.base import ExchangeAPI, APIError, APIErrorCode
+from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
-    Order,
-    OrderBook,
-    Ticker,
-    Trade,
-    Position,
     Balance,
     FundingRate,
-    OrderType,
+    Order,
+    OrderBook,
     OrderSide,
     OrderStatus,  # ExchangeID, # REMOVE ExchangeID from here
     # Symbol      # REMOVE Symbol from here
+    OrderType,
+    Position,
+    Ticker,
+    Trade,
 )
 
 # Correct the import to use the new typing module
@@ -29,7 +30,7 @@ from cyberdelta.utils.config import Config
 logger = logging.getLogger(__name__)
 
 # Type alias for WebSocket message handlers from base.py
-MessageHandler = Callable[[Dict[str, Any]], Coroutine[Any, Any, None]]
+MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
 
 
 # Define a custom exception for mock API errors
@@ -47,19 +48,19 @@ class MockExchangeAPI(ExchangeAPI):
     def __init__(
         self,
         exchange_name: str,
-        config: Dict[str, Any],
-        secrets: Dict[str, Optional[str]],
-        config_obj: Optional[Config] = None,
+        config: dict[str, Any],
+        secrets: dict[str, str | None],
+        config_obj: Config | None = None,
     ):  # Add optional config_obj parameter
         super().__init__(exchange_name, config, secrets)
         self.full_config = config_obj  # Store the full config object if provided
         self._order_id_counter = 1
-        self._orders: Dict[str, Order] = {}  # Store orders by ID
-        self._positions: Dict[str, Position] = {}  # Store positions by symbol
-        self._balances: Dict[str, Balance] = {}  # Store balances by asset
-        self._mock_tickers: Dict[str, Ticker] = {}
-        self._mock_funding_rates: Dict[str, FundingRate] = {}
-        self._trades: List[Trade] = []  # Added to store trades
+        self._orders: dict[str, Order] = {}  # Store orders by ID
+        self._positions: dict[str, Position] = {}  # Store positions by symbol
+        self._balances: dict[str, Balance] = {}  # Store balances by asset
+        self._mock_tickers: dict[str, Ticker] = {}
+        self._mock_funding_rates: dict[str, FundingRate] = {}
+        self._trades: list[Trade] = []  # Added to store trades
 
         # --- NEW: Fee attributes initialized from config as Decimal ---
         default_fee = "0.001"  # Default fee rate as string for Decimal
@@ -93,10 +94,10 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Simulation parameters
         self._latency_ms: float = 10.0  # Default latency in milliseconds
-        self._error_simulation: Optional[Dict[str, Any]] = (
+        self._error_simulation: dict[str, Any] | None = (
             None  # Config to simulate errors
         )
-        self._fail_on_method: Optional[str] = None  # Method name to fail on
+        self._fail_on_method: str | None = None  # Method name to fail on
         self._failure_exception: Exception = MockAPIError(
             "Simulated API failure"
         )  # Exception to raise
@@ -105,15 +106,15 @@ class MockExchangeAPI(ExchangeAPI):
         )
 
         # Initialize balances and positions
-        self.balances: Dict[str, Balance] = {}
-        self.positions: Dict[str, Position] = {}
-        self.open_orders: Dict[str, Order] = {}
-        self.trade_history: List[Trade] = []
-        self.api_errors: List[Dict] = []
+        self.balances: dict[str, Balance] = {}
+        self.positions: dict[str, Position] = {}
+        self.open_orders: dict[str, Order] = {}
+        self.trade_history: list[Trade] = []
+        self.api_errors: list[dict] = []
 
         # Error simulation
-        self._error_config: Dict[str, Tuple[Exception, Optional[int]]] = {}
-        self._call_counts: Dict[str, int] = defaultdict(int)
+        self._error_config: dict[str, tuple[Exception, int | None]] = {}
+        self._call_counts: dict[str, int] = defaultdict(int)
 
         # Behavior settings
         self._open_orders_behavior = "keep_open"
@@ -132,7 +133,7 @@ class MockExchangeAPI(ExchangeAPI):
         method_name: str,
         error_code: APIErrorCode,
         message: str,
-        trigger_after_n_calls: Optional[int] = 0,
+        trigger_after_n_calls: int | None = 0,
     ):
         """Configure an APIError to be raised by a specific method."""
         error = APIError(
@@ -145,13 +146,13 @@ class MockExchangeAPI(ExchangeAPI):
         self,
         error: Exception,
         method_name: str,
-        trigger_after_n_calls: Optional[int] = 0,
+        trigger_after_n_calls: int | None = 0,
     ):
         """Configure a specific exception to be raised by a method."""
         self._error_config[method_name] = (error, trigger_after_n_calls)
         self._call_counts[method_name] = 0
 
-    def clear_error(self, method_name: Optional[str] = None):
+    def clear_error(self, method_name: str | None = None):
         """Clear error simulation for a specific method or all methods."""
         if method_name:
             if method_name in self._error_config:
@@ -178,7 +179,7 @@ class MockExchangeAPI(ExchangeAPI):
                 raise error
 
     def configure_failure(
-        self, method_name: Optional[str] = None, exception: Optional[Exception] = None
+        self, method_name: str | None = None, exception: Exception | None = None
     ):
         """Configure the mock to fail on a specific method call."""
         self._fail_on_method = method_name
@@ -199,9 +200,9 @@ class MockExchangeAPI(ExchangeAPI):
         self,
         method: str,
         path: str,
-        params: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Mock authentication - always succeeds."""
         await self._simulate_latency()
         logger.debug(
@@ -210,7 +211,7 @@ class MockExchangeAPI(ExchangeAPI):
         # Return dummy headers or signature info if needed by _request implementation
         return {"mock_auth_header": "valid"}
 
-    async def _route_ws_message(self, message: Dict[str, Any]):
+    async def _route_ws_message(self, message: dict[str, Any]):
         """Route mock WebSocket messages (implementation needed)."""
         logger.debug(f"Mock {self.exchange_name}: Received WS message: {message}")
         # Basic routing logic can be added here based on message type
@@ -229,7 +230,7 @@ class MockExchangeAPI(ExchangeAPI):
         )
         # Simulate re-sending subscription requests if needed
 
-    async def get_ticker(self, symbol: str) -> Optional[Ticker]:
+    async def get_ticker(self, symbol: str) -> Ticker | None:
         """Return a predefined mock ticker."""
         self._check_error("get_ticker")
         await self._simulate_latency()
@@ -243,34 +244,34 @@ class MockExchangeAPI(ExchangeAPI):
         return self._mock_tickers.get(symbol)
 
     async def get_order_book(
-        self, symbol: str, depth: Optional[int] = None
-    ) -> Optional[OrderBook]:
+        self, symbol: str, depth: int | None = None
+    ) -> OrderBook | None:
         """Return a predefined mock order book (basic implementation)."""
         self._check_error("get_order_book")
         await self._simulate_latency()
         logger.debug(f"Mock {self.exchange_name}: Getting order book for {symbol}")
         # Return a dummy OrderBook or None
         return OrderBook(
-            symbol=symbol, bids=[], asks=[], timestamp=datetime.now(timezone.utc)
+            symbol=symbol, bids=[], asks=[], timestamp=datetime.now(UTC)
         )
 
     async def get_recent_trades(
-        self, symbol: str, limit: Optional[int] = None
-    ) -> List[Trade]:
+        self, symbol: str, limit: int | None = None
+    ) -> list[Trade]:
         """Return an empty list of recent trades."""
         self._check_error("get_recent_trades")
         await self._simulate_latency()
         logger.debug(f"Mock {self.exchange_name}: Getting recent trades for {symbol}")
         return []
 
-    async def get_funding_rate(self, symbol: str) -> Optional[FundingRate]:
+    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
         """Return a predefined mock funding rate."""
         self._check_error("get_funding_rate")
         await self._simulate_latency()
         logger.debug(f"Mock {self.exchange_name}: Getting funding rate for {symbol}")
         return self._mock_funding_rates.get(symbol)
 
-    async def get_balances(self) -> Dict[str, Balance]:
+    async def get_balances(self) -> dict[str, Balance]:
         """Return the mock balances."""
         if self._fail_on_method == "get_balances":
             raise self._failure_exception
@@ -279,8 +280,8 @@ class MockExchangeAPI(ExchangeAPI):
         return copy.deepcopy(self._balances)
 
     async def get_positions(
-        self, symbols: Optional[List[Symbol]] = None
-    ) -> List[Position]:
+        self, symbols: list[Symbol] | None = None
+    ) -> list[Position]:
         """Return mock positions, optionally filtered by symbols."""
         self._check_error("get_positions")
         await self._simulate_latency()
@@ -298,14 +299,10 @@ class MockExchangeAPI(ExchangeAPI):
         side: OrderSide,
         order_type: OrderType,
         quantity: float,
-        price: Optional[float] = None,
-        client_order_id: Optional[str] = None,
-        time_in_force: Optional[
-            str
-        ] = None,  # Argument exists but not used by Order model
-        reduce_only: Optional[
-            bool
-        ] = None,  # Argument exists but not used by Order model
+        price: float | None = None,
+        client_order_id: str | None = None,
+        time_in_force: str | None = None,  # Argument exists but not used by Order model
+        reduce_only: bool | None = None,  # Argument exists but not used by Order model
         **kwargs,
     ) -> Order:
         """Simulate placing an order."""
@@ -362,7 +359,7 @@ class MockExchangeAPI(ExchangeAPI):
             side=side,
             type=order_type,
             status=status,
-            time=int(datetime.now(timezone.utc).timestamp() * 1000),
+            time=int(datetime.now(UTC).timestamp() * 1000),
         )
         # Store initial order state before potentially modifying for fill behavior
         self._orders[order_id] = copy.deepcopy(order)
@@ -461,7 +458,7 @@ class MockExchangeAPI(ExchangeAPI):
                     price=avg_fill_price,
                     fee=abs(final_filled_quantity * avg_fill_price * trade_fee_rate),
                     fee_asset=self.fee_asset,
-                    timestamp=int(datetime.now(timezone.utc).timestamp() * 1000),
+                    timestamp=int(datetime.now(UTC).timestamp() * 1000),
                 )
                 self._trades.append(trade)  # Store the trade
                 trade_to_record = trade  # Assign for potential return/logging
@@ -497,8 +494,8 @@ class MockExchangeAPI(ExchangeAPI):
         return copy.deepcopy(order)
 
     async def cancel_order(
-        self, order_id: str, symbol: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, order_id: str, symbol: str | None = None
+    ) -> dict[str, Any]:
         """Simulate cancelling an order."""
         self._check_error("cancel_order")
         await self._simulate_latency()
@@ -524,14 +521,14 @@ class MockExchangeAPI(ExchangeAPI):
             )
             raise APIError("Order not found", code=APIErrorCode.ORDER_NOT_FOUND)
 
-    async def get_order(self, order_id: str) -> Optional[Order]:
+    async def get_order(self, order_id: str) -> Order | None:
         """Return a specific order by its ID from the mock store."""
         if self._fail_on_method == "get_order":
             raise self._failure_exception
         await asyncio.sleep(0.01)  # Simulate latency
         return copy.deepcopy(self._orders.get(order_id))
 
-    async def get_open_orders(self, symbol: Optional[Symbol] = None) -> List[Order]:
+    async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
         """Return mock open orders, optionally filtered by symbol."""
         self._check_error("get_open_orders")
         await self._simulate_latency()
@@ -634,7 +631,7 @@ class MockExchangeAPI(ExchangeAPI):
             bid=9990.0,
             ask=10010.0,
             last_price=10000.0,
-            timestamp=int(datetime.now(timezone.utc).timestamp() * 1000),
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
         )
 
     async def fetch_funding_rate(self, symbol: Symbol) -> FundingRate:
@@ -647,17 +644,17 @@ class MockExchangeAPI(ExchangeAPI):
             symbol=symbol,
             funding_rate=0.0001,
             next_funding_time=int(
-                (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp() * 1000
+                (datetime.now(UTC) + timedelta(hours=1)).timestamp() * 1000
             ),
         )
 
-    async def fetch_balances(self) -> Dict[str, Balance]:
+    async def fetch_balances(self) -> dict[str, Balance]:
         if self._fail_on_method == "fetch_balances":
             raise self._failure_exception
         await asyncio.sleep(0.01)  # Simulate network latency
         return self._balances.copy()
 
-    async def fetch_positions(self) -> Dict[Symbol, Position]:
+    async def fetch_positions(self) -> dict[Symbol, Position]:
         if self._fail_on_method == "fetch_positions":
             raise self._failure_exception
         await asyncio.sleep(0.01)  # Simulate network latency
@@ -814,12 +811,12 @@ class MockExchangeAPI(ExchangeAPI):
             f"Balance AFTER position update ({quote_asset}): {balance_after_pos}"
         )
 
-    def get_trades(self) -> List[Trade]:
+    def get_trades(self) -> list[Trade]:
         # This logic was incorrect, need to store trades separately
         # return [trade for trade in self._orders.values() if trade.status == OrderStatus.FILLED]
         # Assuming trades are stored elsewhere or this method needs removal/rework
         # For now, return empty to avoid crashing tests if called
         return []
 
-    def get_orders(self) -> Dict[str, Order]:
+    def get_orders(self) -> dict[str, Order]:
         return self._orders.copy()

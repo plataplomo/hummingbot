@@ -1,3 +1,5 @@
+from __future__ import annotations # Enable postponed evaluation
+
 import asyncio
 import json
 import logging
@@ -7,27 +9,45 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
 from decimal import Decimal
 from enum import Enum
-from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
-from multidict import CIMultiDictProxy # type: ignore[import] # multidict might not have stubs
 
 # Assuming models are in src.core.models
 # Adjust import path if structure changes
-from ..core.models import (
-    Balance,
-    FundingRate,
-    MarketData,
-    Order,
-    OrderBook,
-    OrderSide,
-    OrderStatus,
-    OrderType,
-    Position,
-    Ticker,
-    Trade,
-    TimeInForce,
-)
+# Moved under TYPE_CHECKING to break circular import
+# from ..core.models import (
+#     Balance,
+#     FundingRate,
+#     MarketData,
+#     Order,
+#     OrderBook,
+#     OrderSide,
+#     OrderType,
+#     Position,
+#     Ticker,
+#     TimeInForce,
+#     Trade,
+# )
+
+# Import Enums needed at runtime outside TYPE_CHECKING
+# from ..core.models import OrderSide, OrderType, TimeInForce # REMOVING THIS RUNTIME IMPORT
+
+if TYPE_CHECKING:
+    # Import other models only needed for type hints here
+    from ..core.models import (
+        Balance,
+        FundingRate,
+        MarketData,
+        Order,
+        OrderBook,
+        OrderSide, # Moved back
+        OrderType, # Moved back
+        Position,
+        Ticker,
+        TimeInForce, # Moved back
+        Trade,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -112,15 +132,20 @@ class APIError(Exception):
         Determines if this error can be retried based on its nature.
         Rate limits, timeouts and some server errors can be retried.
         """
-        return self.code in (
-            APIErrorCode.RATE_LIMITED,
-            APIErrorCode.TIMEOUT,
-            APIErrorCode.CONNECTION_ERROR,
-        ) or (
-            self.code == APIErrorCode.SERVER_ERROR
-            and self.http_status
-            and 500 <= self.http_status < 600
-        ) or self.code == APIErrorCode.NETWORK_ISSUE
+        return (
+            self.code
+            in (
+                APIErrorCode.RATE_LIMITED,
+                APIErrorCode.TIMEOUT,
+                APIErrorCode.CONNECTION_ERROR,
+            )
+            or (
+                self.code == APIErrorCode.SERVER_ERROR
+                and self.http_status
+                and 500 <= self.http_status < 600
+            )
+            or self.code == APIErrorCode.NETWORK_ISSUE
+        )
 
 
 class RateLimiter:
@@ -142,7 +167,7 @@ class RateLimiter:
         self.tokens = bucket_size  # current token count, start with full bucket
         self.last_refill = time.monotonic()  # timestamp of last token refill
         self.lock = asyncio.Lock()  # thread safety for token management
-        self.tokens = float(self.tokens) # Ensure tokens is float for calculations
+        self.tokens = float(self.tokens)  # Ensure tokens is float for calculations
 
     async def acquire(self) -> float:
         """
@@ -219,12 +244,12 @@ class ExchangeAPI(ABC):
         self.ws_endpoint = config.get("ws_endpoint", config.get("ws_url"))
 
         # Initialize HTTP session
-        self._session = None  # type: Optional[aiohttp.ClientSession]
+        self._session: aiohttp.ClientSession | None = None
 
         # Initialize WebSocket
-        self._ws_connection = None  # type: Optional[aiohttp.ClientWebSocketResponse]
-        self._ws_handlers = {}  # type: Dict[str, MessageHandler]
-        self._ws_listener_task = None  # type: Optional[asyncio.Task]
+        self._ws_connection: aiohttp.ClientWebSocketResponse | None = None
+        self._ws_handlers: dict[str, MessageHandler] = {}
+        self._ws_listener_task: asyncio.Task | None = None
         self._is_connected = False  # WebSocket connection state
 
         # Set up rate limiters
@@ -244,7 +269,7 @@ class ExchangeAPI(ABC):
             rate_limit_config: Dictionary containing rate limit configuration
         """
         # Simplified: Using a single default limiter for now.
-        # Can be expanded later to support per-endpoint or per-resource limits # noqa: E501
+        # Can be expanded later to support per-endpoint or per-resource limits
         # based on the structure of rate_limit_config.
 
         # Default rate limiter
@@ -818,7 +843,7 @@ class ExchangeAPI(ABC):
 
         self._is_connected = False
 
-    # -------------- Abstract methods that must be implemented by subclasses --------------
+    # --- Abstract Methods for Exchange API Implementation --- #
 
     @abstractmethod
     async def _authenticate(
@@ -828,467 +853,245 @@ class ExchangeAPI(ABC):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """
-        Prepare authentication for a signed API request.
-
-        Args:
-            method: HTTP method ('GET', 'POST', etc.)
-            path: API endpoint path
-            params: URL parameters
-            data: Request body data
-
-        Returns:
-            Dict containing authentication data to include in the request:
-            - headers: HTTP headers to add
-            - params: Additional URL parameters
-            - data: Additional request body data
-        """
-        pass
+        """Internal method to generate authentication headers/parameters for signed requests."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def _route_ws_message(self, message: dict[str, Any]):
-        """
-        Route incoming WebSocket messages to appropriate handlers.
-
-        Args:
-            message: Parsed WebSocket message
-        """
-        pass
+    async def _route_ws_message(self, message: dict[str, Any]) -> None:  # Added return type
+        """Internal method to route incoming WebSocket messages to appropriate handlers."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def subscribe(self, topic: str, handler: MessageHandler):
-        """
-        Subscribe to a WebSocket topic.
-
-        Args:
-            topic: Topic/channel to subscribe to
-            handler: Async function to handle messages from this topic
-        """
-        pass
+    async def subscribe(self, topic: str, handler: MessageHandler) -> None:  # Added return type
+        """Register a handler for a specific WebSocket topic/channel."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def _resubscribe(self):
-        """
-        Resubscribe to previously registered topics after reconnection.
-        """
-        pass
+    async def _resubscribe(self) -> None:  # Added return type
+        """Internal method to resubscribe to topics upon WebSocket reconnection."""
+        raise NotImplementedError
 
-    # -------------- Core API methods that should be implemented by all exchanges --------------
+    # --- Core Data Fetching --- #
 
     @abstractmethod
-    async def get_ticker(self, symbol: str) -> Ticker | None:
-        """
-        Get current ticker information for a symbol.
-
-        Args:
-            symbol: Trading pair symbol (e.g., 'BTC-USDT')
-
-        Returns:
-            Ticker information
-        """
-        pass
+    async def get_ticker(self, symbol: str) -> "Ticker":
+        """Fetch the latest ticker information for a symbol."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook | None:
-        """
-        Get order book for a symbol.
-
-        Args:
-            symbol: Trading pair symbol
-            depth: Order book depth to retrieve
-
-        Returns:
-            Order book with bids and asks
-        """
-        pass
+    async def get_order_book(self, symbol: str, depth: int = 20) -> "OrderBook":
+        """Fetch the order book for a symbol."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
-        """
-        Get recent trades for a symbol.
-
-        Args:
-            symbol: Trading pair symbol
-            limit: Maximum number of trades to retrieve
-
-        Returns:
-            List of recent trades
-        """
-        pass
+    async def get_funding_rates(
+        self, symbol: str | None = None
+    ) -> list["FundingRate"]:
+        """Fetch historical funding rates for a symbol or all symbols."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
-        """
-        Get current funding rate for a perpetual contract.
+    async def get_market_data(
+        self, symbol: str, timeframe: str, limit: int = 100
+    ) -> list["MarketData"]:
+        """Fetch historical market data (OHLCV/Kline) for a specific symbol and timeframe."""
+        raise NotImplementedError
 
-        Args:
-            symbol: Contract symbol
-
-        Returns:
-            Funding rate information
-        """
-        pass
+    # --- Account Information --- #
 
     @abstractmethod
-    async def get_balances(self) -> dict[str, Balance]:
-        """
-        Get account balances.
-
-        Returns:
-            Dictionary of balances by asset
-        """
-        pass
+    async def get_balances(self) -> dict[str, "Balance"]:
+        """Fetch account balances for all assets."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_positions(self) -> dict[str, Position]:
-        """
-        Get open positions.
+    async def get_positions(
+        self, symbol: str | None = None
+    ) -> list["Position"]:
+        """Fetch current open positions, optionally filtered by symbol."""
+        raise NotImplementedError
 
-        Returns:
-            Dictionary of positions by symbol
-        """
-        pass
+    # --- Order Management --- #
 
     @abstractmethod
     async def place_order(
         self,
         symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
+        side: "OrderSide",
+        order_type: "OrderType",
         quantity: Decimal,
+        time_in_force: "TimeInForce",
         price: Decimal | None = None,
         client_order_id: str | None = None,
-        time_in_force: str | None = None,
         reduce_only: bool = False,
-        **kwargs,
-    ) -> Order | None:
-        """
-        Place an order on the exchange.
-
-        Args:
-            symbol: Trading symbol
-            side: Order side (BUY/SELL)
-            order_type: Order type (MARKET/LIMIT/etc.)
-            quantity: Order quantity
-            price: Order price (required for limit orders)
-            client_order_id: Custom order ID for tracking
-            time_in_force: Time in force setting (e.g. 'GTC', 'IOC')
-            reduce_only: If true, the order will only reduce the position size (optional)
-            **kwargs: Additional exchange-specific parameters
-
-        Returns:
-            Order object representing the placed order or None if placement failed immediately.
-            Note: Successful return doesn't guarantee execution.
-        """
-        pass
+        post_only: bool = False,
+    ) -> "Order":
+        """Place a new order on the exchange."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
-        """
-        Cancel an existing open order.
-
-        Args:
-            order_id: ID of the order to cancel
-            symbol: Trading symbol (optional, may be required by some exchanges)
-
-        Returns:
-            True if cancellation request was successful, False otherwise.
-        """
-        pass
+    async def cancel_order(
+        self, order_id: str, symbol: str | None = None
+    ) -> dict[str, Any]:
+        """Cancel an existing order by its ID."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
-        """
-        Get the status of a specific order.
-
-        Args:
-            order_id: ID of the order to retrieve
-            symbol: Trading symbol (optional, may be required by some exchanges)
-
-        Returns:
-            Order object or equivalent representation
-        """
-        pass
+    async def cancel_all_orders(
+        self, symbol: str | None = None
+    ) -> dict[str, Any]:
+        """Cancel all open orders, optionally filtered by symbol."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """
-        Get open orders.
-
-        Args:
-            symbol: Trading pair symbol (optional filter)
-
-        Returns:
-            List of open orders
-        """
-        pass
+    async def get_open_orders(
+        self, symbol: str | None = None
+    ) -> list["Order"]:
+        """Fetch all currently open orders, optionally filtered by symbol."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def subscribe_to_order_updates(self, symbol: str | None = None) -> None:
-        """Subscribe to real-time updates for orders (open, filled, canceled)."""
-        pass
+    async def get_order_history(
+        self, symbol: str | None = None, limit: int = 100
+    ) -> list["Order"]:
+        """Fetch historical order data."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def subscribe_to_trades(self, symbol: str) -> None:
-        """Subscribe to real-time public trades for a symbol."""
-        pass
+    async def get_trade_history(
+        self, symbol: str | None = None, limit: int = 100
+    ) -> list["Trade"]:
+        """Fetch historical trade data (account fills)."""
+        raise NotImplementedError
 
-    @abstractmethod
-    async def get_ticker(self, symbol: str) -> Ticker | None:
-        """Fetch the latest ticker information for a symbol."""
-        pass
-
-    @abstractmethod
-    async def get_balances(self) -> List[Balance]:
-        """Fetch all account balances."""
-        pass
-
-    @abstractmethod
-    async def get_positions(self) -> List[Position]:
-        """Fetch all open positions."""
-        pass
-
-    @abstractmethod
-    async def place_order(self, order: Order) -> Order | None:
-        """Place a new order."""
-        pass
-
-    @abstractmethod
-    async def cancel_order(self, order_id: str, symbol: str) -> bool:
-        """Cancel an existing order."""
-        pass
-
-    @abstractmethod
-    async def get_order_status(self, order_id: str, symbol: str) -> OrderStatus | None:
-        """Get the status of a specific order."""
-        pass
-
-    @abstractmethod
-    async def get_open_orders(self, symbol: Optional[str] = None) -> List[Order]:
-        """Fetch all open orders, optionally filtered by symbol."""
-        pass
-
-    @abstractmethod
-    async def get_funding_rates(self, symbol: str) -> FundingRate | None:
-        """Fetch the current funding rate for a symbol."""
-        pass
-
-    @abstractmethod
-    async def get_market_data(
-        self, symbol: str, timeframe: str, limit: Optional[int] = None
-    ) -> List[MarketData]:
-        """Fetch historical market data (OHLCV)."""
-        pass
-
-    @abstractmethod
-    async def subscribe_to_order_updates(self, symbol: str) -> AsyncGenerator[Order, None]:
-        """Subscribe to real-time updates for orders of a specific symbol."""
-        pass
-        # Ensure the generator yields properly in implementations
-        yield  # type: ignore # pragma: no cover
-
-    @abstractmethod
-    async def subscribe_to_trades(self, symbol: str) -> AsyncGenerator[Trade, None]:
-        """Subscribe to real-time trade updates for a specific symbol."""
-        pass
-        # Ensure the generator yields properly in implementations
-        yield # type: ignore # pragma: no cover
+    # --- WebSocket Management & Subscriptions --- #
 
     @abstractmethod
     async def connect_websocket(self) -> None:
         """Establish the WebSocket connection."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def _handle_websocket_message(self, message: Any) -> None:
-        """Process incoming WebSocket messages."""
-        pass
-
-    def _generate_client_order_id(self) -> str:
-        # Implementation of _generate_client_order_id method
-        pass
-
-    # --- Abstract Methods for REST API ---
+        """Internal handler to process raw WebSocket messages."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_ticker(self, symbol: str) -> Ticker:
-        """Fetch the latest ticker information for a symbol."""
-        pass
+    async def subscribe_to_ticker(
+        self, symbol: str
+    ) -> None:
+        """Subscribe to ticker updates for a symbol."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
-        """Fetch the order book for a symbol."""
-        pass
+    async def subscribe_to_order_book(
+        self, symbol: str
+    ) -> None:
+        """Subscribe to order book updates for a symbol."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> List[MarketData]:
-        """Fetch historical market data (candles/k-lines)."""
-        pass
+    async def subscribe_to_trades(
+        self, symbol: str
+    ) -> None:
+        """Subscribe to public trade updates for a symbol."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_balances(self) -> Dict[str, Balance]:
-        """Fetch account balances."""
-        pass
+    async def subscribe_to_account_updates(self) -> None:
+        """Subscribe to private account updates (balances, positions)."""
+        raise NotImplementedError
 
     @abstractmethod
-    async def get_positions(self, symbol: Optional[str] = None) -> List[Position]:
-        """Fetch open positions."""
-        pass
+    async def ping_websocket(self) -> None:
+        """Send a ping frame over the WebSocket connection."""
+        raise NotImplementedError
 
-    @abstractmethod
-    async def get_open_orders(self, symbol: Optional[str] = None) -> List[Order]:
-        """Fetch open orders."""
-        pass
-
-    @abstractmethod
-    async def get_order_history(self, symbol: Optional[str] = None, limit: int = 100) -> List[Order]:
-        """Fetch historical orders."""
-        pass
-
-    @abstractmethod
-    async def get_trade_history(self, symbol: Optional[str] = None, limit: int = 100) -> List[Trade]:
-        """Fetch historical trades."""
-        pass
-
-    @abstractmethod
-    async def place_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: Decimal,
-        price: Optional[Decimal] = None,
-        time_in_force: TimeInForce = TimeInForce.GTC,
-        client_order_id: Optional[str] = None,
-        reduce_only: bool = False,
-        post_only: bool = False,
-    ) -> Order:
-        """Place a new order."""
-        pass
-
-    @abstractmethod
-    async def cancel_order(self, order_id: str, symbol: Optional[str] = None) -> Dict[str, Any]:
-        """Cancel an existing order."""
-        pass
-
-    @abstractmethod
-    async def cancel_all_orders(self, symbol: Optional[str] = None) -> Dict[str, Any]:
-        """Cancel all open orders, optionally for a specific symbol."""
-        pass
-
-    @abstractmethod
-    async def get_funding_rates(self, symbol: Optional[str] = None) -> List[FundingRate]:
-        """Fetch funding rate information."""
-        pass
-
-    # --- Abstract Methods for WebSocket API ---
-
-    @abstractmethod
-    async def connect_websocket(self):
-        """Establish a WebSocket connection."""
-        pass
-
-    @abstractmethod
-    async def _handle_websocket_message(self, message: Any):
-        """Process incoming WebSocket messages."""
-        pass
-
-    @abstractmethod
-    async def subscribe_to_ticker(self, symbol: str):
-        """Subscribe to ticker updates for a symbol via WebSocket."""
-        pass
-
-    @abstractmethod
-    async def subscribe_to_order_book(self, symbol: str):
-        """Subscribe to order book updates for a symbol via WebSocket."""
-        pass
-
-    @abstractmethod
-    async def subscribe_to_trades(self, symbol: str):
-        """Subscribe to trade updates for a symbol via WebSocket."""
-        pass
-
-    @abstractmethod
-    async def subscribe_to_account_updates(self):
-        """Subscribe to updates related to the user's account (orders, positions, balances) via WebSocket."""
-        pass
-
-    # --- Abstract Methods for Data Parsing ---
-
-    @abstractmethod
-    def parse_ticker(self, data: Dict[str, Any], symbol: str) -> Ticker:
-        """Parse raw ticker data from the exchange into a Ticker object."""
-        pass
-
-    @abstractmethod
-    def parse_order_book(self, data: Dict[str, Any], symbol: str) -> OrderBook:
-        """Parse raw order book data from the exchange into an OrderBook object."""
-        pass
-
-    @abstractmethod
-    def parse_trade(self, data: Dict[str, Any], symbol: str) -> Trade:
-        """Parse raw trade data from the exchange into a Trade object."""
-        pass
-
-    @abstractmethod
-    def parse_balance(self, data: Dict[str, Any]) -> Balance:
-        """Parse raw balance data from the exchange into a Balance object."""
-        pass
-
-    @abstractmethod
-    def parse_position(self, data: Dict[str, Any]) -> Position:
-        """Parse raw position data from the exchange into a Position object."""
-        pass
-
-    @abstractmethod
-    def parse_order(self, data: Dict[str, Any]) -> Order:
-        """Parse raw order data from the exchange into an Order object."""
-        pass
-
-    @abstractmethod
-    def parse_funding_rate(self, data: Dict[str, Any]) -> FundingRate:
-        """Parse raw funding rate data from the exchange into a FundingRate object."""
-        pass
-
-    @abstractmethod
-    async def ping_websocket(self):
-        """Send a ping frame to keep the WebSocket connection alive."""
-        pass
+    # --- WebSocket Message Parsing Helpers --- #
 
     @abstractmethod
     def get_message_type(self, message: dict[str, Any]) -> str:
         """Determine the type of a received WebSocket message."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    def parse_ticker_message(self, message: dict[str, Any]) -> Optional[Ticker]:
-        """Parse a ticker update message from WebSocket."""
-        pass
+    def parse_ticker(self, data: dict[str, Any], symbol: str) -> "Ticker":
+        """Parse raw ticker data into a Ticker object."""
+        raise NotImplementedError
 
     @abstractmethod
-    def parse_orderbook_message(self, message: dict[str, Any]) -> Optional[OrderBook]:
-        """Parse an order book update message from WebSocket."""
-        pass
+    def parse_order_book(
+        self, data: dict[str, Any], symbol: str
+    ) -> "OrderBook":
+        """Parse raw order book data into an OrderBook object."""
+        raise NotImplementedError
 
     @abstractmethod
-    def parse_trade_message(self, message: dict[str, Any]) -> Optional[Trade]:
-        """Parse a trade execution message from WebSocket."""
-        pass
+    def parse_trade(self, data: dict[str, Any], symbol: str) -> "Trade":
+        """Parse raw trade data into a Trade object."""
+        raise NotImplementedError
 
     @abstractmethod
-    def parse_account_update_message(self, message: dict[str, Any]) -> Tuple[Optional[dict[str, Balance]], Optional[dict[str, Position]]]:
-        """Parse balance/position updates from WebSocket."""
-        pass
+    def parse_balance(self, data: dict[str, Any]) -> "Balance":
+        """Parse raw balance data into a Balance object."""
+        raise NotImplementedError
 
     @abstractmethod
-    def parse_order_update_message(self, message: dict[str, Any]) -> Optional[Order]:
-        """Parse an order status update message from WebSocket."""
-        pass
+    def parse_position(self, data: dict[str, Any]) -> "Position":
+        """Parse raw position data into a Position object."""
+        raise NotImplementedError
 
     @abstractmethod
-    def parse_funding_rate_message(self, message: dict[str, Any]) -> Optional[FundingRate]:
-        """Parse a funding rate update message from WebSocket."""
-        pass
+    def parse_order(self, data: dict[str, Any]) -> "Order":
+        """Parse raw order data into an Order object."""
+        raise NotImplementedError
 
-# Register the abstract base class to ensure type checking works correctly
-ExchangeAPI.register(ABC)
+    @abstractmethod
+    def parse_funding_rate(self, data: dict[str, Any]) -> "FundingRate":
+        """Parse raw funding rate data into a FundingRate object."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def parse_ticker_message(self, message: dict[str, Any]) -> "Ticker" | None:
+        """Parse a WebSocket message containing ticker information."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def parse_orderbook_message(
+        self, message: dict[str, Any]
+    ) -> "OrderBook" | None:
+        """Parse a WebSocket message containing order book information."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def parse_trade_message(self, message: dict[str, Any]) -> "Trade" | None:
+        """Parse a WebSocket message containing trade information."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def parse_account_update_message(
+        self, message: dict[str, Any]
+    ) -> tuple[dict[str, "Balance"] | None, dict[str, "Position"] | None]:
+        """Parse a WebSocket message containing account (balance/position) updates."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def parse_order_update_message(
+        self, message: dict[str, Any]
+    ) -> "Order" | None:
+        """Parse a WebSocket message containing order updates."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def parse_funding_rate_message(
+        self, message: dict[str, Any]
+    ) -> "FundingRate" | None:
+        """Parse a WebSocket message containing funding rate updates."""
+        raise NotImplementedError
+
+    # --- Helper Methods --- #
+
+    def _generate_client_order_id(self) -> str:
+        # Implementation of _generate_client_order_id method
+        # Example implementation:
+        return f"cde-{self.exchange_name}-{int(time.time() * 1e6)}-{random.randint(1000, 9999)}"

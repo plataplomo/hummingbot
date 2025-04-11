@@ -2,11 +2,12 @@
 Integration tests focusing on failure scenarios and safety system triggers.
 """
 
-import logging
-import pytest
-from decimal import Decimal
-from datetime import datetime, timezone
 import asyncio
+import logging
+from datetime import UTC, datetime
+from decimal import Decimal
+
+import pytest
 
 # Configure logging for tests
 logging.getLogger().setLevel(logging.INFO)
@@ -16,19 +17,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import core components and models
+from cyberdelta.apis.base import APIError  # Import APIError for simulation
 from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus
 from cyberdelta.core.models import ArbitrageOpportunity, Balance
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.validation.circuit_breaker import (
-    CircuitBreakerSystem,
     BreakerState,
+    CircuitBreakerSystem,
 )  # Import BreakerState
-from cyberdelta.apis.base import APIError  # Import APIError for simulation
+from tests.integration.conftest import create_mock_ticker  # Assuming this helper exists
 
 # Import mocks and test utilities
 from tests.integration.mocks.mock_exchange import MockExchangeAPI
-from tests.integration.conftest import create_mock_ticker  # Assuming this helper exists
 
 # Fixtures will be reused from tests/integration/conftest.py
 
@@ -71,13 +72,13 @@ class TestFailureScenarios:
 
         # Set balances and initialize tracker
         mock_bp_api.set_mock_balance(
-            Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
+            Balance(asset="USDT", total=Decimal("10000"), available=Decimal("10000"))
         )
         mock_hl_api.set_mock_balance(
-            Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
+            Balance(asset="USDT", total=Decimal("10000"), available=Decimal("10000"))
         )
         await real_portfolio_tracker.initialize()
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
         mock_bp_api.set_mock_ticker(
             create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts)
         )

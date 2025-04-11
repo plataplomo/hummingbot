@@ -1,20 +1,22 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 Integration tests for the Backtesting Framework
 Tests the integration of the backtesting framework with actual strategies
 """
 
-import pandas as pd
-import numpy as np
-import os
-import tempfile
-import shutil
-from datetime import datetime
 import logging
-import pytest
+import os
+import shutil
+import tempfile
+from datetime import UTC, datetime
+from decimal import Decimal
+from pathlib import Path
 from unittest.mock import MagicMock
+
+import numpy as np
+import pandas as pd
+import pytest
 
 from cyberdelta.core.backtesting import (
     BacktestEngine,
@@ -22,14 +24,27 @@ from cyberdelta.core.backtesting import (
     StrategyAdapter,
     generate_synthetic_data,
 )
+from cyberdelta.core.models import (
+    MarketData,
+    OrderSide,
+    SignalType,
+    TradeSignal,
+)
+from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.strategy import Strategy
-from cyberdelta.core.types import TradeSignal, SignalType
+from cyberdelta.utils.config import Config
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Constants for testing
+TEST_SYMBOL = "BTC-PERP"
+INITIAL_CAPITAL = Decimal("10000")
+START_DATE = datetime(2023, 1, 1, tzinfo=UTC)
+END_DATE = datetime(2023, 1, 10, tzinfo=UTC)
+TEST_RESULTS_DIR = Path("test_backtest_results")
 
 class TestBacktestingIntegration:
     """Integration tests for the backtesting framework"""
@@ -55,6 +70,10 @@ class TestBacktestingIntegration:
             symbols=["BTC-PERP", "ETH-PERP"],
             data_type="funding_rate",
         )
+        # Save data to a temporary file
+        self.data_file_path = os.path.join(self.test_results_dir, "test_data.csv")
+        self.funding_data.to_csv(self.data_file_path)
+        logger.info(f"Saved test data to {self.data_file_path}")
 
         self.price_data = generate_synthetic_data(
             days=10,  # Short period for testing
@@ -76,18 +95,15 @@ class TestBacktestingIntegration:
     def test_strategy_adapter_integration(self):
         """Test that the StrategyAdapter works with actual strategies"""
         # Create a mock strategy
-        mock_strategy = MagicMock(spec=Strategy)
-        mock_strategy.name = "MockStrategy"
-        mock_strategy.process_data.return_value = [
-            TradeSignal(
-                strategy_name="MockStrategy",
-                symbol="BTC-PERP",
-                signal_type=SignalType.ENTER_LONG,
-                timestamp=datetime.now(),
-                price=30000.0,
-                quantity=0.1,
-            )
-        ]
+        class MockStrategy(Strategy):
+            def __init__(self, name):
+                super().__init__(name, "MOCK/USD", {})
+            def process_data(self, data):
+                # Mock processing
+                return None
+
+        mock_strategy = MockStrategy("MockStrategy")
+        mock_strategy.entry_threshold = 30000.0
 
         # Create adapter
         adapter = StrategyAdapter(mock_strategy)
@@ -132,7 +148,7 @@ class TestBacktestingIntegration:
             # Create backtest engine
             engine = BacktestEngine(
                 strategy=adapter,
-                data=self.funding_data,
+                data=self.data_file_path,
                 initial_capital=100000.0,
                 commission=0.001,
                 slippage=0.001,
@@ -260,7 +276,7 @@ class TestBacktestingIntegration:
         # Create backtest engine
         engine = BacktestEngine(
             strategy=strategy,
-            data=self.price_data,
+            data=self.data_file_path,
             initial_capital=100000.0,
             commission=0.001,
             slippage=0.001,
@@ -308,7 +324,7 @@ class TestBacktestingIntegration:
         # Create backtest engine
         engine = BacktestEngine(
             strategy=strategy,
-            data=self.price_data,
+            data=self.data_file_path,
             initial_capital=100000.0,
             results_dir=self.test_results_dir,
         )
@@ -320,7 +336,7 @@ class TestBacktestingIntegration:
         results_file = engine.save_results()
 
         # Read results back
-        with open(results_file, "r") as f:
+        with open(results_file) as f:
             import json
 
             loaded_results = json.load(f)

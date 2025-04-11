@@ -1,79 +1,27 @@
+from __future__ import annotations # Enable postponed evaluation
+
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, getcontext  # Import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any # Added TYPE_CHECKING
 
 import numpy as np
+import decimal
 
 from cyberdelta.core.data_handler import DataHandler
+# from cyberdelta.core.models import ( # Moved below
+#     ArbitrageOpportunity,
+# )
 from cyberdelta.utils.config import Config
+
+if TYPE_CHECKING:
+    from cyberdelta.core.models import ArbitrageOpportunity, MarketData, TradeSignal
+
 
 logger = logging.getLogger(__name__)
 
 # Set precision for Decimal
 getcontext().prec = 28
-
-
-class ArbitrageOpportunity:
-    """
-    Represents a funding rate arbitrage opportunity between two exchanges.
-    """
-
-    def __init__(
-        self,
-        symbol: str,
-        long_exchange: str,
-        short_exchange: str,
-        long_funding_rate: Decimal,  # Changed to Decimal
-        short_funding_rate: Decimal,  # Changed to Decimal
-        net_funding_differential: Decimal,  # Changed to Decimal
-        timestamp: datetime,
-        expected_profit: Decimal,  # Changed to Decimal
-        utility_score: float,  # Keep float
-        basis_volatility: float,
-    ):  # Keep float
-        """
-        Initialize an arbitrage opportunity.
-
-        Args:
-            symbol: Trading symbol
-            long_exchange: Exchange to take long position
-            short_exchange: Exchange to take short position
-            long_funding_rate: Funding rate on long exchange (Decimal)
-            short_funding_rate: Funding rate on short exchange (Decimal)
-            net_funding_differential: Difference between funding rates (Decimal)
-            timestamp: When the opportunity was identified
-            expected_profit: Expected profit after costs (Decimal)
-            utility_score: Ranking score considering profit and risk
-            basis_volatility: Volatility of the basis between exchanges
-        """
-        self.symbol = symbol
-        self.long_exchange = long_exchange
-        self.short_exchange = short_exchange
-        self.long_funding_rate = long_funding_rate
-        self.short_funding_rate = short_funding_rate
-        self.net_funding_differential = net_funding_differential
-        self.timestamp = timestamp
-        self.expected_profit = expected_profit
-        self.utility_score = utility_score
-        self.basis_volatility = basis_volatility
-
-        # Add attributes expected by RiskManager Kelly calc if not already present
-        # These might be better set during sizing, but ensure they exist
-        self.long_entry_price: Decimal | None = None
-        self.short_entry_price: Decimal | None = None
-
-    def __str__(self) -> str:
-        """String representation of the opportunity."""
-        # Format Decimal rates as percentages with higher precision if needed
-        return (
-            f"ArbitrageOpportunity: {self.symbol} - "
-            f"Long: {self.long_exchange} ({self.long_funding_rate * 100:.6f}%), "
-            f"Short: {self.short_exchange} ({self.short_funding_rate * 100:.6f}%), "
-            f"NFD: {self.net_funding_differential * 100:.6f}%, "
-            f"ExpProfit: ${self.expected_profit:.4f}, "  # Increased precision for profit
-            f"Utility: {self.utility_score:.4f}"
-        )
 
 
 class SignalGenerator:
@@ -175,15 +123,21 @@ class SignalGenerator:
                 funding_data = self.data_handler.get_funding_rate(exchange, exchange_symbol)
                 if funding_data:
                     rate, timestamp = funding_data  # Assuming rate is Decimal
-                    if not isinstance(rate, Decimal):
+                    # Ensure rate is not None before attempting conversion
+                    if rate is not None and not isinstance(rate, Decimal):
                         logger.warning(
-                            f"Funding rate for {exchange}/{exchange_symbol} is not Decimal: {rate}. Converting."
+                            f"Funding rate for {exchange}/{exchange_symbol} is not Decimal: "
+                            f"{rate}. Converting."
                         )
-                        rate = Decimal(str(rate))
-
-                    # Add to historical data
-                    history = self.historical_funding_rates[exchange][exchange_symbol]
-                    history.append((timestamp, rate))
+                        try:
+                            rate = Decimal(str(rate))
+                        except decimal.InvalidOperation:
+                            logger.error(f"Could not convert funding rate '{rate}' to Decimal.")
+                            continue # Skip this update if conversion fails
+                    # Add to historical data (only if rate is valid Decimal)
+                    if isinstance(rate, Decimal):
+                        history = self.historical_funding_rates[exchange][exchange_symbol]
+                        history.append((timestamp, rate))
 
                     # Trim to keep only recent samples
                     cutoff_time = now - timedelta(
@@ -217,50 +171,71 @@ class SignalGenerator:
                 # Tickers should have Decimal prices
                 price1 = ticker1.price
                 price2 = ticker2.price
-                if not isinstance(price1, Decimal):
-                    price1 = Decimal(str(price1))
-                if not isinstance(price2, Decimal):
-                    price2 = Decimal(str(price2))
+                # Ensure prices are not None before conversion
+                if price1 is not None and not isinstance(price1, Decimal):
+                    try:
+                        price1 = Decimal(str(price1))
+                    except decimal.InvalidOperation:
+                        logger.error(f"Could not convert ticker price '{price1}' to Decimal for {exchange1}/{internal_symbol}")
+                        price1 = None # Set to None if conversion fails
+                if price2 is not None and not isinstance(price2, Decimal):
+                    try:
+                        price2 = Decimal(str(price2))
+                    except decimal.InvalidOperation:
+                        logger.error(f"Could not convert ticker price '{price2}' to Decimal for {exchange2}/{internal_symbol}")
+                        price2 = None # Set to None if conversion fails
 
-                # Calculate basis (price differential)
-                basis = price1 - price2  # Decimal - Decimal = Decimal
+                # Calculate basis (price differential) only if both prices are valid Decimals
+                if isinstance(price1, Decimal) and isinstance(price2, Decimal):
+                    basis = price1 - price2  # Decimal - Decimal = Decimal
 
-                # Add to historical data (using internal symbol key)
-                if internal_symbol not in self.historical_basis:
-                    self.historical_basis[internal_symbol] = []
+                    # Add to historical data (using internal symbol key)
+                    if internal_symbol not in self.historical_basis:
+                        self.historical_basis[internal_symbol] = []
 
-                self.historical_basis[internal_symbol].append((now, basis))
+                    self.historical_basis[internal_symbol].append((now, basis))
 
-                # Trim to keep only recent samples
-                cutoff_time = now - timedelta(
-                    seconds=self.funding_sample_period * self.funding_sample_count
-                )
-                while (
-                    self.historical_basis[internal_symbol]
-                    and self.historical_basis[internal_symbol][0][0] < cutoff_time
-                ):
-                    self.historical_basis[internal_symbol].pop(0)
+                    # Trim to keep only recent samples
+                    cutoff_time = now - timedelta(
+                        seconds=self.funding_sample_period * self.funding_sample_count
+                    )
+                    while (
+                        self.historical_basis[internal_symbol]
+                        and self.historical_basis[internal_symbol][0][0] < cutoff_time
+                    ):
+                        self.historical_basis[internal_symbol].pop(0)
 
-    def calculate_basis_volatility(self, symbol: str) -> float:
+    def calculate_funding_rate_volatility(self, exchange: str, symbol: str) -> Decimal:
+        """Calculates the volatility of historical funding rates."""
+        history = self.historical_funding_rates.get(exchange, {}).get(symbol, [])
+        if len(history) < 2:
+            return Decimal("0.0")
+
+        # Extract Decimal rates for calculation
+        rates = [rate for _, rate in history]
+        # Ensure rates are float for numpy calculation, then convert result back to Decimal
+        if not rates:
+            return Decimal("0.0")
+        # Convert list of Decimals to numpy array of floats for std calculation
+        rates_float = np.array([float(r) for r in rates])
+        volatility_float = np.std(rates_float)
+        return Decimal(str(volatility_float))
+
+    def calculate_basis_volatility(self, symbol: str) -> Decimal:
         """
         Calculate the standard deviation of the basis for a symbol.
-        Basis values are stored as Decimal, but std deviation naturally returns float.
-
-        Args:
-            symbol: Trading symbol (internal)
-
-        Returns:
-            Basis volatility (float) or 0.0 if insufficient data
+        Returns Decimal.
         """
         if symbol not in self.historical_basis or len(self.historical_basis[symbol]) < 2:
-            return 0.0
+            return Decimal("0.0")
 
-        # Extract basis values (Decimal) from historical data, convert to float for numpy
-        basis_values_float = [float(b[1]) for b in self.historical_basis[symbol]]
+        # Basis values are already stored as Decimal
+        basis_values = [b[1] for b in self.historical_basis[symbol]]
 
-        # Calculate standard deviation using numpy (returns float)
-        volatility = np.std(basis_values_float)
-        return float(volatility)  # Ensure return type is float
+        # Calculate standard deviation (convert to float for numpy, back to Decimal)
+        basis_values_float = np.array([float(b) for b in basis_values])
+        volatility_float = np.std(basis_values_float)
+        return Decimal(str(volatility_float))
 
     def estimate_slippage(self, symbol: str, order_size: Decimal, exchange: str) -> Decimal:
         """
@@ -302,188 +277,150 @@ class SignalGenerator:
         # Cap the slippage at reasonable limits (Decimal)
         return min(slippage, Decimal("0.01"))  # Max 1% slippage
 
-    def generate_opportunities(self) -> list[ArbitrageOpportunity]:
+    def generate_opportunities(self) -> list["ArbitrageOpportunity"]:
         """
         Generate a list of arbitrage opportunities sorted by utility score.
-
-        Returns:
-            List of arbitrage opportunities
         """
         opportunities = []
-        now = datetime.now()
+        processed_pairs = set()  # Keep track of processed pairs to avoid duplicates
 
-        # Get all configured exchanges
+        # Get configured exchanges and symbols
         exchanges = []
-        exchange_symbol_map: dict[str, dict[str, str]] = {}
         for exchange_id in self.config.get("exchanges", {}).keys():
             if self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 exchanges.append(exchange_id)
-                exchange_symbol_map[exchange_id] = self.config.get(
-                    f"exchanges.{exchange_id}.symbols", {}
-                )
 
-        # Need at least two exchanges for arbitrage
         if len(exchanges) < 2:
-            logger.warning("Fewer than 2 exchanges configured. Arbitrage not possible.")
-            return []
+            logger.info("Need at least two enabled exchanges to generate funding rate opportunities.")
+            return [] # Return early if not enough exchanges
 
-        # Get common internal symbols across exchanges
-        common_internal_symbols = set()
-        first_exchange = True
-        for exchange in exchanges:
-            internal_symbols = set(exchange_symbol_map.get(exchange, {}).keys())
-            if first_exchange:
-                common_internal_symbols = internal_symbols
-                first_exchange = False
-            else:
-                common_internal_symbols.intersection_update(internal_symbols)
+        for i in range(len(exchanges)):
+            for j in range(i + 1, len(exchanges)):
+                exchange1 = exchanges[i]
+                exchange2 = exchanges[j]
 
-        logger.debug(
-            f"Found {len(common_internal_symbols)} common internal symbols across "
-            f"configured exchanges: {common_internal_symbols}"
+                # Calculate common symbols based on config
+                symbols1 = set(self.config.get(f"exchanges.{exchange1}.symbols", {}).keys())
+                symbols2 = set(self.config.get(f"exchanges.{exchange2}.symbols", {}).keys())
+                common_symbols = list(symbols1.intersection(symbols2))
+
+                if not common_symbols:
+                    continue # Skip if no common symbols
+
+                for symbol in common_symbols:
+                    # Avoid processing the same pair twice (e.g., A-B vs B-A)
+                    pair_key = tuple(sorted((exchange1, exchange2))) + (symbol,)
+                    if pair_key in processed_pairs:
+                        continue
+
+                    # Get latest data
+                    funding1 = self.data_handler.get_funding_rate(exchange1, symbol)
+                    funding2 = self.data_handler.get_funding_rate(exchange2, symbol)
+                    ticker1 = self.data_handler.get_ticker(exchange1, symbol)
+                    ticker2 = self.data_handler.get_ticker(exchange2, symbol)
+
+                    if not all([funding1, funding2, ticker1, ticker2]):
+                        # logger.debug(f"Missing data for {symbol} on {exchange1}/{exchange2}")
+                        continue
+
+                    # Ensure correct types (Decimal)
+                    rate1 = funding1.funding_rate  # Already Decimal from model
+                    rate2 = funding2.funding_rate  # Already Decimal from model
+                    ask1 = ticker1.ask  # Already Decimal from model
+                    bid1 = ticker1.bid  # Already Decimal from model
+                    ask2 = ticker2.ask  # Already Decimal from model
+                    bid2 = ticker2.bid  # Already Decimal from model
+
+                    now = datetime.now(UTC)
+                    basis_volatility = self.calculate_basis_volatility(symbol)  # Expects Decimal
+
+                    # Opportunity 1: Long on 1, Short on 2
+                    if rate1 < rate2:
+                        net_differential = rate2 - rate1  # Decimal math
+                        if net_differential > self.min_funding_differential:
+                            try:
+                                # Calculate estimated profit and utility
+                                optimal_size_placeholder = Decimal("1000")  # Placeholder USD size
+                                expected_profit = (
+                                    net_differential * optimal_size_placeholder
+                                )  # Simplified
+                                # Utility calculation requires floats
+                                utility_score = float(expected_profit) - self.risk_aversion * (
+                                    float(basis_volatility) ** 2
+                                )
+
+                                opportunity = ArbitrageOpportunity(
+                                    symbol=symbol,
+                                    long_exchange=exchange1,
+                                    short_exchange=exchange2,
+                                    long_price=ask1,  # Buy at Ask 1
+                                    short_price=bid2,  # Sell at Bid 2
+                                    long_funding_rate=rate1,
+                                    short_funding_rate=rate2,
+                                    net_funding_differential=net_differential,
+                                    timestamp=now,
+                                    # Optional fields
+                                    optimal_size=optimal_size_placeholder,
+                                    expected_profit=expected_profit,
+                                    confidence=None,  # Placeholder confidence
+                                    # Store as float if needed by model
+                                    basis_volatility=float(basis_volatility),
+                                    utility_score=utility_score,
+                                )
+                                opportunities.append(opportunity)
+                            except Exception as e:
+                                self.logger.error(
+                                    "Error creating opportunity (1)",
+                                    symbol=symbol,
+                                    error=e,
+                                )
+
+                    # Opportunity 2: Long on 2, Short on 1
+                    elif rate2 < rate1:
+                        net_differential = rate1 - rate2  # Decimal math
+                        if net_differential > self.min_funding_differential:
+                            try:
+                                # Calculate estimated profit and utility
+                                optimal_size_placeholder = Decimal("1000")  # Placeholder USD size
+                                expected_profit = (
+                                    net_differential * optimal_size_placeholder
+                                )  # Simplified
+                                utility_score = float(expected_profit) - self.risk_aversion * (
+                                    float(basis_volatility) ** 2
+                                )
+
+                                opportunity = ArbitrageOpportunity(
+                                    symbol=symbol,
+                                    long_exchange=exchange2,
+                                    short_exchange=exchange1,
+                                    long_price=ask2,  # Buy at Ask 2
+                                    short_price=bid1,  # Sell at Bid 1
+                                    long_funding_rate=rate2,
+                                    short_funding_rate=rate1,
+                                    net_funding_differential=net_differential,
+                                    timestamp=now,
+                                    # Optional fields
+                                    optimal_size=optimal_size_placeholder,
+                                    expected_profit=expected_profit,
+                                    confidence=None,  # Placeholder confidence
+                                    # Store as float if needed by model
+                                    basis_volatility=float(basis_volatility),
+                                    utility_score=utility_score,
+                                )
+                                opportunities.append(opportunity)
+                            except Exception as e:
+                                self.logger.error(
+                                    "Error creating opportunity (2)",
+                                    symbol=symbol,
+                                    error=e,
+                                )
+
+                    processed_pairs.add(pair_key)
+
+        # Sort opportunities by utility score (handle None safely)
+        opportunities.sort(
+            key=lambda x: x.utility_score if x.utility_score is not None else -float("inf"),
+            reverse=True,
         )
-
-        # Generate opportunities for each common symbol
-        for internal_symbol in common_internal_symbols:
-            # Get exchanges that support this internal symbol
-            supporting_exchanges = [
-                ex for ex in exchanges if internal_symbol in exchange_symbol_map.get(ex, {})
-            ]
-            if len(supporting_exchanges) < 2:
-                continue  # Need at least two supporting exchanges
-
-            for i, ex1 in enumerate(supporting_exchanges):
-                for ex2 in supporting_exchanges[i + 1 :]:
-                    # Get exchange-specific symbols
-                    sym1 = exchange_symbol_map[ex1][internal_symbol]
-                    sym2 = exchange_symbol_map[ex2][internal_symbol]
-
-                    # Get funding rates (should be Decimal)
-                    rate_data1 = self.data_handler.get_funding_rate(ex1, sym1)
-                    rate_data2 = self.data_handler.get_funding_rate(ex2, sym2)
-
-                    if not rate_data1 or not rate_data2:
-                        logger.debug(
-                            f"Missing funding rate for {internal_symbol} on {ex1} or {ex2}"
-                        )
-                        continue
-
-                    rate1, timestamp1 = rate_data1
-                    rate2, timestamp2 = rate_data2
-
-                    # Ensure rates are Decimal
-                    if not isinstance(rate1, Decimal):
-                        rate1 = Decimal(str(rate1))
-                    if not isinstance(rate2, Decimal):
-                        rate2 = Decimal(str(rate2))
-
-                    # Determine long/short sides based on rates
-                    long_exchange, short_exchange = (ex1, ex2) if rate1 < rate2 else (ex2, ex1)
-                    long_sym, short_sym = (sym1, sym2) if rate1 < rate2 else (sym2, sym1)
-                    long_rate, short_rate = (rate1, rate2) if rate1 < rate2 else (rate2, rate1)
-
-                    # Calculate NFD (Decimal)
-                    nfd = short_rate - long_rate
-
-                    logger.debug(
-                        f"Opportunity Check for {internal_symbol}: "
-                        f"Long ({long_exchange} vs {short_exchange}), "
-                        f"L_Sym={long_sym}, S_Sym={short_sym}, L_Rate={long_rate:.6f}, "
-                        f"S_Rate={short_rate:.6f}, NFD={nfd:.6f}, Min_NFD={self.min_funding_differential}"
-                    )
-
-                    # Check if NFD exceeds minimum threshold (Decimal comparison)
-                    if nfd < self.min_funding_differential:
-                        continue
-
-                    # Basis volatility calculation (returns float)
-                    basis_volatility = self.calculate_basis_volatility(internal_symbol)
-
-                    # --- Calculate Costs (using Decimal) ---
-                    position_size = Decimal("1000.0")  # Reference size for cost estimation
-
-                    # Estimate slippage (returns Decimal %)
-                    long_slippage = self.estimate_slippage(long_sym, position_size, long_exchange)
-                    short_slippage = self.estimate_slippage(
-                        short_sym, position_size, short_exchange
-                    )
-
-                    # Get exchange fee rates from config (convert to Decimal)
-                    long_fee_rate = Decimal(
-                        str(self.config.get(f"exchanges.{long_exchange}.fee_rate", 0.0005))
-                    )
-                    short_fee_rate = Decimal(
-                        str(self.config.get(f"exchanges.{short_exchange}.fee_rate", 0.0005))
-                    )
-
-                    # Calculate total costs (Decimal)
-                    # Costs = Size * (Slippage_L + Slippage_S + Fee_L + Fee_S)
-                    total_costs = position_size * (
-                        long_slippage + short_slippage + long_fee_rate + short_fee_rate
-                    )
-
-                    # Calculate expected profit based on NFD, adjusted for costs (Decimal)
-                    # Profit = (Size * NFD) - Costs
-                    expected_profit = (position_size * nfd) - total_costs
-
-                    # Calculate expected profit (after costs)
-                    if expected_profit < self.min_profit_threshold:
-                        logger.debug(
-                            f"Opportunity ({internal_symbol} - {long_exchange} vs {short_exchange}) "
-                            f"below profit threshold: ${expected_profit:.4f} < ${self.min_profit_threshold}"
-                        )
-                        continue
-
-                    # Calculate utility score (remains float based)
-                    # Convert basis_volatility (float) to Decimal for the calculation
-                    basis_volatility_dec = Decimal(str(basis_volatility))
-                    utility_score_denominator = basis_volatility_dec + Decimal(
-                        "1e-9"
-                    )  # Avoid division by zero
-
-                    # Perform division using Decimal
-                    utility_score_dec = (
-                        expected_profit / utility_score_denominator
-                        if utility_score_denominator > Decimal("0")
-                        else Decimal("0")
-                    )
-
-                    # Apply risk aversion (float) and convert final score to float
-                    utility_score_float = float(
-                        utility_score_dec * (Decimal("1.0") - Decimal(str(self.risk_aversion)))
-                    )
-
-                    # Fetch current ticker prices to store in opportunity (for RiskManager)
-                    ticker_long = self.data_handler.get_ticker(long_exchange, long_sym)
-                    ticker_short = self.data_handler.get_ticker(short_exchange, short_sym)
-                    long_entry_p = ticker_long.ask if ticker_long else None
-                    short_entry_p = ticker_short.bid if ticker_short else None
-                    if long_entry_p and not isinstance(long_entry_p, Decimal):
-                        long_entry_p = Decimal(str(long_entry_p))
-                    if short_entry_p and not isinstance(short_entry_p, Decimal):
-                        short_entry_p = Decimal(str(short_entry_p))
-
-                    # Create ArbitrageOpportunity object
-                    opportunity = ArbitrageOpportunity(
-                        symbol=internal_symbol,
-                        long_exchange=long_exchange,
-                        short_exchange=short_exchange,
-                        long_funding_rate=long_rate,  # Decimal
-                        short_funding_rate=short_rate,  # Decimal
-                        net_funding_differential=nfd,  # Decimal
-                        timestamp=now,
-                        expected_profit=expected_profit,  # Decimal
-                        utility_score=utility_score_float,  # Float
-                        basis_volatility=basis_volatility,  # Float
-                    )
-                    # Assign prices after creation
-                    opportunity.long_entry_price = long_entry_p
-                    opportunity.short_entry_price = short_entry_p
-
-                    opportunities.append(opportunity)
-                    logger.info(f"Generated opportunity: {opportunity}")
-
-        # Sort opportunities by utility score (descending)
-        opportunities.sort(key=lambda o: o.utility_score, reverse=True)
 
         return opportunities

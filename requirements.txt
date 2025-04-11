@@ -3,8 +3,9 @@ websockets>=12.0
 numpy>=1.26.0
 PyYAML>=6.0
 python-dotenv>=1.0.0
-ed25519>=1.5
+# ed25519>=1.5 # Replaced due to Python 3.13 incompatibility
 matplotlib>=3.8.0
+simplejson>=3.17.0 # Added for portfolio_tracker.py
 
 # Testing
 pytest>=7.0.0

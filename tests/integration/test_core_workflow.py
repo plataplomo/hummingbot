@@ -1,26 +1,27 @@
-import pytest
 import asyncio
-from datetime import datetime, timezone, timedelta
+import copy  # Import copy module
+import logging  # Import logging
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
-from typing import Dict
-import logging  # Import logging
-import copy  # Import copy module
+
+import pytest
+
+from cyberdelta.apis.base import APIErrorCode  # <--- Added APIErrorCode here
 
 # Core Components
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.signal_generator import SignalGenerator, ArbitrageOpportunity
-from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
 # Models
-from cyberdelta.core.models import Ticker, FundingRate, Balance, OrderSide, OrderStatus
+from cyberdelta.core.models import Balance, FundingRate, OrderSide, OrderStatus, Ticker, ArbitrageOpportunity
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.core.signal_generator import SignalGenerator
+from cyberdelta.utils.config import Config  # Assuming Config class is used
 
 # Mocks & Config
 from tests.integration.mocks.mock_exchange import MockExchangeAPI  # Import MockAPIError
-from cyberdelta.utils.config import Config  # Assuming Config class is used
-from cyberdelta.apis.base import APIErrorCode  # <--- Added APIErrorCode here
 
 # Helper Functions
 # def create_mock_ticker(symbol, bid, ask, price, timestamp): # Moved to integration/conftest.py
@@ -36,15 +37,13 @@ def create_mock_funding_rate(symbol, rate, next_time):
 
 
 # Helper function for creating mock tickers
-def create_mock_ticker(
-    symbol: str, bid: float, ask: float, price: float, timestamp: datetime
-) -> Ticker:
+def create_mock_ticker(symbol, bid, ask, price, timestamp) -> Ticker:
     return Ticker(
         symbol=symbol,
-        bid=bid,
-        ask=ask,
-        price=price,
-        timestamp=int(timestamp.timestamp() * 1000),
+        bid=Decimal(str(bid)),
+        ask=Decimal(str(ask)),
+        price=Decimal(str(price)),
+        timestamp=int(timestamp.timestamp() * 1000)
     )
 
 
@@ -138,7 +137,7 @@ def mock_config(mock_config_dict):
     return cfg
 
 
-def _deep_get(d: Dict, keys: str, default=None):
+def _deep_get(d: dict, keys: str, default=None):
     """Helper to access nested keys using dot notation."""
     key_parts = keys.split(".")
     val = d
@@ -164,16 +163,36 @@ def mock_secrets():
     }
 
 
-# Moved mock_hl_api and mock_bp_api to integration/conftest.py
-# @pytest.fixture
-# def mock_hl_api(mock_config, mock_secrets):
-#     """Mock API for Hyperliquid, passes full config."""
-#     return MockExchangeAPI("mock_hl", mock_config.config_data['exchanges']['mock_hl'], mock_secrets['mock_hl'], config_obj=mock_config)
+@pytest.fixture
+def mock_hl_api(mock_config, mock_secrets):
+    """Mock API for Hyperliquid using MagicMock spec."""
+    api_mock = MagicMock(spec=ExchangeAPI)
+    api_mock.exchange_name = "mock_hl"
+    # Configure necessary return values or side effects here or in tests
+    api_mock.get_ticker = MagicMock(return_value=None) # Example
+    api_mock.get_funding_rate = MagicMock(return_value=None)
+    api_mock.place_order = MagicMock()
+    api_mock.cancel_order = MagicMock()
+    api_mock.get_balances = MagicMock(return_value={})
+    api_mock.get_positions = MagicMock(return_value=[])
+    # Mock other methods as needed by tests
+    return api_mock
 
-# @pytest.fixture
-# def mock_bp_api(mock_config, mock_secrets):
-#     """Mock API for Backpack, passes full config."""
-#     return MockExchangeAPI("mock_bp", mock_config.config_data['exchanges']['mock_bp'], mock_secrets['mock_bp'], config_obj=mock_config)
+
+@pytest.fixture
+def mock_bp_api(mock_config, mock_secrets):
+    """Mock API for Backpack using MagicMock spec."""
+    api_mock = MagicMock(spec=ExchangeAPI)
+    api_mock.exchange_name = "mock_bp"
+    # Configure necessary return values or side effects here or in tests
+    api_mock.get_ticker = MagicMock(return_value=None) # Example
+    api_mock.get_funding_rate = MagicMock(return_value=None)
+    api_mock.place_order = MagicMock()
+    api_mock.cancel_order = MagicMock()
+    api_mock.get_balances = MagicMock(return_value={})
+    api_mock.get_positions = MagicMock(return_value=[])
+    # Mock other methods as needed by tests
+    return api_mock
 
 
 @pytest.fixture
@@ -247,20 +266,20 @@ async def test_happy_path_full_cycle(
         Balance(
             asset="USD",
             total=float(initial_usd_balance),
-            free=float(initial_usd_balance),
+            available=float(initial_usd_balance),
         )
     )
     mock_bp_api.set_mock_balance(
         Balance(
             asset="USDC",
             total=float(initial_usd_balance),
-            free=float(initial_usd_balance),
+            available=float(initial_usd_balance),
         )
     )
     await portfolio_tracker.initialize()
 
     # Set mock data
-    now_aware = datetime.now(timezone.utc)
+    now_aware = datetime.now(UTC)
     now_naive = datetime.now()
     ts_int = int(now_aware.timestamp() * 1000)
     mock_hl_ticker_obj = create_mock_ticker(
@@ -414,7 +433,7 @@ async def test_api_error_during_placement(
     symbol_key = "BTC"
     hl_symbol = mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}", "BTC-PERP")
     bp_symbol = mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}", "BTC-PERP")
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(UTC)
     ts_int = int(start_time.timestamp() * 1000)
     next_funding_ts = int((start_time + timedelta(hours=1)).timestamp() * 1000)
     mock_hl_api.reset()
@@ -428,7 +447,9 @@ async def test_api_error_during_placement(
     mock_hl_api.set_mock_funding_rate(
         create_mock_funding_rate(hl_symbol, 0.002, next_funding_ts)
     )
-    mock_hl_api.set_mock_balance(Balance(asset="USD", total=10000.0, free=10000.0))
+    mock_hl_api.set_mock_balance(
+        Balance(asset="USD", total=10000.0, available=10000.0)
+    )
     mock_hl_api.set_open_orders_behavior("fill_immediately")
     mock_bp_api.set_mock_ticker(
         create_mock_ticker(bp_symbol, 10004.0, 10006.0, 10005.0, start_time)
@@ -436,7 +457,9 @@ async def test_api_error_during_placement(
     mock_bp_api.set_mock_funding_rate(
         create_mock_funding_rate(bp_symbol, -0.002, next_funding_ts)
     )
-    mock_bp_api.set_mock_balance(Balance(asset="USDC", total=10000.0, free=10000.0))
+    mock_bp_api.set_mock_balance(
+        Balance(asset="USDC", total=10000.0, available=10000.0)
+    )
     mock_bp_api.configure_failure("place_order", MockAPIError("BP connection failed"))
     data_handler.tickers["mock_hl"] = {hl_symbol: mock_hl_api._mock_tickers[hl_symbol]}
     data_handler.tickers["mock_bp"] = {bp_symbol: mock_bp_api._mock_tickers[bp_symbol]}
@@ -514,7 +537,7 @@ async def test_insufficient_balance(
     symbol_key = "BTC"
     hl_symbol = mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}", "BTC-PERP")
     bp_symbol = mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}", "BTC-PERP")
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(UTC)
     ts_int = int(start_time.timestamp() * 1000)
     next_funding_ts = int((start_time + timedelta(hours=1)).timestamp() * 1000)
     mock_hl_api.reset()
@@ -526,14 +549,18 @@ async def test_insufficient_balance(
     mock_hl_api.set_mock_funding_rate(
         create_mock_funding_rate(hl_symbol, 0.002, next_funding_ts)
     )
-    mock_hl_api.set_mock_balance(Balance(asset="USD", total=10000.0, free=10000.0))
+    mock_hl_api.set_mock_balance(
+        Balance(asset="USD", total=10000.0, available=10000.0)
+    )
     mock_bp_api.set_mock_ticker(
         create_mock_ticker(bp_symbol, 10004.0, 10006.0, 10005.0, start_time)
     )
     mock_bp_api.set_mock_funding_rate(
         create_mock_funding_rate(bp_symbol, -0.002, next_funding_ts)
     )
-    mock_bp_api.set_mock_balance(Balance(asset="USDC", total=1.0, free=1.0))
+    mock_bp_api.set_mock_balance(
+        Balance(asset="USDC", total=1.0, available=1.0)
+    )
     data_handler.tickers["mock_hl"] = {hl_symbol: mock_hl_api._mock_tickers[hl_symbol]}
     data_handler.tickers["mock_bp"] = {bp_symbol: mock_bp_api._mock_tickers[bp_symbol]}
     data_handler.funding_rates["mock_hl"] = {
@@ -583,7 +610,7 @@ async def test_partial_fill(
     symbol_key = "BTC"
     hl_symbol = mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}", "BTC-PERP")
     bp_symbol = mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}", "BTC-PERP")
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(UTC)
     ts_int = int(start_time.timestamp() * 1000)
     next_funding_ts = int((start_time + timedelta(hours=1)).timestamp() * 1000)
     mock_hl_api.reset()
@@ -595,7 +622,9 @@ async def test_partial_fill(
     mock_hl_api.set_mock_funding_rate(
         create_mock_funding_rate(hl_symbol, 0.002, next_funding_ts)
     )
-    mock_hl_api.set_mock_balance(Balance(asset="USD", total=10000.0, free=10000.0))
+    mock_hl_api.set_mock_balance(
+        Balance(asset="USD", total=10000.0, available=10000.0)
+    )
     mock_hl_api.set_open_orders_behavior("fill_immediately")
     mock_bp_api.set_mock_ticker(
         create_mock_ticker(bp_symbol, 10004.0, 10006.0, 10005.0, start_time)
@@ -603,7 +632,9 @@ async def test_partial_fill(
     mock_bp_api.set_mock_funding_rate(
         create_mock_funding_rate(bp_symbol, -0.002, next_funding_ts)
     )
-    mock_bp_api.set_mock_balance(Balance(asset="USDC", total=10000.0, free=10000.0))
+    mock_bp_api.set_mock_balance(
+        Balance(asset="USDC", total=10000.0, available=10000.0)
+    )
     mock_bp_api.set_open_orders_behavior("partial_fill")
     data_handler.tickers["mock_hl"] = {hl_symbol: mock_hl_api._mock_tickers[hl_symbol]}
     data_handler.tickers["mock_bp"] = {bp_symbol: mock_bp_api._mock_tickers[bp_symbol]}
@@ -738,7 +769,7 @@ async def test_execution_failure_compensation(
     symbol_key = "BTC"
     hl_symbol = mock_config.get(f"exchanges.mock_hl.symbols.{symbol_key}", "BTC-PERP")
     bp_symbol = mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}", "BTC-PERP")
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(UTC)
     ts_int = int(start_time.timestamp() * 1000)
     next_funding_ts = int((start_time + timedelta(hours=1)).timestamp() * 1000)
     mock_hl_api.reset()
@@ -753,7 +784,9 @@ async def test_execution_failure_compensation(
     mock_bp_api.set_mock_funding_rate(
         create_mock_funding_rate(bp_symbol, -0.002, next_funding_ts)
     )
-    mock_bp_api.set_mock_balance(Balance(asset="USDC", total=10000.0, free=10000.0))
+    mock_bp_api.set_mock_balance(
+        Balance(asset="USDC", total=10000.0, available=10000.0)
+    )
     mock_bp_api.set_open_orders_behavior("fill_immediately")
     mock_hl_api.set_mock_ticker(
         create_mock_ticker(hl_symbol, 9999.0, 10001.0, 10000.0, start_time)
@@ -761,7 +794,9 @@ async def test_execution_failure_compensation(
     mock_hl_api.set_mock_funding_rate(
         create_mock_funding_rate(hl_symbol, 0.002, next_funding_ts)
     )
-    mock_hl_api.set_mock_balance(Balance(asset="USD", total=10000.0, free=10000.0))
+    mock_hl_api.set_mock_balance(
+        Balance(asset="USD", total=10000.0, available=10000.0)
+    )
     mock_hl_api.configure_error(
         "place_order", APIErrorCode.INSUFFICIENT_FUNDS, "Simulated insufficient funds"
     )
@@ -891,12 +926,16 @@ async def test_failure_during_compensation(
     mock_hl_api.configure_error(
         "place_order", APIErrorCode.INSUFFICIENT_FUNDS, "Insufficient funds"
     )
-    mock_bp_api.set_mock_balance(Balance(asset="USDC", total=10000.0, free=10000.0))
-    mock_hl_api.set_mock_balance(Balance(asset="USD", total=10000.0, free=10000.0))
+    mock_bp_api.set_mock_balance(
+        Balance(asset="USDC", total=10000.0, available=10000.0)
+    )
+    mock_hl_api.set_mock_balance(
+        Balance(asset="USD", total=10000.0, available=10000.0)
+    )
     await portfolio_tracker.initialize()
     initial_bp_balances = await mock_bp_api.get_balances()
     initial_hl_balances = await mock_hl_api.get_balances()
-    ts_int = int(datetime.now(timezone.utc).timestamp() * 1000)
+    ts_int = int(datetime.now(UTC).timestamp() * 1000)
     mock_bp_ticker = create_mock_ticker(
         bp_symbol, 29995, 30000, 30000, datetime.fromtimestamp(ts_int / 1000)
     )
@@ -930,13 +969,13 @@ async def test_failure_during_compensation(
         symbol=symbol_key,
         long_exchange="mock_bp",
         short_exchange="mock_hl",
+        long_price=30000,
+        short_price=30050,
         long_funding_rate=Decimal("-0.002"),
         short_funding_rate=Decimal("0.002"),
         net_funding_differential=Decimal("0.004"),
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         expected_profit=Decimal("1.0"),
-        utility_score=1.0,
-        basis_volatility=0.001,
     )
     sized_opportunity = SizedOpportunity(
         opportunity=base_opportunity,
@@ -1022,10 +1061,10 @@ async def test_failure_during_compensation(
     logger.info(f"Final BP Balances: {final_bp_balances}")
     logger.info(f"Final HL Balances: {final_hl_balances}")
     initial_bp_btc = initial_bp_balances.get(
-        "BTC", Balance(asset="BTC", total=Decimal("0.0"), free=Decimal("0.0"))
+        "BTC", Balance(asset="BTC", total=Decimal("0.0"), available=Decimal("0.0"))
     ).total
     initial_bp_usdc = initial_bp_balances.get(
-        "USDC", Balance(asset="USDC", total=Decimal("10000.0"), free=Decimal("10000.0"))
+        "USDC", Balance(asset="USDC", total=Decimal("10000.0"), available=Decimal("10000.0"))
     ).total
     original_long_order_id = execution.long_order_id
     assert original_long_order_id is not None, "Long order ID was not recorded"
@@ -1042,24 +1081,24 @@ async def test_failure_during_compensation(
     fee_bp = abs(expected_bp_usdc_change * mock_bp_api.taker_fee)
     expected_bp_usdc = initial_bp_usdc + expected_bp_usdc_change - fee_bp
     final_bp_btc = final_bp_balances.get(
-        "BTC", Balance(asset="BTC", total=Decimal("0.0"), free=Decimal("0.0"))
+        "BTC", Balance(asset="BTC", total=Decimal("0.0"), available=Decimal("0.0"))
     ).total
     final_bp_usdc = final_bp_balances.get(
-        "USDC", Balance(asset="USDC", total=Decimal("0.0"), free=Decimal("0.0"))
+        "USDC", Balance(asset="USDC", total=Decimal("0.0"), available=Decimal("0.0"))
     ).total
     assert final_bp_btc == pytest.approx(expected_bp_btc), "Final BP BTC mismatch"
     assert final_bp_usdc == pytest.approx(expected_bp_usdc), "Final BP USDC mismatch"
     initial_hl_btc = initial_hl_balances.get(
-        "BTC", Balance(asset="BTC", total=Decimal("0.0"), free=Decimal("0.0"))
+        "BTC", Balance(asset="BTC", total=Decimal("0.0"), available=Decimal("0.0"))
     ).total
     initial_hl_usd = initial_hl_balances.get(
-        "USD", Balance(asset="USD", total=Decimal("10000.0"), free=Decimal("10000.0"))
+        "USD", Balance(asset="USD", total=Decimal("10000.0"), available=Decimal("10000.0"))
     ).total
     final_hl_btc = final_hl_balances.get(
-        "BTC", Balance(asset="BTC", total=Decimal("0.0"), free=Decimal("0.0"))
+        "BTC", Balance(asset="BTC", total=Decimal("0.0"), available=Decimal("0.0"))
     ).total
     final_hl_usd = final_hl_balances.get(
-        "USD", Balance(asset="USD", total=Decimal("0.0"), free=Decimal("0.0"))
+        "USD", Balance(asset="USD", total=Decimal("0.0"), available=Decimal("0.0"))
     ).total
     assert final_hl_btc == pytest.approx(initial_hl_btc), "Final HL BTC mismatch"
     assert final_hl_usd == pytest.approx(initial_hl_usd), "Final HL USD mismatch"

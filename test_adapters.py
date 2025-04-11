@@ -2,8 +2,9 @@
 import asyncio
 import logging
 import os
-from dotenv import load_dotenv
+
 import yaml
+from dotenv import load_dotenv
 
 # Setup logging
 logging.basicConfig(
@@ -18,7 +19,7 @@ load_dotenv()
 # Load configuration
 def load_config():
     try:
-        with open("config.yaml", "r") as file:
+        with open("config.yaml") as file:
             return yaml.safe_load(file)
     except Exception as e:
         logger.error(f"Error loading config.yaml: {e}")
@@ -27,9 +28,9 @@ def load_config():
 
 async def test_adapters():
     """Test the exchange adapters."""
-    from cyberdelta.apis.hyperliquid import HyperliquidAPI
     from cyberdelta.apis.backpack import BackpackAPI
-    from cyberdelta.core.funding_rate import HyperliquidAdapter, BackpackAdapter
+    from cyberdelta.apis.hyperliquid import HyperliquidAPI
+    from cyberdelta.core.funding_rate import BackpackAdapter, HyperliquidAdapter
 
     # Load configuration
     config = load_config()
