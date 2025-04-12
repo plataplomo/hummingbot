@@ -1,15 +1,23 @@
 import asyncio
+import hashlib
+import hmac
+import json
+import logging
 import time
 from decimal import Decimal
-from typing import Any
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, TypedDict, TypeVar, cast
 
 import aiohttp
-import structlog
+from aiohttp import ClientSession, ClientTimeout
 from eth_account.messages import encode_typed_data
-from eth_account.signers.local import LocalAccount
+from web3 import Web3
 from web3.auto import w3
+import websockets
+from websockets.legacy.client import WebSocketClientProtocol  # Use legacy client for compatibility
 
-from ..core.models import (
+from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI, MessageHandler, RateLimiter
+from cyberdelta.core.models import (
     Balance,
     FundingRate,
     MarketData,
@@ -23,9 +31,36 @@ from ..core.models import (
     TimeInForce,
     Trade,
 )
-from .base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__)
+
+# Type definitions for Hyperliquid responses
+T = TypeVar('T')
+
+class AssetContext(TypedDict, total=False):
+    name: str
+    markPx: str
+    funding: str
+
+class TradeData(TypedDict, total=False):
+    tid: Union[int, str]
+    px: str
+    sz: str
+    time: int
+    side: str
+
+class OrderStatusData(TypedDict, total=False):
+    filled: Dict[str, Any]
+    resting: Dict[str, Any]
+    error: str
+
+class OrderResponseData(TypedDict, total=False):
+    status: str
+    data: Dict[str, Any]
+
+class OrderBookResponse(TypedDict, total=False):
+    levels: List[List[List[Union[int, float, str]]]]
+    time: int
 
 
 class HyperliquidAPI(ExchangeAPI):
@@ -37,32 +72,82 @@ class HyperliquidAPI(ExchangeAPI):
     CHAIN_ID = 1337  # Hyperliquid L1 chain ID (adjust if necessary)
 
     def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
-        super().__init__("hyperliquid", api_config, secrets)
-        # Specific Hyperliquid initialization
-        self._private_key = secrets.get("HYPERLIQUID_WALLET_PRIVATE_KEY")
-        self._wallet_address = secrets.get("HYPERLIQUID_WALLET_ADDRESS")
+        """
+        Initialize the HyperliquidAPI client.
+
+        Args:
+            api_config: Configuration dictionary with connection parameters
+            secrets: Dictionary containing private_key and wallet_address
+        """
+        # Set base URLs or use supplied ones
+        self.rest_endpoint = api_config.get("rest_endpoint", self.BASE_URL)
+        self.ws_endpoint = api_config.get("ws_endpoint", self.WS_URL)
+        
+        # Initialize API from base class
+        super().__init__(
+            exchange_name="hyperliquid",
+            config={
+                "rest_endpoint": self.rest_endpoint,
+                "ws_endpoint": self.ws_endpoint,
+                "rate_limits": api_config.get("rate_limits", {}),
+            },
+            secrets=secrets,
+        )
+        
+        # Setup default headers
+        self.default_headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        
+        # Setup callback handlers
+        self.trade_callback: MessageHandler | None = None
+        self.order_update_callback: MessageHandler | None = None
+        self.fill_callback: MessageHandler | None = None
+        self.orderbook_callback: MessageHandler | None = None
+        
+        # Nonce for request signatures
         self._nonce_counter: int = 0
         self._nonce_lock = asyncio.Lock()
-
-        # Check if we can sign transactions
+        
+        # Get wallet address from secrets
+        self._wallet_address = secrets.get("wallet_address")
+        self._private_key = secrets.get("private_key")
+        
+        # Session for HTTP requests
+        self._session: aiohttp.ClientSession | None = None
+        
+        # Validate required credentials
+        if not self._wallet_address:
+            raise ValueError("Wallet address is required for HyperliquidAPI")
+        
         if not self._private_key:
-            logger.warning("Hyperliquid private key not provided. Signed operations will fail.")
-            self.account: LocalAccount | None = None
-        else:
-            self.account = w3.eth.account.from_key(self._private_key)
-            if self.account is None:
-                raise ValueError("Failed to create account from private key.")
-            if (
-                self._wallet_address is None
-                or self.account.address.lower() != self._wallet_address.lower()
-            ):
-                raise ValueError(
-                    f"Wallet address mismatch or not provided: "
-                    f"Account: {self.account.address}, Provided: {self._wallet_address}"
-                )
+            logger.warning("Private key not provided, only public endpoints will be available")
+            
+        # Generate auth signature if we have the private key
+        if self._private_key:
+            try:
+                # Ensure private key is in the expected format
+                if self._private_key.startswith("0x"):
+                    self._private_key = self._private_key[2:]
+                
+                # Create account from private key
+                self._account = w3.eth.account.from_key(self._private_key)
+                
+                # Verify wallet address matches the account address
+                derived_address = self._account.address.lower()
+                if self._wallet_address.lower() != derived_address:
+                    logger.warning(
+                        f"Provided wallet address {self._wallet_address} "
+                        f"does not match derived address {derived_address}"
+                    )
+                
+            except Exception as e:
+                logger.error(f"Error initializing Ethereum account: {e}")
+                raise ValueError(f"Invalid private key: {e}") from e
 
-        self.session: aiohttp.ClientSession | None = None
-        self.ws_connection: aiohttp.ClientWebSocketResponse | None = None
+        self.session: Optional[aiohttp.ClientSession] = None
+        self.ws_connection: Optional[aiohttp.ClientWebSocketResponse] = None
         self.ws_lock = asyncio.Lock()
         self._symbol_map: dict[str, str] = {}
         self._ws_handlers: dict[str, MessageHandler] = {}
@@ -87,10 +172,11 @@ class HyperliquidAPI(ExchangeAPI):
         Returns:
             Authentication data for the request
         """
-        if not self.account:
+        if not self._account:
             if "test" in path or (data and isinstance(data, dict) and data.get("test")):
                 logger.info(
-                    f"[{self.exchange_name}] Using mock authentication for test environment (no private key)"
+                    f"[{self.exchange_name}] Using mock authentication for test environment "
+                    f"(no private key)"
                 )
                 timestamp_str = str(int(time.time() * 1000))
                 nonce_str = "12345"
@@ -150,7 +236,7 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             # Pass the structured data including types to encode_typed_data
             signable_message = encode_typed_data(full_message=structured_data_to_sign)
-            signed_message = self.account.sign_message(signable_message)
+            signed_message = self._account.sign_message(signable_message)
             signature = signed_message.signature.hex()
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Error signing message: {e}", exc_info=True)
@@ -193,29 +279,18 @@ class HyperliquidAPI(ExchangeAPI):
             logger.debug(f"[{self.exchange_name}] No handler registered for channel: {channel}")
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
-        """Subscribe to a Hyperliquid WebSocket topic."""
-        if not self._ws_connection or not self.is_connected:
-            logger.error(f"[{self.exchange_name}] Cannot subscribe, WebSocket not connected.")
-            self._ws_handlers[topic] = handler
-            return
-
-        subscription_payload: dict[str, Any] = {
-            "type": topic.split(":")[0],
-        }
-        if ":" in topic:
-            subscription_payload["coin"] = topic.split(":")[1]
-
-        subscription_message = {
-            "method": "subscribe",
-            "subscription": subscription_payload,
-        }
-
-        try:
-            await self._ws_connection.send_json(subscription_message)
-            self._ws_handlers[topic] = handler
-            logger.info(f"[{self.exchange_name}] Subscribed to topic: {topic}")
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Failed to subscribe to topic {topic}: {e}")
+        """Subscribe to a WebSocket topic."""
+        self._ws_handlers[topic] = handler
+        
+        if self.ws_connection and self._is_connected:
+            try:
+                await self.ws_connection.send_json({"method": "subscribe", "subscription": topic})
+                logger.info(f"[{self.exchange_name}] Subscribed to {topic}")
+            except Exception as e:
+                logger.error(
+                    f"[{self.exchange_name}] Error subscribing to {topic}: {e}",
+                    exc_info=True
+                )
 
     async def _resubscribe(self) -> None:
         """Resubscribe to all registered topics upon reconnection."""
@@ -229,25 +304,122 @@ class HyperliquidAPI(ExchangeAPI):
 
     # --- REST API Implementation --- #
 
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+        signed: bool = False,
+        retry_count: int = 3,
+        timeout: float = 30.0,
+    ) -> dict[str, Any] | list[Any] | str | None:
+        """Make a request to the API with proper error handling and type annotations.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            path: API endpoint path
+            params: Query parameters for the request
+            data: JSON data to send in the request body
+            headers: Additional headers to include
+            signed: Whether the request requires authentication
+            retry_count: Maximum number of retry attempts
+            timeout: Request timeout in seconds
+
+        Returns:
+            The parsed JSON response as a dict, list, string or None
+
+        Raises:
+            APIError: If an error occurs during the request
+        """
+        try:
+            # Construct full URL
+            url = path if path.startswith(('http://', 'https://')) else f"{self.rest_endpoint}/{path.lstrip('/')}"
+            
+            # Prepare headers
+            full_headers = {}
+            if hasattr(self, 'default_headers'):
+                full_headers.update(self.default_headers)
+            if headers:
+                full_headers.update(headers)
+
+            # Ensure session is available
+            if not self._session:
+                raise APIError(
+                    "HTTP session not initialized. Call connect() first.",
+                    code=APIErrorCode.CONNECTION_ERROR,
+                )
+
+            # Create a proper ClientTimeout object
+            timeout_obj = ClientTimeout(total=timeout)
+
+            async with self._session.request(
+                method, url, params=params, json=data, headers=full_headers, timeout=timeout_obj
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    logger.error(
+                        f"[{self.exchange_name}] API error: {response.status} - {error_text}"
+                    )
+                    raise APIError(
+                        f"API Error: {response.status} - {error_text}",
+                        code=APIErrorCode.EXCHANGE_SPECIFIC,
+                    )
+
+                if response.content_type == "application/json":
+                    json_data = await response.json()
+                    if isinstance(json_data, dict):
+                        return json_data
+                    elif isinstance(json_data, list):
+                        return json_data
+                    else:
+                        # Convert unexpected JSON types to string
+                        return str(json_data)
+                else:
+                    return await response.text()
+
+        except aiohttp.ClientError as e:
+            logger.error(f"[{self.exchange_name}] HTTP error: {e}", exc_info=True)
+            raise APIError(
+                f"HTTP Error: {e}", 
+                code=APIErrorCode.NETWORK_ISSUE, 
+                original_exception=e
+            ) from e
+        except json.JSONDecodeError as e:
+            logger.error(f"[{self.exchange_name}] JSON decode error: {e}", exc_info=True)
+            raise APIError(
+                f"JSON decode error: {e}", 
+                code=APIErrorCode.INVALID_REQUEST, 
+                original_exception=e
+            ) from e
+        except Exception as e:
+            logger.error(f"[{self.exchange_name}] Request error: {e}", exc_info=True)
+            raise APIError(
+                f"Request error: {e}", 
+                code=APIErrorCode.SERVER_ERROR, 
+                original_exception=e
+            ) from e
+
     async def get_balances(self) -> dict[str, Balance]:
         """Get account balances."""
         try:
             payload = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
-            if isinstance(response, list) and len(response) > 0:
+            state_data = None
+            if isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict):
                 state_data = response[0].get("clearinghouseState")
             elif isinstance(response, dict):
                 state_data = response.get("clearinghouseState")
-            else:
-                state_data = None
 
-            if state_data and "assetPositions" in state_data:
+            if state_data and isinstance(state_data, dict) and "assetPositions" in state_data:
                 balances: dict[str, Balance] = {}
                 for asset_pos in state_data["assetPositions"]:
-                    if asset_pos.get("asset") == "USDC":
-                        total_balance_str = asset_pos["position"].get("value", "0")
-                        total_balance = Decimal(total_balance_str)
+                    if asset_pos.get("asset") == "USDC" and isinstance(asset_pos.get("position"), dict):
+                        position = asset_pos["position"]
+                        total_balance_str = position.get("value", "0")
+                        total_balance = Decimal(str(total_balance_str))
                         balances["USDC"] = Balance(
                             asset="USDC",
                             total=total_balance,
@@ -270,24 +442,24 @@ class HyperliquidAPI(ExchangeAPI):
                 f"Failed to get balances: {e}", code=APIErrorCode.SERVER_ERROR, original_exception=e
             ) from e
 
-    async def get_positions(self, symbol: str | None = None) -> list[Position]:
+    async def get_positions(self, symbol: str | None = None) -> List[Position]:
         """Get current positions, optionally filtering by symbol."""
         try:
             payload = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
-            positions_list: list[Position] = []
-            if isinstance(response, list) and len(response) > 0:
+            positions_list: List[Position] = []
+            state_data = None
+            
+            if isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict):
                 state_data = response[0].get("clearinghouseState")
             elif isinstance(response, dict):
                 state_data = response.get("clearinghouseState")
-            else:
-                state_data = None
 
-            if state_data and "assetPositions" in state_data:
+            if state_data and isinstance(state_data, dict) and "assetPositions" in state_data:
                 for asset_pos in state_data["assetPositions"]:
                     position_data = asset_pos.get("position")
-                    if position_data:
+                    if position_data and isinstance(position_data, dict):
                         pos_symbol = asset_pos.get("asset")
                         if symbol is not None and pos_symbol != symbol:
                             continue
@@ -296,9 +468,9 @@ class HyperliquidAPI(ExchangeAPI):
                         entry_price_str = position_data.get("entryPx", "0")
                         unrealized_pnl_str = position_data.get("unrealizedPnl", "0")
 
-                        size = Decimal(size_str)
-                        entry_price = Decimal(entry_price_str) if entry_price_str else None
-                        unrealized_pnl = Decimal(unrealized_pnl_str)
+                        size = Decimal(str(size_str))
+                        entry_price = Decimal(str(entry_price_str)) if entry_price_str else None
+                        unrealized_pnl = Decimal(str(unrealized_pnl_str))
 
                         if size != Decimal(0) and pos_symbol and entry_price is not None:
                             side = OrderSide.BUY if size > 0 else OrderSide.SELL
@@ -331,13 +503,13 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_open_orders(self, symbol: str | None = None) -> List[Order]:
         """Get open orders for a specific symbol or all symbols."""
         try:
             payload = {"type": "openOrders", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
-            open_orders: list[Order] = []
+            open_orders: List[Order] = []
             if isinstance(response, list):
                 for order_data in response:
                     order_symbol = order_data.get("coin")
@@ -383,7 +555,7 @@ class HyperliquidAPI(ExchangeAPI):
         post_only: bool = False,
     ) -> Order:
         """Place a new order."""
-        if not self.account:
+        if not self._account:
             raise APIError(
                 "Cannot place order without initialized account/private key",
                 code=APIErrorCode.AUTHENTICATION_FAILED,
@@ -400,7 +572,8 @@ class HyperliquidAPI(ExchangeAPI):
             order_type_hl = {"limit": {"tif": time_in_force.value}}
             if post_only:
                 logger.warning(
-                    f"[{self.exchange_name}] Post-only flag handling for limit orders needs verification."
+                    f"[{self.exchange_name}] Post-only flag handling for limit orders "
+                    f"needs verification."
                 )
 
         elif order_type == OrderType.MARKET:
@@ -429,51 +602,57 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             response = await self._request("POST", "/exchange", data=action_payload, signed=True)
 
-            if response and response.get("status") == "ok":
-                statuses = response.get("data", {}).get("statuses", [])
-                if statuses:
-                    order_status_data = statuses[0]
-                    if "filled" in order_status_data:
-                        filled_data = order_status_data["filled"]
-                        return Order(
-                            id=str(filled_data.get("oid", "")),
-                            symbol=symbol,
-                            side=side,
-                            type=order_type,
-                            quantity=quantity,
-                            filled_quantity=Decimal(str(filled_data.get("totalSz", "0"))),
-                            price=price,
-                            avg_fill_price=Decimal(str(filled_data.get("avgPx", "0"))),
-                            status=OrderStatus.FILLED,
-                            time=int(filled_data.get("time", time.time() * 1000)),
-                            client_order_id=client_order_id or "",
-                        )
-                    elif "resting" in order_status_data:
-                        resting_data = order_status_data["resting"]
-                        return Order(
-                            id=str(resting_data.get("oid", "")),
-                            symbol=symbol,
-                            side=side,
-                            type=order_type,
-                            quantity=quantity,
-                            filled_quantity=Decimal("0"),
-                            price=price,
-                            avg_fill_price=None,
-                            status=OrderStatus.OPEN,
-                            time=int(resting_data.get("time", time.time() * 1000)),
-                            client_order_id=client_order_id or "",
-                        )
-                    elif "error" in order_status_data:
-                        error_msg = order_status_data["error"]
-                        logger.error(f"[{self.exchange_name}] Order placement failed: {error_msg}")
-                        raise APIError(
-                            f"Order placement failed: {error_msg}", code=APIErrorCode.ORDER_REJECTED
-                        )
-                    else:
-                        logger.warning(
-                            f"[{self.exchange_name}] Unhandled order status in response: {order_status_data}"
-                        )
-                        raise APIError("Unhandled order status", code=APIErrorCode.UNKNOWN)
+            if isinstance(response, dict) and response.get("status") == "ok":
+                response_data = response.get("data")
+                if isinstance(response_data, dict) and "statuses" in response_data:
+                    statuses = response_data["statuses"]
+                    if isinstance(statuses, list) and statuses:
+                        order_status_data = statuses[0]
+                        if isinstance(order_status_data, dict):
+                            if "filled" in order_status_data:
+                                filled_data = order_status_data["filled"]
+                                if isinstance(filled_data, dict):
+                                    return Order(
+                                        id=str(filled_data.get("oid", "")),
+                                        symbol=symbol,
+                                        side=side,
+                                        type=order_type,
+                                        quantity=quantity,
+                                        filled_quantity=Decimal(str(filled_data.get("totalSz", "0"))),
+                                        price=price,
+                                        avg_fill_price=Decimal(str(filled_data.get("avgPx", "0"))),
+                                        status=OrderStatus.FILLED,
+                                        time=int(filled_data.get("time", time.time() * 1000)),
+                                        client_order_id=client_order_id or "",
+                                    )
+                            elif "resting" in order_status_data:
+                                resting_data = order_status_data["resting"]
+                                if isinstance(resting_data, dict):
+                                    return Order(
+                                        id=str(resting_data.get("oid", "")),
+                                        symbol=symbol,
+                                        side=side,
+                                        type=order_type,
+                                        quantity=quantity,
+                                        filled_quantity=Decimal("0"),
+                                        price=price,
+                                        avg_fill_price=None,
+                                        status=OrderStatus.OPEN,
+                                        time=int(resting_data.get("time", time.time() * 1000)),
+                                        client_order_id=client_order_id or "",
+                                    )
+                            elif "error" in order_status_data:
+                                error_msg = str(order_status_data["error"])
+                                logger.error(f"[{self.exchange_name}] Order placement failed: {error_msg}")
+                                raise APIError(
+                                    f"Order placement failed: {error_msg}", code=APIErrorCode.ORDER_REJECTED
+                                )
+                            else:
+                                logger.warning(
+                                    f"[{self.exchange_name}] Unhandled order status in response: "
+                                    f"{order_status_data}"
+                                )
+                                raise APIError("Unhandled order status", code=APIErrorCode.UNKNOWN)
 
             logger.error(f"[{self.exchange_name}] Failed to place order. Response: {response}")
             raise APIError(
@@ -491,7 +670,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
         """Cancel an existing order."""
-        if not self.account:
+        if not self._account:
             raise APIError(
                 "Cannot cancel order without initialized account/private key",
                 code=APIErrorCode.AUTHENTICATION_FAILED,
@@ -511,30 +690,36 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             response = await self._request("POST", "/exchange", data=action_payload, signed=True)
 
-            if response and response.get("status") == "ok":
-                statuses = response.get("data", {}).get("statuses", [])
-                if statuses and statuses[0] == "canceled":
-                    logger.info(f"[{self.exchange_name}] Canceled order {order_id} for {symbol}")
-                    return {"status": "canceled", "order_id": order_id, "symbol": symbol}
-                elif statuses and "error" in statuses[0]:
-                    error_msg = statuses[0]["error"]
-                    logger.error(
-                        f"[{self.exchange_name}] Failed to cancel order {order_id}: {error_msg}"
-                    )
-                    code = APIErrorCode.EXCHANGE_SPECIFIC
-                    if "Order not found" in error_msg:
-                        code = APIErrorCode.ORDER_NOT_FOUND
-                    raise APIError(f"Failed to cancel order: {error_msg}", code=code)
-                else:
-                    logger.warning(
-                        f"[{self.exchange_name}] Order {order_id} cancel response status OK, but data unexpected: {statuses}"
-                    )
-                    return {
-                        "status": "unknown",
-                        "order_id": order_id,
-                        "symbol": symbol,
-                        "response": statuses,
-                    }
+            if isinstance(response, dict) and response.get("status") == "ok":
+                response_data = response.get("data")
+                statuses = []
+                if isinstance(response_data, dict) and "statuses" in response_data:
+                    statuses = response_data["statuses"]
+                
+                if isinstance(statuses, list) and statuses:
+                    if isinstance(statuses[0], str) and statuses[0] == "canceled":
+                        logger.info(f"[{self.exchange_name}] Canceled order {order_id} for {symbol}")
+                        return {"status": "canceled", "order_id": order_id, "symbol": symbol}
+                    elif isinstance(statuses[0], dict) and "error" in statuses[0]:
+                        error_msg = str(statuses[0]["error"])
+                        logger.error(
+                            f"[{self.exchange_name}] Failed to cancel order {order_id}: {error_msg}"
+                        )
+                        code = APIErrorCode.EXCHANGE_SPECIFIC
+                        if "Order not found" in error_msg:
+                            code = APIErrorCode.ORDER_NOT_FOUND
+                        raise APIError(f"Failed to cancel order: {error_msg}", code=code)
+                    else:
+                        logger.warning(
+                            f"[{self.exchange_name}] Order {order_id} cancel response status OK, "
+                            f"but data unexpected: {statuses}"
+                        )
+                        return {
+                            "status": "unknown",
+                            "order_id": order_id,
+                            "symbol": symbol,
+                            "response": statuses,
+                        }
 
             logger.error(
                 f"[{self.exchange_name}] Failed to cancel order {order_id}. Response: {response}"
@@ -564,14 +749,15 @@ class HyperliquidAPI(ExchangeAPI):
 
             if isinstance(response, list) and len(response) > 1:
                 asset_contexts = response[1]
-                for ctx in asset_contexts:
-                    if ctx.get("name") == symbol:
-                        mark_px = ctx.get("markPx", "0")
-                        return Ticker(
-                            symbol=symbol,
-                            price=Decimal(mark_px),
-                            timestamp=int(time.time() * 1000),
-                        )
+                if isinstance(asset_contexts, list):
+                    for ctx in asset_contexts:
+                        if isinstance(ctx, dict) and ctx.get("name") == symbol:
+                            mark_px = ctx.get("markPx", "0")
+                            return Ticker(
+                                symbol=symbol,
+                                price=Decimal(str(mark_px)),
+                                timestamp=int(time.time() * 1000),
+                            )
             logger.warning(
                 f"[{self.exchange_name}] Ticker data not found for {symbol} in response: {response}"
             )
@@ -593,41 +779,55 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
+    async def get_order_book(self, symbol: str, depth: Optional[int] = None) -> OrderBook:
         """Get order book for a symbol."""
         try:
             payload = {"type": "l2Book", "coin": symbol}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
-            if response and "levels" in response:
-                levels = response["levels"]
-                bids = []
-                asks = []
-                for level in levels[0]:
-                    try:
-                        if isinstance(level, list) and len(level) == 2:
-                            bids.append((Decimal(str(level[0])), Decimal(str(level[1]))))
-                    except Exception as parse_err:
-                        logger.warning(f"Error parsing bid level {level}: {parse_err}")
-                for level in levels[1]:
-                    try:
-                        if isinstance(level, list) and len(level) == 2:
-                            asks.append((Decimal(str(level[0])), Decimal(str(level[1]))))
-                    except Exception as parse_err:
-                        logger.warning(f"Error parsing ask level {level}: {parse_err}")
+            if response and isinstance(response, dict) and "levels" in response:
+                levels = response.get("levels")
+                bids: List[Tuple[Decimal, Decimal]] = []
+                asks: List[Tuple[Decimal, Decimal]] = []
+                
+                if isinstance(levels, list) and len(levels) > 1:
+                    # Process bids
+                    bid_levels = levels[0]
+                    if isinstance(bid_levels, list):
+                        for level in bid_levels:
+                            if isinstance(level, list) and len(level) >= 2:
+                                try:
+                                    price = Decimal(str(level[0]))
+                                    quantity = Decimal(str(level[1]))
+                                    bids.append((price, quantity))
+                                except (ValueError, TypeError, IndexError) as e:
+                                    logger.warning(f"Error parsing bid level {level}: {e}")
+                    
+                    # Process asks
+                    ask_levels = levels[1]
+                    if isinstance(ask_levels, list):
+                        for level in ask_levels:
+                            if isinstance(level, list) and len(level) >= 2:
+                                try:
+                                    price = Decimal(str(level[0]))
+                                    quantity = Decimal(str(level[1]))
+                                    asks.append((price, quantity))
+                                except (ValueError, TypeError, IndexError) as e:
+                                    logger.warning(f"Error parsing ask level {level}: {e}")
 
                 bids.sort(key=lambda x: x[0], reverse=True)
                 asks.sort(key=lambda x: x[0])
 
-                if depth:
+                if depth is not None and depth > 0:
                     bids = bids[:depth]
                     asks = asks[:depth]
 
+                timestamp = int(response.get("time", int(time.time() * 1000)))
                 return OrderBook(
                     symbol=symbol,
                     bids=bids,
                     asks=asks,
-                    timestamp=int(response.get("time", time.time() * 1000)),
+                    timestamp=timestamp,
                 )
             logger.warning(
                 f"[{self.exchange_name}] Order book data not found/invalid for {symbol}: {response}"
@@ -651,34 +851,41 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
+    async def get_recent_trades(self, symbol: str, limit: Optional[int] = None) -> List[Trade]:
         """Get recent trades for a symbol."""
         try:
             payload = {"type": "recentTrades", "coin": symbol}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
-            trades: list[Trade] = []
+            trades: List[Trade] = []
             if isinstance(response, list):
-                for trade_data in response:
-                    trade_id = str(trade_data.get("tid", ""))
-                    price_str = trade_data.get("px", "0")
-                    size_str = trade_data.get("sz", "0")
-                    timestamp_ms = trade_data.get("time", 0)
-                    side_hl = trade_data.get("side", "B")
+                for trade_item in response:
+                    if isinstance(trade_item, dict):
+                        trade_id = str(trade_item.get("tid", ""))
+                        price_str = trade_item.get("px", "0")
+                        size_str = trade_item.get("sz", "0")
+                        timestamp_ms = trade_item.get("time", 0)
+                        side_hl = trade_item.get("side", "B")
 
-                    side = OrderSide.BUY if side_hl == "B" else OrderSide.SELL
+                        try:
+                            price = Decimal(str(price_str))
+                            quantity = Decimal(str(size_str))
+                            side = OrderSide.BUY if side_hl == "B" else OrderSide.SELL
 
-                    trades.append(
-                        Trade(
-                            id=trade_id,
-                            symbol=symbol,
-                            timestamp=timestamp_ms,
-                            side=side,
-                            price=Decimal(price_str),
-                            quantity=Decimal(size_str),
-                        )
-                    )
-                if limit is not None:
+                            trades.append(
+                                Trade(
+                                    id=trade_id,
+                                    symbol=symbol,
+                                    timestamp=timestamp_ms,
+                                    side=side,
+                                    price=price,
+                                    quantity=quantity,
+                                )
+                            )
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Error parsing trade data {trade_item}: {e}")
+                
+                if limit is not None and limit > 0:
                     trades = trades[:limit]
             return trades
 
@@ -698,7 +905,7 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
+    async def get_funding_rate(self, symbol: str) -> Optional[FundingRate]:
         """Get funding rate for a symbol."""
         try:
             payload = {"type": "metaAndAssetCtxs"}
@@ -706,32 +913,38 @@ class HyperliquidAPI(ExchangeAPI):
 
             if isinstance(response, list) and len(response) > 1:
                 asset_contexts = response[1]
-                for ctx in asset_contexts:
-                    if ctx.get("name") == symbol:
-                        funding_rate_str = ctx.get("funding", "0")
-                        mark_px_str = ctx.get("markPx", "0")
+                if isinstance(asset_contexts, list):
+                    for ctx in asset_contexts:
+                        if isinstance(ctx, dict) and ctx.get("name") == symbol:
+                            funding_rate_str = ctx.get("funding", "0")
+                            mark_px_str = ctx.get("markPx", "0")
 
-                        funding_rate = Decimal(funding_rate_str)
-                        mark_price = Decimal(mark_px_str)
+                            try:
+                                funding_rate = Decimal(str(funding_rate_str))
+                                mark_price = Decimal(str(mark_px_str))
 
-                        now_ms = int(time.time() * 1000)
-                        next_funding_time_ms = (now_ms // 3600000 + 1) * 3600000
+                                now_ms = int(time.time() * 1000)
+                                next_funding_time_ms = (now_ms // 3600000 + 1) * 3600000
 
-                        funding_info = FundingRate(
-                            symbol=symbol,
-                            funding_rate=funding_rate,
-                            mark_price=mark_price,
-                            next_funding_time=next_funding_time_ms,
-                        )
-                        return funding_info
+                                funding_info = FundingRate(
+                                    symbol=symbol,
+                                    funding_rate=funding_rate,
+                                    mark_price=mark_price,
+                                    next_funding_time=next_funding_time_ms,
+                                )
+                                return funding_info
+                            except (ValueError, TypeError) as e:
+                                logger.warning(f"Error parsing funding rate data for {symbol}: {e}")
+                                break
 
             logger.warning(
-                f"[{self.exchange_name}] Funding rate data not found for {symbol} in response: {response}"
+                f"[{self.exchange_name}] Funding rate data not found for {symbol} "
+                f"in response: {response}"
             )
             return None
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting funding rate for {symbol}: {e}")
-            if "Funding rate not available" in str(e.original_exception or ""):
+            if e.original_exception and "Funding rate not available" in str(e.original_exception):
                 raise APIError(
                     f"Funding rate unavailable for {symbol}",
                     code=APIErrorCode.FUNDING_RATE_UNAVAILABLE,
@@ -764,14 +977,15 @@ class HyperliquidAPI(ExchangeAPI):
     async def withdraw(
         self, asset: str, amount: Decimal, address: str, network: str | None = None
     ) -> dict[str, Any]:
-        if not self.account:
+        if not self._account:
             raise APIError(
                 "Cannot withdraw without initialized account/private key",
                 code=APIErrorCode.AUTHENTICATION_FAILED,
             )
 
         logger.warning(
-            f"[{self.exchange_name}] Withdrawal endpoint requires careful implementation and testing."
+            f"[{self.exchange_name}] Withdrawal endpoint requires careful implementation "
+            f"and testing."
         )
         raise NotImplementedError(
             "Withdrawal functionality needs specific Hyperliquid implementation."
@@ -821,128 +1035,104 @@ class HyperliquidAPI(ExchangeAPI):
         """Subscribe to user order updates."""
         await self.subscribe("user", handler)
 
-    async def subscribe_to_trades(self, symbol: str) -> None:
+    async def subscribe_to_trades(self, symbol: str, handler: Optional[MessageHandler] = None) -> None:
         """Subscribe to trades for a symbol."""
         # In the implementation we can maintain our own handler registry
         if not hasattr(self, "_trade_handlers"):
-            self._trade_handlers: dict[str, list[MessageHandler]] = {}
-
-        # Register a default handler that just logs trades
-        async def default_handler(message: dict[str, Any]) -> None:
-            trade = self.parse_trade_message(message)
-            logger.debug(f"Received trade for {symbol}: {trade}")
-
-        # Store handlers by symbol
-        if symbol not in self._trade_handlers:
-            self._trade_handlers[symbol] = []
-        self._trade_handlers[symbol].append(default_handler)
+            self._trade_handlers: Dict[str, List[MessageHandler]] = {}
 
         # Actual subscription logic would go here
         logger.info(f"Subscribed to trades for {symbol}")
 
-    async def subscribe_to_ticker(self, symbol: str) -> None:
+    async def subscribe_to_ticker(self, symbol: str, handler: Optional[MessageHandler] = None) -> None:
         """Subscribe to ticker updates for a symbol."""
         # In the implementation we can maintain our own handler registry
         if not hasattr(self, "_ticker_handlers"):
-            self._ticker_handlers: dict[str, list[MessageHandler]] = {}
-
-        # Register a default handler that just logs tickers
-        async def default_handler(message: dict[str, Any]) -> None:
-            ticker = self.parse_ticker_message(message)
-            logger.debug(f"Received ticker for {symbol}: {ticker}")
-
-        # Store handlers by symbol
-        if symbol not in self._ticker_handlers:
-            self._ticker_handlers[symbol] = []
-        self._ticker_handlers[symbol].append(default_handler)
+            self._ticker_handlers: Dict[str, List[MessageHandler]] = {}
 
         # Actual subscription logic would go here
         logger.info(f"Subscribed to ticker updates for {symbol}")
 
-    async def subscribe_to_order_book(self, symbol: str) -> None:
+    async def subscribe_to_order_book(self, symbol: str, handler: Optional[MessageHandler] = None) -> None:
         """Subscribe to order book updates for a symbol."""
         # In the implementation we can maintain our own handler registry
         if not hasattr(self, "_orderbook_handlers"):
-            self._orderbook_handlers: dict[str, list[MessageHandler]] = {}
-
-        # Register a default handler that just logs order books
-        async def default_handler(message: dict[str, Any]) -> None:
-            orderbook = self.parse_orderbook_message(message)
-            logger.debug(f"Received order book for {symbol}: {orderbook}")
-
-        # Store handlers by symbol
-        if symbol not in self._orderbook_handlers:
-            self._orderbook_handlers[symbol] = []
-        self._orderbook_handlers[symbol].append(default_handler)
+            self._orderbook_handlers: Dict[str, List[MessageHandler]] = {}
 
         # Actual subscription logic would go here
         logger.info(f"Subscribed to order book updates for {symbol}")
 
     # --- Helper Methods (Parsing, etc.) ---
 
-    def parse_order(self, order_data: dict[str, Any]) -> Order:
+    def parse_order(self, order_data: Dict[str, Any]) -> Order:
+        """Parse exchange-specific order format to standard Order object.
+        
+        Args:
+            order_data: Exchange-specific order data
+            
+        Returns:
+            Standardized Order object
+        """
+        if not order_data or not isinstance(order_data, dict):
+            raise ValueError("Invalid order data provided")
+            
         try:
-            order_id = str(order_data.get("oid"))
-            parsed_symbol = order_data.get("coin")
-            if parsed_symbol is None:
-                raise ValueError(f"Missing 'coin' (symbol) in order data: {order_data}")
-
-            cloid = order_data.get("cloid")
-            side_hl = order_data.get("side")
-            qty_str = order_data.get("sz")
-            limit_px_str = order_data.get("limitPx")
-            order_type_hl = order_data.get("orderType")
-            timestamp_ms = order_data.get("timestamp")
-            if timestamp_ms is None:
-                raise ValueError(f"Missing 'timestamp' in order data: {order_data}")
-
-            status_str = order_data.get("status", "unknown")
-
-            if not all([order_id, side_hl, qty_str]):
-                logger.warning(
-                    f"[{self.exchange_name}] Incomplete essential order data: {order_data}"
-                )
-                raise ValueError(f"Incomplete essential order data: {order_data}")
-
-            side = OrderSide.BUY if side_hl == "B" else OrderSide.SELL
-            quantity = Decimal(qty_str) if qty_str else Decimal("0")
-            price = Decimal(limit_px_str) if limit_px_str and limit_px_str != "0" else None
-
+            order_id = str(order_data.get("oid", ""))
+            if not order_id:
+                raise ValueError("Order ID missing from order data")
+                
+            symbol = order_data.get("coin", "")
+            if not symbol:
+                raise ValueError("Symbol missing from order data")
+                
+            # Extract order details
+            side_str = order_data.get("side", "B")
+            type_str = order_data.get("orderType", "limit").lower()
+            status_str = order_data.get("status", "open").lower()
+            
+            # Convert string values to appropriate types
+            price_str = order_data.get("limitPx", "0")
+            size_str = order_data.get("sz", "0")
+            remaining_str = order_data.get("remainingSz", size_str)
+            filled_qty = Decimal(str(size_str)) - Decimal(str(remaining_str)) if remaining_str else Decimal("0")
+            timestamp = order_data.get("time", int(time.time() * 1000))
+            
+            # Map to standard enums
+            side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
+            
             order_type = OrderType.LIMIT
-            if isinstance(order_type_hl, dict) and "market" in order_type_hl:
+            if type_str == "market":
                 order_type = OrderType.MARKET
-                price = None
-
-            status = OrderStatus.UNKNOWN
-            if status_str == "open":
-                status = OrderStatus.OPEN
-            elif status_str == "filled":
+            elif type_str == "postonly":
+                order_type = OrderType.LIMIT  # Post-only is a flag, not an order type
+            
+            status = OrderStatus.OPEN
+            if status_str == "filled":
                 status = OrderStatus.FILLED
-            elif status_str == "canceled":
+            elif status_str in ["cancelled", "canceled"]:
                 status = OrderStatus.CANCELED
-
-            filled_qty = Decimal("0")
-            avg_fill_price = None
-
+            elif status_str == "rejected":
+                status = OrderStatus.REJECTED
+            elif Decimal(str(remaining_str)) < Decimal(str(size_str)):
+                status = OrderStatus.PARTIALLY_FILLED
+            
+            # Create and return the standardized order
             return Order(
                 id=order_id,
-                symbol=parsed_symbol,
+                client_order_id=order_data.get("cloid", ""),
+                symbol=symbol,
                 side=side,
                 type=order_type,
-                quantity=quantity,
-                price=price,
+                price=Decimal(str(price_str)),
+                quantity=Decimal(str(size_str)),
                 filled_quantity=filled_qty,
-                avg_fill_price=avg_fill_price,
                 status=status,
-                time=int(timestamp_ms),
-                client_order_id=cloid or "",
+                time=timestamp,
+                reduce_only=order_data.get("reduceOnly", False),
             )
-        except (ValueError, TypeError, KeyError) as e:
-            logger.error(
-                f"[{self.exchange_name}] Failed to parse order data: {order_data}, Error: {e}",
-                exc_info=True,
-            )
-            raise ValueError(f"Failed to parse order data: {e}") from e
+        except Exception as e:
+            logger.error(f"Error parsing order data: {e}")
+            raise ValueError(f"Failed to parse order: {e}") from e
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
         raise NotImplementedError("get_order not implemented for HyperliquidAPI")
@@ -957,9 +1147,61 @@ class HyperliquidAPI(ExchangeAPI):
         raise NotImplementedError("get_trade_history not implemented for HyperliquidAPI")
 
     async def get_funding_rates(self, symbol: str | None = None) -> list[FundingRate]:
-        raise NotImplementedError(
-            "get_funding_rates (historical) not implemented for HyperliquidAPI"
-        )
+        """
+        Get current funding rates, optionally filtering by symbol.
+        
+        Args:
+            symbol: If provided, only return funding rate for this symbol
+            
+        Returns:
+            List of FundingRate objects
+        """
+        try:
+            # Get all market information which includes funding rates
+            url = f"{self.INFO_URL}/info"
+            payload = {"type": "allMeta"}
+            response = await self._request("POST", url, data=payload)
+            
+            result: list[FundingRate] = []
+            
+            # Extract funding rates from response
+            if response and isinstance(response, list) and len(response) > 0:
+                universe_data = response[0].get("universe", [])
+                
+                for market in universe_data:
+                    market_symbol = market.get("name")
+                    if symbol is not None and market_symbol != symbol:
+                        continue
+                        
+                    funding_info = market.get("funding")
+                    if funding_info and isinstance(funding_info, dict):
+                        rate_str = funding_info.get("fundingRate", "0")
+                        # Convert from percentage to decimal (e.g., 0.01% -> 0.0001)
+                        rate_decimal = Decimal(str(rate_str)) / Decimal(100)
+                        timestamp = int(time.time() * 1000)  # Current time in milliseconds
+                        
+                        funding_rate = FundingRate(
+                            symbol=market_symbol,
+                            funding_rate=rate_decimal,
+                            timestamp=timestamp,
+                        )
+                        result.append(funding_rate)
+            
+            return result
+            
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting funding rates: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Error getting funding rates: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Failed to get funding rates: {e}",
+                code=APIErrorCode.SERVER_ERROR,
+                original_exception=e,
+            ) from e
 
     async def get_market_data(
         self, symbol: str, timeframe: str, limit: int = 100
@@ -1010,15 +1252,17 @@ class HyperliquidAPI(ExchangeAPI):
         channel = message.get("channel", "unknown")
         return str(channel) if channel is not None else "unknown"
 
-    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None:
+    def parse_ticker_message(self, message: Dict[str, Any]) -> Optional[Ticker]:
+        """Parse ticker message from WebSocket."""
         if message.get("channel") == "allMids":
             logger.warning(
-                f"[{self.exchange_name}] parse_ticker_message needs specific implementation for 'allMids' structure."
+                f"[{self.exchange_name}] parse_ticker_message needs specific implementation "
+                f"for 'allMids' structure."
             )
             return None
         return None
 
-    def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
+    def parse_orderbook_message(self, message: Dict[str, Any]) -> Optional[OrderBook]:
         if message.get("channel", "").startswith("l2Book:"):
             logger.warning(
                 f"[{self.exchange_name}] parse_orderbook_message needs full implementation."
@@ -1026,50 +1270,171 @@ class HyperliquidAPI(ExchangeAPI):
             return None
         return None
 
-    def parse_trade_message(self, message: dict[str, Any]) -> Trade | None:
-        if message.get("channel", "").startswith("trades:"):
-            symbol = message["channel"].split(":")[1]
-            data_list = message.get("data")
-            if isinstance(data_list, list) and data_list:
-                trade_data = data_list[0]
-                trade = Trade(
-                    id=str(trade_data.get("tid", "")),
-                    symbol=symbol,
-                    timestamp=int(trade_data.get("time", 0)),
-                    side=OrderSide.BUY if trade_data.get("side", "B") == "B" else OrderSide.SELL,
-                    price=Decimal(trade_data.get("px", "0")),
-                    quantity=Decimal(trade_data.get("sz", "0")),
-                )
-                return trade
-            logger.warning(f"[{self.exchange_name}] parse_trade_message needs full implementation.")
+    def parse_trade_message(self, message: Dict[str, Any]) -> Trade | None:
+        """
+        Parse a trade message from the WebSocket feed.
+        
+        Args:
+            message: The WebSocket message to parse
+            
+        Returns:
+            A Trade object or None if the message cannot be parsed
+        """
+        if not message or not isinstance(message, dict):
+            return None
+            
+        # Check if it's a trades update message
+        if "channel" in message and message["channel"] == "trades":
+            data = message.get("data", [])
+            if data and isinstance(data, list) and len(data) > 0:
+                # Just return the first trade for now
+                first_trade = data[0]
+                symbol = message.get("coin", "")
+                if symbol and isinstance(first_trade, dict):
+                    try:
+                        return self.parse_trade(first_trade, symbol)
+                    except Exception as e:
+                        logger.error(f"Error parsing trade message: {e}")
         return None
-
-    def parse_account_update_message(
-        self, message: dict[str, Any]
-    ) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]:
-        if message.get("channel") == "user":
-            data = message.get("data")
-            if data and "clearinghouseState" in data:
-                logger.warning(
-                    f"[{self.exchange_name}] parse_account_update_message needs full implementation."
-                )
-            return None, None
-        return None, None
-
-    def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
-        if message.get("channel") == "user":
-            data = message.get("data")
-            if data and isinstance(data, dict) and data.get("order"):
-                order_data = data["order"]
-                return self.parse_order(order_data)
-            elif data and isinstance(data, list):
-                for item in data:
-                    if isinstance(item, dict) and item.get("order"):
-                        return self.parse_order(item["order"])
-
-        logger.debug(f"[{self.exchange_name}] Could not parse order update from message: {message}")
+        
+    def parse_order_update_message(self, message: Dict[str, Any]) -> Order | None:
+        """
+        Parse an order update message from the WebSocket feed.
+        
+        Args:
+            message: The WebSocket message to parse
+            
+        Returns:
+            An Order object or None if the message cannot be parsed
+        """
+        if not message or not isinstance(message, dict):
+            return None
+            
+        # Check if it's an order update message
+        if "type" in message and message["type"] == "userEvent" and "userEvents" in message:
+            events = message.get("userEvents", [])
+            for event in events:
+                event_type = event.get("eventType", "")
+                if event_type == "order":
+                    order_data = event.get("data", {})
+                    if order_data:
+                        try:
+                            return self.parse_order(order_data)
+                        except Exception as e:
+                            logger.error(f"Error parsing order update message: {e}")
         return None
 
     def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
         logger.warning(f"[{self.exchange_name}] parse_funding_rate_message needs WS update impl.")
         return None
+
+    async def _on_message(self, ws: WebSocketClientProtocol, message: str) -> None:
+        """Handle WebSocket messages.
+        
+        Args:
+            ws: The WebSocket connection
+            message: The message received from the WebSocket
+        """
+        if not message:
+            return
+            
+        try:
+            data = json.loads(message)
+            message_type = self.get_message_type(data)
+            
+            if message_type == "ping":
+                # Respond to ping message
+                await ws.send(json.dumps({"type": "pong"}))
+                return
+                
+            if message_type == "orderbook":
+                # Parse and forward orderbook updates
+                orderbook = self.parse_orderbook_message(data)
+                if orderbook and self.orderbook_callback:
+                    # Convert OrderBook to dict to match callback signature
+                    await self.orderbook_callback({"orderbook": orderbook})
+                return
+                
+            if message_type == "trade":
+                # Parse and forward trade updates
+                trade = self.parse_trade_message(data)
+                if trade and self.trade_callback:
+                    # Convert Trade to dict to match callback signature
+                    await self.trade_callback({"trade": trade})
+                return
+                
+            if message_type == "order_update":
+                # Parse and forward order updates
+                order = self.parse_order_update_message(data)
+                if order and self.order_update_callback:
+                    # Convert Order to dict to match callback signature
+                    await self.order_update_callback({"order": order})
+                return
+                
+            if message_type == "fill":
+                # Parse and forward fill updates (trade executions)
+                fill_trades = self.parse_fill_message(data)
+                if fill_trades and self.fill_callback:
+                    for trade in fill_trades:
+                        # Convert Trade to dict to match callback signature
+                        await self.fill_callback({"trade": trade})
+                return
+                
+            # Log unhandled message types
+            logger.debug(f"[{self.exchange_name}] Unhandled WebSocket message type: {message_type}")
+            
+        except json.JSONDecodeError:
+            logger.warning(f"[{self.exchange_name}] Received invalid JSON message: {message[:100]}...")
+        except Exception as e:
+            logger.error(f"[{self.exchange_name}] Error processing WebSocket message: {e}", exc_info=True)
+
+    def parse_fill_message(self, message: Dict[str, Any]) -> List[Trade]:
+        """Parse a fill update message and convert to standard Trade objects.
+        
+        Args:
+            message: The message containing fill updates
+            
+        Returns:
+            List of Trade objects representing the fills
+        """
+        trades: List[Trade] = []
+        
+        if not message or not isinstance(message, dict):
+            return trades
+            
+        # Process fills
+        if message.get("type") == "userFill":
+            fill_data = message.get("data", {})
+            if not fill_data:
+                return trades
+                
+            coin = fill_data.get("coin", "")
+            if not coin:
+                return trades
+                
+            side_str = fill_data.get("side", "")
+            px_str = fill_data.get("px", "0")
+            sz_str = fill_data.get("sz", "0")
+            time_ms = fill_data.get("time", int(time.time() * 1000))
+            order_id = fill_data.get("oid", "")
+            
+            try:
+                side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
+                price = Decimal(str(px_str))
+                quantity = Decimal(str(sz_str))
+                
+                trade = Trade(
+                    id=f"{order_id}_{time_ms}",
+                    symbol=coin,
+                    timestamp=time_ms,
+                    side=side,
+                    price=price,
+                    quantity=quantity,
+                    is_maker=False,  # Assuming fills are taker trades
+                )
+                trades.append(trade)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Error parsing fill data: {e}")
+                
+        return trades
+

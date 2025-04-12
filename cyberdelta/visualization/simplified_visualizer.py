@@ -8,7 +8,7 @@ without dependencies on complex web frameworks.
 import logging
 import os
 from datetime import UTC, datetime, timedelta
-from typing import Dict, Optional, List, Any
+from decimal import Decimal
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -25,45 +25,51 @@ logger = logging.getLogger(__name__)
 
 
 def generate_example_data(
-    strategy_name: str = "ExampleStrategy", 
+    strategy_name: str = "ExampleStrategy",
     output_dir: str = "./data",
     num_trades: int = 30,
-    base_time: Optional[datetime] = None
+    base_time: datetime | None = None,
 ) -> SimplePerformanceTracker:
     """
     Generate example data for testing visualization functions.
-    
+
     Args:
         strategy_name: Name of the strategy
         output_dir: Directory to save exported data
         num_trades: Number of example trades to generate
         base_time: Starting time for the trades (default: now - 60 days)
-        
+
     Returns:
         Tracker instance with example data
     """
     # Create a tracker
     tracker = SimplePerformanceTracker(strategy_name, output_dir=output_dir)
-    
+
     # Set base time
     now = datetime.now(UTC)
     base_time = base_time or (now - timedelta(days=60))
-    
-    # Create trading signals
+
+    # Create trading signals with all required parameters
     signal1 = TradeSignal(
         symbol="BTC-USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
+        price=Decimal("50000.0"),
+        quantity=Decimal("1.0"),
         timestamp=now,
+        confidence=0.95,
         source_strategy=strategy_name,
         metadata={},
     )
-    
+
     signal2 = TradeSignal(
         symbol="ETH-USDT",
         signal_type=SignalType.ENTER_SHORT,
         side=OrderSide.SELL,
+        price=Decimal("3000.0"),
+        quantity=Decimal("10.0"),
         timestamp=now,
+        confidence=0.85,
         source_strategy=strategy_name,
         metadata={},
     )
@@ -71,13 +77,15 @@ def generate_example_data(
     # Track signals
     signal1_metrics = tracker.track_signal(signal1)
     signal2_metrics = tracker.track_signal(signal2)
-    
+
     # Use the generated signal IDs
     tracker.track_signal_execution(signal1_metrics.signal_id, True)
     tracker.track_signal_execution(signal2_metrics.signal_id, False)
 
     # Track a few main trades
-    tracker.track_trade("trade1", "BTC-USDT", "Binance", "LONG", 1.0, 50000.0, now, signal1_metrics.signal_id)
+    tracker.track_trade(
+        "trade1", "BTC-USDT", "Binance", "LONG", 1.0, 50000.0, now, signal1_metrics.signal_id
+    )
     tracker.track_trade("trade2", "ETH-USDT", "Binance", "SHORT", 10.0, 3000.0, now)
 
     # Track trade exits
@@ -100,10 +108,10 @@ def generate_example_data(
         # Track trade and exit
         tracker.track_trade(trade_id, symbol, "Binance", direction, 1.0, 50000.0, trade_time)
         tracker.track_trade_exit(trade_id, 51000.0, exit_time, pnl)
-        
+
     # Generate some example daily returns and funding rates for the last 30 days
     # This would be implemented if we were tracking these metrics
-    
+
     return tracker
 
 
@@ -115,7 +123,7 @@ class SimpleVisualizer:
     without dependencies on complex web frameworks.
     """
 
-    def __init__(self, tracker: SimplePerformanceTracker, output_dir: Optional[str] = None) -> None:
+    def __init__(self, tracker: SimplePerformanceTracker, output_dir: str | None = None) -> None:
         """
         Initialize the visualizer.
 
@@ -172,7 +180,7 @@ class SimpleVisualizer:
 
     # --- Plotting Methods ---
 
-    def plot_cumulative_pnl(self, save: bool = False, show: bool = True) -> Optional[plt.Figure]:
+    def plot_cumulative_pnl(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
         Plot cumulative PnL over time.
 
@@ -196,6 +204,10 @@ class SimpleVisualizer:
         try:
             trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"])
             trades_df = trades_df.sort_values("exit_time")
+            
+            # Convert Decimal values to float for plotting
+            if "pnl" in trades_df.columns:
+                trades_df["pnl"] = trades_df["pnl"].astype(float)
         except Exception as e:
             logger.error(f"Error processing trade timestamps for PnL plot: {e}", exc_info=True)
             return None
@@ -241,7 +253,7 @@ class SimpleVisualizer:
 
         return fig  # Return the figure object (though it's closed if not shown live)
 
-    def plot_drawdown(self, save: bool = False, show: bool = True) -> Optional[plt.Figure]:
+    def plot_drawdown(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
         Plot drawdown over time.
 
@@ -273,15 +285,17 @@ class SimpleVisualizer:
         # --- Plotting ---
         fig, ax = self._setup_plot("Drawdown", "Date", "Drawdown (%)")
 
-        ax.fill_between(drawdown.index, 0, drawdown.values * 100, color="red", alpha=0.3)
-        ax.plot(drawdown.index, drawdown.values * 100, color="red", linewidth=1)
+        # Convert values to float arrays before multiplication to avoid type issues
+        drawdown_values = np.array(drawdown.values, dtype=float) * 100
+        ax.fill_between(drawdown.index, 0, drawdown_values, color="red", alpha=0.3)
+        ax.plot(drawdown.index, drawdown_values, color="red", linewidth=1)
 
         # Format x-axis dates
         self._format_xaxis_date(fig, ax)
 
         # Add annotations for max drawdown
         try:
-            max_dd = drawdown.min() * 100
+            max_dd = float(drawdown.min() * 100)
             max_dd_idx = drawdown.idxmin()
             ax.annotate(
                 f"Max DD: {max_dd:.2f}%",
@@ -298,7 +312,7 @@ class SimpleVisualizer:
 
         return fig
 
-    def plot_trade_distribution(self, save: bool = False, show: bool = True) -> Optional[plt.Figure]:
+    def plot_trade_distribution(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
         Plot distribution of trade PnLs.
 
@@ -316,23 +330,22 @@ class SimpleVisualizer:
             logger.warning("No completed trades with PnL data to plot distribution")
             return None
 
+        # Convert Decimal values to float for plotting
+        pnl_values = trades_df["pnl"].astype(float).values
+        mean_pnl = float(pnl_values.mean())
+        
         # --- Plotting ---
         fig, ax = self._setup_plot("Trade PnL Distribution", "PnL ($)", "Frequency")
 
-        # Create histogram
-        trade_pnl = trades_df["pnl"]
-        ax.hist(trade_pnl, bins=30, color="skyblue", edgecolor="black", alpha=0.7)
-
-        # Add vertical line at zero
-        ax.axvline(x=0, color="gray", linestyle="--", alpha=0.7)
-
-        # Add annotations for mean PnL
-        mean_pnl = trade_pnl.mean()
-        ax.axvline(mean_pnl, color="red", linestyle="dashed", linewidth=1)
-        min_ylim, max_ylim = ax.get_ylim()
-        ax.text(
-            mean_pnl * 1.1, max_ylim * 0.9, f"Mean: ${mean_pnl:.2f}", color="red"
-        )  # Adjust text position
+        # Create the histogram
+        counts, bins, _ = ax.hist(pnl_values, bins=30, alpha=0.75, color='skyblue')
+        
+        # Add mean line and annotation
+        ax.axvline(x=mean_pnl, color='red', linestyle='--')
+        ax.annotate(f'Mean: {mean_pnl:.2f}',
+                   xy=(float(mean_pnl), 0),
+                   xytext=(float(mean_pnl * 1.1), float(max(counts) * 0.9)),
+                   arrowprops=dict(facecolor='black', shrink=0.05))
 
         # Finalize plot
         self._finalize_plot(fig, ax, "trade_distribution", save, show)
@@ -341,7 +354,7 @@ class SimpleVisualizer:
 
     def plot_winning_vs_losing_trades(
         self, save: bool = False, show: bool = True
-    ) -> Optional[plt.Figure]:
+    ) -> plt.Figure | None:
         """
         Plot comparison of winning vs losing trades.
 
@@ -359,9 +372,12 @@ class SimpleVisualizer:
             logger.warning("No completed trades with PnL data to plot win/loss comparison")
             return None
 
+        # Convert Decimal values to float for calculations
+        pnl_float = trades_df["pnl"].astype(float)
+            
         # Separate winning and losing trades
-        winners = trades_df[trades_df["pnl"] > 0]["pnl"]
-        losers = trades_df[trades_df["pnl"] < 0]["pnl"]
+        winners = pnl_float[pnl_float > 0]
+        losers = pnl_float[pnl_float < 0]
 
         # --- Plotting ---
         fig, ax = self._setup_plot("Winning vs. Losing Trades", "", "Count")
@@ -373,12 +389,21 @@ class SimpleVisualizer:
         bars = ax.bar(labels, counts, color=colors, alpha=0.8)
 
         # Add count labels on bars
-        ax.bar_label(bars, fmt="%d")
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(
+                f"{int(height)}",
+                xy=(bar.get_x() + bar.get_width() / 2.0, float(height)),
+                xytext=(0, 3),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+            )
 
         # Add text for average win/loss
-        avg_win = winners.mean() if not winners.empty else 0
-        avg_loss = losers.mean() if not losers.empty else 0
-        win_rate = (len(winners) / len(trades_df)) * 100 if len(trades_df) > 0 else 0
+        avg_win = float(winners.mean()) if not winners.empty else 0.0
+        avg_loss = float(losers.mean()) if not losers.empty else 0.0
+        win_rate = (len(winners) / len(trades_df)) * 100 if len(trades_df) > 0 else 0.0
 
         stats_text = (
             f"Win Rate: {win_rate:.2f}%\nAvg Win: ${avg_win:.2f}\nAvg Loss: ${avg_loss:.2f}"
@@ -403,7 +428,7 @@ class SimpleVisualizer:
 
         return fig
 
-    def plot_monthly_performance(self, save: bool = False, show: bool = True) -> Optional[plt.Figure]:
+    def plot_monthly_performance(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
         Plot monthly PnL performance.
 
@@ -428,6 +453,11 @@ class SimpleVisualizer:
         # Ensure exit_time is datetime and set as index
         try:
             trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"])
+            
+            # Convert Decimal values to float for calculations
+            if "pnl" in trades_df.columns:
+                trades_df["pnl"] = trades_df["pnl"].astype(float)
+            
             trades_df = trades_df.set_index("exit_time")
         except Exception as e:
             logger.error(f"Error processing timestamps for monthly plot: {e}", exc_info=True)
@@ -445,7 +475,14 @@ class SimpleVisualizer:
 
         # Create bar chart
         colors = ["green" if pnl >= 0 else "red" for pnl in monthly_pnl.values]
-        bars = monthly_pnl.plot(kind="bar", ax=ax, color=colors, alpha=0.8)
+        # Convert pandas values to native Python list for compatibility
+        monthly_values = monthly_pnl.values.tolist()
+        monthly_bars = ax.bar(
+            [idx.strftime("%b-%Y") for idx in monthly_pnl.index],
+            monthly_values,
+            color=colors,
+            alpha=0.8,
+        )
 
         # Format x-axis labels (Month Abbreviation - Year)
         ax.set_xticklabels(
@@ -453,7 +490,16 @@ class SimpleVisualizer:
         )
 
         # Add PnL values on bars
-        ax.bar_label(bars, fmt="$%.2f", label_type="edge", padding=3)
+        for bar in monthly_bars:
+            height = bar.get_height()
+            ax.annotate(
+                f"${height:.2f}",
+                xy=(bar.get_x() + bar.get_width() / 2.0, float(height)),
+                xytext=(0, 3 if height > 0 else -3),
+                textcoords="offset points",
+                ha="center",
+                va="bottom" if height > 0 else "top",
+            )
 
         # Add horizontal line at zero
         ax.axhline(y=0, color="gray", linestyle="--", alpha=0.7)
@@ -467,7 +513,7 @@ class SimpleVisualizer:
 
         return fig
 
-    def plot_performance_metrics(self, save: bool = False, show: bool = True) -> Optional[plt.Figure]:
+    def plot_performance_metrics(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
         Display key performance metrics as text.
 
@@ -479,7 +525,7 @@ class SimpleVisualizer:
             Matplotlib figure containing the text if successful, None otherwise.
         """
         try:
-            metrics = self.analyzer.calculate_performance_metrics()
+            metrics = self.analyzer.get_performance_metrics()
         except Exception as e:
             logger.error(f"Error calculating performance metrics for display: {e}", exc_info=True)
             return None
@@ -499,7 +545,7 @@ class SimpleVisualizer:
         metrics_text = "\n".join(
             [
                 f"{key.replace('_', ' ').title()}: {value:.4f}"
-                if isinstance(value, (float, np.number))
+                if isinstance(value, (float | np.number))
                 else f"{key.replace('_', ' ').title()}: {value}"
                 for key, value in metrics.items()
             ]
@@ -525,7 +571,7 @@ class SimpleVisualizer:
 
         return fig
 
-    def generate_performance_report(self, save_dir: Optional[str] = None) -> Dict[str, str]:
+    def generate_performance_report(self, save_dir: str | None = None) -> dict[str, str]:
         """
         Generate a comprehensive performance report with all plots.
 
@@ -539,7 +585,7 @@ class SimpleVisualizer:
         os.makedirs(save_dir, exist_ok=True)
 
         # Generate all plots and save
-        plots: Dict[str, str] = {}
+        plots: dict[str, str] = {}
 
         # Get all the figures
         fig_pnl = self.plot_cumulative_pnl(save=False, show=False)
@@ -548,38 +594,42 @@ class SimpleVisualizer:
         fig_win = self.plot_winning_vs_losing_trades(save=False, show=False)
         fig_month = self.plot_monthly_performance(save=False, show=False)
         fig_metrics = self.plot_performance_metrics(save=False, show=False)
-        
+
         # Save and add to plots dictionary if figure was successfully created
         if fig_pnl:
             pnl_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_cumulative_pnl.png")
             fig_pnl.savefig(pnl_path)
             plt.close(fig_pnl)
             plots["cumulative_pnl"] = pnl_path
-            
+
         if fig_dd:
             dd_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_drawdown.png")
             fig_dd.savefig(dd_path)
             plt.close(fig_dd)
             plots["drawdown"] = dd_path
-            
+
         if fig_dist:
-            dist_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_trade_distribution.png")
+            dist_path = os.path.join(
+                save_dir, f"{self.tracker.strategy_name}_trade_distribution.png"
+            )
             fig_dist.savefig(dist_path)
             plt.close(fig_dist)
             plots["trade_distribution"] = dist_path
-            
+
         if fig_win:
             win_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_win_loss_ratio.png")
             fig_win.savefig(win_path)
             plt.close(fig_win)
             plots["win_loss_ratio"] = win_path
-            
+
         if fig_month:
-            month_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_monthly_performance.png")
+            month_path = os.path.join(
+                save_dir, f"{self.tracker.strategy_name}_monthly_performance.png"
+            )
             fig_month.savefig(month_path)
             plt.close(fig_month)
             plots["monthly_performance"] = month_path
-            
+
         if fig_metrics:
             metrics_path = os.path.join(
                 save_dir, f"{self.tracker.strategy_name}_performance_metrics.png"
@@ -622,6 +672,7 @@ class SimpleVisualizer:
                     for key, value in metrics.items():
                         display_name = key.replace("_", " ").title()
 
+                        # Handle values based on type - all financial values should now be float
                         if isinstance(value, (int, np.integer)):
                             summary_text += f"{display_name}: {value}\n"
                         elif key in ["win_rate", "max_drawdown"]:
@@ -629,6 +680,7 @@ class SimpleVisualizer:
                         elif key in ["sharpe_ratio"]:
                             summary_text += f"{display_name}: {value:.2f}\n"
                         else:
+                            # For float values that represent currency
                             summary_text += f"{display_name}: ${value:.2f}\n"
 
                 ax.text(
@@ -655,9 +707,7 @@ class SimpleVisualizer:
 if __name__ == "__main__":
     # Generate example data using our helper function
     tracker = generate_example_data(
-        strategy_name="ExampleStrategy", 
-        output_dir="./data",
-        num_trades=30
+        strategy_name="ExampleStrategy", output_dir="./data", num_trades=30
     )
 
     # Create visualizer

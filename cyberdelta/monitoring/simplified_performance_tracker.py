@@ -10,8 +10,9 @@ import logging
 import os
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 import uuid
 
 import numpy as np
@@ -38,9 +39,9 @@ class PerformanceMetrics:
     trade_win_rate: float = 0.0
 
     # PnL metrics
-    realized_pnl: float = 0.0
-    unrealized_pnl: float = 0.0
-    total_pnl: float = 0.0
+    realized_pnl: Decimal = Decimal("0")
+    unrealized_pnl: Decimal = Decimal("0")
+    total_pnl: Decimal = Decimal("0")
 
     # Risk metrics
     current_drawdown: float = 0.0
@@ -57,11 +58,11 @@ class TradeMetrics:
     exchange: str
     entry_time: datetime
     exit_time: datetime | None = None
-    entry_price: float = 0.0
-    exit_price: float = 0.0
+    entry_price: Decimal = Decimal("0")
+    exit_price: Decimal = Decimal("0")
     direction: str = ""  # "LONG" or "SHORT"
-    size: float = 0.0
-    pnl: float = 0.0
+    size: Decimal = Decimal("0")
+    pnl: Decimal = Decimal("0")
     is_completed: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -112,7 +113,7 @@ class SimplePerformanceTracker:
         self.pending_signals: dict[str, SignalMetrics] = {}
 
         # Performance summary statistics
-        self.total_pnl = 0.0
+        self.total_pnl = Decimal("0")
         self.total_signals_generated = 0
         self.total_signals_executed = 0
         self.total_trades_executed = 0
@@ -153,25 +154,39 @@ class SimplePerformanceTracker:
         Returns:
             SignalMetrics object
         """
-        # Create signal metrics
-        signal_metrics = SignalMetrics(
-            signal_id=getattr(signal, "signal_id", str(uuid.uuid4())),
-            strategy_name=self.strategy_name,
-            signal_type=signal.signal_type.name if hasattr(signal.signal_type, "name") else str(signal.signal_type),
-            symbol=signal.symbol,
-            timestamp=signal.timestamp or datetime.now(UTC),
-            metadata=signal.metadata or {},
-        )
+        # Create signal metrics with proper error handling
+        try:
+            signal_id = getattr(signal, "signal_id", str(uuid.uuid4()))
+            
+            # Handle signal_type conversion safely
+            if hasattr(signal.signal_type, "name"):
+                signal_type_str = signal.signal_type.name
+            else:
+                signal_type_str = str(signal.signal_type)
+                
+            # Create signal metrics
+            signal_metrics = SignalMetrics(
+                signal_id=signal_id,
+                strategy_name=self.strategy_name,
+                signal_type=signal_type_str,
+                symbol=signal.symbol,
+                timestamp=signal.timestamp or datetime.now(UTC),
+                metadata=signal.metadata or {},
+            )
 
-        # Update counter and store signal metrics
-        self.total_signals_generated += 1
-        self.signal_history[signal_metrics.signal_id] = signal_metrics
-        self.pending_signals[signal_metrics.signal_id] = signal_metrics
+            # Update counter and store signal metrics
+            self.total_signals_generated += 1
+            self.signal_history[signal_metrics.signal_id] = signal_metrics
+            self.pending_signals[signal_metrics.signal_id] = signal_metrics
 
-        # Update metrics
-        self._record_metrics()
+            # Update metrics
+            self._record_metrics()
 
-        return signal_metrics
+            return signal_metrics
+            
+        except AttributeError as e:
+            logger.error(f"Invalid TradeSignal format: {e}")
+            raise ValueError(f"TradeSignal is missing required attributes: {e}")
 
     def track_signal_execution(self, signal_id: str, executed: bool) -> None:
         """
@@ -231,8 +246,8 @@ class SimplePerformanceTracker:
             symbol=symbol,
             exchange=exchange,
             direction=direction,
-            size=size,
-            entry_price=entry_price,
+            size=Decimal(str(size)),
+            entry_price=Decimal(str(entry_price)),
             entry_time=entry_time,
             metadata={} if signal_id is None else {"signal_id": signal_id},
         )
@@ -256,7 +271,7 @@ class SimplePerformanceTracker:
             unrealized_pnl: Current unrealized PnL
         """
         if trade_id in self.current_trades:
-            self.current_trades[trade_id].pnl = unrealized_pnl
+            self.current_trades[trade_id].pnl = Decimal(str(unrealized_pnl))
 
             # Update metrics
             self._record_metrics()
@@ -277,9 +292,9 @@ class SimplePerformanceTracker:
             trade = self.current_trades[trade_id]
 
             # Update trade metrics
-            trade.exit_price = exit_price
+            trade.exit_price = Decimal(str(exit_price))
             trade.exit_time = exit_time
-            trade.pnl = realized_pnl
+            trade.pnl = Decimal(str(realized_pnl))
             trade.is_completed = True
 
             # Update win/loss counters
@@ -289,7 +304,7 @@ class SimplePerformanceTracker:
                 self.losing_trades += 1
 
             # Update total PnL
-            self.total_pnl += realized_pnl
+            self.total_pnl += Decimal(str(realized_pnl))
 
             # Remove from current trades
             del self.current_trades[trade_id]
@@ -316,14 +331,14 @@ class SimplePerformanceTracker:
             "short_exchange": opportunity.short_exchange,
             "symbol": opportunity.symbol,
             "timestamp": opportunity.timestamp,
-            "funding_rate": opportunity.funding_rate,
-            "expected_profit": opportunity.expected_profit,
+            "funding_rate": str(opportunity.funding_rate) if hasattr(opportunity, "funding_rate") else None,
+            "expected_profit": str(opportunity.expected_profit) if hasattr(opportunity, "expected_profit") else None,
         }
 
         self.opportunity_history[opportunity_id] = opportunity_dict
         return opportunity_id
 
-    def get_performance_summary(self) -> dict[str, Any]:
+    def get_performance_summary(self) -> dict[str, float | int | str]:
         """
         Get a summary of performance metrics.
 
@@ -348,7 +363,7 @@ class SimplePerformanceTracker:
         # Return summary
         return {
             "strategy_name": self.strategy_name,
-            "total_pnl": self.total_pnl,
+            "total_pnl": float(self.total_pnl),
             "signals_generated": self.total_signals_generated,
             "signals_executed": self.total_signals_executed,
             "signal_execution_rate": signal_execution_rate,
@@ -360,12 +375,15 @@ class SimplePerformanceTracker:
             "pending_signals": len(self.pending_signals),
         }
 
-    def export_to_csv(self, filename_prefix: str | None = None) -> tuple[str, str, str, str] | None:
+    def export_to_csv(self, filename_prefix: str | None = None) -> dict[str, str] | None:
         """
         Export all data to CSV files.
 
         Args:
             filename_prefix: Optional prefix for the CSV filenames
+            
+        Returns:
+            Dictionary mapping file types to file paths, or None if error
         """
         prefix = filename_prefix or self.strategy_name
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
@@ -482,8 +500,11 @@ class SimplePerformanceAnalyzer:
         Returns:
             Series of drawdown values
         """
+        # Convert Decimal values to float for pandas calculations
+        pnl_series_float = pnl_series.astype(float)
+        
         # Calculate cumulative PnL
-        cumulative = pnl_series.cumsum()
+        cumulative = pnl_series_float.cumsum()
 
         # Calculate running maximum
         running_max = cumulative.cummax()
@@ -504,11 +525,14 @@ class SimplePerformanceAnalyzer:
         Returns:
             Sharpe ratio
         """
-        if returns.empty or returns.std() == 0:
+        # Convert Decimal values to float for calculations
+        returns_float = returns.astype(float)
+        
+        if returns_float.empty or returns_float.std() == 0:
             return 0.0
 
-        excess_returns = returns - (risk_free_rate / 252)  # Daily risk-free rate
-        return excess_returns.mean() / excess_returns.std() * np.sqrt(252)  # Annualized
+        excess_returns = returns_float - (risk_free_rate / 252)  # Daily risk-free rate
+        return float(excess_returns.mean() / excess_returns.std() * np.sqrt(252))  # Annualized
 
     def calculate_win_rate(self) -> float:
         """
@@ -521,8 +545,12 @@ class SimplePerformanceAnalyzer:
         if trades_df.empty:
             return 0.0
 
-        winning_trades = len(trades_df[trades_df["pnl"] > 0])
-        return (winning_trades / len(trades_df)) * 100
+        # Convert pnl to float for comparison if it's Decimal
+        if "pnl" in trades_df.columns:
+            pnl_series = trades_df["pnl"].astype(float)
+            winning_trades = len(pnl_series[pnl_series > 0])
+            return (winning_trades / len(trades_df)) * 100
+        return 0.0
 
     def get_daily_pnl(self) -> pd.Series:
         """
@@ -541,11 +569,17 @@ class SimplePerformanceAnalyzer:
 
         # Group by exit date and sum PnL
         trades_df["exit_date"] = trades_df["exit_time"].dt.date
-        daily_pnl = trades_df.groupby("exit_date")["pnl"].sum()
+        
+        # Convert pnl to float for aggregation
+        if "pnl" in trades_df.columns:
+            trades_df["pnl_float"] = trades_df["pnl"].astype(float)
+            daily_pnl = trades_df.groupby("exit_date")["pnl_float"].sum()
+        else:
+            daily_pnl = pd.Series()
 
         return daily_pnl
 
-    def get_performance_metrics(self) -> dict[str, Any]:
+    def get_performance_metrics(self) -> dict[str, float | int | str]:
         """
         Calculate comprehensive performance metrics.
 
@@ -557,30 +591,35 @@ class SimplePerformanceAnalyzer:
 
         # Get daily PnL
         daily_pnl = self.get_daily_pnl()
+        
+        # Convert dataframe if needed to handle Decimal values
+        if not trades_df.empty and "pnl" in trades_df.columns:
+            pnl_float = trades_df["pnl"].astype(float)
+            winners = pnl_float[pnl_float > 0]
+            losers = pnl_float[pnl_float <= 0]
+        else:
+            winners = pd.Series()
+            losers = pd.Series()
 
         # Calculate metrics
         metrics = {
-            "total_pnl": self.tracker.total_pnl,
+            "total_pnl": float(self.tracker.total_pnl),  # Convert to float for consistent return type
             "win_rate": self.calculate_win_rate(),
             "total_trades": len(trades_df),
-            "winning_trades": len(trades_df[trades_df["pnl"] > 0]) if not trades_df.empty else 0,
-            "losing_trades": len(trades_df[trades_df["pnl"] <= 0]) if not trades_df.empty else 0,
-            "avg_profit": trades_df[trades_df["pnl"] > 0]["pnl"].mean()
-            if not trades_df.empty and not trades_df[trades_df["pnl"] > 0].empty
-            else 0,
-            "avg_loss": trades_df[trades_df["pnl"] <= 0]["pnl"].mean()
-            if not trades_df.empty and not trades_df[trades_df["pnl"] <= 0].empty
-            else 0,
+            "winning_trades": len(winners) if not trades_df.empty else 0,
+            "losing_trades": len(losers) if not trades_df.empty else 0,
+            "avg_profit": float(winners.mean()) if not winners.empty else 0.0,
+            "avg_loss": float(losers.mean()) if not losers.empty else 0.0,
         }
 
         # Add Sharpe ratio if we have daily PnL
         if not daily_pnl.empty:
             daily_returns = daily_pnl / 10000  # Assuming $10,000 capital
-            metrics["sharpe_ratio"] = self.calculate_sharpe_ratio(daily_returns)
+            metrics["sharpe_ratio"] = float(self.calculate_sharpe_ratio(daily_returns))
 
             # Add max drawdown if we have daily PnL
             drawdown = self.calculate_drawdown(daily_pnl)
-            metrics["max_drawdown"] = drawdown.min() * 100 if not drawdown.empty else 0
+            metrics["max_drawdown"] = float(drawdown.min() * 100) if not drawdown.empty else 0.0
 
         return metrics
 
@@ -629,21 +668,25 @@ if __name__ == "__main__":
     signal1 = TradeSignal(
         symbol="BTC-USDT",
         signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,  # Assuming OrderSide is imported elsewhere
+        side=OrderSide.BUY,
         timestamp=now,
         signal_id="1",
         source_strategy="ExampleStrategy",
         metadata={},
+        price=Decimal("50000.0"),  # Add required price field with Decimal
+        quantity=Decimal("1.0"),   # Add required quantity field with Decimal
     )
     
     signal2 = TradeSignal(
         symbol="ETH-USDT",
         signal_type=SignalType.ENTER_SHORT,
-        side=OrderSide.SELL,  # Assuming OrderSide is imported elsewhere
+        side=OrderSide.SELL,
         timestamp=now,
         signal_id="2",
         source_strategy="ExampleStrategy",
         metadata={},
+        price=Decimal("3000.0"),  # Add required price field with Decimal
+        quantity=Decimal("10.0"),  # Add required quantity field with Decimal
     )
 
     tracker.track_signal(signal1)
@@ -652,12 +695,12 @@ if __name__ == "__main__":
     tracker.track_signal_execution("2", False)
 
     # Track some trades
-    tracker.track_trade("trade1", "BTC-USDT", "Binance", "LONG", 1.0, 50000.0, now, "1")
-    tracker.track_trade("trade2", "ETH-USDT", "Binance", "SHORT", 10.0, 3000.0, now)
+    tracker.track_trade("trade1", "BTC-USDT", "Binance", "LONG", Decimal("1.0"), Decimal("50000.0"), now, "1")
+    tracker.track_trade("trade2", "ETH-USDT", "Binance", "SHORT", Decimal("10.0"), Decimal("3000.0"), now)
 
     # Track trade exits
-    tracker.track_trade_exit("trade1", 52000.0, now + timedelta(days=1), 2000.0)
-    tracker.track_trade_exit("trade2", 2800.0, now + timedelta(days=2), 2000.0)
+    tracker.track_trade_exit("trade1", Decimal("52000.0"), now + timedelta(days=1), Decimal("2000.0"))
+    tracker.track_trade_exit("trade2", Decimal("2800.0"), now + timedelta(days=2), Decimal("2000.0"))
 
     # Export data
     tracker.export_to_csv()
