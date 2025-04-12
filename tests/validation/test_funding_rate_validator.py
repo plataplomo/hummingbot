@@ -15,12 +15,12 @@ class TestFundingRateValidator:
     """Test suite for the FundingRateValidator class."""
 
     @pytest.fixture
-    def validator(self):
+    def validator(self) -> FundingRateValidator:
         """Create a validator instance for testing."""
         config = MagicMock()
         return FundingRateValidator(config)
 
-    def test_record_prediction(self, validator):
+    def test_record_prediction(self, validator: FundingRateValidator) -> None:
         """Test recording a funding rate prediction."""
         # Record a prediction
         validator.record_prediction("hyperliquid", "BTC", 0.0001, "api", 0.9)
@@ -37,7 +37,7 @@ class TestFundingRateValidator:
         assert "timestamp" in prediction
         assert isinstance(prediction["datetime"], datetime)
 
-    def test_record_payment(self, validator):
+    def test_record_payment(self, validator: FundingRateValidator) -> None:
         """Test recording an actual funding payment."""
         # Record a payment
         validator.record_payment("hyperliquid", "BTC", 0.0001, 0.5, 10.0)
@@ -54,7 +54,7 @@ class TestFundingRateValidator:
         assert "timestamp" in payment
         assert isinstance(payment["datetime"], datetime)
 
-    def test_calculate_metrics_no_data(self, validator):
+    def test_calculate_metrics_no_data(self, validator: FundingRateValidator) -> None:
         """Test calculating metrics with no data."""
         metrics = validator.calculate_metrics("hyperliquid", "BTC")
 
@@ -64,7 +64,7 @@ class TestFundingRateValidator:
         assert metrics["prediction_count"] == 0
         assert metrics["payment_count"] == 0
 
-    def test_calculate_metrics_with_data(self, validator):
+    def test_calculate_metrics_with_data(self, validator: FundingRateValidator) -> None:
         """Test calculating metrics with sample data."""
         # Add test data
         # First prediction
@@ -107,7 +107,7 @@ class TestFundingRateValidator:
         assert abs(metrics["mae"] - 0.00015) < 0.0001
         assert abs(metrics["bias"] - (-0.00015)) < 0.0001
 
-    def test_get_validation_report(self, validator):
+    def test_get_validation_report(self, validator: FundingRateValidator) -> None:
         """Test generating a validation report."""
         # Add data for two exchange-symbol pairs
         validator.record_prediction("hyperliquid", "BTC", 0.0010, "api", 0.9)
@@ -131,7 +131,7 @@ class TestFundingRateValidator:
         assert report["backpack"]["ETH"]["prediction_count"] == 1
         assert report["backpack"]["ETH"]["payment_count"] == 1
 
-    def test_get_recent_predictions(self, validator):
+    def test_get_recent_predictions(self, validator: FundingRateValidator) -> None:
         """Test retrieving recent predictions."""
         # Add predictions
         validator.record_prediction("hyperliquid", "BTC", 0.0010, "api", 0.9)
@@ -158,7 +158,7 @@ class TestFundingRateValidator:
         assert predictions[0]["exchange"] == "hyperliquid"
         assert predictions[0]["symbol"] == "BTC"
 
-    def test_get_recent_payments(self, validator):
+    def test_get_recent_payments(self, validator: FundingRateValidator) -> None:
         """Test retrieving recent payments."""
         # Add payments
         validator.record_payment("hyperliquid", "BTC", 0.0012, 1.2, 100.0)
@@ -185,7 +185,7 @@ class TestFundingRateValidator:
         assert payments[0]["exchange"] == "hyperliquid"
         assert payments[0]["symbol"] == "BTC"
 
-    def test_get_prediction_history(self, validator):
+    def test_get_prediction_history(self, validator: FundingRateValidator) -> None:
         """Test retrieving prediction history."""
         # Add data
         validator.record_prediction("hyperliquid", "BTC", 0.0010, "api", 0.9)
@@ -217,7 +217,7 @@ class TestFundingRateValidator:
         assert history["predictions"]["rates"] == [0.0010, 0.0008]
         assert history["actuals"]["rates"] == [0.0012, 0.0009]
 
-    def test_clear_old_data(self, validator):
+    def test_clear_old_data(self, validator: FundingRateValidator) -> None:
         """Test clearing old data."""
         # Create some data
         # Current data

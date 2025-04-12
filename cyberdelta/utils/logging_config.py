@@ -122,8 +122,8 @@ class LogCapture:
             level: Minimum log level to capture
         """
         self.level = level
-        self.handler = None
-        self.logs = []
+        self.handler: logging.handlers.MemoryHandler | None = None
+        self.logs: list[str] = []
 
     def __enter__(self) -> "LogCapture":
         """Enter context."""
@@ -139,7 +139,7 @@ class LogCapture:
         root_logger.addHandler(self.handler)
 
         # Store reference to logs
-        self.handler.logs = self.logs
+        setattr(self.handler, 'logs', self.logs)
 
         # Add custom emit method to handler
         original_emit = self.handler.emit
@@ -148,7 +148,7 @@ class LogCapture:
             self.logs.append(formatter.format(record))
             original_emit(record)
 
-        self.handler.emit = custom_emit
+        setattr(self.handler, 'emit', custom_emit)
 
         return self
 
@@ -160,11 +160,12 @@ class LogCapture:
     ) -> None:
         """Exit context."""
         # Remove handler from root logger
-        root_logger = logging.getLogger()
-        if self.handler in root_logger.handlers:
-            root_logger.removeHandler(self.handler)
+        if self.handler is not None:
+            root_logger = logging.getLogger()
+            if self.handler in root_logger.handlers:
+                root_logger.removeHandler(self.handler)
 
-    def get_logs(self) -> list:
+    def get_logs(self) -> list[str]:
         """
         Get captured logs.
 

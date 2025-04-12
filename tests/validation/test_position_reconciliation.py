@@ -4,6 +4,7 @@ Tests for the PositionReconciliationSystem class.
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -18,7 +19,7 @@ class TestPositionReconciliationSystem:
     """Test suite for the PositionReconciliationSystem class."""
 
     @pytest.fixture
-    def config(self):
+    def config(self) -> Config:
         """Create a mock config for testing."""
         config = MagicMock(spec=Config)
         config_data = {
@@ -31,7 +32,7 @@ class TestPositionReconciliationSystem:
             "validation.position_reconciliation.use_fill_history": False,
         }
 
-        def config_get_side_effect(key, default=None):
+        def config_get_side_effect(key: str, default: Any = None) -> Any:
             if key in config_data:
                 return config_data[key]
             parts = key.split(".")
@@ -43,7 +44,7 @@ class TestPositionReconciliationSystem:
         return config
 
     @pytest.fixture
-    def portfolio_tracker(self):
+    def portfolio_tracker(self) -> MagicMock:
         """Create a mock portfolio tracker for testing."""
         tracker = MagicMock()
 
@@ -86,7 +87,7 @@ class TestPositionReconciliationSystem:
         ]
 
         # Setup the get_position method
-        def get_position(exchange, symbol):
+        def get_position(exchange: str, symbol: str) -> Position | None:
             if exchange == "hyperliquid":
                 for pos in hyper_positions:
                     if pos.symbol == symbol:
@@ -98,7 +99,7 @@ class TestPositionReconciliationSystem:
             return None
 
         # Setup get_positions_by_exchange method
-        def get_positions_by_exchange(exchange):
+        def get_positions_by_exchange(exchange: str) -> list[Position]:
             if exchange == "hyperliquid":
                 return hyper_positions
             elif exchange == "backpack":
@@ -223,15 +224,15 @@ class TestPositionReconciliationSystem:
             "validation.position_reconciliation.use_fill_history": False
         }.get(key, default)
 
-        def get_execution_handler(exchange):
+        def get_execution_handler(exchange: str) -> MagicMock:
             if exchange == "hyperliquid":
                 return execution_handler_hyper
             elif exchange == "backpack":
                 return execution_handler_backpack
-            return None
+            return execution_handler_hyper  # Default
 
         # Add helper method for test access to exchange positions
-        def _get_exchange_positions(exchange):
+        def _get_exchange_positions(exchange: str) -> list[dict[str, Any]]:
             if exchange == "hyperliquid":
                 return hyper_api_positions
             elif exchange == "backpack":
@@ -246,12 +247,19 @@ class TestPositionReconciliationSystem:
         return tracker
 
     @pytest.fixture
-    def reconciliation_system(self, config, portfolio_tracker):
+    def reconciliation_system(
+        self, config: Config, portfolio_tracker: MagicMock
+    ) -> PositionReconciliationSystem:
         """Create a PositionReconciliationSystem instance for testing."""
         system = PositionReconciliationSystem(config, portfolio_tracker)
         return system
 
-    def test_init(self, reconciliation_system, config, portfolio_tracker):
+    def test_init(
+        self,
+        reconciliation_system: PositionReconciliationSystem,
+        config: Config,
+        portfolio_tracker: MagicMock,
+    ) -> None:
         """Test initializing the reconciliation system."""
         # Verify configuration parameters were loaded
         assert reconciliation_system.reconciliation_threshold == 0.05
@@ -266,7 +274,9 @@ class TestPositionReconciliationSystem:
         assert reconciliation_system.discrepancy_history == []
         assert reconciliation_system.latest_results == {}
 
-    def test_register_portfolio_tracker(self, reconciliation_system):
+    def test_register_portfolio_tracker(
+        self, reconciliation_system: PositionReconciliationSystem
+    ) -> None:
         """Test registering a portfolio tracker."""
         # Create a new mock
         new_tracker = MagicMock()
@@ -278,7 +288,9 @@ class TestPositionReconciliationSystem:
         assert reconciliation_system.portfolio_tracker == new_tracker
 
     @pytest.mark.asyncio
-    async def test_check_positions_interval(self, reconciliation_system):
+    async def test_check_positions_interval(
+        self, reconciliation_system: PositionReconciliationSystem
+    ) -> None:
         """Test that check_positions respects the check interval."""
         # Save original state
         original_last_check = reconciliation_system.last_check_time
@@ -302,7 +314,7 @@ class TestPositionReconciliationSystem:
         assert reconciliation_system.last_check_time > original_last_check
 
     @pytest.mark.asyncio
-    async def test_check_positions_no_portfolio_tracker(self, config):
+    async def test_check_positions_no_portfolio_tracker(self, config: Config) -> None:
         """Test check_positions with no portfolio tracker registered."""
         # Create system without portfolio tracker
         system = PositionReconciliationSystem(config)
@@ -312,7 +324,9 @@ class TestPositionReconciliationSystem:
         assert results == {}
 
     @pytest.mark.asyncio
-    async def test_check_positions(self, reconciliation_system):
+    async def test_check_positions(
+        self, reconciliation_system: PositionReconciliationSystem
+    ) -> None:
         """Test checking positions across exchanges."""
         # Call the method
         results = await reconciliation_system.check_positions()
@@ -328,7 +342,7 @@ class TestPositionReconciliationSystem:
         assert results["backpack"]["has_discrepancies"] is False
 
     @pytest.mark.asyncio
-    async def test_auto_correct(self, config, portfolio_tracker):
+    async def test_auto_correct(self, config: Config, portfolio_tracker: MagicMock) -> None:
         """Test auto-correction of positions."""
         # Create system with auto-correct enabled
         config.get.side_effect = lambda key, default=None: {
@@ -373,7 +387,7 @@ class TestPositionReconciliationSystem:
         assert btc_discrepancy is not None
         assert btc_discrepancy["corrected"] is True
 
-    def test_reconcile_positions(self, reconciliation_system):
+    def test_reconcile_positions(self, reconciliation_system: PositionReconciliationSystem) -> None:
         """Test reconciling positions from different sources."""
         # Create test data
         exchange = "testexchange"
@@ -497,7 +511,7 @@ class TestPositionReconciliationSystem:
         eth_discrepancy = next((d for d in results["discrepancies"] if d["symbol"] == "ETH"), None)
         assert eth_discrepancy is None  # Discrepancy 0.2 is below threshold 0.5
 
-    def test_record_discrepancy(self, reconciliation_system):
+    def test_record_discrepancy(self, reconciliation_system: PositionReconciliationSystem) -> None:
         """Test recording discrepancies in history."""
         # Create sample results with discrepancies
         exchange = "testexchange"
@@ -532,7 +546,9 @@ class TestPositionReconciliationSystem:
         # assert record["correct_size"] == 1.0 # This key doesn't exist in the recorded data
         assert record["corrected"] is False
 
-    def test_get_discrepancy_history(self, reconciliation_system):
+    def test_get_discrepancy_history(
+        self, reconciliation_system: PositionReconciliationSystem
+    ) -> None:
         """Test getting history filtered by time."""
         # Add some test data
         now = datetime.now(UTC)
@@ -577,7 +593,9 @@ class TestPositionReconciliationSystem:
         all_history = reconciliation_system.get_discrepancy_history(days=30)
         assert len(all_history) == 2
 
-    def test_get_reconciliation_report(self, reconciliation_system):
+    def test_get_reconciliation_report(
+        self, reconciliation_system: PositionReconciliationSystem
+    ) -> None:
         """Test generating a reconciliation report."""
         # Use UTC for all datetime objects
         now_utc = datetime.now(UTC)

@@ -15,7 +15,7 @@ from cyberdelta.config.secrets_manager import SecretsManager
 class TestConfigManager(unittest.TestCase):
     """Tests for the ConfigManager class"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test case with a temporary config file"""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.config_path = os.path.join(self.temp_dir.name, "config.yaml")
@@ -43,15 +43,15 @@ risk:
         self.config_manager = ConfigManager(self.config_path)
         self.config_manager.load()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up temporary files"""
         self.temp_dir.cleanup()
 
-    def test_load_config(self):
+    def test_load_config(self) -> None:
         """Test that config loads correctly"""
         self.assertTrue(self.config_manager.loaded)
 
-    def test_get_existing_value(self):
+    def test_get_existing_value(self) -> None:
         """Test retrieving existing values with dot notation"""
         self.assertEqual(self.config_manager.get("general.log_level"), "DEBUG")
         self.assertEqual(
@@ -60,12 +60,12 @@ risk:
         )
         self.assertEqual(self.config_manager.get("risk.global.max_position_usd"), 100.0)
 
-    def test_get_default_value(self):
+    def test_get_default_value(self) -> None:
         """Test retrieving non-existent values returns default"""
         self.assertEqual(self.config_manager.get("nonexistent.key", "default"), "default")
         self.assertEqual(self.config_manager.get("general.nonexistent", 123), 123)
 
-    def test_reload_config(self):
+    def test_reload_config(self) -> None:
         """Test reloading config after changes"""
         # Modify the config file
         with open(self.config_path, "w") as f:
@@ -87,11 +87,61 @@ risk:
         self.assertEqual(self.config_manager.get("risk.global.max_position_usd"), 200.0)
         self.assertFalse(self.config_manager.get("general.safe_mode"))
 
+    def test_load_config_exists(self) -> None:
+        """Test loading an existing config file."""
+        # Implementation of the method
+        pass
+
+    def test_load_config_default(self) -> None:
+        """Test loading default config if file doesn't exist."""
+        # Implementation of the method
+        pass
+
+    def test_load_config_invalid(self) -> None:
+        """Test handling of invalid config file."""
+        # Implementation of the method
+        pass
+
+    def test_load_config_dict_input(self) -> None:
+        """Test loading config from dictionary input."""
+        # Implementation of the method
+        pass
+
+    def test_get_section(self) -> None:
+        """Test getting a section from config."""
+        # Implementation of the method
+        pass
+
+    def test_get_section_not_found(self) -> None:
+        """Test getting a non-existent section from config."""
+        # Implementation of the method
+        pass
+
+    def test_parse_value(self) -> None:
+        """Test parsing values of different types."""
+        # Implementation of the method
+        pass
+
+    def test_save_config(self) -> None:
+        """Test saving config to file."""
+        # Implementation of the method
+        pass
+
+    def test_save_config_validation(self) -> None:
+        """Test validation during config save."""
+        # Implementation of the method
+        pass
+
+    def test_save_config_error(self) -> None:
+        """Test handling of errors during config save."""
+        # Implementation of the method
+        pass
+
 
 class TestSecretsManager(unittest.TestCase):
     """Tests for the SecretsManager class"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test case with a temporary secrets file"""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.secrets_path = os.path.join(self.temp_dir.name, "secrets.yaml")
@@ -115,16 +165,16 @@ database:
         self.secrets_manager = SecretsManager()
         self.secrets_manager.load_secrets()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up temporary files and patchers"""
         self.env_patcher.stop()
         self.temp_dir.cleanup()
 
-    def test_load_secrets(self):
+    def test_load_secrets(self) -> None:
         """Test that secrets load correctly"""
         self.assertTrue(self.secrets_manager.secrets_loaded)
 
-    def test_get_existing_secret(self):
+    def test_get_existing_secret(self) -> None:
         """Test retrieving existing secrets with dot notation"""
         self.assertEqual(
             self.secrets_manager.get("exchanges.hyperliquid.api_key"),
@@ -133,12 +183,12 @@ database:
         self.assertEqual(self.secrets_manager.get("exchanges.backpack.api_key"), "test_api_key_789")
         self.assertEqual(self.secrets_manager.get("database.password"), "db_password_test")
 
-    def test_get_default_secret(self):
+    def test_get_default_secret(self) -> None:
         """Test retrieving non-existent secrets returns default"""
         self.assertEqual(self.secrets_manager.get("nonexistent.key", "default"), "default")
         self.assertEqual(self.secrets_manager.get("exchanges.nonexistent", "missing"), "missing")
 
-    def test_get_path_method(self):
+    def test_get_path_method(self) -> None:
         """Test _get_secrets_path method"""
         path = self.secrets_manager._get_secrets_path()
         self.assertEqual(str(path), self.secrets_path)

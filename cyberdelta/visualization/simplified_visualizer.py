@@ -8,18 +8,103 @@ without dependencies on complex web frameworks.
 import logging
 import os
 from datetime import UTC, datetime, timedelta
+from typing import Dict, Optional, List, Any
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.monitoring.simplified_performance_tracker import (
     SimplePerformanceAnalyzer,
     SimplePerformanceTracker,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def generate_example_data(
+    strategy_name: str = "ExampleStrategy", 
+    output_dir: str = "./data",
+    num_trades: int = 30,
+    base_time: Optional[datetime] = None
+) -> SimplePerformanceTracker:
+    """
+    Generate example data for testing visualization functions.
+    
+    Args:
+        strategy_name: Name of the strategy
+        output_dir: Directory to save exported data
+        num_trades: Number of example trades to generate
+        base_time: Starting time for the trades (default: now - 60 days)
+        
+    Returns:
+        Tracker instance with example data
+    """
+    # Create a tracker
+    tracker = SimplePerformanceTracker(strategy_name, output_dir=output_dir)
+    
+    # Set base time
+    now = datetime.now(UTC)
+    base_time = base_time or (now - timedelta(days=60))
+    
+    # Create trading signals
+    signal1 = TradeSignal(
+        symbol="BTC-USDT",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,
+        timestamp=now,
+        source_strategy=strategy_name,
+        metadata={},
+    )
+    
+    signal2 = TradeSignal(
+        symbol="ETH-USDT",
+        signal_type=SignalType.ENTER_SHORT,
+        side=OrderSide.SELL,
+        timestamp=now,
+        source_strategy=strategy_name,
+        metadata={},
+    )
+
+    # Track signals
+    signal1_metrics = tracker.track_signal(signal1)
+    signal2_metrics = tracker.track_signal(signal2)
+    
+    # Use the generated signal IDs
+    tracker.track_signal_execution(signal1_metrics.signal_id, True)
+    tracker.track_signal_execution(signal2_metrics.signal_id, False)
+
+    # Track a few main trades
+    tracker.track_trade("trade1", "BTC-USDT", "Binance", "LONG", 1.0, 50000.0, now, signal1_metrics.signal_id)
+    tracker.track_trade("trade2", "ETH-USDT", "Binance", "SHORT", 10.0, 3000.0, now)
+
+    # Track trade exits
+    tracker.track_trade_exit("trade1", 52000.0, now + timedelta(days=1), 2000.0)
+    tracker.track_trade_exit("trade2", 2800.0, now + timedelta(days=2), 2000.0)
+
+    # Create more trade data for realistic plots
+    for i in range(num_trades):
+        trade_time = base_time + timedelta(days=i * 2)
+        exit_time = trade_time + timedelta(days=1)
+
+        # Alternate between winning and losing trades with some randomness
+        pnl = 1000 + np.random.normal(0, 500) if i % 2 == 0 else -800 + np.random.normal(0, 300)
+
+        # Alternate symbols and directions
+        trade_id = f"trade_{i + 3}"
+        symbol = "BTC-USDT" if i % 3 != 0 else "ETH-USDT"
+        direction = "LONG" if i % 2 == 0 else "SHORT"
+
+        # Track trade and exit
+        tracker.track_trade(trade_id, symbol, "Binance", direction, 1.0, 50000.0, trade_time)
+        tracker.track_trade_exit(trade_id, 51000.0, exit_time, pnl)
+        
+    # Generate some example daily returns and funding rates for the last 30 days
+    # This would be implemented if we were tracking these metrics
+    
+    return tracker
 
 
 class SimpleVisualizer:
@@ -30,7 +115,7 @@ class SimpleVisualizer:
     without dependencies on complex web frameworks.
     """
 
-    def __init__(self, tracker: SimplePerformanceTracker, output_dir: str | None = None) -> None:
+    def __init__(self, tracker: SimplePerformanceTracker, output_dir: Optional[str] = None) -> None:
         """
         Initialize the visualizer.
 
@@ -87,7 +172,7 @@ class SimpleVisualizer:
 
     # --- Plotting Methods ---
 
-    def plot_cumulative_pnl(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_cumulative_pnl(self, save: bool = False, show: bool = True) -> Optional[plt.Figure]:
         """
         Plot cumulative PnL over time.
 
@@ -156,7 +241,7 @@ class SimpleVisualizer:
 
         return fig  # Return the figure object (though it's closed if not shown live)
 
-    def plot_drawdown(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_drawdown(self, save: bool = False, show: bool = True) -> Optional[plt.Figure]:
         """
         Plot drawdown over time.
 
@@ -213,7 +298,7 @@ class SimpleVisualizer:
 
         return fig
 
-    def plot_trade_distribution(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_trade_distribution(self, save: bool = False, show: bool = True) -> Optional[plt.Figure]:
         """
         Plot distribution of trade PnLs.
 
@@ -256,7 +341,7 @@ class SimpleVisualizer:
 
     def plot_winning_vs_losing_trades(
         self, save: bool = False, show: bool = True
-    ) -> plt.Figure | None:
+    ) -> Optional[plt.Figure]:
         """
         Plot comparison of winning vs losing trades.
 
@@ -318,7 +403,7 @@ class SimpleVisualizer:
 
         return fig
 
-    def plot_monthly_performance(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_monthly_performance(self, save: bool = False, show: bool = True) -> Optional[plt.Figure]:
         """
         Plot monthly PnL performance.
 
@@ -382,7 +467,7 @@ class SimpleVisualizer:
 
         return fig
 
-    def plot_performance_metrics(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_performance_metrics(self, save: bool = False, show: bool = True) -> Optional[plt.Figure]:
         """
         Display key performance metrics as text.
 
@@ -440,7 +525,7 @@ class SimpleVisualizer:
 
         return fig
 
-    def generate_performance_report(self, save_dir: str | None = None) -> dict[str, str]:
+    def generate_performance_report(self, save_dir: Optional[str] = None) -> Dict[str, str]:
         """
         Generate a comprehensive performance report with all plots.
 
@@ -454,51 +539,54 @@ class SimpleVisualizer:
         os.makedirs(save_dir, exist_ok=True)
 
         # Generate all plots and save
-        plots = {}
+        plots: Dict[str, str] = {}
 
-        # Cumulative PnL
-        fig_pnl = self.plot_cumulative_pnl(save=True, show=False)
-        pnl_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_cumulative_pnl.png")
-        fig_pnl.savefig(pnl_path)
-        plt.close(fig_pnl)
-        plots["cumulative_pnl"] = pnl_path
-
-        # Drawdown
-        fig_dd = self.plot_drawdown(save=True, show=False)
-        dd_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_drawdown.png")
-        fig_dd.savefig(dd_path)
-        plt.close(fig_dd)
-        plots["drawdown"] = dd_path
-
-        # Trade distribution
-        fig_dist = self.plot_trade_distribution(save=True, show=False)
-        dist_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_trade_distribution.png")
-        fig_dist.savefig(dist_path)
-        plt.close(fig_dist)
-        plots["trade_distribution"] = dist_path
-
-        # Winning vs losing trades
-        fig_win = self.plot_winning_vs_losing_trades(save=True, show=False)
-        win_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_win_loss_ratio.png")
-        fig_win.savefig(win_path)
-        plt.close(fig_win)
-        plots["win_loss_ratio"] = win_path
-
-        # Monthly performance
-        fig_month = self.plot_monthly_performance(save=True, show=False)
-        month_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_monthly_performance.png")
-        fig_month.savefig(month_path)
-        plt.close(fig_month)
-        plots["monthly_performance"] = month_path
-
-        # Performance metrics
-        fig_metrics = self.plot_performance_metrics(save=True, show=False)
-        metrics_path = os.path.join(
-            save_dir, f"{self.tracker.strategy_name}_performance_metrics.png"
-        )
-        fig_metrics.savefig(metrics_path)
-        plt.close(fig_metrics)
-        plots["performance_metrics"] = metrics_path
+        # Get all the figures
+        fig_pnl = self.plot_cumulative_pnl(save=False, show=False)
+        fig_dd = self.plot_drawdown(save=False, show=False)
+        fig_dist = self.plot_trade_distribution(save=False, show=False)
+        fig_win = self.plot_winning_vs_losing_trades(save=False, show=False)
+        fig_month = self.plot_monthly_performance(save=False, show=False)
+        fig_metrics = self.plot_performance_metrics(save=False, show=False)
+        
+        # Save and add to plots dictionary if figure was successfully created
+        if fig_pnl:
+            pnl_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_cumulative_pnl.png")
+            fig_pnl.savefig(pnl_path)
+            plt.close(fig_pnl)
+            plots["cumulative_pnl"] = pnl_path
+            
+        if fig_dd:
+            dd_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_drawdown.png")
+            fig_dd.savefig(dd_path)
+            plt.close(fig_dd)
+            plots["drawdown"] = dd_path
+            
+        if fig_dist:
+            dist_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_trade_distribution.png")
+            fig_dist.savefig(dist_path)
+            plt.close(fig_dist)
+            plots["trade_distribution"] = dist_path
+            
+        if fig_win:
+            win_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_win_loss_ratio.png")
+            fig_win.savefig(win_path)
+            plt.close(fig_win)
+            plots["win_loss_ratio"] = win_path
+            
+        if fig_month:
+            month_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_monthly_performance.png")
+            fig_month.savefig(month_path)
+            plt.close(fig_month)
+            plots["monthly_performance"] = month_path
+            
+        if fig_metrics:
+            metrics_path = os.path.join(
+                save_dir, f"{self.tracker.strategy_name}_performance_metrics.png"
+            )
+            fig_metrics.savefig(metrics_path)
+            plt.close(fig_metrics)
+            plots["performance_metrics"] = metrics_path
 
         # Generate PDF report
         try:
@@ -534,7 +622,7 @@ class SimpleVisualizer:
                     for key, value in metrics.items():
                         display_name = key.replace("_", " ").title()
 
-                        if isinstance(value, int | np.integer):
+                        if isinstance(value, (int, np.integer)):
                             summary_text += f"{display_name}: {value}\n"
                         elif key in ["win_rate", "max_drawdown"]:
                             summary_text += f"{display_name}: {value:.2f}%\n"
@@ -565,72 +653,12 @@ class SimpleVisualizer:
 
 # Example usage
 if __name__ == "__main__":
-    # Import necessary modules for testing
-    from datetime import datetime, timedelta
-
-    from cyberdelta.monitoring.simplified_performance_tracker import (
-        SimplePerformanceTracker,
+    # Generate example data using our helper function
+    tracker = generate_example_data(
+        strategy_name="ExampleStrategy", 
+        output_dir="./data",
+        num_trades=30
     )
-
-    # Create a tracker
-    tracker = SimplePerformanceTracker("ExampleStrategy", output_dir="./data")
-
-    # Simulate some trades
-    now = datetime.now(UTC)
-
-    # Track some signals
-    signal1 = type(
-        "Signal",
-        (),
-        {
-            "signal_id": "1",
-            "signal_type": type("SignalType", (), {"name": "ENTER_LONG"}),
-            "symbol": "BTC-USDT",
-            "timestamp": now,
-            "metadata": {},
-        },
-    )
-    signal2 = type(
-        "Signal",
-        (),
-        {
-            "signal_id": "2",
-            "signal_type": type("SignalType", (), {"name": "ENTER_SHORT"}),
-            "symbol": "ETH-USDT",
-            "timestamp": now,
-            "metadata": {},
-        },
-    )
-
-    tracker.track_signal(signal1)
-    tracker.track_signal(signal2)
-    tracker.track_signal_execution("1", True)
-    tracker.track_signal_execution("2", False)
-
-    # Track some trades
-    tracker.track_trade("trade1", "BTC-USDT", "Binance", "LONG", 1.0, 50000.0, now, "1")
-    tracker.track_trade("trade2", "ETH-USDT", "Binance", "SHORT", 10.0, 3000.0, now)
-
-    # Track trade exits
-    tracker.track_trade_exit("trade1", 52000.0, now + timedelta(days=1), 2000.0)
-    tracker.track_trade_exit("trade2", 2800.0, now + timedelta(days=2), 2000.0)
-
-    # Create more trade data for realistic plots
-    base_time = now - timedelta(days=60)
-    for i in range(30):
-        trade_time = base_time + timedelta(days=i * 2)
-        exit_time = trade_time + timedelta(days=1)
-
-        # Alternate between winning and losing trades
-        pnl = 1000 + np.random.normal(0, 500) if i % 2 == 0 else -800 + np.random.normal(0, 300)
-
-        # Track trade
-        trade_id = f"trade_{i + 3}"
-        symbol = "BTC-USDT" if i % 3 != 0 else "ETH-USDT"
-        direction = "LONG" if i % 2 == 0 else "SHORT"
-
-        tracker.track_trade(trade_id, symbol, "Binance", direction, 1.0, 50000.0, trade_time)
-        tracker.track_trade_exit(trade_id, 51000.0, exit_time, pnl)
 
     # Create visualizer
     visualizer = SimpleVisualizer(tracker, output_dir="./plots")

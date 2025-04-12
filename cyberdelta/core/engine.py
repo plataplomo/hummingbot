@@ -164,12 +164,10 @@ class Engine:
                         )
                         # Forward signal IMMEDIATELY to the configured handler
                         # Ensure handler exists (checked at start, but belt-and-suspenders)
-                        if self.signal_handler:
-                            self.signal_handler(signal)
-                        else:
-                            # This case should theoretically not be reached due
-                            # to the check at the method start
+                        if not self.signal_handler:
                             logger.error(f"Signal from {strategy.name} but no handler configured!")
+                        else:
+                            self.signal_handler(signal)
 
                 except Exception as e:
                     # Log the error and potentially disable the faulty strategy

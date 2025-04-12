@@ -16,8 +16,8 @@ from ..core.models import (
     OrderType,
     Position,
     Ticker,
-    Trade,
     TimeInForce,
+    Trade,
 )
 from .base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class BackpackAPI(ExchangeAPI):
     """API Client for Backpack Exchange."""
 
-    def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]):
+    def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
         super().__init__("backpack", api_config, secrets)
         self._api_key = secrets.get("BACKPACK_API_KEY")
         self._api_secret = secrets.get("BACKPACK_API_SECRET")
@@ -172,11 +172,13 @@ class BackpackAPI(ExchangeAPI):
             )
             return ticker
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error getting ticker for {symbol}: {e}", exc_info=True)
+            logger.error(
+                f"[{self.exchange_name}] Error getting ticker for {symbol}: {e}", exc_info=True
+            )
             raise self._map_error_response(
-                status_code=getattr(e, 'status', None),
+                status_code=getattr(e, "status", None),
                 error_body=f"Error getting ticker for {symbol}: {e}",
-                request_path=request_path
+                request_path=request_path,
             ) from e
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
@@ -203,11 +205,13 @@ class BackpackAPI(ExchangeAPI):
                 timestamp=int(response.get("time", int(time.time() * 1000))),
             )
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error getting order book for {symbol}: {e}", exc_info=True)
+            logger.error(
+                f"[{self.exchange_name}] Error getting order book for {symbol}: {e}", exc_info=True
+            )
             raise self._map_error_response(
-                status_code=getattr(e, 'status', None),
+                status_code=getattr(e, "status", None),
                 error_body=f"Error getting order book for {symbol}: {e}",
-                request_path=request_path
+                request_path=request_path,
             ) from e
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
@@ -261,16 +265,21 @@ class BackpackAPI(ExchangeAPI):
                         f"[{self.exchange_name}] Missing expected key {e} in trade data: {trade_data}"
                     )
                 except Exception as e:
-                    logger.warning(f"[{self.exchange_name}] Error parsing trade data: {e} - Data: {trade_data}")
+                    logger.warning(
+                        f"[{self.exchange_name}] Error parsing trade data: {e} - Data: {trade_data}"
+                    )
 
             return trades
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error getting recent trades for {symbol}: {e}", exc_info=True)
+            logger.error(
+                f"[{self.exchange_name}] Error getting recent trades for {symbol}: {e}",
+                exc_info=True,
+            )
             # Raise APIError for consistency
             raise self._map_error_response(
-                status_code=getattr(e, 'status', None),
+                status_code=getattr(e, "status", None),
                 error_body=f"Error getting recent trades for {symbol}: {e}",
-                request_path=request_path
+                request_path=request_path,
             ) from e
 
     async def get_funding_rate(self, symbol: str) -> FundingRate | None:
@@ -426,7 +435,8 @@ class BackpackAPI(ExchangeAPI):
             price: Order price (required for limit orders, as Decimal)
             client_order_id: Custom client order ID
             reduce_only: Whether this is a reduce-only order (bool)
-            post_only: Whether this is a post-only order (bool) - currently ignored if not supported by API call
+            post_only: Whether this is a post-only order (bool) - currently ignored
+                if not supported by API call
 
         Returns:
             Order object if successful.
@@ -467,7 +477,7 @@ class BackpackAPI(ExchangeAPI):
                     f"[{self.exchange_name}] Failed to place order. Invalid response: {response}",
                     http_status=None,
                     request_path=request_path,
-                    response_body=str(response)
+                    response_body=str(response),
                 )
 
             # Map API status string to OrderStatus enum
@@ -498,9 +508,7 @@ class BackpackAPI(ExchangeAPI):
                 symbol=order_symbol,
                 side=order_side,
                 type=order_type_resp,
-                price=Decimal(str(response.get("price", "0")))
-                if response.get("price")
-                else price,
+                price=Decimal(str(response.get("price", "0"))) if response.get("price") else price,
                 quantity=order_quantity,
                 filled_quantity=Decimal(str(response.get("executedQuantity", "0"))),
                 status=status,
@@ -518,9 +526,9 @@ class BackpackAPI(ExchangeAPI):
             logger.error(f"[{self.exchange_name}] Error placing order: {e}", exc_info=True)
             # Attempt to map the error, default to generic EXCHANGE_ERROR
             api_error = self._map_error_response(
-                status_code=getattr(e, 'status', None),
+                status_code=getattr(e, "status", None),
                 error_body=str(e),
-                exchange_message=f"Error placing order for {symbol} (Path: {request_path}): {e}"
+                exchange_message=f"Error placing order for {symbol} (Path: {request_path}): {e}",
             )
             raise api_error from e
 
@@ -540,10 +548,13 @@ class BackpackAPI(ExchangeAPI):
             # Return success dictionary as per ExchangeAPI
             return {"success": True, "orderId": order_id, "symbol": symbol, "response": response}
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error canceling order {order_id}: {e}", exc_info=True)
+            logger.error(
+                f"[{self.exchange_name}] Error canceling order {order_id}: {e}",
+                exc_info=True
+            )
             # Raise APIError as per ExchangeAPI
             api_error = self._map_error_response(
-                status_code=getattr(e, 'status', None),
+                status_code=getattr(e, "status", None),
                 error_body=str(e),
                 exchange_message=f"Error canceling order {order_id} for {symbol} (Path: {request_path}): {e}"
             )
@@ -602,7 +613,7 @@ class BackpackAPI(ExchangeAPI):
             logger.error(f"[{self.exchange_name}] Error getting open orders: {e}", exc_info=True)
             # Raise APIError as per ExchangeAPI
             api_error = self._map_error_response(
-                status_code=getattr(e, 'status', None),
+                status_code=getattr(e, "status", None),
                 error_body=str(e),
                 exchange_message=f"Error getting open orders for {symbol or 'all'} (Path: {request_path}): {e}"
             )
@@ -645,10 +656,14 @@ class BackpackAPI(ExchangeAPI):
 
             timestamp = int(response.get("time", int(time.time() * 1000)))
             funding_rate_dec = Decimal(str(response.get("fundingRate", "0")))
-            mark_price_dec = Decimal(str(response.get("markPrice", "0"))) if response.get("markPrice") else None
+            mark_price_dec = (
+                Decimal(str(response.get("markPrice", "0"))) if response.get("markPrice") else None
+            )
 
             if mark_price_dec is None:
-                logger.warning(f"[{self.exchange_name}] Mark price not found in funding rate response for {symbol}.")
+                logger.warning(
+                    f"[{self.exchange_name}] Mark price not found in funding rate response for {symbol}."
+                )
                 # Handle missing mark price appropriately, e.g., raise or use a default
                 # For now, let's create the object but log the warning.
 
@@ -659,12 +674,15 @@ class BackpackAPI(ExchangeAPI):
                 mark_price=mark_price_dec,
             )
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error getting funding rate for {symbol}: {e}", exc_info=True)
+            logger.error(
+                f"[{self.exchange_name}] Error getting funding rate for {symbol}: {e}",
+                exc_info=True,
+            )
             # Use exchange_message for context in APIError call
             api_error = self._map_error_response(
-                status_code=getattr(e, 'status', None),
+                status_code=getattr(e, "status", None),
                 error_body=str(e),
-                exchange_message=f"Error getting funding rate for {symbol} (Path: {request_path}): {e}"
+                exchange_message=f"Error getting funding rate for {symbol} (Path: {request_path}): {e}",
             )
             raise api_error from e
 
@@ -673,21 +691,32 @@ class BackpackAPI(ExchangeAPI):
         """(Not Implemented) Get funding rates for one/all symbols."""
         # Backpack might only provide the current rate per symbol.
         # This needs a proper implementation if historical/multiple rates are needed.
-        logger.warning(f"[{self.exchange_name}] get_funding_rates not fully implemented. Fetching current rate only.")
+        logger.warning(
+            f"[{self.exchange_name}] get_funding_rates not fully implemented. "
+            f"Fetching current rate only."
+        )
         rates = []
-        target_symbol = symbol # Assume fetching for a single symbol for now
+        target_symbol = symbol  # Assume fetching for a single symbol for now
         if target_symbol:
             try:
                 current_rate = await self.fetch_funding_rate(target_symbol)
                 rates.append(current_rate)
             except APIError as e:
-                logger.error(f"[{self.exchange_name}] Failed to fetch current funding rate for {target_symbol} within get_funding_rates: {e}")
+                logger.error(
+                    f"[{self.exchange_name}] Failed to fetch current funding rate for {target_symbol} within get_funding_rates: {e}"
+                )
                 # Optionally re-raise or return empty list based on desired behavior
-                raise # Re-raise the APIError
+                raise  # Re-raise the APIError
         else:
-            logger.error(f"[{self.exchange_name}] get_funding_rates without a specific symbol is not supported by Backpack API.")
+            logger.error(
+                f"[{self.exchange_name}] get_funding_rates without a specific symbol "
+                f"is not supported by Backpack API."
+            )
             # Raise error or return empty list
-            raise APIError(code=APIErrorCode.INVALID_PARAMS, message="Symbol is required for get_funding_rates on Backpack")
+            raise APIError(
+                code=APIErrorCode.INVALID_PARAMS,
+                message="Symbol is required for get_funding_rates on Backpack",
+            )
 
         return rates
 
@@ -705,9 +734,9 @@ class BackpackAPI(ExchangeAPI):
             logger.error(f"[{self.exchange_name}] Error getting account info: {e}")
             # Raise APIError for consistency.
             api_error = self._map_error_response(
-                status_code=getattr(e, 'status', None),
+                status_code=getattr(e, "status", None),
                 error_body=str(e),
-                exchange_message=f"Error getting account info (Path: {request_path}): {e}"
+                exchange_message=f"Error getting account info (Path: {request_path}): {e}",
             )
             raise api_error from e
 
@@ -731,54 +760,60 @@ class BackpackAPI(ExchangeAPI):
         error_body: str,
         error_data: dict[str, Any] | None = None,
         request_path: str | None = None,
-        exchange_message: str | None = None
+        exchange_message: str | None = None,
     ) -> APIError:
         """Map Backpack error responses to generic APIErrorCode."""
         # Convert body to lower for case-insensitive matching
         error_body_lower = error_body.lower()
-        mapped_code = APIErrorCode.UNKNOWN # Changed Default
+        mapped_code = APIErrorCode.UNKNOWN  # Changed Default
 
         # --- Educated Guesses for Backpack Error Mappings ---
         # Authentication / Signature Errors
-        if "invalid signature" in error_body_lower or "authentication failed" in error_body_lower or "invalid api key" in error_body_lower:
-            mapped_code = APIErrorCode.AUTHENTICATION_FAILED # Use Enum member
+        if (
+            "invalid signature" in error_body_lower
+            or "authentication failed" in error_body_lower
+            or "invalid api key" in error_body_lower
+        ):
+            mapped_code = APIErrorCode.AUTHENTICATION_FAILED  # Use Enum member
         # Rate Limits
         elif "rate limit exceeded" in error_body_lower or "too many requests" in error_body_lower:
-            mapped_code = APIErrorCode.RATE_LIMITED # Use Enum member
+            mapped_code = APIErrorCode.RATE_LIMITED  # Use Enum member
         # Invalid Parameters / Bad Request
         elif "invalid symbol" in error_body_lower:
-            mapped_code = APIErrorCode.INVALID_SYMBOL # Use Enum member
+            mapped_code = APIErrorCode.INVALID_SYMBOL  # Use Enum member
         elif "invalid quantity" in error_body_lower or "invalid size" in error_body_lower:
             # Consider mapping to QUANTITY_OUT_OF_RANGE if more specific
-            mapped_code = APIErrorCode.INVALID_ORDER_SIZE # Use Enum member
-        elif "invalid parameter" in error_body_lower or "bad request" in error_body_lower:
-             mapped_code = APIErrorCode.INVALID_REQUEST # Use Enum member (more specific than BAD_REQUEST)
+            mapped_code = APIErrorCode.INVALID_ORDER_SIZE  # Use Enum member
+        elif ("invalid parameter" in error_body_lower or 
+              "bad request" in error_body_lower):
+            mapped_code = APIErrorCode.INVALID_REQUEST # Use Enum member (more specific than BAD_REQUEST)
         # Order specific errors
         elif "order not found" in error_body_lower:
-             mapped_code = APIErrorCode.ORDER_NOT_FOUND # Use Enum member
+            mapped_code = APIErrorCode.ORDER_NOT_FOUND  # Use Enum member
         elif "insufficient balance" in error_body_lower or "insufficient funds" in error_body_lower:
-             mapped_code = APIErrorCode.INSUFFICIENT_FUNDS # Use Enum member
+            mapped_code = APIErrorCode.INSUFFICIENT_FUNDS  # Use Enum member
         # Server / Availability Errors
-        elif "service unavailable" in error_body_lower or "internal server error" in error_body_lower:
+        elif ("service unavailable" in error_body_lower or 
+              "internal server error" in error_body_lower):
             mapped_code = APIErrorCode.SERVICE_UNAVAILABLE # Use Enum member
         # --- End Guesses ---
 
         # Log the original error for debugging
         log_message = (
-            f"Mapping Backpack error (Path: {request_path}, Status: {status_code}, Body: '{error_body}') "
-            f"to APIErrorCode.{mapped_code.name}"
+            f"Mapping Backpack error (Path: {request_path}, Status: {status_code}, "
+            f"Body: '{error_body}') to APIErrorCode.{mapped_code.name}"
         )
         logger.warning(log_message)
 
         # Construct the final error message for the exception
-        final_message = exchange_message or error_body # Use specific message if provided
+        final_message = exchange_message or error_body  # Use specific message if provided
 
         return APIError(
-            message=final_message, # Pass refined message
-            code=mapped_code, # Pass the mapped enum code
+            message=final_message,  # Pass refined message
+            code=mapped_code,  # Pass the mapped enum code
             http_status=status_code,
             # Pass original error details if available (e.g., from parsed JSON error data)
             exchange_code=str(error_data.get("code")) if error_data else None,
             exchange_message=error_data.get("msg") if error_data else None,
-            original_exception=None # Can pass original exception if caught earlier
+            original_exception=None,  # Can pass original exception if caught earlier
         )

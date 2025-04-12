@@ -1,5 +1,6 @@
 import time
 from datetime import datetime
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -11,6 +12,7 @@ from cyberdelta.core.models import (
     MarketData,
     Order,
     OrderSide,
+    OrderStatus,
     OrderType,
     Position,
 )
@@ -253,19 +255,23 @@ def mock_exchange_api():
 
     # Configure common methods
     mock_api.get_balances.return_value = {
-        "USDC": Balance(asset="USDC", free=10000.0, locked=0.0, total=10000.0),
-        "BTC": Balance(asset="BTC", free=1.0, locked=0.0, total=1.0),
+        "USDC": Balance(
+            asset="USDC", free=Decimal("10000.0"), locked=Decimal("0.0"), total=Decimal("10000.0")
+        ),
+        "BTC": Balance(
+            asset="BTC", free=Decimal("1.0"), locked=Decimal("0.0"), total=Decimal("1.0")
+        ),
     }
 
     mock_api.get_positions.return_value = {
         "BTC": Position(
             symbol="BTC",
-            size=0.5,
-            entry_price=40000.0,
-            mark_price=42000.0,
-            liquidation_price=30000.0,
-            unrealized_pnl=1000.0,
-            leverage=5.0,
+            size=Decimal("0.5"),
+            entry_price=Decimal("40000.0"),
+            mark_price=Decimal("42000.0"),
+            liquidation_price=Decimal("30000.0"),
+            unrealized_pnl=Decimal("1000.0"),
+            leverage=Decimal("5.0"),
             side=OrderSide.BUY,
         )
     }
@@ -273,19 +279,19 @@ def mock_exchange_api():
     mock_api.get_ticker.return_value = MarketData(
         symbol="BTC",
         timestamp=datetime.now(),
-        open=40000.0,
-        high=42000.0,
-        low=39000.0,
-        close=41500.0,
-        volume=100.0,
+        open=Decimal("40000.0"),
+        high=Decimal("42000.0"),
+        low=Decimal("39000.0"),
+        close=Decimal("41500.0"),
+        volume=Decimal("100.0"),
     )
 
     mock_api.get_funding_rate.return_value = FundingRate(
         symbol="BTC",
-        funding_rate=0.0001,
-        predicted_rate=0.00012,
-        mark_price=41500.0,
-        index_price=41450.0,
+        funding_rate=Decimal("0.0001"),
+        predicted_rate=Decimal("0.00012"),
+        mark_price=Decimal("41500.0"),
+        index_price=Decimal("41450.0"),
         next_funding_time=int(time.time() * 1000) + 3600000,
     )
 
@@ -294,10 +300,10 @@ def mock_exchange_api():
         symbol="BTC",
         side=OrderSide.BUY,
         type=OrderType.LIMIT,
-        price=41000.0,
-        quantity=0.1,
-        filled_quantity=0.0,
-        status="NEW",
+        price=Decimal("41000.0"),
+        quantity=Decimal("0.1"),
+        filled_quantity=Decimal("0.0"),
+        status=OrderStatus.NEW,
         time=int(time.time() * 1000),
         client_order_id="test-order-123",
     )
@@ -337,14 +343,14 @@ def mock_data_handler():
     mock_handler.get_ticker.return_value = MarketData(
         symbol="BTC",
         timestamp=datetime.now(),
-        open=40000.0,
-        high=42000.0,
-        low=39000.0,
-        close=41500.0,
-        volume=100.0,
+        open=Decimal("40000.0"),
+        high=Decimal("42000.0"),
+        low=Decimal("39000.0"),
+        close=Decimal("41500.0"),
+        volume=Decimal("100.0"),
     )
 
-    mock_handler.get_funding_rate.return_value = (0.0001, datetime.now())
+    mock_handler.get_funding_rate.return_value = (Decimal("0.0001"), datetime.now())
 
     return mock_handler
 

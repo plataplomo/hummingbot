@@ -1,16 +1,21 @@
 from __future__ import annotations  # Enable postponed evaluation
 
-import decimal
 from collections import deque
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation, getcontext  # Import Decimal and InvalidOperation
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, Optional, List  # Added Callable, Coroutine, Dict, Optional, List
+from typing import (  # Added Callable, Coroutine, Dict, Optional, List
+    TYPE_CHECKING,
+)
 
 import numpy as np
-import pandas as pd
 
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.models import ArbitrageOpportunity, FundingRate, Ticker, MarketData, OrderBook  # Import MarketData, OrderBook
+from cyberdelta.core.models import (  # Import MarketData, OrderBook
+    ArbitrageOpportunity,
+    FundingRate,
+    MarketData,
+    Ticker,
+)
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger  # <--- Use get_logger
@@ -258,13 +263,10 @@ class SignalGenerator:
                 ticker2 = exchange_tickers.get(ex2)
 
                 # Check if tickers and their prices (already validated as Decimal) exist
-                if (
-                    ticker1 and ticker1.price is not None and
-                    ticker2 and ticker2.price is not None
-                ):
+                if ticker1 and ticker1.price is not None and ticker2 and ticker2.price is not None:
                     # We know prices are Decimal here due to earlier checks
                     basis = ticker1.price - ticker2.price
-                    timestamp = now # Use current time for basis update
+                    timestamp = now  # Use current time for basis update
 
                     # Add to basis history for the internal symbol
                     if internal_symbol in self.historical_basis:
@@ -277,13 +279,18 @@ class SignalGenerator:
                         while basis_deque and basis_deque[0][0] < cutoff_time:
                             basis_deque.popleft()
                     else:
-                         logger.error(f"Historical basis deque not found for {internal_symbol} during update.")
+                        logger.error(
+                            f"Historical basis deque not found for {internal_symbol} during update."
+                        )
                 # else: logger.debug(f"Skipping basis calculation for {internal_symbol}: Not enough valid ticker prices.")
             # else: logger.debug(f"Skipping basis calculation for {internal_symbol}: Need at least 2 exchanges with valid tickers.")
 
     def calculate_funding_rate_volatility(self, exchange: str, internal_symbol: str) -> Decimal:
         """Calculate the volatility (std dev) of historical funding rates."""
-        if exchange not in self.historical_funding_rates or internal_symbol not in self.historical_funding_rates[exchange]:
+        if (
+            exchange not in self.historical_funding_rates
+            or internal_symbol not in self.historical_funding_rates[exchange]
+        ):
             # logger.debug(f"No historical funding rate data for {exchange}/{internal_symbol}. Returning default volatility.")
             return Decimal("0.0001")  # Default low volatility if no data
 
@@ -303,40 +310,42 @@ class SignalGenerator:
             # Convert result back to Decimal
             std_dev_decimal = Decimal(str(std_dev))
             # Return a minimum non-zero volatility
-            return max(Decimal("1e-8"), std_dev_decimal) # Ensure non-zero return
+            return max(Decimal("1e-8"), std_dev_decimal)  # Ensure non-zero return
         except (InvalidOperation, TypeError, ValueError) as e:
-            logger.error(f"Error calculating funding rate volatility for {exchange}/{internal_symbol}: {e}")
-            return Decimal("0.0001") # Default on calculation error
+            logger.error(
+                f"Error calculating funding rate volatility for {exchange}/{internal_symbol}: {e}"
+            )
+            return Decimal("0.0001")  # Default on calculation error
 
     def calculate_basis_volatility(self, symbol: str) -> Decimal:
         """Calculate the volatility (std dev) of the historical price basis."""
         if symbol not in self.historical_basis:
             logger.debug(f"No historical basis data for {symbol}. Returning default volatility.")
-            return Decimal("0.01") # Default basis volatility
+            return Decimal("0.01")  # Default basis volatility
 
         history_deque = self.historical_basis[symbol]
         if len(history_deque) < 2:
             # logger.debug(f"Insufficient historical basis data for {symbol} (need >= 2). Returning default.")
-            return Decimal("0.01") # Default volatility
+            return Decimal("0.01")  # Default volatility
 
         basis_values = [basis for _, basis in history_deque]
         try:
             basis_float = [float(b) for b in basis_values]
             std_dev = np.std(basis_float)
             std_dev_decimal = Decimal(str(std_dev))
-            return max(Decimal("1e-8"), std_dev_decimal) # Ensure non-zero return
+            return max(Decimal("1e-8"), std_dev_decimal)  # Ensure non-zero return
         except (InvalidOperation, TypeError, ValueError) as e:
-             logger.error(f"Error calculating basis volatility for {symbol}: {e}")
-             return Decimal("0.01") # Default on calculation error
+            logger.error(f"Error calculating basis volatility for {symbol}: {e}")
+            return Decimal("0.01")  # Default on calculation error
 
     def estimate_slippage(self, exchange: str, symbol: str) -> Decimal:
         """
         Estimate the slippage cost for trading on a given exchange and symbol.
-        
+
         Args:
             exchange: Exchange name
             symbol: Trading symbol
-            
+
         Returns:
             Estimated slippage as a Decimal
         """
@@ -349,28 +358,27 @@ class SignalGenerator:
                 if not isinstance(avg_slippage, Decimal):
                     avg_slippage = Decimal(str(avg_slippage))
                 return avg_slippage
-        
+
         # Fallback to configured value for the exchange or default
         base_slippage = self.config.get(
-            f"exchanges.{exchange}.expected_slippage", 
-            self.default_slippage
+            f"exchanges.{exchange}.expected_slippage", self.default_slippage
         )
-        
+
         # Ensure base_slippage is a Decimal
         if not isinstance(base_slippage, Decimal):
             base_slippage = Decimal(str(base_slippage))
-            
+
         # Apply slippage sensitivity multiplier
         if not isinstance(self.slippage_sensitivity, Decimal):
             sensitivity = Decimal(str(self.slippage_sensitivity))
         else:
             sensitivity = self.slippage_sensitivity
-            
+
         return base_slippage * sensitivity
 
     def generate_arbitrage_opportunities(
-        self, funding_data: Dict[str, Dict[str, Optional[FundingRate]]], market_data: MarketData
-    ) -> List[ArbitrageOpportunity]:
+        self, funding_data: dict[str, dict[str, FundingRate | None]], market_data: MarketData
+    ) -> list[ArbitrageOpportunity]:
         """
         Generate arbitrage opportunities based on funding rate differentials and market data.
 
@@ -382,9 +390,11 @@ class SignalGenerator:
             List of arbitrage opportunities
         """
         if market_data is None or market_data.ticker_data is None:
-            self.logger.warning("Market data or ticker data is None - cannot generate arbitrage opportunities")
+            self.logger.warning(
+                "Market data or ticker data is None - cannot generate arbitrage opportunities"
+            )
             return []
-            
+
         opportunities = []
 
         for symbol in self.tracked_symbols:
@@ -393,7 +403,9 @@ class SignalGenerator:
                 continue
 
             exchanges_with_data = {
-                exchange: data for exchange, data in funding_data[symbol].items() if data is not None
+                exchange: data
+                for exchange, data in funding_data[symbol].items()
+                if data is not None
             }
 
             # We need at least two exchanges with data to create an arbitrage opportunity
@@ -404,7 +416,7 @@ class SignalGenerator:
             tickers = {}
             if symbol in market_data.ticker_data:
                 tickers = market_data.ticker_data[symbol]
-            
+
             # Check for funding rate opportunities
             funding_opportunities = self._check_funding_rate_opportunities(
                 symbol, exchanges_with_data, tickers
@@ -418,104 +430,101 @@ class SignalGenerator:
         return opportunities
 
     def _check_funding_rate_opportunities(
-        self, 
-        symbol: str, 
-        exchanges_with_data: Dict[str, FundingRate],
-        tickers: Dict[str, Ticker]
-    ) -> List[ArbitrageOpportunity]:
+        self, symbol: str, exchanges_with_data: dict[str, FundingRate], tickers: dict[str, Ticker]
+    ) -> list[ArbitrageOpportunity]:
         """
         Check for funding rate arbitrage opportunities between exchanges for a given symbol.
-        
+
         Args:
             symbol: The trading symbol to check
             exchanges_with_data: Dictionary of exchange names to funding rate data
             tickers: Dictionary of exchange names to ticker data
-            
+
         Returns:
             List of arbitrage opportunities
         """
         opportunities = []
-        
+
         # Check each pair of exchanges
         exchanges = list(exchanges_with_data.keys())
         for i in range(len(exchanges)):
             for j in range(i + 1, len(exchanges)):
                 exchange_a = exchanges[i]
                 exchange_b = exchanges[j]
-                
+
                 funding_a = exchanges_with_data[exchange_a]
                 funding_b = exchanges_with_data[exchange_b]
-                
+
                 # Ensure we have valid funding rates
                 if funding_a is None or funding_b is None:
                     continue
-                    
+
                 try:
                     rate_a = funding_a.funding_rate
                     rate_b = funding_b.funding_rate
-                    
+
                     # Ensure rates are not None and convert to Decimal if needed
                     if rate_a is None or rate_b is None:
                         continue
-                        
+
                     if not isinstance(rate_a, Decimal):
                         rate_a = Decimal(str(rate_a))
                     if not isinstance(rate_b, Decimal):
                         rate_b = Decimal(str(rate_b))
-                        
+
                     # Calculate the funding rate differential
                     funding_differential = rate_b - rate_a
-                    
+
                     # Check if the differential exceeds our threshold
                     if abs(funding_differential) < self.min_funding_differential:
                         continue
-                        
+
                     # Check if we have ticker data for both exchanges
                     ticker_a = tickers.get(exchange_a)
                     ticker_b = tickers.get(exchange_b)
-                    
+
                     if ticker_a is None or ticker_b is None:
                         continue
-                        
+
                     # Ensure we have valid prices
                     if ticker_a.price is None or ticker_b.price is None:
                         continue
-                        
+
                     # Convert prices to Decimal if needed
                     price_a = ticker_a.price
                     price_b = ticker_b.price
-                    
+
                     if not isinstance(price_a, Decimal):
                         price_a = Decimal(str(price_a))
                     if not isinstance(price_b, Decimal):
                         price_b = Decimal(str(price_b))
-                    
+
                     # Calculate the funding payment in USD terms
                     funding_payment_a = price_a * rate_a
                     funding_payment_b = price_b * rate_b
-                    
+
                     # Calculate net funding differential
                     net_funding_differential = funding_payment_b - funding_payment_a
-                    
+
                     # Calculate expected profit after slippage
                     slippage_a = self.estimate_slippage(exchange_a, symbol)
                     slippage_b = self.estimate_slippage(exchange_b, symbol)
-                    
+
                     # Convert slippage to Decimal if needed
                     if not isinstance(slippage_a, Decimal):
                         slippage_a = Decimal(str(slippage_a))
                     if not isinstance(slippage_b, Decimal):
                         slippage_b = Decimal(str(slippage_b))
-                    
+
                     total_slippage = slippage_a + slippage_b
                     expected_profit = abs(net_funding_differential) - total_slippage
-                    
+
                     # Check if expected profit meets our threshold
                     if expected_profit < self.min_profit_threshold:
                         continue
-                    
+
                     # Create an arbitrage opportunity
-                    if funding_differential > Decimal('0'):
+                    if funding_differential > Decimal("0"):
                         # Short exchange_b, long exchange_a
                         opportunity = ArbitrageOpportunity(
                             symbol=symbol,
@@ -526,7 +535,7 @@ class SignalGenerator:
                             funding_differential=funding_differential,
                             net_funding_differential=net_funding_differential,
                             expected_profit=expected_profit,
-                            timestamp=datetime.now(UTC)
+                            timestamp=datetime.now(UTC),
                         )
                     else:
                         # Short exchange_a, long exchange_b
@@ -539,15 +548,15 @@ class SignalGenerator:
                             funding_differential=abs(funding_differential),
                             net_funding_differential=abs(net_funding_differential),
                             expected_profit=expected_profit,
-                            timestamp=datetime.now(UTC)
+                            timestamp=datetime.now(UTC),
                         )
-                    
+
                     opportunities.append(opportunity)
-                    
+
                 except (InvalidOperation, TypeError, ValueError) as e:
                     self.logger.warning(
                         f"Error calculating funding arbitrage for {symbol} between {exchange_a} and {exchange_b}: {e}"
                     )
                     continue
-        
+
         return opportunities

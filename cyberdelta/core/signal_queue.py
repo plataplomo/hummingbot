@@ -13,14 +13,14 @@ import heapq
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Callable  # Added Callable
+from typing import TYPE_CHECKING
 
 # from cyberdelta.validation.funding_data import ArbitrageOpportunity # Moved below
 from cyberdelta.core.models import ArbitrageOpportunity, OrderSide, SignalType, TradeSignal
 from cyberdelta.utils.config import Config
 
 # from cyberdelta.core.models import SignalType, TradeSignal # Moved below
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem, CircuitBreakerState
+from cyberdelta.validation.circuit_breaker import CircuitBreakerState, CircuitBreakerSystem
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import SignalType, TradeSignal
@@ -211,15 +211,21 @@ class PrioritySignalQueue:
 
             # Check validity (expiration)
             if not potential_signal.is_valid():
-                heapq.heappop(self.signal_queue) # Remove expired signal
-                logger.debug(f"Removed expired signal {uid} for {potential_signal.symbol} from queue during get_next.")
-                continue # Try the next item in the heap
+                heapq.heappop(self.signal_queue)  # Remove expired signal
+                logger.debug(
+                    f"Removed expired signal {uid} for {potential_signal.symbol} from queue during get_next."
+                )
+                continue  # Try the next item in the heap
 
             # Check circuit breakers before returning
-            if self.circuit_breaker_system and not self._check_circuit_breakers_post_get(potential_signal):
-                heapq.heappop(self.signal_queue) # Remove signal blocked by CB
-                logger.warning(f"Circuit breaker active for {potential_signal.symbol}, skipping signal {uid}")
-                continue # Try the next item
+            if self.circuit_breaker_system and not self._check_circuit_breakers_post_get(
+                potential_signal
+            ):
+                heapq.heappop(self.signal_queue)  # Remove signal blocked by CB
+                logger.warning(
+                    f"Circuit breaker active for {potential_signal.symbol}, skipping signal {uid}"
+                )
+                continue  # Try the next item
 
             # If valid and passes CB, pop and return
             heapq.heappop(self.signal_queue)
@@ -250,10 +256,12 @@ class PrioritySignalQueue:
         if signal.is_valid():
             # Also check circuit breaker status without removing
             if self.circuit_breaker_system and not self._check_circuit_breakers_post_get(signal):
-                 logger.warning(f"Peek: Signal for {signal.symbol} would be blocked by circuit breaker.")
-                 # Technically, the signal is still in the queue, but won't be returned by get_next
-                 # Returning None might be confusing, let's return the signal but log the CB status
-                 return signal # Return signal but warn
+                logger.warning(
+                    f"Peek: Signal for {signal.symbol} would be blocked by circuit breaker."
+                )
+                # Technically, the signal is still in the queue, but won't be returned by get_next
+                # Returning None might be confusing, let's return the signal but log the CB status
+                return signal  # Return signal but warn
             return signal
 
         # Invalid signal (expired), clean and try again
@@ -381,7 +389,7 @@ class PrioritySignalQueue:
     def _check_circuit_breakers_pre_add(self, signal: TradeSignal) -> bool:
         """Check circuit breakers before adding a signal to the queue."""
         if not self.circuit_breaker_system:
-            return True # No CB system, always allow
+            return True  # No CB system, always allow
 
         exchanges_to_check: set[str] = set()
         metadata = signal.metadata or {}
@@ -405,25 +413,25 @@ class PrioritySignalQueue:
                 self.logger.warning(
                     f"Cannot determine exchange for pre-add circuit breaker check on signal {signal.symbol}. Allowing signal."
                 )
-                return True # Allow signal if exchange unknown, can't check CB
+                return True  # Allow signal if exchange unknown, can't check CB
 
         # Check breakers for relevant exchanges
         for ex in exchanges_to_check:
             # Only check if breaker is OPEN. We don't care about HALF_OPEN here.
             state = self.circuit_breaker_system.get_state(ex)
             if state == CircuitBreakerState.OPEN:
-                 reason = self.circuit_breaker_system.get_trip_reason(ex) or "Unknown reason"
-                 self.logger.warning(
-                     f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} circuit breaker is OPEN: {reason}"
-                 )
-                 return False # Reject if any relevant breaker is OPEN
+                reason = self.circuit_breaker_system.get_trip_reason(ex) or "Unknown reason"
+                self.logger.warning(
+                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} circuit breaker is OPEN: {reason}"
+                )
+                return False  # Reject if any relevant breaker is OPEN
 
-        return True # Allow if all relevant breakers are CLOSED or HALF_OPEN
+        return True  # Allow if all relevant breakers are CLOSED or HALF_OPEN
 
     def _check_circuit_breakers_post_get(self, signal: TradeSignal) -> bool:
         """Check circuit breakers just before returning a signal from get_next_signal."""
         if not self.circuit_breaker_system:
-            return True # No CB system, always allow
+            return True  # No CB system, always allow
 
         exchanges_to_check: set[str] = set()
         metadata = signal.metadata or {}
@@ -447,29 +455,29 @@ class PrioritySignalQueue:
                 self.logger.warning(
                     f"Cannot determine exchange for post-get circuit breaker check on signal {signal.symbol}. Allowing signal."
                 )
-                return True # Allow signal if exchange unknown
+                return True  # Allow signal if exchange unknown
 
         # Check breakers using can_execute, which handles HALF_OPEN state
         for ex in exchanges_to_check:
             can_exec, reason = self.circuit_breaker_system.can_execute(ex, signal.symbol)
             if not can_exec:
-                 self.logger.warning(
-                     f"Post-get check: Signal for {signal.symbol} blocked by exchange {ex} circuit breaker: {reason}"
-                 )
-                 return False # Block if execution not allowed
+                self.logger.warning(
+                    f"Post-get check: Signal for {signal.symbol} blocked by exchange {ex} circuit breaker: {reason}"
+                )
+                return False  # Block if execution not allowed
 
-        return True # Allow if all relevant breakers allow execution
+        return True  # Allow if all relevant breakers allow execution
 
     def _infer_exchange_from_symbol(self, symbol: str) -> str | None:
         """Attempt to infer the exchange based on the symbol format (placeholder logic)."""
         # Basic example: check for exchange prefixes or suffixes
         # This needs to be adapted based on actual symbol conventions
         if symbol.endswith("-PERP"):
-             # Could check if it's a known Hyperliquid symbol, etc.
-             return "hyperliquid" # Example
+            # Could check if it's a known Hyperliquid symbol, etc.
+            return "hyperliquid"  # Example
         elif "_" in symbol:
-             # Could check if it's a known Backpack symbol, etc.
-             return "backpack" # Example
+            # Could check if it's a known Backpack symbol, etc.
+            return "backpack"  # Example
         return None
 
     def get_pending_signals(self) -> list[TradeSignal]:
@@ -731,12 +739,11 @@ class PrioritySignalQueue:
             List of valid trade signals in priority order
         """
         result: list[TradeSignal] = []
-        
+
         # Clean expired signals before processing
         self._clean_expired_signals()
-        
+
         while self.signal_queue and len(result) < max_count:
             signal = self.get_next_signal()
             if signal is not None:
                 result.append(signal)
-                

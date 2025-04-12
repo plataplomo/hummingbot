@@ -24,7 +24,7 @@ class SecretsManager:
     risk of accidentally committing secrets.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the SecretsManager."""
         self.secrets: dict[str, Any] = {}
         self.secrets_loaded = False

@@ -374,7 +374,7 @@ class MultiTierFundingProvider:
                 rate=raw_data.get("rate", 0.0),
                 timestamp=ts,  # Use aware timestamp
                 source_type=SourceType.FALLBACK,
-                source_reliability=SourceReliability.LOWEST,
+                source_reliability=SourceReliability.LOW,
                 raw_data=raw_data,
             )
 
@@ -546,9 +546,9 @@ class MultiTierFundingProvider:
 
         return ConfidenceFactors(
             historical_accuracy=historical_accuracy,
-            source_count=source_count_score,
-            dispersion=dispersion_score,
-            freshness=freshness_score,
+            source_count_factor=source_count_score,
+            dispersion_factor=dispersion_score,
+            freshness_factor=freshness_score,
         )
 
     def _check_historical_accuracy(self, exchange: str, symbol: str) -> float:
@@ -563,7 +563,7 @@ class MultiTierFundingProvider:
             Accuracy score (0-1)
         """
         if self.funding_rate_validator is None:
-            return self.default_accuracy_score
+            return float(self.default_accuracy_score)
 
         try:
             # Calculate accuracy metrics using the validator
@@ -571,7 +571,7 @@ class MultiTierFundingProvider:
 
             # If no metrics are available, return default score
             if metrics["rmse"] is None or metrics["bias"] is None:
-                return self.default_accuracy_score
+                return float(self.default_accuracy_score)
 
             # Normalize RMSE and bias to a score between 0 and 1
             rmse_score = max(0, 1 - (metrics["rmse"] / self.max_acceptable_rmse))
@@ -580,11 +580,11 @@ class MultiTierFundingProvider:
             # Combine scores (e.g., weighted average)
             accuracy_score = (rmse_score * 0.7) + (bias_score * 0.3)
 
-            return accuracy_score
+            return float(accuracy_score)
 
         except Exception as e:
             logger.warning(f"Error calculating historical accuracy for {exchange}:{symbol}: {e}")
-            return self.default_accuracy_score
+            return float(self.default_accuracy_score)
 
     def clear_cache(self) -> None:
         """Clear the funding rate cache."""

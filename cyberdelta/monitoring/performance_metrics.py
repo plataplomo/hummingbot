@@ -38,10 +38,10 @@ class PerformanceMetricsCalculator:
             logger.warning(
                 "Standard deviation of excess returns is zero. Cannot calculate Sharpe ratio."
             )
-            return np.nan  # Or handle as appropriate, e.g., return 0 or raise error
+            return 0.0  # Return a concrete float value instead of np.nan
 
         sharpe_ratio = mean_excess_return / std_dev_excess_return
-        annualized_sharpe_ratio = sharpe_ratio * np.sqrt(periods_per_year)
+        annualized_sharpe_ratio = float(sharpe_ratio * np.sqrt(periods_per_year))
         return annualized_sharpe_ratio
 
     @staticmethod
@@ -67,7 +67,7 @@ class PerformanceMetricsCalculator:
         downside_returns = excess_returns[excess_returns < 0]
         if downside_returns.empty:
             logger.warning("No downside returns found. Cannot calculate Sortino ratio.")
-            return np.inf  # Or np.nan, depending on desired behavior when no losses occur
+            return float('inf')  # Return a concrete float value
 
         downside_deviation = np.sqrt((downside_returns**2).mean())
 
@@ -75,11 +75,11 @@ class PerformanceMetricsCalculator:
             logger.warning(
                 "Downside deviation is zero. Cannot calculate Sortino ratio meaningfully."
             )
-            # If mean excess return is positive, technically infinite Sortino, else Nan/0
-            return np.inf if mean_excess_return > 0 else np.nan
+            # If mean excess return is positive, technically infinite Sortino, else 0
+            return float('inf') if mean_excess_return > 0 else 0.0
 
         sortino_ratio = mean_excess_return / downside_deviation
-        annualized_sortino_ratio = sortino_ratio * np.sqrt(periods_per_year)
+        annualized_sortino_ratio = float(sortino_ratio * np.sqrt(periods_per_year))
         return annualized_sortino_ratio
 
     @staticmethod
@@ -97,7 +97,7 @@ class PerformanceMetricsCalculator:
         rolling_max = cumulative_returns.cummax()
         drawdown = (cumulative_returns / rolling_max) - 1
         max_drawdown = drawdown.min()
-        return max_drawdown  # Typically expressed as a negative number
+        return float(max_drawdown)  # Explicitly convert to float
 
     @staticmethod
     def calculate_calmar_ratio(returns: pd.Series, periods_per_year: int = 252) -> float:
@@ -116,10 +116,10 @@ class PerformanceMetricsCalculator:
 
         if max_drawdown == 0:
             logger.warning("Max drawdown is zero. Cannot calculate Calmar ratio meaningfully.")
-            # If mean return is positive, technically infinite Calmar, else Nan/0
-            return np.inf if mean_annual_return > 0 else np.nan
+            # If mean return is positive, technically infinite Calmar, else 0
+            return float('inf') if mean_annual_return > 0 else 0.0
 
-        calmar_ratio = mean_annual_return / abs(max_drawdown)
+        calmar_ratio = float(mean_annual_return / abs(max_drawdown))
         return calmar_ratio
 
     @staticmethod
@@ -173,7 +173,7 @@ class PerformanceMetricsCalculator:
     def calculate_all_metrics(
         self,
         returns: pd.Series,
-        trades: pd.DataFrame = None,
+        trades: pd.DataFrame | None = None,
         risk_free_rate: float = 0.0,
         periods_per_year: int = 252,
     ) -> dict[str, float]:
@@ -189,7 +189,7 @@ class PerformanceMetricsCalculator:
         Returns:
             Dictionary containing calculated performance metrics.
         """
-        metrics = {}
+        metrics: dict[str, float] = {}
         try:
             metrics["sharpe_ratio"] = self.calculate_sharpe_ratio(
                 returns, risk_free_rate, periods_per_year
@@ -204,17 +204,17 @@ class PerformanceMetricsCalculator:
                 metrics["win_rate"] = self.calculate_win_rate(trades)
                 metrics["profit_factor"] = self.calculate_profit_factor(trades)
             else:
-                metrics["win_rate"] = np.nan
-                metrics["profit_factor"] = np.nan
+                metrics["win_rate"] = 0.0
+                metrics["profit_factor"] = 0.0
 
         except Exception as e:
             logger.error(f"Error calculating performance metrics: {e}", exc_info=True)
             # Optionally return partial metrics or re-raise
 
         # Add basic return metrics
-        metrics["cumulative_return"] = (1 + returns).prod() - 1
-        metrics["annualized_return"] = returns.mean() * periods_per_year
-        metrics["annualized_volatility"] = returns.std() * np.sqrt(periods_per_year)
+        metrics["cumulative_return"] = float((1 + returns).prod() - 1)
+        metrics["annualized_return"] = float(returns.mean() * periods_per_year)
+        metrics["annualized_volatility"] = float(returns.std() * np.sqrt(periods_per_year))
 
         logger.info(
             f"Calculated performance metrics: { {k: f'{v:.4f}' if isinstance(v, float) else v for k, v in metrics.items()} }"

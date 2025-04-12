@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 import aiohttp
 
@@ -103,7 +103,7 @@ class APIError(Exception):
         exchange_message: str | None = None,
         retry_after: float | None = None,
         original_exception: Exception | None = None,
-    ):
+    ) -> None:
         # Comprehensive error information for debugging and recovery
         self.message = message
         self.code = code
@@ -154,7 +154,7 @@ class RateLimiter:
     Ensures compliance with exchange rate limits while maximizing throughput.
     """
 
-    def __init__(self, rate: float, bucket_size: int):
+    def __init__(self, rate: float, bucket_size: int) -> None:
         """
         Initialize a rate limiter with given constraints.
 
@@ -224,7 +224,7 @@ class ExchangeAPI(ABC):
         exchange_name: str,
         config: dict[str, Any],
         secrets: dict[str, str | None],
-    ):
+    ) -> None:
         """
         Initialize the exchange API client.
 
@@ -261,7 +261,7 @@ class ExchangeAPI(ABC):
         if not self.ws_endpoint:
             logger.warning(f"WebSocket endpoint not configured for {self.exchange_name}")
 
-    def _setup_rate_limiters(self, rate_limit_config: dict[str, Any]):
+    def _setup_rate_limiters(self, rate_limit_config: dict[str, Any]) -> None:
         """
         Set up rate limiters based on configuration.
 
@@ -332,7 +332,7 @@ class ExchangeAPI(ABC):
         signed: bool = False,
         retry_count: int = 3,
         timeout: float = 30.0,
-    ) -> Any:
+    ) -> dict[str, Any] | list[Any] | str | None:
         """
         Execute an API request with comprehensive error handling and retry logic.
 

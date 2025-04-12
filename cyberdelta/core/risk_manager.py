@@ -1147,14 +1147,18 @@ class RiskManager:
         """
         # Check if circuit breakers are active for either exchange
         if self.circuit_breaker_system is not None:
-            can_execute_long, reason_long = self.circuit_breaker_system.can_execute(opportunity.long_exchange)
+            can_execute_long, reason_long = self.circuit_breaker_system.can_execute(
+                opportunity.long_exchange
+            )
             if not can_execute_long:
                 self.logger.warning(
                     f"Circuit breaker active for {opportunity.long_exchange} - rejecting opportunity: {reason_long}"
                 )
                 return False
 
-            can_execute_short, reason_short = self.circuit_breaker_system.can_execute(opportunity.short_exchange)
+            can_execute_short, reason_short = self.circuit_breaker_system.can_execute(
+                opportunity.short_exchange
+            )
             if not can_execute_short:
                 self.logger.warning(
                     f"Circuit breaker active for {opportunity.short_exchange} - rejecting opportunity: {reason_short}"
@@ -1172,7 +1176,7 @@ class RiskManager:
                 return False
         else:
             net_funding_differential = opportunity.net_funding_differential
-            
+
         if net_funding_differential < self.min_net_funding_differential:
             self.logger.debug(
                 f"Opportunity rejected: NFD {net_funding_differential} < "
@@ -1182,35 +1186,57 @@ class RiskManager:
 
         # Check if the long price and short price are valid Decimals
         try:
-            long_price = opportunity.long_price if isinstance(opportunity.long_price, Decimal) else Decimal(str(opportunity.long_price))
-            short_price = opportunity.short_price if isinstance(opportunity.short_price, Decimal) else Decimal(str(opportunity.short_price))
-        except (InvalidOperation, TypeError, AttributeError) as e:
-            self.logger.warning(
-                f"Opportunity has invalid price values: {e}"
+            long_price = (
+                opportunity.long_price
+                if isinstance(opportunity.long_price, Decimal)
+                else Decimal(str(opportunity.long_price))
             )
+            short_price = (
+                opportunity.short_price
+                if isinstance(opportunity.short_price, Decimal)
+                else Decimal(str(opportunity.short_price))
+            )
+        except (InvalidOperation, TypeError, AttributeError) as e:
+            self.logger.warning(f"Opportunity has invalid price values: {e}")
             return False
 
         # Check if there is sufficient balance on both exchanges
-        long_exchange_balance = self.portfolio_tracker.get_exchange_balance(opportunity.long_exchange)
-        short_exchange_balance = self.portfolio_tracker.get_exchange_balance(opportunity.short_exchange)
+        long_exchange_balance = self.portfolio_tracker.get_exchange_balance(
+            opportunity.long_exchange
+        )
+        short_exchange_balance = self.portfolio_tracker.get_exchange_balance(
+            opportunity.short_exchange
+        )
 
         # Convert balances to Decimal for comparison
         try:
             if long_exchange_balance is None:
                 long_balance_dec = Decimal("0")
             else:
-                long_balance_dec = long_exchange_balance if isinstance(long_exchange_balance, Decimal) else Decimal(str(long_exchange_balance))
-                
+                long_balance_dec = (
+                    long_exchange_balance
+                    if isinstance(long_exchange_balance, Decimal)
+                    else Decimal(str(long_exchange_balance))
+                )
+
             if short_exchange_balance is None:
                 short_balance_dec = Decimal("0")
             else:
-                short_balance_dec = short_exchange_balance if isinstance(short_exchange_balance, Decimal) else Decimal(str(short_exchange_balance))
-                
-            min_balance_dec = self.min_exchange_balance if isinstance(self.min_exchange_balance, Decimal) else Decimal(str(self.min_exchange_balance))
+                short_balance_dec = (
+                    short_exchange_balance
+                    if isinstance(short_exchange_balance, Decimal)
+                    else Decimal(str(short_exchange_balance))
+                )
+
+            min_balance_dec = (
+                self.min_exchange_balance
+                if isinstance(self.min_exchange_balance, Decimal)
+                else Decimal(str(self.min_exchange_balance))
+            )
         except (InvalidOperation, TypeError) as e:
             self.logger.error(f"Error converting balance values to Decimal: {e}")
             return False
-            
+
         if long_balance_dec < min_balance_dec:
             self.logger.warning(
                 f"Insufficient balance on {opportunity.long_exchange}: "
@@ -1230,20 +1256,30 @@ class RiskManager:
             validation_result = self.funding_rate_validator.validate_funding_prediction(
                 opportunity.symbol, opportunity.long_exchange, opportunity.short_exchange
             )
-            
+
             if not validation_result:
-                self.logger.info(f"Funding rate prediction validation failed for {opportunity.symbol}")
+                self.logger.info(
+                    f"Funding rate prediction validation failed for {opportunity.symbol}"
+                )
                 return False
 
         # Validate current exchange exposure
         total_exposure = self.portfolio_tracker.get_total_exposure()
         try:
-            total_exposure_dec = total_exposure if isinstance(total_exposure, Decimal) else Decimal(str(total_exposure))
-            max_exposure_dec = self.max_total_exposure if isinstance(self.max_total_exposure, Decimal) else Decimal(str(self.max_total_exposure))
+            total_exposure_dec = (
+                total_exposure
+                if isinstance(total_exposure, Decimal)
+                else Decimal(str(total_exposure))
+            )
+            max_exposure_dec = (
+                self.max_total_exposure
+                if isinstance(self.max_total_exposure, Decimal)
+                else Decimal(str(self.max_total_exposure))
+            )
         except (InvalidOperation, TypeError) as e:
             self.logger.error(f"Error converting exposure values to Decimal: {e}")
             return False
-            
+
         if total_exposure_dec > max_exposure_dec:
             self.logger.warning(
                 f"Rejecting opportunity: Total exposure {total_exposure_dec} exceeds maximum {max_exposure_dec}"
@@ -1254,9 +1290,17 @@ class RiskManager:
         current_leverage = self.portfolio_tracker.get_current_leverage()
         if current_leverage is not None:
             try:
-                leverage_dec = current_leverage if isinstance(current_leverage, Decimal) else Decimal(str(current_leverage))
-                max_leverage_dec = self.max_leverage if isinstance(self.max_leverage, Decimal) else Decimal(str(self.max_leverage))
-                
+                leverage_dec = (
+                    current_leverage
+                    if isinstance(current_leverage, Decimal)
+                    else Decimal(str(current_leverage))
+                )
+                max_leverage_dec = (
+                    self.max_leverage
+                    if isinstance(self.max_leverage, Decimal)
+                    else Decimal(str(self.max_leverage))
+                )
+
                 if leverage_dec > max_leverage_dec:
                     self.logger.warning(
                         f"Rejecting opportunity: Current leverage {leverage_dec} exceeds maximum {max_leverage_dec}"
@@ -1293,9 +1337,7 @@ class RiskManager:
                         f"{opportunity.short_exchange}) rejected during sizing/validation."
                     )
             else:
-                self.logger.info(
-                    f"Opportunity {opportunity.symbol} rejected during validation."
-                )
+                self.logger.info(f"Opportunity {opportunity.symbol} rejected during validation.")
 
         # Optional: Rank validated opportunities based on risk/reward (e.g., risk_adjusted_return)
         validated_opportunities.sort(key=lambda o: o.risk_adjusted_return, reverse=True)

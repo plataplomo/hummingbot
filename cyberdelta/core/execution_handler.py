@@ -3,17 +3,21 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio
 import time
 import uuid
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Optional, Dict, List, Set, Tuple, Union, cast, TypeVar, Callable, Coroutine
-import random
-from zoneinfo import ZoneInfo
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
-
-# Import models needed at runtime directly
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, Ticker, Trade, TimeInForce
+from cyberdelta.core.models import (
+    Order,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    Ticker,
+    TimeInForce,
+    Trade,
+)
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbol_mapper import SymbolMapper
@@ -166,10 +170,13 @@ class ExecutionHandler:
 
         # Execution history (keep last N)
         self.max_execution_history: int = config.get("execution.max_history", 100)
-        self.execution_history: list[TradeExecution] = []
+        self.executions: list[TradeExecution] = []
 
         # Currently active executions
         self.active_executions: dict[str, TradeExecution] = {}
+
+        # Initialize logger
+        self.logger = get_logger(__name__)
 
         logger.info("ExecutionHandler initialized.")
 
@@ -214,32 +221,36 @@ class ExecutionHandler:
                 internal_symbol, short_exchange
             )
 
+            # --- Prepare Error Message ---
             if not long_exchange_symbol or not short_exchange_symbol:
                 error_msg = (
-                    f"Execution failed: Cannot map internal symbol '{internal_symbol}' to exchange symbols. "
-                    f"Long ({long_exchange}): '{long_exchange_symbol}', Short ({short_exchange}): '{short_exchange_symbol}'. "
+                    f"Execution failed: Cannot map internal symbol '{internal_symbol}' "
+                    f"to exchange symbols. Long ({long_exchange}): '{long_exchange_symbol}', "
+                    f"Short ({short_exchange}): '{short_exchange_symbol}'. "
                     f"Check configuration."
                 )
                 logger.error(f"Execution {execution.id}: {error_msg}")
-                execution.status = ExecutionStatus.FAILED
+                execution.status = ExecutionStatus.REJECTED
                 execution.error_message = error_msg
                 execution.end_time = datetime.now(UTC)
-                # No CB recording needed here as it's a config/setup issue, not API failure
                 return execution
             # --- End Symbol Mapping ---
 
             # --- Circuit Breaker Checks (Using Internal Symbol for consistency) ---
             if self.circuit_breaker_system:
                 logger.debug(
-                    f"Execution {execution.id}: Checking circuit breakers for internal symbol '{internal_symbol}'..."
+                    f"Execution {execution.id}: Checking circuit breakers for "
+                    f"internal symbol '{internal_symbol}'..."
                 )
                 # Check Long Exchange
                 can_proceed, reason = self.circuit_breaker_system.can_execute(
-                    long_exchange,
-                    internal_symbol,  # Use internal symbol
+                    long_exchange, internal_symbol
                 )
                 if not can_proceed:
-                    error_msg = f"Execution rejected by circuit breaker: Long exchange ({long_exchange}) breaker tripped: {reason}"
+                    error_msg = (
+                        f"Execution rejected by circuit breaker: Long exchange "
+                        f"({long_exchange}) breaker tripped: {reason}"
+                    )
                     logger.warning(f"Execution {execution.id}: {error_msg}")
                     execution.status = ExecutionStatus.REJECTED
                     execution.error_message = error_msg
@@ -248,11 +259,13 @@ class ExecutionHandler:
 
                 # Check Short Exchange
                 can_proceed, reason = self.circuit_breaker_system.can_execute(
-                    short_exchange,
-                    internal_symbol,  # Use internal symbol
+                    short_exchange, internal_symbol
                 )
                 if not can_proceed:
-                    error_msg = f"Execution rejected by circuit breaker: Short exchange ({short_exchange}) breaker tripped: {reason}"
+                    error_msg = (
+                        f"Execution rejected by circuit breaker: Short exchange "
+                        f"({short_exchange}) breaker tripped: {reason}"
+                    )
                     logger.warning(f"Execution {execution.id}: {error_msg}")
                     execution.status = ExecutionStatus.REJECTED
                     execution.error_message = error_msg
@@ -293,7 +306,8 @@ class ExecutionHandler:
 
             # --- Start Ticker/Price Checks for Quantity Calculation ---
             logger.debug(
-                f"Execution {execution.id}: Fetching tickers using exchange symbols: {long_exchange_symbol}, {short_exchange_symbol}"
+                f"Execution {execution.id}: Fetching tickers using exchange symbols: "
+                f"{long_exchange_symbol}, {short_exchange_symbol}"
             )
             long_ticker: Ticker | None = None
             short_ticker: Ticker | None = None
@@ -362,7 +376,8 @@ class ExecutionHandler:
             except (InvalidOperation, ValueError, TypeError) as e:
                 error_msg = f"Error calculating order quantities: {e}"
                 logger.error(
-                    f"Execution {execution.id}: {error_msg} (Long Price: {long_ticker.price}, Short Price: {short_ticker.price})",
+                    f"Execution {execution.id}: {error_msg} "
+                    f"(Long Price: {long_ticker.price}, Short Price: {short_ticker.price})",
                     exc_info=True,
                 )
                 execution.status = ExecutionStatus.FAILED
@@ -417,24 +432,73 @@ class ExecutionHandler:
             if execution_type == "sequential":
                 logger.info(f"Execution {execution.id}: Placing orders sequentially...")
                 # Example: Place long first, then short (adjust logic as needed)
-                long_order_result = await self._place_order_with_retry(**long_order_params)
+                long_order_result = await self._place_order_with_retry(
+                    client=long_client,
+                    exchange_id=long_exchange,
+                    symbol=long_exchange_symbol,
+                    side=OrderSide.BUY,
+                    order_type=order_type_to_use,
+                    quantity=long_quantity,
+                    price=long_price_dec if order_type_to_use == OrderType.LIMIT else None,
+                    time_in_force=TimeInForce.GTC if order_type_to_use == OrderType.LIMIT else None,
+                    retry_delay=self.retry_delay_base,
+                    max_retries=self.max_retries,
+                    reduce_only=False
+                )
                 if long_order_result and long_order_result.status not in (
                     OrderStatus.FAILED,
                     OrderStatus.REJECTED,
-                    OrderStatus.CANCELLED,
+                    OrderStatus.CANCELED,
                 ):
-                    short_order_result = await self._place_order_with_retry(**short_order_params)
+                    short_order_result = await self._place_order_with_retry(
+                        client=short_client,
+                        exchange_id=short_exchange,
+                        symbol=short_exchange_symbol,
+                        side=OrderSide.SELL,
+                        order_type=order_type_to_use,
+                        quantity=short_quantity,
+                        price=short_price_dec if order_type_to_use == OrderType.LIMIT else None,
+                        time_in_force=TimeInForce.GTC if order_type_to_use == OrderType.LIMIT else None,
+                        retry_delay=self.retry_delay_base,
+                        max_retries=self.max_retries,
+                        reduce_only=False
+                    )
                 else:
                     logger.warning(
-                        f"Execution {execution.id}: Skipping short order placement due to long order failure/rejection."
+                        f"Execution {execution.id}: Skipping short order placement "
+                        f"due to long order failure/rejection."
                     )
                     # Handle compensation/cleanup if long order partially filled or failed
 
             elif execution_type == "concurrent":
                 logger.info(f"Execution {execution.id}: Placing orders concurrently...")
                 results = await asyncio.gather(
-                    self._place_order_with_retry(**long_order_params),
-                    self._place_order_with_retry(**short_order_params),
+                    self._place_order_with_retry(
+                        client=long_client,
+                        exchange_id=long_exchange,
+                        symbol=long_exchange_symbol,
+                        side=OrderSide.BUY,
+                        order_type=order_type_to_use,
+                        quantity=long_quantity,
+                        price=long_price_dec if order_type_to_use == OrderType.LIMIT else None,
+                        time_in_force=TimeInForce.GTC if order_type_to_use == OrderType.LIMIT else None,
+                        retry_delay=self.retry_delay_base,
+                        max_retries=self.max_retries,
+                        reduce_only=False
+                    ),
+                    self._place_order_with_retry(
+                        client=short_client,
+                        exchange_id=short_exchange,
+                        symbol=short_exchange_symbol,
+                        side=OrderSide.SELL,
+                        order_type=order_type_to_use,
+                        quantity=short_quantity,
+                        price=short_price_dec if order_type_to_use == OrderType.LIMIT else None,
+                        time_in_force=TimeInForce.GTC if order_type_to_use == OrderType.LIMIT else None,
+                        retry_delay=self.retry_delay_base,
+                        max_retries=self.max_retries,
+                        reduce_only=False
+                    ),
                     return_exceptions=True,  # Important to catch errors from either leg
                 )
 
@@ -477,7 +541,8 @@ class ExecutionHandler:
             short_status = short_order_result.status if short_order_result else OrderStatus.FAILED
 
             logger.info(
-                f"Execution {execution.id}: Order Placement Results - Long: {long_status.name}, Short: {short_status.name}"
+                f"Execution {execution.id}: Order Placement Results - Long: "
+                f"{long_status.name}, Short: {short_status.name}"
             )
 
             # Simplistic status check - requires refinement for monitoring fills
@@ -496,7 +561,8 @@ class ExecutionHandler:
                 # If long leg failed but short leg might have filled (partially or fully)
                 if long_status == OrderStatus.FAILED and short_status != OrderStatus.FAILED:
                     logger.warning(
-                        f"Execution {execution.id}: Long leg failed, attempting compensation for short position."
+                        f"Execution {execution.id}: Long leg failed, attempting "
+                        f"compensation for short position."
                     )
                     # Check short order status more accurately
                     # Assuming we need to close the short position placed by short_order_result
@@ -506,8 +572,8 @@ class ExecutionHandler:
                             self._compensate_position(
                                 client=short_client,
                                 exchange_id=short_exchange,
-                                internal_symbol=internal_symbol,  # Use internal symbol for compensation logic context
-                                original_failed_side=OrderSide.BUY,  # Original failed leg was BUY (long)
+                                internal_symbol=internal_symbol,
+                                original_failed_side=OrderSide.BUY,
                                 quantity=short_order_result.filled_quantity,
                             )
                         )
@@ -515,7 +581,8 @@ class ExecutionHandler:
                 # If short leg failed but long leg might have filled
                 elif short_status == OrderStatus.FAILED and long_status != OrderStatus.FAILED:
                     logger.warning(
-                        f"Execution {execution.id}: Short leg failed, attempting compensation for long position."
+                        f"Execution {execution.id}: Short leg failed, attempting "
+                        f"compensation for long position."
                     )
                     # Assuming we need to close the long position placed by long_order_result
                     if long_order_result and long_order_result.filled_quantity > Decimal(0):
@@ -524,8 +591,8 @@ class ExecutionHandler:
                             self._compensate_position(
                                 client=long_client,
                                 exchange_id=long_exchange,
-                                internal_symbol=internal_symbol,  # Use internal symbol for compensation logic context
-                                original_failed_side=OrderSide.SELL,  # Original failed leg was SELL (short)
+                                internal_symbol=internal_symbol,
+                                original_failed_side=OrderSide.SELL,
                                 quantity=long_order_result.filled_quantity,
                             )
                         )
@@ -533,7 +600,8 @@ class ExecutionHandler:
                 # If both failed, no compensation usually needed unless one partially filled before failing
                 elif long_status == OrderStatus.FAILED and short_status == OrderStatus.FAILED:
                     logger.info(
-                        f"Execution {execution.id}: Both order placements failed. No compensation needed."
+                        f"Execution {execution.id}: Both order placements failed. "
+                        f"No compensation needed."
                     )
 
                 if needs_compensation:
@@ -555,9 +623,8 @@ class ExecutionHandler:
                             self.circuit_breaker_system.record_critical_failure(
                                 "global", f"Compensation failed for execution {execution.id}"
                             )
-                    # --- ADDED: Set final status to FAILED after compensation attempt ---
+                    # Set final status to FAILED after compensation attempt
                     execution.status = ExecutionStatus.FAILED
-                    # --------------------------------------------------------------------
 
                 execution.end_time = datetime.now(UTC)
 
@@ -577,57 +644,50 @@ class ExecutionHandler:
                 execution.end_time = datetime.now(UTC)
                 # Record successful execution for CBs
                 if self.circuit_breaker_system:
-                    self.circuit_breaker_system.record_success(long_exchange, internal_symbol)
-                    self.circuit_breaker_system.record_success(short_exchange, internal_symbol)
+                    self.circuit_breaker_system.record_api_success(long_exchange, internal_symbol)
+                    self.circuit_breaker_system.record_api_success(short_exchange, internal_symbol)
 
-        except CircuitBreakerTrippedError as e:
-            error_msg = f"Execution aborted by Circuit Breaker: {e}"
-            logger.warning(f"Execution {execution.id}: {error_msg}")
-            execution.status = ExecutionStatus.REJECTED
-            execution.error_message = error_msg
-            execution.end_time = datetime.now(UTC)
-            # No need to record failure again, CB already tripped
+            # Calculate PnL based on order fills
+            await self._update_pnl(execution)
 
-        except APIError as e:
-            error_msg = f"API Error during execution {execution.id}: {e}"
-            logger.error(error_msg, exc_info=True)
-            execution.status = ExecutionStatus.FAILED
-            execution.error_message = error_msg
-            execution.end_time = datetime.now(UTC)
-            # Record API error with circuit breaker
-            if self.circuit_breaker_system:
-                # Try to determine which exchange failed if possible
-                exchange_failed = e.exchange_code if e.exchange_code else "unknown"
-                self.circuit_breaker_system.record_api_error(exchange_failed, str(e))
-
-        except Exception as e:
-            error_msg = f"Unexpected error during execution {execution.id}: {e}"
-            logger.exception(error_msg)  # Log with stack trace
-            execution.status = ExecutionStatus.FAILED
-            execution.error_message = error_msg
-            execution.end_time = datetime.now(UTC)
-            # Record generic failure with circuit breaker
-            if self.circuit_breaker_system:
-                # Need to determine which exchange context to use if possible
-                # Defaulting to global or a placeholder
-                self.circuit_breaker_system.record_critical_failure(
-                    "global", f"Unexpected execution error: {e}"
-                )
-
-        finally:
-            # Update history
-            self.execution_history.append(execution)
-            if len(self.execution_history) > self.max_execution_history:
-                self.execution_history.pop(0)
+            # Record execution completion
+            self.executions.append(execution)
+            if len(self.executions) > self.max_execution_history:
+                self.executions.pop(0)
 
             # Remove from active executions
             if execution_id in self.active_executions:
                 del self.active_executions[execution_id]
 
-            logger.info(f"Execution {execution.id} finished with status: {execution.status.name}")
+            logger.info(
+                f"Execution {execution.id} processed. Final status: {execution.status.name}"
+            )
 
-            # Return the final execution state
-            return execution
+        except CircuitBreakerTrippedError as cbt_err:
+            logger.warning(f"Execution rejected by circuit breaker: {cbt_err}")
+            execution.status = ExecutionStatus.REJECTED
+            execution.error_message = str(cbt_err)
+            # Add to executions for historical tracking
+            self.executions.append(execution)
+            return execution  # Return early with rejected status
+
+        except Exception as e:
+            logger.error(
+                f"Error during execution {execution.id}: {e}",
+                exc_info=True,
+            )
+            execution.status = ExecutionStatus.FAILED
+            execution.error_message = str(e)
+            # Add to executions for historical tracking
+            self.executions.append(execution)
+            return execution  # Return early with failed status
+
+        finally:
+            # Cleanup resources if needed
+            pass
+
+        # Return the final execution state (moved out of finally block)
+        return execution
 
     async def _place_order_with_retry(
         self,
@@ -637,54 +697,33 @@ class ExecutionHandler:
         side: OrderSide,
         order_type: OrderType,
         quantity: Decimal,
-        price: Optional[Decimal] = None,
-        time_in_force: Optional[TimeInForce] = None,
+        price: Decimal | None = None,
+        time_in_force: TimeInForce | None = None,
         retry_delay: float = 0.5,
         max_retries: int = 3,
         reduce_only: bool = False,
     ) -> Order:
         """
-        Place an order with retry logic to handle transient failures.
-        
+        Place an order with retry logic.
+
         Args:
-            client: Exchange API client
+            client: ExchangeAPI client
             exchange_id: Exchange identifier
-            symbol: Market symbol
+            symbol: Symbol to trade
             side: Order side (BUY/SELL)
-            order_type: Order type (MARKET/LIMIT)
+            order_type: Order type (LIMIT/MARKET)
             quantity: Order quantity
-            price: Order price (required for LIMIT orders)
-            time_in_force: Time In Force instruction for the order
+            price: Order price (for LIMIT orders)
+            time_in_force: Time in force (GTC/IOC/FOK)
             retry_delay: Delay between retries in seconds
-            max_retries: Maximum number of retry attempts
-            reduce_only: Whether the order should only reduce position size
-            
+            max_retries: Maximum number of retries
+            reduce_only: Whether the order should only reduce position
+
         Returns:
-            Order object with details of the placed order, or with status failed if placement unsuccessful
+            Order object
         """
-        order: Optional[Order] = None
         retries = 0
-        
-        # Ensure quantity is Decimal
-        if not isinstance(quantity, Decimal):
-            try:
-                quantity = Decimal(str(quantity))
-            except (InvalidOperation, TypeError, ValueError) as e:
-                self.logger.error(f"Invalid quantity provided: {quantity} - {e}")
-                failed_order = Order(
-                    id=str(uuid.uuid4()),
-                    exchange_id=exchange_id,
-                    symbol=symbol,
-                    side=side,
-                    order_type=order_type,
-                    quantity=Decimal("0"),  # Use zero as placeholder
-                    price=price,
-                    status=OrderStatus.FAILED,
-                    timestamp=datetime.now(UTC),
-                    error_message=f"Invalid quantity: {quantity}"
-                )
-                return failed_order
-                
+
         # Ensure price is Decimal if provided
         if price is not None and not isinstance(price, Decimal):
             try:
@@ -693,21 +732,24 @@ class ExecutionHandler:
                 self.logger.error(f"Invalid price provided: {price} - {e}")
                 failed_order = Order(
                     id=str(uuid.uuid4()),
-                    exchange_id=exchange_id,
                     symbol=symbol,
                     side=side,
-                    order_type=order_type,
+                    type=order_type,
                     quantity=quantity,
                     price=None,
                     status=OrderStatus.FAILED,
-                    timestamp=datetime.now(UTC),
-                    error_message=f"Invalid price: {price}"
+                    time=int(datetime.now(UTC).timestamp() * 1000),
+                    client_order_id="",
                 )
                 return failed_order
-        
+
+        # For market orders without a specified time_in_force, default to TimeInForce.GTC
+        if time_in_force is None:
+            time_in_force = TimeInForce.GTC
+
         while retries <= max_retries:
             try:
-                order_id = await client.place_order(
+                order = await client.place_order(
                     symbol=symbol,
                     side=side,
                     order_type=order_type,
@@ -716,103 +758,85 @@ class ExecutionHandler:
                     price=price,
                     reduce_only=reduce_only,
                 )
-                
-                order = Order(
-                    id=order_id,
-                    exchange_id=exchange_id,
-                    symbol=symbol,
-                    side=side,
-                    order_type=order_type,
-                    quantity=quantity,
-                    price=price,
-                    status=OrderStatus.NEW,
-                    timestamp=datetime.now(UTC),
-                )
-                
+
                 self.logger.info(
-                    f"Order placed: {order_id} on {exchange_id} for {symbol}, {side.name}, {quantity}"
+                    f"Order placed: {order.id} on {exchange_id} for {symbol}, {side.name}, {quantity}"
                 )
-                
-                # Record the order
+
+                # Return the order object directly
                 return order
-                
+
             except APIError as e:
                 retries += 1
                 self.logger.warning(
                     f"API error placing order on {exchange_id} for {symbol}, {side.name}, {quantity}: {e}"
                 )
-                
-                if e.code in [APIErrorCode.INSUFFICIENT_FUNDS, APIErrorCode.INVALID_QUANTITY]:
+
+                if e.code in [APIErrorCode.INSUFFICIENT_FUNDS, APIErrorCode.QUANTITY_OUT_OF_RANGE]:
                     # Don't retry certain errors
-                    self.logger.error(
-                        f"Non-retryable API error: {e.code.name} - {e.message}"
-                    )
+                    self.logger.error(f"Non-retryable API error: {e.code.name} - {e.message}")
                     # Create a failed order record
                     failed_order = Order(
-                        id=str(uuid.uuid4()),  # Generate a placeholder ID
-                        exchange_id=exchange_id,
+                        id=str(uuid.uuid4()),
                         symbol=symbol,
                         side=side,
-                        order_type=order_type,
+                        type=order_type,
                         quantity=quantity,
                         price=price,
                         status=OrderStatus.FAILED,
-                        timestamp=datetime.now(UTC),
-                        error_message=f"{e.code.name}: {e.message}"
+                        time=int(datetime.now(UTC).timestamp() * 1000),
+                        client_order_id="",
                     )
                     return failed_order
-                
+
                 if retries > max_retries:
                     self.logger.error(
                         f"Max retries ({max_retries}) exceeded placing order on {exchange_id}"
                     )
                     # Create a failed order record
                     failed_order = Order(
-                        id=str(uuid.uuid4()),  # Generate a placeholder ID
-                        exchange_id=exchange_id,
+                        id=str(uuid.uuid4()),
                         symbol=symbol,
                         side=side,
-                        order_type=order_type,
+                        type=order_type,
                         quantity=quantity,
                         price=price,
                         status=OrderStatus.FAILED,
-                        timestamp=datetime.now(UTC),
-                        error_message=f"Max retries exceeded: {e.code.name} - {e.message}"
+                        time=int(datetime.now(UTC).timestamp() * 1000),
+                        client_order_id="",
                     )
                     return failed_order
-                
+
                 # Wait before retrying
                 await asyncio.sleep(retry_delay)
-                
+
             except Exception as e:
                 self.logger.error(f"Unexpected error placing order: {e}")
                 failed_order = Order(
-                    id=str(uuid.uuid4()),  # Generate a placeholder ID
-                    exchange_id=exchange_id,
+                    id=str(uuid.uuid4()),
                     symbol=symbol,
                     side=side,
-                    order_type=order_type,
+                    type=order_type,
                     quantity=quantity,
                     price=price,
                     status=OrderStatus.FAILED,
-                    timestamp=datetime.now(UTC),
-                    error_message=f"Unexpected error: {str(e)}"
+                    time=int(datetime.now(UTC).timestamp() * 1000),
+                    client_order_id="",
                 )
                 return failed_order
-        
-        # This should never be reached due to the returns in the loop
-        self.logger.error(f"Unexpected exit from retry loop for {exchange_id} {symbol}")
+
+        # If we reach here, all retries have been exhausted
+        self.logger.error(f"All retries exhausted for order on {exchange_id} {symbol}")
         failed_order = Order(
             id=str(uuid.uuid4()),
-            exchange_id=exchange_id,
             symbol=symbol,
             side=side,
-            order_type=order_type,
+            type=order_type,
             quantity=quantity,
             price=price,
             status=OrderStatus.FAILED,
-            timestamp=datetime.now(UTC),
-            error_message="Unexpected exit from retry loop"
+            time=int(datetime.now(UTC).timestamp() * 1000),
+            client_order_id="",
         )
         return failed_order
 
@@ -835,10 +859,10 @@ class ExecutionHandler:
             Order object if found, None otherwise.
         """
         # Note: Retries might be better handled in the calling function (_verify_order_state)
-        # For now, keeping retry logic here is complex. Assume get_order_status handles its own transient errors.
+        # For now, keeping retry logic here is complex. Assume get_order handles its own transient errors.
         try:
             logger.debug(f"Getting order status for ID: {order_id} ({symbol}) on {exchange_id}")
-            order = await client.get_order_status(
+            order = await client.get_order(
                 order_id=order_id, symbol=symbol
             )  # Pass symbol if required by API
 
@@ -1102,7 +1126,7 @@ class ExecutionHandler:
         Returns:
             List of trade executions
         """
-        return self.execution_history.copy()
+        return self.executions.copy()
 
     def get_active_executions(self) -> list[TradeExecution]:
         """
@@ -1129,76 +1153,143 @@ class ExecutionHandler:
 
     async def _verify_order_state(
         self, execution_id: str, exchange: str, order_id: str
-    ) -> Order | None:  # Changed
+    ) -> Order | None:
         """
-        Verify the final state of an order after execution attempt.
+        Verify the current state of an order.
 
         Args:
-            execution_id: The ID of the trade execution context.
-            exchange: Exchange identifier.
-            order_id: Order identifier.
+            execution_id: Execution ID
+            exchange: Exchange identifier
+            order_id: Order identifier
 
         Returns:
-            The final Order object if successfully retrieved, else None.
+            Order object if found, None otherwise.
         """
-        api_client = self.api_clients.get(exchange)
-        if not api_client:
-            self.logger.warning("API client not found for verification", exchange=exchange)
+        client = self.api_clients.get(exchange)
+        if not client:
+            self.logger.error(f"No API client found for exchange {exchange}")
+            return None
+
+        # Find the correct execution
+        execution = self.active_executions.get(execution_id)
+        if not execution:
+            self.logger.error(f"Execution {execution_id} not found in active executions")
+            return None
+
+        # Determine the symbol
+        symbol = None
+        internal_symbol = execution.opportunity.opportunity.symbol
+        if exchange == execution.opportunity.opportunity.long_exchange:
+            symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange)
+        elif exchange == execution.opportunity.opportunity.short_exchange:
+            symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange)
+
+        if not symbol:
+            self.logger.error(
+                f"Could not map symbol {internal_symbol} for exchange {exchange}"
+            )
             return None
 
         try:
-            # Corrected: get_order -> get_order_status (assuming this is the method)
-            # Need to verify the actual method in ExchangeAPI
-            # order_data = await api_client.get_order(order_id)
-            order_data = await api_client.get_order_status(order_id=order_id)
-            if order_data:
-                # Assuming get_order_status returns data parsable into an Order object
-                # Corrected: Ensure return matches annotation
-                parsed_order = api_client.parse_order(
-                    order_data
-                )  # Or use a dedicated status parsing method
-                return parsed_order
-            else:
-                self.logger.warning(
-                    "Order not found on exchange during verification", order_id=order_id
-                )
-                return None
-        except APIError as e:
-            # Indentation fixed
-            self.logger.error("API error during order verification", order_id=order_id, error=e)
-            # Handle specific errors if needed (e.g., OrderNotFound)
-            return None
-        except Exception:
-            # Indentation fixed
-            self.logger.exception("Unexpected error during order verification", order_id=order_id)
+            self.logger.debug(f"Checking order status for {order_id} on {exchange}")
+            order = await client.get_order(order_id=order_id, symbol=symbol)
+            return order
+        except Exception as e:
+            self.logger.error(f"Error checking order status: {e}")
             return None
 
     async def _update_pnl(self, execution: TradeExecution) -> None:
-        """Updates PNL based on filled order information."""
-        if execution.status != ExecutionStatus.COMPLETED or not execution.order:
+        """
+        Update profit and loss calculations based on execution fills.
+
+        Args:
+            execution: Trade execution
+        """
+        logger.debug(f"Updating PnL for execution {execution.id}")
+
+        # Skip if not complete or partially complete
+        if execution.status not in (
+            ExecutionStatus.COMPLETED,
+            ExecutionStatus.PARTIALLY_COMPLETED,
+        ):
+            logger.debug(
+                f"Skipping PnL update for execution {execution.id} with status {execution.status.name}"
+            )
             return
 
-        order = execution.order
-        if order.status == OrderStatus.FILLED and order.avg_fill_price is not None:
-            position = self.portfolio_tracker.get_position(order.symbol)
-            if position and position.entry_price is not None:
-                # Corrected type hint needed for pnl_contribution
-                pnl_contribution: Decimal | None = None
-                # Calculate PNL (ensure Decimal math)
-                entry_price = position.entry_price  # Already Decimal
-                avg_fill_price = order.avg_fill_price  # Already Decimal
-                filled_quantity = order.filled_quantity  # Already Decimal
+        # Initialize default values
+        long_fill_price = execution.long_fill_price
+        short_fill_price = execution.short_fill_price
+        long_fill_qty = execution.long_fill_quantity
+        short_fill_qty = execution.short_fill_quantity
 
-                # Corrected: Assign Decimal result to Optional[Decimal]
-                if order.side == OrderSide.BUY:
-                    pnl_contribution = (avg_fill_price - entry_price) * filled_quantity
-                else:  # SELL
-                    pnl_contribution = (entry_price - avg_fill_price) * filled_quantity
+        # If we have fill information, calculate PnL
+        if (
+            long_fill_price is not None
+            and short_fill_price is not None
+            and long_fill_qty is not None
+            and short_fill_qty is not None
+            and long_fill_qty > Decimal("0")
+            and short_fill_qty > Decimal("0")
+        ):
+            # Calculate realized PnL based on the execution
+            symbol = execution.opportunity.opportunity.symbol
+            logger.info(
+                f"Calculating PnL for {symbol}: Long filled at {long_fill_price}, "
+                f"Short filled at {short_fill_price}"
+            )
 
-                if pnl_contribution is not None:
-                    # Update realized PNL in portfolio tracker
-                    # This logic might need refinement based on how PNL is tracked
-                    self.portfolio_tracker.update_realized_pnl(order.symbol, pnl_contribution)
-                    self.logger.info(
-                        "Updated realized PNL", order_id=order.id, pnl=pnl_contribution
-                    )
+            # Basic calculation - this should be refined based on exact fee structures,
+            # funding rates, and other factors specific to the exchanges
+            # For now, using a simplified calculation assuming equal fill quantities
+            min_filled_qty = min(long_fill_qty, short_fill_qty)
+            price_differential = short_fill_price - long_fill_price
+            gross_pnl = price_differential * min_filled_qty
+
+            # Apply estimated fees (simplified)
+            # This would need to be replaced with actual fee calculations per exchange
+            estimated_fee_rate = Decimal("0.001")  # 0.1% fee rate (example)
+            estimated_fees = (
+                estimated_fee_rate * long_fill_price * long_fill_qty
+                + estimated_fee_rate * short_fill_price * short_fill_qty
+            )
+
+            net_pnl = gross_pnl - estimated_fees
+
+            logger.info(
+                f"Execution {execution.id} PnL calculation: "
+                f"Gross PnL: {gross_pnl}, Estimated Fees: {estimated_fees}, Net PnL: {net_pnl}"
+            )
+
+            # Update portfolio tracker with PnL
+            # This would normally be done through processing specific trades,
+            # but for now we'll use a simplified approach
+            try:
+                # Example using internal methods - replace with appropriate portfolio tracking
+                long_exchange = execution.opportunity.opportunity.long_exchange
+                short_exchange = execution.opportunity.opportunity.short_exchange
+                self.portfolio_tracker.record_pnl(
+                    strategy=execution.opportunity.opportunity.__class__.__name__,
+                    symbol=symbol,
+                    amount=net_pnl,
+                    timestamp=datetime.now(UTC),
+                    details={
+                        "execution_id": execution.id,
+                        "long_exchange": long_exchange,
+                        "short_exchange": short_exchange,
+                        "long_fill_price": str(long_fill_price),
+                        "short_fill_price": str(short_fill_price),
+                        "filled_quantity": str(min_filled_qty),
+                        "gross_pnl": str(gross_pnl),
+                        "estimated_fees": str(estimated_fees),
+                    },
+                )
+                logger.info(f"Recorded PnL of {net_pnl} for execution {execution.id}")
+            except Exception as e:
+                logger.error(f"Error recording PnL for execution {execution.id}: {e}")
+        else:
+            logger.warning(
+                f"Insufficient fill information for PnL calculation on execution {execution.id}. "
+                f"long_fill_price: {long_fill_price}, short_fill_price: {short_fill_price}, "
+                f"long_fill_qty: {long_fill_qty}, short_fill_qty: {short_fill_qty}"
+            )

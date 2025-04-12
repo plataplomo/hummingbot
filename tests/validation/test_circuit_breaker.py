@@ -645,38 +645,37 @@ class TestCircuitBreakerSystem:
         system = CircuitBreakerSystem(mock_config)
         # ... rest of test ...
 
-    # ... Add similar instantiation for other tests ...
-    def test_update_price(self, mock_config):
+    def test_update_price(self, mock_config) -> None:
         system = CircuitBreakerSystem(mock_config)
-        # Create or register a volatility breaker if not loaded by default config
+        # Create or register a volatility breaker if not loaded by default
         # system.register_breaker(VolatilityBreaker(...))
         # ... rest of test ...
 
-    def test_update_portfolio_value(self, mock_config):
+    def test_update_portfolio_value(self, mock_config: Config) -> None:
         system = CircuitBreakerSystem(mock_config)
         # ... rest of test ...
 
-    def test_update_liquidity(self, mock_config):
+    def test_update_liquidity(self, mock_config: Config) -> None:
         system = CircuitBreakerSystem(mock_config)
         # ... rest of test ...
 
-    def test_reset_breaker(self, mock_config):
+    def test_reset_breaker(self, mock_config: Config) -> None:
         system = CircuitBreakerSystem(mock_config)
         # ... rest of test ...
 
-    def test_reset_nonexistent_breaker(self, mock_config):
+    def test_reset_nonexistent_breaker(self, mock_config: Config) -> None:
         system = CircuitBreakerSystem(mock_config)
         # ... rest of test ...
 
-    def test_reset_exchange_breakers(self, mock_config):
+    def test_reset_exchange_breakers(self, mock_config: Config) -> None:
         system = CircuitBreakerSystem(mock_config)
         # ... rest of test ...
 
-    def test_get_status(self, mock_config):
+    def test_get_status(self, mock_config: Config) -> None:
         system = CircuitBreakerSystem(mock_config)
         # ... rest of test ...
 
-    def test_get_tripped_breakers(self, mock_config):
+    def test_get_tripped_breakers(self, mock_config: Config) -> None:
         system = CircuitBreakerSystem(mock_config)
         # ... rest of test ...
 

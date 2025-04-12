@@ -279,7 +279,8 @@ class VolatilityBreaker(CircuitBreaker):
         variance = sum((p - mean) ** 2 for p in self.price_history) / len(self.price_history)
         volatility = (variance**0.5) / mean
 
-        return volatility <= self.volatility_threshold
+        # Explicitly cast to bool for type safety
+        return bool(volatility <= self.volatility_threshold)
 
 
 class DrawdownBreaker(CircuitBreaker):
@@ -349,7 +350,7 @@ class DrawdownBreaker(CircuitBreaker):
 
 class APIErrorBreaker(CircuitBreaker):
     """
-    Circuit breaker that trips when API errors exceed thresholds.
+    Circuit breaker that trips when API errors exceed threshold in a time window.
     """
 
     def __init__(
@@ -360,18 +361,21 @@ class APIErrorBreaker(CircuitBreaker):
         cooldown_seconds: int = 300,
     ) -> None:
         """
-        Initialize the API error breaker.
+        Initialize API error breaker.
 
         Args:
             name: Identifier for this breaker
             error_threshold: Number of errors to trigger the breaker
-            window_seconds: Time window to consider for errors
-            cooldown_seconds: Time to wait before testing if system has recovered
+            window_seconds: Time window for counting errors
+            cooldown_seconds: Time to wait before testing recovery
         """
         super().__init__(name, cooldown_seconds)
         self.error_threshold = error_threshold
         self.window_seconds = window_seconds
-        self.error_times: list[datetime] = []
+        self.errors: list[tuple[datetime, str]] = []
+        self.success_count = 0
+        self.consecutive_success_count = 0
+        self.last_success_time: datetime | None = None
 
     def record_error(self, error_message: str) -> None:
         """
@@ -380,86 +384,105 @@ class APIErrorBreaker(CircuitBreaker):
         Args:
             error_message: Description of the error
         """
+        # Record error with current time
         now = datetime.now(UTC)
-        self.error_times.append(now)
+        self.errors.append((now, error_message))
+        
+        # Reset consecutive success counter since we had an error
+        self.consecutive_success_count = 0
 
-        # Remove errors outside the window
-        cutoff_time = now - timedelta(seconds=self.window_seconds)
-        self.error_times = [t for t in self.error_times if t >= cutoff_time]
+        # Prune errors outside the window
+        cutoff = now - timedelta(seconds=self.window_seconds)
+        self.errors = [e for e in self.errors if e[0] >= cutoff]
 
-        # === ADDED Logging ===
-        error_count = len(self.error_times)
-        logger.info(
-            f"API Error Breaker '{self.name}' check: Errors={error_count}, "
-            f"Threshold={self.error_threshold}, Window={self.window_seconds}s"
-        )
-        # === END Logging ===
-
-        # Check if the error count exceeds the threshold
-        if error_count >= self.error_threshold:
-            logger.info(f"Breaker {self.name}: Threshold met! Tripping breaker.")
-            self.trip(
-                f"API errors exceeded threshold ({self.error_threshold} in {self.window_seconds}s)"
+    def record_success(self) -> None:
+        """
+        Record a successful API call.
+        
+        This helps track the ratio of successful to failed calls
+        and can be used to determine if recovery is appropriate.
+        """
+        now = datetime.now(UTC)
+        self.success_count += 1
+        self.consecutive_success_count += 1
+        self.last_success_time = now
+        
+        # If we're in half-open state and have enough consecutive successes,
+        # this could help determine if recovery should happen
+        if (self.state == BreakerState.HALF_OPEN and 
+            self.consecutive_success_count >= max(3, self.error_threshold)):
+            # Consider this a strong signal for recovery
+            logger.info(
+                f"APIErrorBreaker {self.name}: {self.consecutive_success_count} consecutive "
+                f"successful API calls while in half-open state"
             )
 
     def check(self, error_message: str | None = None) -> None:
         """
-        Check if error count exceeds the threshold.
+        Check if the breaker should trip based on recent errors.
 
         Args:
-            error_message: Optional error message if checking after a new error
+            error_message: Optional error message to record during the check
         """
-        # Remove errors outside the window
-        now = datetime.now(UTC)
-        cutoff_time = now - timedelta(seconds=self.window_seconds)
-        # Ensure error times are timezone-aware before comparing
-        aware_error_times = [
-            t.replace(tzinfo=UTC) if t.tzinfo is None else t for t in self.error_times
-        ]
-        self.error_times = [t for t in aware_error_times if t >= cutoff_time]
+        # Record the error if provided
+        if error_message is not None:
+            self.record_error(error_message)
 
-        # Add new error if provided
-        if error_message:
-            self.error_times.append(datetime.now(UTC))
+        # Don't check if the breaker is already open
+        if self.state == BreakerState.OPEN:
+            return
+
+        now = datetime.now(UTC)
+        # Filter to errors in the current window
+        cutoff = now - timedelta(seconds=self.window_seconds)
+        recent_errors = [e for e in self.errors if e[0] >= cutoff]
 
         # Trip if threshold exceeded
-        if len(self.error_times) >= self.error_threshold:
-            reason = f"{len(self.error_times)} errors in {self.window_seconds}s window"
-            if error_message:
-                reason += f". Latest: {error_message}"
-            self.trip(reason)
+        if len(recent_errors) >= self.error_threshold:
+            # Combine error messages
+            combined_error = "\n".join([f"{e[0].isoformat()}: {e[1]}" for e in recent_errors[-3:]])
+            self.trip(
+                f"Detected {len(recent_errors)} API errors in {self.window_seconds}s window. "
+                f"Recent errors: {combined_error}"
+            )
 
     def _check_recovery(self) -> bool:
         """
-        Check if error rate has decreased.
+        Check if API errors have subsided.
 
         Returns:
-            True if recent error count is below threshold, False otherwise
+            True if recent error rate is acceptable, False otherwise
         """
-        # Remove errors outside the window
-        now = datetime.now(UTC)  # Ensure now is timezone-aware
-        cutoff_time = now - timedelta(seconds=self.window_seconds)
-        # Ensure error times are timezone-aware for comparison
-        aware_error_times = [
-            t.replace(tzinfo=UTC) if t.tzinfo is None else t for t in self.error_times
-        ]
-        recent_errors = [t for t in aware_error_times if t >= cutoff_time]
-        # Update error_times with the filtered aware list
-        self.error_times = recent_errors
+        # We could just return True, assuming time has passed and we want to try again
+        # But let's also check if there have been errors in the past window
+        now = datetime.now(UTC)
+        cutoff = now - timedelta(seconds=self.window_seconds)
+        recent_errors = [e for e in self.errors if e[0] >= cutoff]
 
-        # Check if the count of recent errors is below the threshold
-        recovery_possible = len(recent_errors) < self.error_threshold
-        if recovery_possible:
+        # Check if the consecutive success count is promising
+        success_recovery = (
+            self.consecutive_success_count >= max(3, self.error_threshold // 2)
+        )
+
+        # Consider both error count and success streak
+        if len(recent_errors) < self.error_threshold // 2:
             logger.info(
-                f"Breaker '{self.name}' recovery check passed "
-                f"({len(recent_errors)} errors < {self.error_threshold})."
+                f"APIErrorBreaker {self.name} recovery check: {len(recent_errors)} recent errors, "
+                f"{self.consecutive_success_count} consecutive successes - recovery allowed"
             )
+            return True
+        elif success_recovery:
+            logger.info(
+                f"APIErrorBreaker {self.name} recovery check: Despite {len(recent_errors)} recent errors, "
+                f"has {self.consecutive_success_count} consecutive successes - recovery allowed"
+            )
+            return True
         else:
-            logger.warning(
-                f"Breaker '{self.name}' recovery check failed "
-                f"({len(recent_errors)} errors >= {self.error_threshold})."
+            logger.info(
+                f"APIErrorBreaker {self.name} recovery check: {len(recent_errors)} recent errors, "
+                f"{self.consecutive_success_count} consecutive successes - recovery rejected"
             )
-        return recovery_possible
+            return False
 
 
 class LiquidityBreaker(CircuitBreaker):
@@ -741,15 +764,15 @@ class CircuitBreakerSystem:
                 logger.warning(f"Execution blocked: {reason}")
                 return False, reason
             # Test recovery for HALF_OPEN global breakers
-            if breaker.state == BreakerState.HALF_OPEN and now >= breaker.trip_time + timedelta(
-                seconds=breaker.cooldown_seconds
-            ):
-                if not breaker.test_recovery():
-                    reason = f"Global breaker '{breaker_name}' failed recovery test."
-                    logger.warning(f"Execution blocked: {reason}")
-                    return False, reason
-                else:
-                    logger.info(f"Global breaker '{breaker_name}' recovered and is now CLOSED.")
+            if breaker.state == BreakerState.HALF_OPEN and breaker.trip_time is not None:
+                cooldown_time = timedelta(seconds=breaker.cooldown_seconds)
+                if now >= breaker.trip_time + cooldown_time:
+                    if not breaker.test_recovery():
+                        reason = f"Global breaker '{breaker_name}' failed recovery test."
+                        logger.warning(f"Execution blocked: {reason}")
+                        return False, reason
+                    else:
+                        logger.info(f"Global breaker '{breaker_name}' recovered and is now CLOSED.")
 
         # Check exchange-specific breakers
         if exchange in self.exchange_breakers:
@@ -766,17 +789,17 @@ class CircuitBreakerSystem:
                     logger.warning(f"Execution blocked for {exchange}: {reason}")
                     return False, reason
                 # Test recovery for HALF_OPEN exchange breakers
-                if breaker.state == BreakerState.HALF_OPEN and now >= breaker.trip_time + timedelta(
-                    seconds=breaker.cooldown_seconds
-                ):
-                    if not breaker.test_recovery():
-                        reason = f"Exchange breaker '{breaker_name}' for {exchange} failed recovery test."
-                        logger.warning(f"Execution blocked for {exchange}: {reason}")
-                        return False, reason
-                    else:
-                        logger.info(
-                            f"Exchange breaker '{breaker_name}' for {exchange} recovered and is now CLOSED."
-                        )
+                if breaker.state == BreakerState.HALF_OPEN and breaker.trip_time is not None:
+                    cooldown_time = timedelta(seconds=breaker.cooldown_seconds)
+                    if now >= breaker.trip_time + cooldown_time:
+                        if not breaker.test_recovery():
+                            reason = f"Exchange breaker '{breaker_name}' for {exchange} failed recovery test."
+                            logger.warning(f"Execution blocked for {exchange}: {reason}")
+                            return False, reason
+                        else:
+                            logger.info(
+                                f"Exchange breaker '{breaker_name}' for {exchange} recovered and is now CLOSED."
+                            )
 
         # TODO: Consider symbol-specific breakers if implemented
 
@@ -784,30 +807,113 @@ class CircuitBreakerSystem:
 
     def record_api_error(self, exchange: str, error_message: str) -> None:
         """
-        Record an API error for an exchange and update the global breaker.
-        """
-        logger.info(f"System ID {id(self)}: record_api_error called for {exchange}")
-        # Record for exchange-specific APIErrorBreaker
-        breaker = self.get_exchange_breaker(exchange, "api_errors")
-        logger.info(f"Got exchange breaker for {exchange}: {breaker}")
-        if breaker and isinstance(breaker, APIErrorBreaker):
-            breaker.record_error(error_message)
-            logger.info(
-                f"Recorded API error for {exchange}. Breaker status: {breaker.get_status()}"
-            )
-        else:
-            logger.warning(f"No valid APIErrorBreaker found for {exchange}")
+        Record an API error for tracking in API error breakers.
 
-        # Update global APIErrorBreaker
-        global_breaker = self.get_breaker("global_api_error")
-        logger.info(f"Got global breaker: {global_breaker}")
-        if global_breaker and isinstance(global_breaker, APIErrorBreaker):
-            global_breaker.record_error(error_message)
-            logger.info(
-                f"Recorded API error for global breaker. Status: {global_breaker.get_status()}"
-            )
-        else:
-            logger.warning("No valid global_api_error breaker found")
+        Args:
+            exchange: Exchange identifier
+            error_message: Description of the error
+        """
+        logger.debug(f"Recording API error for {exchange}: {error_message}")
+        recorded = False
+
+        # Record in exchange-specific breaker
+        exchange_breaker_name = f"{exchange}_api_errors"
+        if exchange_breaker_name in self.breakers:
+            breaker = self.breakers[exchange_breaker_name]
+            if isinstance(breaker, APIErrorBreaker):
+                breaker.record_error(error_message)
+                breaker.check()
+                recorded = True
+
+        # Also record in global API breaker if present
+        if "global_api_errors" in self.breakers:
+            breaker = self.breakers["global_api_errors"]
+            if isinstance(breaker, APIErrorBreaker):
+                breaker.record_error(f"{exchange}: {error_message}")
+                breaker.check()
+                recorded = True
+
+        if not recorded:
+            logger.warning(f"No API error breakers found to record error for {exchange}")
+
+    def record_api_success(self, exchange: str, context: str = "") -> None:
+        """
+        Record an API success which can help reset error counters.
+
+        This is especially important for exchanges with sporadic errors
+        that shouldn't trigger circuit breakers.
+
+        Args:
+            exchange: Exchange identifier
+            context: Optional context (e.g., symbol, operation type)
+        """
+        logger.debug(f"Recording API success for {exchange}{' for ' + context if context else ''}")
+        
+        # Check exchange-specific breaker
+        exchange_breaker_name = f"{exchange}_api_errors"
+        if exchange_breaker_name in self.breakers:
+            breaker = self.breakers[exchange_breaker_name]
+            if isinstance(breaker, APIErrorBreaker):
+                # If breaker is open, consider transitioning it
+                if breaker.state == BreakerState.OPEN:
+                    # Only transition to HALF_OPEN if cooldown period has passed
+                    now = datetime.now(UTC)
+                    if (breaker.trip_time is not None and 
+                        (now - breaker.trip_time).total_seconds() >= breaker.cooldown_seconds):
+                        breaker.state = BreakerState.HALF_OPEN
+                        logger.info(f"API success recorded: {exchange_breaker_name} transitioning to HALF_OPEN state")
+                
+                # If breaker is in HALF_OPEN, test recovery
+                if breaker.state == BreakerState.HALF_OPEN:
+                    recovery_success = breaker.test_recovery()
+                    if recovery_success:
+                        logger.info(f"API success confirmed recovery: {exchange_breaker_name} reset to CLOSED state")
+                    else:
+                        logger.info(f"API success not sufficient for recovery: {exchange_breaker_name} remains in OPEN state")
+                
+                # Record success in error tracking (might reduce counter in some implementations)
+                if hasattr(breaker, "record_success") and callable(getattr(breaker, "record_success")):
+                    breaker.record_success()
+        
+        # Also update global API breaker if present
+        if "global_api_errors" in self.breakers:
+            breaker = self.breakers["global_api_errors"]
+            if isinstance(breaker, APIErrorBreaker):
+                # Similar logic for global breaker
+                if breaker.state == BreakerState.HALF_OPEN:
+                    recovery_success = breaker.test_recovery()
+                    if recovery_success:
+                        logger.info("API success confirmed recovery: global_api_errors reset to CLOSED state")
+                
+                # Record success in error tracking
+                if hasattr(breaker, "record_success") and callable(getattr(breaker, "record_success")):
+                    breaker.record_success()
+
+    def record_critical_failure(self, exchange: str, error_message: str) -> None:
+        """
+        Record a critical failure that should immediately trip relevant breakers.
+
+        Args:
+            exchange: Exchange where the critical failure occurred
+            error_message: Description of the critical failure
+        """
+        logger.error(f"CRITICAL FAILURE for {exchange}: {error_message}")
+
+        # Trip the exchange-specific API breaker if it exists
+        exchange_api_breaker = self.get_exchange_breaker(exchange, "api_errors")
+        if exchange_api_breaker:
+            exchange_api_breaker.trip(f"Critical failure: {error_message}")
+
+        # Also trip the global API breaker to ensure all operations are affected
+        global_api_breaker = self.get_breaker("global_api_error")
+        if global_api_breaker:
+            global_api_breaker.trip(f"Critical failure on {exchange}: {error_message}")
+
+        # If we have any exchange-specific volatility breakers, trip those too
+        # as a critical failure might indicate market conditions are unstable
+        for breaker_name, breaker in self.exchange_breakers.get(exchange, {}).items():
+            if isinstance(breaker, VolatilityBreaker):
+                breaker.trip(f"Critical failure triggered volatility breaker: {error_message}")
 
     def update_price(self, exchange: str, symbol: str, price: float) -> None:
         """
@@ -907,7 +1013,7 @@ class CircuitBreakerSystem:
         Returns:
             Status as a dictionary
         """
-        status = {"global_breakers": {}, "exchange_breakers": {}}
+        status: dict[str, dict[str, Any]] = {"global_breakers": {}, "exchange_breakers": {}}
 
         # Add global breakers
         for name, breaker in self.breakers.items():
@@ -928,7 +1034,7 @@ class CircuitBreakerSystem:
         Returns:
             List of tripped breaker status dictionaries
         """
-        tripped_breakers = []
+        tripped_breakers: list[dict[str, Any]] = []
 
         # Check global breakers
         for _name, breaker in self.breakers.items():

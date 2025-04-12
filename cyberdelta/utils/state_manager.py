@@ -253,10 +253,15 @@ class StateManager:
         if not isinstance(state_data, dict):
             return False
 
+        # Check for required top-level keys
         if "state" not in state_data or "metadata" not in state_data:
             return False
 
+        # Check for required metadata keys
         metadata = state_data.get("metadata", {})
+        if not isinstance(metadata, dict):
+            return False
+            
         if "timestamp" not in metadata or "checksum" not in metadata:
             return False
 
@@ -264,7 +269,8 @@ class StateManager:
         expected_checksum = metadata["checksum"]
         actual_checksum = self._calculate_checksum(state_data["state"])
 
-        return expected_checksum == actual_checksum
+        # Return true if checksums match, ensuring bool type
+        return bool(expected_checksum == actual_checksum)
 
     def _calculate_checksum(self, state: dict[str, Any]) -> str:
         """

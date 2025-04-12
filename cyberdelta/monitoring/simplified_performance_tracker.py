@@ -12,11 +12,12 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+import uuid
 
 import numpy as np
 import pandas as pd
 
-from cyberdelta.core.models import ArbitrageOpportunity, TradeSignal
+from cyberdelta.core.models import ArbitrageOpportunity, TradeSignal, SignalType, OrderSide
 
 logger = logging.getLogger(__name__)
 
@@ -154,18 +155,18 @@ class SimplePerformanceTracker:
         """
         # Create signal metrics
         signal_metrics = SignalMetrics(
-            signal_id=signal.signal_id,
+            signal_id=getattr(signal, "signal_id", str(uuid.uuid4())),
             strategy_name=self.strategy_name,
-            signal_type=signal.signal_type.name,
+            signal_type=signal.signal_type.name if hasattr(signal.signal_type, "name") else str(signal.signal_type),
             symbol=signal.symbol,
-            timestamp=signal.timestamp,
+            timestamp=signal.timestamp or datetime.now(UTC),
             metadata=signal.metadata or {},
         )
 
         # Update counter and store signal metrics
         self.total_signals_generated += 1
-        self.signal_history[signal.signal_id] = signal_metrics
-        self.pending_signals[signal.signal_id] = signal_metrics
+        self.signal_history[signal_metrics.signal_id] = signal_metrics
+        self.pending_signals[signal_metrics.signal_id] = signal_metrics
 
         # Update metrics
         self._record_metrics()
@@ -624,28 +625,25 @@ if __name__ == "__main__":
 
     now = datetime.now(UTC)
 
-    # Track some signals
-    signal1 = type(
-        "Signal",
-        (),
-        {
-            "signal_id": "1",
-            "signal_type": type("SignalType", (), {"name": "ENTER_LONG"}),
-            "symbol": "BTC-USDT",
-            "timestamp": now,
-            "metadata": {},
-        },
+    # Create proper TradeSignal instances instead of mock objects
+    signal1 = TradeSignal(
+        symbol="BTC-USDT",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,  # Assuming OrderSide is imported elsewhere
+        timestamp=now,
+        signal_id="1",
+        source_strategy="ExampleStrategy",
+        metadata={},
     )
-    signal2 = type(
-        "Signal",
-        (),
-        {
-            "signal_id": "2",
-            "signal_type": type("SignalType", (), {"name": "ENTER_SHORT"}),
-            "symbol": "ETH-USDT",
-            "timestamp": now,
-            "metadata": {},
-        },
+    
+    signal2 = TradeSignal(
+        symbol="ETH-USDT",
+        signal_type=SignalType.ENTER_SHORT,
+        side=OrderSide.SELL,  # Assuming OrderSide is imported elsewhere
+        timestamp=now,
+        signal_id="2",
+        source_strategy="ExampleStrategy",
+        metadata={},
     )
 
     tracker.track_signal(signal1)

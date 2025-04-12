@@ -9,6 +9,7 @@ import logging
 import math
 import time
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 # from cyberdelta.config import Config # Incorrect path
 from cyberdelta.utils.config import Config  # Correct path
@@ -31,8 +32,8 @@ class FundingRateValidator:
         self.logger = logging.getLogger(__name__)
 
         # Simple in-memory storage for predictions and payments
-        self.predictions = []
-        self.payments = []
+        self.predictions: list[dict[str, Any]] = []
+        self.payments: list[dict[str, Any]] = []
 
     def record_prediction(
         self,
@@ -228,6 +229,8 @@ class FundingRateValidator:
         Returns:
             Dictionary with validation metrics by exchange and symbol
         """
+        report: dict[str, dict[str, dict[str, float | None]]] = {}
+
         # Get unique exchange-symbol pairs from all predictions and payments
         exchange_symbols = set()
 
@@ -238,7 +241,6 @@ class FundingRateValidator:
             exchange_symbols.add((payment["exchange"], payment["symbol"]))
 
         # Generate report for each pair
-        report = {}
         for exchange, symbol in exchange_symbols:
             if exchange not in report:
                 report[exchange] = {}
@@ -249,8 +251,8 @@ class FundingRateValidator:
         return report
 
     def get_recent_predictions(
-        self, exchange: str = None, symbol: str = None, limit: int = 100
-    ) -> list[dict]:
+        self, exchange: str | None = None, symbol: str | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
         """
         Get recent funding rate predictions.
 
@@ -278,8 +280,8 @@ class FundingRateValidator:
         return sorted_predictions[:limit]
 
     def get_recent_payments(
-        self, exchange: str = None, symbol: str = None, limit: int = 100
-    ) -> list[dict]:
+        self, exchange: str | None = None, symbol: str | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
         """
         Get recent funding payments.
 

@@ -25,7 +25,7 @@ from cyberdelta.validation.multi_tier_funding_provider import (
 class TestMultiTierFundingProvider(unittest.TestCase):
     """Tests for the MultiTierFundingProvider class."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test environment."""
         # Create a basic config
         self.config = {
@@ -80,7 +80,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
             "timestamp": datetime.now(),
         }
 
-    def test_register_source(self):
+    def test_register_source(self) -> None:
         """Test registering data sources."""
         # Register all source types
         self.provider.register_source(
@@ -115,7 +115,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.assertEqual(self.provider.fallback_sources["hyperliquid"], self.fallback_source)
 
     @pytest.mark.asyncio
-    async def test_get_funding_rate_all_sources(self):
+    async def test_get_funding_rate_all_sources(self) -> None:
         """Test getting funding rate with all sources available."""
         # Register all source types
         self.provider.register_source(
@@ -150,7 +150,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.assertGreater(confidence, 0.7)  # Should be high with all sources
 
     @pytest.mark.asyncio
-    async def test_get_funding_rate_primary_only(self):
+    async def test_get_funding_rate_primary_only(self) -> None:
         """Test getting funding rate with only primary source."""
         # Register only primary source
         self.provider.register_source(
@@ -171,7 +171,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.assertGreater(confidence, 0.5)  # Should be moderate with only primary
 
     @pytest.mark.asyncio
-    async def test_get_funding_rate_primary_fails(self):
+    async def test_get_funding_rate_primary_fails(self) -> None:
         """Test getting funding rate when primary source fails."""
         # Register sources
         self.primary_source.side_effect = Exception("Primary source failed")
@@ -200,7 +200,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.assertLess(confidence, 0.7)  # Should be lower without primary
 
     @pytest.mark.asyncio
-    async def test_get_funding_rate_all_fail(self):
+    async def test_get_funding_rate_all_fail(self) -> None:
         """Test getting funding rate when all regular sources fail."""
         # Register sources
         self.primary_source.side_effect = Exception("Primary source failed")
@@ -245,7 +245,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.assertAlmostEqual(confidence, 0.3, places=1)  # Low confidence for fallback
 
     @pytest.mark.asyncio
-    async def test_get_funding_rate_all_fail_no_fallback(self):
+    async def test_get_funding_rate_all_fail_no_fallback(self) -> None:
         """Test getting funding rate when all sources fail and no fallback."""
         # Register sources
         self.primary_source.side_effect = Exception("Primary source failed")
@@ -274,7 +274,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         with self.assertRaises(FundingRateSourceError):
             await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
 
-    def test_clear_cache(self):
+    def test_clear_cache(self) -> None:
         """Test clearing the funding rate cache."""
         # Add some data to cache
         self.provider.funding_cache[("hyperliquid", "BTC-PERP")] = IntegratedFundingData(
@@ -299,7 +299,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         # Verify cache is empty
         self.assertEqual(len(self.provider.funding_cache), 0)
 
-    def test_clear_stale_cache_entries(self):
+    def test_clear_stale_cache_entries(self) -> None:
         """Test clearing stale entries from funding rate cache."""
         # Add some data to cache
         now = datetime.now(UTC)
@@ -344,7 +344,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.assertIn(("hyperliquid", "BTC-PERP"), self.provider.funding_cache)
         self.assertNotIn(("hyperliquid", "ETH-PERP"), self.provider.funding_cache)
 
-    def test_integrate_funding_data(self):
+    def test_integrate_funding_data(self) -> None:
         """Test integrating funding data from multiple sources."""
         # Create test data
         now = datetime.now()
