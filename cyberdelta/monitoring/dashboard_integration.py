@@ -9,6 +9,7 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from decimal import Decimal
 
 import structlog
 
@@ -140,14 +141,14 @@ class DashboardIntegration:
             logger.info("Dashboard reference removed")
             self.dashboard = None
 
-    def track_return(self, strategy_name: str, timestamp: datetime, return_value: float):
+    def track_return(self, strategy_name: str, timestamp: datetime, return_value: Decimal):
         """
         Track a return for a strategy.
 
         Args:
             strategy_name: Name of the strategy
             timestamp: Timestamp of the return
-            return_value: Return value
+            return_value: Return value (Decimal)
         """
         self.performance_tracker.track_return(strategy_name, timestamp, return_value)
 
@@ -158,12 +159,12 @@ class DashboardIntegration:
         symbol: str,
         exchange: str,
         direction: str,
-        size: float,
-        entry_price: float,
+        size: Decimal,
+        entry_price: Decimal,
         entry_time: datetime,
-        exit_price: float | None = None,
+        exit_price: Decimal | None = None,
         exit_time: datetime | None = None,
-        pnl: float | None = None,
+        pnl: Decimal | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """
@@ -175,12 +176,12 @@ class DashboardIntegration:
             symbol: Symbol traded
             exchange: Exchange used
             direction: Trade direction (LONG/SHORT)
-            size: Trade size
-            entry_price: Entry price
+            size: Trade size (Decimal)
+            entry_price: Entry price (Decimal)
             entry_time: Entry timestamp
-            exit_price: Exit price (optional)
+            exit_price: Exit price (optional, Decimal)
             exit_time: Exit timestamp (optional)
-            pnl: Profit/loss (optional)
+            pnl: Profit/loss (optional, Decimal)
             metadata: Additional trade metadata (optional)
         """
         self.performance_tracker.track_trade(
@@ -201,9 +202,9 @@ class DashboardIntegration:
     def track_trade_exit(
         self,
         trade_id: str,
-        exit_price: float,
+        exit_price: Decimal,
         exit_time: datetime,
-        pnl: float,
+        pnl: Decimal,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """
@@ -211,9 +212,9 @@ class DashboardIntegration:
 
         Args:
             trade_id: ID of the trade to update
-            exit_price: Exit price
+            exit_price: Exit price (Decimal)
             exit_time: Exit timestamp
-            pnl: Profit/loss
+            pnl: Profit/loss (Decimal)
             metadata: Additional exit metadata (optional)
         """
         self.performance_tracker.track_trade_exit(
@@ -306,8 +307,8 @@ class DashboardIntegration:
         timestamp: datetime,
         exchange: str,
         symbol: str,
-        funding_rate: float,
-        predicted_rate: float | None = None,
+        funding_rate: Decimal,
+        predicted_rate: Decimal | None = None,
         metadata: dict[str, Any] | None = None,
     ):
         """
@@ -317,8 +318,8 @@ class DashboardIntegration:
             timestamp: Funding rate timestamp
             exchange: Exchange
             symbol: Symbol
-            funding_rate: Funding rate value
-            predicted_rate: Predicted funding rate (optional)
+            funding_rate: Funding rate value (Decimal)
+            predicted_rate: Predicted funding rate (optional, Decimal)
             metadata: Additional metadata (optional)
         """
         self.performance_tracker.track_funding_rate(

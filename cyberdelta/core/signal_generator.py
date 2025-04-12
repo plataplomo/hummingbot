@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation, getcontext  # Import Decimal and InvalidOperation
 from typing import (  # Added Callable, Coroutine, Dict, Optional, List
     TYPE_CHECKING,
+    Any,
 )
 
 import numpy as np
@@ -20,8 +21,9 @@ from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger  # <--- Use get_logger
 
-if TYPE_CHECKING:
-    from cyberdelta.core.models import ArbitrageOpportunity
+# Remove redundant import since ArbitrageOpportunity is already imported above
+# if TYPE_CHECKING:
+#     from cyberdelta.core.models import ArbitrageOpportunity
 
 
 logger = get_logger(__name__)  # <--- Use configured logger
@@ -83,6 +85,10 @@ class SignalGenerator:
         # Historical basis data for volatility calculation
         # internal_symbol -> deque[(timestamp, basis: Decimal)]
         self.historical_basis: dict[str, deque[tuple[datetime, Decimal]]] = {}
+        
+        # Historical slippage data for estimation
+        # exchange -> symbol -> list[Decimal]
+        self.historical_slippage: dict[str, dict[str, list[Decimal]]] = {}
 
         # Sample period and count for funding rate history
         self.funding_sample_period = config.get(
@@ -112,9 +118,13 @@ class SignalGenerator:
             f"Initializing data structures for enabled exchanges: {enabled_exchanges} and internal symbols: {all_internal_symbols}"
         )
 
+        # Track which symbols we're monitoring
+        self.tracked_symbols = all_internal_symbols
+        
         # Initialize historical funding rate storage
         for exchange_id in enabled_exchanges:
             self.historical_funding_rates[exchange_id] = {}
+            self.historical_slippage[exchange_id] = {}  # Initialize historical slippage structure
             for internal_symbol in all_internal_symbols:
                 # Check if this exchange has a mapping for the internal symbol
                 exchange_symbol = self.symbol_mapper.get_exchange_symbol(
@@ -122,6 +132,7 @@ class SignalGenerator:
                 )
                 if exchange_symbol:
                     self.historical_funding_rates[exchange_id][internal_symbol] = deque()
+                    self.historical_slippage[exchange_id][internal_symbol] = []  # Initialize empty list
                     logger.debug(
                         f"  Initialized funding deque for {exchange_id} / {internal_symbol} (maps to {exchange_symbol})"
                     )
@@ -233,22 +244,26 @@ class SignalGenerator:
                 )
 
                 if exchange_symbol:  # Check if mapping exists
-                    ticker: Ticker | None = self.data_handler.get_ticker(
+                    market_data: MarketData | None = self.data_handler.get_ticker(
                         exchange_id, exchange_symbol
                     )
-                    # Ensure ticker and price are valid
-                    if ticker and ticker.price is not None:
+                    # Ensure market data and price are valid
+                    if market_data and hasattr(market_data, 'close'):
                         # Attempt to convert price to Decimal immediately for validation
                         try:
-                            price_decimal = Decimal(str(ticker.price))
+                            price_decimal = market_data.close  # Already Decimal from MarketData.__post_init__
                             valid_exchanges_for_symbol.append(exchange_id)
-                            # Store the ticker *after* ensuring its price is valid and convertible
+                            # Create a Ticker object from MarketData for consistency
+                            ticker = Ticker(
+                                symbol=market_data.symbol,
+                                price=price_decimal,
+                                timestamp=int(market_data.timestamp.timestamp() * 1000) if market_data.timestamp else None
+                            )
+                            # Store the ticker
                             exchange_tickers[exchange_id] = ticker
-                            # Overwrite price with validated Decimal for consistency downstream
-                            ticker.price = price_decimal
-                        except (InvalidOperation, TypeError) as conversion_error:
+                        except (InvalidOperation, TypeError, AttributeError) as conversion_error:
                             logger.warning(
-                                f"Could not convert ticker price '{ticker.price}' to Decimal for "
+                                f"Could not process market data for "
                                 f"{exchange_id}/{exchange_symbol} (Internal: {internal_symbol}): {conversion_error}"
                             )
                             # Do not add this exchange/ticker if price is invalid
@@ -302,20 +317,42 @@ class SignalGenerator:
         # Extract rates (they should be Decimal)
         rates = [rate for _, rate in history_deque]
 
-        # Use numpy for standard deviation, converting Decimals to floats for calculation
         try:
-            # Convert Decimal list to list of floats for numpy
-            rates_float = [float(r) for r in rates]
-            std_dev = np.std(rates_float)
-            # Convert result back to Decimal
-            std_dev_decimal = Decimal(str(std_dev))
+            # Calculate standard deviation using Decimal arithmetic
+            # Convert any non-Decimal values to Decimal
+            decimal_rates = [r if isinstance(r, Decimal) else Decimal(str(r)) for r in rates]
+            
+            # Calculate mean
+            n = len(decimal_rates)
+            mean = sum(decimal_rates) / Decimal(n)
+            
+            # Calculate variance (sum of squared differences from mean, divided by n-1)
+            variance = sum((r - mean) ** 2 for r in decimal_rates) / Decimal(n - 1)
+            
+            # Take square root for standard deviation
+            # Use Decimal's power function with 0.5 exponent for square root
+            std_dev_decimal = variance ** Decimal('0.5')
+            
             # Return a minimum non-zero volatility
             return max(Decimal("1e-8"), std_dev_decimal)  # Ensure non-zero return
         except (InvalidOperation, TypeError, ValueError) as e:
-            logger.error(
-                f"Error calculating funding rate volatility for {exchange}/{internal_symbol}: {e}"
+            # Fallback to numpy if Decimal calculation fails
+            logger.warning(
+                f"Decimal calculation failed for {exchange}/{internal_symbol}: {e}. "
+                f"Falling back to numpy (with potential precision loss)."
             )
-            return Decimal("0.0001")  # Default on calculation error
+            try:
+                # Convert Decimal list to list of floats for numpy
+                rates_float = [float(r) for r in rates]
+                std_dev = np.std(rates_float)
+                # Convert result back to Decimal
+                std_dev_decimal = Decimal(str(std_dev))
+                return max(Decimal("1e-8"), std_dev_decimal)
+            except Exception as e2:
+                logger.error(
+                    f"Error calculating funding rate volatility for {exchange}/{internal_symbol}: {e2}"
+                )
+                return Decimal("0.0001")  # Default on calculation error
 
     def calculate_basis_volatility(self, symbol: str) -> Decimal:
         """Calculate the volatility (std dev) of the historical price basis."""
@@ -329,14 +366,38 @@ class SignalGenerator:
             return Decimal("0.01")  # Default volatility
 
         basis_values = [basis for _, basis in history_deque]
+        
         try:
-            basis_float = [float(b) for b in basis_values]
-            std_dev = np.std(basis_float)
-            std_dev_decimal = Decimal(str(std_dev))
+            # Calculate standard deviation using Decimal arithmetic
+            # Convert any non-Decimal values to Decimal
+            decimal_basis = [b if isinstance(b, Decimal) else Decimal(str(b)) for b in basis_values]
+            
+            # Calculate mean
+            n = len(decimal_basis)
+            mean = sum(decimal_basis) / Decimal(n)
+            
+            # Calculate variance (sum of squared differences from mean, divided by n-1)
+            variance = sum((b - mean) ** 2 for b in decimal_basis) / Decimal(n - 1)
+            
+            # Take square root for standard deviation
+            std_dev_decimal = variance ** Decimal('0.5')
+            
+            # Return a minimum non-zero volatility
             return max(Decimal("1e-8"), std_dev_decimal)  # Ensure non-zero return
         except (InvalidOperation, TypeError, ValueError) as e:
-            logger.error(f"Error calculating basis volatility for {symbol}: {e}")
-            return Decimal("0.01")  # Default on calculation error
+            # Fallback to numpy if Decimal calculation fails
+            logger.warning(
+                f"Decimal calculation failed for basis volatility {symbol}: {e}. "
+                f"Falling back to numpy (with potential precision loss)."
+            )
+            try:
+                basis_float = [float(b) for b in basis_values]
+                std_dev = np.std(basis_float)
+                std_dev_decimal = Decimal(str(std_dev))
+                return max(Decimal("1e-8"), std_dev_decimal)
+            except Exception as e2:
+                logger.error(f"Error calculating basis volatility for {symbol}: {e2}")
+                return Decimal("0.01")  # Default on calculation error
 
     def estimate_slippage(self, exchange: str, symbol: str) -> Decimal:
         """
@@ -354,7 +415,7 @@ class SignalGenerator:
             slippage_data = self.historical_slippage[exchange][symbol]
             if slippage_data and len(slippage_data) > 0:
                 # Calculate average slippage from historical data
-                avg_slippage = sum(slippage_data) / len(slippage_data)
+                avg_slippage = sum(slippage_data) / Decimal(len(slippage_data))
                 if not isinstance(avg_slippage, Decimal):
                     avg_slippage = Decimal(str(avg_slippage))
                 return avg_slippage
@@ -369,11 +430,11 @@ class SignalGenerator:
             base_slippage = Decimal(str(base_slippage))
 
         # Apply slippage sensitivity multiplier
-        if not isinstance(self.slippage_sensitivity, Decimal):
-            sensitivity = Decimal(str(self.slippage_sensitivity))
-        else:
-            sensitivity = self.slippage_sensitivity
+        sensitivity = self.slippage_sensitivity
+        if not isinstance(sensitivity, Decimal):
+            sensitivity = Decimal(str(sensitivity))
 
+        # Return the final calculated slippage
         return base_slippage * sensitivity
 
     def generate_arbitrage_opportunities(
@@ -390,7 +451,7 @@ class SignalGenerator:
             List of arbitrage opportunities
         """
         if market_data is None or market_data.ticker_data is None:
-            self.logger.warning(
+            logger.warning(
                 "Market data or ticker data is None - cannot generate arbitrage opportunities"
             )
             return []
@@ -426,7 +487,11 @@ class SignalGenerator:
             opportunities.extend(funding_opportunities)
 
         # Sort opportunities by net funding differential in descending order
-        opportunities.sort(key=lambda x: float(x.net_funding_differential), reverse=True)
+        # Use a lambda that explicitly returns a float for sorting compatibility
+        opportunities.sort(
+            key=lambda x: float(x.net_funding_differential) if x.net_funding_differential is not None else 0.0, 
+            reverse=True
+        )
         return opportunities
 
     def _check_funding_rate_opportunities(
@@ -530,9 +595,10 @@ class SignalGenerator:
                             symbol=symbol,
                             long_exchange=exchange_a,
                             short_exchange=exchange_b,
-                            funding_rate_long=rate_a,
-                            funding_rate_short=rate_b,
-                            funding_differential=funding_differential,
+                            long_price=price_a,
+                            short_price=price_b,
+                            long_funding_rate=rate_a,
+                            short_funding_rate=rate_b,
                             net_funding_differential=net_funding_differential,
                             expected_profit=expected_profit,
                             timestamp=datetime.now(UTC),
@@ -543,9 +609,10 @@ class SignalGenerator:
                             symbol=symbol,
                             long_exchange=exchange_b,
                             short_exchange=exchange_a,
-                            funding_rate_long=rate_b,
-                            funding_rate_short=rate_a,
-                            funding_differential=abs(funding_differential),
+                            long_price=price_b,
+                            short_price=price_a,
+                            long_funding_rate=rate_b,
+                            short_funding_rate=rate_a,
                             net_funding_differential=abs(net_funding_differential),
                             expected_profit=expected_profit,
                             timestamp=datetime.now(UTC),
@@ -554,7 +621,7 @@ class SignalGenerator:
                     opportunities.append(opportunity)
 
                 except (InvalidOperation, TypeError, ValueError) as e:
-                    self.logger.warning(
+                    logger.warning(
                         f"Error calculating funding arbitrage for {symbol} between {exchange_a} and {exchange_b}: {e}"
                     )
                     continue

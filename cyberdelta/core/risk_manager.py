@@ -32,10 +32,10 @@ class SizedOpportunity:
         opportunity: ArbitrageOpportunity,
         long_size: Decimal,
         short_size: Decimal,
-        allocation_percentage: float,
+        allocation_percentage: Decimal,
         expected_profit: Decimal,
-        expected_return: float,
-        risk_adjusted_return: float,
+        expected_return: Decimal,
+        risk_adjusted_return: Decimal,
     ) -> None:
         """
         Initialize a sized opportunity.
@@ -44,10 +44,10 @@ class SizedOpportunity:
             opportunity: The base arbitrage opportunity
             long_size: Position size for long side in USD (Decimal)
             short_size: Position size for short side in USD (Decimal)
-            allocation_percentage: Percentage of total capital allocated
+            allocation_percentage: Percentage of total capital allocated (Decimal)
             expected_profit: Expected profit in USD (Decimal)
-            expected_return: Expected return as percentage
-            risk_adjusted_return: Risk-adjusted return
+            expected_return: Expected return as percentage (Decimal)
+            risk_adjusted_return: Risk-adjusted return (Decimal)
         """
         self.opportunity = opportunity
         self.long_size = long_size
@@ -65,7 +65,7 @@ class SizedOpportunity:
             f"Short: {self.opportunity.short_exchange} ${self.short_size:.2f}, "
             f"Alloc: {self.allocation_percentage:.2f}%, "
             f"ExpProfit: ${self.expected_profit:.2f}, "
-            f"ExpReturn: {self.expected_return * 100:.2f}%, "
+            f"ExpReturn: {self.expected_return * Decimal('100'):.2f}%, "
             f"RiskAdjReturn: {self.risk_adjusted_return:.4f}"
         )
 
@@ -878,14 +878,14 @@ class RiskManager:
             # Fallback to base size on error
             return base_size
 
-    def _get_validation_metrics(self, exchange: str, symbol: str) -> float:
+    def _get_validation_metrics(self, exchange: str, symbol: str) -> Decimal:
         """
         Get validation metrics for funding rate predictions.
         Returns a factor (0.0 to 1.0) based on prediction accuracy.
         Factor = 1.0 means high confidence, lower values mean less confidence.
         """
         if not self.funding_rate_validator:
-            return 1.0  # No validator, assume full confidence
+            return Decimal("1.0")  # No validator, assume full confidence
 
         try:
             metrics = self.funding_rate_validator.get_validation_metrics(exchange, symbol)
@@ -893,7 +893,7 @@ class RiskManager:
                 self.logger.warning(
                     f"No validation metrics found for {exchange}/{symbol}. Assuming low confidence."
                 )
-                return float(self.min_validation_factor)  # Return float
+                return self.min_validation_factor if isinstance(self.min_validation_factor, Decimal) else Decimal(str(self.min_validation_factor))
 
             rmse = metrics.get("rmse")
             bias = metrics.get("bias")
@@ -903,39 +903,39 @@ class RiskManager:
                     f"Incomplete validation metrics for {exchange}/{symbol}. "
                     f"Assuming low confidence."
                 )
-                return float(self.min_validation_factor)  # Return float
+                return self.min_validation_factor if isinstance(self.min_validation_factor, Decimal) else Decimal(str(self.min_validation_factor))
 
-            # Normalize metrics against acceptable thresholds (use floats for ratios)
-            rmse_float = float(rmse)
-            bias_float = float(bias)
-            max_rmse_float = float(self.max_acceptable_rmse)
-            max_bias_float = float(self.max_acceptable_bias)
-            min_factor_float = float(self.min_validation_factor)
+            # Convert to Decimal for calculations
+            rmse_dec = rmse if isinstance(rmse, Decimal) else Decimal(str(rmse))
+            bias_dec = bias if isinstance(bias, Decimal) else Decimal(str(bias))
+            max_rmse_dec = self.max_acceptable_rmse if isinstance(self.max_acceptable_rmse, Decimal) else Decimal(str(self.max_acceptable_rmse))
+            max_bias_dec = self.max_acceptable_bias if isinstance(self.max_acceptable_bias, Decimal) else Decimal(str(self.max_acceptable_bias))
+            min_factor_dec = self.min_validation_factor if isinstance(self.min_validation_factor, Decimal) else Decimal(str(self.min_validation_factor))
 
-            # Higher error -> lower factor
+            # Higher error -> lower factor (using Decimal arithmetic)
             rmse_factor = (
-                max(0.0, 1.0 - (rmse_float / max_rmse_float)) if max_rmse_float > 0 else 1.0
+                max(Decimal("0.0"), Decimal("1.0") - (rmse_dec / max_rmse_dec)) if max_rmse_dec > Decimal("0") else Decimal("1.0")
             )
             bias_factor = (
-                max(0.0, 1.0 - (abs(bias_float) / max_bias_float)) if max_bias_float > 0 else 1.0
+                max(Decimal("0.0"), Decimal("1.0") - (abs(bias_dec) / max_bias_dec)) if max_bias_dec > Decimal("0") else Decimal("1.0")
             )
 
             # Combine factors (e.g., take the minimum to be conservative)
             combined_factor = min(rmse_factor, bias_factor)
 
             # Ensure factor is within bounds [min_validation_factor, 1.0]
-            final_factor = max(min_factor_float, combined_factor)
-            final_factor = min(1.0, final_factor)
+            final_factor = max(min_factor_dec, combined_factor)
+            final_factor = min(Decimal("1.0"), final_factor)
 
             self.logger.debug(
-                f"Validation Metrics Factor for {exchange}/{symbol}: RMSE={rmse:.4f}, "
-                f"Bias={bias:.4f} -> Factor={final_factor:.2f}"
+                f"Validation Metrics Factor for {exchange}/{symbol}: RMSE={rmse_dec}, "
+                f"Bias={bias_dec} -> Factor={final_factor}"
             )
-            return final_factor  # Return float factor
+            return final_factor
 
         except Exception as e:
             self.logger.error(f"Error getting validation metrics for {exchange}/{symbol}: {e}")
-            return float(self.min_validation_factor)  # Return float factor
+            return self.min_validation_factor if isinstance(self.min_validation_factor, Decimal) else Decimal(str(self.min_validation_factor))
 
     def size_opportunity(self, opportunity: ArbitrageOpportunity) -> SizedOpportunity | None:
         """

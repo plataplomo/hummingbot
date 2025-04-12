@@ -72,9 +72,9 @@ class BacktestEngine:
         self,
         strategy: BacktestStrategy,
         data: pd.DataFrame | str,  # Allow path string
-        initial_capital: float = 100000.0,
-        commission: float = 0.001,  # 0.1% per trade
-        slippage: float = 0.001,  # 0.1% slippage
+        initial_capital: Decimal = Decimal("100000.0"),
+        commission: Decimal = Decimal("0.001"),  # 0.1% per trade
+        slippage: Decimal = Decimal("0.001"),  # 0.1% slippage
         results_dir: str = "backtest_results",
     ) -> None:
         """
@@ -83,9 +83,9 @@ class BacktestEngine:
         Args:
             strategy: Strategy instance
             data: Historical data (DataFrame or path to CSV) for backtesting
-            initial_capital: Initial capital
-            commission: Commission rate per trade
-            slippage: Slippage per trade
+            initial_capital: Initial capital (Decimal)
+            commission: Commission rate per trade (Decimal)
+            slippage: Slippage per trade (Decimal)
             results_dir: Directory to save results
         """
         self.strategy = strategy
@@ -131,50 +131,65 @@ class BacktestEngine:
                 raise ValueError("Data index could not be converted to datetime objects.") from e
 
         # Ensure capital is Decimal
-        try:
-            self.initial_capital = Decimal(str(initial_capital))
-            self.capital = self.initial_capital
-        except InvalidOperation:
-            logger.error(
-                f"Invalid initial_capital value: {initial_capital}. Cannot convert to Decimal."
-            )
-            raise ValueError("initial_capital must be a valid number.")
+        if not isinstance(initial_capital, Decimal):
+            try:
+                self.initial_capital = Decimal(str(initial_capital))
+            except InvalidOperation:
+                logger.error(
+                    f"Invalid initial_capital value: {initial_capital}. Cannot convert to Decimal."
+                )
+                raise ValueError("initial_capital must be a valid number.")
+        else:
+            self.initial_capital = initial_capital
+        self.capital = self.initial_capital
 
         # Ensure commission and slippage are Decimal
-        try:
-            self.commission = Decimal(str(commission))
-            self.slippage = Decimal(str(slippage))
-        except InvalidOperation:
-            logger.error(f"Invalid commission or slippage value: {commission}, {slippage}")
-            raise ValueError("commission and slippage must be valid numbers.")
+        if not isinstance(commission, Decimal):
+            try:
+                self.commission = Decimal(str(commission))
+            except InvalidOperation:
+                logger.error(f"Invalid commission value: {commission}")
+                raise ValueError("commission must be a valid number.")
+        else:
+            self.commission = commission
+            
+        if not isinstance(slippage, Decimal):
+            try:
+                self.slippage = Decimal(str(slippage))
+            except InvalidOperation:
+                logger.error(f"Invalid slippage value: {slippage}")
+                raise ValueError("slippage must be a valid number.")
+        else:
+            self.slippage = slippage
 
         self.results_dir = results_dir
 
         # Results containers
-        self.equity_curve: list[tuple[datetime, float]] = []
+        self.equity_curve: list[tuple[datetime, Decimal]] = []
         self.trades: list[dict[str, Any]] = []  # Store trade details
         self.positions: list[dict[str, Any]] = []  # Store open positions details
         self.metrics: dict[
-            str, float | int | str
-        ] = {}  # Allow string for potential error messages?
+            str, Decimal | int | str
+        ] = {}  # Allow string for potential error messages, use Decimal for financial metrics
 
         # Create results directory if it doesn't exist
         pathlib.Path(results_dir).mkdir(parents=True, exist_ok=True)
 
-    def run(self, training_portion: float = 0.3) -> dict[str, Any]:
+    def run(self, training_portion: Decimal = Decimal("0.3")) -> dict[str, Any]:
         """
         Run the backtest
 
         Args:
-            training_portion: Portion of data to use for training
+            training_portion: Portion of data to use for training (Decimal between 0 and 1)
 
         Returns:
             Dict with backtest results
         """
         logger.info(f"Starting backtest for {self.strategy.name}")
 
-        # Split data into training and testing periods
-        train_size = int(len(self.data) * training_portion)
+        # Convert training_portion to float for index calculation
+        # This is an acceptable use of float as it's for array indexing, not financial calculation
+        train_size = int(len(self.data) * float(training_portion))
         train_data = self.data.iloc[:train_size]
         test_data = self.data.iloc[train_size:]
 
@@ -313,11 +328,11 @@ class BacktestEngine:
                         "symbol": symbol,
                         "action": signal_type,
                         "side": side,
-                        # Convert Decimal to float/str for JSON if needed, but keep internal as Decimal
-                        "price": float(signal.get("price", Decimal("0"))),
-                        "size": float(trade_size_capital),  # Size in capital terms
-                        "cost": float(transaction_cost),
-                        "quantity": float(signal_size_decimal),  # Original quantity from signal
+                        # Store as strings to preserve Decimal precision for JSON
+                        "price": str(signal.get("price", Decimal("0"))),
+                        "size": str(trade_size_capital),  # Size in capital terms
+                        "cost": str(transaction_cost),
+                        "quantity": str(signal_size_decimal),  # Original quantity from signal
                     }
                 )
 
@@ -330,8 +345,8 @@ class BacktestEngine:
                         "timestamp": timestamp,
                         "symbol": symbol,
                         "side": side,
-                        "size": trade_size_capital,
-                        "entry_price": price,
+                        "size": trade_size_capital,  # Keep as Decimal for internal calculations
+                        "entry_price": price,  # Keep as Decimal for internal calculations
                     }
                 )
 
@@ -357,12 +372,12 @@ class BacktestEngine:
                         "symbol": symbol,
                         "action": signal_type,
                         "side": side,
-                        # Convert Decimal to float/str for JSON if needed, but keep internal as Decimal
-                        "price": float(signal.get("price", Decimal("0"))),
-                        "size": float(trade_size_capital),  # Size in capital terms
-                        "cost": float(transaction_cost),
-                        "pnl": float(total_pnl),  # Store calculated total PnL
-                        "quantity": float(signal_size_decimal),  # Original quantity from signal
+                        # Store as strings to preserve Decimal precision for JSON
+                        "price": str(signal.get("price", Decimal("0"))),
+                        "size": str(trade_size_capital),  # Size in capital terms
+                        "cost": str(transaction_cost),
+                        "pnl": str(total_pnl),  # Store calculated total PnL
+                        "quantity": str(signal_size_decimal),  # Original quantity from signal
                     }
                 )
 

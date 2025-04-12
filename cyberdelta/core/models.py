@@ -75,6 +75,8 @@ class MarketData:
     low: Decimal
     close: Decimal
     volume: Decimal = Decimal("0.0")
+    # Add ticker_data field to store ticker information for multiple symbols
+    ticker_data: dict[str, dict[str, Ticker]] | None = None  # symbol -> exchange -> Ticker
 
     def __post_init__(self) -> None:
         """Ensure all numeric fields are Decimals, converting safely."""
@@ -85,6 +87,10 @@ class MarketData:
         self.low = self._safe_decimal_convert(self.low, "low", self.symbol)
         self.close = self._safe_decimal_convert(self.close, "close", self.symbol)
         self.volume = self._safe_decimal_convert(self.volume, "volume", self.symbol)
+        
+        # Initialize ticker_data as an empty dict if it's None
+        if self.ticker_data is None:
+            self.ticker_data = {}
 
     @staticmethod
     def _safe_decimal_convert(
@@ -766,17 +772,14 @@ class ArbitrageOpportunity:
         timestamp: datetime,
         optimal_size: str | int | float | Decimal | None = None,
         expected_profit: str | int | float | Decimal | None = None,
-        confidence: float | None = None,
-        basis_volatility: float | None = None,
-        utility_score: float | None = None,
+        confidence: str | int | float | Decimal | None = None,
+        basis_volatility: str | int | float | Decimal | None = None,
+        utility_score: str | int | float | Decimal | None = None,
     ) -> None:
         self.symbol = symbol
         self.long_exchange = long_exchange
         self.short_exchange = short_exchange
         self.timestamp = timestamp
-        self.confidence = confidence  # float or None
-        self.basis_volatility = basis_volatility  # float or None
-        self.utility_score = utility_score  # float or None
 
         # Perform safe Decimal conversions
         self.long_price = self._safe_decimal_convert(
@@ -800,6 +803,15 @@ class ArbitrageOpportunity:
         self.expected_profit = self._safe_decimal_convert(
             expected_profit, "expected_profit", symbol, allow_none=True
         )
+        self.confidence = self._safe_decimal_convert(
+            confidence, "confidence", symbol, allow_none=True
+        )  # Decimal or None
+        self.basis_volatility = self._safe_decimal_convert(
+            basis_volatility, "basis_volatility", symbol, allow_none=True
+        )  # Decimal or None
+        self.utility_score = self._safe_decimal_convert(
+            utility_score, "utility_score", symbol, allow_none=True
+        )  # Decimal or None
 
         # Validate required fields are not None after conversion
         self.validate_required_fields()
@@ -879,9 +891,9 @@ class ArbitrageOpportunity:
             "expected_profit": str(self.expected_profit)
             if self.expected_profit is not None
             else None,
-            "confidence": self.confidence,
-            "basis_volatility": self.basis_volatility,
-            "utility_score": self.utility_score,
+            "confidence": str(self.confidence) if self.confidence is not None else None,
+            "basis_volatility": str(self.basis_volatility) if self.basis_volatility is not None else None,
+            "utility_score": str(self.utility_score) if self.utility_score is not None else None,
             # Add expiration_timestamp if needed in dict
             "expiration_timestamp": self.expiration_timestamp,
         }
@@ -903,7 +915,7 @@ class TradeSignal:
     price: Decimal | None = None
     quantity: Decimal | None = None
     timestamp: datetime | None = None
-    confidence: float | None = None
+    confidence: Decimal | None = None
     source_strategy: str | None = None
     stop_loss: Decimal | None = None
     take_profit: Decimal | None = None
@@ -920,6 +932,9 @@ class TradeSignal:
         )
         self.take_profit = self._safe_decimal_convert_optional(
             self.take_profit, "take_profit", self.symbol
+        )
+        self.confidence = self._safe_decimal_convert_optional(
+            self.confidence, "confidence", self.symbol
         )
 
         # Ensure timestamp and expiration are timezone-aware (UTC) if provided

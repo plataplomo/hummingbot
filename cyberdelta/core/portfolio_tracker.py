@@ -94,10 +94,6 @@ class PortfolioTracker:
             self._last_update_time[exchange_id] = datetime.min.replace(tzinfo=UTC)
             self._last_reconciliation_time[exchange_id] = datetime.min.replace(tzinfo=UTC)
 
-        # Add active symbols and watchlist
-        self._active_symbols: set[str] = set()
-        self._watchlist: set[str] = set()
-
     def register_api_client(self, exchange_id: str, client: ExchangeAPI) -> None:
         """
         Register an API client for an exchange.
@@ -672,11 +668,11 @@ class PortfolioTracker:
 
     def process_trade(self, exchange_id: str, trade: Trade) -> None:
         """
-        Process a filled trade, updating the corresponding position and P&L.
+        Process a new trade, updating orders, positions, and balances.
 
         Args:
-            exchange_id: Exchange identifier where the trade occurred.
-            trade: The Trade object representing the fill.
+            exchange_id: Exchange identifier
+            trade: Trade object
         """
         if not isinstance(trade, Trade):
             logger.error(f"process_trade received invalid trade object: {type(trade)}")
@@ -821,6 +817,31 @@ class PortfolioTracker:
         # except Exception as bal_e:
         #     logger.error(f"Error updating balances after trade {trade.id}: {bal_e}", exc_info=True)
 
+    def _split_symbol(self, symbol: str) -> tuple[str, str]:
+        """
+        Split a trading symbol into base and quote currencies.
+        
+        Args:
+            symbol: Symbol in format 'BASE/QUOTE' or 'BASEQUOTE'
+            
+        Returns:
+            Tuple of (base_currency, quote_currency)
+        """
+        if "/" in symbol:
+            base, quote = symbol.split("/")
+            return base, quote
+        
+        # For symbols without separators, try common quote currencies
+        common_quotes = ["USDT", "USDC", "USD", "BTC", "ETH", "BNB"]
+        for quote in common_quotes:
+            if symbol.endswith(quote):
+                base = symbol[:-len(quote)]
+                return base, quote
+                
+        # Fallback to default splitting (last 4 chars as quote)
+        logger.warning(f"Could not clearly identify base/quote for {symbol}, using default splitting")
+        return symbol[:-4], symbol[-4:]
+        
     def update_balance(self, exchange_id: str, asset: str, amount: Decimal | Balance) -> None:
         """
         Update local state with a new balance, accepting Decimal or Balance object.
@@ -917,7 +938,7 @@ class PortfolioTracker:
 
         return total_value
 
-    def get_exchange_exposure(self, exchange_id: str) -> float:
+    def get_exchange_exposure(self, exchange_id: str) -> Decimal:
         """
         Get the current exposure for an exchange.
 
@@ -928,13 +949,17 @@ class PortfolioTracker:
             Current exposure in USD
         """
         if exchange_id not in self._positions:
-            return 0.0
+            return Decimal("0.0")
 
-        exposure = 0.0
+        exposure = Decimal("0.0")
         for position in self._positions[exchange_id].values():
             if position.is_active():
                 # Use mark_price for a more accurate exposure calculation
-                exposure += position.mark_price * position.size
+                if position.mark_price is not None and position.size is not None:
+                    # Ensure both values are Decimal before multiplication
+                    mark_price = position.mark_price if isinstance(position.mark_price, Decimal) else Decimal(str(position.mark_price))
+                    size = position.size if isinstance(position.size, Decimal) else Decimal(str(position.size))
+                    exposure += mark_price * size
 
         return exposure
 
