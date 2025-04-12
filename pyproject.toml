@@ -48,3 +48,23 @@ warn_unreachable = true  # Warn about unreachable code
 strict_equality = true  # Enforce strict equality checks
 extra_checks = true  # Enable extra checks
 scripts_are_modules = true  # Treat scripts as modules
+
+
+#[tool.pyright]
+#include = ["scripts", "cyberdelta", "tests", "examples"]
+#extraPaths = ["."]
+#exclude = ["**/current_workflow/**", "**/.venv/**", "**/venv/**"]
+#typeCheckingMode = "strict"  # Match Pylance
+#pythonVersion = "3.13"
+#reportMissingTypeStubs = "error"  # Enforce stubs
+#reportUnknownMemberType = "error"
+#reportUnknownArgumentType = "error"
+#reportUnknownVariableType = "error"
+#reportUnknownLambdaType = "error"
+#reportMissingImports = true
+#reportMissingModuleSource = true
+#reportAttributeAccessIssue = "error"
+#reportReturnType = "error"
+#reportOptionalSubscript = "error"
+#reportGeneralTypeIssues = "error"
+#reportAssignmentType = "error"
