@@ -3,6 +3,7 @@ import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
@@ -18,7 +19,7 @@ class BalanceAlert:
     # Non-default fields first
     asset: str
     threshold_type: Literal["low", "high", "change"]  # Type of threshold
-    threshold_value: float  # Numeric threshold value
+    threshold_value: Decimal  # Numeric threshold value
 
     # Default fields last
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -30,8 +31,8 @@ class BalanceAlert:
     timestamp: datetime | None = field(default_factory=datetime.now)
     # Add missing fields that are used in the code
     exchange: str = ""
-    current_balance: float = 0.0
-    required_balance: float = 0.0
+    current_balance: Decimal = field(default_factory=lambda: Decimal('0.0'))
+    required_balance: Decimal = field(default_factory=lambda: Decimal('0.0'))
     severity: str = ""
     message: str = ""
 
@@ -39,6 +40,35 @@ class BalanceAlert:
     SEVERITY_CRITICAL = "critical"
     SEVERITY_WARNING = "warning"
     SEVERITY_INFO = "info"
+    
+    def __post_init__(self) -> None:
+        """Ensure all numeric fields are Decimal."""
+        # Convert threshold_value to Decimal if not already
+        if not isinstance(self.threshold_value, Decimal):
+            try:
+                self.threshold_value = Decimal(str(self.threshold_value))
+            except (ValueError, TypeError):
+                logger.error(f"Invalid threshold value: {self.threshold_value}. Defaulting to 0.0")
+                self.threshold_value = Decimal('0.0')
+                
+        # Convert current_balance to Decimal if not already
+        if not isinstance(self.current_balance, Decimal):
+            try:
+                self.current_balance = Decimal(str(self.current_balance))
+            except (ValueError, TypeError):
+                logger.error(f"Invalid current balance: {self.current_balance}. Defaulting to 0.0")
+                self.current_balance = Decimal('0.0')
+                
+        # Convert required_balance to Decimal if not already
+        if not isinstance(self.required_balance, Decimal):
+            try:
+                self.required_balance = Decimal(str(self.required_balance))
+            except (ValueError, TypeError):
+                logger.error(
+                    f"Invalid required balance: {self.required_balance}. "
+                    f"Defaulting to 0.0"
+                )
+                self.required_balance = Decimal('0.0')
 
     def __str__(self) -> str:
         """Generate string representation of the alert."""
@@ -71,12 +101,14 @@ class BalanceMonitor:
         self.config = config
         self.portfolio_tracker = portfolio_tracker
 
-        # Load balance parameters from config
-        self.min_usdc_balance = config.get("balance.min_usdc_balance", 50.0)
-        self.low_balance_threshold = config.get("balance.low_balance_threshold", 100.0)
+        # Load balance parameters from config and convert to Decimal
+        self.min_usdc_balance = Decimal(str(config.get("balance.min_usdc_balance", 50.0)))
+        self.low_balance_threshold = Decimal(
+            str(config.get("balance.low_balance_threshold", 100.0))
+        )
 
         # Exchange-specific minimum balance requirements
-        self.exchange_min_balances: dict[str, dict[str, float]] = {}
+        self.exchange_min_balances: dict[str, dict[str, Decimal]] = {}
 
         # Active alerts
         self.active_alerts: list[BalanceAlert] = []
@@ -95,16 +127,18 @@ class BalanceMonitor:
                 continue
 
             # Default minimum USDC balance for each exchange
+            min_usdc = self.config.get(
+                f"exchanges.{exchange_id}.min_usdc_balance", self.min_usdc_balance
+            )
             self.exchange_min_balances[exchange_id] = {
-                "USDC": self.config.get(
-                    f"exchanges.{exchange_id}.min_usdc_balance", self.min_usdc_balance
-                )
+                "USDC": Decimal(str(min_usdc))
             }
 
             # Add any exchange-specific asset requirements
             min_balances = self.config.get(f"exchanges.{exchange_id}.min_balances", {})
             for asset, amount in min_balances.items():
-                self.exchange_min_balances[exchange_id][asset] = amount
+                # Convert amount to Decimal
+                self.exchange_min_balances[exchange_id][asset] = Decimal(str(amount))
 
     def check_balances(self) -> list[BalanceAlert]:
         """
@@ -126,12 +160,13 @@ class BalanceMonitor:
                     exchange_id, asset
                 )
                 # Safely extract the total amount from the Balance object
-                current_balance_amount = 0.0
+                current_balance_amount = Decimal('0.0')
                 if current_balance is not None:
                     try:
                         # Balance object has a total field which is a Decimal
-                        current_balance_amount = float(current_balance.total)
-                    except (AttributeError, ValueError, TypeError):
+                        # Keep it as Decimal - don't convert to float
+                        current_balance_amount = current_balance.total
+                    except AttributeError:
                         logger.warning(
                             f"Unable to extract balance amount from: {current_balance}"
                         )
@@ -186,7 +221,7 @@ class BalanceMonitor:
         return new_alerts
 
     def check_balance_for_opportunity(
-        self, exchange_id: str, asset: str, required_amount: float
+        self, exchange_id: str, asset: str, required_amount: Decimal
     ) -> BalanceAlert | None:
         """
         Check if a specific exchange has sufficient balance for an opportunity.
@@ -194,19 +229,20 @@ class BalanceMonitor:
         Args:
             exchange_id: Exchange identifier
             asset: Asset name
-            required_amount: Required balance amount
+            required_amount: Required balance amount (as Decimal)
 
         Returns:
             BalanceAlert if balance is insufficient, None otherwise
         """
         current_balance = self.portfolio_tracker.get_exchange_balance(exchange_id, asset)
         # Safely extract the total amount from the Balance object
-        current_balance_amount = 0.0
+        current_balance_amount = Decimal('0.0')
         if current_balance is not None:
             try:
                 # Balance object has a total field which is a Decimal
-                current_balance_amount = float(current_balance.total)
-            except (AttributeError, ValueError, TypeError):
+                # Keep it as Decimal - don't convert to float
+                current_balance_amount = current_balance.total
+            except AttributeError:
                 logger.warning(
                     f"Unable to extract balance amount from: {current_balance}"
                 )
@@ -277,21 +313,23 @@ class BalanceMonitor:
                     exchange_id, asset
                 )
                 # Safely extract the total amount from the Balance object
-                current_balance_amount = 0.0
+                current_balance_amount = Decimal('0.0')
                 if current_balance is not None:
                     try:
                         # Balance object has a total field which is a Decimal
-                        current_balance_amount = float(current_balance.total)
-                    except (AttributeError, ValueError, TypeError):
+                        # Keep it as Decimal - don't convert to float
+                        current_balance_amount = current_balance.total
+                    except AttributeError:
                         logger.warning(
                             f"Unable to extract balance amount from: {current_balance}"
                         )
                 min_balance = self.exchange_min_balances[exchange_id][asset]
 
                 # Create a new dictionary with balance information
+                # Maintain Decimal internally, only convert to string for output in the dictionary
                 asset_info = {
-                    "current": current_balance_amount,
-                    "minimum": min_balance,
+                    "current": str(current_balance_amount),
+                    "minimum": str(min_balance),
                     "status": "OK" if current_balance_amount >= min_balance else "LOW",
                 }
                 exchange_balances[asset] = asset_info
@@ -319,11 +357,10 @@ class BalanceMonitor:
 
     def add_alert(self, alert: BalanceAlert) -> None:
         """Adds a new balance alert."""
-        # Fix this method to work with the class's actual structure
-        # Ensure threshold value is float
-        if not isinstance(alert.threshold_value, float):
-            try:  # type: ignore[unreachable]
-                alert.threshold_value = float(alert.threshold_value)
+        # Ensure threshold value is Decimal
+        if not isinstance(alert.threshold_value, Decimal):
+            try:
+                alert.threshold_value = Decimal(str(alert.threshold_value))
             except (ValueError, TypeError):
                 logger.error(f"Invalid threshold value for alert: {alert.threshold_value}")
                 return
