@@ -32,7 +32,7 @@ class DashboardIntegration:
     and other components to send data to the dashboard for visualization.
     """
 
-    def __init__( 
+    def __init__(
         self,
         output_dir: str | None = None,
         auto_start: bool = True,

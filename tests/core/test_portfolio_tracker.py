@@ -2,13 +2,12 @@
 Tests for the PortfolioTracker class.
 """
 
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.base import ExchangeAPI
 from cyberdelta.core.models import (
     Balance,
     Order,
@@ -163,9 +162,7 @@ class TestPortfolioTracker:
         # Verify positions were stored properly
         for exchange_id, positions in sample_positions.items():
             for position in positions:
-                stored_position = portfolio_tracker._positions[exchange_id].get(
-                    position.symbol
-                )
+                stored_position = portfolio_tracker._positions[exchange_id].get(position.symbol)
                 assert stored_position is not None
 
         # Verify orders were stored properly
@@ -200,8 +197,12 @@ class TestPortfolioTracker:
             client.get_open_orders.reset_mock()
 
         # Set last reconciliation time to be recent to prevent full update
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = datetime.now(UTC) - timedelta(seconds=10)
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = datetime.now(UTC) - timedelta(seconds=10)
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = datetime.now(
+            UTC
+        ) - timedelta(seconds=10)
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = datetime.now(
+            UTC
+        ) - timedelta(seconds=10)
 
         # Update - should only fetch orders if interval hasn't passed
         await portfolio_tracker.update()
@@ -213,15 +214,19 @@ class TestPortfolioTracker:
             client.get_open_orders.assert_called_once()
 
         # Now force reconciliation by setting last check time far in the past
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = datetime.min.replace(tzinfo=UTC)
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = datetime.min.replace(tzinfo=UTC)
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = (
+            datetime.min.replace(tzinfo=UTC)
+        )
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = (
+            datetime.min.replace(tzinfo=UTC)
+        )
 
-        await portfolio_tracker.update() # Should now fetch everything
+        await portfolio_tracker.update()  # Should now fetch everything
         for exchange_id, client in api_clients.items():
-             # Check counts after full reconciliation (add 1 to previous checks)
-             assert client.get_balances.call_count == 1
-             assert client.get_positions.call_count == 1
-             assert client.get_open_orders.call_count == 2 # Called once before, once now
+            # Check counts after full reconciliation (add 1 to previous checks)
+            assert client.get_balances.call_count == 1
+            assert client.get_positions.call_count == 1
+            assert client.get_open_orders.call_count == 2  # Called once before, once now
 
     def test_update_order(self, portfolio_tracker):
         """Test updating an order in the portfolio tracker."""
@@ -438,8 +443,8 @@ class TestPortfolioTracker:
             type=OrderType.LIMIT,
             price=Decimal("51000.0"),
             quantity=Decimal("0.5"),
-            filled_quantity=Decimal("0.1"), # Partially filled
-            status=OrderStatus.PARTIALLY_FILLED, # Use Enum member
+            filled_quantity=Decimal("0.1"),  # Partially filled
+            status=OrderStatus.PARTIALLY_FILLED,  # Use Enum member
             time=int(datetime.now(UTC).timestamp() * 1000),
             client_order_id="client-order-open",
         )
@@ -455,7 +460,7 @@ class TestPortfolioTracker:
             quantity=Decimal("0.3"),
             filled_quantity=Decimal("0.0"),
             # status=OrderStatus.CANCELED.value, # Original: used string value
-            status=OrderStatus.CANCELED, # Use Enum member
+            status=OrderStatus.CANCELED,  # Use Enum member
             time=int(datetime.now(UTC).timestamp() * 1000),
             client_order_id="client-order-4",
         )
@@ -468,10 +473,10 @@ class TestPortfolioTracker:
         initial_open_order = portfolio_tracker.get_order("hyperliquid", "hl-order-1")
         expected_count = 0
         if initial_open_order and initial_open_order.status == OrderStatus.NEW:
-             expected_count += 1
-        if open_order.status == OrderStatus.PARTIALLY_FILLED: # Our added open order
-             expected_count += 1
-        
+            expected_count += 1
+        if open_order.status == OrderStatus.PARTIALLY_FILLED:  # Our added open order
+            expected_count += 1
+
         assert len(open_orders) == expected_count
         assert all(o.status in [OrderStatus.NEW, OrderStatus.PARTIALLY_FILLED] for o in open_orders)
         # Ensure the cancelled order is not present
@@ -513,9 +518,7 @@ class TestPortfolioTracker:
         # Verify positions were restored
         for exchange_id, positions in sample_positions.items():
             for position in positions:
-                restored_position = new_tracker.get_position(
-                    exchange_id, position.symbol
-                )
+                restored_position = new_tracker.get_position(exchange_id, position.symbol)
                 assert restored_position is not None
                 assert restored_position.symbol == position.symbol
                 assert restored_position.size == position.size

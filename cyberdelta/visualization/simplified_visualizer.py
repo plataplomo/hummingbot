@@ -653,7 +653,9 @@ class SimpleVisualizer:
                 fig, ax = plt.subplots(figsize=(12, 8))
                 ax.axis("off")
                 summary_text = f"Performance Report for {self.tracker.strategy_name}\n\n"
-                summary_text += f"Generated on: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n"
+                summary_text += (
+                    f"Generated on: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n"
+                )
 
                 metrics = self.analyzer.get_performance_metrics()
                 if metrics:

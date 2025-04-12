@@ -2,11 +2,11 @@
 Tests for the SignalGenerator class.
 """
 
-from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
-from decimal import Decimal
 import logging
 from collections import deque
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -15,9 +15,8 @@ from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import (
     ArbitrageOpportunity,
     FundingRate,
-    MarketData,
-    Ticker,
     OrderBook,
+    Ticker,
 )
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.utils.config import Config
@@ -59,40 +58,91 @@ class TestSignalGenerator:
         # Mock funding rates
         funding_rates = {
             "hyperliquid": {
-                "BTC": FundingRate(symbol="BTC", funding_rate=Decimal("-0.01"), mark_price=Decimal("30000"), index_price=Decimal("30000"), next_funding_time=0),
-                "ETH": FundingRate(symbol="ETH", funding_rate=Decimal("0.005"), mark_price=Decimal("2000"), index_price=Decimal("2000"), next_funding_time=0),
+                "BTC": FundingRate(
+                    symbol="BTC",
+                    funding_rate=Decimal("-0.01"),
+                    mark_price=Decimal("30000"),
+                    index_price=Decimal("30000"),
+                    next_funding_time=0,
+                ),
+                "ETH": FundingRate(
+                    symbol="ETH",
+                    funding_rate=Decimal("0.005"),
+                    mark_price=Decimal("2000"),
+                    index_price=Decimal("2000"),
+                    next_funding_time=0,
+                ),
             },
             "backpack": {
-                "BTC": FundingRate(symbol="BTC", funding_rate=Decimal("0.02"), mark_price=Decimal("30010"), index_price=Decimal("30010"), next_funding_time=0),
-                "ETH": FundingRate(symbol="ETH", funding_rate=Decimal("-0.01"), mark_price=Decimal("2005"), index_price=Decimal("2005"), next_funding_time=0),
+                "BTC": FundingRate(
+                    symbol="BTC",
+                    funding_rate=Decimal("0.02"),
+                    mark_price=Decimal("30010"),
+                    index_price=Decimal("30010"),
+                    next_funding_time=0,
+                ),
+                "ETH": FundingRate(
+                    symbol="ETH",
+                    funding_rate=Decimal("-0.01"),
+                    mark_price=Decimal("2005"),
+                    index_price=Decimal("2005"),
+                    next_funding_time=0,
+                ),
             },
         }
 
         # Mock tickers
         tickers = {
             "hyperliquid": {
-                "BTC": Ticker(symbol="BTC", price=Decimal("30000"), bid=Decimal("29999"), ask=Decimal("30001"), volume=Decimal("100")),
-                "ETH": Ticker(symbol="ETH", price=Decimal("2000"), bid=Decimal("1999"), ask=Decimal("2001"), volume=Decimal("500")),
+                "BTC": Ticker(
+                    symbol="BTC",
+                    price=Decimal("30000"),
+                    bid=Decimal("29999"),
+                    ask=Decimal("30001"),
+                    volume=Decimal("100"),
+                ),
+                "ETH": Ticker(
+                    symbol="ETH",
+                    price=Decimal("2000"),
+                    bid=Decimal("1999"),
+                    ask=Decimal("2001"),
+                    volume=Decimal("500"),
+                ),
             },
             "backpack": {
-                "BTC": Ticker(symbol="BTC", price=Decimal("30010"), bid=Decimal("30009"), ask=Decimal("30011"), volume=Decimal("120")),
-                "ETH": Ticker(symbol="ETH", price=Decimal("2005"), bid=Decimal("2004"), ask=Decimal("2006"), volume=Decimal("600")),
+                "BTC": Ticker(
+                    symbol="BTC",
+                    price=Decimal("30010"),
+                    bid=Decimal("30009"),
+                    ask=Decimal("30011"),
+                    volume=Decimal("120"),
+                ),
+                "ETH": Ticker(
+                    symbol="ETH",
+                    price=Decimal("2005"),
+                    bid=Decimal("2004"),
+                    ask=Decimal("2006"),
+                    volume=Decimal("600"),
+                ),
             },
         }
 
         # Mock order book (example)
         mock_orderbook = MagicMock(spec=OrderBook)
-        mock_orderbook.bids = [(Decimal("29999"), Decimal("2.5")), (Decimal("29998"), Decimal("5.0"))]
-        mock_orderbook.asks = [(Decimal("30001"), Decimal("1.5")), (Decimal("30002"), Decimal("3.0"))]
+        mock_orderbook.bids = [
+            (Decimal("29999"), Decimal("2.5")),
+            (Decimal("29998"), Decimal("5.0")),
+        ]
+        mock_orderbook.asks = [
+            (Decimal("30001"), Decimal("1.5")),
+            (Decimal("30002"), Decimal("3.0")),
+        ]
         orderbooks = {
             "hyperliquid": {
                 "BTC": mock_orderbook,
-                "ETH": mock_orderbook # Use same mock for simplicity
+                "ETH": mock_orderbook,  # Use same mock for simplicity
             },
-            "backpack": {
-                 "BTC": mock_orderbook,
-                 "ETH": mock_orderbook
-            }
+            "backpack": {"BTC": mock_orderbook, "ETH": mock_orderbook},
         }
 
         handler.get_funding_rate.side_effect = lambda ex, sym: funding_rates.get(ex, {}).get(sym)
@@ -137,7 +187,7 @@ class TestSignalGenerator:
         assert signal_generator.config == config
         assert signal_generator.data_handler == data_handler
 
-    @patch("cyberdelta.core.signal_generator.datetime") # Patch datetime
+    @patch("cyberdelta.core.signal_generator.datetime")  # Patch datetime
     def test_update_historical_data(self, mock_datetime, signal_generator, data_handler):
         """Test updating historical funding rate and basis data using deque."""
         # Set a fixed time for consistent testing
@@ -146,30 +196,40 @@ class TestSignalGenerator:
         mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw, tzinfo=UTC)
 
         # --- Initial Update --- Find internal symbols used
-        hyperliquid_btc_internal = "BTC" # Assumes internal symbol is BTC for hyperliquid
-        backpack_btc_internal = "BTC" # Assumes internal symbol is BTC for backpack
+        hyperliquid_btc_internal = "BTC"  # Assumes internal symbol is BTC for hyperliquid
+        backpack_btc_internal = "BTC"  # Assumes internal symbol is BTC for backpack
         btc_internal_basis = "BTC"
         eth_internal_basis = "ETH"
 
-        assert len(signal_generator.historical_funding_rates["hyperliquid"][hyperliquid_btc_internal]) == 0
+        assert (
+            len(signal_generator.historical_funding_rates["hyperliquid"][hyperliquid_btc_internal])
+            == 0
+        )
         assert len(signal_generator.historical_basis[btc_internal_basis]) == 0
 
         # Call the method
         signal_generator.update_historical_data()
 
         # Verify funding rate data was added to deque using internal symbol
-        assert len(signal_generator.historical_funding_rates["hyperliquid"][hyperliquid_btc_internal]) == 1
-        assert len(signal_generator.historical_funding_rates["backpack"][backpack_btc_internal]) == 1
+        assert (
+            len(signal_generator.historical_funding_rates["hyperliquid"][hyperliquid_btc_internal])
+            == 1
+        )
+        assert (
+            len(signal_generator.historical_funding_rates["backpack"][backpack_btc_internal]) == 1
+        )
         # Check content (optional, but good)
-        assert signal_generator.historical_funding_rates["hyperliquid"][hyperliquid_btc_internal][0] == (
+        assert signal_generator.historical_funding_rates["hyperliquid"][hyperliquid_btc_internal][
+            0
+        ] == (
             fixed_now,
-            Decimal("-0.01") # Rate from data_handler fixture
+            Decimal("-0.01"),  # Rate from data_handler fixture
         )
 
         # Verify basis data was added to deque using internal symbol
         assert len(signal_generator.historical_basis[btc_internal_basis]) == 1
         assert len(signal_generator.historical_basis[eth_internal_basis]) == 1
-         # Check content (optional, but good) - basis is price1 - price2
+        # Check content (optional, but good) - basis is price1 - price2
         btc_basis = Decimal("30000") - Decimal("30010")
         assert signal_generator.historical_basis[btc_internal_basis][0] == (fixed_now, btc_basis)
 
@@ -185,11 +245,11 @@ class TestSignalGenerator:
         # Define local simplified versions for the lambda scope
         local_funding_rates = {
             "hyperliquid": {"BTC": FundingRate(symbol="BTC", funding_rate=Decimal("-0.01"))},
-            "backpack": {"BTC": FundingRate(symbol="BTC", funding_rate=Decimal("0.02"))}
+            "backpack": {"BTC": FundingRate(symbol="BTC", funding_rate=Decimal("0.02"))},
         }
         local_tickers = {
-             "hyperliquid": {"BTC": Ticker(symbol="BTC", price=Decimal("30000"))},
-             "backpack": {"BTC": Ticker(symbol="BTC", price=Decimal("30010"))}
+            "hyperliquid": {"BTC": Ticker(symbol="BTC", price=Decimal("30000"))},
+            "backpack": {"BTC": Ticker(symbol="BTC", price=Decimal("30010"))},
         }
 
         # Add just enough points to fill the window + 1 old one
@@ -206,10 +266,20 @@ class TestSignalGenerator:
             # Update mock return values for data handler for this iteration
             # Use locally defined dicts for lambda scope
             data_handler.get_funding_rate.side_effect = lambda ex, sym, r=rate_change: (
-                 local_funding_rates[ex][sym] if local_funding_rates.get(ex, {}).get(sym) else None
+                local_funding_rates[ex][sym] if local_funding_rates.get(ex, {}).get(sym) else None
             )
-            data_handler.get_ticker.side_effect = lambda ex, sym, p1=price1_change, p2=price2_change: (
-                Ticker(symbol=sym, price=local_tickers[ex][sym].price + (p1 if ex=="hyperliquid" else p2), bid=None, ask=None, volume=None) if local_tickers.get(ex, {}).get(sym) else None
+            data_handler.get_ticker.side_effect = (
+                lambda ex, sym, p1=price1_change, p2=price2_change: (
+                    Ticker(
+                        symbol=sym,
+                        price=local_tickers[ex][sym].price + (p1 if ex == "hyperliquid" else p2),
+                        bid=None,
+                        ask=None,
+                        volume=None,
+                    )
+                    if local_tickers.get(ex, {}).get(sym)
+                    else None
+                )
             )
 
             # Call update with the mocked time and data
@@ -226,15 +296,23 @@ class TestSignalGenerator:
         expected_length_after_calls = 1 + (sample_count + 1) + 1
 
         # Check funding rates deque length
-        assert len(signal_generator.historical_funding_rates["hyperliquid"][hyperliquid_btc_internal]) == expected_length_after_calls # Changed from sample_count
+        assert (
+            len(signal_generator.historical_funding_rates["hyperliquid"][hyperliquid_btc_internal])
+            == expected_length_after_calls
+        )  # Changed from sample_count
         # Check basis deque length - Basis calculation might fail on some iterations if only one ticker is updated
         # Let's refine the assertion for basis based on actual additions
         # Basis is only added if len(valid_exchanges_for_symbol) >= 2. In the loop, we modify mock returns.
         # The mock lambda for get_ticker always returns a Ticker if the key exists, so basis should always be calculated.
-        assert len(signal_generator.historical_basis[btc_internal_basis]) == expected_length_after_calls # Changed from sample_count
+        assert (
+            len(signal_generator.historical_basis[btc_internal_basis])
+            == expected_length_after_calls
+        )  # Changed from sample_count
 
         # Check the timestamp of the oldest item remaining
-        oldest_funding_ts = signal_generator.historical_funding_rates["hyperliquid"][hyperliquid_btc_internal][0][0]
+        oldest_funding_ts = signal_generator.historical_funding_rates["hyperliquid"][
+            hyperliquid_btc_internal
+        ][0][0]
 
         cutoff_time = fixed_now - timedelta(seconds=max_history_seconds)
 
@@ -252,9 +330,14 @@ class TestSignalGenerator:
         now = datetime.now(UTC)
         basis_deque = deque()
         basis_values = [Decimal("100"), Decimal("120"), Decimal("90"), Decimal("110")]
-        timestamps = [now - timedelta(hours=3), now - timedelta(hours=2), now - timedelta(hours=1), now]
-        for ts, val in zip(timestamps, basis_values):
-             basis_deque.append((ts, val))
+        timestamps = [
+            now - timedelta(hours=3),
+            now - timedelta(hours=2),
+            now - timedelta(hours=1),
+            now,
+        ]
+        for ts, val in zip(timestamps, basis_values, strict=False):
+            basis_deque.append((ts, val))
 
         signal_generator.historical_basis[internal_symbol] = basis_deque
 
@@ -271,20 +354,29 @@ class TestSignalGenerator:
         internal_symbol = "BTC"
 
         # Test with empty deque
-        assert signal_generator.calculate_funding_rate_volatility(exchange, internal_symbol) == Decimal("0.0")
+        assert signal_generator.calculate_funding_rate_volatility(
+            exchange, internal_symbol
+        ) == Decimal("0.0")
 
         # Test with insufficient data (1 point)
         now = datetime.now(UTC)
         funding_deque = deque()
         funding_deque.append((now, Decimal("0.01")))
         signal_generator.historical_funding_rates[exchange][internal_symbol] = funding_deque
-        assert signal_generator.calculate_funding_rate_volatility(exchange, internal_symbol) == Decimal("0.0")
+        assert signal_generator.calculate_funding_rate_volatility(
+            exchange, internal_symbol
+        ) == Decimal("0.0")
 
         # Add sufficient historical funding data
         funding_rates = [Decimal("0.01"), Decimal("-0.01"), Decimal("0.02"), Decimal("0.005")]
-        timestamps = [now - timedelta(hours=3), now - timedelta(hours=2), now - timedelta(hours=1), now]
+        timestamps = [
+            now - timedelta(hours=3),
+            now - timedelta(hours=2),
+            now - timedelta(hours=1),
+            now,
+        ]
         funding_deque.clear()
-        for ts, rate in zip(timestamps, funding_rates):
+        for ts, rate in zip(timestamps, funding_rates, strict=False):
             funding_deque.append((ts, rate))
 
         signal_generator.historical_funding_rates[exchange][internal_symbol] = funding_deque
@@ -308,7 +400,7 @@ class TestSignalGenerator:
         data_handler.get_orderbook.return_value = None
         slippage = signal_generator.estimate_slippage("BTC", Decimal("10000"), "hyperliquid")
         # Assert against the observed behavior (MIN_SLIPPAGE), though the reason requires investigation
-        assert slippage == Decimal("1E-9") # Changed from 0.001
+        assert slippage == Decimal("1E-9")  # Changed from 0.001
 
     def test_generate_opportunities(self, signal_generator, data_handler):
         """Test generating arbitrage opportunities."""
@@ -330,17 +422,42 @@ class TestSignalGenerator:
 
     def test_generate_opportunities_no_eligible(self, signal_generator, data_handler):
         """Test when no opportunities meet the eligibility criteria."""
+
         # Modify funding rates to be below threshold
         # Return FundingRate objects, not tuples
         def mock_low_funding(exchange, symbol):
             rates = {
                 "hyperliquid": {
-                    "BTC": FundingRate(symbol="BTC", funding_rate=Decimal("0.0001"), mark_price=Decimal("0"), index_price=Decimal("0"), next_funding_time=0),
-                    "ETH": FundingRate(symbol="ETH", funding_rate=Decimal("0.0001"), mark_price=Decimal("0"), index_price=Decimal("0"), next_funding_time=0),
+                    "BTC": FundingRate(
+                        symbol="BTC",
+                        funding_rate=Decimal("0.0001"),
+                        mark_price=Decimal("0"),
+                        index_price=Decimal("0"),
+                        next_funding_time=0,
+                    ),
+                    "ETH": FundingRate(
+                        symbol="ETH",
+                        funding_rate=Decimal("0.0001"),
+                        mark_price=Decimal("0"),
+                        index_price=Decimal("0"),
+                        next_funding_time=0,
+                    ),
                 },
                 "backpack": {
-                    "BTC": FundingRate(symbol="BTC", funding_rate=Decimal("0.0002"), mark_price=Decimal("0"), index_price=Decimal("0"), next_funding_time=0),
-                    "ETH": FundingRate(symbol="ETH", funding_rate=Decimal("0.0001"), mark_price=Decimal("0"), index_price=Decimal("0"), next_funding_time=0),
+                    "BTC": FundingRate(
+                        symbol="BTC",
+                        funding_rate=Decimal("0.0002"),
+                        mark_price=Decimal("0"),
+                        index_price=Decimal("0"),
+                        next_funding_time=0,
+                    ),
+                    "ETH": FundingRate(
+                        symbol="ETH",
+                        funding_rate=Decimal("0.0001"),
+                        mark_price=Decimal("0"),
+                        index_price=Decimal("0"),
+                        next_funding_time=0,
+                    ),
                 },
             }
             return rates.get(exchange, {}).get(symbol)
@@ -386,7 +503,7 @@ class TestSignalGenerator:
             optimal_size=Decimal("500"),
             expected_profit=Decimal("10"),
             basis_volatility=0.5,
-            utility_score=9.75
+            utility_score=9.75,
         )
         assert opp.symbol == "TEST/USD"
         assert opp.net_funding_differential == Decimal("0.02")

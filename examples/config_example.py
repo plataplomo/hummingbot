@@ -42,9 +42,7 @@ def main():
         "--config",
         type=str,
         help="Path to the configuration file",
-        default=os.path.join(
-            os.path.dirname(__file__), "../cyberdelta/config/config.yaml"
-        ),
+        default=os.path.join(os.path.dirname(__file__), "../cyberdelta/config/config.yaml"),
     )
     parser.add_argument(
         "--secrets",
@@ -148,20 +146,14 @@ def main():
     global_risk = risk.get("global", {})
     print("  Global Risk Settings:")
     print(f"    Max Position Size: ${global_risk.get('max_position_usd', 'Not Set')}")
-    print(
-        f"    Max Total Exposure: ${global_risk.get('max_total_exposure_usd', 'Not Set')}"
-    )
-    print(
-        f"    Max Portfolio Leverage: {global_risk.get('max_portfolio_leverage', 'Not Set')}x"
-    )
+    print(f"    Max Total Exposure: ${global_risk.get('max_total_exposure_usd', 'Not Set')}")
+    print(f"    Max Portfolio Leverage: {global_risk.get('max_portfolio_leverage', 'Not Set')}x")
 
     strategy_risk = risk.get("strategies", {})
     print("  Strategy-Specific Risk Settings:")
     for strategy_name, risk_config in strategy_risk.items():
         print(f"    - {strategy_name}:")
-        print(
-            f"      Max Position Size: ${risk_config.get('max_position_usd', 'Not Set')}"
-        )
+        print(f"      Max Position Size: ${risk_config.get('max_position_usd', 'Not Set')}")
         print(f"      Max Leverage: {risk_config.get('max_leverage', 'Not Set')}x")
 
     # Display circuit breakers
@@ -329,10 +321,16 @@ notifications:
     # Removed code that created files in root config/ and actual .yaml files
 
     print("\nIMPORTANT:")
-    print(f"1. Copy {cyberdelta_config_example_path} to {cyberdelta_config_dir / 'config.yaml'} and customize.")
-    print(f"2. Copy {user_secrets_example_path} to {user_secrets_dir / 'secrets.yaml'} (recommended) or another secure location.")
+    print(
+        f"1. Copy {cyberdelta_config_example_path} to {cyberdelta_config_dir / 'config.yaml'} and customize."
+    )
+    print(
+        f"2. Copy {user_secrets_example_path} to {user_secrets_dir / 'secrets.yaml'} (recommended) or another secure location."
+    )
     print("3. Add your actual API keys/secrets to your secrets file.")
-    print("4. Ensure the CYBERDELTA_SECRETS_PATH environment variable points to your actual secrets file if not using the default ~/.cyberdelta/secrets.yaml.")
+    print(
+        "4. Ensure the CYBERDELTA_SECRETS_PATH environment variable points to your actual secrets file if not using the default ~/.cyberdelta/secrets.yaml."
+    )
 
 
 def run_benchmark(config_path, secrets_path):

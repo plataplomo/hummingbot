@@ -38,9 +38,7 @@ class BacktestEngine:
 
     def run_backtest(self, market_data):
         signals = self.strategy.analyze_market(market_data)
-        trades = self.strategy.execute_trades(
-            signals, market_data, self.current_positions
-        )
+        trades = self.strategy.execute_trades(signals, market_data, self.current_positions)
         metrics = self.strategy.calculate_metrics(trades, market_data)
         return {
             "metrics": metrics,
@@ -134,9 +132,7 @@ class MockTradingStrategy(TradingStrategy):
         # Mock implementation that returns basic metrics
         return {
             "total_trades": len(trades),
-            "profit_loss": sum(
-                [trade["size"] * trade["price"] for asset, trade in trades.items()]
-            ),
+            "profit_loss": sum([trade["size"] * trade["price"] for asset, trade in trades.items()]),
             "win_rate": 0.65,  # Arbitrary for testing
             "sharpe_ratio": 1.5,  # Arbitrary for testing
         }
@@ -270,12 +266,8 @@ class TestBacktestEngine(unittest.TestCase):
         self.engine.update_positions(trades)
 
         # Verify positions were updated correctly
-        self.assertEqual(
-            self.engine.current_positions["BTC-USD"], 0.5
-        )  # 1.0 - 0.5 = 0.5
-        self.assertEqual(
-            self.engine.current_positions["ETH-USD"], -2.5
-        )  # -1.0 - 1.5 = -2.5
+        self.assertEqual(self.engine.current_positions["BTC-USD"], 0.5)  # 1.0 - 0.5 = 0.5
+        self.assertEqual(self.engine.current_positions["ETH-USD"], -2.5)  # -1.0 - 1.5 = -2.5
 
 
 if __name__ == "__main__":

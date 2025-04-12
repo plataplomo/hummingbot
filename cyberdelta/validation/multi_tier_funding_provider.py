@@ -37,7 +37,7 @@ class MultiTierFundingProvider:
     metrics, source reliability, and data freshness.
     """
 
-    def __init__(self, config: dict[str, Any], funding_rate_validator: Any | None = None) -> None:  
+    def __init__(self, config: dict[str, Any], funding_rate_validator: Any | None = None) -> None:
         """
         Initialize the multi-tier funding provider.
 
@@ -223,16 +223,16 @@ class MultiTierFundingProvider:
             elif not isinstance(ts, datetime):
                 # Handle non-datetime case, e.g., if it's an int timestamp
                 try:
-                   ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC) # Assume ms
+                    ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC)  # Assume ms
                 except (ValueError, TypeError):
-                   ts = datetime.now(UTC) # Fallback if conversion fails
+                    ts = datetime.now(UTC)  # Fallback if conversion fails
 
             # Create funding data
             funding_data = FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=ts, # Use aware timestamp
+                timestamp=ts,  # Use aware timestamp
                 source_type=SourceType.PRIMARY,
                 source_reliability=SourceReliability.HIGH,
                 raw_data=raw_data,
@@ -269,16 +269,16 @@ class MultiTierFundingProvider:
                 ts = ts.replace(tzinfo=UTC)
             elif not isinstance(ts, datetime):
                 try:
-                   ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC) # Assume ms
+                    ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC)  # Assume ms
                 except (ValueError, TypeError):
-                   ts = datetime.now(UTC)
+                    ts = datetime.now(UTC)
 
             # Create funding data
             funding_data = FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=ts, # Use aware timestamp
+                timestamp=ts,  # Use aware timestamp
                 source_type=SourceType.SECONDARY,
                 source_reliability=SourceReliability.MEDIUM,
                 raw_data=raw_data,
@@ -315,16 +315,16 @@ class MultiTierFundingProvider:
                 ts = ts.replace(tzinfo=UTC)
             elif not isinstance(ts, datetime):
                 try:
-                   ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC) # Assume ms
+                    ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC)  # Assume ms
                 except (ValueError, TypeError):
-                   ts = datetime.now(UTC)
+                    ts = datetime.now(UTC)
 
             # Create funding data
             funding_data = FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=ts, # Use aware timestamp
+                timestamp=ts,  # Use aware timestamp
                 source_type=SourceType.TERTIARY,
                 source_reliability=SourceReliability.LOW,
                 raw_data=raw_data,
@@ -363,16 +363,16 @@ class MultiTierFundingProvider:
                 ts = ts.replace(tzinfo=UTC)
             elif not isinstance(ts, datetime):
                 try:
-                   ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC) # Assume ms
+                    ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC)  # Assume ms
                 except (ValueError, TypeError):
-                   ts = datetime.now(UTC)
+                    ts = datetime.now(UTC)
 
             # Create funding data
             fallback_data = FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=ts, # Use aware timestamp
+                timestamp=ts,  # Use aware timestamp
                 source_type=SourceType.FALLBACK,
                 source_reliability=SourceReliability.LOWEST,
                 raw_data=raw_data,
@@ -383,7 +383,9 @@ class MultiTierFundingProvider:
             # Ensure fallback_data.timestamp is aware before subtraction
             fallback_ts_aware = fallback_data.timestamp
             if fallback_ts_aware.tzinfo is None:
-                 fallback_ts_aware = fallback_ts_aware.replace(tzinfo=UTC) # Should not happen due to above logic, but belt-and-suspenders
+                fallback_ts_aware = fallback_ts_aware.replace(
+                    tzinfo=UTC
+                )  # Should not happen due to above logic, but belt-and-suspenders
             age = (datetime.now(UTC) - fallback_ts_aware).total_seconds()
             decay_factor = max(0, 1 - (age / (self.max_acceptable_age * 4)))
             adjusted_confidence = base_confidence * decay_factor
@@ -464,7 +466,7 @@ class MultiTierFundingProvider:
 
         # Calculate weighted average timestamp
         # Convert timestamps to seconds since epoch for calculation
-        epoch = datetime(1970, 1, 1, tzinfo=UTC) # Use timezone-aware epoch
+        epoch = datetime(1970, 1, 1, tzinfo=UTC)  # Use timezone-aware epoch
         timestamps_seconds = []
         for ts in timestamps:
             # Ensure timestamp is timezone-aware (assume UTC if naive)
@@ -504,7 +506,9 @@ class MultiTierFundingProvider:
             dispersion=rate_dispersion,
             sources_count=len(available_sources),
             primary_available=any(s.source_type == SourceType.PRIMARY for s in available_sources),
-            secondary_available=any(s.source_type == SourceType.SECONDARY for s in available_sources),
+            secondary_available=any(
+                s.source_type == SourceType.SECONDARY for s in available_sources
+            ),
             tertiary_available=any(s.source_type == SourceType.TERTIARY for s in available_sources),
             source_data={s.source_type: s for s in available_sources},
         )

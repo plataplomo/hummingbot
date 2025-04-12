@@ -1,10 +1,10 @@
-import asyncio
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, UTC, timedelta
-import pytest
 from unittest.mock import MagicMock
 
-from cyberdelta.core.models import TradeSignal, OrderSide, OrderType, SignalType
+import pytest
+
+from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 
 
@@ -12,9 +12,11 @@ from cyberdelta.core.signal_queue import PrioritySignalQueue
 def mock_config():
     return MagicMock()
 
+
 @pytest.fixture
 def signal_queue(mock_config):
     return PrioritySignalQueue(mock_config)
+
 
 @pytest.fixture
 def sample_signal():
@@ -26,16 +28,19 @@ def sample_signal():
         side=OrderSide.BUY,
         price=Decimal("50000"),
         source_strategy="test_strategy",
-        metadata={"utility_score": 0.8}
+        metadata={"utility_score": 0.8},
     )
+
 
 # Basic test to ensure the file collects and basic instantiation works
 def test_queue_instantiation(signal_queue):
     assert signal_queue is not None
 
+
 def test_signal_creation(sample_signal):
     assert sample_signal is not None
     assert sample_signal.source_strategy == "test_strategy"
     assert sample_signal.signal_type == SignalType.ENTER_LONG
+
 
 # TODO: Restore or rewrite full tests for PrioritySignalQueue

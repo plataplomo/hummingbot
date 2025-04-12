@@ -242,7 +242,9 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
         logger.debug(f"Mock {self.exchange_name}: Getting order book for {symbol}")
         # Return a dummy OrderBook or None
-        return OrderBook(symbol=symbol, bids=[], asks=[], timestamp=int(datetime.now(UTC).timestamp() * 1000))
+        return OrderBook(
+            symbol=symbol, bids=[], asks=[], timestamp=int(datetime.now(UTC).timestamp() * 1000)
+        )
 
     async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
         """Return an empty list of recent trades."""
@@ -1018,16 +1020,16 @@ class MockExchangeAPI(ExchangeAPI):
                 if isinstance(data.get("side"), str):
                     pos_side = OrderSide(data["side"].lower())
                     if pos_side is not None:
-                         data["side"] = pos_side
+                        data["side"] = pos_side
                     else:
                         # Handle case where side conversion fails, maybe default or raise
                         logger.warning(f"Could not parse position side: {data.get('side')}")
                         # Decide on handling: raise, default, or skip setting side
-                        data.pop("side", None) # Example: remove if unparseable
+                        data.pop("side", None)  # Example: remove if unparseable
                 elif isinstance(data.get("side"), OrderSide):
-                    pass # Already correct type
+                    pass  # Already correct type
                 else:
-                    data.pop("side", None) # Remove if not string or OrderSide
+                    data.pop("side", None)  # Remove if not string or OrderSide
 
                 for key in [
                     "size",
@@ -1055,8 +1057,8 @@ class MockExchangeAPI(ExchangeAPI):
                     if key in data and data[key] is not None:
                         data[key] = Decimal(str(data[key]))
                 # Use 'price' key for Ticker, not 'last_price'
-                if 'last_price' in data:
-                     data['price'] = data.pop('last_price')
+                if "last_price" in data:
+                    data["price"] = data.pop("last_price")
                 return Ticker(**data)
             except Exception as e:
                 logger.error(f"Failed to parse ticker data: {e}, Data: {data}")

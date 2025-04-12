@@ -29,8 +29,8 @@ class Engine:
     def __init__(self, name: str = "CyberDeltaEngine") -> None:
         self.name = name
         self.strategies: dict[str, Strategy] = {}
-        self.enabled_strategies: set[str] = set() # Track enabled strategy names
-        self.active_symbols: set[str] = set() # Track symbols monitored by strategies
+        self.enabled_strategies: set[str] = set()  # Track enabled strategy names
+        self.active_symbols: set[str] = set()  # Track symbols monitored by strategies
         # Must be set via set_signal_handler
         self.signal_handler: Callable[[TradeSignal], None] | None = None
         self.is_running = False
@@ -74,7 +74,7 @@ class Engine:
             logger.info(f"Removing strategy '{strategy_name}'")
             # Ensure strategy is disabled before removal
             if strategy_name in self.enabled_strategies:
-                self.disable_strategy(strategy_name) # Also calls strategy.disable()
+                self.disable_strategy(strategy_name)  # Also calls strategy.disable()
             del self.strategies[strategy_name]
             self._refresh_active_symbols()
         else:
@@ -90,7 +90,7 @@ class Engine:
             return
 
         strategy = self.strategies[strategy_name]
-        strategy.enable() # Update the strategy's internal state
+        strategy.enable()  # Update the strategy's internal state
         self.enabled_strategies.add(strategy_name)
         # Ensure active symbols reflects enabled state if needed (optional refinement)
         self._refresh_active_symbols()
@@ -106,7 +106,7 @@ class Engine:
             return
 
         strategy = self.strategies[strategy_name]
-        strategy.disable() # Update the strategy's internal state
+        strategy.disable()  # Update the strategy's internal state
         self.enabled_strategies.discard(strategy_name)
         # Refreshing symbols might not be strictly needed on disable
         # self._refresh_active_symbols()
@@ -122,7 +122,7 @@ class Engine:
         """
         self.signal_handler = handler
         # Use getattr for safe name retrieval, fallback to repr
-        handler_name = getattr(handler, '__name__', repr(handler))
+        handler_name = getattr(handler, "__name__", repr(handler))
         logger.info(f"Signal handler set to: {handler_name}")
 
     def process_market_data(self, data: MarketData) -> None:
@@ -143,7 +143,7 @@ class Engine:
             # Depending on requirements, could buffer signals or drop them. Currently dropping.
             return
 
-        self.last_data_time = datetime.now(UTC) # Use UTC
+        self.last_data_time = datetime.now(UTC)  # Use UTC
 
         # Optimization: Check if any strategy cares about this symbol before iterating
         if data.symbol not in self.active_symbols:
@@ -160,7 +160,7 @@ class Engine:
                     if signal:
                         logger.info(
                             f"Strategy '{strategy.name}' generated signal: "
-                            f"{signal.signal_type.name} for {signal.symbol}." # Compacted log
+                            f"{signal.signal_type.name} for {signal.symbol}."  # Compacted log
                         )
                         # Forward signal IMMEDIATELY to the configured handler
                         # Ensure handler exists (checked at start, but belt-and-suspenders)
@@ -169,9 +169,7 @@ class Engine:
                         else:
                             # This case should theoretically not be reached due
                             # to the check at the method start
-                            logger.error(
-                                f"Signal from {strategy.name} but no handler configured!"
-                            )
+                            logger.error(f"Signal from {strategy.name} but no handler configured!")
 
                 except Exception as e:
                     # Log the error and potentially disable the faulty strategy
@@ -180,7 +178,7 @@ class Engine:
                         f"Error processing data in strategy '{strategy.name}': {e}",
                         symbol=data.symbol,
                         strategy_name=strategy.name,
-                        exc_info=True # Include stack trace
+                        exc_info=True,  # Include stack trace
                     )
                     # Option: Automatically disable faulty strategy (consider implications)
                     # logger.warning(
@@ -221,20 +219,20 @@ class Engine:
                 # Ensure timestamp is timezone-aware (UTC)
                 ts = row["timestamp"]
                 if not isinstance(ts, datetime):
-                    ts = pd.to_datetime(ts) # Pandas handles various formats
+                    ts = pd.to_datetime(ts)  # Pandas handles various formats
                 if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=UTC) # Assume UTC if naive
+                    ts = ts.replace(tzinfo=UTC)  # Assume UTC if naive
                 else:
-                    ts = ts.astimezone(UTC) # Convert to UTC if already aware
+                    ts = ts.astimezone(UTC)  # Convert to UTC if already aware
 
             except (InvalidOperation, TypeError, ValueError) as e:
                 self.logger.error(
                     f"Error converting DataFrame row {index} for {symbol} to MarketData types",
-                    row_data=row.to_dict(), # Log the problematic row data
+                    row_data=row.to_dict(),  # Log the problematic row data
                     error=e,
-                    exc_info=False # Keep log concise for per-row errors
+                    exc_info=False,  # Keep log concise for per-row errors
                 )
-                continue # Skip this row if conversion fails
+                continue  # Skip this row if conversion fails
 
             # Create MarketData instance
             data = MarketData(
@@ -257,31 +255,31 @@ class Engine:
             return
 
         if not self.signal_handler:
-             logger.error("Cannot start Engine: Signal handler has not been set.")
-             # Prevent starting without a crucial dependency
-             raise RuntimeError("Engine cannot start without a configured signal handler.")
+            logger.error("Cannot start Engine: Signal handler has not been set.")
+            # Prevent starting without a crucial dependency
+            raise RuntimeError("Engine cannot start without a configured signal handler.")
 
         logger.info(f"Starting engine '{self.name}'...")
         self.is_running = True
-        self.start_time = datetime.now(UTC) # Use UTC
+        self.start_time = datetime.now(UTC)  # Use UTC
 
         # Start only enabled strategies
         enabled_count = 0
         # Iterate copy in case on_start fails/disables
         for strategy_name in list(self.enabled_strategies):
-             strategy = self.strategies.get(strategy_name)
-             if strategy: # Should always exist if in enabled_strategies set
-                 try:
+            strategy = self.strategies.get(strategy_name)
+            if strategy:  # Should always exist if in enabled_strategies set
+                try:
                     logger.debug(f"Calling on_start for strategy '{strategy.name}'...")
                     strategy.on_start()
                     enabled_count += 1
-                 except Exception as e:
-                      logger.error(
-                          f"Error calling on_start for strategy '{strategy.name}': {e}. "
-                          f"Disabling strategy.",
-                          exc_info=True
-                      )
-                      self.disable_strategy(strategy_name) # Disable faulty strategy
+                except Exception as e:
+                    logger.error(
+                        f"Error calling on_start for strategy '{strategy.name}': {e}. "
+                        f"Disabling strategy.",
+                        exc_info=True,
+                    )
+                    self.disable_strategy(strategy_name)  # Disable faulty strategy
 
         logger.info(f"Engine '{self.name}' started with {enabled_count} enabled strategies.")
 
@@ -299,24 +297,23 @@ class Engine:
 
         # Stop all currently enabled strategies first
         stopped_count = 0
-        for strategy_name in list(self.enabled_strategies): # Iterate copy
-             strategy = self.strategies.get(strategy_name)
-             if strategy:
-                 try:
+        for strategy_name in list(self.enabled_strategies):  # Iterate copy
+            strategy = self.strategies.get(strategy_name)
+            if strategy:
+                try:
                     logger.debug(f"Calling on_stop for strategy '{strategy.name}'...")
                     strategy.on_stop()
                     stopped_count += 1
-                 except Exception as e:
-                      logger.error(
-                          f"Error calling on_stop for strategy '{strategy.name}': {e}",
-                          exc_info=True
-                      )
-                 # Always disable after stopping, even if on_stop failed
-                 self.disable_strategy(strategy_name)
+                except Exception as e:
+                    logger.error(
+                        f"Error calling on_stop for strategy '{strategy.name}': {e}", exc_info=True
+                    )
+                # Always disable after stopping, even if on_stop failed
+                self.disable_strategy(strategy_name)
 
         # Ensure any remaining strategies (if any inconsistencies occurred) are disabled
         for strategy_name, strategy in self.strategies.items():
-            if strategy.enabled: # Should not happen if logic is correct, but good safety check
+            if strategy.enabled:  # Should not happen if logic is correct, but good safety check
                 logger.warning(
                     f"Strategy '{strategy_name}' was still marked as enabled during stop. "
                     f"Forcibly disabling."

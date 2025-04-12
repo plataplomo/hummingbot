@@ -30,7 +30,7 @@ class FundingRateArbitrageStrategy(Strategy):
     - Profits from funding rate payments while maintaining delta neutrality
     """
 
-    def __init__( 
+    def __init__(
         self,
         name: str,
         symbol: str,
@@ -227,12 +227,14 @@ class FundingRateArbitrageStrategy(Strategy):
         try:
             # Ensure variance is non-negative before sqrt
             if variance < 0:
-                logger.warning(f"Calculated negative variance ({variance}) for basis volatility of {symbol}. Returning default.")
-                return Decimal("0.01") # Return default Decimal volatility
-            return variance.sqrt() # Equivalent to ** Decimal("0.5")
+                logger.warning(
+                    f"Calculated negative variance ({variance}) for basis volatility of {symbol}. Returning default."
+                )
+                return Decimal("0.01")  # Return default Decimal volatility
+            return variance.sqrt()  # Equivalent to ** Decimal("0.5")
         except Exception as e:
             logger.error(f"Error calculating sqrt of variance {variance} for {symbol}: {e}")
-            return Decimal("0.01") # Return default Decimal volatility on error
+            return Decimal("0.01")  # Return default Decimal volatility on error
 
     def _estimate_slippage(self, symbol: str, size: Decimal, exchange: str) -> Decimal:
         """
@@ -253,19 +255,23 @@ class FundingRateArbitrageStrategy(Strategy):
         # Scale slippage based on size (use Decimal math)
         ref_size = Decimal("10000")
         if size <= Decimal("0") or ref_size <= Decimal("0"):
-            return base_slippage # Avoid math errors for zero/negative size
+            return base_slippage  # Avoid math errors for zero/negative size
 
         # Use Decimal for exponentiation
         try:
             size_ratio = size / ref_size
-             # Ensure ratio is non-negative before sqrt
+            # Ensure ratio is non-negative before sqrt
             if size_ratio < 0:
-                 logger.warning(f"Calculated negative size ratio ({size_ratio}) for slippage of {symbol}. Using base.")
-                 return base_slippage
-            slippage_scaling = size_ratio.sqrt() # Equivalent to ** Decimal("0.5")
+                logger.warning(
+                    f"Calculated negative size ratio ({size_ratio}) for slippage of {symbol}. Using base."
+                )
+                return base_slippage
+            slippage_scaling = size_ratio.sqrt()  # Equivalent to ** Decimal("0.5")
         except Exception as e:
-             logger.error(f"Error calculating sqrt of size_ratio {size_ratio} for {symbol} slippage: {e}")
-             return base_slippage # Return base on error
+            logger.error(
+                f"Error calculating sqrt of size_ratio {size_ratio} for {symbol} slippage: {e}"
+            )
+            return base_slippage  # Return base on error
 
         return base_slippage * slippage_scaling
 

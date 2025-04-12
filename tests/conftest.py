@@ -241,9 +241,7 @@ def mock_config():
                 "auto_correct": False,
             },
         },
-        "data": {
-            "staleness_thresholds": {"ticker": 60, "funding_rate": 300, "orderbook": 60}
-        },
+        "data": {"staleness_thresholds": {"ticker": 60, "funding_rate": 300, "orderbook": 60}},
     }
     return Config(config_data)
 

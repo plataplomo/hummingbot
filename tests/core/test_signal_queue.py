@@ -50,7 +50,7 @@ def sample_signal():
         side=OrderSide.BUY,
         price=50000,
         source_strategy="test_strategy",
-        metadata={"utility_score": 0.8}
+        metadata={"utility_score": 0.8},
     )
 
 
@@ -76,9 +76,9 @@ def sample_opportunity():
         short_funding_rate=short_fr,
         net_funding_differential=net_diff,
         timestamp=now,
-        utility_score=0.9, # Float is fine
+        utility_score=0.9,  # Float is fine
         expected_profit=exp_profit,
-        basis_volatility=0.0005, # Float is fine
+        basis_volatility=0.0005,  # Float is fine
         optimal_size=None,
         confidence=None,
     )
@@ -113,9 +113,7 @@ def test_add_signal(mock_config, sample_signal):
     assert signal.expiration is not None
 
 
-def test_add_signal_with_circuit_breaker(
-    mock_config, mock_circuit_breaker, sample_signal
-):
+def test_add_signal_with_circuit_breaker(mock_config, mock_circuit_breaker, sample_signal):
     """Test adding a signal with circuit breaker integration."""
     queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
 
@@ -247,9 +245,9 @@ def test_clean_expired_signals(mock_config):
         symbol="BTC-PERP",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        timestamp=now_utc - timedelta(minutes=1), # Make timestamp aware
-        price=Decimal("30000.0"), # Use Decimal
-        expiration=now_utc - timedelta(seconds=10), # Make expiration aware
+        timestamp=now_utc - timedelta(minutes=1),  # Make timestamp aware
+        price=Decimal("30000.0"),  # Use Decimal
+        expiration=now_utc - timedelta(seconds=10),  # Make expiration aware
         metadata={"utility_score": 0.75},
     )
 
@@ -259,9 +257,9 @@ def test_clean_expired_signals(mock_config):
         symbol="ETH-PERP",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        timestamp=now_utc, # Make timestamp aware
-        price=Decimal("2000.0"), # Use Decimal
-        expiration=now_utc + timedelta(seconds=60), # Make expiration aware
+        timestamp=now_utc,  # Make timestamp aware
+        price=Decimal("2000.0"),  # Use Decimal
+        expiration=now_utc + timedelta(seconds=60),  # Make expiration aware
         metadata={"utility_score": 0.9},
     )
 
@@ -269,7 +267,7 @@ def test_clean_expired_signals(mock_config):
     queue.add_signal(valid_signal)
 
     # Check count immediately after adding - add_signal might filter expired
-    assert queue.count() == 1 # Changed from 2
+    assert queue.count() == 1  # Changed from 2
 
     # Explicitly clean and verify
     queue.clear_expired_signals()
@@ -335,7 +333,9 @@ def test_calculate_expiration(mock_config, sample_signal):
     now = datetime.now(UTC)
     expiration_low_conf = queue._calculate_expiration(signal_with_low_confidence)
     expected_seconds_low_conf = 60 * (0.5 + 0.2 * 0.5)
-    assert (expiration_low_conf - now).total_seconds() == pytest.approx(expected_seconds_low_conf, abs=1)
+    assert (expiration_low_conf - now).total_seconds() == pytest.approx(
+        expected_seconds_low_conf, abs=1
+    )
 
 
 def test_check_circuit_breakers(mock_config, mock_circuit_breaker):
@@ -347,8 +347,8 @@ def test_check_circuit_breakers(mock_config, mock_circuit_breaker):
         symbol="BTC-PERP",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        timestamp=datetime.now(UTC), # Ensure aware datetime
-        price=Decimal("30000.0"), # Use Decimal
+        timestamp=datetime.now(UTC),  # Ensure aware datetime
+        price=Decimal("30000.0"),  # Use Decimal
         metadata={"utility_score": 0.75, "exchange": "hyperliquid"},
     )
 
@@ -360,7 +360,7 @@ def test_check_circuit_breakers(mock_config, mock_circuit_breaker):
     mock_circuit_breaker.can_execute.assert_called_once_with("hyperliquid", "BTC-PERP")
 
     # Test: Blocked by exchange
-    mock_circuit_breaker.reset_mock() # Reset call count
+    mock_circuit_breaker.reset_mock()  # Reset call count
     mock_circuit_breaker.can_execute.return_value = (False, "Exchange Maintenance")
     assert queue._check_circuit_breakers(signal) is False
     mock_circuit_breaker.can_execute.assert_called_once_with("hyperliquid", "BTC-PERP")
@@ -368,31 +368,33 @@ def test_check_circuit_breakers(mock_config, mock_circuit_breaker):
     # Test: Signal without explicit exchange (should infer and check)
     signal_infer = TradeSignal(
         source_strategy="test_strategy",
-        symbol="BACKPACK-BTC-PERP", # Inferrable symbol
+        symbol="BACKPACK-BTC-PERP",  # Inferrable symbol
         signal_type=SignalType.ENTER_SHORT,
         side=OrderSide.SELL,
-        timestamp=datetime.now(UTC), # Aware datetime
-        price=Decimal("29999.0"), # Decimal
-        metadata={"utility_score": 0.70}, # No explicit exchange
+        timestamp=datetime.now(UTC),  # Aware datetime
+        price=Decimal("29999.0"),  # Decimal
+        metadata={"utility_score": 0.70},  # No explicit exchange
     )
     mock_circuit_breaker.reset_mock()
-    mock_circuit_breaker.can_execute.return_value = (True, None) # Assume pass
+    mock_circuit_breaker.can_execute.return_value = (True, None)  # Assume pass
     assert queue._check_circuit_breakers(signal_infer) is True
     mock_circuit_breaker.can_execute.assert_called_once_with("backpack", "BACKPACK-BTC-PERP")
 
     # Test: Signal without exchange and non-inferrable symbol
     signal_no_exchange = TradeSignal(
         source_strategy="test_strategy",
-        symbol="BTC/USDT", # Non-inferrable symbol
+        symbol="BTC/USDT",  # Non-inferrable symbol
         signal_type=SignalType.EXIT_LONG,
         side=OrderSide.SELL,
-        timestamp=datetime.now(UTC), # Aware datetime
-        price=Decimal("30000.0"), # Decimal
+        timestamp=datetime.now(UTC),  # Aware datetime
+        price=Decimal("30000.0"),  # Decimal
         metadata={"utility_score": 0.75},
     )
     mock_circuit_breaker.reset_mock()
-    assert queue._check_circuit_breakers(signal_no_exchange) is True # Should allow if exchange unknown
-    mock_circuit_breaker.can_execute.assert_not_called() # Should not be called
+    assert (
+        queue._check_circuit_breakers(signal_no_exchange) is True
+    )  # Should allow if exchange unknown
+    mock_circuit_breaker.can_execute.assert_not_called()  # Should not be called
 
 
 def test_queue_init(signal_queue):

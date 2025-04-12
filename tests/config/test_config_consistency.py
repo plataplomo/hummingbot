@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 """Tests to ensure configuration file consistency."""
 
-import yaml
 import re
 from pathlib import Path
+
 import pytest
+import yaml
 
 # Define paths relative to the project root
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
@@ -14,10 +15,11 @@ CONFIG_PATH = CONFIG_DIR / "config.yaml"
 EXAMPLE_CONFIG_PATH = CONFIG_DIR / "config.yaml.example"
 EXAMPLE_SCRIPT_PATH = EXAMPLES_DIR / "config_example.py"
 
+
 def get_yaml_keys(file_path: Path) -> set[str]:
     """Loads a YAML file and returns a set of all nested keys."""
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             data = yaml.safe_load(f)
         if not isinstance(data, dict):
             print(f"Warning: YAML content in {file_path} is not a dictionary.")
@@ -28,16 +30,18 @@ def get_yaml_keys(file_path: Path) -> set[str]:
     except yaml.YAMLError as e:
         pytest.fail(f"Error parsing YAML file {file_path}: {e}")
 
+
 def get_yaml_keys_from_string(yaml_string: str) -> set[str]:
     """Loads YAML from a string and returns a set of all nested keys."""
     try:
         data = yaml.safe_load(yaml_string)
         if not isinstance(data, dict):
-            print(f"Warning: YAML string content is not a dictionary.")
+            print("Warning: YAML string content is not a dictionary.")
             return set()
         return _extract_keys(data)
     except yaml.YAMLError as e:
         pytest.fail(f"Error parsing YAML string: {e}")
+
 
 def _extract_keys(data: dict, prefix: str = "") -> set[str]:
     """Recursively extracts keys from a nested dictionary."""
@@ -49,21 +53,24 @@ def _extract_keys(data: dict, prefix: str = "") -> set[str]:
             keys.update(_extract_keys(v, full_key))
     return keys
 
+
 def extract_config_content_variable(script_path: Path) -> str | None:
     """Extracts the value of the config_content variable from the Python script."""
     try:
-        with open(script_path, 'r') as f:
+        with open(script_path) as f:
             script_content = f.read()
 
         # Find the start of the assignment (multi-line mode)
         # Looks for 'config_content =' followed by ''' or """
-        start_match = re.search(r"^\s*config_content\s*=\s*(\"\"\"|''')", script_content, re.MULTILINE)
+        start_match = re.search(
+            r"^\s*config_content\s*=\s*(\"\"\"|''')", script_content, re.MULTILINE
+        )
         if not start_match:
             print(f"Warning: Could not find start of config_content assignment in {script_path}")
             return None
 
-        quote_type = start_match.group(1) # Get the quote type used (''' or """)
-        start_index = start_match.end()   # Index after the opening quotes
+        quote_type = start_match.group(1)  # Get the quote type used (''' or """)
+        start_index = start_match.end()  # Index after the opening quotes
 
         # Find the corresponding closing quotes, making sure to escape them for re.search
         # We search in the rest of the string after the opening quotes
@@ -81,6 +88,7 @@ def extract_config_content_variable(script_path: Path) -> str | None:
         print(f"Warning: Example script not found: {script_path}")
         return None
 
+
 class TestConfigConsistency:
     """Verify that configuration example files match the main configuration."""
 
@@ -91,10 +99,11 @@ class TestConfigConsistency:
         actual_keys = get_yaml_keys(CONFIG_PATH)
         example_keys = get_yaml_keys(EXAMPLE_CONFIG_PATH)
 
-        assert actual_keys == example_keys, \
+        assert actual_keys == example_keys, (
             f"Mismatch between {CONFIG_PATH} and {EXAMPLE_CONFIG_PATH}. \
             Missing in example: {actual_keys - example_keys}. \
             Extra in example: {example_keys - actual_keys}"
+        )
 
     @pytest.mark.skipif(not CONFIG_PATH.exists(), reason=f"{CONFIG_PATH} not found")
     @pytest.mark.skipif(not EXAMPLE_SCRIPT_PATH.exists(), reason=f"{EXAMPLE_SCRIPT_PATH} not found")
@@ -105,11 +114,14 @@ class TestConfigConsistency:
         config_content_str = extract_config_content_variable(EXAMPLE_SCRIPT_PATH)
         # Explicitly check for None and fail the test if extraction failed
         if config_content_str is None:
-             pytest.fail(f"Failed to extract config_content variable from {EXAMPLE_SCRIPT_PATH}. Check the script.")
+            pytest.fail(
+                f"Failed to extract config_content variable from {EXAMPLE_SCRIPT_PATH}. Check the script."
+            )
 
         script_keys = get_yaml_keys_from_string(config_content_str)
 
-        assert actual_keys == script_keys, \
+        assert actual_keys == script_keys, (
             f"Mismatch between {CONFIG_PATH} and config_content in {EXAMPLE_SCRIPT_PATH}. \
             Missing in script: {actual_keys - script_keys}. \
-            Extra in script: {script_keys - actual_keys}" 
+            Extra in script: {script_keys - actual_keys}"
+        )

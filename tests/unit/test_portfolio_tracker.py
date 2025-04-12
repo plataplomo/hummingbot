@@ -1,7 +1,7 @@
 import json
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -117,7 +117,7 @@ class TestPortfolioTracker:
         test_positions_list = [
             Position(
                 symbol="BTC",
-                size=Decimal("0.5"), # Use Decimal
+                size=Decimal("0.5"),  # Use Decimal
                 entry_price=Decimal("40000.0"),
                 mark_price=Decimal("42000.0"),
                 liquidation_price=Decimal("30000.0"),
@@ -208,10 +208,11 @@ class TestPortfolioTracker:
             ) as mock_fetch_orders,
         ):
             # Set up reconciliation timestamps
-            now = datetime.now(UTC) # Use UTC
+            now = datetime.now(UTC)  # Use UTC
             # Make last reconciliation older than the interval
             portfolio_tracker._last_reconciliation_time = {
-                "hyperliquid": now - timedelta(seconds=portfolio_tracker.reconciliation_interval + 1),
+                "hyperliquid": now
+                - timedelta(seconds=portfolio_tracker.reconciliation_interval + 1),
                 "backpack": now - timedelta(seconds=portfolio_tracker.reconciliation_interval + 1),
             }
             # Ensure interval is positive
@@ -241,7 +242,9 @@ class TestPortfolioTracker:
 
             # Only orders should be fetched if not reconciling
             assert mock_fetch_balances.call_count == 0
-            assert mock_fetch_positions.call_count == 0 # Positions also fetched only on reconciliation interval
+            assert (
+                mock_fetch_positions.call_count == 0
+            )  # Positions also fetched only on reconciliation interval
             assert mock_fetch_orders.call_count == 2
 
     def test_update_order(self, portfolio_tracker):
@@ -325,8 +328,15 @@ class TestPortfolioTracker:
         # Set up test balances using Balance objects
         portfolio_tracker._balances = {
             "hyperliquid": {
-                "USDC": Balance(asset="USDC", free=Decimal("10000.0"), locked=Decimal("0.0"), total=Decimal("10000.0")),
-                "BTC": Balance(asset="BTC", free=Decimal("1.0"), locked=Decimal("0.0"), total=Decimal("1.0")),
+                "USDC": Balance(
+                    asset="USDC",
+                    free=Decimal("10000.0"),
+                    locked=Decimal("0.0"),
+                    total=Decimal("10000.0"),
+                ),
+                "BTC": Balance(
+                    asset="BTC", free=Decimal("1.0"), locked=Decimal("0.0"), total=Decimal("1.0")
+                ),
             }
         }
 
@@ -339,22 +349,18 @@ class TestPortfolioTracker:
 
         # Test getting a nonexistent balance
         balance_obj_none = portfolio_tracker.get_exchange_balance("hyperliquid", "ETH")
-        assert balance_obj_none is None # Should return None if not found
+        assert balance_obj_none is None  # Should return None if not found
 
         # Test getting a balance from a nonexistent exchange
         balance_obj_none_exchange = portfolio_tracker.get_exchange_balance("nonexistent", "USDC")
-        assert balance_obj_none_exchange is None # Should return None
+        assert balance_obj_none_exchange is None  # Should return None
 
     def test_get_total_capital(self, portfolio_tracker):
         """Test calculating total capital."""
         # Set up test balances
         portfolio_tracker._balances = {
-            "hyperliquid": {
-                "USDC": Balance(asset="USDC", free=10000.0, locked=0.0, total=10000.0)
-            },
-            "backpack": {
-                "USDC": Balance(asset="USDC", free=5000.0, locked=0.0, total=5000.0)
-            },
+            "hyperliquid": {"USDC": Balance(asset="USDC", free=10000.0, locked=0.0, total=10000.0)},
+            "backpack": {"USDC": Balance(asset="USDC", free=5000.0, locked=0.0, total=5000.0)},
         }
 
         # Calculate total capital
@@ -509,24 +515,24 @@ class TestPortfolioTracker:
         # Create test positions
         position1 = Position(
             symbol="BTC",
-            size=Decimal("0.5"), # Use Decimal
-            entry_price=Decimal("40000.0"), # Use Decimal
-            mark_price=Decimal("42000.0"), # Use Decimal
-            liquidation_price=Decimal("30000.0"), # Use Decimal
-            unrealized_pnl=Decimal("1000.0"), # Use Decimal
-            leverage=Decimal("5.0"), # Use Decimal
+            size=Decimal("0.5"),  # Use Decimal
+            entry_price=Decimal("40000.0"),  # Use Decimal
+            mark_price=Decimal("42000.0"),  # Use Decimal
+            liquidation_price=Decimal("30000.0"),  # Use Decimal
+            unrealized_pnl=Decimal("1000.0"),  # Use Decimal
+            leverage=Decimal("5.0"),  # Use Decimal
             side=OrderSide.BUY,
         )
         # Assuming update_position stores by symbol, no need for explicit ID here for the test
 
         position2 = Position(
             symbol="BTC",
-            size=Decimal("0.3"), # Use Decimal
-            entry_price=Decimal("41000.0"), # Use Decimal
-            mark_price=Decimal("42000.0"), # Use Decimal
-            liquidation_price=Decimal("35000.0"), # Use Decimal
-            unrealized_pnl=Decimal("300.0"), # Use Decimal
-            leverage=Decimal("3.0"), # Use Decimal
+            size=Decimal("0.3"),  # Use Decimal
+            entry_price=Decimal("41000.0"),  # Use Decimal
+            mark_price=Decimal("42000.0"),  # Use Decimal
+            liquidation_price=Decimal("35000.0"),  # Use Decimal
+            unrealized_pnl=Decimal("300.0"),  # Use Decimal
+            leverage=Decimal("3.0"),  # Use Decimal
             side=OrderSide.BUY,
         )
 
@@ -545,25 +551,25 @@ class TestPortfolioTracker:
         # Assuming _positions structure is exchange -> symbol -> Position
         portfolio_tracker._positions = {
             "hyperliquid": {
-                "BTC": position1, # Simulate storing the first BTC position
-                 # Storing multiple positions for the same symbol might overwrite
-                 # or require a list. Let's assume update_position handles this
-                 # or the test focuses on retrieving what's currently stored under the key.
-                 # For testing get_positions_by_symbol, let's structure _positions
-                 # to contain multiple positions if the method aggregates them.
-                 # If PortfolioTracker only stores ONE position per symbol per exchange,
-                 # this test needs rethinking or the implementation needs changing.
-                 # Let's assume the method should find all matching symbols if stored correctly.
-                 # A more realistic storage might be exchange -> position_id -> Position,
-                 # and get_positions_by_symbol iterates and filters.
-                 # Let's adjust the storage mock to reflect symbol->Position for simplicity
-                 # and assume get_positions_by_symbol returns a list containing that one position.
-                 # OR, adjust storage to be exchange -> symbol -> list[Position] if intended.
-                 # Let's assume exchange -> symbol -> Position for now. We'll add ETH too.
-                "ETH": position_eth
+                "BTC": position1,  # Simulate storing the first BTC position
+                # Storing multiple positions for the same symbol might overwrite
+                # or require a list. Let's assume update_position handles this
+                # or the test focuses on retrieving what's currently stored under the key.
+                # For testing get_positions_by_symbol, let's structure _positions
+                # to contain multiple positions if the method aggregates them.
+                # If PortfolioTracker only stores ONE position per symbol per exchange,
+                # this test needs rethinking or the implementation needs changing.
+                # Let's assume the method should find all matching symbols if stored correctly.
+                # A more realistic storage might be exchange -> position_id -> Position,
+                # and get_positions_by_symbol iterates and filters.
+                # Let's adjust the storage mock to reflect symbol->Position for simplicity
+                # and assume get_positions_by_symbol returns a list containing that one position.
+                # OR, adjust storage to be exchange -> symbol -> list[Position] if intended.
+                # Let's assume exchange -> symbol -> Position for now. We'll add ETH too.
+                "ETH": position_eth,
                 # If we add position2 here, it overwrites position1.
                 # Let's test retrieving the ONE stored BTC position first.
-             }
+            }
         }
         # Add position2 to simulate an update overwriting position1
         portfolio_tracker._positions["hyperliquid"]["BTC"] = position2
@@ -573,8 +579,10 @@ class TestPortfolioTracker:
         positions_btc = portfolio_tracker.get_positions_by_symbol("hyperliquid", "BTC")
 
         # Check the result - should contain only position2
-        assert len(positions_btc) == 1, "Expected only one position if storage is symbol -> Position"
-        assert positions_btc[0] == position2 # Check it's the latest one stored
+        assert len(positions_btc) == 1, (
+            "Expected only one position if storage is symbol -> Position"
+        )
+        assert positions_btc[0] == position2  # Check it's the latest one stored
 
         # Get positions by symbol "ETH"
         positions_eth_list = portfolio_tracker.get_positions_by_symbol("hyperliquid", "ETH")
@@ -589,9 +597,7 @@ class TestPortfolioTracker:
         """Test serializing the portfolio state to a dictionary."""
         # Set up test data
         portfolio_tracker._balances = {
-            "hyperliquid": {
-                "USDC": Balance(asset="USDC", free=10000.0, locked=0.0, total=10000.0)
-            }
+            "hyperliquid": {"USDC": Balance(asset="USDC", free=10000.0, locked=0.0, total=10000.0)}
         }
 
         test_position = Position(
@@ -649,9 +655,7 @@ class TestPortfolioTracker:
             loaded_data = json.loads(json_str)
             assert isinstance(loaded_data, dict)
             # Check a Decimal value was converted to string by encoder
-            assert isinstance(
-                loaded_data["balances"]["hyperliquid"]["USDC"]["total"], str
-            )
+            assert isinstance(loaded_data["balances"]["hyperliquid"]["USDC"]["total"], str)
             assert (
                 loaded_data["balances"]["hyperliquid"]["USDC"]["total"] == "10000.0"
             )  # Compare as string

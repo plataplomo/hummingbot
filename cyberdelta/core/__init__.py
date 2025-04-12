@@ -53,7 +53,7 @@ __all__ = [
     "RiskManager",
     "SignalGenerator",
     # "SignalQueue",  # Incorrect name
-    "PrioritySignalQueue", # Correct name
+    "PrioritySignalQueue",  # Correct name
     "Strategy",
     # "DataManager", # Removed
     # "Configuration", # Removed

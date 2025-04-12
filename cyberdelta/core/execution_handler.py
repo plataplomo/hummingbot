@@ -21,7 +21,7 @@ from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem, CircuitB
 if TYPE_CHECKING:
     # Example: If importing PortfolioTracker directly caused issues
     # from cyberdelta.core.portfolio_tracker import PortfolioTracker
-    pass # Keep this block if needed for other type-checking-only imports
+    pass  # Keep this block if needed for other type-checking-only imports
 
 logger = get_logger(__name__)
 
@@ -197,14 +197,24 @@ class ExecutionHandler:
 
             # --- Start Circuit Breaker Checks ---
             if self.circuit_breaker_system:
-                can_proceed, reason = self.circuit_breaker_system.can_execute(long_exchange, opportunity.opportunity.symbol)
+                can_proceed, reason = self.circuit_breaker_system.can_execute(
+                    long_exchange, opportunity.opportunity.symbol
+                )
                 if not can_proceed:
-                    raise CircuitBreakerTrippedError(f"Long exchange ({long_exchange}) breaker tripped: {reason}")
-                can_proceed, reason = self.circuit_breaker_system.can_execute(short_exchange, opportunity.opportunity.symbol)
+                    raise CircuitBreakerTrippedError(
+                        f"Long exchange ({long_exchange}) breaker tripped: {reason}"
+                    )
+                can_proceed, reason = self.circuit_breaker_system.can_execute(
+                    short_exchange, opportunity.opportunity.symbol
+                )
                 if not can_proceed:
-                    raise CircuitBreakerTrippedError(f"Short exchange ({short_exchange}) breaker tripped: {reason}")
+                    raise CircuitBreakerTrippedError(
+                        f"Short exchange ({short_exchange}) breaker tripped: {reason}"
+                    )
                 # Check global last if specific passed
-                can_proceed, reason = self.circuit_breaker_system.check_all() # Assuming check_all returns like can_execute
+                can_proceed, reason = (
+                    self.circuit_breaker_system.check_all()
+                )  # Assuming check_all returns like can_execute
                 if not can_proceed:
                     raise CircuitBreakerTrippedError(f"Global breaker tripped: {reason}")
             else:
@@ -218,10 +228,14 @@ class ExecutionHandler:
             long_client = self.api_clients.get(long_exchange)
             short_client = self.api_clients.get(short_exchange)
             if not long_client or not short_client:
-                 raise ValueError(f"API client not found for {long_exchange} or {short_exchange}")
+                raise ValueError(f"API client not found for {long_exchange} or {short_exchange}")
 
-            long_exchange_symbol = self.config.get(f"exchanges.{long_exchange}.symbols.{opportunity.opportunity.symbol}")
-            short_exchange_symbol = self.config.get(f"exchanges.{short_exchange}.symbols.{opportunity.opportunity.symbol}")
+            long_exchange_symbol = self.config.get(
+                f"exchanges.{long_exchange}.symbols.{opportunity.opportunity.symbol}"
+            )
+            short_exchange_symbol = self.config.get(
+                f"exchanges.{short_exchange}.symbols.{opportunity.opportunity.symbol}"
+            )
 
             long_ticker = await long_client.get_ticker(long_exchange_symbol)
             short_ticker = await short_client.get_ticker(short_exchange_symbol)
@@ -235,7 +249,11 @@ class ExecutionHandler:
                 execution.end_time = datetime.now(UTC)
                 return execution
 
-            if short_ticker is None or not isinstance(short_ticker, Ticker) or short_ticker.bid <= 0:
+            if (
+                short_ticker is None
+                or not isinstance(short_ticker, Ticker)
+                or short_ticker.bid <= 0
+            ):
                 error_msg = f"Invalid ticker or zero/negative bid price for {short_exchange_symbol} on {short_exchange}"
                 logger.error(f"Execution {execution.id}: {error_msg}")
                 execution.status = ExecutionStatus.FAILED
@@ -628,7 +646,9 @@ class ExecutionHandler:
                     self.circuit_breaker_system.record_api_error(long_exchange, str(e))
                     self.circuit_breaker_system.record_api_error(short_exchange, str(e))
                 except Exception as cb_record_error:
-                     logger.error(f"Failed to record generic error with circuit breaker: {cb_record_error}")
+                    logger.error(
+                        f"Failed to record generic error with circuit breaker: {cb_record_error}"
+                    )
 
         finally:
             # Ensure execution is removed from active list and history is updated
@@ -638,10 +658,15 @@ class ExecutionHandler:
                     finished_execution.end_time = datetime.now(UTC)
                 # Ensure status is set if not already done in except blocks
                 if finished_execution.status == ExecutionStatus.PENDING:
-                     logger.warning(f"Execution {execution_id} finished in finally block with PENDING status, setting to FAILED.")
-                     finished_execution.status = ExecutionStatus.FAILED
-                     finished_execution.error_message = finished_execution.error_message or "Finished unexpectedly in PENDING state."
-                
+                    logger.warning(
+                        f"Execution {execution_id} finished in finally block with PENDING status, setting to FAILED."
+                    )
+                    finished_execution.status = ExecutionStatus.FAILED
+                    finished_execution.error_message = (
+                        finished_execution.error_message
+                        or "Finished unexpectedly in PENDING state."
+                    )
+
                 self.execution_history.append(finished_execution)
                 if len(self.execution_history) > self.max_execution_history:
                     self.execution_history.pop(0)
@@ -649,7 +674,9 @@ class ExecutionHandler:
                     f"Execution {finished_execution.id} finished with status: {finished_execution.status.name}"
                 )
             else:
-                 logger.warning(f"Execution {execution_id} not found in active executions during finally block.")
+                logger.warning(
+                    f"Execution {execution_id} not found in active executions during finally block."
+                )
 
             # Return the final execution state
             return execution
@@ -659,14 +686,14 @@ class ExecutionHandler:
         client: ExchangeAPI,
         exchange_id: str,
         symbol: str,
-        side: OrderSide, # Changed
-        order_type: OrderType, # Changed
+        side: OrderSide,  # Changed
+        order_type: OrderType,  # Changed
         quantity: Decimal,
         price: Decimal | None = None,
-        time_in_force: str = "GTC", # Default Time-in-force
+        time_in_force: str = "GTC",  # Default Time-in-force
         retry_count: int = 0,
-        reduce_only: bool = False, # <-- ADD reduce_only parameter
-    ) -> Order | None: # Changed
+        reduce_only: bool = False,  # <-- ADD reduce_only parameter
+    ) -> Order | None:  # Changed
         """
         Place an order with retry logic, applying slippage checks.
 
@@ -705,7 +732,7 @@ class ExecutionHandler:
                     quantity=quantity,
                     price=price,
                     time_in_force=time_in_force,
-                    reduce_only=reduce_only, # <-- Pass reduce_only
+                    reduce_only=reduce_only,  # <-- Pass reduce_only
                 )
 
                 # Update portfolio tracker
@@ -763,7 +790,7 @@ class ExecutionHandler:
 
     async def _get_order_status(
         self, client: ExchangeAPI, exchange_id: str, order_id: str
-    ) -> Order | None: # Changed
+    ) -> Order | None:  # Changed
         """
         Get the status of an order with retry logic.
 
@@ -791,13 +818,13 @@ class ExecutionHandler:
                 exc_info=True,
             )
             # Propagate the original error code if it's an APIError
-            original_code = getattr(e, 'code', APIErrorCode.UNKNOWN)
+            original_code = getattr(e, "code", APIErrorCode.UNKNOWN)
             raise APIError(
                 f"Failed to retrieve order status for {order_id} on {exchange_id} "
                 f"after {self.max_retries} attempts: {e}",
-                code=original_code, # Use original code
+                code=original_code,  # Use original code
                 exchange_code=exchange_id,
-                original_exception=e, # Pass original exception
+                original_exception=e,  # Pass original exception
             ) from e
 
     async def _compensate_position(
@@ -805,7 +832,7 @@ class ExecutionHandler:
         client: ExchangeAPI,
         exchange_id: str,
         symbol: str,
-        original_failed_side: OrderSide, # Changed
+        original_failed_side: OrderSide,  # Changed
         quantity: Decimal,
     ) -> bool:
         """Attempts to compensate for a partially filled or failed order leg."""
@@ -813,29 +840,25 @@ class ExecutionHandler:
             f"Attempting compensation on {exchange_id} for {symbol} (failed side: {original_failed_side.value})"
         )
 
-        # --- ADD: Look up exchange-specific symbol --- 
+        # --- ADD: Look up exchange-specific symbol ---
         try:
-            exchange_symbol = self.config.get(
-                f"exchanges.{exchange_id}.symbols.{symbol}"
-            )
+            exchange_symbol = self.config.get(f"exchanges.{exchange_id}.symbols.{symbol}")
             if not exchange_symbol:
                 # Use the internal symbol as a fallback if mapping not found, but log warning
                 logger.warning(
                     f"Symbol mapping not found for {symbol} on {exchange_id} in config. "
                     f"Attempting compensation using internal symbol '{symbol}'."
                 )
-                exchange_symbol = symbol # Fallback
+                exchange_symbol = symbol  # Fallback
         except Exception as cfg_err:
             logger.error(
                 f"Error retrieving symbol mapping for {symbol} on {exchange_id} from config: {cfg_err}. "
                 f"Cannot proceed with compensation."
             )
-            return False # Cannot proceed without a symbol
+            return False  # Cannot proceed without a symbol
         # -------------------------------------------
 
-        use_limit_compensation = self.config.get(
-            "execution.compensation.use_limit_orders", False
-        )
+        use_limit_compensation = self.config.get("execution.compensation.use_limit_orders", False)
         price_offset_config_key = "execution.compensation.limit_price_offset_pct"
         default_offset = 0.05  # Default 0.05%
         price_offset_str = str(
@@ -851,7 +874,7 @@ class ExecutionHandler:
 
         if use_limit_compensation:
             try:
-                # --- Use exchange_symbol for ticker lookup --- 
+                # --- Use exchange_symbol for ticker lookup ---
                 ticker = await client.get_ticker(exchange_symbol)
                 # -------------------------------------------
                 if ticker and ticker.bid > 0 and ticker.ask > 0:
@@ -912,15 +935,15 @@ class ExecutionHandler:
 
             # --- Replace with retry wrapper --- # <-- ADD THIS BLOCK
             compensation_order = await self._place_order_with_retry(
-                 client=client,
-                 exchange_id=exchange_id,
-                 symbol=exchange_symbol, # <-- Use exchange-specific symbol (now defined earlier)
-                 side=compensating_side,
-                 order_type=order_type_to_use, # <-- Use determined order type
-                 quantity=quantity,
-                 price=limit_price, # Will be None if market order
-                 reduce_only=True, # <-- ADD reduce_only=True for compensation
-             )
+                client=client,
+                exchange_id=exchange_id,
+                symbol=exchange_symbol,  # <-- Use exchange-specific symbol (now defined earlier)
+                side=compensating_side,
+                order_type=order_type_to_use,  # <-- Use determined order type
+                quantity=quantity,
+                price=limit_price,  # Will be None if market order
+                reduce_only=True,  # <-- ADD reduce_only=True for compensation
+            )
             # ------------------------------- # <-- END ADD BLOCK
 
             if compensation_order:
@@ -976,7 +999,7 @@ class ExecutionHandler:
 
     async def _verify_order_state(
         self, execution_id: str, exchange: str, order_id: str
-    ) -> Order | None: # Changed
+    ) -> Order | None:  # Changed
         """
         Verify the final state of an order after execution attempt.
 

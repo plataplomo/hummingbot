@@ -59,13 +59,8 @@ class TestCircuitBreakerBase:
 
         assert breaker.state == BreakerState.OPEN
         assert isinstance(breaker.trip_time, datetime)
-        assert breaker.trip_time.tzinfo is not None, (
-            "Trip time should be timezone-aware"
-        )
-        assert (
-            breaker.trip_time >= trip_time_before
-            and breaker.trip_time <= trip_time_after_1
-        )
+        assert breaker.trip_time.tzinfo is not None, "Trip time should be timezone-aware"
+        assert breaker.trip_time >= trip_time_before and breaker.trip_time <= trip_time_after_1
         assert breaker.trip_reason == "Test reason 1"
         assert breaker.trip_count == 1
         trip_time_first = breaker.trip_time
@@ -176,9 +171,7 @@ class TestVolatilityBreaker:
 
     def test_init(self):
         """Test initializing the volatility breaker."""
-        breaker = VolatilityBreaker(
-            "vol_breaker", lookback_periods=10, volatility_threshold=0.03
-        )
+        breaker = VolatilityBreaker("vol_breaker", lookback_periods=10, volatility_threshold=0.03)
 
         assert breaker.name == "vol_breaker"
         assert breaker.lookback_periods == 10
@@ -506,38 +499,48 @@ def mock_config():
             },
             "disabled_exchange": {
                 "enabled": False,
-            }
+            },
         },
         "validation": {
             "circuit_breaker": {
                 "enabled": True,
                 "global": {
-                    "api_errors": {"enabled": True, "threshold": 5, "window_seconds": 120, "cooldown_seconds": 600},
+                    "api_errors": {
+                        "enabled": True,
+                        "threshold": 5,
+                        "window_seconds": 120,
+                        "cooldown_seconds": 600,
+                    },
                     "drawdown": {"enabled": True, "threshold": 0.20, "cooldown_seconds": 3600},
                     # Add other global breakers if needed
                 },
                 "exchanges": {
                     "test_exchange": {
                         "enabled": True,
-                        "api_errors": {"enabled": True, "threshold": 3, "window_seconds": 60, "cooldown_seconds": 300},
-                        "volatility": {"enabled": False}, # Explicitly disable volatility
+                        "api_errors": {
+                            "enabled": True,
+                            "threshold": 3,
+                            "window_seconds": 60,
+                            "cooldown_seconds": 300,
+                        },
+                        "volatility": {"enabled": False},  # Explicitly disable volatility
                         # Add other test_exchange breakers
                     },
                     "another_exchange": {
                         "enabled": True,
                         "drawdown": {"enabled": True, "threshold": 0.15, "cooldown_seconds": 600},
                         # Add other another_exchange breakers
-                    }
-                }
+                    },
+                },
             }
-        }
+        },
         # Add other top-level config sections as needed
     }
 
     # Define side_effect to handle nested gets correctly
     def config_side_effect(key, default=None):
         # Simplified: directly traverse the mock_values dict
-        parts = key.split('.')
+        parts = key.split(".")
         val = mock_values
         try:
             for part in parts:
@@ -570,28 +573,32 @@ class TestCircuitBreakerSystem:
 
     def test_init_and_load_config(self, mock_config):
         """Test initialization and configuration loading."""
-        system = CircuitBreakerSystem(mock_config) # Instantiate directly
+        system = CircuitBreakerSystem(mock_config)  # Instantiate directly
         # Assertions based on _load_config logic and mock_config values
 
         # Use get_exchange_breaker for exchange-specific breakers
         api_breaker = system.get_exchange_breaker("test_exchange", "api_errors")
         assert api_breaker is not None
-        assert api_breaker.cooldown_seconds == 300 # Corrected based on mock_config (Fix 23)
+        assert api_breaker.cooldown_seconds == 300  # Corrected based on mock_config (Fix 23)
 
         drawdown_breaker = system.get_exchange_breaker("another_exchange", "drawdown")
         assert drawdown_breaker is not None
         # Assuming 'drawdown_threshold' maps to the breaker's setting if cooldown not explicit?
         # Let's check the cooldown specified in the mock_config for another_exchange drawdown
-        assert drawdown_breaker.cooldown_seconds == 600 # Value from mock_config
+        assert drawdown_breaker.cooldown_seconds == 600  # Value from mock_config
 
         # Use get_breaker for globally registered breakers (adjust name based on registration)
-        global_api_breaker = system.get_breaker("global_api_error") # Name used in _load_config
+        global_api_breaker = system.get_breaker("global_api_error")  # Name used in _load_config
         assert global_api_breaker is not None
-        assert global_api_breaker.cooldown_seconds == 600 # Value from mock_config global api_errors
+        assert (
+            global_api_breaker.cooldown_seconds == 600
+        )  # Value from mock_config global api_errors
 
         # Check that a disabled breaker type was not created
-        vol_breaker = system.get_exchange_breaker("test_exchange", "BTC_volatility") # Check specific type
-        assert vol_breaker is None # Volatility is enabled, but need specific symbol check maybe?
+        vol_breaker = system.get_exchange_breaker(
+            "test_exchange", "BTC_volatility"
+        )  # Check specific type
+        assert vol_breaker is None  # Volatility is enabled, but need specific symbol check maybe?
         # Let's re-check the config structure. The vol breaker name might be different.
         # Name format used in _load_config is f"{exchange_id}_{symbol}_volatility"
         # The mock_config has 'BTC' symbol for 'test_exchange'.
@@ -617,20 +624,22 @@ class TestCircuitBreakerSystem:
         system = CircuitBreakerSystem(mock_config)
         # Use get_exchange_breaker to retrieve the correct breaker
         api_breaker = system.get_exchange_breaker("test_exchange", "api_errors")
-        assert api_breaker is not None # Ensure the breaker was loaded
+        assert api_breaker is not None  # Ensure the breaker was loaded
 
         # Trip the breaker
         api_breaker.trip("Test trip")
 
         # Now check can_execute
-        can_exec, reason = system.can_execute("test_exchange", "BTC/USD") # Use the specific exchange
+        can_exec, reason = system.can_execute(
+            "test_exchange", "BTC/USD"
+        )  # Use the specific exchange
         assert not can_exec
         assert reason is not None
         # Check for the specific format seen in logs: exchange:<name>:<type>
         # Note: The internal breaker name might be slightly different if prefixes/suffixes are added during creation
         # Let's check the key components are present.
         assert "exchange:test_exchange:api_errors" in reason
-        assert "Test trip" in reason # Ensure the original trip reason is included
+        assert "Test trip" in reason  # Ensure the original trip reason is included
 
     def test_record_api_error(self, mock_config):
         system = CircuitBreakerSystem(mock_config)
@@ -670,5 +679,6 @@ class TestCircuitBreakerSystem:
     def test_get_tripped_breakers(self, mock_config):
         system = CircuitBreakerSystem(mock_config)
         # ... rest of test ...
+
 
 # ... Potentially update individual breaker tests if they used the fixture ...

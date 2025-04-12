@@ -43,6 +43,7 @@ START_DATE = datetime(2023, 1, 1, tzinfo=UTC)
 END_DATE = datetime(2023, 1, 10, tzinfo=UTC)
 TEST_RESULTS_DIR = Path("test_backtest_results")
 
+
 class TestBacktestingIntegration:
     """Integration tests for the backtesting framework"""
 
@@ -91,10 +92,12 @@ class TestBacktestingIntegration:
 
     def test_strategy_adapter_integration(self):
         """Test that the StrategyAdapter works with actual strategies"""
+
         # Create a mock strategy
         class MockStrategy(Strategy):
             def __init__(self, name):
                 super().__init__(name, "MOCK/USD", {})
+
             def process_data(self, data):
                 # Mock processing
                 return None
@@ -166,9 +169,9 @@ class TestBacktestingIntegration:
                         signal_type=SignalType.ENTER_LONG,
                         side=OrderSide.BUY,
                         timestamp=market_data.timestamp,
-                        price=market_data.close if hasattr(market_data, "close") else Decimal('0'),
+                        price=market_data.close if hasattr(market_data, "close") else Decimal("0"),
                         quantity=Decimal("0.1"),
-                        source_strategy=strategy.name
+                        source_strategy=strategy.name,
                     )
                 return None
 
@@ -348,7 +351,7 @@ class TestBacktestingIntegration:
         assert "total_return" in loaded_results["metrics"]
         if loaded_results["metrics"].get("error") == "Equity std is zero":
             assert "sharpe_ratio" not in loaded_results["metrics"]
-            assert "annualized_return" not in loaded_results["metrics"] # Expect missing if error
+            assert "annualized_return" not in loaded_results["metrics"]  # Expect missing if error
         else:
             assert "annualized_return" in loaded_results["metrics"]
             assert "sharpe_ratio" in loaded_results["metrics"]

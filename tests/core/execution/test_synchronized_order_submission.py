@@ -3,7 +3,7 @@ Tests for the synchronize order submission module.
 """
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -22,12 +22,11 @@ from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType
 # Configure logger
 logger = logging.getLogger(__name__)
 
+
 class MockOpportunity:
     """Mock arbitrage opportunity for testing."""
 
-    def __init__(
-        self, symbol="BTC-PERP", long_exchange="hyperliquid", short_exchange="backpack"
-    ):
+    def __init__(self, symbol="BTC-PERP", long_exchange="hyperliquid", short_exchange="backpack"):
         self.symbol = symbol
         self.long_exchange = long_exchange
         self.short_exchange = short_exchange
@@ -160,22 +159,27 @@ class TestOrderVerifier:
         mock_api = AsyncMock()
         # Simulate API returning a filled order dictionary consistent with local mock
         mock_api.get_order.return_value = Order(
-                id="test-order-1", symbol="BTC-PERP", side=OrderSide.BUY,
-                type=OrderType.LIMIT, quantity=Decimal("1.0"), price=Decimal("50000"),
-                status=OrderStatus.FILLED, avg_fill_price=Decimal("50000"),
-                filled_quantity=Decimal("1.0")
-            )
+            id="test-order-1",
+            symbol="BTC-PERP",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            quantity=Decimal("1.0"),
+            price=Decimal("50000"),
+            status=OrderStatus.FILLED,
+            avg_fill_price=Decimal("50000"),
+            filled_quantity=Decimal("1.0"),
+        )
         verifier._get_exchange_api = MagicMock(return_value=mock_api)
 
         result = await verifier.verify_order_execution("hyperliquid", "test-order-1")
 
         # Adjust assertion to check dictionary key if verify_order_execution returns a dict
-        assert isinstance(result, dict) # First check it's a dict
-        assert result.get("success") is True # Check the key
+        assert isinstance(result, dict)  # First check it's a dict
+        assert result.get("success") is True  # Check the key
         assert result.get("error") is None
 
         # Test failed verification (e.g., order not filled on exchange)
-        mock_api.get_order.return_value.status = OrderStatus.OPEN # Simulate not filled
+        mock_api.get_order.return_value.status = OrderStatus.OPEN  # Simulate not filled
         result_fail = await verifier.verify_order_execution("hyperliquid", "test-order-1")
         assert isinstance(result_fail, dict)
         assert result_fail.get("success") is False
@@ -199,9 +203,7 @@ class TestExecutionCoordinator:
         opportunity = MockOpportunity()
         strategy = "sequential_lock_in"
 
-        context = await coordinator.start_execution(
-            "test-execution-1", opportunity, strategy
-        )
+        context = await coordinator.start_execution("test-execution-1", opportunity, strategy)
 
         assert context.execution_id == "test-execution-1"
         assert context.opportunity == opportunity
@@ -219,9 +221,7 @@ class TestExecutionCoordinator:
         opportunity = MockOpportunity()
         strategy = "sequential_lock_in"
 
-        context = await coordinator.start_execution(
-            "test-execution-2", opportunity, strategy
-        )
+        context = await coordinator.start_execution("test-execution-2", opportunity, strategy)
 
         # Add a checkpoint
         await coordinator.add_checkpoint(context, "test-checkpoint", {"test": "data"})
@@ -236,15 +236,13 @@ class TestExecutionCoordinator:
         opportunity = MockOpportunity()
         strategy = "sequential_lock_in"
 
-        context = await coordinator.start_execution(
-            "test-execution-3", opportunity, strategy
-        )
+        context = await coordinator.start_execution("test-execution-3", opportunity, strategy)
 
         # Complete the execution
         result = ExecutionResult(
             execution_id="test-execution-3",
             status=ExecutionStatus.COMPLETED,
-            timestamp=int(datetime.now(UTC).timestamp() * 1000)
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
         )
 
         await coordinator.complete_execution(context, result)
@@ -261,9 +259,7 @@ class TestExecutionCoordinator:
         opportunity = MockOpportunity()
         strategy = "sequential_lock_in"
 
-        context = await coordinator.start_execution(
-            "test-execution-4", opportunity, strategy
-        )
+        context = await coordinator.start_execution("test-execution-4", opportunity, strategy)
 
         # Abort the execution
         abort_result = await coordinator.abort_execution(context, "Test abort reason")
@@ -327,15 +323,11 @@ class TestSynchronizedOrderSubmissionService:
         )
 
         service._verify_market_conditions = AsyncMock(
-            return_value=MagicMock(
-                success=True, error=None, details={"checked": True}
-            )
+            return_value=MagicMock(success=True, error=None, details={"checked": True})
         )
 
         service._verify_balances = AsyncMock(
-            return_value=MagicMock(
-                success=True, error=None, details={"checked": True}
-            )
+            return_value=MagicMock(success=True, error=None, details={"checked": True})
         )
 
         service._verify_post_execution = AsyncMock(
@@ -351,27 +343,19 @@ class TestSynchronizedOrderSubmissionService:
         )
 
         service._verify_positions = AsyncMock(
-            return_value=MagicMock(
-                success=True, error=None, details={"checked": True}
-            )
+            return_value=MagicMock(success=True, error=None, details={"checked": True})
         )
 
         service._verify_fills = AsyncMock(
-            return_value=MagicMock(
-                success=True, error=None, details={"checked": True}
-            )
+            return_value=MagicMock(success=True, error=None, details={"checked": True})
         )
 
         service._verify_orders = AsyncMock(
-            return_value=MagicMock(
-                success=True, error=None, details={"checked": True}
-            )
+            return_value=MagicMock(success=True, error=None, details={"checked": True})
         )
 
         # Mock compensation
-        service._compensate_verification_failure = AsyncMock(
-            return_value={"compensated": True}
-        )
+        service._compensate_verification_failure = AsyncMock(return_value={"compensated": True})
 
         # Mock execution strategies
         service._execute_sequential_with_verification = AsyncMock(
@@ -423,11 +407,11 @@ class TestSynchronizedOrderSubmissionService:
         mock_verification_result = {
             "success": False,
             "error": "Pre-execution check failed (mock)",
-            "details": {}
+            "details": {},
         }
         service._verify_pre_execution = AsyncMock(return_value=mock_verification_result)
 
-        opportunity = MockOpportunity() # Assume MockOpportunity exists or define it
+        opportunity = MockOpportunity()  # Assume MockOpportunity exists or define it
         strategy = "sequential_lock_in"
 
         # Submit orders
@@ -465,7 +449,7 @@ class TestSynchronizedOrderSubmissionService:
         # The fix belongs in cyberdelta/core/execution/synchronized_order_submission.py
 
         # Check the previously added assertion is still relevant:
-        assert hasattr(execution, 'timestamp') and isinstance(execution.timestamp, int)
+        assert hasattr(execution, "timestamp") and isinstance(execution.timestamp, int)
         service._verify_pre_execution.assert_called_once_with(opportunity)
 
     @pytest.mark.asyncio
@@ -481,26 +465,43 @@ class TestSynchronizedOrderSubmissionService:
         opportunity.symbol = "MOCK/USD"
         opportunity.long_price = Decimal("100")
         opportunity.short_price = Decimal("100")
-        opportunity.quantity = Decimal("1") # Assume quantity is derived or available
+        opportunity.quantity = Decimal("1")  # Assume quantity is derived or available
 
         # Mock exchange adapters and their place_order methods
         mock_api_a = AsyncMock(spec=ExchangeAPI)
         mock_api_b = AsyncMock(spec=ExchangeAPI)
-        service.exchange_adapters = {
-            "mockExA": mock_api_a,
-            "mockExB": mock_api_b
-        }
+        service.exchange_adapters = {"mockExA": mock_api_a, "mockExB": mock_api_b}
 
         # Mock successful order placement for both legs
         # Return Order objects with IDs
-        mock_api_a.place_order.return_value = Order(id="orderA1", symbol=opportunity.symbol, side=OrderSide.BUY, type=OrderType.LIMIT, quantity=opportunity.quantity, price=opportunity.long_price, status=OrderStatus.FILLED, filled_quantity=opportunity.quantity, avg_fill_price=opportunity.long_price)
-        mock_api_b.place_order.return_value = Order(id="orderB1", symbol=opportunity.symbol, side=OrderSide.SELL, type=OrderType.LIMIT, quantity=opportunity.quantity, price=opportunity.short_price, status=OrderStatus.FILLED, filled_quantity=opportunity.quantity, avg_fill_price=opportunity.short_price)
+        mock_api_a.place_order.return_value = Order(
+            id="orderA1",
+            symbol=opportunity.symbol,
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            quantity=opportunity.quantity,
+            price=opportunity.long_price,
+            status=OrderStatus.FILLED,
+            filled_quantity=opportunity.quantity,
+            avg_fill_price=opportunity.long_price,
+        )
+        mock_api_b.place_order.return_value = Order(
+            id="orderB1",
+            symbol=opportunity.symbol,
+            side=OrderSide.SELL,
+            type=OrderType.LIMIT,
+            quantity=opportunity.quantity,
+            price=opportunity.short_price,
+            status=OrderStatus.FILLED,
+            filled_quantity=opportunity.quantity,
+            avg_fill_price=opportunity.short_price,
+        )
 
         # Mock post-execution verification to fail
         mock_post_verification_result = {
             "success": False,
             "error": "Post-execution check failed (mock)",
-            "details": {}
+            "details": {},
         }
         service._verify_post_execution = AsyncMock(return_value=mock_post_verification_result)
 
@@ -511,7 +512,7 @@ class TestSynchronizedOrderSubmissionService:
         # Assuming PARTIALLY_COMPLETED as per current logic
         assert execution.status == ExecutionStatus.PARTIALLY_COMPLETED
         assert execution.error == "Post-execution check failed (mock)"
-        assert mock_api_a.place_order.called # Verify orders were attempted
+        assert mock_api_a.place_order.called  # Verify orders were attempted
         assert mock_api_b.place_order.called
         service._verify_post_execution.assert_called_once()
 
@@ -533,9 +534,7 @@ class TestSynchronizedOrderSubmissionService:
         service._verify_pre_execution.return_value = MagicMock(
             success=False,
             error="Circuit breakers tripped: ['exchange:hyperliquid']",
-            details={
-                 "circuit_breakers": service.circuit_breaker_system.check_all.return_value
-            }
+            details={"circuit_breakers": service.circuit_breaker_system.check_all.return_value},
         )
         result = await service._verify_pre_execution(opportunity)
         assert result.success is False
@@ -548,38 +547,32 @@ class TestSynchronizedOrderSubmissionService:
 
         # Test market conditions failure
         service._verify_market_conditions.return_value = MagicMock(
-            success=False,
-            error="Market condition failure",
-            details={"failed": True}
+            success=False, error="Market condition failure", details={"failed": True}
         )
         # Re-mock _verify_pre_execution to incorporate market condition result
         service._verify_pre_execution.return_value = MagicMock(
             success=False,
             error="Market condition verification failed: Market condition failure",
-            details={
-                "market_conditions": service._verify_market_conditions.return_value
-            }
+            details={"market_conditions": service._verify_market_conditions.return_value},
         )
         result = await service._verify_pre_execution(opportunity)
         assert result.success is False
         assert "Market condition verification failed" in result.error
 
         # Reset market conditions mock
-        service._verify_market_conditions.return_value = MagicMock(success=True, error=None, details={})
+        service._verify_market_conditions.return_value = MagicMock(
+            success=True, error=None, details={}
+        )
 
         # Test balance verification failure
         service._verify_balances.return_value = MagicMock(
-            success=False,
-            error="Insufficient balance",
-            details={"failed": True}
+            success=False, error="Insufficient balance", details={"failed": True}
         )
         # Re-mock _verify_pre_execution to incorporate balance result
         service._verify_pre_execution.return_value = MagicMock(
             success=False,
             error="Insufficient balance: Insufficient balance",
-            details={
-                "balances": service._verify_balances.return_value
-            }
+            details={"balances": service._verify_balances.return_value},
         )
         result = await service._verify_pre_execution(opportunity)
         assert result.success is False
@@ -592,7 +585,7 @@ class TestSynchronizedOrderSubmissionService:
         execution_result = ExecutionResult(
             execution_id="test-execution",
             status=ExecutionStatus.COMPLETED,
-            timestamp=int(datetime.now(UTC).timestamp() * 1000)
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
         )
 
         # Test successful verification (already set in fixture)
@@ -601,15 +594,13 @@ class TestSynchronizedOrderSubmissionService:
 
         # Test position verification failure
         service._verify_positions.return_value = MagicMock(
-            success=False,
-            error="Position verification failed",
-            details={"failed": True}
+            success=False, error="Position verification failed", details={"failed": True}
         )
         # Re-mock _verify_post_execution
         service._verify_post_execution.return_value = MagicMock(
             success=False,
             error="Position verification failed: Position verification failed; ",
-            details={"positions": service._verify_positions.return_value}
+            details={"positions": service._verify_positions.return_value},
         )
         result = await service._verify_post_execution(opportunity, execution_result)
         assert result.success is False
@@ -620,18 +611,16 @@ class TestSynchronizedOrderSubmissionService:
 
         # Test fill verification failure
         service._verify_fills.return_value = MagicMock(
-            success=False,
-            error="Fill verification failed",
-            details={"failed": True}
+            success=False, error="Fill verification failed", details={"failed": True}
         )
         # Re-mock _verify_post_execution
         service._verify_post_execution.return_value = MagicMock(
             success=False,
             error="Fill verification failed: Fill verification failed; ",
             details={
-                "positions": service._verify_positions.return_value, # Keep previous state
-                "fills": service._verify_fills.return_value
-            }
+                "positions": service._verify_positions.return_value,  # Keep previous state
+                "fills": service._verify_fills.return_value,
+            },
         )
         result = await service._verify_post_execution(opportunity, execution_result)
         assert result.success is False
@@ -642,9 +631,7 @@ class TestSynchronizedOrderSubmissionService:
 
         # Test order verification failure
         service._verify_orders.return_value = MagicMock(
-            success=False,
-            error="Order verification failed",
-            details={"failed": True}
+            success=False, error="Order verification failed", details={"failed": True}
         )
         # Re-mock _verify_post_execution
         service._verify_post_execution.return_value = MagicMock(
@@ -653,10 +640,9 @@ class TestSynchronizedOrderSubmissionService:
             details={
                 "positions": service._verify_positions.return_value,
                 "fills": service._verify_fills.return_value,
-                "orders": service._verify_orders.return_value
-            }
+                "orders": service._verify_orders.return_value,
+            },
         )
         result = await service._verify_post_execution(opportunity, execution_result)
         assert result.success is False
         assert "Order verification failed" in result.error
-

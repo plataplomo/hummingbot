@@ -34,14 +34,14 @@ def basic_opportunity():
         long_exchange="mock_bp",
         short_exchange="mock_hl",
         long_price=Decimal("30001"),  # Already correct
-        short_price=Decimal("30010"), # Already correct
+        short_price=Decimal("30010"),  # Already correct
         long_funding_rate=Decimal("0.0001"),  # Already correct
-        short_funding_rate=Decimal("-0.00005"), # Already correct
-        net_funding_differential=Decimal("0.00015"), # Already correct
-        timestamp=datetime.now(UTC), # Already correct
+        short_funding_rate=Decimal("-0.00005"),  # Already correct
+        net_funding_differential=Decimal("0.00015"),  # Already correct
+        timestamp=datetime.now(UTC),  # Already correct
         # Add missing optional args if needed, or ensure they are None
-        basis_volatility=0.001, # Add optional float
-        utility_score=None,    # Add optional float
+        basis_volatility=0.001,  # Add optional float
+        utility_score=None,  # Add optional float
     )
 
 
@@ -235,13 +235,13 @@ def mock_opportunity():
         long_exchange="mock_hl",
         short_exchange="mock_bp",
         long_price=Decimal("30000"),  # Already correct
-        short_price=Decimal("30050"), # Already correct
+        short_price=Decimal("30050"),  # Already correct
         long_funding_rate=Decimal("0.0001"),  # Already correct
-        short_funding_rate=Decimal("-0.0001"), # Already correct
-        net_funding_differential=Decimal("0.0002"), # Already correct
-        timestamp=datetime.now(UTC), # Already correct
-        expected_profit=Decimal("5.0"), # Already correct
+        short_funding_rate=Decimal("-0.0001"),  # Already correct
+        net_funding_differential=Decimal("0.0002"),  # Already correct
+        timestamp=datetime.now(UTC),  # Already correct
+        expected_profit=Decimal("5.0"),  # Already correct
         # Add missing optional args
-        basis_volatility=0.002, # Example float value
-        utility_score=0.6,    # Example float value
+        basis_volatility=0.002,  # Example float value
+        utility_score=0.6,  # Example float value
     )

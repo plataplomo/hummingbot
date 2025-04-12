@@ -1,24 +1,23 @@
 from __future__ import annotations
 
-import asyncio
 import unittest
 from datetime import datetime
-from unittest.mock import Mock, MagicMock
-
-from cyberdelta.core.models import TradeSignal, MarketData, SignalType, OrderSide
 from decimal import Decimal
+from unittest.mock import MagicMock, Mock
+
 import pytz
+
+from cyberdelta.core.models import MarketData, OrderSide, SignalType, TradeSignal
 
 # Define UTC timezone
 UTC = pytz.UTC
 
-from cyberdelta.core.risk_manager import RiskManager
-from cyberdelta.core.strategy import Strategy
-from cyberdelta.core.strategy_manager import StrategyManager
-from cyberdelta.core.signal_queue import PrioritySignalQueue
-from cyberdelta.utils.config import Config
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.core.signal_queue import PrioritySignalQueue
+from cyberdelta.core.strategy import Strategy
+from cyberdelta.core.strategy_manager import StrategyManager
 
 
 class TestStrategyManager(unittest.TestCase):
@@ -34,8 +33,8 @@ class TestStrategyManager(unittest.TestCase):
         self.mock_strategy2.symbol = "ETH-USDT"
         self.mock_strategy2.enabled = False
 
-        # --- Create mocks for required dependencies --- 
-        self.mock_config = MagicMock() # Assuming config is also needed
+        # --- Create mocks for required dependencies ---
+        self.mock_config = MagicMock()  # Assuming config is also needed
         self.mock_execution_handler = Mock(spec=ExecutionHandler)
         self.mock_portfolio_tracker = Mock(spec=PortfolioTracker)
         self.mock_risk_manager = Mock(spec=RiskManager)
@@ -93,12 +92,8 @@ class TestStrategyManager(unittest.TestCase):
 
         # Check if the strategy was disabled
         self.assertEqual(len(self.strategy_manager.enabled_strategies), 1)
-        self.assertNotIn(
-            self.mock_strategy1.name, self.strategy_manager.enabled_strategies
-        )
-        self.assertIn(
-            self.mock_strategy2.name, self.strategy_manager.enabled_strategies
-        )
+        self.assertNotIn(self.mock_strategy1.name, self.strategy_manager.enabled_strategies)
+        self.assertIn(self.mock_strategy2.name, self.strategy_manager.enabled_strategies)
         self.mock_strategy1.disable.assert_called_once()
 
     def test_process_market_data(self):
@@ -130,7 +125,7 @@ class TestStrategyManager(unittest.TestCase):
             price=Decimal("30000"),
             quantity=Decimal("0.1"),
             confidence=0.8,
-            source_strategy="MockStrategy"
+            source_strategy="MockStrategy",
         )
 
         # Configure strategy1 to return a signal, strategy2 to return None
@@ -190,12 +185,8 @@ class TestStrategyManager(unittest.TestCase):
 
         # Verify it was removed
         self.assertNotIn(self.mock_strategy1.name, self.strategy_manager.strategies)
-        self.assertNotIn(
-            self.mock_strategy1.name, self.strategy_manager.enabled_strategies
-        )
-        self.assertNotIn(
-            self.mock_strategy1.symbol, self.strategy_manager.active_symbols
-        )
+        self.assertNotIn(self.mock_strategy1.name, self.strategy_manager.enabled_strategies)
+        self.assertNotIn(self.mock_strategy1.symbol, self.strategy_manager.active_symbols)
 
         # Verify the other strategy is still there
         self.assertIn(self.mock_strategy2.name, self.strategy_manager.strategies)
@@ -213,9 +204,7 @@ class TestStrategyManager(unittest.TestCase):
         self.mock_strategy2.on_start.assert_called_once()
 
         # Verify the enabled one was added to enabled_strategies
-        self.assertIn(
-            self.mock_strategy1.name, self.strategy_manager.enabled_strategies
-        )
+        self.assertIn(self.mock_strategy1.name, self.strategy_manager.enabled_strategies)
 
         # Stop all strategies
         self.strategy_manager.stop_all()

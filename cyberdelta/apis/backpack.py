@@ -308,7 +308,7 @@ class BackpackAPI(ExchangeAPI):
             )
             return funding_rate
         except APIError as e:
-            if e.code == APIErrorCode.SYMBOL_NOT_FOUND: 
+            if e.code == APIErrorCode.SYMBOL_NOT_FOUND:
                 logger.info(f"[{self.exchange_name}] No funding rate found for symbol {symbol}.")
                 return None
             logger.error(f"[{self.exchange_name}] API error getting funding rate for {symbol}: {e}")
@@ -626,43 +626,43 @@ class BackpackAPI(ExchangeAPI):
             if (
                 code == -1021
             ):  # Example: Timestamp for this request was 1000ms ahead of the server time
-                error_code = APIErrorCode.INVALID_TIMESTAMP  
+                error_code = APIErrorCode.INVALID_TIMESTAMP
             elif code == -2014:  # Example: API-key format invalid.
-                error_code = APIErrorCode.INVALID_API_KEY  
+                error_code = APIErrorCode.INVALID_API_KEY
             elif code == -2015:  # Example: Invalid API-key, IP, or permissions for action.
-                error_code = APIErrorCode.AUTHENTICATION_ERROR  
+                error_code = APIErrorCode.AUTHENTICATION_ERROR
             elif code == -1121:  # Example: Invalid symbol.
-                error_code = APIErrorCode.INVALID_SYMBOL  
+                error_code = APIErrorCode.INVALID_SYMBOL
             elif code == -1013:  # Example: Filter failure: LOT_SIZE
-                error_code = APIErrorCode.INVALID_ORDER_SIZE  
+                error_code = APIErrorCode.INVALID_ORDER_SIZE
             elif code == -2010:  # Example: New order rejected.
                 error_code = APIErrorCode.ORDER_REJECTED
             elif code == -2011:  # Example: Cancel order failed.
                 error_code = APIErrorCode.ORDER_NOT_FOUND  # Or other specific cancel error
             elif code == -1022:  # Signature for this request is not valid.
-                error_code = APIErrorCode.INVALID_SIGNATURE  
+                error_code = APIErrorCode.INVALID_SIGNATURE
             elif status_code == 429:  # Rate limit exceeded
-                error_code = APIErrorCode.RATE_LIMIT_EXCEEDED  
+                error_code = APIErrorCode.RATE_LIMIT_EXCEEDED
             elif status_code == 401:  # Unauthorized
-                error_code = APIErrorCode.AUTHENTICATION_ERROR  
+                error_code = APIErrorCode.AUTHENTICATION_ERROR
             elif status_code == 400:  # Bad request
                 error_code = APIErrorCode.BAD_REQUEST
             elif status_code == 500:  # Internal server error
-                error_code = APIErrorCode.EXCHANGE_ERROR  
+                error_code = APIErrorCode.EXCHANGE_ERROR
             elif status_code == 503:  # Service unavailable
-                error_code = APIErrorCode.SERVICE_UNAVAILABLE 
+                error_code = APIErrorCode.SERVICE_UNAVAILABLE
 
         elif status_code == 429:
-            error_code = APIErrorCode.RATE_LIMIT_EXCEEDED  
+            error_code = APIErrorCode.RATE_LIMIT_EXCEEDED
             message = "Rate limit exceeded"
         elif status_code == 401:
-            error_code = APIErrorCode.AUTHENTICATION_ERROR  
+            error_code = APIErrorCode.AUTHENTICATION_ERROR
             message = "Authentication failed"
         elif status_code == 500:
-            error_code = APIErrorCode.EXCHANGE_ERROR  
+            error_code = APIErrorCode.EXCHANGE_ERROR
             message = "Exchange internal error"
         elif status_code == 503:
-            error_code = APIErrorCode.SERVICE_UNAVAILABLE  
+            error_code = APIErrorCode.SERVICE_UNAVAILABLE
             message = "Exchange service unavailable"
 
         return APIError(

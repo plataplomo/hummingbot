@@ -65,9 +65,7 @@ class TestPerformanceVisualizer(unittest.TestCase):
         # Generate sample trade data
         self.trade_data = pd.DataFrame(
             {
-                "strategy": np.random.choice(
-                    ["Strategy1", "Strategy2", "Strategy3"], 100
-                ),
+                "strategy": np.random.choice(["Strategy1", "Strategy2", "Strategy3"], 100),
                 "entry_time": np.random.choice(dates, 100),
                 "exit_time": np.random.choice(dates, 100),
                 "duration": np.random.randint(1, 1000, 100),
@@ -115,9 +113,7 @@ class TestPerformanceVisualizer(unittest.TestCase):
         self.assertIsInstance(fig, go.Figure)
 
         # Should have 2 traces: profitable and losing trades
-        self.assertTrue(
-            1 <= len(fig.data) <= 2
-        )  # Could be 1 if all trades are profitable/losing
+        self.assertTrue(1 <= len(fig.data) <= 2)  # Could be 1 if all trades are profitable/losing
 
     def test_create_funding_rate_heatmap(self):
         """Test funding rate heatmap generation"""
@@ -165,9 +161,7 @@ class TestPerformanceMetricsCalculator(unittest.TestCase):
         """Test maximum drawdown calculation"""
         max_dd = self.calculator.calculate_max_drawdown(self.returns)
         self.assertIsInstance(max_dd, float)
-        self.assertTrue(
-            0 <= max_dd <= 100
-        )  # Drawdown should be a percentage between 0-100
+        self.assertTrue(0 <= max_dd <= 100)  # Drawdown should be a percentage between 0-100
 
     def test_calculate_calmar_ratio(self):
         """Test Calmar ratio calculation"""
@@ -178,9 +172,7 @@ class TestPerformanceMetricsCalculator(unittest.TestCase):
         """Test win rate calculation"""
         win_rate = self.calculator.calculate_win_rate(self.trades)
         self.assertIsInstance(win_rate, float)
-        self.assertTrue(
-            0 <= win_rate <= 100
-        )  # Win rate should be a percentage between 0-100
+        self.assertTrue(0 <= win_rate <= 100)  # Win rate should be a percentage between 0-100
 
     def test_calculate_profit_factor(self):
         """Test profit factor calculation"""

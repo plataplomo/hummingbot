@@ -1,22 +1,16 @@
 from __future__ import annotations
+
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from typing import Any
 
 from cyberdelta.core.models import (
     ArbitrageOpportunity,
-    Balance,
-    FundingRate,
-    OrderSide,
-    OrderType,
-    Position,
-    TradeSignal,
     SignalType,
+    TradeSignal,
 )
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.utils.config import Config
@@ -97,9 +91,7 @@ def mock_opportunity():
     )
 
 
-def test_strategy_initialization_with_risk_manager(
-    strategy_with_risk_manager, setup_dependencies
-):
+def test_strategy_initialization_with_risk_manager(strategy_with_risk_manager, setup_dependencies):
     """Test that strategy initializes properly with risk manager"""
     assert strategy_with_risk_manager.risk_manager == setup_dependencies["risk_manager"]
     assert strategy_with_risk_manager.sized_opportunities == {}
@@ -117,16 +109,18 @@ async def test_position_sizing_integration(
     mock_logger.error = MagicMock()
 
     # Mock _check_opportunity to return our test opportunity
-    strategy_with_risk_manager._check_opportunity = AsyncMock(
-        return_value=mock_opportunity
-    )
+    strategy_with_risk_manager._check_opportunity = AsyncMock(return_value=mock_opportunity)
 
     # Mock TradeSignal creation
     mock_trade_signal = MagicMock(spec=TradeSignal)
     mock_trade_signal.symbol = "BTC-PERP"
     mock_trade_signal.signal_type = SignalType.ENTER_SHORT
     mock_trade_signal.trades = [
-        {"exchange": "hyperliquid", "side": "SHORT", "size": Decimal("15000.0") / Decimal("30000.0")},
+        {
+            "exchange": "hyperliquid",
+            "side": "SHORT",
+            "size": Decimal("15000.0") / Decimal("30000.0"),
+        },
         {"exchange": "backpack", "side": "LONG", "size": Decimal("15000.0") / Decimal("29990.0")},
     ]
     mock_trade_signal.metadata = {
@@ -140,9 +134,7 @@ async def test_position_sizing_integration(
     }
 
     # Mock _generate_entry_signal
-    strategy_with_risk_manager._generate_entry_signal = MagicMock(
-        return_value=mock_trade_signal
-    )
+    strategy_with_risk_manager._generate_entry_signal = MagicMock(return_value=mock_trade_signal)
 
     # Setup risk manager to return a sized opportunity
     mock_sized_opportunity = SizedOpportunity(
@@ -163,10 +155,7 @@ async def test_position_sizing_integration(
 
     # Verify that risk manager was called
     setup_dependencies["risk_manager"].size_opportunity.assert_called_once()
-    assert (
-        setup_dependencies["risk_manager"].size_opportunity.call_args[0][0]
-        == mock_opportunity
-    )
+    assert setup_dependencies["risk_manager"].size_opportunity.call_args[0][0] == mock_opportunity
 
     # Verify that a signal was generated
     assert signal is not None
@@ -178,10 +167,7 @@ async def test_position_sizing_integration(
     # Check that the sized opportunity was stored
     opportunity_id = str(id(mock_opportunity))
     assert opportunity_id in strategy_with_risk_manager.sized_opportunities
-    assert (
-        strategy_with_risk_manager.sized_opportunities[opportunity_id]
-        == mock_sized_opportunity
-    )
+    assert strategy_with_risk_manager.sized_opportunities[opportunity_id] == mock_sized_opportunity
 
     # Verify that the trade sizes were correctly calculated
     trades = signal.trades
@@ -218,9 +204,7 @@ async def test_risk_manager_rejection(
     mock_logger.error = MagicMock()
 
     # Mock _check_opportunity to return our test opportunity
-    strategy_with_risk_manager._check_opportunity = AsyncMock(
-        return_value=mock_opportunity
-    )
+    strategy_with_risk_manager._check_opportunity = AsyncMock(return_value=mock_opportunity)
 
     # Configure risk manager to reject the opportunity
     setup_dependencies["risk_manager"].size_opportunity = MagicMock(return_value=None)
@@ -243,9 +227,7 @@ def test_fallback_without_risk_manager(
 ):
     """Test fallback to default sizing when no risk manager is provided"""
     # Mock prices for quantity calculations
-    setup_dependencies["data_handler"].get_latest_price = MagicMock(
-        return_value=30000.0
-    )
+    setup_dependencies["data_handler"].get_latest_price = MagicMock(return_value=30000.0)
 
     # Mock TradeSignal creation
     mock_trade_signal = MagicMock(spec=TradeSignal)
@@ -258,9 +240,7 @@ def test_fallback_without_risk_manager(
     mock_trade_signal.metadata = {"position_sizing": {"enhanced": False}}
 
     # Mock _generate_entry_signal
-    strategy_without_risk_manager._generate_entry_signal = MagicMock(
-        return_value=mock_trade_signal
-    )
+    strategy_without_risk_manager._generate_entry_signal = MagicMock(return_value=mock_trade_signal)
 
     # Generate a signal
     signal = strategy_without_risk_manager._generate_entry_signal(mock_opportunity)

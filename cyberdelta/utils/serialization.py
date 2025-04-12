@@ -12,7 +12,7 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
     - datetime objects (converts to ISO 8601 string)
     """
 
-    def default(self, obj: Any) -> str | Any: 
+    def default(self, obj: Any) -> str | Any:
         if isinstance(obj, Decimal):
             # Convert Decimal to string to preserve precision
             return str(obj)
@@ -24,13 +24,13 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
 
 
 # Helper function to easily dump JSON with the custom encoder
-def dump_json(data: Any, **kwargs: Any) -> str: 
+def dump_json(data: Any, **kwargs: Any) -> str:
     """Dump data to JSON string using the custom CyberDeltaJSONEncoder."""
     return json.dumps(data, cls=CyberDeltaJSONEncoder, **kwargs)
 
 
 # Optionally, a helper to load JSON (though standard json.loads often works fine
 # unless specific object hooks are needed for complex deserialization)
-def load_json(json_str: str, **kwargs: Any) -> Any: 
+def load_json(json_str: str, **kwargs: Any) -> Any:
     """Load data from JSON string."""
     return json.loads(json_str, **kwargs)

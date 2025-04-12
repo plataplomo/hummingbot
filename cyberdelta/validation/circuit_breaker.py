@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Add the custom exception class
 class CircuitBreakerTrippedError(Exception):
     """Custom exception raised when a circuit breaker prevents an operation."""
+
     pass
 
 
@@ -162,7 +163,7 @@ class CircuitBreaker(ABC):
         pass
 
     @abstractmethod
-    def check(self, *args: Any, **kwargs: Any) -> None: 
+    def check(self, *args: Any, **kwargs: Any) -> None:
         """
         Check if the circuit breaker should trip.
 
@@ -740,13 +741,15 @@ class CircuitBreakerSystem:
                 logger.warning(f"Execution blocked: {reason}")
                 return False, reason
             # Test recovery for HALF_OPEN global breakers
-            if breaker.state == BreakerState.HALF_OPEN and now >= breaker.trip_time + timedelta(seconds=breaker.cooldown_seconds):
-                 if not breaker.test_recovery():
-                      reason = f"Global breaker '{breaker_name}' failed recovery test."
-                      logger.warning(f"Execution blocked: {reason}")
-                      return False, reason
-                 else:
-                      logger.info(f"Global breaker '{breaker_name}' recovered and is now CLOSED.")
+            if breaker.state == BreakerState.HALF_OPEN and now >= breaker.trip_time + timedelta(
+                seconds=breaker.cooldown_seconds
+            ):
+                if not breaker.test_recovery():
+                    reason = f"Global breaker '{breaker_name}' failed recovery test."
+                    logger.warning(f"Execution blocked: {reason}")
+                    return False, reason
+                else:
+                    logger.info(f"Global breaker '{breaker_name}' recovered and is now CLOSED.")
 
         # Check exchange-specific breakers
         if exchange in self.exchange_breakers:
@@ -757,17 +760,21 @@ class CircuitBreakerSystem:
                     logger.warning(f"Execution blocked for {exchange}: {reason}")
                     return False, reason
                 # Test recovery for HALF_OPEN exchange breakers
-                if breaker.state == BreakerState.HALF_OPEN and now >= breaker.trip_time + timedelta(seconds=breaker.cooldown_seconds):
+                if breaker.state == BreakerState.HALF_OPEN and now >= breaker.trip_time + timedelta(
+                    seconds=breaker.cooldown_seconds
+                ):
                     if not breaker.test_recovery():
                         reason = f"Exchange breaker '{breaker_name}' for {exchange} failed recovery test."
                         logger.warning(f"Execution blocked for {exchange}: {reason}")
                         return False, reason
                     else:
-                        logger.info(f"Exchange breaker '{breaker_name}' for {exchange} recovered and is now CLOSED.")
+                        logger.info(
+                            f"Exchange breaker '{breaker_name}' for {exchange} recovered and is now CLOSED."
+                        )
 
         # TODO: Consider symbol-specific breakers if implemented
 
-        return True, None # Allowed if no breakers are OPEN
+        return True, None  # Allowed if no breakers are OPEN
 
     def record_api_error(self, exchange: str, error_message: str) -> None:
         """

@@ -139,7 +139,7 @@ class PerformanceTracker:
             # Save to file
             self._save_trades()
 
-    def track_trade_exit( 
+    def track_trade_exit(
         self,
         trade_id: str,
         exit_price: float,
@@ -192,7 +192,7 @@ class PerformanceTracker:
             # Trade not found
             logger.warning(f"Trade with ID {trade_id} not found for exit tracking")
 
-    def track_signal( 
+    def track_signal(
         self,
         signal_id: str,
         strategy_name: str,
@@ -240,7 +240,7 @@ class PerformanceTracker:
             # Save to file
             self._save_signals()
 
-    def track_signal_execution( 
+    def track_signal_execution(
         self, signal_id: str, executed: bool, metadata: dict[str, Any] | None = None
     ) -> None:
         """
@@ -271,7 +271,7 @@ class PerformanceTracker:
             # Signal not found
             logger.warning(f"Signal with ID {signal_id} not found for execution tracking")
 
-    def track_funding_rate( 
+    def track_funding_rate(
         self,
         timestamp: datetime,
         exchange: str,

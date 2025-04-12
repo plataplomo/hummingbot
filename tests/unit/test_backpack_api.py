@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 import time
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
@@ -7,21 +5,20 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cyberdelta.apis.backpack import BackpackAPI
-from cyberdelta.apis.base import ExchangeAPI
+from cyberdelta.config.config_manager import ConfigManager
+from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
     Order,
     OrderBook,
     OrderSide,
+    OrderStatus,
     OrderType,
     Position,
     Ticker,
     Trade,
-    OrderStatus,
 )
-from cyberdelta.config.config_manager import ConfigManager
-from cyberdelta.config.secrets_manager import SecretsManager
 
 
 class TestBackpackAPI:
@@ -32,7 +29,7 @@ class TestBackpackAPI:
         """Create a BackpackAPI client instance for testing (using AsyncMock)."""
         # Use AsyncMock with spec to avoid abstract class instantiation errors
         client = AsyncMock(spec=BackpackAPI)
-        client.exchange_name = "backpack" # Set necessary attributes for tests
+        client.exchange_name = "backpack"  # Set necessary attributes for tests
         # Individual tests will mock specific methods like client.get_ticker, etc.
         return client
 
@@ -44,7 +41,7 @@ class TestBackpackAPI:
             symbol="BTCUSDC",
             bid=Decimal("42450.50"),
             ask=Decimal("42550.75"),
-            price=Decimal("42500.25"), # lastPrice
+            price=Decimal("42500.25"),  # lastPrice
             volume=Decimal("1200.5"),
             timestamp=int(time.time() * 1000),
         )
@@ -94,12 +91,12 @@ class TestBackpackAPI:
         assert len(order_book.asks) == 3
 
         # Verify first bid
-        assert order_book.bids[0][0] == Decimal("42450.50") # price
-        assert order_book.bids[0][1] == Decimal("0.5") # quantity
+        assert order_book.bids[0][0] == Decimal("42450.50")  # price
+        assert order_book.bids[0][1] == Decimal("0.5")  # quantity
 
         # Verify first ask
-        assert order_book.asks[0][0] == Decimal("42550.75") # price
-        assert order_book.asks[0][1] == Decimal("0.3") # quantity
+        assert order_book.asks[0][0] == Decimal("42550.75")  # price
+        assert order_book.asks[0][1] == Decimal("0.3")  # quantity
 
         assert order_book.timestamp == mock_time
 
@@ -115,7 +112,7 @@ class TestBackpackAPI:
                 price=Decimal("42500.25"),
                 quantity=Decimal("0.05"),
                 timestamp=int(time.time() * 1000),
-                side=None, # Backpack doesn't provide side directly here - USE NONE
+                side=None,  # Backpack doesn't provide side directly here - USE NONE
                 is_maker=True,
                 symbol="BTCUSDC",
             ),
@@ -124,7 +121,7 @@ class TestBackpackAPI:
                 price=Decimal("42505.50"),
                 quantity=Decimal("0.03"),
                 timestamp=int(time.time() * 1000) - 5000,
-                side=None, # USE NONE
+                side=None,  # USE NONE
                 is_maker=False,
                 symbol="BTCUSDC",
             ),
@@ -139,9 +136,9 @@ class TestBackpackAPI:
         assert len(trades) == 2
         assert all(isinstance(t, Trade) for t in trades)
         assert trades[0].id == "12345"
-        assert trades[0].side is None # Verify side is None
+        assert trades[0].side is None  # Verify side is None
         assert trades[1].id == "12346"
-        assert trades[1].side is None # Verify side is None
+        assert trades[1].side is None  # Verify side is None
 
         # Verify the mocked method was called
         api_client.get_recent_trades.assert_called_once_with("BTCUSDC", limit=2)
@@ -153,9 +150,9 @@ class TestBackpackAPI:
         mock_funding_data = FundingRate(
             symbol="BTCUSDC",
             funding_rate=Decimal("0.0001"),
-            predicted_rate=None, # Backpack doesn't provide predicted
-            mark_price=None, # Backpack doesn't provide mark price here
-            index_price=None, # Backpack doesn't provide index price here
+            predicted_rate=None,  # Backpack doesn't provide predicted
+            mark_price=None,  # Backpack doesn't provide mark price here
+            index_price=None,  # Backpack doesn't provide index price here
             next_funding_time=mock_time,
         )
         api_client.get_funding_rate = AsyncMock(return_value=mock_funding_data)
@@ -177,8 +174,15 @@ class TestBackpackAPI:
     async def test_get_balances(self, api_client):
         """Test get_balances returns dictionary of Balance objects."""
         mock_balance_data = {
-            "BTC": Balance(asset="BTC", free=Decimal("0.5"), locked=Decimal("0.1"), total=Decimal("0.6")),
-            "USDC": Balance(asset="USDC", free=Decimal("10000.50"), locked=Decimal("500.25"), total=Decimal("10500.75")),
+            "BTC": Balance(
+                asset="BTC", free=Decimal("0.5"), locked=Decimal("0.1"), total=Decimal("0.6")
+            ),
+            "USDC": Balance(
+                asset="USDC",
+                free=Decimal("10000.50"),
+                locked=Decimal("500.25"),
+                total=Decimal("10500.75"),
+            ),
         }
         api_client.get_balances = AsyncMock(return_value=mock_balance_data)
 
@@ -210,9 +214,9 @@ class TestBackpackAPI:
                 unrealized_pnl=Decimal("1000.0"),
                 liquidation_price=Decimal("35000.0"),
                 leverage=Decimal("10"),
-                side=OrderSide.BUY, # Determined from positive size
+                side=OrderSide.BUY,  # Determined from positive size
             ),
-             Position(
+            Position(
                 symbol="ETHUSDC",
                 size=Decimal("-2.0"),
                 entry_price=Decimal("2500.0"),
@@ -220,7 +224,7 @@ class TestBackpackAPI:
                 unrealized_pnl=Decimal("100.0"),
                 liquidation_price=Decimal("3000.0"),
                 leverage=Decimal("5"),
-                side=OrderSide.SELL, # Determined from negative size
+                side=OrderSide.SELL,  # Determined from negative size
             ),
         ]
         api_client.get_positions = AsyncMock(return_value=mock_position_data)
@@ -312,7 +316,7 @@ class TestBackpackAPI:
             quantity=Decimal("0.1"),
             filled_quantity=Decimal("0.0"),
             status=OrderStatus.CANCELED,
-            time=None, # Cancel response might not have original time
+            time=None,  # Cancel response might not have original time
             client_order_id="test-order-123",
         )
         api_client.cancel_order = AsyncMock(return_value=mock_cancelled_order_data)
@@ -353,9 +357,9 @@ class TestBackpackAPI:
             "quantity": "0.01",
             "price": "50000.0",
             "timeInForce": "GTC",
-            "timestamp": 1678886400000, # Example timestamp
+            "timestamp": 1678886400000,  # Example timestamp
         }
-        
+
         # Set a dummy API secret for the real client if needed
         real_client.api_secret = "test_secret_key"
         # Call the protected method (requires name mangling)

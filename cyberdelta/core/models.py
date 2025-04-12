@@ -1,12 +1,11 @@
 from __future__ import annotations  # Enable postponed evaluation
 
-import decimal
 import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class OrderSide(Enum):
@@ -95,21 +94,27 @@ class Balance:
     def __post_init__(self):
         # If available is not provided, default it to total
         if self.available is None:
-             self.available = self.total
+            self.available = self.total
         # Ensure fields are Decimal
         self.total = Decimal(str(self.total)) if not isinstance(self.total, Decimal) else self.total
-        self.available = Decimal(str(self.available)) if not isinstance(self.available, Decimal) else self.available
-        
+        self.available = (
+            Decimal(str(self.available))
+            if not isinstance(self.available, Decimal)
+            else self.available
+        )
+
         # --- ADD INITIALIZATION FOR free and locked ---
         if self.free is None:
             self.free = Decimal("0.0")
         else:
-             self.free = Decimal(str(self.free)) if not isinstance(self.free, Decimal) else self.free
-             
+            self.free = Decimal(str(self.free)) if not isinstance(self.free, Decimal) else self.free
+
         if self.locked is None:
             self.locked = Decimal("0.0")
         else:
-            self.locked = Decimal(str(self.locked)) if not isinstance(self.locked, Decimal) else self.locked
+            self.locked = (
+                Decimal(str(self.locked)) if not isinstance(self.locked, Decimal) else self.locked
+            )
         # --- END INITIALIZATION ---
 
     def to_dict(self) -> dict[str, Any]:
@@ -158,7 +163,7 @@ class Position:
     strategy_name: str | None = None
     close_price: Decimal | None = None
     close_time: datetime | None = None
-    pnl: Decimal | None = None # Assuming this represents realized PNL upon close
+    pnl: Decimal | None = None  # Assuming this represents realized PNL upon close
 
     def is_active(self) -> bool:
         """Check if the position is actively held (size is non-zero)."""
@@ -245,7 +250,7 @@ class Trade:
     quantity: Decimal
 
     # Optional fields (with defaults) last - REORDERED
-    side: OrderSide | None = None # CHANGED: Made optional
+    side: OrderSide | None = None  # CHANGED: Made optional
     order_id: str | None = None
     exchange: str | None = None
     datetime: datetime | None = None
@@ -299,7 +304,7 @@ class Ticker:
                 self.price = Decimal(str(self.price))
             except InvalidOperation:
                 # Handle potential conversion error, e.g., log and set to None or raise
-                self.price = None # Or raise appropriate error
+                self.price = None  # Or raise appropriate error
         if self.bid is not None and not isinstance(self.bid, Decimal):
             try:
                 self.bid = Decimal(str(self.bid))
@@ -344,36 +349,44 @@ class FundingRate:
 
     symbol: str
     funding_rate: Decimal  # Current funding rate (Decimal)
-    predicted_rate: Decimal | None = None # Made optional
-    mark_price: Decimal | None = None     # Made optional
-    index_price: Decimal | None = None    # Made optional
-    next_funding_time: int | None = None    # Made optional
-    timestamp: int | None = None # Added Optional timestamp field (Fix 13)
+    predicted_rate: Decimal | None = None  # Made optional
+    mark_price: Decimal | None = None  # Made optional
+    index_price: Decimal | None = None  # Made optional
+    next_funding_time: int | None = None  # Made optional
+    timestamp: int | None = None  # Added Optional timestamp field (Fix 13)
     historical_rates: list[dict[str, Any]] | None = None  # Historical funding rates (Optional)
 
     def __post_init__(self) -> None:
         # Ensure numeric fields are Decimal, handle None explicitly
         if self.funding_rate is not None and not isinstance(self.funding_rate, Decimal):
-            try: self.funding_rate = Decimal(str(self.funding_rate))
-            except InvalidOperation: self.funding_rate = None # Handle conversion error
+            try:
+                self.funding_rate = Decimal(str(self.funding_rate))
+            except InvalidOperation:
+                self.funding_rate = None  # Handle conversion error
 
         if self.predicted_rate is not None and not isinstance(self.predicted_rate, Decimal):
-            try: self.predicted_rate = Decimal(str(self.predicted_rate))
-            except InvalidOperation: self.predicted_rate = None # Handle conversion error
+            try:
+                self.predicted_rate = Decimal(str(self.predicted_rate))
+            except InvalidOperation:
+                self.predicted_rate = None  # Handle conversion error
 
         if self.mark_price is not None and not isinstance(self.mark_price, Decimal):
-            try: self.mark_price = Decimal(str(self.mark_price))
-            except InvalidOperation: self.mark_price = None # Handle conversion error
+            try:
+                self.mark_price = Decimal(str(self.mark_price))
+            except InvalidOperation:
+                self.mark_price = None  # Handle conversion error
 
         if self.index_price is not None and not isinstance(self.index_price, Decimal):
-            try: self.index_price = Decimal(str(self.index_price))
-            except InvalidOperation: self.index_price = None # Handle conversion error
+            try:
+                self.index_price = Decimal(str(self.index_price))
+            except InvalidOperation:
+                self.index_price = None  # Handle conversion error
 
 
 class ArbitrageOpportunity:
     """Represents a funding rate arbitrage opportunity."""
 
-    def __init__( 
+    def __init__(
         self,
         symbol: str,
         long_exchange: str,

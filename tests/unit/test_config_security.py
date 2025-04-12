@@ -20,9 +20,7 @@ from unittest.mock import patch
 import yaml
 
 # Add parent directory to path to import from cyberdelta
-sys.path.append(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
@@ -72,9 +70,7 @@ risk:
             """)
 
         # Invalid config without required sections
-        self.invalid_config_path = os.path.join(
-            self.temp_dir.name, "invalid_config.yaml"
-        )
+        self.invalid_config_path = os.path.join(self.temp_dir.name, "invalid_config.yaml")
         with open(self.invalid_config_path, "w") as f:
             f.write("""
 # Missing required sections
@@ -121,9 +117,7 @@ general:
     def test_missing_nested_access(self):
         """Test that missing nested paths return default value"""
         self.assertEqual(
-            self.config_manager.get(
-                "strategies.nonexistent.symbols.hl_symbol", "default"
-            ),
+            self.config_manager.get("strategies.nonexistent.symbols.hl_symbol", "default"),
             "default",
         )
 
@@ -328,9 +322,7 @@ exchanges:
 
             # Simulate forming a connection URL with credentials
             connection_url = f"{base_url}?api_key={api_key}"
-            self.assertEqual(
-                connection_url, "https://api.test.xyz?api_key=test_api_key_123"
-            )
+            self.assertEqual(connection_url, "https://api.test.xyz?api_key=test_api_key_123")
 
 
 if __name__ == "__main__":

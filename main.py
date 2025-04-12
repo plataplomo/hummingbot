@@ -71,9 +71,7 @@ async def shutdown(app_state: dict[str, Any]) -> None:
     if tasks:
         _, pending = await asyncio.wait(tasks, timeout=10.0)
         if pending:
-            logger.warning(
-                f"{len(pending)} API close tasks timed out or failed."
-            )
+            logger.warning(f"{len(pending)} API close tasks timed out or failed.")
             for task in pending:
                 task.cancel()
 
@@ -122,9 +120,7 @@ async def main() -> None:
     setup_logging()
 
     # Argument parsing
-    parser = argparse.ArgumentParser(
-        description="CyberDeltaEngine - Funding Rate Arbitrage Bot"
-    )
+    parser = argparse.ArgumentParser(description="CyberDeltaEngine - Funding Rate Arbitrage Bot")
     parser.add_argument(
         "--config",
         type=str,
@@ -150,27 +146,19 @@ async def main() -> None:
         logger.error("Configuration error", error=str(e), exc_info=True)
         sys.exit(1)
     except Exception as e:
-        logger.error(
-            "Unexpected error loading configuration", error=str(e), exc_info=True
-        )
+        logger.error("Unexpected error loading configuration", error=str(e), exc_info=True)
         sys.exit(1)
 
     # 1. Initialize Core Components
     try:
         logger.info("Initializing core components...")
-        state_manager = StateManager(
-            config.get("state_manager.state_file", "engine_state.json")
-        )
+        state_manager = StateManager(config.get("state_manager.state_file", "engine_state.json"))
         app_state["state_manager"] = state_manager
 
-        portfolio_tracker = PortfolioTracker(
-            config.get("portfolio_tracker"), state_manager
-        )
+        portfolio_tracker = PortfolioTracker(config.get("portfolio_tracker"), state_manager)
         app_state["portfolio_tracker"] = portfolio_tracker
 
-        circuit_breaker = CircuitBreakerSystem(
-            config.get("circuit_breaker"), portfolio_tracker
-        )
+        circuit_breaker = CircuitBreakerSystem(config.get("circuit_breaker"), portfolio_tracker)
         app_state["circuit_breaker"] = circuit_breaker
 
         execution_handler = ExecutionHandler(
@@ -208,9 +196,7 @@ async def main() -> None:
         logger.info("Core components initialized.")
 
     except Exception as e:
-        logger.error(
-            "Fatal error during component initialization", error=str(e), exc_info=True
-        )
+        logger.error("Fatal error during component initialization", error=str(e), exc_info=True)
         sys.exit(1)
 
     # 2. Initialize API Clients and link to components
@@ -227,9 +213,7 @@ async def main() -> None:
                 data_handler.add_api_client(exchange_name, client)
                 execution_handler.add_api_client(exchange_name, client)
                 portfolio_tracker.add_api_client(exchange_name, client)
-                logger.info(
-                    "Initialized and connected API client", exchange=exchange_name
-                )
+                logger.info("Initialized and connected API client", exchange=exchange_name)
             else:
                 logger.info("Skipping disabled exchange", exchange=exchange_name)
         app_state["api_clients"] = api_clients
@@ -279,9 +263,7 @@ async def main() -> None:
         logger.info("Strategies initialized", count=len(strategies))
 
     except Exception as e:
-        logger.error(
-            "Fatal error during strategy initialization", error=str(e), exc_info=True
-        )
+        logger.error("Fatal error during strategy initialization", error=str(e), exc_info=True)
         await shutdown(app_state)
         sys.exit(1)
 
@@ -309,9 +291,7 @@ async def main() -> None:
     for strategy in strategies:
         engine.add_strategy(strategy)
         engine.enable_strategy(strategy.name)
-    logger.info(
-        "Added and enabled strategies in Engine", count=len(strategies)
-    )
+    logger.info("Added and enabled strategies in Engine", count=len(strategies))
 
     # 5. Start Components and Main Loop
     main_tasks = []
@@ -324,15 +304,11 @@ async def main() -> None:
         logger.info("Starting background component tasks...")
         # Start data streams and processing
         main_tasks.append(
-            asyncio.create_task(
-                data_handler.run(cancellation_token), name="DataHandler_run"
-            )
+            asyncio.create_task(data_handler.run(cancellation_token), name="DataHandler_run")
         )
         # Start signal queue processing
         main_tasks.append(
-            asyncio.create_task(
-                signal_queue.run(cancellation_token), name="SignalQueue_run"
-            )
+            asyncio.create_task(signal_queue.run(cancellation_token), name="SignalQueue_run")
         )
         # Add other component run loops if needed
 
@@ -345,9 +321,7 @@ async def main() -> None:
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(
                 sig,
-                lambda s=sig: asyncio.create_task(
-                    shutdown(app_state), name=f"ShutdownHandler_{s}"
-                ),
+                lambda s=sig: asyncio.create_task(shutdown(app_state), name=f"ShutdownHandler_{s}"),
             )
         logger.debug("Signal handlers registered.")
 
@@ -371,9 +345,7 @@ async def main() -> None:
 
         # Wait for component tasks launched by main to finish
         if main_tasks:
-            logger.info(
-                f"Waiting for {len(main_tasks)} main component tasks to complete..."
-            )
+            logger.info(f"Waiting for {len(main_tasks)} main component tasks to complete...")
             _, pending = await asyncio.wait(main_tasks, timeout=15.0)
             if pending:
                 logger.warning(
@@ -384,9 +356,7 @@ async def main() -> None:
                     try:
                         await task
                     except asyncio.CancelledError:
-                        logger.debug(
-                            "Task cancelled successfully", task_name=task.get_name()
-                        )
+                        logger.debug("Task cancelled successfully", task_name=task.get_name())
                     except Exception as task_exc:
                         logger.error(
                             "Error during forced cancellation of task",
@@ -417,8 +387,7 @@ if __name__ == "__main__":
             file=sys.stderr,
         )
         print(
-            "Consider running using 'python -m cyberdelta.main' "
-            "from the project root.",
+            "Consider running using 'python -m cyberdelta.main' from the project root.",
             file=sys.stderr,
         )
 

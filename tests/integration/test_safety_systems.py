@@ -65,20 +65,14 @@ async def test_circuit_breaker_global_halts_execution(
     )
     await real_portfolio_tracker.initialize()
     ts = datetime.now(UTC)
-    mock_bp_api.set_mock_ticker(
-        create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts)
-    )
-    mock_hl_api.set_mock_ticker(
-        create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts)
-    )
+    mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts))
+    mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts))
 
     # 2. Trigger Global Circuit Breaker Directly
     global_breaker_name = "global_api_error"  # Name used in reset
     trip_reason = "Test global trip"
     global_breaker = circuit_breaker_system.get_breaker(global_breaker_name)
-    assert global_breaker is not None, (
-        f"Global breaker '{global_breaker_name}' not found."
-    )
+    assert global_breaker is not None, f"Global breaker '{global_breaker_name}' not found."
     logger.info(f"Tripping global breaker: {global_breaker_name}")
     global_breaker.trip(trip_reason)
 
@@ -104,9 +98,7 @@ async def test_circuit_breaker_global_halts_execution(
     )  # Pass SizedOpportunity
 
     # 4. Verify Rejection (Restored Assertions)
-    assert isinstance(execution_result, TradeExecution), (
-        "Expected a TradeExecution result object"
-    )
+    assert isinstance(execution_result, TradeExecution), "Expected a TradeExecution result object"
     logger.info(
         f"Received execution result: Status={execution_result.status}, Error='{execution_result.error_message}'"
     )
@@ -156,21 +148,15 @@ async def test_circuit_breaker_exchange_halts_execution(
     )
     await real_portfolio_tracker.initialize()
     ts = datetime.now(UTC)
-    mock_bp_api.set_mock_ticker(
-        create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts)
-    )
-    mock_hl_api.set_mock_ticker(
-        create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts)
-    )
+    mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts))
+    mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts))
 
     # 2. Trigger Exchange Circuit Breaker Directly (for long exchange)
     target_exchange = basic_opportunity.long_exchange  # e.g., "mock_bp"
     breaker_type = "api_errors"  # Type implied by config/reset/record calls
     trip_reason = f"Test exchange trip for {target_exchange}"
 
-    exchange_breaker = circuit_breaker_system.get_exchange_breaker(
-        target_exchange, breaker_type
-    )
+    exchange_breaker = circuit_breaker_system.get_exchange_breaker(target_exchange, breaker_type)
     assert exchange_breaker is not None, (
         f"Exchange breaker '{target_exchange}/{breaker_type}' not found."
     )
@@ -178,21 +164,15 @@ async def test_circuit_breaker_exchange_halts_execution(
     exchange_breaker.trip(trip_reason)
 
     # Verify the specific exchange breaker is open using can_execute
-    can_exec_target, reason_target = circuit_breaker_system.can_execute(
-        exchange=target_exchange
-    )
+    can_exec_target, reason_target = circuit_breaker_system.can_execute(exchange=target_exchange)
     assert can_exec_target is False, (
         f"{target_exchange} breaker should be open, reason: {reason_target}"
     )
     assert trip_reason in reason_target
 
     # Verify global is still closed
-    can_exec_global, reason_global = circuit_breaker_system.can_execute(
-        exchange="global"
-    )
-    assert can_exec_global is True, (
-        f"Global breaker should remain closed, reason: {reason_global}"
-    )
+    can_exec_global, reason_global = circuit_breaker_system.can_execute(exchange="global")
+    assert can_exec_global is True, f"Global breaker should remain closed, reason: {reason_global}"
 
     # 3. Attempt Execution involving the tripped exchange via execute_opportunity (Corrected method name)
     logger.info(f"Attempting execution with {target_exchange} breaker tripped...")
@@ -211,9 +191,7 @@ async def test_circuit_breaker_exchange_halts_execution(
     )  # Pass SizedOpportunity
 
     # 4. Verify Rejection (Restored Assertions)
-    assert isinstance(execution_result, TradeExecution), (
-        "Expected a TradeExecution result object"
-    )
+    assert isinstance(execution_result, TradeExecution), "Expected a TradeExecution result object"
     logger.info(
         f"Received execution result: Status={execution_result.status}, Error='{execution_result.error_message}'"
     )
@@ -267,13 +245,9 @@ async def test_funding_rate_validator_reduces_size(
 
     # *** Force re-initialization to ensure config is current ***
     # This might pick up the updated mock_config collateral_asset
-    logger.info(
-        "Forcing re-initialization of portfolio tracker before baseline check..."
-    )
+    logger.info("Forcing re-initialization of portfolio tracker before baseline check...")
     await real_portfolio_tracker.initialize()
-    logger.info(
-        f"Tracker config after re-init: {real_portfolio_tracker.config.config_data}"
-    )
+    logger.info(f"Tracker config after re-init: {real_portfolio_tracker.config.config_data}")
     # === END Added Setup ===
 
     # 1. Setup: Ensure validator is attached to risk_manager
@@ -307,21 +281,15 @@ async def test_funding_rate_validator_reduces_size(
     # 2. Calculate size normally (as baseline)
     # Temporarily disable validator influence for baseline
     risk_manager.funding_rate_validator = None
-    baseline_sized_opportunities = risk_manager.validate_opportunities(
-        [basic_opportunity]
-    )
+    baseline_sized_opportunities = risk_manager.validate_opportunities([basic_opportunity])
     risk_manager.funding_rate_validator = funding_rate_validator  # Restore validator
 
     assert len(baseline_sized_opportunities) == 1, "Baseline sizing failed"
-    baseline_size = baseline_sized_opportunities[
-        0
-    ].long_size  # Use long_size as representative
+    baseline_size = baseline_sized_opportunities[0].long_size  # Use long_size as representative
     assert baseline_size > 0
 
     # 3. Calculate size with validator active (expecting reduction)
-    validated_sized_opportunities = risk_manager.validate_opportunities(
-        [basic_opportunity]
-    )
+    validated_sized_opportunities = risk_manager.validate_opportunities([basic_opportunity])
 
     assert len(validated_sized_opportunities) == 1, "Validated sizing failed"
     validated_size = validated_sized_opportunities[0].long_size
@@ -336,9 +304,7 @@ async def test_funding_rate_validator_reduces_size(
     assert validated_size == pytest.approx(expected_size), (
         f"Expected size reduced to approx {expected_size} due to validation, got {validated_size}"
     )
-    assert validated_size < baseline_size, (
-        "Validated size should be smaller than baseline"
-    )
+    assert validated_size < baseline_size, "Validated size should be smaller than baseline"
 
     # Check that the validator method was called
     funding_rate_validator.get_validation_metrics.assert_called()
@@ -428,22 +394,17 @@ async def test_position_reconciler_detects_discrepancy(
             and disc.get("type") == "size"  # Check 'type' key
             # Compare Decimal values correctly
             and Decimal(disc.get("exchange_value", "0")) == mock_position.size
-            and Decimal(disc.get("local_value", "-1"))
-            == Decimal("0")  # Check local is 0
+            and Decimal(disc.get("local_value", "-1")) == Decimal("0")  # Check local is 0
         ):  # Fixed closing parenthesis and removed extra checks
             found_missing_in_tracker = True
             break
 
-    assert found_missing_in_tracker, (
-        "Did not find the expected 'missing_in_tracker' discrepancy"
-    )
+    assert found_missing_in_tracker, "Did not find the expected 'missing_in_tracker' discrepancy"
 
     # 4. Setup Reverse Scenario - Position in tracker, not on exchange
     real_portfolio_tracker.reset()
     mock_bp_api.reset()  # Clear position from mock API
-    real_portfolio_tracker.update_position(
-        exchange_id, mock_position
-    )  # Add to real tracker
+    real_portfolio_tracker.update_position(exchange_id, mock_position)  # Add to real tracker
 
     # Ensure API clients are registered on real tracker for the reverse scenario
     if "mock_bp" not in real_portfolio_tracker.api_clients:
@@ -455,9 +416,7 @@ async def test_position_reconciler_detects_discrepancy(
     logger.info("--- Reverse Scenario State Check ---")
     bp_positions_after_reset = await mock_bp_api.get_positions()
     logger.info(f"Mock BP positions after reset: {bp_positions_after_reset}")
-    local_positions_after_update = real_portfolio_tracker.get_positions_by_exchange(
-        exchange_id
-    )
+    local_positions_after_update = real_portfolio_tracker.get_positions_by_exchange(exchange_id)
     logger.info(f"Local positions after update: {local_positions_after_update}")
     logger.info("--- End Reverse Scenario State Check ---")
     # === END State Check Logging ===
@@ -470,23 +429,17 @@ async def test_position_reconciler_detects_discrepancy(
     )
 
     # 5. Verify Reverse Discrepancy Detection
-    assert len(discrepancies_reverse) > 0, (
-        "Expected reconciler to find discrepancies (reverse)"
-    )
+    assert len(discrepancies_reverse) > 0, "Expected reconciler to find discrepancies (reverse)"
     found_missing_on_exchange = False
     for disc in discrepancies_reverse:
         # Check for size discrepancy where exchange is 0 and local matches mock
         if (
             disc.get("symbol") == symbol
             and disc.get("type") == "size"  # Check 'type' key
-            and Decimal(disc.get("exchange_value", "-1"))
-            == Decimal("0")  # Check exchange is 0
-            and Decimal(disc.get("local_value", "0"))
-            == mock_position.size  # Check local matches
+            and Decimal(disc.get("exchange_value", "-1")) == Decimal("0")  # Check exchange is 0
+            and Decimal(disc.get("local_value", "0")) == mock_position.size  # Check local matches
         ):
             found_missing_on_exchange = True
             break
 
-    assert found_missing_on_exchange, (
-        "Did not find the expected 'missing_on_exchange' discrepancy"
-    )
+    assert found_missing_on_exchange, "Did not find the expected 'missing_on_exchange' discrepancy"

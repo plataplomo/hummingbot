@@ -4,12 +4,11 @@
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytest
-
 from cyberdelta.core.risk_manager import RiskManager
 
 # Note: Fixtures risk_manager, mock_config, mock_portfolio_tracker
 #       are provided by tests/unit/risk/conftest.py
+
 
 class TestRiskManagerInit:
     """Test suite for RiskManager initialization."""
@@ -29,5 +28,5 @@ class TestRiskManagerInit:
         assert risk_manager.config == mock_config
         assert risk_manager.portfolio_tracker == mock_portfolio_tracker
         # Assert optional dependencies are set (even if None from fixture)
-        assert hasattr(risk_manager, 'circuit_breaker_system')
-        assert hasattr(risk_manager, 'funding_rate_validator') 
+        assert hasattr(risk_manager, "circuit_breaker_system")
+        assert hasattr(risk_manager, "funding_rate_validator")

@@ -20,9 +20,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
 
         # Create a tracker with sample data
-        self.tracker = SimplePerformanceTracker(
-            "TestStrategy", output_dir=self.test_dir
-        )
+        self.tracker = SimplePerformanceTracker("TestStrategy", output_dir=self.test_dir)
 
         # Populate with sample data
         self.populate_sample_data()
@@ -81,11 +79,7 @@ class TestSimpleVisualizer(unittest.TestCase):
             exit_time = trade_time + timedelta(days=1)
 
             # Alternate between winning and losing trades with some randomness
-            pnl = (
-                1000 + np.random.normal(0, 500)
-                if i % 2 == 0
-                else -800 + np.random.normal(0, 300)
-            )
+            pnl = 1000 + np.random.normal(0, 500) if i % 2 == 0 else -800 + np.random.normal(0, 300)
 
             # Track trade
             trade_id = f"trade_{i + 1}"
@@ -210,9 +204,7 @@ class TestSimpleVisualizer(unittest.TestCase):
     def test_empty_data_handling(self):
         """Test handling of empty data."""
         # Create empty tracker
-        empty_tracker = SimplePerformanceTracker(
-            "EmptyStrategy", output_dir=self.test_dir
-        )
+        empty_tracker = SimplePerformanceTracker("EmptyStrategy", output_dir=self.test_dir)
         empty_visualizer = SimpleVisualizer(empty_tracker, output_dir=self.test_dir)
 
         # Test each plot with empty data

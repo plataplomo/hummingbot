@@ -3,7 +3,7 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio
 import logging
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any  # Added TYPE_CHECKING
 
 from cyberdelta.apis.base import ExchangeAPI
@@ -14,10 +14,11 @@ from cyberdelta.utils.config import Config
 
 if TYPE_CHECKING:
     # This can remain for linters/type checkers if desired, but isn't strictly needed now
-    # from cyberdelta.core.models import MarketData 
+    # from cyberdelta.core.models import MarketData
     # Keep Callable import for type hinting observers
     from collections.abc import Callable, Coroutine
-    pass 
+
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -233,9 +234,7 @@ class DataHandler:
             if message:
                 await self._handle_websocket_message(exchange_id, message)
 
-    async def _handle_websocket_message(
-        self, exchange_id: str, message: dict[str, Any]
-    ) -> None:
+    async def _handle_websocket_message(self, exchange_id: str, message: dict[str, Any]) -> None:
         """Handle an incoming message from a WebSocket connection."""
         # Get message type using the API client's helper
         client = self.api_clients.get(exchange_id)
@@ -254,27 +253,34 @@ class DataHandler:
                     if isinstance(parsed_output, tuple) and len(parsed_output) == 2:
                         symbol, ticker_data = parsed_output
                         if not isinstance(ticker_data, Ticker):
-                            logger.warning(f"Parsed ticker data is not Ticker type for {exchange_id}: {type(ticker_data)}")
+                            logger.warning(
+                                f"Parsed ticker data is not Ticker type for {exchange_id}: {type(ticker_data)}"
+                            )
                             return
                     elif isinstance(parsed_output, Ticker):
                         symbol = parsed_output.symbol
                         ticker_data = parsed_output
                     else:
-                        logger.warning(f"Unexpected data format from parse_ticker_message for {exchange_id}: {type(parsed_output)}")
+                        logger.warning(
+                            f"Unexpected data format from parse_ticker_message for {exchange_id}: {type(parsed_output)}"
+                        )
                         return
 
                     # Convert Ticker to MarketData before updating and notifying
                     market_data = MarketData(
-                        symbol=symbol, # Use unpacked symbol
+                        symbol=symbol,  # Use unpacked symbol
                         timestamp=datetime.fromtimestamp(ticker_data.timestamp / 1000, UTC),
-                        open=ticker_data.price, # Use last price for OHLC if not available
+                        open=ticker_data.price,  # Use last price for OHLC if not available
                         high=ticker_data.price,
                         low=ticker_data.price,
                         close=ticker_data.price,
                         volume=ticker_data.volume,
                     )
                     await self._update_and_notify(
-                        exchange_id, "ticker", symbol, market_data # Use unpacked symbol
+                        exchange_id,
+                        "ticker",
+                        symbol,
+                        market_data,  # Use unpacked symbol
                     )
             elif message_type == "orderbook":
                 parsed_data = client.parse_orderbook_message(message)
@@ -291,16 +297,12 @@ class DataHandler:
                 parsed_data = client.parse_funding_message(message)
                 if parsed_data:
                     self._update_funding_rate(exchange_id, parsed_data.symbol, parsed_data)
-            elif message_type == "account_update": # e.g., balances, positions
+            elif message_type == "account_update":  # e.g., balances, positions
                 # Data should go to PortfolioTracker, not via DataHandler observers
-                logger.debug(
-                    f"Received account update on {exchange_id}, needs routing."
-                )
-            elif message_type == "orders": # e.g., order updates
+                logger.debug(f"Received account update on {exchange_id}, needs routing.")
+            elif message_type == "orders":  # e.g., order updates
                 # Data should go to PortfolioTracker/ExecutionHandler
-                logger.debug(
-                    f"Received order update on {exchange_id}, needs routing."
-                )
+                logger.debug(f"Received order update on {exchange_id}, needs routing.")
             else:
                 logger.debug(f"Unhandled message type '{message_type}' from {exchange_id}")
         except Exception as e:
@@ -308,7 +310,10 @@ class DataHandler:
 
     async def _update_and_notify(
         self,
-        exchange_id: str, data_type: str, symbol: str, data: MarketData | OrderBook | FundingRate
+        exchange_id: str,
+        data_type: str,
+        symbol: str,
+        data: MarketData | OrderBook | FundingRate,
     ) -> None:
         """
         Update internal cache for a given data type and notify observers if it's MarketData.
@@ -331,7 +336,7 @@ class DataHandler:
             elif data_type == "orderbook" and isinstance(data, OrderBook):
                 if exchange_id not in self.orderbooks:
                     self.orderbooks[exchange_id] = {}
-                self.orderbooks[exchange_id][symbol] = data # Store raw OrderBook
+                self.orderbooks[exchange_id][symbol] = data  # Store raw OrderBook
                 # Optional: Convert OrderBook to MarketData snapshot and notify?
             elif data_type == "funding_rate" and isinstance(data, FundingRate):
                 if exchange_id not in self.funding_rates:
@@ -360,9 +365,7 @@ class DataHandler:
         except Exception as e:
             logger.error(f"Update error for {data_type}/{symbol}/{exchange_id}: {e}")
 
-    def _update_orderbook(
-        self, exchange_id: str, symbol: str, orderbook_data: OrderBook
-    ) -> None:
+    def _update_orderbook(self, exchange_id: str, symbol: str, orderbook_data: OrderBook) -> None:
         """Update the orderbook data for a specific exchange and symbol."""
         now = datetime.now(UTC)
         try:
@@ -383,7 +386,10 @@ class DataHandler:
             # Store as tuple (rate, timestamp)
             if exchange_id not in self.funding_rates:
                 self.funding_rates[exchange_id] = {}
-            self.funding_rates[exchange_id][symbol] = (funding_data.funding_rate, funding_data.timestamp)
+            self.funding_rates[exchange_id][symbol] = (
+                funding_data.funding_rate,
+                funding_data.timestamp,
+            )
 
             # Update last update time
             if exchange_id not in self.last_update_time:
@@ -392,7 +398,9 @@ class DataHandler:
                 self.last_update_time[exchange_id]["funding_rate"] = {}
             self.last_update_time[exchange_id]["funding_rate"][symbol] = now
 
-            logger.debug(f"Updated funding rate for {symbol} on {exchange_id}: Rate={funding_data.funding_rate}")
+            logger.debug(
+                f"Updated funding rate for {symbol} on {exchange_id}: Rate={funding_data.funding_rate}"
+            )
         except KeyError as e:
             logger.error(f"KeyError updating funding rate for {symbol} on {exchange_id}: {e}")
         except Exception as e:
@@ -503,7 +511,7 @@ class DataHandler:
         # Add UTC timezone info if last_update is naive
         if last_update and last_update.tzinfo is None:
             last_update = last_update.replace(tzinfo=UTC)
-        
+
         time_since_update = (datetime.now(UTC) - last_update).total_seconds()
 
         # Check against staleness threshold
@@ -550,7 +558,7 @@ class DataHandler:
             # Add UTC timezone info if last_update is naive
             if last_update and last_update.tzinfo is None:
                 last_update = last_update.replace(tzinfo=UTC)
-            
+
             time_since_update = (datetime.now(UTC) - last_update).total_seconds()
 
             staleness_threshold = self.config.get(
@@ -623,7 +631,7 @@ class DataHandler:
 
     async def _notify_observers(self, market_data: MarketData) -> None:
         """Notify all registered observers about a market data update."""
-        async with self.observer_lock: # Ensure observer list isn't modified during iteration
+        async with self.observer_lock:  # Ensure observer list isn't modified during iteration
             if not self.observers:
                 return
             # Create tasks for all observers to run concurrently
@@ -632,28 +640,38 @@ class DataHandler:
 
     def register_observer(self, observer: Callable[[MarketData], None]) -> None:
         """Register an observer (async callable) to receive MarketData updates."""
+
         async def register() -> None:
             async with self.observer_lock:
                 if observer not in self.observers:
                     self.observers.append(observer)
                     logger.info(f"Observer registered: {getattr(observer, '__name__', 'Unknown')}")
                 else:
-                    logger.warning(f"Observer already registered: {getattr(observer, '__name__', 'Unknown')}")
+                    logger.warning(
+                        f"Observer already registered: {getattr(observer, '__name__', 'Unknown')}"
+                    )
+
         # Run registration asynchronously if called from sync context, or directly if in async
         try:
             asyncio.get_running_loop().create_task(register())
         except RuntimeError:
-             asyncio.run(register())
+            asyncio.run(register())
 
     def unregister_observer(self, observer: Callable[[MarketData], None]) -> None:
         """Unregister an observer."""
+
         async def unregister() -> None:
             async with self.observer_lock:
                 try:
                     self.observers.remove(observer)
-                    logger.info(f"Observer unregistered: {getattr(observer, '__name__', 'Unknown')}")
+                    logger.info(
+                        f"Observer unregistered: {getattr(observer, '__name__', 'Unknown')}"
+                    )
                 except ValueError:
-                    logger.warning(f"Observer not found: {getattr(observer, '__name__', 'Unknown')}")
+                    logger.warning(
+                        f"Observer not found: {getattr(observer, '__name__', 'Unknown')}"
+                    )
+
         # Run unregistration asynchronously
         try:
             asyncio.get_running_loop().create_task(unregister())

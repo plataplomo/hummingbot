@@ -3,21 +3,18 @@ from __future__ import annotations
 import asyncio
 import logging
 import unittest
+from collections.abc import Coroutine
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Any
-from collections.abc import Coroutine
-import pytest
 
 from cyberdelta.core.models import (
     FundingRate,
     MarketData,
+    OrderSide,
+    Position,
     SignalType,
     Ticker,
-    OrderSide,
-    TradeSignal,
-    Position,
 )
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 
@@ -75,9 +72,9 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
         # Ensure the opportunity check condition is met
         self.strategy.last_opportunity_check = None
 
-        # --- Mock dependencies required by _should_rebalance --- 
+        # --- Mock dependencies required by _should_rebalance ---
         # Make _should_rebalance return False initially to test scheduling
-        self.portfolio_tracker.get_position.return_value = None # Assume no positions initially
+        self.portfolio_tracker.get_position.return_value = None  # Assume no positions initially
         # Mock prices even if get_position returns None, to be safe
         self.data_handler.get_latest_price.side_effect = lambda ex, sym: {
             ("hyperliquid", "BTC-PERP"): Decimal("30000.0"),
@@ -92,8 +89,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
         with patch.object(
             self.strategy, "_check_and_generate_signal", new_callable=AsyncMock
         ) as mock_check:
-
-            # --- Mock _should_rebalance explicitly to return False for scheduling test --- 
+            # --- Mock _should_rebalance explicitly to return False for scheduling test ---
             # self.strategy._should_rebalance = MagicMock(return_value=False) # Redundant now, handled by get_position mock above
             # --------------------------------------------------------------------------
 
@@ -104,7 +100,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
             mock_create_task.assert_called_once()
             # Verify the argument passed to create_task is the coroutine from our mock
             call_args, call_kwargs = mock_create_task.call_args
-            self.assertIsInstance(call_args[0], Coroutine) # Check if it's a coroutine object
+            self.assertIsInstance(call_args[0], Coroutine)  # Check if it's a coroutine object
             # Optionally, more specific checks if needed, but assert_called_once might suffice
 
             # Assert that we didn't return a signal (rebalancing or otherwise)
@@ -119,21 +115,21 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
             # Set the last opportunity check to now
             self.strategy.last_opportunity_check = datetime.now(UTC)
 
-            # --- Test the rebalancing branch --- 
+            # --- Test the rebalancing branch ---
             # Now, simulate having positions for rebalancing check
             mock_perp_pos = Position(
                 symbol="BTC-PERP",
                 size=Decimal("1.0"),
                 entry_price=Decimal("29500"),
                 side=OrderSide.BUY,
-                leverage=Decimal("1")
+                leverage=Decimal("1"),
             )
             mock_spot_pos = Position(
                 symbol="BTC_USDC",
                 size=Decimal("-1.0"),
                 entry_price=Decimal("29510"),
                 side=OrderSide.SELL,
-                leverage=Decimal("1")
+                leverage=Decimal("1"),
             )
             self.portfolio_tracker.get_position.side_effect = lambda ex, sym: {
                 ("hyperliquid", "BTC-PERP"): mock_perp_pos,
@@ -144,7 +140,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
                 ("hyperliquid", "BTC-PERP"): Decimal("30000.0"),
                 ("backpack", "BTC_USDC"): Decimal("29990.0"),
             }.get((ex, sym))
-            # ------------------------------------ 
+            # ------------------------------------
 
             # Process data again (no scheduling, potential rebalance)
             result = self.strategy.process_data(mock_data)
@@ -245,6 +241,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
                 return spot_ticker
             else:
                 return None
+
         mock_get_ticker = AsyncMock(side_effect=ticker_side_effect)
         self.data_handler.get_ticker = mock_get_ticker
 
@@ -280,6 +277,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
 
         # Get parameters method
         original_get_param = self.strategy.get_param
+
         # Correct: Assign side_effect to the mock instance
         def param_side_effect(key, default=None):
             return {
@@ -287,18 +285,15 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
                 "hyperliquid_fee_rate": Decimal("0.0001"),
                 "backpack_fee_rate": Decimal("0.0001"),
             }.get(key, default)
+
         mock_get_param = MagicMock(side_effect=param_side_effect)
         self.strategy.get_param = mock_get_param
 
-        logger.info(
-            "Overrode thresholds and methods to ensure opportunity passes filters"
-        )
+        logger.info("Overrode thresholds and methods to ensure opportunity passes filters")
 
         try:
             # Add debug hooks to trace through the method execution
-            original_calculate_basis_volatility = (
-                self.strategy._calculate_basis_volatility
-            )
+            original_calculate_basis_volatility = self.strategy._calculate_basis_volatility
             # Correct: Assign return_value to the mock instance
             mock_calculate_basis_volatility = MagicMock(return_value=Decimal("0.005"))
             self.strategy._calculate_basis_volatility = mock_calculate_basis_volatility
@@ -311,9 +306,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
             logger.info(f"check_opportunity returned: {opportunity}")
 
             # Verify method calls
-            self.data_handler.get_funding_rate.assert_called_once_with(
-                "hyperliquid", "BTC-PERP"
-            )
+            self.data_handler.get_funding_rate.assert_called_once_with("hyperliquid", "BTC-PERP")
             self.data_handler.get_ticker.assert_any_call("hyperliquid", "BTC-PERP")
             self.data_handler.get_ticker.assert_any_call("backpack", "BTC_USDC")
 
@@ -336,7 +329,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
             # Mock the _check_and_generate_signal method correctly
             signal_mock = MagicMock()
             signal_mock.symbol = "BTC-PERP"
-            signal_mock.signal_type = SignalType.ENTER_LONG # Adjust side based on opportunity
+            signal_mock.signal_type = SignalType.ENTER_LONG  # Adjust side based on opportunity
             mock_check_and_generate = AsyncMock(return_value=signal_mock)
             self.strategy._check_and_generate_signal = mock_check_and_generate
 
@@ -354,10 +347,8 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
             self.strategy.min_funding_differential = original_min_funding_differential
             self.strategy.min_profit_threshold = original_min_profit_threshold
             # Check if the mock was assigned before trying to restore
-            if hasattr(self, 'original_calculate_basis_volatility'):
-                 self.strategy._calculate_basis_volatility = (
-                     original_calculate_basis_volatility
-                 )
+            if hasattr(self, "original_calculate_basis_volatility"):
+                self.strategy._calculate_basis_volatility = original_calculate_basis_volatility
 
     def test_check_opportunity(self):
         """Run the async test"""
@@ -404,13 +395,17 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
 
         # Verify specific values
         self.assertAlmostEqual(
-            slippage_small, Decimal("0.0001") * (Decimal("1000.0") / Decimal("10000.0")) ** Decimal("0.5"), places=6
+            slippage_small,
+            Decimal("0.0001") * (Decimal("1000.0") / Decimal("10000.0")) ** Decimal("0.5"),
+            places=6,
         )
         self.assertAlmostEqual(
             slippage_medium, Decimal("0.0001"), places=6
         )  # Reference size = 10000
         self.assertAlmostEqual(
-            slippage_large, Decimal("0.0001") * (Decimal("40000.0") / Decimal("10000.0")) ** Decimal("0.5"), places=6
+            slippage_large,
+            Decimal("0.0001") * (Decimal("40000.0") / Decimal("10000.0")) ** Decimal("0.5"),
+            places=6,
         )
 
 
@@ -432,6 +427,7 @@ def create_mock_market_data(**kwargs) -> MarketData:
             defaults[key] = Decimal(str(defaults[key]))
     return MarketData(**defaults)
 
+
 def create_mock_ticker(**kwargs) -> Ticker:
     defaults = {
         "symbol": "BTC-PERP",
@@ -447,6 +443,7 @@ def create_mock_ticker(**kwargs) -> Ticker:
         if key in defaults and not isinstance(defaults[key], Decimal):
             defaults[key] = Decimal(str(defaults[key]))
     return Ticker(**defaults)
+
 
 def create_mock_funding_rate(**kwargs) -> FundingRate:
     defaults = {

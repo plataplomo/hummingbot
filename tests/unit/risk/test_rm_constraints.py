@@ -4,12 +4,11 @@
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytest
-
 from cyberdelta.core.risk_manager import RiskManager
 
 # Note: Fixtures risk_manager, mock_portfolio_tracker
 #       are provided by tests/unit/risk/conftest.py
+
 
 class TestRiskManagerConstraints:
     """Test suite for RiskManager constraint checking (_check_portfolio_constraints)."""
@@ -58,4 +57,4 @@ class TestRiskManagerConstraints:
                 "hyperliquid", "backpack", Decimal("1000.0"), Decimal("1000.0")
             )
             is False
-        ), "Expected failure due to leverage limit" 
+        ), "Expected failure due to leverage limit"

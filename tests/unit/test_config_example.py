@@ -16,9 +16,7 @@ import unittest
 from unittest.mock import patch
 
 # Add parent directory to path to import from project
-sys.path.append(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
 class TestConfigExample(unittest.TestCase):
@@ -28,9 +26,7 @@ class TestConfigExample(unittest.TestCase):
         """Set up test environment"""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.example_script = os.path.join(
-            os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            ),
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "examples",
             "config_example.py",
         )
@@ -77,9 +73,7 @@ class TestConfigExample(unittest.TestCase):
             cyberdelta_config_example = os.path.join(
                 project_root, "cyberdelta", "config", "config.yaml.example"
             )
-            root_config_example = os.path.join(
-                project_root, "config", "config.example.yaml"
-            )
+            root_config_example = os.path.join(project_root, "config", "config.example.yaml")
             home_config_example = os.path.join(
                 self.temp_dir.name, ".cyberdelta", "secrets.yaml.example"
             )
@@ -214,9 +208,7 @@ exchanges:
         exit_code = os.system(command)
 
         # Check that the script executed successfully
-        self.assertEqual(
-            exit_code, 0, f"Display config failed with exit code {exit_code}"
-        )
+        self.assertEqual(exit_code, 0, f"Display config failed with exit code {exit_code}")
 
 
 if __name__ == "__main__":

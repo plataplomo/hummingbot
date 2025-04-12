@@ -19,6 +19,7 @@ class SizedOpportunity:
     short_size: Decimal
     expected_profit: Decimal
 
+
 # Ensure Decimal is used for price/quantity in Order creation
 def create_mock_order(
     side: OrderSide = OrderSide.BUY,
@@ -39,10 +40,11 @@ def create_mock_order(
         time=int(datetime.now(UTC).timestamp() * 1000),
     )
 
+
 # Update SizedOpportunity usage if necessary
 # sized_opportunity = SizedOpportunity(
 #     opportunity=mock_opportunity,
 #     long_size=Decimal("0.5"), # Use Decimal
 #     short_size=Decimal("0.5"), # Use Decimal
 #     expected_profit=Decimal("5.0") # Use Decimal
-# ) 
+# )

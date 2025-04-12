@@ -79,12 +79,8 @@ class TestFailureScenarios:
         )
         await real_portfolio_tracker.initialize()
         ts = datetime.now(UTC)
-        mock_bp_api.set_mock_ticker(
-            create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts)
-        )
-        mock_hl_api.set_mock_ticker(
-            create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts)
-        )
+        mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts))
+        mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts))
 
         # Configure mock_bp to consistently fail order placement
         error_message = "Simulated API error during order placement"
@@ -92,9 +88,7 @@ class TestFailureScenarios:
             APIError(error_message, exchange_code=target_exchange),
             method_name="place_order",
         )
-        logger.info(
-            f"Configured {target_exchange} mock to fail place_order with: {error_message}"
-        )
+        logger.info(f"Configured {target_exchange} mock to fail place_order with: {error_message}")
 
         # Create a sized opportunity (details don't matter much as it should fail)
         sized_opportunity = SizedOpportunity(
@@ -108,13 +102,9 @@ class TestFailureScenarios:
         )
 
         # 2. Trigger Failures until Breaker Trips
-        breaker = circuit_breaker_system.get_exchange_breaker(
-            target_exchange, target_breaker_type
-        )
+        breaker = circuit_breaker_system.get_exchange_breaker(target_exchange, target_breaker_type)
         assert breaker is not None, "Target exchange breaker not found"
-        max_failures_to_trip = (
-            breaker.error_threshold
-        )  # Get threshold from the breaker instance
+        max_failures_to_trip = breaker.error_threshold  # Get threshold from the breaker instance
 
         logger.info(
             f"Breaker '{breaker.name}' threshold: {max_failures_to_trip}. Current state: {breaker.state.name}"
@@ -130,9 +120,7 @@ class TestFailureScenarios:
                 logger.info(f"Breaker tripped after {i + 1} attempts.")
                 break
         else:  # This else belongs to the for loop
-            pytest.fail(
-                f"Circuit breaker did not trip after {max_failures_to_trip + 1} attempts."
-            )
+            pytest.fail(f"Circuit breaker did not trip after {max_failures_to_trip + 1} attempts.")
 
         # 3. Verify Breaker State and Rejection
         assert breaker.state == BreakerState.OPEN, "Breaker should be OPEN"

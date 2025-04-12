@@ -153,9 +153,7 @@ class TestFundingRateValidator:
         assert all(p["symbol"] == "BTC" for p in predictions)
 
         # Get predictions for a specific exchange and symbol
-        predictions = validator.get_recent_predictions(
-            exchange="hyperliquid", symbol="BTC"
-        )
+        predictions = validator.get_recent_predictions(exchange="hyperliquid", symbol="BTC")
         assert len(predictions) == 1
         assert predictions[0]["exchange"] == "hyperliquid"
         assert predictions[0]["symbol"] == "BTC"

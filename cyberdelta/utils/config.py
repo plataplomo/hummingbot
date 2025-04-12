@@ -86,7 +86,7 @@ class Config:
                 self.set(config_path, value)
                 logger.debug(f"Set configuration {config_path} from environment variable {key}")
 
-    def get(self, key: str, default: Any | None = None) -> Any: 
+    def get(self, key: str, default: Any | None = None) -> Any:
         """
         Get a configuration value.
 
@@ -108,7 +108,7 @@ class Config:
 
         return value
 
-    def set(self, key: str, value: Any) -> None: 
+    def set(self, key: str, value: Any) -> None:
         """
         Set a configuration value.
 

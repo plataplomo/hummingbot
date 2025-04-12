@@ -51,11 +51,11 @@ class ExecutionResult:
     # Non-default fields first
     execution_id: str
     status: ExecutionStatus
-    timestamp: int # Moved before fields with defaults
+    timestamp: int  # Moved before fields with defaults
 
     # Default fields
     error: str | None = None
-    verification_results: dict[str, Any] | None = None # Explicitly use None as default
+    verification_results: dict[str, Any] | None = None  # Explicitly use None as default
     abort_details: dict[str, Any] | None = None
     compensation_result: dict[str, Any] | None = None
     first_exchange: str | None = None
@@ -247,9 +247,7 @@ class OrderVerifier:
             ) + f" Order {order_id} not found in exchange API"
             verification_details["api_order"] = None
         else:
-            api_order_dict = (
-                api_order.to_dict() if hasattr(api_order, "to_dict") else api_order
-            )
+            api_order_dict = api_order.to_dict() if hasattr(api_order, "to_dict") else api_order
             verification_details["api_order"] = api_order_dict
 
             # Check if order is filled in API state
@@ -261,9 +259,8 @@ class OrderVerifier:
             if api_status != OrderStatus.FILLED:
                 verification_success = False
                 verification_error = (
-                    (verification_error or "")
-                    + f" Order {order_id} not filled in API state: {api_status}"
-                )
+                    verification_error or ""
+                ) + f" Order {order_id} not filled in API state: {api_status}"
 
         # Check fills
         verification_details["recent_fills"] = recent_fills
@@ -620,7 +617,7 @@ class SynchronizedOrderSubmissionService:
             status=ExecutionStatus.EXECUTING,
             timestamp=int(time.time() * 1000),
         )
-        execution_context.result = exec_result # Link result to context early
+        execution_context.result = exec_result  # Link result to context early
 
         first_leg_success = False
         try:
@@ -694,7 +691,7 @@ class SynchronizedOrderSubmissionService:
             await self.execution_coordinator.add_checkpoint(
                 execution_context, "filled_first_leg", exec_result.first_fill
             )
-            first_leg_success = True # Mark first leg as successful
+            first_leg_success = True  # Mark first leg as successful
 
             # Verify first leg execution/fill
             fill_verification = await self.order_verifier.verify_order_execution(
@@ -782,7 +779,7 @@ class SynchronizedOrderSubmissionService:
 
             logger.info(f"[{exec_result.execution_id}] Both legs completed successfully.")
             exec_result.status = ExecutionStatus.COMPLETED
-            return exec_result.to_dict() # Return as dict
+            return exec_result.to_dict()  # Return as dict
 
         except Exception as e:
             logger.error(
@@ -799,7 +796,7 @@ class SynchronizedOrderSubmissionService:
                 compensation_result = await self._compensate_single_leg(
                     first_exchange,
                     exec_result.first_order_id,
-                    exec_result.first_fill, # Pass fill details
+                    exec_result.first_fill,  # Pass fill details
                 )
                 exec_result.compensation_result = compensation_result
                 await self.execution_coordinator.add_checkpoint(
@@ -813,9 +810,11 @@ class SynchronizedOrderSubmissionService:
                     exec_result.error += "; COMPENSATION FAILED - MANUAL INTERVENTION REQUIRED"
                 else:
                     logger.info(f"[{exec_result.execution_id}] Compensation successful.")
-                    exec_result.status = ExecutionStatus.PARTIALLY_COMPLETED # Or FAILED_COMPENSATED
+                    exec_result.status = (
+                        ExecutionStatus.PARTIALLY_COMPLETED
+                    )  # Or FAILED_COMPENSATED
 
-            return exec_result.to_dict() # Return as dict
+            return exec_result.to_dict()  # Return as dict
 
     async def _compensate_single_leg(
         self, exchange: str, order_id: str, fill: dict[str, Any] | Order | None
@@ -859,7 +858,7 @@ class SynchronizedOrderSubmissionService:
                 side=compensation_side,
                 order_type=OrderType.MARKET,
                 quantity=filled_qty,
-                reduce_only=True, # Ensure it only closes the position
+                reduce_only=True,  # Ensure it only closes the position
             )
 
             if not comp_order or not comp_order.id:
@@ -891,11 +890,11 @@ class SynchronizedOrderSubmissionService:
         # Should return an Order object with symbol, side, type, quantity, price etc.
         if leg_type == "long":
             return Order(
-                id=None, # Will be assigned by exchange
-                symbol=opportunity.symbol, # Assuming opportunity has symbol
+                id=None,  # Will be assigned by exchange
+                symbol=opportunity.symbol,  # Assuming opportunity has symbol
                 side=OrderSide.BUY,
-                type=OrderType.LIMIT, # Or MARKET depending on strategy
-                quantity=opportunity.long_size_base, # Assuming size in base asset
+                type=OrderType.LIMIT,  # Or MARKET depending on strategy
+                quantity=opportunity.long_size_base,  # Assuming size in base asset
                 price=opportunity.long_price,
             )
         elif leg_type == "short":
@@ -932,7 +931,10 @@ class SynchronizedOrderSubmissionService:
         all_success = True
         error_msg = ""
 
-        if execution_result.status in [ExecutionStatus.COMPLETED, ExecutionStatus.PARTIALLY_COMPLETED]:
+        if execution_result.status in [
+            ExecutionStatus.COMPLETED,
+            ExecutionStatus.PARTIALLY_COMPLETED,
+        ]:
             order_check = await self._verify_orders(opportunity, execution_result)
             results["orders"] = order_check
             if not order_check.get("success"):

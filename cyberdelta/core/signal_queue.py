@@ -50,7 +50,9 @@ class PrioritySignalQueue:
         """
         self.config = config
         self.circuit_breaker_system = circuit_breaker_system
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}") # Initialize logger
+        self.logger = logging.getLogger(
+            f"{__name__}.{self.__class__.__name__}"
+        )  # Initialize logger
         self.circuit_breaker = circuit_breaker_system
 
         # Priority queue: [(negative_utility_score, unique_id, signal)]
@@ -149,21 +151,35 @@ class PrioritySignalQueue:
             symbol=opportunity.symbol,
             signal_type=SignalType.ENTER_LONG,  # TODO: Adjust based on opportunity
             timestamp=datetime.now(UTC),
-            price=Decimal('0'),  # Default to Decimal zero
+            price=Decimal("0"),  # Default to Decimal zero
             expiration=opportunity.expiration if hasattr(opportunity, "expiration") else None,
             metadata={
-                "utility_score": opportunity.utility_score if hasattr(opportunity, "utility_score") else 0.0,
+                "utility_score": opportunity.utility_score
+                if hasattr(opportunity, "utility_score")
+                else 0.0,
                 "confidence_score": opportunity.confidence_score
                 if hasattr(opportunity, "confidence_score")
                 else None,
-                "expected_profit": opportunity.expected_profit if hasattr(opportunity, "expected_profit") else Decimal('0'),
-                "basis_volatility": opportunity.basis_volatility if hasattr(opportunity, "basis_volatility") else None,
+                "expected_profit": opportunity.expected_profit
+                if hasattr(opportunity, "expected_profit")
+                else Decimal("0"),
+                "basis_volatility": opportunity.basis_volatility
+                if hasattr(opportunity, "basis_volatility")
+                else None,
                 "long_exchange": opportunity.long_exchange,
                 "short_exchange": opportunity.short_exchange,
-                "long_funding_rate": opportunity.long_funding_rate if hasattr(opportunity, "long_funding_rate") else None,
-                "short_funding_rate": opportunity.short_funding_rate if hasattr(opportunity, "short_funding_rate") else None,
-                "net_funding_differential": opportunity.net_funding_differential if hasattr(opportunity, "net_funding_differential") else None,
-                "adjusted_thresholds": opportunity.adjusted_thresholds if hasattr(opportunity, "adjusted_thresholds") else None,
+                "long_funding_rate": opportunity.long_funding_rate
+                if hasattr(opportunity, "long_funding_rate")
+                else None,
+                "short_funding_rate": opportunity.short_funding_rate
+                if hasattr(opportunity, "short_funding_rate")
+                else None,
+                "net_funding_differential": opportunity.net_funding_differential
+                if hasattr(opportunity, "net_funding_differential")
+                else None,
+                "adjusted_thresholds": opportunity.adjusted_thresholds
+                if hasattr(opportunity, "adjusted_thresholds")
+                else None,
             },
         )
 
@@ -361,15 +377,17 @@ class PrioritySignalQueue:
         try:
             # Check circuit breakers
             if self.circuit_breaker:
-                exchange = signal.metadata.get("exchange") # Attempt to get exchange from metadata
+                exchange = signal.metadata.get("exchange")  # Attempt to get exchange from metadata
                 if not exchange:
-                     # Try inferring from symbol if possible (e.g., "EXCHANGE-SYMBOL")
-                     parts = signal.symbol.split('-', 1)
-                     if len(parts) == 2:
-                          exchange = parts[0].lower() # Assume first part is exchange
-                     else:
-                          logger.warning(f"Cannot determine exchange for circuit breaker check on signal {signal.symbol}. Skipping check.")
-                          return True # Allow signal if exchange unknown
+                    # Try inferring from symbol if possible (e.g., "EXCHANGE-SYMBOL")
+                    parts = signal.symbol.split("-", 1)
+                    if len(parts) == 2:
+                        exchange = parts[0].lower()  # Assume first part is exchange
+                    else:
+                        logger.warning(
+                            f"Cannot determine exchange for circuit breaker check on signal {signal.symbol}. Skipping check."
+                        )
+                        return True  # Allow signal if exchange unknown
 
                 # Use check_symbol which implicitly checks exchange and global
                 can_exec, reason = self.circuit_breaker.can_execute(exchange, signal.symbol)
@@ -605,20 +623,26 @@ class PrioritySignalQueue:
 
                 if not exchanges_to_check:
                     # Try to infer from symbol if possible
-                    parts = signal.symbol.split('-', 1)
+                    parts = signal.symbol.split("-", 1)
                     if len(parts) == 2:
                         inferred_exchange = parts[0].lower()
                         exchanges_to_check.add(inferred_exchange)
-                        self.logger.debug(f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} for CB check.")
+                        self.logger.debug(
+                            f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} for CB check."
+                        )
                     else:
-                        self.logger.warning(f"Cannot determine exchange for circuit breaker check on signal {signal.symbol}. Skipping check.")
-                        return True # Allow signal if exchange unknown
+                        self.logger.warning(
+                            f"Cannot determine exchange for circuit breaker check on signal {signal.symbol}. Skipping check."
+                        )
+                        return True  # Allow signal if exchange unknown
 
                 # Check each relevant exchange and the specific symbol
                 for ex in exchanges_to_check:
                     can_exec, reason = self.circuit_breaker.can_execute(ex, signal.symbol)
                     if not can_exec:
-                        self.logger.warning(f"Signal for {signal.symbol} on exchange {ex} blocked by circuit breaker: {reason}")
+                        self.logger.warning(
+                            f"Signal for {signal.symbol} on exchange {ex} blocked by circuit breaker: {reason}"
+                        )
                         return False
 
             # All checks passed

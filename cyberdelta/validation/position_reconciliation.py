@@ -249,7 +249,7 @@ class PositionReconciliationSystem:
             # Add a small absolute minimum threshold to catch discrepancies when positions are very small
             # or one is zero (e.g., detecting 0 vs 0.001)
             # This value should be configurable or based on asset precision.
-            minimum_absolute_threshold = Decimal("0.000001") 
+            minimum_absolute_threshold = Decimal("0.000001")
             final_threshold = max(size_threshold_amount, minimum_absolute_threshold)
             # --- End Threshold calculation fix ---
 
@@ -258,8 +258,8 @@ class PositionReconciliationSystem:
                 discrepancy_details = {
                     "symbol": symbol,
                     "type": "size",
-                    "exchange_value": str(exch_pos.size), # Keep original string representation
-                    "local_value": str(local_pos.size), # Keep original string representation
+                    "exchange_value": str(exch_pos.size),  # Keep original string representation
+                    "local_value": str(local_pos.size),  # Keep original string representation
                     "discrepancy": str(size_discrepancy),
                 }
                 discrepancies.append(discrepancy_details)

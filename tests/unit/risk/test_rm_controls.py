@@ -4,14 +4,13 @@
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytest
-
 from cyberdelta.core.models import ArbitrageOpportunity
 from cyberdelta.core.risk_manager import RiskManager
 
 # Note: Fixtures risk_manager, mock_config, mock_circuit_breaker,
 #       mock_funding_validator, sample_opportunity
 #       are provided by tests/unit/risk/conftest.py
+
 
 class TestRiskManagerControls:
     """Test suite for RiskManager _apply_portfolio_level_controls."""
@@ -22,11 +21,11 @@ class TestRiskManagerControls:
         mock_config: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
-        sample_opportunity: ArbitrageOpportunity
+        sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Verify portfolio controls skip complex adjustments but run safety checks in simple mode."""
         # --- Arrange ---
-        min_factor_test_val = Decimal("0.2") # Corresponds to default mock_config_values
+        min_factor_test_val = Decimal("0.2")  # Corresponds to default mock_config_values
         test_overrides = {
             "risk.use_simple_sizing_path": True,
             "risk.circuit_breaker_recovery_factor": "0.3",
@@ -46,14 +45,21 @@ class TestRiskManagerControls:
 
         # Mock safety systems: CB tripped globally, low validation factor
         mock_circuit_breaker.can_execute.return_value = (False, "Global CB Tripped Test")
-        mock_funding_validator.get_validation_metrics.return_value = {"rmse": 1.0, "bias": 1.0} # High error
+        mock_funding_validator.get_validation_metrics.return_value = {
+            "rmse": 1.0,
+            "bias": 1.0,
+        }  # High error
 
         risk_manager.circuit_breaker_system = mock_circuit_breaker
         risk_manager.funding_rate_validator = mock_funding_validator
-        risk_manager.min_validation_factor = float(min_factor_test_val) # Ensure instance uses correct value
+        risk_manager.min_validation_factor = float(
+            min_factor_test_val
+        )  # Ensure instance uses correct value
 
         # --- Act ---
-        adjusted_size = risk_manager._apply_portfolio_level_controls(initial_size, sample_opportunity)
+        adjusted_size = risk_manager._apply_portfolio_level_controls(
+            initial_size, sample_opportunity
+        )
 
         # --- Assert ---
         risk_manager._apply_volatility_adjustment.assert_not_called()
@@ -71,4 +77,4 @@ class TestRiskManagerControls:
 
     # TODO: Add tests for standard path (_apply_portfolio_level_controls when simple_path=False)
     #       - Test each adjustment (Volatility, Drawdown, Correlation) applies correctly
-    #       - Test safety systems still apply in standard mode 
+    #       - Test safety systems still apply in standard mode

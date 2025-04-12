@@ -117,7 +117,8 @@ class PortfolioTracker:
             # Create tasks for initial data collection
             initialization_tasks.append(self._fetch_exchange_balances(exchange_id))
             initialization_tasks.append(self._fetch_exchange_positions(exchange_id))
-            initialization_tasks.append(self._fetch_exchange_orders(exchange_id))
+            # Consider fetching open orders too? Maybe not essential for pure init.
+            # initialization_tasks.append(self._fetch_exchange_orders(exchange_id))
 
         logger.info(
             f"PortfolioTracker {id(self)}: About to gather init tasks. "
@@ -125,128 +126,210 @@ class PortfolioTracker:
         )
         # Wait for all initialization tasks to complete
         results = await asyncio.gather(*initialization_tasks, return_exceptions=True)
-        logger.info(
-            f"PortfolioTracker {id(self)}: Finished gathering init tasks. "
-            f"Balances after: {self._balances}"
-        )
+        # Restore logging check immediately after gather:
+        logger.info(f"---> State of self._balances immediately after init gather: {self._balances}")
 
         # Process results for errors - **MODIFIED FOR STRICTNESS**
         initialization_failed = False
-        failed_tasks_info = [] # Store info about failed tasks
+        failed_tasks_info = []  # Store info about failed tasks
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 # Attempt to determine which task failed (requires mapping index to task type/exchange)
                 # This mapping is implicit based on the order tasks were appended.
                 # For now, log the generic error and its index.
-                task_description = f"task index {i}" # Basic description
+                task_description = f"task index {i}"  # Basic description
                 # TODO: Improve task description mapping if possible
                 logger.critical(
                     f"CRITICAL ERROR during PortfolioTracker initialization ({task_description}): {result}",
-                    exc_info=result # Pass the exception for traceback logging
+                    exc_info=result,  # Pass the exception for traceback logging
                 )
                 failed_tasks_info.append(f"{task_description}: {result}")
                 initialization_failed = True
 
         if initialization_failed:
             error_summary = "; ".join(failed_tasks_info)
-            raise RuntimeError(
+            # Keep logging critical, but don't raise exception here, allow checks later
+            logger.critical(
                 f"PortfolioTracker failed to initialize essential data from one or more exchanges. "
-                f"Cannot proceed. Errors: {error_summary}"
+                f"Cannot proceed reliably. Errors: {error_summary}"
             )
+            # raise RuntimeError(...) # Optional: Re-enable if init failure should halt everything
         # --- END MODIFICATION ---
+
+        # --- Set initial high watermark ---
+        initial_capital = self.get_total_capital()
+        if isinstance(initial_capital, Decimal) and initial_capital > Decimal("0.0"):
+            self._high_watermark = initial_capital
+            logger.info(f"Initial high watermark set to: {self._high_watermark}")
+        else:
+            logger.warning(f"Initial capital is {initial_capital}. High watermark not set.")
+        # --------------------------------
 
         logger.info("Portfolio state initialized")
 
     async def _fetch_exchange_balances(self, exchange_id: str) -> bool:
-        """Fetch current balances from an exchange and store as Balance objects."""
+        logger.debug(f"[FETCH_BALANCES:{exchange_id}] Entering function.")  # ENTRY LOG
         try:
-            api_client = self.api_clients[exchange_id]
-            balances_data = await api_client.get_balances()
+            client = self.api_clients.get(exchange_id)
+            if not client:
+                logger.error(f"[FETCH_BALANCES:{exchange_id}] No API client found.")
+                return False  # EXIT PATH 1
 
-            # ---> ADD DEBUG LOGGING <---
+            logger.debug(f"[FETCH_BALANCES:{exchange_id}] Fetching balances from API...")
+            balances_list = await client.get_balances()
             logger.debug(
-                f"_fetch_exchange_balances ({exchange_id}): Received balances_data: "
-                f"{balances_data} (Type: {type(balances_data)})"
-            )
-            # ---> END DEBUG LOGGING <---
+                f"[FETCH_BALANCES:{exchange_id}] Raw API response: {balances_list} (Type: {type(balances_list)})",
+                stacklevel=2,
+            )  # RAW RESPONSE LOG
 
-            if isinstance(balances_data, dict):
-                updated_balances = {}
-                # ---> ADD DEBUG LOGGING <---
-                logger.debug(f"_fetch_exchange_balances ({exchange_id}): Starting balance processing loop.")
-                # ---> END DEBUG LOGGING <---
-                for asset, balance_info in balances_data.items():
-                    # ---> ADD DEBUG LOGGING <---
-                    logger.debug(
-                        f"_fetch_exchange_balances ({exchange_id}): Processing asset='{asset}', "
-                        f"balance_info='{balance_info}', type='{type(balance_info)}'"
-                    )
-                    # ---> END DEBUG LOGGING <---
-                    balance_instance = None # Initialize to None
-                    if isinstance(balance_info, Balance): # Already a Balance object
-                        logger.debug(f"_fetch_exchange_balances ({exchange_id}): Asset '{asset}' is already a Balance object.")
-                        balance_instance = balance_info
-                    elif isinstance(balance_info, dict): # Attempt to create from dict
-                        logger.debug(f"_fetch_exchange_balances ({exchange_id}): Asset '{asset}' is dict, attempting Balance creation.")
-                        try:
-                            # Adapt based on expected dict structure from API
-                            balance_instance = Balance(\
-                                asset=asset,\
-                                total=Decimal(balance_info.get('total', '0')),\
-                                available=Decimal(balance_info.get('available', balance_info.get('total', '0'))) # Use total if available missing
-                            )
-                            logger.debug(f"_fetch_exchange_balances ({exchange_id}): Successfully created Balance for '{asset}' from dict.")
-                        except (TypeError, KeyError, InvalidOperation) as e:
-                            logger.error(f"Error creating Balance object from dict for {asset} on {exchange_id}: {e} - Data: {balance_info}", exc_info=True)
-                    elif isinstance(balance_info, (int, float, str, Decimal)): # Attempt to create from raw value
-                        logger.debug(f"_fetch_exchange_balances ({exchange_id}): Asset '{asset}' is value type, attempting Balance creation.")
-                        try:
-                            balance_instance = Balance(\
-                               asset=asset,\
-                               total=Decimal(balance_info),\
-                               available=Decimal(balance_info)\
-                            )
-                            logger.debug(f"_fetch_exchange_balances ({exchange_id}): Successfully created Balance for '{asset}' from value.")
-                        except (TypeError, InvalidOperation) as e:
-                           logger.error(f"Error creating Balance object from value for {asset} on {exchange_id}: {e} - Value: {balance_info}", exc_info=True)
-                    else:
-                        logger.warning(f"Unsupported balance data type for {asset} on {exchange_id}: {type(balance_info)}")
+            if balances_list is None:
+                logger.error(f"[FETCH_BALANCES:{exchange_id}] API call returned None.")
+                return False  # EXIT PATH 2
 
-                    # ---> ADD DEBUG LOGGING <---
+            # --- HANDLE DICT or LIST ---
+            updated_balances = {}
+            processed = False
+            if isinstance(balances_list, dict):
+                logger.debug(f"[FETCH_BALANCES:{exchange_id}] Processing DICT.")
+                for asset, balance_info in balances_list.items():
+                    balance_instance = self._parse_balance_info(exchange_id, asset, balance_info)
                     if balance_instance:
                         updated_balances[asset] = balance_instance
-                        logger.debug(f"_fetch_exchange_balances ({exchange_id}): Added Balance for '{asset}' to updated_balances.")
+                processed = True
+            elif isinstance(balances_list, list):
+                logger.debug(f"[FETCH_BALANCES:{exchange_id}] Processing LIST.")
+                for balance_info in balances_list:
+                    # Assume list contains Balance objects or dicts needing parsing
+                    asset = None
+                    if isinstance(balance_info, Balance):
+                        asset = balance_info.asset
+                        balance_instance = balance_info
+                    elif isinstance(balance_info, dict):
+                        asset = balance_info.get("asset")  # Extract asset if it's a dict
+                        balance_instance = self._parse_balance_info(
+                            exchange_id, asset, balance_info
+                        )
                     else:
-                        logger.debug(f"_fetch_exchange_balances ({exchange_id}): No Balance object created/added for '{asset}'.")
-                    # ---> END DEBUG LOGGING <---
+                        logger.warning(
+                            f"[FETCH_BALANCES:{exchange_id}] Unsupported item type in list: {type(balance_info)}"
+                        )
+                        balance_instance = None
 
-                # ---> ADD DEBUG LOGGING <---
-                logger.debug(f"_fetch_exchange_balances ({exchange_id}): Finished balance processing loop.")
-                # ---> END DEBUG LOGGING <---
-
-                # ---> ADD DEBUG LOGGING <---
-                logger.debug(
-                    f"_fetch_exchange_balances ({exchange_id}): Assigning updated_balances: "
-                    f"{updated_balances}. Current self._balances: {self._balances}"
-                )
-                # --------> CRITICAL LINE <--------
-                self._balances[exchange_id] = updated_balances
-                # ---> ADD DEBUG LOGGING <---
-                logger.debug(
-                    f"_fetch_exchange_balances ({exchange_id}): After assignment, self._balances: "
-                    f"{self._balances}"
-                )
-                # --------> END DEBUG LOGGING <---
-
-                self._last_update_time[exchange_id] = datetime.now(UTC)
-                logger.info(f"Fetched and processed balances for {exchange_id}")
-                return True
+                    if balance_instance and asset:  # Ensure we have a valid object and asset name
+                        updated_balances[asset] = balance_instance
+                    else:
+                        logger.warning(
+                            f"[FETCH_BALANCES:{exchange_id}] Could not process balance item: {balance_info}"
+                        )  # Log unprocessed items
+                processed = True
             else:
-                logger.error(f"Fetched balance data for {exchange_id} is not a dictionary: {type(balances_data)}")
-                return False
+                logger.error(
+                    f"[FETCH_BALANCES:{exchange_id}] Fetched data is not dict or list: {type(balances_list)}"
+                )
+                # EXIT PATH 3 (implicitly leads to processed=False)
+            # --- END HANDLE DICT or LIST ---
+
+            if processed and updated_balances:  # Ensure we actually processed something meaningful
+                logger.info(
+                    f"[FETCH_BALANCES:{exchange_id}] BEFORE assign: self._balances[{exchange_id}] = {self._balances.get(exchange_id)}. updated_balances = {updated_balances}"
+                )
+                self._balances[exchange_id] = updated_balances  # CRITICAL LINE
+                logger.info(
+                    f"[FETCH_BALANCES:{exchange_id}] AFTER assign: self._balances[{exchange_id}] = {self._balances.get(exchange_id)}"
+                )
+                self._last_update_time[exchange_id] = datetime.now(UTC)
+                logger.info(
+                    f"[FETCH_BALANCES:{exchange_id}] Successfully processed. Returning True."
+                )
+                return True  # EXIT PATH 4 (SUCCESS)
+            elif processed and not updated_balances:
+                logger.warning(
+                    f"[FETCH_BALANCES:{exchange_id}] Processed the response, but resulting updated_balances dict is empty. Response was: {balances_list}. Returning False."
+                )
+                return False  # EXIT PATH 5 (Processed but empty)
+            else:
+                # This path covers the case where it wasn't a dict or list
+                logger.error(
+                    f"[FETCH_BALANCES:{exchange_id}] Failed to process balances. Processed flag is False. Returning False."
+                )
+                return False  # EXIT PATH 6 (Failed processing)
+
         except Exception as e:
-            logger.error(f"Error fetching balances from {exchange_id}: {e}", exc_info=True)
-            return False
+            logger.error(
+                f"[FETCH_BALANCES:{exchange_id}] Exception during fetch/process: {e}", exc_info=True
+            )
+            return False  # EXIT PATH 7 (Exception)
+
+    def _parse_balance_info(
+        self, exchange_id: str, asset: str | None, balance_info: Any
+    ) -> Balance | None:
+        """Helper to parse various balance info formats into a Balance object."""
+        if not asset:
+            logger.warning(
+                f"_parse_balance_info ({exchange_id}): Missing asset name for balance_info: {balance_info}"
+            )
+            return None
+
+        if isinstance(balance_info, Balance):
+            # Already a Balance object, ensure asset matches if possible
+            if balance_info.asset != asset:
+                logger.warning(
+                    f"Asset mismatch in _parse_balance_info: expected {asset}, got {balance_info.asset}"
+                )
+                # Decide: trust provided asset or object's asset? Let's trust object's asset.
+                # return balance_info # Returning as is
+            return balance_info  # Trust object
+
+        elif isinstance(balance_info, dict):
+            try:
+                total = Decimal(str(balance_info.get("total", "0")))
+                # Use 'available' if present, otherwise default to 'free', else default to 'total'
+                available_str = balance_info.get("available")
+                if available_str is None:
+                    available_str = balance_info.get("free")  # Backpack uses 'free'
+                if available_str is None:
+                    available = total  # Default available to total if neither is present
+                else:
+                    available = Decimal(str(available_str))
+
+                # Handle free/locked explicitly if present
+                free = available  # Default free to available
+                locked = total - available  # Default locked calculation
+                if "free" in balance_info:
+                    free = Decimal(str(balance_info["free"]))
+                if "locked" in balance_info:
+                    locked = Decimal(str(balance_info["locked"]))
+
+                # Recalculate total/available if free/locked seem more reliable (optional)
+                # if "free" in balance_info and "locked" in balance_info:
+                #     total = free + locked
+                #     available = free
+
+                return Balance(
+                    asset=asset, total=total, available=available, free=free, locked=locked
+                )
+            except (InvalidOperation, TypeError, KeyError) as e:
+                logger.error(
+                    f"Error creating Balance object from dict for {asset} on {exchange_id}: {e} - Data: {balance_info}"
+                )
+                return None
+        elif isinstance(balance_info, (Decimal, int, float, str)):
+            # Treat as total balance if just a number/string
+            try:
+                total = Decimal(str(balance_info))
+                return Balance(
+                    asset=asset, total=total, available=total, free=total, locked=Decimal("0")
+                )
+            except (InvalidOperation, TypeError):
+                logger.error(
+                    f"Could not parse primitive balance info for {asset} on {exchange_id}: {balance_info}"
+                )
+                return None
+        else:
+            logger.warning(
+                f"Unsupported balance data type for {asset} on {exchange_id}: {type(balance_info)}"
+            )
+            return None
 
     async def _fetch_exchange_positions(self, exchange_id: str) -> bool:
         """Fetch current positions from an exchange."""
@@ -257,32 +340,47 @@ class PortfolioTracker:
             if isinstance(positions_data, list):
                 updated_positions = {}
                 for position_info in positions_data:
-                    if isinstance(position_info, Position): # Handle Position object directly
+                    if isinstance(position_info, Position):  # Handle Position object directly
                         position_instance = position_info
                         if position_instance.symbol:
-                             updated_positions[position_instance.symbol] = position_instance
+                            updated_positions[position_instance.symbol] = position_instance
                         else:
-                             logger.warning(f"Fetched position object missing symbol on {exchange_id}: {position_instance}")
-                    elif isinstance(position_info, dict): # Handle dict representation
+                            logger.warning(
+                                f"Fetched position object missing symbol on {exchange_id}: {position_instance}"
+                            )
+                    elif isinstance(position_info, dict):  # Handle dict representation
                         try:
                             # Ensure necessary fields are present and create Position object
                             # Convert numeric strings/floats to Decimal
-                            for key in ["size", "entry_price", "mark_price", "liquidation_price", "leverage", "unrealized_pnl"]:
+                            for key in [
+                                "size",
+                                "entry_price",
+                                "mark_price",
+                                "liquidation_price",
+                                "leverage",
+                                "unrealized_pnl",
+                            ]:
                                 if key in position_info and position_info[key] is not None:
                                     position_info[key] = Decimal(str(position_info[key]))
                             # Convert side string to enum
                             if "side" in position_info and isinstance(position_info["side"], str):
                                 position_info["side"] = OrderSide(position_info["side"].lower())
-                            
+
                             position_instance = Position(**position_info)
                             if position_instance.symbol:
                                 updated_positions[position_instance.symbol] = position_instance
                             else:
-                                logger.warning(f"Fetched position dict missing symbol on {exchange_id}: {position_info}")
+                                logger.warning(
+                                    f"Fetched position dict missing symbol on {exchange_id}: {position_info}"
+                                )
                         except (TypeError, KeyError, InvalidOperation, ValueError) as e:
-                            logger.error(f"Error creating Position object from dict on {exchange_id}: {e} - Data: {position_info}")
+                            logger.error(
+                                f"Error creating Position object from dict on {exchange_id}: {e} - Data: {position_info}"
+                            )
                     else:
-                        logger.warning(f"Skipping unrecognized position data type on {exchange_id}: {type(position_info)}")
+                        logger.warning(
+                            f"Skipping unrecognized position data type on {exchange_id}: {type(position_info)}"
+                        )
 
                 # Update internal state, keyed by symbol
                 self._positions[exchange_id] = updated_positions
@@ -290,7 +388,9 @@ class PortfolioTracker:
                 logger.info(f"Fetched and processed positions for {exchange_id}")
                 return True
             else:
-                logger.error(f"Fetched position data for {exchange_id} is not a list: {type(positions_data)}")
+                logger.error(
+                    f"Fetched position data for {exchange_id} is not a list: {type(positions_data)}"
+                )
                 return False
         except Exception as e:
             logger.error(f"Error fetching positions from {exchange_id}: {e}", exc_info=True)
@@ -361,22 +461,24 @@ class PortfolioTracker:
 
             # Check if reconciliation is needed
             now = datetime.now(UTC)
-            last_check = self._last_reconciliation_time.get(exchange_id, datetime.min.replace(tzinfo=UTC))
+            last_check = self._last_reconciliation_time.get(
+                exchange_id, datetime.min.replace(tzinfo=UTC)
+            )
             # Ensure last_check is timezone-aware before comparison
             if last_check.tzinfo is None:
-                 last_check = last_check.replace(tzinfo=UTC)
+                last_check = last_check.replace(tzinfo=UTC)
 
             if (now - last_check).total_seconds() >= self.reconciliation_interval:
                 update_tasks.append(self._fetch_exchange_balances(exchange_id))
                 update_tasks.append(self._fetch_exchange_positions(exchange_id))
                 update_tasks.append(self._fetch_exchange_orders(exchange_id))
-                self._last_reconciliation_time[exchange_id] = now # Store UTC now
+                self._last_reconciliation_time[exchange_id] = now  # Store UTC now
             else:
                 # Only fetch orders if not reconciling
                 update_tasks.append(self._fetch_exchange_orders(exchange_id))
 
             # Update the general last update time regardless
-            self._last_update_time[exchange_id] = now # Store UTC now
+            self._last_update_time[exchange_id] = now  # Store UTC now
 
         # Wait for all update tasks to complete
         results = await asyncio.gather(*update_tasks, return_exceptions=True)
@@ -427,8 +529,7 @@ class PortfolioTracker:
         # Store or update the position keyed by SYMBOL
         self._positions[exchange_id][position.symbol] = position
         logger.debug(
-            f"Updated position {position.symbol} on {exchange_id}: "
-            f"{position.side} {position.size}"
+            f"Updated position {position.symbol} on {exchange_id}: {position.side} {position.size}"
         )
 
     def update_balance(self, exchange_id: str, asset: str, amount: Decimal | Balance) -> None:
@@ -442,23 +543,36 @@ class PortfolioTracker:
         if isinstance(amount, Balance):
             balance_obj = amount
             if balance_obj.asset != asset:
-                 logger.warning(f"Asset mismatch in update_balance: provided {asset}, Balance object has {balance_obj.asset}")
-                 # Use asset from Balance object or raise error?
-                 asset = balance_obj.asset # Prioritize object's asset
+                logger.warning(
+                    f"Asset mismatch in update_balance: provided {asset}, Balance object has {balance_obj.asset}"
+                )
+                # Use asset from Balance object or raise error?
+                asset = balance_obj.asset  # Prioritize object's asset
         elif isinstance(amount, Decimal):
-             # Create a Balance object from the Decimal amount
-             balance_obj = Balance(asset=asset, total=amount, available=amount)
+            # Create a Balance object from the Decimal amount
+            balance_obj = Balance(asset=asset, total=amount, available=amount)
         else:
-             logger.error(f"Invalid type for amount in update_balance: {type(amount)}")
-             return
+            logger.error(f"Invalid type for amount in update_balance: {type(amount)}")
+            return
 
         # Store or update the Balance object
         old_balance_obj = self._balances[exchange_id].get(asset)
         self._balances[exchange_id][asset] = balance_obj
 
+        # ADDED LOGGING
+        logger.debug(
+            f"update_balance called for {exchange_id}/{asset}. Balance object: {balance_obj}. \n"
+            f"---> self._balances state AFTER update: {self._balances}"
+        )
+        # END ADDED LOGGING
+
         # Log significant changes in total balance
-        if old_balance_obj is None or abs(balance_obj.total - old_balance_obj.total) > Decimal("0.01"):
-             logger.debug(f"Updated balance for {asset} on {exchange_id}: Total={balance_obj.total}, Available={balance_obj.available}")
+        if old_balance_obj is None or abs(balance_obj.total - old_balance_obj.total) > Decimal(
+            "0.01"
+        ):
+            logger.debug(
+                f"Updated balance for {asset} on {exchange_id}: Total={balance_obj.total}, Available={balance_obj.available}"
+            )
 
     def get_exchange_balance(self, exchange_id: str, asset: str) -> Balance | None:
         """Get the Balance object for a specific asset on an exchange."""
@@ -473,28 +587,44 @@ class PortfolioTracker:
         for exchange_balances in self._balances.values():
             for asset, balance_obj in exchange_balances.items():
                 if isinstance(balance_obj, Balance):
-                    amount = balance_obj.total # Use total from Balance object
-                    if asset == base_currency:
+                    amount = balance_obj.total  # Use total from Balance object
+                    # --- Treat USD and USDC as equivalent for now (TODO: Proper Conversion) ---
+                    if (
+                        asset == base_currency
+                        or (base_currency == "USDC" and asset == "USD")
+                        or (base_currency == "USD" and asset == "USDC")
+                    ):
+                        # ------------------------------------------------------------------------
                         total_value += amount
                     else:
                         # TODO: Price conversion logic remains the same
                         if asset != base_currency:
-                             logger.warning(f"Cannot convert {asset} to {base_currency} for total capital calculation (conversion TODO)")
-                             pass
+                            logger.warning(
+                                f"Cannot convert {asset} to {base_currency} for total capital calculation (conversion TODO)"
+                            )
+                            pass  # Ignore other assets for now
                 else:
                     # This case should ideally not happen if balances are stored correctly
-                    logger.warning(f"Stored balance for {asset} is not a Balance object: {type(balance_obj)}")
+                    logger.warning(
+                        f"Stored balance for {asset} is not a Balance object: {type(balance_obj)}"
+                    )
                     try:
                         # Attempt fallback conversion if it's just a number
                         if isinstance(balance_obj, (Decimal, int, float, str)):
                             amount = Decimal(str(balance_obj))
-                            if asset == base_currency:
-                                 total_value += amount
+                            # --- Treat USD and USDC as equivalent for now (TODO: Proper Conversion) ---
+                            if (
+                                asset == base_currency
+                                or (base_currency == "USDC" and asset == "USD")
+                                or (base_currency == "USD" and asset == "USDC")
+                            ):
+                                # ------------------------------------------------------------------------
+                                total_value += amount
                             else:
-                                 # TODO: Price conversion
-                                 pass
+                                # TODO: Price conversion
+                                pass  # Ignore other assets
                     except InvalidOperation:
-                         pass # Ignore if conversion fails
+                        pass  # Ignore if conversion fails
 
         return total_value
 
@@ -683,13 +813,13 @@ class PortfolioTracker:
             # Handle case where status might be stored as string initially
             if isinstance(order.status, str):
                 try:
-                     status_enum = OrderStatus(order.status.lower()) # Attempt conversion
-                     is_new = status_enum == OrderStatus.NEW
-                     is_partially_filled = status_enum == OrderStatus.PARTIALLY_FILLED
+                    status_enum = OrderStatus(order.status.lower())  # Attempt conversion
+                    is_new = status_enum == OrderStatus.NEW
+                    is_partially_filled = status_enum == OrderStatus.PARTIALLY_FILLED
                 except ValueError:
-                     # If string doesn't match enum value, it's not considered open
-                     is_new = False
-                     is_partially_filled = False
+                    # If string doesn't match enum value, it's not considered open
+                    is_new = False
+                    is_partially_filled = False
 
             if is_new or is_partially_filled:
                 open_orders.append(order)
@@ -736,33 +866,43 @@ class PortfolioTracker:
             state["balances"][ex_id] = {}
             for asset, balance in balances.items():
                 if isinstance(balance, Balance):
-                    state["balances"][ex_id][asset] = balance.to_dict() # Use Balance.to_dict()
+                    state["balances"][ex_id][asset] = balance.to_dict()  # Use Balance.to_dict()
                 else:
-                     # Handle non-Balance objects if they slipped through (e.g., store as string)
-                     logger.warning(f"Serializing non-Balance object for {asset} in {ex_id}: {type(balance)}")
-                     state["balances"][ex_id][asset] = str(balance)
+                    # Handle non-Balance objects if they slipped through (e.g., store as string)
+                    logger.warning(
+                        f"Serializing non-Balance object for {asset} in {ex_id}: {type(balance)}"
+                    )
+                    state["balances"][ex_id][asset] = str(balance)
 
         for ex_id, positions in self._positions.items():
             state["positions"][ex_id] = {}
             for symbol, position in positions.items():
                 if isinstance(position, Position):
-                    state["positions"][ex_id][symbol] = position.to_dict() # Use Position.to_dict()
+                    state["positions"][ex_id][symbol] = position.to_dict()  # Use Position.to_dict()
                 else:
-                    logger.warning(f"Serializing non-Position object for {symbol} in {ex_id}: {type(position)}")
+                    logger.warning(
+                        f"Serializing non-Position object for {symbol} in {ex_id}: {type(position)}"
+                    )
                     state["positions"][ex_id][symbol] = str(position)
 
         for ex_id, orders in self._orders.items():
             state["orders"][ex_id] = {}
             for order_id, order in orders.items():
                 if isinstance(order, Order):
-                    state["orders"][ex_id][order_id] = order.to_dict() # Use Order.to_dict()
+                    state["orders"][ex_id][order_id] = order.to_dict()  # Use Order.to_dict()
                 else:
-                    logger.warning(f"Serializing non-Order object for {order_id} in {ex_id}: {type(order)}")
+                    logger.warning(
+                        f"Serializing non-Order object for {order_id} in {ex_id}: {type(order)}"
+                    )
                     state["orders"][ex_id][order_id] = str(order)
 
         # Serialize datetimes as ISO strings
-        state["last_update_time"] = {k: v.isoformat() if v else None for k, v in self._last_update_time.items()}
-        state["last_reconciliation_time"] = {k: v.isoformat() if v else None for k, v in self._last_reconciliation_time.items()}
+        state["last_update_time"] = {
+            k: v.isoformat() if v else None for k, v in self._last_update_time.items()
+        }
+        state["last_reconciliation_time"] = {
+            k: v.isoformat() if v else None for k, v in self._last_reconciliation_time.items()
+        }
 
         return state
 
@@ -853,19 +993,19 @@ class PortfolioTracker:
                     )
 
         # Deserialize datetimes from ISO strings
-        def parse_iso_datetime(dt_str): 
-            if dt_str: 
-                try: 
-                    return datetime.fromisoformat(dt_str).replace(tzinfo=UTC) 
-                except ValueError: return datetime.min.replace(tzinfo=UTC) # Fallback 
-            return datetime.min.replace(tzinfo=UTC) # Fallback if None
+        def parse_iso_datetime(dt_str):
+            if dt_str:
+                try:
+                    return datetime.fromisoformat(dt_str).replace(tzinfo=UTC)
+                except ValueError:
+                    return datetime.min.replace(tzinfo=UTC)  # Fallback
+            return datetime.min.replace(tzinfo=UTC)  # Fallback if None
 
         self._last_update_time = {
-            k: parse_iso_datetime(v) 
-            for k, v in state_dict.get("last_update_time", {}).items()
+            k: parse_iso_datetime(v) for k, v in state_dict.get("last_update_time", {}).items()
         }
         self._last_reconciliation_time = {
-            k: parse_iso_datetime(v) 
+            k: parse_iso_datetime(v)
             for k, v in state_dict.get("last_reconciliation_time", {}).items()
         }
 
@@ -878,7 +1018,9 @@ class PortfolioTracker:
 
         try:
             realized_pnl_str = state_dict.get("realized_pnl")
-            self._realized_pnl = Decimal(str(realized_pnl_str)) if realized_pnl_str is not None else Decimal("0.0")
+            self._realized_pnl = (
+                Decimal(str(realized_pnl_str)) if realized_pnl_str is not None else Decimal("0.0")
+            )
         except (InvalidOperation, TypeError):
             logger.error(f"Error deserializing realized_pnl: {state_dict.get('realized_pnl')}")
             self._realized_pnl = Decimal("0.0")
@@ -1371,8 +1513,8 @@ class PortfolioTracker:
             "balances": serialized_balances,
             "positions": serialized_positions,
             "orders": serialized_orders,
-            "realized_pnl": str(self._realized_pnl), # Store as string
-            "high_watermark": str(self._high_watermark), # Store as string
+            "realized_pnl": str(self._realized_pnl),  # Store as string
+            "high_watermark": str(self._high_watermark),  # Store as string
             # Add other state variables if needed
         }
 

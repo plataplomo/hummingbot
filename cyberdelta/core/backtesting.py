@@ -120,21 +120,23 @@ class BacktestEngine:
                 logger.error(f"Failed to load backtest data from path '{data}': {e}")
                 raise ValueError(f"Invalid data path or format: {data}") from e
         elif isinstance(data, pd.DataFrame):
-            self.data = data.copy() # Use a copy to avoid modifying original DataFrame
+            self.data = data.copy()  # Use a copy to avoid modifying original DataFrame
         else:
             raise TypeError("Data must be a pandas DataFrame or a string path to a data file.")
 
         # Verify data is loaded and not empty
         if self.data is None or self.data.empty:
-             raise ValueError("Backtest data is empty or failed to load.")
+            raise ValueError("Backtest data is empty or failed to load.")
 
         # Robust check and conversion for DatetimeIndex
         if not isinstance(self.data.index, pd.DatetimeIndex):
-            logger.warning(f"Data index type is {type(self.data.index)}, not DatetimeIndex. Attempting conversion.")
+            logger.warning(
+                f"Data index type is {type(self.data.index)}, not DatetimeIndex. Attempting conversion."
+            )
             try:
                 original_index_name = self.data.index.name
                 # Attempt conversion, coercing errors to NaT
-                converted_index = pd.to_datetime(self.data.index, errors='coerce')
+                converted_index = pd.to_datetime(self.data.index, errors="coerce")
                 if converted_index.isna().any():
                     num_failed = converted_index.isna().sum()
                     logger.error(f"Failed to parse {num_failed} index values as datetime.")
@@ -154,16 +156,18 @@ class BacktestEngine:
             self.initial_capital = Decimal(str(initial_capital))
             self.capital = self.initial_capital
         except InvalidOperation:
-             logger.error(f"Invalid initial_capital value: {initial_capital}. Cannot convert to Decimal.")
-             raise ValueError("initial_capital must be a valid number.")
+            logger.error(
+                f"Invalid initial_capital value: {initial_capital}. Cannot convert to Decimal."
+            )
+            raise ValueError("initial_capital must be a valid number.")
 
         # Ensure commission and slippage are Decimal
         try:
-             self.commission = Decimal(str(commission))
-             self.slippage = Decimal(str(slippage))
+            self.commission = Decimal(str(commission))
+            self.slippage = Decimal(str(slippage))
         except InvalidOperation:
-             logger.error(f"Invalid commission or slippage value: {commission}, {slippage}")
-             raise ValueError("commission and slippage must be valid numbers.")
+            logger.error(f"Invalid commission or slippage value: {commission}, {slippage}")
+            raise ValueError("commission and slippage must be valid numbers.")
 
         self.results_dir = results_dir
 
@@ -203,20 +207,24 @@ class BacktestEngine:
         logger.info(f"Strategy initialized. Backtesting on {len(test_data)} data points")
 
         # Initialize backtest state
-        self.capital = self.initial_capital # Ensure capital starts as Decimal
+        self.capital = self.initial_capital  # Ensure capital starts as Decimal
 
         # Ensure the first timestamp is a valid datetime object
         first_timestamp = test_data.index[0]
         if isinstance(first_timestamp, pd.Timestamp):
-             first_timestamp = first_timestamp.to_pydatetime() # Convert pd.Timestamp
+            first_timestamp = first_timestamp.to_pydatetime()  # Convert pd.Timestamp
         elif not isinstance(first_timestamp, datetime):
-             # This should ideally not happen due to the __init__ check, but as a safeguard:
-             logger.error(f"First timestamp in test data is not a datetime object: {first_timestamp}")
-             # Attempt conversion or raise error
-             try:
-                 first_timestamp = pd.to_datetime(first_timestamp).to_pydatetime()
-             except Exception as e:
-                 raise TypeError(f"Could not convert first timestamp {first_timestamp} to datetime: {e}") from e
+            # This should ideally not happen due to the __init__ check, but as a safeguard:
+            logger.error(
+                f"First timestamp in test data is not a datetime object: {first_timestamp}"
+            )
+            # Attempt conversion or raise error
+            try:
+                first_timestamp = pd.to_datetime(first_timestamp).to_pydatetime()
+            except Exception as e:
+                raise TypeError(
+                    f"Could not convert first timestamp {first_timestamp} to datetime: {e}"
+                ) from e
 
         self.equity_curve = [(first_timestamp, self.capital)]
 
@@ -284,20 +292,24 @@ class BacktestEngine:
             # Ensure size is Decimal before calculation
             try:
                 # Size comes from signal.quantity, which should be Decimal
-                signal_size_decimal = signal.get("size") # 'size' key holds the quantity value
+                signal_size_decimal = signal.get("size")  # 'size' key holds the quantity value
                 if not isinstance(signal_size_decimal, Decimal):
-                     # Attempt conversion if not already Decimal (shouldn't happen ideally)
-                     signal_size_decimal = Decimal(str(signal_size_decimal))
+                    # Attempt conversion if not already Decimal (shouldn't happen ideally)
+                    signal_size_decimal = Decimal(str(signal_size_decimal))
 
             except (TypeError, InvalidOperation, KeyError) as e:
-                 logger.error(f"Invalid signal size {signal.get('size')} for {symbol} at {timestamp}: {e}. Skipping signal.")
-                 continue # Skip processing this signal
+                logger.error(
+                    f"Invalid signal size {signal.get('size')} for {symbol} at {timestamp}: {e}. Skipping signal."
+                )
+                continue  # Skip processing this signal
 
             # Calculate trade size in capital terms (Decimal * Decimal)
-            trade_size_capital = self.capital * signal_size_decimal # Now Decimal * Decimal
+            trade_size_capital = self.capital * signal_size_decimal  # Now Decimal * Decimal
 
             # Apply commission and slippage (Decimal math)
-            transaction_cost = trade_size_capital * (self.commission + self.slippage) # Decimal * (Decimal + Decimal)
+            transaction_cost = trade_size_capital * (
+                self.commission + self.slippage
+            )  # Decimal * (Decimal + Decimal)
 
             # Process based on signal type
             if signal_type in ["enter", "ENTER_LONG", "ENTER_SHORT"]:
@@ -309,10 +321,10 @@ class BacktestEngine:
                         "action": signal_type,
                         "side": side,
                         # Convert Decimal to float/str for JSON if needed, but keep internal as Decimal
-                        "price": float(signal.get("price", Decimal('0'))),
-                        "size": float(trade_size_capital), # Size in capital terms
+                        "price": float(signal.get("price", Decimal("0"))),
+                        "size": float(trade_size_capital),  # Size in capital terms
                         "cost": float(transaction_cost),
-                        "quantity": float(signal_size_decimal) # Original quantity from signal
+                        "quantity": float(signal_size_decimal),  # Original quantity from signal
                     }
                 )
 
@@ -333,12 +345,14 @@ class BacktestEngine:
             elif signal_type in ["exit", "EXIT_LONG", "EXIT_SHORT"]:
                 # Calculate PnL (Ensure pnl from signal is Decimal or converted)
                 try:
-                     pnl_value = signal.get("pnl", Decimal('0'))
-                     if not isinstance(pnl_value, Decimal):
-                          pnl_value = Decimal(str(pnl_value))
+                    pnl_value = signal.get("pnl", Decimal("0"))
+                    if not isinstance(pnl_value, Decimal):
+                        pnl_value = Decimal(str(pnl_value))
                 except (InvalidOperation, TypeError) as e:
-                     logger.error(f"Invalid PnL value {signal.get('pnl')} for exit signal {symbol}: {e}. Assuming PnL=0.")
-                     pnl_value = Decimal('0')
+                    logger.error(
+                        f"Invalid PnL value {signal.get('pnl')} for exit signal {symbol}: {e}. Assuming PnL=0."
+                    )
+                    pnl_value = Decimal("0")
 
                 # Scale PnL by trade size (Decimal * Decimal)
                 total_pnl = pnl_value * trade_size_capital
@@ -351,11 +365,11 @@ class BacktestEngine:
                         "action": signal_type,
                         "side": side,
                         # Convert Decimal to float/str for JSON if needed, but keep internal as Decimal
-                        "price": float(signal.get("price", Decimal('0'))),
-                        "size": float(trade_size_capital), # Size in capital terms
+                        "price": float(signal.get("price", Decimal("0"))),
+                        "size": float(trade_size_capital),  # Size in capital terms
                         "cost": float(transaction_cost),
-                        "pnl": float(total_pnl), # Store calculated total PnL
-                        "quantity": float(signal_size_decimal) # Original quantity from signal
+                        "pnl": float(total_pnl),  # Store calculated total PnL
+                        "quantity": float(signal_size_decimal),  # Original quantity from signal
                     }
                 )
 
@@ -514,12 +528,18 @@ class BacktestEngine:
         # Prepare a serializable version of the results
         results = {
             "strategy": self.strategy.name,
-            "initial_capital": float(self.initial_capital), # Convert Decimal for JSON
-            "final_capital": float(self.capital), # Convert Decimal for JSON
-            "metrics": self.metrics, # Metrics should already be float/int/str
+            "initial_capital": float(self.initial_capital),  # Convert Decimal for JSON
+            "final_capital": float(self.capital),  # Convert Decimal for JSON
+            "metrics": self.metrics,  # Metrics should already be float/int/str
             "trades": self.trades,  # Assumes floats were stored
             # Ensure timestamp is datetime before isoformat
-            "equity_curve": [(ts.isoformat() if isinstance(ts, (datetime, pd.Timestamp)) else str(ts), float(equity)) for ts, equity in self.equity_curve],
+            "equity_curve": [
+                (
+                    ts.isoformat() if isinstance(ts, (datetime, pd.Timestamp)) else str(ts),
+                    float(equity),
+                )
+                for ts, equity in self.equity_curve
+            ],
         }
 
         with open(filename, "w") as f:
@@ -605,7 +625,9 @@ class StrategyAdapter(BacktestStrategy):
                     if isinstance(signal, TradeSignal):
                         trade_signals.append(signal)
                     else:
-                        self._logger.warning(f"Strategy process_data returned unexpected type: {type(signal)}")
+                        self._logger.warning(
+                            f"Strategy process_data returned unexpected type: {type(signal)}"
+                        )
 
             # 3. Convert core TradeSignal objects back to backtester's signal format (dict)
             backtest_signals: list[dict[str, Any]] = self._convert_signals(

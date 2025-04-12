@@ -62,9 +62,7 @@ risk:
 
     def test_get_default_value(self):
         """Test retrieving non-existent values returns default"""
-        self.assertEqual(
-            self.config_manager.get("nonexistent.key", "default"), "default"
-        )
+        self.assertEqual(self.config_manager.get("nonexistent.key", "default"), "default")
         self.assertEqual(self.config_manager.get("general.nonexistent", 123), 123)
 
     def test_reload_config(self):
@@ -112,9 +110,7 @@ database:
             """)
 
         # Create SecretsManager with environment variable
-        self.env_patcher = patch.dict(
-            "os.environ", {"CYBERDELTA_SECRETS_PATH": self.secrets_path}
-        )
+        self.env_patcher = patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": self.secrets_path})
         self.env_patcher.start()
         self.secrets_manager = SecretsManager()
         self.secrets_manager.load_secrets()
@@ -134,21 +130,13 @@ database:
             self.secrets_manager.get("exchanges.hyperliquid.api_key"),
             "test_api_key_123",
         )
-        self.assertEqual(
-            self.secrets_manager.get("exchanges.backpack.api_key"), "test_api_key_789"
-        )
-        self.assertEqual(
-            self.secrets_manager.get("database.password"), "db_password_test"
-        )
+        self.assertEqual(self.secrets_manager.get("exchanges.backpack.api_key"), "test_api_key_789")
+        self.assertEqual(self.secrets_manager.get("database.password"), "db_password_test")
 
     def test_get_default_secret(self):
         """Test retrieving non-existent secrets returns default"""
-        self.assertEqual(
-            self.secrets_manager.get("nonexistent.key", "default"), "default"
-        )
-        self.assertEqual(
-            self.secrets_manager.get("exchanges.nonexistent", "missing"), "missing"
-        )
+        self.assertEqual(self.secrets_manager.get("nonexistent.key", "default"), "default")
+        self.assertEqual(self.secrets_manager.get("exchanges.nonexistent", "missing"), "missing")
 
     def test_get_path_method(self):
         """Test _get_secrets_path method"""

@@ -98,9 +98,7 @@ def main():
 
     print("Test directory merge completed successfully.")
     print("Please review the merged files to ensure everything is correct.")
-    print(
-        "After verification, you can remove the original /cyberdelta/tests directory."
-    )
+    print("After verification, you can remove the original /cyberdelta/tests directory.")
 
 
 if __name__ == "__main__":

@@ -3,11 +3,11 @@ Tests for the multi-tier funding rate provider.
 """
 
 import unittest
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 import numpy as np
+import pytest
 
 from cyberdelta.validation.funding_data import (
     FundingData,
@@ -109,18 +109,10 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         )
 
         # Verify sources were registered
-        self.assertEqual(
-            self.provider.primary_sources["hyperliquid"], self.primary_source
-        )
-        self.assertEqual(
-            self.provider.secondary_sources["hyperliquid"], self.secondary_source
-        )
-        self.assertEqual(
-            self.provider.tertiary_sources["hyperliquid"], self.tertiary_source
-        )
-        self.assertEqual(
-            self.provider.fallback_sources["hyperliquid"], self.fallback_source
-        )
+        self.assertEqual(self.provider.primary_sources["hyperliquid"], self.primary_source)
+        self.assertEqual(self.provider.secondary_sources["hyperliquid"], self.secondary_source)
+        self.assertEqual(self.provider.tertiary_sources["hyperliquid"], self.tertiary_source)
+        self.assertEqual(self.provider.fallback_sources["hyperliquid"], self.fallback_source)
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_all_sources(self):
@@ -146,9 +138,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         )
 
         # Get funding rate
-        rate, confidence = await self.provider.get_funding_rate(
-            "hyperliquid", "BTC-PERP"
-        )
+        rate, confidence = await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
 
         # Verify sources were called
         self.primary_source.assert_called_once_with("BTC-PERP")
@@ -171,9 +161,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         )
 
         # Get funding rate
-        rate, confidence = await self.provider.get_funding_rate(
-            "hyperliquid", "BTC-PERP"
-        )
+        rate, confidence = await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
 
         # Verify only primary source was called
         self.primary_source.assert_called_once_with("BTC-PERP")
@@ -201,9 +189,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         )
 
         # Get funding rate
-        rate, confidence = await self.provider.get_funding_rate(
-            "hyperliquid", "BTC-PERP"
-        )
+        rate, confidence = await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
 
         # Verify primary and secondary sources were called
         self.primary_source.assert_called_once_with("BTC-PERP")
@@ -246,9 +232,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         )
 
         # Get funding rate
-        rate, confidence = await self.provider.get_funding_rate(
-            "hyperliquid", "BTC-PERP"
-        )
+        rate, confidence = await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
 
         # Verify all sources were called
         self.primary_source.assert_called_once_with("BTC-PERP")
@@ -293,19 +277,17 @@ class TestMultiTierFundingProvider(unittest.TestCase):
     def test_clear_cache(self):
         """Test clearing the funding rate cache."""
         # Add some data to cache
-        self.provider.funding_cache[("hyperliquid", "BTC-PERP")] = (
-            IntegratedFundingData(
-                exchange="hyperliquid",
-                symbol="BTC-PERP",
-                rate=0.0015,
-                timestamp=datetime.now(),
-                dispersion=0.0001,
-                sources_count=3,
-                primary_available=True,
-                secondary_available=True,
-                tertiary_available=True,
-                confidence_score=0.8,
-            )
+        self.provider.funding_cache[("hyperliquid", "BTC-PERP")] = IntegratedFundingData(
+            exchange="hyperliquid",
+            symbol="BTC-PERP",
+            rate=0.0015,
+            timestamp=datetime.now(),
+            dispersion=0.0001,
+            sources_count=3,
+            primary_available=True,
+            secondary_available=True,
+            tertiary_available=True,
+            confidence_score=0.8,
         )
 
         # Verify cache has data

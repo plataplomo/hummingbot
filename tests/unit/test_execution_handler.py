@@ -1,5 +1,5 @@
 import time
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -7,17 +7,17 @@ import pytest
 
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.execution_handler import (
+    CircuitBreakerSystem,
     ExecutionHandler,
     ExecutionStatus,
     TradeExecution,
-    CircuitBreakerSystem,
 )
 from cyberdelta.core.models import (
+    ArbitrageOpportunity,
     Order,
     OrderSide,
     OrderStatus,
     OrderType,
-    ArbitrageOpportunity,
     Ticker,
 )
 from cyberdelta.core.risk_manager import SizedOpportunity
@@ -138,6 +138,7 @@ class TestExecutionHandler:
     @pytest.fixture
     def mock_portfolio_tracker(self):
         from cyberdelta.core.portfolio_tracker import PortfolioTracker
+
         tracker = MagicMock(spec=PortfolioTracker)
         tracker.update_order = MagicMock()
         tracker.update_position_from_fill = MagicMock()
@@ -219,9 +220,7 @@ class TestExecutionHandler:
         assert execution_handler.api_clients["test_exchange"] == new_api
 
     @pytest.mark.asyncio
-    async def test_circuit_breaker_open_rejection(
-        self, execution_handler, sized_opportunity
-    ):
+    async def test_circuit_breaker_open_rejection(self, execution_handler, sized_opportunity):
         """Test that executions are rejected when the relevant circuit breaker is open."""
         # Mock the system check to return False (blocked)
         # Ensure the system is attached via the fixture
@@ -247,15 +246,26 @@ class TestExecutionHandler:
         # Set up mock order response
         mock_api_client = execution_handler.api_clients["hyperliquid"]
         mock_order_response = Order(
-            id="order_ok", symbol="BTC", side=OrderSide.BUY, type=OrderType.LIMIT,
-            quantity=Decimal("0.1"), price=Decimal("42000.0"), status=OrderStatus.NEW, time=int(time.time()*1000)
+            id="order_ok",
+            symbol="BTC",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            quantity=Decimal("0.1"),
+            price=Decimal("42000.0"),
+            status=OrderStatus.NEW,
+            time=int(time.time() * 1000),
         )
         mock_api_client.place_order.return_value = mock_order_response
 
         # Test successful order placement
         order = await execution_handler._place_order_with_retry(
-            mock_api_client, "hyperliquid", "BTC", OrderSide.BUY, OrderType.LIMIT,
-            Decimal("0.1"), Decimal("42000.0")
+            mock_api_client,
+            "hyperliquid",
+            "BTC",
+            OrderSide.BUY,
+            OrderType.LIMIT,
+            Decimal("0.1"),
+            Decimal("42000.0"),
         )
 
         # Verify the API client was called with the correct parameters
@@ -267,7 +277,9 @@ class TestExecutionHandler:
         # --- Test retryable error ---
         mock_api_client.place_order.reset_mock()
         # Simulate transient API error then success
-        retryable_error = APIError("Timeout", code=APIErrorCode.TIMEOUT, exchange_code="hyperliquid")
+        retryable_error = APIError(
+            "Timeout", code=APIErrorCode.TIMEOUT, exchange_code="hyperliquid"
+        )
         mock_api_client.place_order.side_effect = [retryable_error, mock_order_response]
 
         order_retry = await execution_handler._place_order_with_retry(
@@ -280,16 +292,27 @@ class TestExecutionHandler:
 
         # --- Test non-retryable error ---
         mock_api_client.place_order.reset_mock()
-        non_retryable_error = APIError("Invalid Request", code=APIErrorCode.INVALID_REQUEST, exchange_code="hyperliquid")
+        non_retryable_error = APIError(
+            "Invalid Request", code=APIErrorCode.INVALID_REQUEST, exchange_code="hyperliquid"
+        )
         mock_api_client.place_order.side_effect = non_retryable_error
         execution_handler.circuit_breaker_system.record_api_error.reset_mock()
 
         order_non_retry = await execution_handler._place_order_with_retry(
-            mock_api_client, "hyperliquid", "XYZ", OrderSide.BUY, OrderType.LIMIT, Decimal("1"), Decimal("10")
+            mock_api_client,
+            "hyperliquid",
+            "XYZ",
+            OrderSide.BUY,
+            OrderType.LIMIT,
+            Decimal("1"),
+            Decimal("10"),
         )
 
         assert order_non_retry is None
-        assert execution_handler.circuit_breaker_system.record_api_error.call_count == execution_handler.max_retries
+        assert (
+            execution_handler.circuit_breaker_system.record_api_error.call_count
+            == execution_handler.max_retries
+        )
 
     @pytest.mark.asyncio
     async def test_get_order_status(self, execution_handler):
@@ -297,9 +320,15 @@ class TestExecutionHandler:
         # Set up mock response
         mock_api_client = execution_handler.api_clients["hyperliquid"]
         mock_order = Order(
-            id="order123", symbol="BTC", side=OrderSide.BUY, type=OrderType.LIMIT,
-            quantity=Decimal("0.1"), price=Decimal("41000"), status=OrderStatus.FILLED,
-            filled_quantity=Decimal("0.1"), time=int(time.time()*1000)
+            id="order123",
+            symbol="BTC",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            quantity=Decimal("0.1"),
+            price=Decimal("41000"),
+            status=OrderStatus.FILLED,
+            filled_quantity=Decimal("0.1"),
+            time=int(time.time() * 1000),
         )
         mock_api_client.get_order_status.return_value = mock_order
 
@@ -312,13 +341,17 @@ class TestExecutionHandler:
         mock_api_client.get_order_status.assert_called_once_with(order_id="order123")
 
         assert order == mock_order
-        execution_handler.portfolio_tracker.update_order.assert_called_once_with("hyperliquid", mock_order)
+        execution_handler.portfolio_tracker.update_order.assert_called_once_with(
+            "hyperliquid", mock_order
+        )
 
         # Test error
         mock_api_client.get_order_status.reset_mock()
         execution_handler.portfolio_tracker.update_order.reset_mock()
         original_error_message = "Order not found"
-        api_error = APIError(original_error_message, code=APIErrorCode.ORDER_NOT_FOUND, exchange_code="hyperliquid")
+        api_error = APIError(
+            original_error_message, code=APIErrorCode.ORDER_NOT_FOUND, exchange_code="hyperliquid"
+        )
         mock_api_client.get_order_status.side_effect = api_error
         execution_handler.circuit_breaker_system.record_api_error.reset_mock()
 
@@ -337,16 +370,29 @@ class TestExecutionHandler:
 
         # Set up mock response for a successful order
         mock_api_client = execution_handler.api_clients["hyperliquid"]
-        mock_ticker = Ticker(symbol="BTC", price=Decimal("40050"), bid=Decimal("40000"), ask=Decimal("40100"), timestamp=int(time.time()*1000))
+        mock_ticker = Ticker(
+            symbol="BTC",
+            price=Decimal("40050"),
+            bid=Decimal("40000"),
+            ask=Decimal("40100"),
+            timestamp=int(time.time() * 1000),
+        )
         mock_api_client.get_ticker = AsyncMock(return_value=mock_ticker)
         mock_compensating_order = Order(
-            id="comp123", symbol="BTC", side=OrderSide.SELL, type=OrderType.LIMIT,
-            quantity=Decimal("0.1"), filled_quantity=Decimal("0.1"), status=OrderStatus.FILLED,
+            id="comp123",
+            symbol="BTC",
+            side=OrderSide.SELL,
+            type=OrderType.LIMIT,
+            quantity=Decimal("0.1"),
+            filled_quantity=Decimal("0.1"),
+            status=OrderStatus.FILLED,
             price=Decimal("39980.0"),
-            time=int(time.time()*1000)
+            time=int(time.time() * 1000),
         )
 
-        with patch.object(execution_handler, "_place_order_with_retry", return_value=mock_compensating_order) as mock_place_retry:
+        with patch.object(
+            execution_handler, "_place_order_with_retry", return_value=mock_compensating_order
+        ) as mock_place_retry:
             result = await execution_handler._compensate_position(
                 mock_api_client,
                 "hyperliquid",
@@ -363,7 +409,7 @@ class TestExecutionHandler:
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.1"),
                 price=pytest.approx(Decimal("40100") * (Decimal("1") + Decimal("0.0005"))),
-                reduce_only=True
+                reduce_only=True,
             )
 
         assert result is True
@@ -404,20 +450,30 @@ class TestExecutionHandler:
             patch.object(
                 execution_handler, "_place_order_with_retry", AsyncMock()
             ) as mock_place_order,
-            patch.object(
-                execution_handler, "_get_order_status", AsyncMock()
-            ) as mock_get_status,
+            patch.object(execution_handler, "_get_order_status", AsyncMock()) as mock_get_status,
         ):
             # Set up returns for the first and second calls
             mock_place_order.side_effect = [long_order, short_order]
             mock_get_status.side_effect = [long_order, short_order]
 
-            # --- ADD: Configure get_ticker mocks --- 
-            long_client = execution_handler.api_clients['hyperliquid']
-            short_client = execution_handler.api_clients['backpack']
+            # --- ADD: Configure get_ticker mocks ---
+            long_client = execution_handler.api_clients["hyperliquid"]
+            short_client = execution_handler.api_clients["backpack"]
 
-            mock_long_ticker = Ticker(symbol="BTC-PERP", price=Decimal("41000"), bid=Decimal("40990"), ask=Decimal("41010"), timestamp=int(time.time()*1000))
-            mock_short_ticker = Ticker(symbol="BTC_USDC", price=Decimal("41100"), bid=Decimal("41090"), ask=Decimal("41110"), timestamp=int(time.time()*1000))
+            mock_long_ticker = Ticker(
+                symbol="BTC-PERP",
+                price=Decimal("41000"),
+                bid=Decimal("40990"),
+                ask=Decimal("41010"),
+                timestamp=int(time.time() * 1000),
+            )
+            mock_short_ticker = Ticker(
+                symbol="BTC_USDC",
+                price=Decimal("41100"),
+                bid=Decimal("41090"),
+                ask=Decimal("41110"),
+                timestamp=int(time.time() * 1000),
+            )
 
             long_client.get_ticker = AsyncMock(return_value=mock_long_ticker)
             short_client.get_ticker = AsyncMock(return_value=mock_short_ticker)
@@ -444,10 +500,13 @@ class TestExecutionHandler:
             assert execution_handler.execution_history[0] == execution
 
             # Verify the circuit breaker success was recorded (if system is mocked correctly)
-            if hasattr(execution_handler, "circuit_breaker_system") and execution_handler.circuit_breaker_system:
-                 # Assuming a simplified mock structure for now
-                 # execution_handler.circuit_breaker_system.record_api_success.assert_called()
-                 pass # Add specific assertion if system mock allows
+            if (
+                hasattr(execution_handler, "circuit_breaker_system")
+                and execution_handler.circuit_breaker_system
+            ):
+                # Assuming a simplified mock structure for now
+                # execution_handler.circuit_breaker_system.record_api_success.assert_called()
+                pass  # Add specific assertion if system mock allows
             # else: rely on simpler mock breaker assertions if system not fully mocked
             # assert execution_handler.circuit_breaker.consecutive_failures == 0
 
@@ -460,31 +519,45 @@ class TestExecutionHandler:
             )  # Called for both legs
 
     @pytest.mark.asyncio
-    async def test_execution_failure(
-        self, execution_handler, sized_opportunity, mock_config
-    ):
+    async def test_execution_failure(self, execution_handler, sized_opportunity, mock_config):
         """Test handling an execution failure due to config/setup issue."""
         # Intentionally break config *after* setting up ticker mock
         error_message_part = "Symbol mapping not found for BTC on hyperliquid"
 
         # --- ADD: Configure get_ticker mock (needed to get past initial calc) ---
-        long_client = execution_handler.api_clients['hyperliquid']
-        mock_long_ticker = Ticker(symbol="BTC-PERP", price=Decimal("41000"), bid=Decimal("40990"), ask=Decimal("41010"), timestamp=int(time.time()*1000))
+        long_client = execution_handler.api_clients["hyperliquid"]
+        mock_long_ticker = Ticker(
+            symbol="BTC-PERP",
+            price=Decimal("41000"),
+            bid=Decimal("40990"),
+            ask=Decimal("41010"),
+            timestamp=int(time.time() * 1000),
+        )
         long_client.get_ticker = AsyncMock(return_value=mock_long_ticker)
         # --- ADD: Configure short client ticker mock to pass initial check ---
-        short_client = execution_handler.api_clients['backpack']
-        mock_short_ticker = Ticker(symbol="BTC_USDC", price=Decimal("41100"), bid=Decimal("41090"), ask=Decimal("41110"), timestamp=int(time.time()*1000))
+        short_client = execution_handler.api_clients["backpack"]
+        mock_short_ticker = Ticker(
+            symbol="BTC_USDC",
+            price=Decimal("41100"),
+            bid=Decimal("41090"),
+            ask=Decimal("41110"),
+            timestamp=int(time.time() * 1000),
+        )
         short_client.get_ticker = AsyncMock(return_value=mock_short_ticker)
         # ---------------------------------------------------------------------
 
         # Now break the config for the test's purpose
-        original_mapping = mock_config.get("exchanges.hyperliquid.symbols.BTC") # Get current correct value
+        original_mapping = mock_config.get(
+            "exchanges.hyperliquid.symbols.BTC"
+        )  # Get current correct value
         # Temporarily set the mock to return None for the specific key lookup that will fail
         original_side_effect = mock_config.get.side_effect
+
         def side_effect_with_failure(key, default=None):
             if key == "exchanges.hyperliquid.symbols.BTC":
-                 return None # Simulate missing mapping
-            return original_side_effect(key, default) # Use original for others
+                return None  # Simulate missing mapping
+            return original_side_effect(key, default)  # Use original for others
+
         mock_config.get.side_effect = side_effect_with_failure
 
         execution_handler._compensate_position = AsyncMock()
@@ -549,9 +622,7 @@ class TestExecutionHandler:
         # Use asyncio.run() if the handler method is async, otherwise call directly.
         # Assuming reset_circuit_breaker is synchronous based on typical handler patterns.
         # If it were async: asyncio.run(execution_handler.reset_circuit_breaker(breaker_name))
-        execution_handler.reset_circuit_breaker(
-            breaker_name
-        )  # Assuming synchronous call
+        execution_handler.reset_circuit_breaker(breaker_name)  # Assuming synchronous call
 
         # --- Assertions ---
         # Verify the system's reset_exchange_breaker method was called directly

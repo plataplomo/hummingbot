@@ -884,9 +884,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_funding_rates(
-        self, symbol: str | None = None
-    ) -> list[FundingRate]:
+    async def get_funding_rates(self, symbol: str | None = None) -> list[FundingRate]:
         """Fetch historical funding rates for a symbol or all symbols."""
         raise NotImplementedError
 
@@ -905,9 +903,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_positions(
-        self, symbol: str | None = None
-    ) -> list[Position]:
+    async def get_positions(self, symbol: str | None = None) -> list[Position]:
         """Fetch current open positions, optionally filtered by symbol."""
         raise NotImplementedError
 
@@ -930,37 +926,27 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def cancel_order(
-        self, order_id: str, symbol: str | None = None
-    ) -> dict[str, Any]:
+    async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
         """Cancel an existing order by its ID."""
         raise NotImplementedError
 
     @abstractmethod
-    async def cancel_all_orders(
-        self, symbol: str | None = None
-    ) -> dict[str, Any]:
+    async def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]:
         """Cancel all open orders, optionally filtered by symbol."""
         raise NotImplementedError
 
     @abstractmethod
-    async def get_open_orders(
-        self, symbol: str | None = None
-    ) -> list[Order]:
+    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Fetch all currently open orders, optionally filtered by symbol."""
         raise NotImplementedError
 
     @abstractmethod
-    async def get_order_history(
-        self, symbol: str | None = None, limit: int = 100
-    ) -> list[Order]:
+    async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]:
         """Fetch historical order data."""
         raise NotImplementedError
 
     @abstractmethod
-    async def get_trade_history(
-        self, symbol: str | None = None, limit: int = 100
-    ) -> list[Trade]:
+    async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
         """Fetch historical trade data (account fills)."""
         raise NotImplementedError
 
@@ -977,23 +963,17 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def subscribe_to_ticker(
-        self, symbol: str
-    ) -> None:
+    async def subscribe_to_ticker(self, symbol: str) -> None:
         """Subscribe to ticker updates for a symbol."""
         raise NotImplementedError
 
     @abstractmethod
-    async def subscribe_to_order_book(
-        self, symbol: str
-    ) -> None:
+    async def subscribe_to_order_book(self, symbol: str) -> None:
         """Subscribe to order book updates for a symbol."""
         raise NotImplementedError
 
     @abstractmethod
-    async def subscribe_to_trades(
-        self, symbol: str
-    ) -> None:
+    async def subscribe_to_trades(self, symbol: str) -> None:
         """Subscribe to public trade updates for a symbol."""
         raise NotImplementedError
 
@@ -1020,9 +1000,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def parse_order_book(
-        self, data: dict[str, Any], symbol: str
-    ) -> OrderBook:
+    def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
         """Parse raw order book data into an OrderBook object."""
         raise NotImplementedError
 
@@ -1057,9 +1035,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def parse_orderbook_message(
-        self, message: dict[str, Any]
-    ) -> OrderBook | None:
+    def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
         """Parse a WebSocket message containing order book information."""
         raise NotImplementedError
 
@@ -1076,16 +1052,12 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def parse_order_update_message(
-        self, message: dict[str, Any]
-    ) -> Order | None:
+    def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
         """Parse a WebSocket message containing order updates."""
         raise NotImplementedError
 
     @abstractmethod
-    def parse_funding_rate_message(
-        self, message: dict[str, Any]
-    ) -> FundingRate | None:
+    def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
         """Parse a WebSocket message containing funding rate updates."""
         raise NotImplementedError
 

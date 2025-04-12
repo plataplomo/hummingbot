@@ -45,9 +45,7 @@ async def test_adapters():
 
     # Setup secrets from environment variables
     hyperliquid_secrets = {
-        "HYPERLIQUID_WALLET_PRIVATE_KEY": os.environ.get(
-            "HYPERLIQUID_WALLET_PRIVATE_KEY"
-        ),
+        "HYPERLIQUID_WALLET_PRIVATE_KEY": os.environ.get("HYPERLIQUID_WALLET_PRIVATE_KEY"),
         "HYPERLIQUID_WALLET_ADDRESS": os.environ.get("HYPERLIQUID_WALLET_ADDRESS"),
     }
 
@@ -115,20 +113,14 @@ async def test_adapters():
                 if base == b_base:
                     common_base_assets.add(base)
 
-        logger.info(
-            f"Found {len(common_base_assets)} common base assets: {common_base_assets}"
-        )
+        logger.info(f"Found {len(common_base_assets)} common base assets: {common_base_assets}")
 
         # Find opportunities where funding rates differ significantly
         opportunities = []
         for base in common_base_assets:
             # Find corresponding symbols
-            h_symbol = next(
-                (s for s in hyperliquid_symbols if s.startswith(f"{base}-")), None
-            )
-            b_symbol = next(
-                (s for s in backpack_symbols if s.startswith(f"{base}-")), None
-            )
+            h_symbol = next((s for s in hyperliquid_symbols if s.startswith(f"{base}-")), None)
+            b_symbol = next((s for s in backpack_symbols if s.startswith(f"{base}-")), None)
 
             if not h_symbol or not b_symbol:
                 continue

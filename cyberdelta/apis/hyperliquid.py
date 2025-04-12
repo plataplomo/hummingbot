@@ -813,23 +813,18 @@ class HyperliquidAPI(ExchangeAPI):
 
     # --- WebSocket Subscription Helpers --- #
 
-
-
     async def subscribe_to_order_updates(self, handler: MessageHandler) -> None:
         """Subscribe to user order updates."""
         await self.subscribe("user", handler)
-
 
     async def subscribe_to_trades(self, symbol: str, handler: MessageHandler) -> None:
         """Subscribe to public trades for a symbol."""
         await self.subscribe(f"trades:{symbol}", handler)
 
-
     async def subscribe_to_ticker(self, symbol: str, handler: MessageHandler) -> None:
         """Subscribe to ticker updates for a symbol."""
         await self.subscribe("allMids", handler)
         logger.warning(f"[{self.exchange_name}] Ticker subscription needs topic verification.")
-
 
     async def subscribe_to_order_book(self, symbol: str, handler: MessageHandler) -> None:
         """Subscribe to order book updates for a symbol."""

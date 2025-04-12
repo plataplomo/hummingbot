@@ -2,9 +2,9 @@
 Tests for the PositionReconciliationSystem class.
 """
 
-from datetime import datetime, timedelta, UTC
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -36,11 +36,7 @@ class TestPositionReconciliationSystem:
                 return config_data[key]
             parts = key.split(".")
             if len(parts) == 3 and parts[0] == "exchanges" and parts[2] == "enabled":
-                return (
-                    config_data.get("exchanges", {})
-                    .get(parts[1], {})
-                    .get("enabled", default)
-                )
+                return config_data.get("exchanges", {}).get(parts[1], {}).get("enabled", default)
             return default
 
         config.get.side_effect = config_get_side_effect
@@ -202,12 +198,8 @@ class TestPositionReconciliationSystem:
         ]
 
         # Configure the execution handlers
-        execution_handler_hyper.get_derived_positions.return_value = (
-            hyper_fill_positions
-        )
-        execution_handler_backpack.get_derived_positions.return_value = (
-            backpack_fill_positions
-        )
+        execution_handler_hyper.get_derived_positions.return_value = hyper_fill_positions
+        execution_handler_backpack.get_derived_positions.return_value = backpack_fill_positions
 
         # Configure API clients
         hyperliquid_client.get_positions.return_value = hyper_api_positions
@@ -301,10 +293,7 @@ class TestPositionReconciliationSystem:
         assert results == reconciliation_system.latest_results
 
         # Last check time should not have been updated
-        assert (
-            reconciliation_system.last_check_time
-            == reconciliation_system.last_check_time
-        )
+        assert reconciliation_system.last_check_time == reconciliation_system.last_check_time
 
         # Now call with force
         results = await reconciliation_system.check_positions(force=True)
@@ -342,16 +331,14 @@ class TestPositionReconciliationSystem:
     async def test_auto_correct(self, config, portfolio_tracker):
         """Test auto-correction of positions."""
         # Create system with auto-correct enabled
-        config.get.side_effect = (
-            lambda key, default=None: {
-                "exchanges": {"hyperliquid": {}, "backpack": {}},
-                "exchanges.hyperliquid.enabled": True,
-                "exchanges.backpack.enabled": True,
-                "validation.position_reconciliation.threshold": 0.05,
-                "validation.position_reconciliation.auto_correct": True,  # Auto-correct enabled
-                "validation.position_reconciliation.check_interval": 3600,
-            }.get(key, default)
-        )
+        config.get.side_effect = lambda key, default=None: {
+            "exchanges": {"hyperliquid": {}, "backpack": {}},
+            "exchanges.hyperliquid.enabled": True,
+            "exchanges.backpack.enabled": True,
+            "validation.position_reconciliation.threshold": 0.05,
+            "validation.position_reconciliation.auto_correct": True,  # Auto-correct enabled
+            "validation.position_reconciliation.check_interval": 3600,
+        }.get(key, default)
 
         system = PositionReconciliationSystem(config, portfolio_tracker)
 
@@ -494,10 +481,8 @@ class TestPositionReconciliationSystem:
         assert len(results["discrepancies"]) == 1
 
         # Check BTC discrepancy (should NOT be detected)
-        btc_discrepancy = next(
-            (d for d in results["discrepancies"] if d["symbol"] == "BTC"), None
-        )
-        assert btc_discrepancy is None # BTC sizes match
+        btc_discrepancy = next((d for d in results["discrepancies"] if d["symbol"] == "BTC"), None)
+        assert btc_discrepancy is None  # BTC sizes match
 
         # Check DOGE discrepancy (should be detected)
         doge_discrepancy = next(
@@ -509,10 +494,8 @@ class TestPositionReconciliationSystem:
         assert doge_discrepancy["local_value"] == "1000.0"
 
         # Check ETH discrepancy (should NOT be detected due to threshold)
-        eth_discrepancy = next(
-            (d for d in results["discrepancies"] if d["symbol"] == "ETH"), None
-        )
-        assert eth_discrepancy is None # Discrepancy 0.2 is below threshold 0.5
+        eth_discrepancy = next((d for d in results["discrepancies"] if d["symbol"] == "ETH"), None)
+        assert eth_discrepancy is None  # Discrepancy 0.2 is below threshold 0.5
 
     def test_record_discrepancy(self, reconciliation_system):
         """Test recording discrepancies in history."""
@@ -524,10 +507,10 @@ class TestPositionReconciliationSystem:
             "discrepancies": [
                 {
                     "symbol": "BTC",
-                    "type": "size", # Added type
-                    "exchange_value": "1.0", # Corrected key and value type (string)
-                    "local_value": "0.95", # Corrected key and value type (string)
-                    "discrepancy": "0.05", # Corrected key and value type (string)
+                    "type": "size",  # Added type
+                    "exchange_value": "1.0",  # Corrected key and value type (string)
+                    "local_value": "0.95",  # Corrected key and value type (string)
+                    "discrepancy": "0.05",  # Corrected key and value type (string)
                     # Removed incorrect/unused keys like exchange_size, fill_size, etc.
                 }
             ],
@@ -609,32 +592,32 @@ class TestPositionReconciliationSystem:
         reconciliation_system.discrepancy_history.extend(
             [
                 {
-                    "timestamp": recent_time_utc, # Use aware datetime
+                    "timestamp": recent_time_utc,  # Use aware datetime
                     "exchange": "hyperliquid",
                     "symbol": "BTC",
-                    "exchange_value": "1.0", # Correct key
-                    "local_value": "0.95", # Correct key
-                    "discrepancy": "0.05", # Correct key
+                    "exchange_value": "1.0",  # Correct key
+                    "local_value": "0.95",  # Correct key
+                    "discrepancy": "0.05",  # Correct key
                     "corrected": False,
                     # Removed old/unused keys
                 },
                 {
-                    "timestamp": recent_time_utc, # Use aware datetime
+                    "timestamp": recent_time_utc,  # Use aware datetime
                     "exchange": "hyperliquid",
                     "symbol": "ETH",
-                    "exchange_value": "10.0", # Correct key
-                    "local_value": "9.8", # Correct key
-                    "discrepancy": "0.2", # Correct key
+                    "exchange_value": "10.0",  # Correct key
+                    "local_value": "9.8",  # Correct key
+                    "discrepancy": "0.2",  # Correct key
                     "corrected": True,
                     # Removed old/unused keys
                 },
                 {
-                    "timestamp": recent_time_utc, # Use aware datetime
+                    "timestamp": recent_time_utc,  # Use aware datetime
                     "exchange": "backpack",
                     "symbol": "SOL",
-                    "exchange_value": "50.0", # Correct key
-                    "local_value": "0.0", # Correct key
-                    "discrepancy": "50.0", # Correct key
+                    "exchange_value": "50.0",  # Correct key
+                    "local_value": "0.0",  # Correct key
+                    "discrepancy": "50.0",  # Correct key
                     "corrected": False,
                     # Removed old/unused keys
                 },
@@ -645,18 +628,30 @@ class TestPositionReconciliationSystem:
         reconciliation_system.latest_results = {
             "hyperliquid": {
                 "success": True,
-                "timestamp": now_utc, # Use aware datetime
+                "timestamp": now_utc,  # Use aware datetime
                 "discrepancies": [
                     # Use correct structure if asserting on latest_results details
-                    {"symbol": "BTC", "type": "size", "exchange_value": "1.0", "local_value": "0.95", "discrepancy": "0.05"}
+                    {
+                        "symbol": "BTC",
+                        "type": "size",
+                        "exchange_value": "1.0",
+                        "local_value": "0.95",
+                        "discrepancy": "0.05",
+                    }
                 ],
             },
             "backpack": {
                 "success": True,
-                "timestamp": now_utc, # Use aware datetime
+                "timestamp": now_utc,  # Use aware datetime
                 "discrepancies": [
                     # Use correct structure if asserting on latest_results details
-                     {"symbol": "SOL", "type": "size", "exchange_value": "50.0", "local_value": "0.0", "discrepancy": "50.0"}
+                    {
+                        "symbol": "SOL",
+                        "type": "size",
+                        "exchange_value": "50.0",
+                        "local_value": "0.0",
+                        "discrepancy": "50.0",
+                    }
                 ],
             },
         }
@@ -688,7 +683,7 @@ class TestPositionReconciliationSystem:
 
         # Check recent discrepancies are included (ensure correct structure in assertion if needed)
         assert len(report["recent_discrepancies"]) == 3
-        assert report["recent_discrepancies"][0]["symbol"] == "BTC" # Example check
+        assert report["recent_discrepancies"][0]["symbol"] == "BTC"  # Example check
         assert report["recent_discrepancies"][0]["exchange_value"] == "1.0"
 
         # Check configuration settings are included
