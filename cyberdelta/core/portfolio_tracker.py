@@ -4,9 +4,9 @@ import asyncio
 import json
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Optional, cast
 
-import simplejson as json
+import json
 
 from cyberdelta.apis.base import ExchangeAPI
 from cyberdelta.core.models import (
@@ -14,13 +14,11 @@ from cyberdelta.core.models import (
     Order,
     OrderSide,
     OrderStatus,
-    OrderType,
     Position,
     Trade,
 )
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger
-from cyberdelta.utils.serialization import dump_json
 
 logger = get_logger(__name__)
 
@@ -339,6 +337,31 @@ class PortfolioTracker:
             )
             return None
 
+    @staticmethod
+    def _safe_decimal_convert(
+        value: Any,
+        field_name: str,
+        identifier: str, # Can be asset or symbol
+        allow_none: bool = False,
+        default: Optional[Decimal] = None
+    ) -> Optional[Decimal]:
+        """Safely convert a value to Decimal, handling None and defaults."""
+        if isinstance(value, Decimal):
+            return value
+        if value is None:
+            if allow_none:
+                return default
+            else:
+                raise ValueError(f"PortfolioTracker: Field '{field_name}' for '{identifier}' cannot be None")
+        try:
+            # Force string conversion first for robustness against float/int inputs
+            return Decimal(str(value))
+        except (InvalidOperation, TypeError):
+             raise ValueError(
+                 f"PortfolioTracker: Invalid value '{value}' for field '{field_name}' "
+                 f"for '{identifier}'. Cannot convert to Decimal."
+             )
+
     async def _fetch_exchange_positions(self, exchange_id: str) -> bool:
         """Fetch current positions from an exchange."""
         try:
@@ -348,52 +371,71 @@ class PortfolioTracker:
             if isinstance(positions_data, list):
                 updated_positions = {}
                 for position_info in positions_data:
-                    if isinstance(position_info, Position):  # Handle Position object directly
-                        position_instance = position_info
-                        if position_instance.symbol:
-                            updated_positions[position_instance.symbol] = position_instance
-                        else:
-                            logger.warning(
-                                f"Fetched position object missing symbol on {exchange_id}: {position_instance}"
-                            )
-                    elif isinstance(position_info, dict):  # Handle dict representation
-                        try:
-                            # Ensure necessary fields are present and create Position object
-                            # Convert numeric strings/floats to Decimal
-                            for key in [
-                                "size",
-                                "entry_price",
-                                "mark_price",
-                                "liquidation_price",
-                                "leverage",
-                                "unrealized_pnl",
-                            ]:
-                                if key in position_info and position_info[key] is not None:
-                                    position_info[key] = Decimal(str(position_info[key]))
-                            # Convert side string to enum
-                            if "side" in position_info and isinstance(position_info["side"], str):
-                                position_info["side"] = OrderSide(position_info["side"].lower())
+                    if isinstance(position_info, Position):
+                        # Ensure internal consistency (Decimal fields) via __post_init__ re-validation logic if needed
+                        # Assuming Position objects from API are already validated by model's __post_init__
+                        if position_info.id is None:
+                            # Generate a unique ID if missing, although exchange should provide one
+                            # This might indicate partial data or spot positions sometimes lack IDs
+                            position_info.id = f"{position_info.symbol}_{position_info.side.value}_{datetime.now(UTC).timestamp()}"
+                            logger.warning(f"[FETCH_POSITIONS:{exchange_id}] Position for {position_info.symbol} lacked an ID. Generated: {position_info.id}")
 
-                            position_instance = Position(**position_info)
-                            if position_instance.symbol:
-                                updated_positions[position_instance.symbol] = position_instance
-                            else:
-                                logger.warning(
-                                    f"Fetched position dict missing symbol on {exchange_id}: {position_info}"
-                                )
-                        except (TypeError, KeyError, InvalidOperation, ValueError) as e:
-                            logger.error(
-                                f"Error creating Position object from dict on {exchange_id}: {e} - Data: {position_info}"
+                        # Use the Position's ID as the key
+                        updated_positions[position_info.id] = position_info
+                    elif isinstance(position_info, dict):
+                        # Attempt to parse if it's a dict (less ideal, API should return objects)
+                        try:
+                             # Minimal required fields to attempt parsing
+                            symbol = position_info.get("symbol")
+                            side_val = position_info.get("side")
+                            size_val = position_info.get("size")
+                            entry_price_val = position_info.get("entry_price")
+                            position_id = position_info.get("id") # Exchange position ID is crucial
+
+                            if not all([symbol, side_val, size_val is not None, entry_price_val is not None]):
+                                logger.warning(f"[FETCH_POSITIONS:{exchange_id}] Skipping dict position due to missing core fields: {position_info}")
+                                continue
+
+                            side = OrderSide(side_val) if isinstance(side_val, str) else side_val # Allow enum too
+                            if not isinstance(side, OrderSide):
+                                 logger.warning(f"[FETCH_POSITIONS:{exchange_id}] Skipping dict position due to invalid side: {position_info}")
+                                 continue
+
+                            # Generate ID if missing (less ideal)
+                            if position_id is None:
+                                 position_id = f"{symbol}_{side.value}_{datetime.now(UTC).timestamp()}"
+
+                            pos_instance = Position(
+                                id=str(position_id), # Ensure ID is string
+                                symbol=str(symbol),
+                                side=side,
+                                size=self._safe_decimal_convert(size_val, "size", symbol, allow_none=False),
+                                entry_price=self._safe_decimal_convert(entry_price_val, "entry_price", symbol, allow_none=False),
+                                # Optional fields - parse safely
+                                leverage=self._safe_decimal_convert(position_info.get("leverage"), "leverage", symbol, allow_none=True),
+                                mark_price=self._safe_decimal_convert(position_info.get("mark_price"), "mark_price", symbol, allow_none=True),
+                                liquidation_price=self._safe_decimal_convert(position_info.get("liquidation_price"), "liquidation_price", symbol, allow_none=True),
+                                unrealized_pnl=self._safe_decimal_convert(position_info.get("unrealized_pnl"), "unrealized_pnl", symbol, allow_none=True),
+                                realized_pnl=self._safe_decimal_convert(position_info.get("realized_pnl"), "realized_pnl", symbol, allow_none=True),
+                                margin_type=position_info.get("margin_type"),
+                                margin_used=self._safe_decimal_convert(position_info.get("margin_used"), "margin_used", symbol, allow_none=True),
+                                timestamp=position_info.get("timestamp"), # Keep as int/None
+                                status=position_info.get("status"),
+                                strategy_name=position_info.get("strategy_name"), # Less likely from API
+                                close_price=self._safe_decimal_convert(position_info.get("close_price"), "close_price", symbol, allow_none=True),
+                                close_time=position_info.get("close_time"), # TODO: Parse datetime if string
+                                pnl=self._safe_decimal_convert(position_info.get("pnl"), "pnl", symbol, allow_none=True),
                             )
+                            updated_positions[pos_instance.id] = pos_instance
+                        except (ValueError, TypeError, InvalidOperation) as e:
+                             logger.warning(f"[FETCH_POSITIONS:{exchange_id}] Error parsing position dict {position_info}: {e}", exc_info=True)
                     else:
-                        logger.warning(
-                            f"Skipping unrecognized position data type on {exchange_id}: {type(position_info)}"
-                        )
+                        logger.warning(f"[FETCH_POSITIONS:{exchange_id}] Unexpected item type in positions list: {type(position_info)}")
 
                 # Update internal state, keyed by symbol
                 self._positions[exchange_id] = updated_positions
                 self._last_update_time[exchange_id] = datetime.now(UTC)
-                logger.info(f"Fetched and processed positions for {exchange_id}")
+                logger.info(f"[FETCH_POSITIONS:{exchange_id}] Processed {len(updated_positions)} positions. Updating internal state.")
                 return True
             else:
                 logger.error(
@@ -442,19 +484,33 @@ class PortfolioTracker:
                 logger.warning(f"Unexpected orders format from {exchange_id}: {type(orders)}")
                 return
 
-            # Check for orders that are no longer open
-            for order_id, old_order in self._orders[exchange_id].items():
-                if order_id not in new_orders and old_order.status in [
-                    OrderStatus.NEW,
-                    OrderStatus.PARTIALLY_FILLED,
-                ]:
-                    logger.info(f"Order {order_id} on {exchange_id} is no longer open")
+            # Check for orders that are no longer open by the exchange (potentially CANCELED or FILLED)
+            # Be cautious: network errors could cause temporary inconsistencies.
+            # Reconciliation logic should be robust.
+            orders_to_check = list(new_orders.keys())
+            removed_count = 0
+            for order_id in orders_to_check:
+                if order_id not in new_orders:
+                    current_order = new_orders[order_id]
+                    # Only update if status suggests it *could* still be open
+                    if current_order.status in [
+                        OrderStatus.NEW,
+                        OrderStatus.OPEN, # Some exchanges use OPEN explicitly
+                        OrderStatus.PARTIALLY_FILLED,
+                        # Consider UNKNOWN as potentially open? Depends on strategy.
+                        # OrderStatus.UNKNOWN
+                    ]:
+                        logger.warning(f"[FETCH_ORDERS:{exchange_id}] Order {order_id} ({current_order.symbol}) no longer reported as open. Status was {current_order.status}. Marking UNKNOWN pending reconciliation or update.")
+                        # Don't remove, just mark status? Or rely on trade/cancel updates?
+                        # Let's mark as UNKNOWN for now, updates should clarify.
+                        current_order.status = OrderStatus.UNKNOWN
+                        removed_count += 1 # Count as 'checked' or 'status updated'
+
+            logger.info(f"[FETCH_ORDERS:{exchange_id}] Fetched and updated {len(new_orders) - removed_count} open orders. Marked {removed_count} potentially closed orders as UNKNOWN.")
 
             # Update with new orders
             self._orders[exchange_id] = new_orders
             self._last_update_time[exchange_id] = datetime.now(UTC)
-
-            logger.info(f"Updated {len(new_orders)} orders for {exchange_id}")
 
         except Exception as e:
             logger.error(f"Error fetching orders from {exchange_id}: {str(e)}", exc_info=True)
@@ -479,14 +535,15 @@ class PortfolioTracker:
             if (now - last_check).total_seconds() >= self.reconciliation_interval:
                 update_tasks.append(self._fetch_exchange_balances(exchange_id))
                 update_tasks.append(self._fetch_exchange_positions(exchange_id))
-                update_tasks.append(self._fetch_exchange_orders(exchange_id))
-                self._last_reconciliation_time[exchange_id] = now  # Store UTC now
+                # Fetching orders less frequently might be okay unless precise open order state is critical
+                # update_tasks.append(self._fetch_exchange_orders(exchange_id))
+                self._last_reconciliation_time[exchange_id] = now # Store UTC now
             else:
                 # Only fetch orders if not reconciling
                 update_tasks.append(self._fetch_exchange_orders(exchange_id))
 
             # Update the general last update time regardless
-            self._last_update_time[exchange_id] = now  # Store UTC now
+            self._last_update_time[exchange_id] = now # Store UTC now
 
         # Wait for all update tasks to complete
         results = await asyncio.gather(*update_tasks, return_exceptions=True)
@@ -605,8 +662,8 @@ class PortfolioTracker:
             )
 
             if closing_trade and abs(trade_size_signed) <= abs(original_size):
-                size_closed = min(abs(trade_size), abs(original_size))
-                if current_position.side == OrderSide.BUY:
+                size_closed = min(abs(trade_size_signed), abs(original_size))
+                if current_position.side == trade_side:
                     realized_pnl_from_trade = (trade_price - original_entry) * size_closed
                 else:  # Position was SHORT
                     realized_pnl_from_trade = (original_entry - trade_price) * size_closed
@@ -642,9 +699,9 @@ class PortfolioTracker:
             current_position.size = new_size
             # Update side based on new size
             if new_size > 0:
-                current_position.side = OrderSide.BUY
+                current_position.side = trade_side
             elif new_size < 0:
-                current_position.side = OrderSide.SELL
+                current_position.side = trade_side
             else:
                 # Position closed, maybe set side to None or keep last? Keeping last for now.
                 logger.info(f"Position for {trade.symbol} on {exchange_id} closed.")
@@ -662,11 +719,14 @@ class PortfolioTracker:
 
         # Update Balances (Simplified: Reduce base currency by cost/add quote currency)
         # TODO: Need robust balance update logic considering fees and assets
-        base_asset = trade.symbol.split("-")[0]  # Assuming format like BTC-PERP
-        quote_asset = "USDC"  # Assuming quote is USDC for now
+        base_asset, quote_asset = self._split_symbol(trade.symbol)
+        if not base_asset or not quote_asset:
+            logger.error(f"[PROCESS_TRADE:{exchange_id}] Could not determine base/quote asset for symbol '{trade.symbol}'. Cannot update balances.")
+            return # Cannot proceed without knowing assets
+
         cost = trade.quantity * trade.price
         fee = trade.fee or Decimal("0.0")
-        fee_asset = trade.fee_asset or quote_asset  # Assume fee in quote if not specified
+        fee_asset = trade.fee_asset or quote_asset # Default fee asset to quote
 
         # logger.debug(f"Attempting balance update: Cost={cost}, Fee={fee} {fee_asset}")
         # try:
@@ -830,7 +890,7 @@ class PortfolioTracker:
                         total_exposure += abs(pos_size * mark_price)
                     except (InvalidOperation, TypeError) as e:
                         logger.warning(
-                            f"Could not calculate exposure for position {getattr(position, 'symbol', '?')}: {e}"
+                            f"Could not calculate exposure for position {position.symbol}: {e}"
                         )
         return total_exposure
 
@@ -905,7 +965,7 @@ class PortfolioTracker:
         Calculate the current portfolio drawdown from the high watermark.
         Returns Decimal percentage or None if not enough data.
         """
-        current_capital = self.get_total_capital()
+        current_capital = self.get_total_capital() # Recalculates based on current state
 
         if current_capital is None or self._high_watermark == Decimal("0.0"):
             # Cannot calculate drawdown without current capital or a high watermark
@@ -1007,54 +1067,54 @@ class PortfolioTracker:
             Dictionary representation of portfolio state
         """
         state = {
-            "balances": {},
-            "positions": {},
-            "orders": {},
-            "last_update_time": {},
-            "last_reconciliation_time": {},
-            "high_watermark": str(self._high_watermark),
-            "realized_pnl": str(self._realized_pnl),
+            "_balances": {},
+            "_positions": {},
+            "_orders": {},
+            "_last_update_time": {},
+            "_last_reconciliation_time": {},
+            "_high_watermark": str(self._high_watermark),
+            "_realized_pnl": str(self._realized_pnl),
         }
 
         for ex_id, balances in self._balances.items():
-            state["balances"][ex_id] = {}
+            state["_balances"][ex_id] = {}
             for asset, balance in balances.items():
                 if isinstance(balance, Balance):
-                    state["balances"][ex_id][asset] = balance.to_dict()  # Use Balance.to_dict()
+                    state["_balances"][ex_id][asset] = balance.to_dict()  # Use Balance.to_dict()
                 else:
                     # Handle non-Balance objects if they slipped through (e.g., store as string)
                     logger.warning(
                         f"Serializing non-Balance object for {asset} in {ex_id}: {type(balance)}"
                     )
-                    state["balances"][ex_id][asset] = str(balance)
+                    state["_balances"][ex_id][asset] = str(balance)
 
         for ex_id, positions in self._positions.items():
-            state["positions"][ex_id] = {}
+            state["_positions"][ex_id] = {}
             for symbol, position in positions.items():
                 if isinstance(position, Position):
-                    state["positions"][ex_id][symbol] = position.to_dict()  # Use Position.to_dict()
+                    state["_positions"][ex_id][symbol] = position.to_dict()  # Use Position.to_dict()
                 else:
                     logger.warning(
                         f"Serializing non-Position object for {symbol} in {ex_id}: {type(position)}"
                     )
-                    state["positions"][ex_id][symbol] = str(position)
+                    state["_positions"][ex_id][symbol] = str(position)
 
         for ex_id, orders in self._orders.items():
-            state["orders"][ex_id] = {}
+            state["_orders"][ex_id] = {}
             for order_id, order in orders.items():
                 if isinstance(order, Order):
-                    state["orders"][ex_id][order_id] = order.to_dict()  # Use Order.to_dict()
+                    state["_orders"][ex_id][order_id] = order.to_dict()  # Use Order.to_dict()
                 else:
                     logger.warning(
                         f"Serializing non-Order object for {order_id} in {ex_id}: {type(order)}"
                     )
-                    state["orders"][ex_id][order_id] = str(order)
+                    state["_orders"][ex_id][order_id] = str(order)
 
         # Serialize datetimes as ISO strings
-        state["last_update_time"] = {
+        state["_last_update_time"] = {
             k: v.isoformat() if v else None for k, v in self._last_update_time.items()
         }
-        state["last_reconciliation_time"] = {
+        state["_last_reconciliation_time"] = {
             k: v.isoformat() if v else None for k, v in self._last_reconciliation_time.items()
         }
 
@@ -1068,7 +1128,7 @@ class PortfolioTracker:
             state_dict: Dictionary representation of portfolio state
         """
         self._balances = {}
-        for ex_id, balances_dict in state_dict.get("balances", {}).items():
+        for ex_id, balances_dict in state_dict.get("_balances", {}).items():
             self._balances[ex_id] = {}
             for asset, balance_data in balances_dict.items():
                 try:
@@ -1084,64 +1144,31 @@ class PortfolioTracker:
                     )
 
         self._positions = {}
-        for ex_id, positions_dict in state_dict.get("positions", {}).items():
+        for ex_id, positions_dict in state_dict.get("_positions", {}).items():
             self._positions[ex_id] = {}
             for _pos_id, pos_data in positions_dict.items():
                 try:
                     # Convert numeric fields back to Decimal
-                    for key in [
-                        "size",
-                        "entry_price",
-                        "mark_price",
-                        "liquidation_price",
-                        "leverage",
-                        "unrealized_pnl",
-                        "realized_pnl",
-                        "margin_used",
-                    ]:
+                    for key in ["size", "entry_price", "mark_price"]:
                         if key in pos_data and pos_data[key] is not None:
                             pos_data[key] = Decimal(str(pos_data[key]))
-                        elif key in [
-                            "liquidation_price",
-                            "unrealized_pnl",
-                            "realized_pnl",
-                            "margin_used",
-                        ]:
-                            pos_data[key] = None  # Allow optional Decimals to be None
-                    # Convert side back to enum
-                    if "side" in pos_data and isinstance(pos_data["side"], str):
-                        pos_data["side"] = OrderSide(pos_data["side"].lower())
-
                     self._positions[ex_id][_pos_id] = Position(**pos_data)
-                except (InvalidOperation, TypeError, KeyError, ValueError) as e:
+                except (InvalidOperation, TypeError, KeyError) as e:
                     logger.error(
                         f"Error deserializing position {_pos_id} on {ex_id}: {e} - Data: {pos_data}"
                     )
 
         self._orders = {}
-        for ex_id, orders_dict in state_dict.get("orders", {}).items():
+        for ex_id, orders_dict in state_dict.get("_orders", {}).items():
             self._orders[ex_id] = {}
             for order_id, order_data in orders_dict.items():
                 try:
                     # Convert numeric fields back to Decimal (handle None)
-                    for key in ["price", "quantity", "filled_quantity", "avg_fill_price"]:
+                    for key in ["price", "filled_quantity"]:
                         if key in order_data and order_data[key] is not None:
                             order_data[key] = Decimal(str(order_data[key]))
-                        elif key in ["price", "avg_fill_price"]:
-                            order_data[key] = None
-                        else:
-                            order_data[key] = Decimal("0.0")  # Default quantity/filled to 0 if None
-
-                    # Convert enums back
-                    if "status" in order_data:
-                        order_data["status"] = OrderStatus(order_data["status"])
-                    if "side" in order_data:
-                        order_data["side"] = OrderSide(order_data["side"].lower())
-                    if "type" in order_data:
-                        order_data["type"] = OrderType(order_data["type"].lower())
-
                     self._orders[ex_id][order_id] = Order(**order_data)
-                except (InvalidOperation, TypeError, KeyError, ValueError) as e:
+                except (InvalidOperation, TypeError, KeyError) as e:
                     logger.error(
                         f"Error deserializing order {order_id} on {ex_id}: {e} - Data: {order_data}"
                     )
@@ -1156,27 +1183,25 @@ class PortfolioTracker:
             return datetime.min.replace(tzinfo=UTC)  # Fallback if None
 
         self._last_update_time = {
-            k: parse_iso_datetime(v) for k, v in state_dict.get("last_update_time", {}).items()
+            k: parse_iso_datetime(v) for k, v in state_dict.get("_last_update_time", {}).items()
         }
         self._last_reconciliation_time = {
             k: parse_iso_datetime(v)
-            for k, v in state_dict.get("last_reconciliation_time", {}).items()
+            for k, v in state_dict.get("_last_reconciliation_time", {}).items()
         }
 
         try:
-            hwm_str = state_dict.get("high_watermark")
+            hwm_str = state_dict.get("_high_watermark")
             self._high_watermark = Decimal(str(hwm_str)) if hwm_str is not None else Decimal("0.0")
         except (InvalidOperation, TypeError):
-            logger.error(f"Error deserializing high_watermark: {state_dict.get('high_watermark')}")
+            logger.error(f"Error deserializing high_watermark: {state_dict.get('_high_watermark')}")
             self._high_watermark = Decimal("0.0")
 
         try:
-            realized_pnl_str = state_dict.get("realized_pnl")
-            self._realized_pnl = (
-                Decimal(str(realized_pnl_str)) if realized_pnl_str is not None else Decimal("0.0")
-            )
+            realized_pnl_str = state_dict.get("_realized_pnl")
+            self._realized_pnl = Decimal(str(realized_pnl_str)) if realized_pnl_str is not None else Decimal("0.0")
         except (InvalidOperation, TypeError):
-            logger.error(f"Error deserializing realized_pnl: {state_dict.get('realized_pnl')}")
+            logger.error(f"Error deserializing realized_pnl: {state_dict.get('_realized_pnl')}")
             self._realized_pnl = Decimal("0.0")
 
         logger.info("Portfolio state deserialized from dict")
@@ -1293,7 +1318,7 @@ class PortfolioTracker:
             Returns Decimal('0') if high watermark is zero or current value is unknown/invalid.
         """
         # Use the internal method to avoid redundant logging if called frequently
-        current_value = self.get_total_capital()  # Ensures calculation and high watermark update
+        current_value = self.get_total_capital() # Ensures calculation and high watermark update
 
         if not isinstance(current_value, Decimal):
             logger.error(
@@ -1305,7 +1330,7 @@ class PortfolioTracker:
         if self._high_watermark <= Decimal("0.0"):
             # Don't log warning every time if peak hasn't been established yet
             # logger.debug("Cannot calculate drawdown: High watermark is zero or negative.")
-            return Decimal("0.0")  # No drawdown if no peak value recorded
+            return Decimal("0.0") # No drawdown if no peak value recorded
 
         # Drawdown calculation
         drawdown = (self._high_watermark - current_value) / self._high_watermark
@@ -1328,7 +1353,7 @@ class PortfolioTracker:
             Balance object for the asset. Returns a zero Balance object if not found or invalid.
         """
         asset_upper = asset.upper()
-        balance = self._balances[exchange_id].get(asset_upper)
+        balance = self._balances.get(exchange_id, {}).get(asset_upper)
         zero_balance = Balance(
             asset=asset_upper,
             total=Decimal("0.0"),
@@ -1344,7 +1369,7 @@ class PortfolioTracker:
         # Verify the retrieved data is actually a Balance object
         if not isinstance(balance, Balance):
             logger.warning(
-                f"Stored balance data for {asset} on {exchange_id} is not a Balance object: "
+                f"Stored balance data for {asset_upper} on {exchange_id} is not a Balance object: "
                 f"{type(balance)}. Returning zero balance."
             )
             return zero_balance
@@ -1356,14 +1381,14 @@ class PortfolioTracker:
                     setattr(balance, field_name, Decimal(str(getattr(balance, field_name))))
                 except Exception as e:
                     logger.error(
-                        f"Could not convert balance field '{field_name}' to Decimal for {asset} on {exchange_id}: {e}. "
+                        f"Could not convert balance field '{field_name}' to Decimal for {asset_upper}: {e}. "
                         f"Original: {balance}. Returning zero balance."
                     )
                     return zero_balance  # Return zero balance on conversion error
             return balance
         except Exception as e:
             logger.error(
-                f"Could not convert balance field '{field_name}' to Decimal for {asset} on {exchange_id}: {e}. "
+                f"Could not convert balance field '{field_name}' to Decimal for {asset_upper}: {e}. "
                 f"Original: {balance}. Returning zero balance."
             )
             return zero_balance  # Return zero balance on conversion error
@@ -1395,21 +1420,8 @@ class PortfolioTracker:
             if position_symbol_norm == symbol_norm and position.is_active():
                 # Ensure position.size is Decimal
                 pos_size = position.size
-                if pos_size is None:
-                    continue  # Skip positions with null size
-
-                if not isinstance(pos_size, Decimal):
-                    try:
-                        pos_size = Decimal(str(pos_size))
-                    except Exception:
-                        logger.error(
-                            f"Position size '{pos_size}' for {symbol} on {exchange_id} "
-                            f"is not Decimal. Skipping this position."
-                        )
-                        continue
-
-                # Assuming size is signed in the Position model
-                total_size += pos_size
+                if pos_size is not None:
+                    total_size += pos_size
 
         # logger.debug(f"Position size for {symbol_upper} on {exchange_id}: {total_size}")
         return total_size  # Returns Decimal
@@ -1441,15 +1453,6 @@ class PortfolioTracker:
                 # Assuming position object has a 'pnl' attribute that is Decimal
                 if hasattr(position, "pnl") and position.pnl is not None:
                     position_pnl = position.pnl
-                    if not isinstance(position_pnl, Decimal):
-                        try:
-                            position_pnl = Decimal(str(position_pnl))
-                        except Exception:
-                            logger.error(
-                                f"Position PNL '{position_pnl}' for {symbol} on {exchange_id} "
-                                f"is not Decimal. Treating as zero for this position."
-                            )
-                            position_pnl = Decimal("0.0")
                     total_pnl += position_pnl  # Sum PNL
                 else:
                     # Calculate PNL if not directly available (requires mark_price)
@@ -1458,8 +1461,6 @@ class PortfolioTracker:
                         and position.mark_price is not None
                         and hasattr(position, "entry_price")
                         and position.entry_price is not None
-                        and hasattr(position, "size")
-                        and position.size is not None
                     ):
                         try:
                             mark_price = Decimal(str(position.mark_price))
@@ -1472,13 +1473,11 @@ class PortfolioTracker:
                             total_pnl += calculated_pnl
                         except Exception as e:
                             logger.error(
-                                f"Could not calculate PNL for position {position.id} "
-                                f"on {exchange_id}: {e}"
+                                f"Could not calculate PNL for position {position.id} on {exchange_id}: {e}"
                             )
                     else:
                         logger.debug(
-                            f"Cannot calculate PNL for position {position.id} on {exchange_id}: "
-                            f"Missing mark_price, entry_price, or size."
+                            f"Cannot calculate PNL for position {position.id} on {exchange_id}: Missing mark_price or size."
                         )
 
         # logger.debug(f"Unrealized PNL for {symbol_upper} on {exchange_id} (summed): {total_pnl}")
@@ -1490,19 +1489,18 @@ class PortfolioTracker:
     def to_json(self) -> str:
         """Serialize the portfolio state to a JSON string."""
         state_dict = self.to_dict()
-        return dump_json(state_dict)
+        return json.dumps(state_dict)
 
-    # Method to load state from JSON string
     @classmethod
     def from_json(cls, json_str: str, config: Config) -> PortfolioTracker:
         """Deserialize the portfolio state from a JSON string."""
-        state_dict = json.loads(json_str)  # Use standard json.loads for initial parse
-        instance = cls(config)
-        instance.from_dict(state_dict)
+        state_dict = json.loads(json_str) # Use standard json.loads
+        instance = cls(config) # Create a new instance
+        instance.from_dict(state_dict) # Populate state using the robust from_dict method
         return instance
 
     def _add_to_watchlist(self, symbol: str) -> None:
-        """Adds a symbol to the watchlist."""
+        """Add a symbol to the watchlist."""
         if symbol not in self.watch_list:
             # Changed: self.watch_list[symbol] = True # Incorrect for set/list
             self.watch_list.add(symbol)  # Assuming watch_list is a set
@@ -1565,7 +1563,7 @@ class PortfolioTracker:
             if asset in symbol.split("-")[0]:
                 if position.size > Decimal("0"):
                     current_price = self.get_current_price(symbol)
-                    if current_price:
+                    if current_price is not None:
                         position_value = position.size * current_price
                         exposure += position_value
         return exposure
@@ -1576,7 +1574,7 @@ class PortfolioTracker:
             position = self._positions[symbol]
             if position.size > Decimal("0"):
                 current_price = self.get_current_price(symbol)
-                if current_price:
+                if current_price is not None:
                     # Need to handle optional mark_price
                     mark_price = (
                         position.mark_price if position.mark_price is not None else current_price
@@ -1592,7 +1590,7 @@ class PortfolioTracker:
         for symbol, position in self._positions.items():
             if position.size > Decimal("0"):
                 current_price = self.get_current_price(symbol)
-                if current_price:
+                if current_price is not None:
                     # Ensure mark_price is checked for None
                     mark_price = position.mark_price
                     if mark_price is not None:
@@ -1635,47 +1633,15 @@ class PortfolioTracker:
             self.config.get("risk.max_total_exposure", Decimal("10000")) - current_total_exposure
         )
 
-        # Factor 3: Exchange specific exposure limit (if configured)
-        max_exchange_exposure_pct = self.config.get(
-            f"exchanges.{exchange_id}.max_exposure_pct", Decimal("0.1")
-        )
-        max_size_from_exchange = max_size_from_capital * max_exchange_exposure_pct
-
         # Calculate maximum trade size
-        max_trade_size = min(max_size_from_capital, max_size_from_exposure, max_size_from_exchange)
+        max_trade_size = min(max_size_from_capital, max_size_from_exposure)
 
         return max_trade_size
 
     def as_dict(self) -> dict[str, Any]:
-        """Serialize portfolio state to a dictionary."""
-        # Serialize balances, positions, orders, and other relevant state
-        # Convert Decimal to str for JSON compatibility if using standard json
-        serialized_balances = {
-            ex: {asset: balance.to_dict() for asset, balance in bals.items()}
-            for ex, bals in self._balances.items()
-        }
-        serialized_positions = {
-            ex: {pid: pos.to_dict() for pid, pos in positions.items()}
-            for ex, positions in self._positions.items()
-        }
-        serialized_orders = {
-            ex: {oid: order.to_dict() for oid, order in orders.items()}
-            for ex, orders in self._orders.items()
-        }
+        """Alias for to_dict."""
+        return self.to_dict()
 
-        return {
-            "balances": serialized_balances,
-            "positions": serialized_positions,
-            "orders": serialized_orders,
-            "realized_pnl": str(self._realized_pnl),  # Store as string
-            "high_watermark": str(self._high_watermark),  # Store as string
-            # Add other state variables if needed
-        }
-
-
-# Example usage (consider moving to tests or main application logic)
-# tracker = PortfolioTracker(config)
-# ... populate tracker ...
-# json_output = tracker.to_json(indent=4)
-# print(json_output)
-# loaded_tracker = PortfolioTracker.from_json(json_output, config)
+# Potential helper functions (if needed outside class)
+# def _safe_decimal_from_dict(data: dict, key: str, default: Decimal = Decimal("0.0")) -> Decimal:
+#     ...

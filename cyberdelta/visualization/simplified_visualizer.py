@@ -49,7 +49,41 @@ class SimpleVisualizer:
         plt.rcParams["figure.figsize"] = (12, 8)
         plt.style.use("ggplot")
 
-    def plot_cumulative_pnl(self, save: bool = False, show: bool = True) -> plt.Figure:
+    # --- Helper Methods ---
+
+    def _setup_plot(self, title: str, xlabel: str, ylabel: str) -> tuple[plt.Figure, plt.Axes]:
+        """Sets up a standard matplotlib figure and axes."""
+        fig, ax = plt.subplots()
+        ax.set_title(f"{title} ({self.tracker.strategy_name})", fontsize=14, fontweight="bold")
+        ax.set_xlabel(xlabel, fontsize=12)
+        ax.set_ylabel(ylabel, fontsize=12)
+        ax.grid(True, alpha=0.3)
+        return fig, ax
+
+    def _format_xaxis_date(self, fig: plt.Figure, ax: plt.Axes) -> None:
+        """Formats the x-axis to display dates nicely."""
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+        fig.autofmt_xdate()
+
+    def _finalize_plot(self, fig: plt.Figure, ax: plt.Axes, plot_name: str, save: bool, show: bool) -> None:
+        """Applies final layout adjustments, saves, shows, and closes the plot."""
+        plt.tight_layout()
+        if save:
+            filename = os.path.join(self.output_dir, f"{self.tracker.strategy_name}_{plot_name}.png")
+            try:
+                plt.savefig(filename)
+                logger.info(f"Plot saved to {filename}")
+            except Exception as e:
+                logger.error(f"Failed to save plot {filename}: {e}", exc_info=True)
+        if show:
+            plt.show()
+        # Close the plot figure to free up memory, especially important if generating many plots
+        plt.close(fig)
+
+    # --- Plotting Methods ---
+
+    def plot_cumulative_pnl(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
         Plot cumulative PnL over time.
 
@@ -58,37 +92,31 @@ class SimpleVisualizer:
             show: Whether to show the plot
 
         Returns:
-            Matplotlib figure
+            Matplotlib figure if successful, None otherwise.
         """
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
 
         if trades_df.empty:
-            logger.warning("No completed trades to plot")
-            fig, ax = plt.subplots()
-            ax.text(0.5, 0.5, "No completed trades to plot", ha="center", va="center")
-            if save:
-                plt.savefig(
-                    os.path.join(
-                        self.output_dir,
-                        f"{self.tracker.strategy_name}_cumulative_pnl.png",
-                    )
-                )
-            if show:
-                plt.show()
-            return fig
+            logger.warning("No completed trades to plot cumulative PnL")
+            # Optionally return a placeholder figure or None
+            # For simplicity, we log and return None
+            return None
 
-        # Ensure exit_time is datetime
-        trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"])
-
-        # Sort by exit time
-        trades_df = trades_df.sort_values("exit_time")
+        # Ensure exit_time is datetime and sort
+        try:
+            trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"])
+            trades_df = trades_df.sort_values("exit_time")
+        except Exception as e:
+            logger.error(f"Error processing trade timestamps for PnL plot: {e}", exc_info=True)
+            return None
 
         # Calculate cumulative PnL
         trades_df["cumulative_pnl"] = trades_df["pnl"].cumsum()
 
-        # Create plot
-        fig, ax = plt.subplots()
+        # --- Plotting ---
+        fig, ax = self._setup_plot("Cumulative PnL", "Date", "Cumulative PnL ($)")
+
         ax.plot(
             trades_df["exit_time"],
             trades_df["cumulative_pnl"],
@@ -101,48 +129,31 @@ class SimpleVisualizer:
         # Add horizontal line at zero
         ax.axhline(y=0, color="gray", linestyle="--", alpha=0.7)
 
-        # Add labels and title
-        ax.set_title(
-            f"Cumulative PnL for {self.tracker.strategy_name}",
-            fontsize=14,
-            fontweight="bold",
-        )
-        ax.set_xlabel("Date", fontsize=12)
-        ax.set_ylabel("Cumulative PnL ($)", fontsize=12)
-
         # Format x-axis dates
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-        fig.autofmt_xdate()
-
-        # Add grid
-        ax.grid(True, alpha=0.3)
+        self._format_xaxis_date(fig, ax)
 
         # Add annotations for final PnL
         final_pnl = trades_df["cumulative_pnl"].iloc[-1]
-        ax.annotate(
-            f"Final PnL: ${final_pnl:.2f}",
-            xy=(trades_df["exit_time"].iloc[-1], final_pnl),
-            xytext=(15, 15),
-            textcoords="offset points",
-            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
-        )
-
-        # Tight layout
-        plt.tight_layout()
-
-        # Save or show plot
-        if save:
-            plt.savefig(
-                os.path.join(self.output_dir, f"{self.tracker.strategy_name}_cumulative_pnl.png")
+        final_time = trades_df["exit_time"].iloc[-1]
+        try:
+            ax.annotate(
+                f"Final PnL: ${final_pnl:.2f}",
+                xy=(final_time, final_pnl),
+                xytext=(15, 15),
+                textcoords="offset points",
+                arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
             )
+        except Exception as e:
+            # Annotation can sometimes fail with certain data, log but continue
+            logger.warning(f"Could not add final PnL annotation: {e}")
 
-        if show:
-            plt.show()
 
-        return fig
+        # Finalize plot (save/show/close)
+        self._finalize_plot(fig, ax, "cumulative_pnl", save, show)
 
-    def plot_drawdown(self, save: bool = False, show: bool = True) -> plt.Figure:
+        return fig # Return the figure object (though it's closed if not shown live)
+
+    def plot_drawdown(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
         Plot drawdown over time.
 
@@ -151,68 +162,55 @@ class SimpleVisualizer:
             show: Whether to show the plot
 
         Returns:
-            Matplotlib figure
+            Matplotlib figure if successful, None otherwise.
         """
         # Get daily PnL
-        daily_pnl = self.analyzer.get_daily_pnl()
+        try:
+            daily_pnl = self.analyzer.get_daily_pnl()
+        except Exception as e:
+            logger.error(f"Error getting daily PnL for drawdown plot: {e}", exc_info=True)
+            return None
 
         if daily_pnl.empty:
             logger.warning("No daily PnL data to plot drawdown")
-            fig, ax = plt.subplots()
-            ax.text(0.5, 0.5, "No daily PnL data to plot drawdown", ha="center", va="center")
-            if save:
-                plt.savefig(
-                    os.path.join(self.output_dir, f"{self.tracker.strategy_name}_drawdown.png")
-                )
-            if show:
-                plt.show()
-            return fig
+            return None
 
         # Calculate drawdown
-        drawdown = self.analyzer.calculate_drawdown(daily_pnl)
+        try:
+            drawdown = self.analyzer.calculate_drawdown(daily_pnl)
+        except Exception as e:
+            logger.error(f"Error calculating drawdown: {e}", exc_info=True)
+            return None
 
-        # Create plot
-        fig, ax = plt.subplots()
+        # --- Plotting ---
+        fig, ax = self._setup_plot("Drawdown", "Date", "Drawdown (%)")
+
         ax.fill_between(drawdown.index, 0, drawdown.values * 100, color="red", alpha=0.3)
         ax.plot(drawdown.index, drawdown.values * 100, color="red", linewidth=1)
 
-        # Add labels and title
-        ax.set_title(f"Drawdown for {self.tracker.strategy_name}", fontsize=14, fontweight="bold")
-        ax.set_xlabel("Date", fontsize=12)
-        ax.set_ylabel("Drawdown (%)", fontsize=12)
-
         # Format x-axis dates
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-        fig.autofmt_xdate()
-
-        # Add grid
-        ax.grid(True, alpha=0.3)
+        self._format_xaxis_date(fig, ax)
 
         # Add annotations for max drawdown
-        max_dd = drawdown.min() * 100
-        max_dd_idx = drawdown.idxmin()
-        ax.annotate(
-            f"Max DD: {max_dd:.2f}%",
-            xy=(max_dd_idx, max_dd),
-            xytext=(15, 15),
-            textcoords="offset points",
-            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
-        )
+        try:
+            max_dd = drawdown.min() * 100
+            max_dd_idx = drawdown.idxmin()
+            ax.annotate(
+                f"Max DD: {max_dd:.2f}%",
+                xy=(max_dd_idx, max_dd),
+                xytext=(15, -15), # Adjust position slightly
+                textcoords="offset points",
+                arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
+            )
+        except Exception as e:
+            logger.warning(f"Could not add max drawdown annotation: {e}")
 
-        # Tight layout
-        plt.tight_layout()
-
-        # Save or show plot
-        if save:
-            plt.savefig(os.path.join(self.output_dir, f"{self.tracker.strategy_name}_drawdown.png"))
-
-        if show:
-            plt.show()
+        # Finalize plot
+        self._finalize_plot(fig, ax, "drawdown", save, show)
 
         return fig
 
-    def plot_trade_distribution(self, save: bool = False, show: bool = True) -> plt.Figure:
+    def plot_trade_distribution(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
         Plot distribution of trade PnLs.
 
@@ -221,351 +219,195 @@ class SimpleVisualizer:
             show: Whether to show the plot
 
         Returns:
-            Matplotlib figure
+            Matplotlib figure if successful, None otherwise.
         """
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
 
-        if trades_df.empty:
-            logger.warning("No completed trades to plot distribution")
-            fig, ax = plt.subplots()
-            ax.text(
-                0.5,
-                0.5,
-                "No completed trades to plot distribution",
-                ha="center",
-                va="center",
-            )
-            if save:
-                plt.savefig(
-                    os.path.join(
-                        self.output_dir,
-                        f"{self.tracker.strategy_name}_trade_distribution.png",
-                    )
-                )
-            if show:
-                plt.show()
-            return fig
+        if trades_df.empty or 'pnl' not in trades_df.columns:
+            logger.warning("No completed trades with PnL data to plot distribution")
+            return None
 
-        # Create plot
-        fig, ax = plt.subplots()
+        # --- Plotting ---
+        fig, ax = self._setup_plot("Trade PnL Distribution", "PnL ($)", "Frequency")
 
-        # Plot histogram with KDE
-        ax.hist(
-            trades_df["pnl"],
-            bins=20,
-            alpha=0.7,
-            color="skyblue",
-            density=True,
-            label="PnL Distribution",
-        )
+        # Create histogram
+        trade_pnl = trades_df["pnl"]
+        ax.hist(trade_pnl, bins=30, color="skyblue", edgecolor="black", alpha=0.7)
 
-        # Add vertical line at 0
-        ax.axvline(x=0, color="red", linestyle="--", alpha=0.7)
+        # Add vertical line at zero
+        ax.axvline(x=0, color="gray", linestyle="--", alpha=0.7)
 
-        # Add vertical line at mean
-        mean_pnl = trades_df["pnl"].mean()
-        ax.axvline(
-            x=mean_pnl,
-            color="green",
-            linestyle="-",
-            alpha=0.7,
-            label=f"Mean PnL: ${mean_pnl:.2f}",
-        )
+        # Add annotations for mean PnL
+        mean_pnl = trade_pnl.mean()
+        ax.axvline(mean_pnl, color="red", linestyle="dashed", linewidth=1)
+        min_ylim, max_ylim = ax.get_ylim()
+        ax.text(
+            mean_pnl * 1.1, max_ylim * 0.9, f"Mean: ${mean_pnl:.2f}", color="red"
+        ) # Adjust text position
 
-        # Add labels and title
-        ax.set_title(
-            f"Trade PnL Distribution for {self.tracker.strategy_name}",
-            fontsize=14,
-            fontweight="bold",
-        )
-        ax.set_xlabel("PnL ($)", fontsize=12)
-        ax.set_ylabel("Density", fontsize=12)
-
-        # Add grid
-        ax.grid(True, alpha=0.3)
-
-        # Add legend
-        ax.legend()
-
-        # Tight layout
-        plt.tight_layout()
-
-        # Save or show plot
-        if save:
-            plt.savefig(
-                os.path.join(
-                    self.output_dir,
-                    f"{self.tracker.strategy_name}_trade_distribution.png",
-                )
-            )
-
-        if show:
-            plt.show()
+        # Finalize plot
+        self._finalize_plot(fig, ax, "trade_distribution", save, show)
 
         return fig
 
-    def plot_winning_vs_losing_trades(self, save: bool = False, show: bool = True) -> plt.Figure:
+    def plot_winning_vs_losing_trades(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
-        Plot pie chart of winning vs losing trades.
+        Plot comparison of winning vs losing trades.
 
         Args:
             save: Whether to save the plot to a file
             show: Whether to show the plot
 
         Returns:
-            Matplotlib figure
+            Matplotlib figure if successful, None otherwise.
         """
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
 
-        if trades_df.empty:
-            logger.warning("No completed trades to plot winning vs losing")
-            fig, ax = plt.subplots()
-            ax.text(
-                0.5,
-                0.5,
-                "No completed trades to plot winning vs losing",
-                ha="center",
-                va="center",
-            )
-            if save:
-                plt.savefig(
-                    os.path.join(
-                        self.output_dir,
-                        f"{self.tracker.strategy_name}_win_loss_ratio.png",
-                    )
-                )
-            if show:
-                plt.show()
-            return fig
+        if trades_df.empty or 'pnl' not in trades_df.columns:
+            logger.warning("No completed trades with PnL data to plot win/loss comparison")
+            return None
 
-        # Count winning and losing trades
-        winning_trades = len(trades_df[trades_df["pnl"] > 0])
-        losing_trades = len(trades_df[trades_df["pnl"] <= 0])
+        # Separate winning and losing trades
+        winners = trades_df[trades_df["pnl"] > 0]["pnl"]
+        losers = trades_df[trades_df["pnl"] < 0]["pnl"]
 
-        # Create plot
-        fig, ax = plt.subplots()
+        # --- Plotting ---
+        fig, ax = self._setup_plot("Winning vs. Losing Trades", "", "Count")
 
-        # Plot pie chart
+        # Create bar chart
         labels = ["Winning Trades", "Losing Trades"]
-        sizes = [winning_trades, losing_trades]
+        counts = [len(winners), len(losers)]
         colors = ["green", "red"]
-        explode = (0.1, 0)  # explode winning trades slice
+        bars = ax.bar(labels, counts, color=colors, alpha=0.8)
 
-        ax.pie(
-            sizes,
-            explode=explode,
-            labels=labels,
-            colors=colors,
-            autopct="%1.1f%%",
-            startangle=90,
-            shadow=True,
+        # Add count labels on bars
+        ax.bar_label(bars, fmt="%d")
+
+        # Add text for average win/loss
+        avg_win = winners.mean() if not winners.empty else 0
+        avg_loss = losers.mean() if not losers.empty else 0
+        win_rate = (len(winners) / len(trades_df)) * 100 if len(trades_df) > 0 else 0
+
+        stats_text = (
+            f"Win Rate: {win_rate:.2f}%\n"
+            f"Avg Win: ${avg_win:.2f}\n"
+            f"Avg Loss: ${avg_loss:.2f}"
         )
-        ax.axis("equal")  # Equal aspect ratio ensures that pie is drawn as a circle
+        # Position text box
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+        ax.text(0.05, 0.95, stats_text, transform=ax.transAxes, fontsize=10,
+                verticalalignment='top', bbox=props)
 
-        # Add title
-        plt.title(
-            f"Win/Loss Ratio for {self.tracker.strategy_name}",
-            fontsize=14,
-            fontweight="bold",
-        )
 
-        # Add legend with counts
-        plt.legend(
-            [f"Winning Trades ({winning_trades})", f"Losing Trades ({losing_trades})"],
-            loc="lower left",
-        )
+        # Remove x-axis ticks if desired, or adjust labels
+        ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=True)
 
-        # Tight layout
-        plt.tight_layout()
-
-        # Save or show plot
-        if save:
-            plt.savefig(
-                os.path.join(self.output_dir, f"{self.tracker.strategy_name}_win_loss_ratio.png")
-            )
-
-        if show:
-            plt.show()
+        # Finalize plot
+        self._finalize_plot(fig, ax, "winning_losing_trades", save, show)
 
         return fig
 
-    def plot_monthly_performance(self, save: bool = False, show: bool = True) -> plt.Figure:
+    def plot_monthly_performance(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
-        Plot monthly performance.
+        Plot monthly PnL performance.
 
         Args:
             save: Whether to save the plot to a file
             show: Whether to show the plot
 
         Returns:
-            Matplotlib figure
+            Matplotlib figure if successful, None otherwise.
         """
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
 
-        if trades_df.empty:
-            logger.warning("No completed trades to plot monthly performance")
-            fig, ax = plt.subplots()
-            ax.text(
-                0.5,
-                0.5,
-                "No completed trades to plot monthly performance",
-                ha="center",
-                va="center",
-            )
-            if save:
-                plt.savefig(
-                    os.path.join(
-                        self.output_dir,
-                        f"{self.tracker.strategy_name}_monthly_performance.png",
-                    )
-                )
-            if show:
-                plt.show()
-            return fig
+        if trades_df.empty or 'pnl' not in trades_df.columns or 'exit_time' not in trades_df.columns:
+            logger.warning("Insufficient trade data for monthly performance plot")
+            return None
 
-        # Ensure exit_time is datetime
-        trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"])
+        # Ensure exit_time is datetime and set as index
+        try:
+            trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"])
+            trades_df = trades_df.set_index("exit_time")
+        except Exception as e:
+            logger.error(f"Error processing timestamps for monthly plot: {e}", exc_info=True)
+            return None
 
-        # Create month column
-        trades_df["month"] = trades_df["exit_time"].dt.to_period("M")
+        # Resample to monthly PnL
+        monthly_pnl = trades_df["pnl"].resample("ME").sum() # 'ME' for Month End
 
-        # Group by month and sum PnL
-        monthly_pnl = trades_df.groupby("month")["pnl"].sum()
+        if monthly_pnl.empty:
+            logger.warning("No monthly PnL data after resampling")
+            return None
 
-        # Convert Period index to datetime for plotting
-        monthly_pnl.index = monthly_pnl.index.to_timestamp()
+        # --- Plotting ---
+        fig, ax = self._setup_plot("Monthly PnL", "Month", "PnL ($)")
 
-        # Create plot
-        fig, ax = plt.subplots()
+        # Create bar chart
+        colors = ["green" if pnl >= 0 else "red" for pnl in monthly_pnl.values]
+        bars = monthly_pnl.plot(kind="bar", ax=ax, color=colors, alpha=0.8)
 
-        # Plot bar chart
-        bars = ax.bar(monthly_pnl.index, monthly_pnl.values, width=20, alpha=0.7)
+        # Format x-axis labels (Month Abbreviation - Year)
+        ax.set_xticklabels([idx.strftime("%b-%Y") for idx in monthly_pnl.index], rotation=45, ha="right")
 
-        # Color bars based on positive/negative
-        for i, bar in enumerate(bars):
-            if monthly_pnl.values[i] > 0:
-                bar.set_color("green")
-            else:
-                bar.set_color("red")
-
-        # Add labels and title
-        ax.set_title(
-            f"Monthly Performance for {self.tracker.strategy_name}",
-            fontsize=14,
-            fontweight="bold",
-        )
-        ax.set_xlabel("Month", fontsize=12)
-        ax.set_ylabel("PnL ($)", fontsize=12)
-
-        # Format x-axis dates
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
-        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
-        fig.autofmt_xdate()
+        # Add PnL values on bars
+        ax.bar_label(bars, fmt="$%.2f", label_type='edge', padding=3)
 
         # Add horizontal line at zero
         ax.axhline(y=0, color="gray", linestyle="--", alpha=0.7)
 
-        # Add grid
-        ax.grid(True, alpha=0.3, axis="y")
+        # Adjust y-axis limits for better visualization of labels
+        min_ylim, max_ylim = ax.get_ylim()
+        ax.set_ylim(min_ylim - abs(min_ylim)*0.1, max_ylim + abs(max_ylim)*0.1)
 
-        # Tight layout
-        plt.tight_layout()
-
-        # Save or show plot
-        if save:
-            plt.savefig(
-                os.path.join(
-                    self.output_dir,
-                    f"{self.tracker.strategy_name}_monthly_performance.png",
-                )
-            )
-
-        if show:
-            plt.show()
+        # Finalize plot
+        self._finalize_plot(fig, ax, "monthly_performance", save, show)
 
         return fig
 
-    def plot_performance_metrics(self, save: bool = False, show: bool = True) -> plt.Figure:
+    def plot_performance_metrics(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
-        Plot key performance metrics.
+        Display key performance metrics as text.
 
         Args:
-            save: Whether to save the plot to a file
+            save: Whether to save the plot (saves as text/image)
             show: Whether to show the plot
 
         Returns:
-            Matplotlib figure
+            Matplotlib figure containing the text if successful, None otherwise.
         """
-        # Get performance metrics
-        metrics = self.analyzer.get_performance_metrics()
+        try:
+            metrics = self.analyzer.calculate_performance_metrics()
+        except Exception as e:
+            logger.error(f"Error calculating performance metrics for display: {e}", exc_info=True)
+            return None
 
-        # Create a figure with a grid for metrics
-        fig, ax = plt.subplots(figsize=(10, 6))
+        if not metrics:
+            logger.warning("No metrics calculated to display")
+            return None
+
+        # --- Plotting (Text Display) ---
+        fig, ax = plt.subplots()
+        fig.set_size_inches(8, 6) # Adjust size for text
+        ax.set_title(f"Performance Metrics ({self.tracker.strategy_name})", fontsize=14, fontweight="bold")
+
+        # Prepare text
+        metrics_text = "\n".join([f"{key.replace('_', ' ').title()}: {value:.4f}" 
+                                 if isinstance(value, (float, np.number)) else f"{key.replace('_', ' ').title()}: {value}"
+                                 for key, value in metrics.items()])
+
+        # Display text
+        ax.text(0.05, 0.95, metrics_text, transform=ax.transAxes, fontsize=12,
+                verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
         # Hide axes
-        ax.axis("off")
+        ax.axis('off')
 
-        # Create a table to display metrics
-        metric_names = []
-        metric_values = []
-
-        for key, value in metrics.items():
-            # Format the metric name for display (capitalize, replace underscores with spaces)
-            display_name = key.replace("_", " ").title()
-            metric_names.append(display_name)
-
-            # Format the metric value based on its type
-            if isinstance(value, int | np.integer):
-                metric_values.append(f"{value}")
-            elif key in ["win_rate", "max_drawdown"]:
-                metric_values.append(f"{value:.2f}%")
-            elif key in ["sharpe_ratio"]:
-                metric_values.append(f"{value:.2f}")
-            else:
-                metric_values.append(f"${value:.2f}")
-
-        # Create table data
-        table_data = list(zip(metric_names, metric_values, strict=False))
-
-        # Create table
-        table = ax.table(
-            cellText=table_data,
-            colLabels=["Metric", "Value"],
-            loc="center",
-            cellLoc="left",
-            colWidths=[0.5, 0.3],
-        )
-
-        # Style the table
-        table.auto_set_font_size(False)
-        table.set_fontsize(12)
-        table.scale(1, 1.5)
-
-        # Add title
-        plt.title(
-            f"Performance Metrics for {self.tracker.strategy_name}",
-            fontsize=16,
-            fontweight="bold",
-            pad=20,
-        )
-
-        # Tight layout
-        plt.tight_layout()
-
-        # Save or show plot
-        if save:
-            plt.savefig(
-                os.path.join(
-                    self.output_dir,
-                    f"{self.tracker.strategy_name}_performance_metrics.png",
-                )
-            )
-
-        if show:
-            plt.show()
+        # Finalize plot (save/show/close)
+        # Note: Saving this will save an image of the text
+        self._finalize_plot(fig, ax, "performance_metrics", save, show)
 
         return fig
 

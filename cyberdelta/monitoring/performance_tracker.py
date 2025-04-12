@@ -5,16 +5,16 @@ This module provides tools for tracking and managing strategy performance data.
 It stores trade, signal, and return data for analysis and visualization.
 """
 
-import json
 import logging
-import os
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+# Import the new persistence handler
+from .persistence import PerformanceDataPersistence
 
 logger = logging.getLogger(__name__)
 
@@ -22,36 +22,40 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PerformanceTracker:
     """
-    Tracks and manages strategy performance data.
+    Tracks and manages strategy performance data in memory.
 
     This class collects and stores trade, signal, and return data for strategies.
     It provides methods for retrieving this data for analysis and visualization.
+    Persistence (saving/loading) is delegated to PerformanceDataPersistence.
     """
 
-    output_dir: str = field(default_factory=lambda: os.path.join(os.getcwd(), "performance_data"))
+    # output_dir is now primarily for the persistence handler
+    output_dir: str = field(default="./performance_data")
 
     def __init__(self, output_dir: str | None = None) -> None:
         """
         Initialize the performance tracker.
 
         Args:
-            output_dir: Directory for saving performance data
+            output_dir: Directory for saving/loading performance data
+                (passed to persistence handler).
         """
-        self.output_dir = output_dir or os.path.join(os.getcwd(), "performance_data")
+        # Set output dir, defaulting if None
+        effective_output_dir = output_dir or "./performance_data"
 
-        # Create output directory if it doesn't exist
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+        # Initialize data structures (in-memory storage)
+        self.returns: dict[str, dict[datetime, float]] = {}
+        self.trades: list[dict[str, Any]] = []
+        self.signals: list[dict[str, Any]] = []
+        self.funding_rates: list[dict[str, Any]] = []
 
-        # Initialize data structures
-        self.returns = {}  # {strategy_name: {timestamp: return}}
-        self.trades = []  # List of trade dictionaries
-        self.signals = []  # List of signal dictionaries
-        self.funding_rates = []  # List of funding rate dictionaries
-
-        # Lock for thread safety
+        # Lock for thread safety of in-memory structures
         self.lock = threading.RLock()
 
-        # Load existing data
+        # Instantiate the persistence handler
+        self.persistence = PerformanceDataPersistence(effective_output_dir)
+
+        # Load existing data using the persistence handler
         self._load_data()
 
     def track_return(self, strategy_name: str, timestamp: datetime, return_value: float) -> None:
@@ -67,11 +71,11 @@ class PerformanceTracker:
             if strategy_name not in self.returns:
                 self.returns[strategy_name] = {}
 
-            # Store the return
+            # Store the return in memory
             self.returns[strategy_name][timestamp] = return_value
 
-            # Save to file
-            self._save_returns(strategy_name)
+            # Delegate saving to persistence handler
+            self.persistence.save_returns(strategy_name, self.returns[strategy_name])
 
     def track_trade(
         self,
@@ -119,25 +123,31 @@ class PerformanceTracker:
                 "exit_price": exit_price,
                 "exit_time": exit_time,
                 "pnl": pnl,
-                "duration": (exit_time - entry_time).total_seconds() / 60
-                if exit_time and entry_time
-                else None,
+                "duration": (
+                    (exit_time - entry_time).total_seconds() / 60
+                    if exit_time and entry_time
+                    else None
+                ),
                 "metadata": metadata or {},
                 "is_completed": exit_price is not None and exit_time is not None,
             }
 
-            # Check if trade already exists
+            # Check if trade already exists in memory
+            found_index = -1
             for i, existing_trade in enumerate(self.trades):
                 if existing_trade["trade_id"] == trade_id:
-                    # Update existing trade
-                    self.trades[i] = trade
+                    found_index = i
                     break
-            else:
-                # Add new trade
-                self.trades.append(trade)
 
-            # Save to file
-            self._save_trades()
+            if found_index != -1:
+                 # Update existing trade in memory
+                 self.trades[found_index] = trade
+            else:
+                 # Add new trade to memory
+                 self.trades.append(trade)
+
+            # Delegate saving the entire list to persistence handler
+            self.persistence.save_trades(self.trades)
 
     def track_trade_exit(
         self,
@@ -157,40 +167,69 @@ class PerformanceTracker:
             pnl: Profit/loss
             metadata: Additional exit metadata (optional)
         """
+        trade_updated = False
+        strategy_name_for_return = None
+        return_value_to_track = None
+
         with self.lock:
-            # Find the trade
+            # Find the trade in memory
             for i, trade in enumerate(self.trades):
                 if trade["trade_id"] == trade_id:
-                    # Update the trade
+                    # Update the trade in memory
                     self.trades[i]["exit_price"] = exit_price
                     self.trades[i]["exit_time"] = exit_time
                     self.trades[i]["pnl"] = pnl
                     self.trades[i]["is_completed"] = True
-                    self.trades[i]["duration"] = (
-                        exit_time - trade["entry_time"]
-                    ).total_seconds() / 60
+                    # Ensure entry_time is datetime before calculating duration
+                    entry_time = self.trades[i].get("entry_time")
+                    if isinstance(entry_time, datetime) and isinstance(exit_time, datetime):
+                         self.trades[i]["duration"] = (
+                             exit_time - entry_time
+                         ).total_seconds() / 60
+                    else:
+                         self.trades[i]["duration"] = None # Handle missing or invalid entry_time
 
                     # Update metadata
                     if metadata:
-                        if "metadata" not in self.trades[i]:
+                        # Ensure metadata exists and is a dict before updating
+                        if (
+                            "metadata" not in self.trades[i]
+                            or not isinstance(self.trades[i]["metadata"], dict)
+                        ):
                             self.trades[i]["metadata"] = {}
                         self.trades[i]["metadata"].update(metadata)
 
-                    # Save to file
-                    self._save_trades()
+                    trade_updated = True
 
-                    # Track return
+                    # Prepare data for return tracking (outside the loop)
                     if pnl is not None:
-                        strategy_name = trade["strategy"]
-                        initial_value = trade["entry_price"] * trade["size"]
-                        if initial_value > 0:
-                            return_value = pnl / initial_value
-                            self.track_return(strategy_name, exit_time, return_value)
+                        strategy_name_for_return = trade["strategy"]
+                        # Use .get with default and ensure numeric types for calculation
+                        entry_p = trade.get("entry_price", 0.0)
+                        size_val = trade.get("size", 0.0)
+                        try:
+                            initial_value = float(entry_p) * float(size_val)
+                            if initial_value > 0:
+                                return_value_to_track = pnl / initial_value
+                        except (ValueError, TypeError):
+                             logger.warning(
+                                 f"Could not calculate initial value for return tracking "
+                                 f"on trade {trade_id}"
+                             )
 
-                    return
+                    break # Exit loop once trade is found and updated
 
-            # Trade not found
-            logger.warning(f"Trade with ID {trade_id} not found for exit tracking")
+            if trade_updated:
+                 # Delegate saving the entire updated list
+                 self.persistence.save_trades(self.trades)
+            else:
+                # Trade not found
+                logger.warning(f"Trade with ID {trade_id} not found for exit tracking")
+
+        # Track return separately if needed (avoids nested locking with track_return)
+        if strategy_name_for_return and return_value_to_track is not None:
+             self.track_return(strategy_name_for_return, exit_time, return_value_to_track)
+
 
     def track_signal(
         self,
@@ -224,21 +263,25 @@ class PerformanceTracker:
                 "timestamp": timestamp,
                 "confidence": confidence,
                 "metadata": metadata or {},
-                "executed": False,
+                "executed": False, # Default state
             }
 
-            # Check if signal already exists
+            # Check if signal already exists in memory
+            found_index = -1
             for i, existing_signal in enumerate(self.signals):
                 if existing_signal["signal_id"] == signal_id:
-                    # Update existing signal
-                    self.signals[i] = signal
+                    found_index = i
                     break
-            else:
-                # Add new signal
-                self.signals.append(signal)
 
-            # Save to file
-            self._save_signals()
+            if found_index != -1:
+                 # Update existing signal in memory
+                 self.signals[found_index] = signal
+            else:
+                 # Add new signal to memory
+                 self.signals.append(signal)
+
+            # Delegate saving the entire list
+            self.persistence.save_signals(self.signals)
 
     def track_signal_execution(
         self, signal_id: str, executed: bool, metadata: dict[str, Any] | None = None
@@ -251,25 +294,34 @@ class PerformanceTracker:
             executed: Whether the signal was executed
             metadata: Additional execution metadata (optional)
         """
+        signal_updated = False
         with self.lock:
-            # Find the signal
+            # Find the signal in memory
             for i, signal in enumerate(self.signals):
                 if signal["signal_id"] == signal_id:
-                    # Update the signal
+                    # Update the signal in memory
                     self.signals[i]["executed"] = executed
 
                     # Update metadata
                     if metadata:
-                        if "metadata" not in self.signals[i]:
+                        # Ensure metadata exists and is a dict before updating
+                        if (
+                            "metadata" not in self.signals[i]
+                            or not isinstance(self.signals[i]["metadata"], dict)
+                        ):
                             self.signals[i]["metadata"] = {}
                         self.signals[i]["metadata"].update(metadata)
 
-                    # Save to file
-                    self._save_signals()
-                    return
+                    signal_updated = True
+                    break # Exit loop once signal found
 
-            # Signal not found
-            logger.warning(f"Signal with ID {signal_id} not found for execution tracking")
+            if signal_updated:
+                 # Delegate saving the entire list
+                 self.persistence.save_signals(self.signals)
+            else:
+                # Signal not found
+                logger.warning(f"Signal with ID {signal_id} not found for execution tracking")
+
 
     def track_funding_rate(
         self,
@@ -302,34 +354,26 @@ class PerformanceTracker:
                 "metadata": metadata or {},
             }
 
-            # Add to list
+            # Add to list in memory
             self.funding_rates.append(funding_data)
 
-            # Save to file
-            self._save_funding_rates()
+            # Delegate saving the entire list
+            self.persistence.save_funding_rates(self.funding_rates)
+
+    # --- Data Retrieval Methods (operate on in-memory data) --- #
 
     def get_strategy_names(self) -> list[str]:
         """
-        Get the names of all tracked strategies.
+        Get the names of all tracked strategies from in-memory data.
 
         Returns:
             List of strategy names
         """
         with self.lock:
             strategies = set()
-
-            # Get strategies from returns
-            for strategy in self.returns.keys():
-                strategies.add(strategy)
-
-            # Get strategies from trades
-            for trade in self.trades:
-                strategies.add(trade["strategy"])
-
-            # Get strategies from signals
-            for signal in self.signals:
-                strategies.add(signal["strategy"])
-
+            strategies.update(self.returns.keys())
+            strategies.update(t["strategy"] for t in self.trades if "strategy" in t)
+            strategies.update(s["strategy"] for s in self.signals if "strategy" in s)
             return sorted(list(strategies))
 
     def get_returns_dataframe(
@@ -339,7 +383,7 @@ class PerformanceTracker:
         end_time: datetime | None = None,
     ) -> pd.DataFrame:
         """
-        Get returns data as a DataFrame.
+        Get returns data as a DataFrame from in-memory data.
 
         Args:
             strategy_names: List of strategy names to include (optional)
@@ -353,34 +397,43 @@ class PerformanceTracker:
             if not self.returns:
                 return pd.DataFrame()
 
-            # Get all timestamps across all strategies
+            # Determine target strategies
+            target_strategies = strategy_names or list(self.returns.keys())
+
+            # Get all timestamps across target strategies
             all_timestamps = set()
-            for strategy, returns in self.returns.items():
-                if not strategy_names or strategy in strategy_names:
-                    all_timestamps.update(returns.keys())
+            for strategy in target_strategies:
+                if strategy in self.returns:
+                     all_timestamps.update(self.returns[strategy].keys())
 
             if not all_timestamps:
                 return pd.DataFrame()
 
             # Create DataFrame with all timestamps
-            sorted_timestamps = sorted(all_timestamps)
-            df = pd.DataFrame(index=sorted_timestamps)
+            sorted_timestamps = sorted(list(all_timestamps))
+            df = pd.DataFrame(index=pd.to_datetime(sorted_timestamps))
 
             # Fill with returns for each strategy
-            for strategy, returns in self.returns.items():
-                if not strategy_names or strategy in strategy_names:
-                    df[strategy] = pd.Series(returns)
+            for strategy in target_strategies:
+                if strategy in self.returns:
+                     # Create Series with datetime index before assigning
+                     strategy_returns = self.returns[strategy]
+                     series = pd.Series(
+                         strategy_returns,
+                         index=pd.to_datetime(list(strategy_returns.keys()))
+                     )
+                     df[strategy] = series
 
-            # Sort by timestamp
-            df = df.sort_index()
+            # Sort by timestamp (already sorted by index creation)
+            # df = df.sort_index()
 
             # Filter by time range
             if start_time:
-                df = df[df.index >= start_time]
+                df = df[df.index >= pd.to_datetime(start_time)]
             if end_time:
-                df = df[df.index <= end_time]
+                df = df[df.index <= pd.to_datetime(end_time)]
 
-            # Fill missing values with 0
+            # Fill missing values with 0 (or choose another strategy like forward fill?)
             df = df.fillna(0)
 
             return df
@@ -390,39 +443,65 @@ class PerformanceTracker:
         strategy_names: list[str] | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        completed_only: bool = False,
     ) -> pd.DataFrame:
         """
-        Get trade data as a DataFrame.
+        Get trade data as a DataFrame from in-memory data.
 
         Args:
-            strategy_names: List of strategy names to include (optional)
-            start_time: Start time for data range (optional)
-            end_time: End time for data range (optional)
+            strategy_names: List of strategy names to include (optional).
+            start_time: Start time for data range (based on entry_time, optional).
+            end_time: End time for data range (based on entry_time, optional).
+            completed_only: If True, only return completed trades.
 
         Returns:
-            DataFrame with trade data
+            DataFrame with trade data.
         """
         with self.lock:
             if not self.trades:
                 return pd.DataFrame()
 
-            # Filter trades
-            filtered_trades = self.trades
+            # Make a copy to filter
+            filtered_trades = list(self.trades)
 
             if strategy_names:
-                filtered_trades = [t for t in filtered_trades if t["strategy"] in strategy_names]
+                filtered_trades = [
+                    t for t in filtered_trades if t.get("strategy") in strategy_names
+                ]
 
+            if completed_only:
+                 filtered_trades = [t for t in filtered_trades if t.get("is_completed", False)]
+
+            # Filter by time (ensure times are datetime)
             if start_time:
-                filtered_trades = [t for t in filtered_trades if t["entry_time"] >= start_time]
+                start_dt = pd.to_datetime(start_time)
+                filtered_trades = [
+                    t for t in filtered_trades if t.get("entry_time")
+                    and pd.to_datetime(t["entry_time"]) >= start_dt
+                ]
 
             if end_time:
-                filtered_trades = [t for t in filtered_trades if t["entry_time"] <= end_time]
+                end_dt = pd.to_datetime(end_time)
+                # Filter based on entry time <= end_time? Or exit_time?
+                # Let's use entry_time for consistency.
+                filtered_trades = [
+                    t for t in filtered_trades if t.get("entry_time")
+                    and pd.to_datetime(t["entry_time"]) <= end_dt
+                ]
+
 
             if not filtered_trades:
                 return pd.DataFrame()
 
             # Convert to DataFrame
             df = pd.DataFrame(filtered_trades)
+            # Attempt conversion to appropriate dtypes after DF creation
+            df['entry_time'] = pd.to_datetime(df['entry_time'], errors='coerce')
+            df['exit_time'] = pd.to_datetime(df['exit_time'], errors='coerce')
+            numeric_cols = ['size', 'entry_price', 'exit_price', 'pnl', 'duration']
+            for col in numeric_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
 
             return df
 
@@ -433,37 +512,51 @@ class PerformanceTracker:
         end_time: datetime | None = None,
     ) -> pd.DataFrame:
         """
-        Get signal data as a DataFrame.
+        Get signal data as a DataFrame from in-memory data.
 
         Args:
-            strategy_names: List of strategy names to include (optional)
-            start_time: Start time for data range (optional)
-            end_time: End time for data range (optional)
+            strategy_names: List of strategy names to include (optional).
+            start_time: Start time for data range (based on timestamp, optional).
+            end_time: End time for data range (based on timestamp, optional).
 
         Returns:
-            DataFrame with signal data
+            DataFrame with signal data.
         """
         with self.lock:
             if not self.signals:
                 return pd.DataFrame()
 
-            # Filter signals
-            filtered_signals = self.signals
+            # Make a copy to filter
+            filtered_signals = list(self.signals)
 
             if strategy_names:
-                filtered_signals = [s for s in filtered_signals if s["strategy"] in strategy_names]
+                filtered_signals = [
+                    s for s in filtered_signals if s.get("strategy") in strategy_names
+                ]
 
+            # Filter by time
             if start_time:
-                filtered_signals = [s for s in filtered_signals if s["timestamp"] >= start_time]
+                 start_dt = pd.to_datetime(start_time)
+                 filtered_signals = [
+                     s for s in filtered_signals if s.get("timestamp")
+                     and pd.to_datetime(s["timestamp"]) >= start_dt
+                 ]
 
             if end_time:
-                filtered_signals = [s for s in filtered_signals if s["timestamp"] <= end_time]
+                 end_dt = pd.to_datetime(end_time)
+                 filtered_signals = [
+                     s for s in filtered_signals if s.get("timestamp")
+                     and pd.to_datetime(s["timestamp"]) <= end_dt
+                 ]
 
             if not filtered_signals:
                 return pd.DataFrame()
 
             # Convert to DataFrame
             df = pd.DataFrame(filtered_signals)
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            if 'confidence' in df.columns:
+                 df['confidence'] = pd.to_numeric(df['confidence'], errors='coerce')
 
             return df
 
@@ -473,224 +566,102 @@ class PerformanceTracker:
         symbol: str | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        pivot: bool = False, # Add pivot option
     ) -> pd.DataFrame:
         """
-        Get funding rate data as a DataFrame.
+        Get funding rate data as a DataFrame from in-memory data.
 
         Args:
-            exchange: Exchange to filter by (optional)
-            symbol: Symbol to filter by (optional)
-            start_time: Start time for data range (optional)
-            end_time: End time for data range (optional)
+            exchange: Exchange to filter by (optional).
+            symbol: Symbol to filter by (optional).
+            start_time: Start time for data range (based on timestamp, optional).
+            end_time: End time for data range (based on timestamp, optional).
+            pivot: If True, pivot the DataFrame to have symbols as columns.
 
         Returns:
-            DataFrame with funding rate data
+            DataFrame with funding rate data.
         """
         with self.lock:
             if not self.funding_rates:
                 return pd.DataFrame()
 
-            # Filter funding rates
-            filtered_rates = self.funding_rates
+            # Make a copy to filter
+            filtered_rates = list(self.funding_rates)
 
             if exchange:
-                filtered_rates = [r for r in filtered_rates if r["exchange"] == exchange]
+                filtered_rates = [r for r in filtered_rates if r.get("exchange") == exchange]
 
             if symbol:
-                filtered_rates = [r for r in filtered_rates if r["symbol"] == symbol]
+                filtered_rates = [r for r in filtered_rates if r.get("symbol") == symbol]
 
+            # Filter by time
             if start_time:
-                filtered_rates = [r for r in filtered_rates if r["timestamp"] >= start_time]
+                start_dt = pd.to_datetime(start_time)
+                filtered_rates = [
+                    r for r in filtered_rates if r.get("timestamp")
+                    and pd.to_datetime(r["timestamp"]) >= start_dt
+                ]
 
             if end_time:
-                filtered_rates = [r for r in filtered_rates if r["timestamp"] <= end_time]
+                end_dt = pd.to_datetime(end_time)
+                filtered_rates = [
+                    r for r in filtered_rates if r.get("timestamp")
+                    and pd.to_datetime(r["timestamp"]) <= end_dt
+                ]
 
             if not filtered_rates:
                 return pd.DataFrame()
 
             # Convert to DataFrame
             df = pd.DataFrame(filtered_rates)
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            numeric_cols = ['funding_rate', 'predicted_rate']
+            for col in numeric_cols:
+                 if col in df.columns:
+                     df[col] = pd.to_numeric(df[col], errors='coerce')
 
-            # Pivot to get funding rates by symbol
-            if "symbol" in df.columns and "funding_rate" in df.columns and len(df) > 0:
+            # Set index
+            df = df.set_index("timestamp")
+
+            # Pivot if requested
+            if pivot and 'symbol' in df.columns and 'funding_rate' in df.columns:
                 try:
-                    df = df.pivot(index="timestamp", columns="symbol", values="funding_rate")
-                except Exception as e:
-                    # Log the error if needed
-                    logger.warning(
-                        f"Could not pivot funding rate data, keeping original format. Error: {e}"
+                    # Pivot requires unique index/column combinations
+                    # Drop duplicates based on index (timestamp) and symbol before pivoting
+                    df_unique = df.reset_index().drop_duplicates(
+                        subset=['timestamp', 'symbol'], keep='last'
                     )
-                    # If pivot fails, return the original DataFrame
-                    df = df.set_index("timestamp")
-                return df
+                    df_pivot = df_unique.pivot(
+                        index="timestamp", columns="symbol", values="funding_rate"
+                    )
+                    return df_pivot
+                except Exception as e:
+                    logger.warning(
+                        f"Could not pivot funding rate data (maybe duplicate entries?). Error: {e}"
+                    )
+                    # Return the unpivoted DataFrame if pivot fails
+                    return df.sort_index()
+            else:
+                 return df.sort_index()
 
-    def _save_returns(self, strategy_name: str) -> None:
-        """
-        Save returns data to file.
-
-        Args:
-            strategy_name: Name of the strategy to save returns for
-        """
-        if strategy_name not in self.returns:
-            return
-
-        # Create directory if it doesn't exist
-        Path(os.path.join(self.output_dir, "returns")).mkdir(parents=True, exist_ok=True)
-
-        # Convert timestamps to string
-        data = {str(ts): val for ts, val in self.returns[strategy_name].items()}
-
-        # Save to file
-        file_path = os.path.join(self.output_dir, "returns", f"{strategy_name}.json")
-        with open(file_path, "w") as f:
-            json.dump(data, f)
-
-    def _save_trades(self) -> None:
-        """Save trades data to file."""
-        if not self.trades:
-            return
-
-        # Create directory if it doesn't exist
-        Path(os.path.join(self.output_dir, "trades")).mkdir(parents=True, exist_ok=True)
-
-        # Convert to serializable format
-        serializable_trades = []
-        for trade in self.trades:
-            trade_copy = trade.copy()
-
-            # Convert datetimes to strings
-            for key in ["entry_time", "exit_time"]:
-                if key in trade_copy and trade_copy[key] is not None:
-                    trade_copy[key] = trade_copy[key].isoformat()
-
-            serializable_trades.append(trade_copy)
-
-        # Save to file
-        file_path = os.path.join(self.output_dir, "trades", "trades.json")
-        with open(file_path, "w") as f:
-            json.dump(serializable_trades, f)
-
-    def _save_signals(self) -> None:
-        """Save signals data to file."""
-        if not self.signals:
-            return
-
-        # Create directory if it doesn't exist
-        Path(os.path.join(self.output_dir, "signals")).mkdir(parents=True, exist_ok=True)
-
-        # Convert to serializable format
-        serializable_signals = []
-        for signal in self.signals:
-            signal_copy = signal.copy()
-
-            # Convert datetimes to strings
-            if "timestamp" in signal_copy and signal_copy["timestamp"] is not None:
-                signal_copy["timestamp"] = signal_copy["timestamp"].isoformat()
-
-            serializable_signals.append(signal_copy)
-
-        # Save to file
-        file_path = os.path.join(self.output_dir, "signals", "signals.json")
-        with open(file_path, "w") as f:
-            json.dump(serializable_signals, f)
-
-    def _save_funding_rates(self) -> None:
-        """Save funding rate data to file."""
-        if not self.funding_rates:
-            return
-
-        # Create directory if it doesn't exist
-        Path(os.path.join(self.output_dir, "funding_rates")).mkdir(parents=True, exist_ok=True)
-
-        # Convert to serializable format
-        serializable_rates = []
-        for rate in self.funding_rates:
-            rate_copy = rate.copy()
-
-            # Convert datetimes to strings
-            if "timestamp" in rate_copy and rate_copy["timestamp"] is not None:
-                rate_copy["timestamp"] = rate_copy["timestamp"].isoformat()
-
-            serializable_rates.append(rate_copy)
-
-        # Save to file
-        file_path = os.path.join(self.output_dir, "funding_rates", "funding_rates.json")
-        with open(file_path, "w") as f:
-            json.dump(serializable_rates, f)
+    # --- Persistence Methods (delegated) --- #
 
     def _load_data(self) -> None:
-        """Load data from files."""
-        # Load returns
-        returns_dir = os.path.join(self.output_dir, "returns")
-        if os.path.exists(returns_dir):
-            for file_name in os.listdir(returns_dir):
-                if file_name.endswith(".json"):
-                    strategy_name = file_name[:-5]  # Remove .json
-                    file_path = os.path.join(returns_dir, file_name)
-                    with open(file_path) as f:
-                        data = json.load(f)
+        """Load data from files using the persistence handler."""
+        logger.info("Loading performance data...")
+        # Use persistence handler to load data
+        self.returns = self.persistence.load_all_returns() or {}
+        self.trades = self.persistence.load_trades() or []
+        self.signals = self.persistence.load_signals() or []
+        self.funding_rates = self.persistence.load_funding_rates() or []
+        logger.info(
+            f"Loaded {len(self.returns)} strategies' returns, "
+            f"{len(self.trades)} trades, {len(self.signals)} signals, "
+            f"{len(self.funding_rates)} funding rates."
+        )
 
-                    # Convert string timestamps to datetime
-                    self.returns[strategy_name] = {
-                        datetime.fromisoformat(ts): val for ts, val in data.items()
-                    }
-
-        # Load trades
-        trades_file = os.path.join(self.output_dir, "trades", "trades.json")
-        if os.path.exists(trades_file):
-            with open(trades_file) as f:
-                serialized_trades = json.load(f)
-
-            for trade in serialized_trades:
-                # Convert string timestamps to datetime
-                for key in ["entry_time", "exit_time"]:
-                    if key in trade and trade[key] is not None:
-                        try:
-                            trade[key] = datetime.fromisoformat(trade[key])
-                        except (ValueError, TypeError) as e:
-                            logger.warning(
-                                f"Error parsing datetime {trade[key]} for trade "
-                                f"{trade.get('trade_id', 'N/A')}: {e}"
-                            )
-                            trade[key] = None
-
-                self.trades.append(trade)
-
-        # Load signals
-        signals_file = os.path.join(self.output_dir, "signals", "signals.json")
-        if os.path.exists(signals_file):
-            with open(signals_file) as f:
-                serialized_signals = json.load(f)
-
-            for signal in serialized_signals:
-                # Convert string timestamp to datetime
-                if "timestamp" in signal and signal["timestamp"] is not None:
-                    try:
-                        signal["timestamp"] = datetime.fromisoformat(signal["timestamp"])
-                    except (ValueError, TypeError) as e:
-                        logger.warning(
-                            f"Error parsing datetime {signal['timestamp']} for signal "
-                            f"{signal.get('signal_id', 'N/A')}: {e}"
-                        )
-                        signal["timestamp"] = None
-
-                self.signals.append(signal)
-
-        # Load funding rates
-        funding_file = os.path.join(self.output_dir, "funding_rates", "funding_rates.json")
-        if os.path.exists(funding_file):
-            with open(funding_file) as f:
-                serialized_rates = json.load(f)
-
-            for rate in serialized_rates:
-                # Convert string timestamp to datetime
-                if "timestamp" in rate and rate["timestamp"] is not None:
-                    try:
-                        rate["timestamp"] = datetime.fromisoformat(rate["timestamp"])
-                    except (ValueError, TypeError) as e:
-                        logger.warning(
-                            f"Error parsing datetime {rate['timestamp']} for funding rate: {e}"
-                        )
-                        rate["timestamp"] = None
-
-                self.funding_rates.append(rate)
+    # Remove original _save_* methods as they are replaced by calls to self.persistence
+    # def _save_returns(self, strategy_name: str) -> None: ...
+    # def _save_trades(self) -> None: ...
+    # def _save_signals(self) -> None: ...
+    # def _save_funding_rates(self) -> None: ...
