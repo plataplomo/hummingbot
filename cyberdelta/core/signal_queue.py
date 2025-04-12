@@ -20,7 +20,7 @@ from cyberdelta.core.models import ArbitrageOpportunity, OrderSide, SignalType, 
 from cyberdelta.utils.config import Config
 
 # from cyberdelta.core.models import SignalType, TradeSignal # Moved below
-from cyberdelta.validation.circuit_breaker import CircuitBreakerState, CircuitBreakerSystem
+from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import SignalType, TradeSignal
@@ -279,7 +279,7 @@ class PrioritySignalQueue:
         Returns:
             List of signals in priority order
         """
-        result = []
+        result: list[TradeSignal] = []
         temp_queue = self.signal_queue.copy()
 
         # Clean expired signals
@@ -418,13 +418,23 @@ class PrioritySignalQueue:
         # Check breakers for relevant exchanges
         for ex in exchanges_to_check:
             # Only check if breaker is OPEN. We don't care about HALF_OPEN here.
-            state = self.circuit_breaker_system.get_state(ex)
-            if state == CircuitBreakerState.OPEN:
-                reason = self.circuit_breaker_system.get_trip_reason(ex) or "Unknown reason"
+            # Get the exchange API error breaker first
+            api_breaker = self.circuit_breaker_system.get_exchange_breaker(ex, "api_errors")
+            if api_breaker and api_breaker.state == BreakerState.OPEN:
                 self.logger.warning(
-                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} circuit breaker is OPEN: {reason}"
+                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} API circuit breaker is OPEN: {api_breaker.trip_reason}"
                 )
-                return False  # Reject if any relevant breaker is OPEN
+                return False  # Reject if API breaker is OPEN
+
+            # Check other potential breakers like volatility
+            volatility_breaker = self.circuit_breaker_system.get_exchange_breaker(
+                ex, f"{signal.symbol}_volatility"
+            )
+            if volatility_breaker and volatility_breaker.state == BreakerState.OPEN:
+                self.logger.warning(
+                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} volatility circuit breaker is OPEN: {volatility_breaker.trip_reason}"
+                )
+                return False  # Reject if volatility breaker is OPEN
 
         return True  # Allow if all relevant breakers are CLOSED or HALF_OPEN
 

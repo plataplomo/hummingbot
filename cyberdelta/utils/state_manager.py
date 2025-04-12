@@ -261,7 +261,7 @@ class StateManager:
         metadata = state_data.get("metadata", {})
         if not isinstance(metadata, dict):
             return False
-            
+
         if "timestamp" not in metadata or "checksum" not in metadata:
             return False
 

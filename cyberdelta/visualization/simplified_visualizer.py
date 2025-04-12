@@ -204,7 +204,7 @@ class SimpleVisualizer:
         try:
             trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"])
             trades_df = trades_df.sort_values("exit_time")
-            
+
             # Convert Decimal values to float for plotting
             if "pnl" in trades_df.columns:
                 trades_df["pnl"] = trades_df["pnl"].astype(float)
@@ -333,19 +333,21 @@ class SimpleVisualizer:
         # Convert Decimal values to float for plotting
         pnl_values = trades_df["pnl"].astype(float).values
         mean_pnl = float(pnl_values.mean())
-        
+
         # --- Plotting ---
         fig, ax = self._setup_plot("Trade PnL Distribution", "PnL ($)", "Frequency")
 
         # Create the histogram
-        counts, bins, _ = ax.hist(pnl_values, bins=30, alpha=0.75, color='skyblue')
-        
+        counts, bins, _ = ax.hist(pnl_values, bins=30, alpha=0.75, color="skyblue")
+
         # Add mean line and annotation
-        ax.axvline(x=mean_pnl, color='red', linestyle='--')
-        ax.annotate(f'Mean: {mean_pnl:.2f}',
-                   xy=(float(mean_pnl), 0),
-                   xytext=(float(mean_pnl * 1.1), float(max(counts) * 0.9)),
-                   arrowprops=dict(facecolor='black', shrink=0.05))
+        ax.axvline(x=mean_pnl, color="red", linestyle="--")
+        ax.annotate(
+            f"Mean: {mean_pnl:.2f}",
+            xy=(float(mean_pnl), 0),
+            xytext=(float(mean_pnl * 1.1), float(max(counts) * 0.9)),
+            arrowprops=dict(facecolor="black", shrink=0.05),
+        )
 
         # Finalize plot
         self._finalize_plot(fig, ax, "trade_distribution", save, show)
@@ -374,7 +376,7 @@ class SimpleVisualizer:
 
         # Convert Decimal values to float for calculations
         pnl_float = trades_df["pnl"].astype(float)
-            
+
         # Separate winning and losing trades
         winners = pnl_float[pnl_float > 0]
         losers = pnl_float[pnl_float < 0]
@@ -453,11 +455,11 @@ class SimpleVisualizer:
         # Ensure exit_time is datetime and set as index
         try:
             trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"])
-            
+
             # Convert Decimal values to float for calculations
             if "pnl" in trades_df.columns:
                 trades_df["pnl"] = trades_df["pnl"].astype(float)
-            
+
             trades_df = trades_df.set_index("exit_time")
         except Exception as e:
             logger.error(f"Error processing timestamps for monthly plot: {e}", exc_info=True)

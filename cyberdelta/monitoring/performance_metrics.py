@@ -67,7 +67,7 @@ class PerformanceMetricsCalculator:
         downside_returns = excess_returns[excess_returns < 0]
         if downside_returns.empty:
             logger.warning("No downside returns found. Cannot calculate Sortino ratio.")
-            return float('inf')  # Return a concrete float value
+            return float("inf")  # Return a concrete float value
 
         downside_deviation = np.sqrt((downside_returns**2).mean())
 
@@ -76,7 +76,7 @@ class PerformanceMetricsCalculator:
                 "Downside deviation is zero. Cannot calculate Sortino ratio meaningfully."
             )
             # If mean excess return is positive, technically infinite Sortino, else 0
-            return float('inf') if mean_excess_return > 0 else 0.0
+            return float("inf") if mean_excess_return > 0 else 0.0
 
         sortino_ratio = mean_excess_return / downside_deviation
         annualized_sortino_ratio = float(sortino_ratio * np.sqrt(periods_per_year))
@@ -117,7 +117,7 @@ class PerformanceMetricsCalculator:
         if max_drawdown == 0:
             logger.warning("Max drawdown is zero. Cannot calculate Calmar ratio meaningfully.")
             # If mean return is positive, technically infinite Calmar, else 0
-            return float('inf') if mean_annual_return > 0 else 0.0
+            return float("inf") if mean_annual_return > 0 else 0.0
 
         calmar_ratio = float(mean_annual_return / abs(max_drawdown))
         return calmar_ratio

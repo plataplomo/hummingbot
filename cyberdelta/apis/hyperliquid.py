@@ -1,22 +1,17 @@
 import asyncio
-import hashlib
-import hmac
 import json
 import logging
 import time
 from decimal import Decimal
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, TypedDict, TypeVar, cast
+from typing import Any, TypedDict, TypeVar
 
 import aiohttp
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientTimeout
 from eth_account.messages import encode_typed_data
-from web3 import Web3
 from web3.auto import w3
-import websockets
 from websockets.legacy.client import WebSocketClientProtocol  # Use legacy client for compatibility
 
-from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI, MessageHandler, RateLimiter
+from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
@@ -35,31 +30,36 @@ from cyberdelta.core.models import (
 logger = logging.getLogger(__name__)
 
 # Type definitions for Hyperliquid responses
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 class AssetContext(TypedDict, total=False):
     name: str
     markPx: str
     funding: str
 
+
 class TradeData(TypedDict, total=False):
-    tid: Union[int, str]
+    tid: int | str
     px: str
     sz: str
     time: int
     side: str
 
+
 class OrderStatusData(TypedDict, total=False):
-    filled: Dict[str, Any]
-    resting: Dict[str, Any]
+    filled: dict[str, Any]
+    resting: dict[str, Any]
     error: str
+
 
 class OrderResponseData(TypedDict, total=False):
     status: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
+
 
 class OrderBookResponse(TypedDict, total=False):
-    levels: List[List[List[Union[int, float, str]]]]
+    levels: list[list[list[int | float | str]]]
     time: int
 
 
@@ -82,7 +82,7 @@ class HyperliquidAPI(ExchangeAPI):
         # Set base URLs or use supplied ones
         self.rest_endpoint = api_config.get("rest_endpoint", self.BASE_URL)
         self.ws_endpoint = api_config.get("ws_endpoint", self.WS_URL)
-        
+
         # Initialize API from base class
         super().__init__(
             exchange_name="hyperliquid",
@@ -93,47 +93,47 @@ class HyperliquidAPI(ExchangeAPI):
             },
             secrets=secrets,
         )
-        
+
         # Setup default headers
         self.default_headers: dict[str, str] = {
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
-        
+
         # Setup callback handlers
         self.trade_callback: MessageHandler | None = None
         self.order_update_callback: MessageHandler | None = None
         self.fill_callback: MessageHandler | None = None
         self.orderbook_callback: MessageHandler | None = None
-        
+
         # Nonce for request signatures
         self._nonce_counter: int = 0
         self._nonce_lock = asyncio.Lock()
-        
+
         # Get wallet address from secrets
         self._wallet_address = secrets.get("wallet_address")
         self._private_key = secrets.get("private_key")
-        
+
         # Session for HTTP requests
         self._session: aiohttp.ClientSession | None = None
-        
+
         # Validate required credentials
         if not self._wallet_address:
             raise ValueError("Wallet address is required for HyperliquidAPI")
-        
+
         if not self._private_key:
             logger.warning("Private key not provided, only public endpoints will be available")
-            
+
         # Generate auth signature if we have the private key
         if self._private_key:
             try:
                 # Ensure private key is in the expected format
                 if self._private_key.startswith("0x"):
                     self._private_key = self._private_key[2:]
-                
+
                 # Create account from private key
                 self._account = w3.eth.account.from_key(self._private_key)
-                
+
                 # Verify wallet address matches the account address
                 derived_address = self._account.address.lower()
                 if self._wallet_address.lower() != derived_address:
@@ -141,13 +141,13 @@ class HyperliquidAPI(ExchangeAPI):
                         f"Provided wallet address {self._wallet_address} "
                         f"does not match derived address {derived_address}"
                     )
-                
+
             except Exception as e:
                 logger.error(f"Error initializing Ethereum account: {e}")
                 raise ValueError(f"Invalid private key: {e}") from e
 
-        self.session: Optional[aiohttp.ClientSession] = None
-        self.ws_connection: Optional[aiohttp.ClientWebSocketResponse] = None
+        self.session: aiohttp.ClientSession | None = None
+        self.ws_connection: aiohttp.ClientWebSocketResponse | None = None
         self.ws_lock = asyncio.Lock()
         self._symbol_map: dict[str, str] = {}
         self._ws_handlers: dict[str, MessageHandler] = {}
@@ -281,15 +281,14 @@ class HyperliquidAPI(ExchangeAPI):
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Subscribe to a WebSocket topic."""
         self._ws_handlers[topic] = handler
-        
+
         if self.ws_connection and self._is_connected:
             try:
                 await self.ws_connection.send_json({"method": "subscribe", "subscription": topic})
                 logger.info(f"[{self.exchange_name}] Subscribed to {topic}")
             except Exception as e:
                 logger.error(
-                    f"[{self.exchange_name}] Error subscribing to {topic}: {e}",
-                    exc_info=True
+                    f"[{self.exchange_name}] Error subscribing to {topic}: {e}", exc_info=True
                 )
 
     async def _resubscribe(self) -> None:
@@ -335,11 +334,15 @@ class HyperliquidAPI(ExchangeAPI):
         """
         try:
             # Construct full URL
-            url = path if path.startswith(('http://', 'https://')) else f"{self.rest_endpoint}/{path.lstrip('/')}"
-            
+            url = (
+                path
+                if path.startswith(("http://", "https://"))
+                else f"{self.rest_endpoint}/{path.lstrip('/')}"
+            )
+
             # Prepare headers
             full_headers = {}
-            if hasattr(self, 'default_headers'):
+            if hasattr(self, "default_headers"):
                 full_headers.update(self.default_headers)
             if headers:
                 full_headers.update(headers)
@@ -382,23 +385,17 @@ class HyperliquidAPI(ExchangeAPI):
         except aiohttp.ClientError as e:
             logger.error(f"[{self.exchange_name}] HTTP error: {e}", exc_info=True)
             raise APIError(
-                f"HTTP Error: {e}", 
-                code=APIErrorCode.NETWORK_ISSUE, 
-                original_exception=e
+                f"HTTP Error: {e}", code=APIErrorCode.NETWORK_ISSUE, original_exception=e
             ) from e
         except json.JSONDecodeError as e:
             logger.error(f"[{self.exchange_name}] JSON decode error: {e}", exc_info=True)
             raise APIError(
-                f"JSON decode error: {e}", 
-                code=APIErrorCode.INVALID_REQUEST, 
-                original_exception=e
+                f"JSON decode error: {e}", code=APIErrorCode.INVALID_REQUEST, original_exception=e
             ) from e
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Request error: {e}", exc_info=True)
             raise APIError(
-                f"Request error: {e}", 
-                code=APIErrorCode.SERVER_ERROR, 
-                original_exception=e
+                f"Request error: {e}", code=APIErrorCode.SERVER_ERROR, original_exception=e
             ) from e
 
     async def get_balances(self) -> dict[str, Balance]:
@@ -416,7 +413,9 @@ class HyperliquidAPI(ExchangeAPI):
             if state_data and isinstance(state_data, dict) and "assetPositions" in state_data:
                 balances: dict[str, Balance] = {}
                 for asset_pos in state_data["assetPositions"]:
-                    if asset_pos.get("asset") == "USDC" and isinstance(asset_pos.get("position"), dict):
+                    if asset_pos.get("asset") == "USDC" and isinstance(
+                        asset_pos.get("position"), dict
+                    ):
                         position = asset_pos["position"]
                         total_balance_str = position.get("value", "0")
                         total_balance = Decimal(str(total_balance_str))
@@ -442,15 +441,15 @@ class HyperliquidAPI(ExchangeAPI):
                 f"Failed to get balances: {e}", code=APIErrorCode.SERVER_ERROR, original_exception=e
             ) from e
 
-    async def get_positions(self, symbol: str | None = None) -> List[Position]:
+    async def get_positions(self, symbol: str | None = None) -> list[Position]:
         """Get current positions, optionally filtering by symbol."""
         try:
             payload = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
-            positions_list: List[Position] = []
+            positions_list: list[Position] = []
             state_data = None
-            
+
             if isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict):
                 state_data = response[0].get("clearinghouseState")
             elif isinstance(response, dict):
@@ -503,13 +502,13 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_open_orders(self, symbol: str | None = None) -> List[Order]:
+    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get open orders for a specific symbol or all symbols."""
         try:
             payload = {"type": "openOrders", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
-            open_orders: List[Order] = []
+            open_orders: list[Order] = []
             if isinstance(response, list):
                 for order_data in response:
                     order_symbol = order_data.get("coin")
@@ -618,7 +617,9 @@ class HyperliquidAPI(ExchangeAPI):
                                         side=side,
                                         type=order_type,
                                         quantity=quantity,
-                                        filled_quantity=Decimal(str(filled_data.get("totalSz", "0"))),
+                                        filled_quantity=Decimal(
+                                            str(filled_data.get("totalSz", "0"))
+                                        ),
                                         price=price,
                                         avg_fill_price=Decimal(str(filled_data.get("avgPx", "0"))),
                                         status=OrderStatus.FILLED,
@@ -643,9 +644,12 @@ class HyperliquidAPI(ExchangeAPI):
                                     )
                             elif "error" in order_status_data:
                                 error_msg = str(order_status_data["error"])
-                                logger.error(f"[{self.exchange_name}] Order placement failed: {error_msg}")
+                                logger.error(
+                                    f"[{self.exchange_name}] Order placement failed: {error_msg}"
+                                )
                                 raise APIError(
-                                    f"Order placement failed: {error_msg}", code=APIErrorCode.ORDER_REJECTED
+                                    f"Order placement failed: {error_msg}",
+                                    code=APIErrorCode.ORDER_REJECTED,
                                 )
                             else:
                                 logger.warning(
@@ -695,10 +699,12 @@ class HyperliquidAPI(ExchangeAPI):
                 statuses = []
                 if isinstance(response_data, dict) and "statuses" in response_data:
                     statuses = response_data["statuses"]
-                
+
                 if isinstance(statuses, list) and statuses:
                     if isinstance(statuses[0], str) and statuses[0] == "canceled":
-                        logger.info(f"[{self.exchange_name}] Canceled order {order_id} for {symbol}")
+                        logger.info(
+                            f"[{self.exchange_name}] Canceled order {order_id} for {symbol}"
+                        )
                         return {"status": "canceled", "order_id": order_id, "symbol": symbol}
                     elif isinstance(statuses[0], dict) and "error" in statuses[0]:
                         error_msg = str(statuses[0]["error"])
@@ -779,7 +785,7 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_order_book(self, symbol: str, depth: Optional[int] = None) -> OrderBook:
+    async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
         """Get order book for a symbol."""
         try:
             payload = {"type": "l2Book", "coin": symbol}
@@ -787,9 +793,9 @@ class HyperliquidAPI(ExchangeAPI):
 
             if response and isinstance(response, dict) and "levels" in response:
                 levels = response.get("levels")
-                bids: List[Tuple[Decimal, Decimal]] = []
-                asks: List[Tuple[Decimal, Decimal]] = []
-                
+                bids: list[tuple[Decimal, Decimal]] = []
+                asks: list[tuple[Decimal, Decimal]] = []
+
                 if isinstance(levels, list) and len(levels) > 1:
                     # Process bids
                     bid_levels = levels[0]
@@ -802,7 +808,7 @@ class HyperliquidAPI(ExchangeAPI):
                                     bids.append((price, quantity))
                                 except (ValueError, TypeError, IndexError) as e:
                                     logger.warning(f"Error parsing bid level {level}: {e}")
-                    
+
                     # Process asks
                     ask_levels = levels[1]
                     if isinstance(ask_levels, list):
@@ -851,13 +857,13 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_recent_trades(self, symbol: str, limit: Optional[int] = None) -> List[Trade]:
+    async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
         """Get recent trades for a symbol."""
         try:
             payload = {"type": "recentTrades", "coin": symbol}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
-            trades: List[Trade] = []
+            trades: list[Trade] = []
             if isinstance(response, list):
                 for trade_item in response:
                     if isinstance(trade_item, dict):
@@ -884,7 +890,7 @@ class HyperliquidAPI(ExchangeAPI):
                             )
                         except (ValueError, TypeError) as e:
                             logger.warning(f"Error parsing trade data {trade_item}: {e}")
-                
+
                 if limit is not None and limit > 0:
                     trades = trades[:limit]
             return trades
@@ -905,7 +911,7 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_funding_rate(self, symbol: str) -> Optional[FundingRate]:
+    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
         """Get funding rate for a symbol."""
         try:
             payload = {"type": "metaAndAssetCtxs"}
@@ -1035,77 +1041,83 @@ class HyperliquidAPI(ExchangeAPI):
         """Subscribe to user order updates."""
         await self.subscribe("user", handler)
 
-    async def subscribe_to_trades(self, symbol: str, handler: Optional[MessageHandler] = None) -> None:
+    async def subscribe_to_trades(self, symbol: str, handler: MessageHandler | None = None) -> None:
         """Subscribe to trades for a symbol."""
         # In the implementation we can maintain our own handler registry
         if not hasattr(self, "_trade_handlers"):
-            self._trade_handlers: Dict[str, List[MessageHandler]] = {}
+            self._trade_handlers: dict[str, list[MessageHandler]] = {}
 
         # Actual subscription logic would go here
         logger.info(f"Subscribed to trades for {symbol}")
 
-    async def subscribe_to_ticker(self, symbol: str, handler: Optional[MessageHandler] = None) -> None:
+    async def subscribe_to_ticker(self, symbol: str, handler: MessageHandler | None = None) -> None:
         """Subscribe to ticker updates for a symbol."""
         # In the implementation we can maintain our own handler registry
         if not hasattr(self, "_ticker_handlers"):
-            self._ticker_handlers: Dict[str, List[MessageHandler]] = {}
+            self._ticker_handlers: dict[str, list[MessageHandler]] = {}
 
         # Actual subscription logic would go here
         logger.info(f"Subscribed to ticker updates for {symbol}")
 
-    async def subscribe_to_order_book(self, symbol: str, handler: Optional[MessageHandler] = None) -> None:
+    async def subscribe_to_order_book(
+        self, symbol: str, handler: MessageHandler | None = None
+    ) -> None:
         """Subscribe to order book updates for a symbol."""
         # In the implementation we can maintain our own handler registry
         if not hasattr(self, "_orderbook_handlers"):
-            self._orderbook_handlers: Dict[str, List[MessageHandler]] = {}
+            self._orderbook_handlers: dict[str, list[MessageHandler]] = {}
 
         # Actual subscription logic would go here
         logger.info(f"Subscribed to order book updates for {symbol}")
 
     # --- Helper Methods (Parsing, etc.) ---
 
-    def parse_order(self, order_data: Dict[str, Any]) -> Order:
+    def parse_order(self, order_data: dict[str, Any]) -> Order:
         """Parse exchange-specific order format to standard Order object.
-        
+
         Args:
             order_data: Exchange-specific order data
-            
+
         Returns:
             Standardized Order object
         """
         if not order_data or not isinstance(order_data, dict):
             raise ValueError("Invalid order data provided")
-            
+
         try:
             order_id = str(order_data.get("oid", ""))
             if not order_id:
                 raise ValueError("Order ID missing from order data")
-                
+
             symbol = order_data.get("coin", "")
             if not symbol:
                 raise ValueError("Symbol missing from order data")
-                
+
             # Extract order details
             side_str = order_data.get("side", "B")
             type_str = order_data.get("orderType", "limit").lower()
             status_str = order_data.get("status", "open").lower()
-            
+
             # Convert string values to appropriate types
             price_str = order_data.get("limitPx", "0")
             size_str = order_data.get("sz", "0")
             remaining_str = order_data.get("remainingSz", size_str)
-            filled_qty = Decimal(str(size_str)) - Decimal(str(remaining_str)) if remaining_str else Decimal("0")
+            filled_qty = (
+                Decimal(str(size_str)) - Decimal(str(remaining_str))
+                if remaining_str
+                else Decimal("0")
+            )
             timestamp = order_data.get("time", int(time.time() * 1000))
-            
+
             # Map to standard enums
             side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
-            
+
             order_type = OrderType.LIMIT
             if type_str == "market":
                 order_type = OrderType.MARKET
             elif type_str == "postonly":
                 order_type = OrderType.LIMIT  # Post-only is a flag, not an order type
-            
+
             status = OrderStatus.OPEN
             if status_str == "filled":
                 status = OrderStatus.FILLED
@@ -1115,7 +1127,7 @@ class HyperliquidAPI(ExchangeAPI):
                 status = OrderStatus.REJECTED
             elif Decimal(str(remaining_str)) < Decimal(str(size_str)):
                 status = OrderStatus.PARTIALLY_FILLED
-            
+
             # Create and return the standardized order
             return Order(
                 id=order_id,
@@ -1149,10 +1161,10 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_funding_rates(self, symbol: str | None = None) -> list[FundingRate]:
         """
         Get current funding rates, optionally filtering by symbol.
-        
+
         Args:
             symbol: If provided, only return funding rate for this symbol
-            
+
         Returns:
             List of FundingRate objects
         """
@@ -1161,34 +1173,34 @@ class HyperliquidAPI(ExchangeAPI):
             url = f"{self.INFO_URL}/info"
             payload = {"type": "allMeta"}
             response = await self._request("POST", url, data=payload)
-            
+
             result: list[FundingRate] = []
-            
+
             # Extract funding rates from response
             if response and isinstance(response, list) and len(response) > 0:
                 universe_data = response[0].get("universe", [])
-                
+
                 for market in universe_data:
                     market_symbol = market.get("name")
                     if symbol is not None and market_symbol != symbol:
                         continue
-                        
+
                     funding_info = market.get("funding")
                     if funding_info and isinstance(funding_info, dict):
                         rate_str = funding_info.get("fundingRate", "0")
                         # Convert from percentage to decimal (e.g., 0.01% -> 0.0001)
                         rate_decimal = Decimal(str(rate_str)) / Decimal(100)
                         timestamp = int(time.time() * 1000)  # Current time in milliseconds
-                        
+
                         funding_rate = FundingRate(
                             symbol=market_symbol,
                             funding_rate=rate_decimal,
                             timestamp=timestamp,
                         )
                         result.append(funding_rate)
-            
+
             return result
-            
+
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting funding rates: {e}")
             raise
@@ -1252,7 +1264,7 @@ class HyperliquidAPI(ExchangeAPI):
         channel = message.get("channel", "unknown")
         return str(channel) if channel is not None else "unknown"
 
-    def parse_ticker_message(self, message: Dict[str, Any]) -> Optional[Ticker]:
+    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None:
         """Parse ticker message from WebSocket."""
         if message.get("channel") == "allMids":
             logger.warning(
@@ -1262,7 +1274,7 @@ class HyperliquidAPI(ExchangeAPI):
             return None
         return None
 
-    def parse_orderbook_message(self, message: Dict[str, Any]) -> Optional[OrderBook]:
+    def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
         if message.get("channel", "").startswith("l2Book:"):
             logger.warning(
                 f"[{self.exchange_name}] parse_orderbook_message needs full implementation."
@@ -1270,19 +1282,19 @@ class HyperliquidAPI(ExchangeAPI):
             return None
         return None
 
-    def parse_trade_message(self, message: Dict[str, Any]) -> Trade | None:
+    def parse_trade_message(self, message: dict[str, Any]) -> Trade | None:
         """
         Parse a trade message from the WebSocket feed.
-        
+
         Args:
             message: The WebSocket message to parse
-            
+
         Returns:
             A Trade object or None if the message cannot be parsed
         """
         if not message or not isinstance(message, dict):
             return None
-            
+
         # Check if it's a trades update message
         if "channel" in message and message["channel"] == "trades":
             data = message.get("data", [])
@@ -1296,20 +1308,20 @@ class HyperliquidAPI(ExchangeAPI):
                     except Exception as e:
                         logger.error(f"Error parsing trade message: {e}")
         return None
-        
-    def parse_order_update_message(self, message: Dict[str, Any]) -> Order | None:
+
+    def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
         """
         Parse an order update message from the WebSocket feed.
-        
+
         Args:
             message: The WebSocket message to parse
-            
+
         Returns:
             An Order object or None if the message cannot be parsed
         """
         if not message or not isinstance(message, dict):
             return None
-            
+
         # Check if it's an order update message
         if "type" in message and message["type"] == "userEvent" and "userEvents" in message:
             events = message.get("userEvents", [])
@@ -1330,23 +1342,23 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def _on_message(self, ws: WebSocketClientProtocol, message: str) -> None:
         """Handle WebSocket messages.
-        
+
         Args:
             ws: The WebSocket connection
             message: The message received from the WebSocket
         """
         if not message:
             return
-            
+
         try:
             data = json.loads(message)
             message_type = self.get_message_type(data)
-            
+
             if message_type == "ping":
                 # Respond to ping message
                 await ws.send(json.dumps({"type": "pong"}))
                 return
-                
+
             if message_type == "orderbook":
                 # Parse and forward orderbook updates
                 orderbook = self.parse_orderbook_message(data)
@@ -1354,7 +1366,7 @@ class HyperliquidAPI(ExchangeAPI):
                     # Convert OrderBook to dict to match callback signature
                     await self.orderbook_callback({"orderbook": orderbook})
                 return
-                
+
             if message_type == "trade":
                 # Parse and forward trade updates
                 trade = self.parse_trade_message(data)
@@ -1362,7 +1374,7 @@ class HyperliquidAPI(ExchangeAPI):
                     # Convert Trade to dict to match callback signature
                     await self.trade_callback({"trade": trade})
                 return
-                
+
             if message_type == "order_update":
                 # Parse and forward order updates
                 order = self.parse_order_update_message(data)
@@ -1370,7 +1382,7 @@ class HyperliquidAPI(ExchangeAPI):
                     # Convert Order to dict to match callback signature
                     await self.order_update_callback({"order": order})
                 return
-                
+
             if message_type == "fill":
                 # Parse and forward fill updates (trade executions)
                 fill_trades = self.parse_fill_message(data)
@@ -1379,50 +1391,54 @@ class HyperliquidAPI(ExchangeAPI):
                         # Convert Trade to dict to match callback signature
                         await self.fill_callback({"trade": trade})
                 return
-                
+
             # Log unhandled message types
             logger.debug(f"[{self.exchange_name}] Unhandled WebSocket message type: {message_type}")
-            
-        except json.JSONDecodeError:
-            logger.warning(f"[{self.exchange_name}] Received invalid JSON message: {message[:100]}...")
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error processing WebSocket message: {e}", exc_info=True)
 
-    def parse_fill_message(self, message: Dict[str, Any]) -> List[Trade]:
+        except json.JSONDecodeError:
+            logger.warning(
+                f"[{self.exchange_name}] Received invalid JSON message: {message[:100]}..."
+            )
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Error processing WebSocket message: {e}", exc_info=True
+            )
+
+    def parse_fill_message(self, message: dict[str, Any]) -> list[Trade]:
         """Parse a fill update message and convert to standard Trade objects.
-        
+
         Args:
             message: The message containing fill updates
-            
+
         Returns:
             List of Trade objects representing the fills
         """
-        trades: List[Trade] = []
-        
+        trades: list[Trade] = []
+
         if not message or not isinstance(message, dict):
             return trades
-            
+
         # Process fills
         if message.get("type") == "userFill":
             fill_data = message.get("data", {})
             if not fill_data:
                 return trades
-                
+
             coin = fill_data.get("coin", "")
             if not coin:
                 return trades
-                
+
             side_str = fill_data.get("side", "")
             px_str = fill_data.get("px", "0")
             sz_str = fill_data.get("sz", "0")
             time_ms = fill_data.get("time", int(time.time() * 1000))
             order_id = fill_data.get("oid", "")
-            
+
             try:
                 side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
                 price = Decimal(str(px_str))
                 quantity = Decimal(str(sz_str))
-                
+
                 trade = Trade(
                     id=f"{order_id}_{time_ms}",
                     symbol=coin,
@@ -1435,6 +1451,5 @@ class HyperliquidAPI(ExchangeAPI):
                 trades.append(trade)
             except (ValueError, TypeError) as e:
                 logger.warning(f"Error parsing fill data: {e}")
-                
-        return trades
 
+        return trades

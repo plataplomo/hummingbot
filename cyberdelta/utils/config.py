@@ -15,7 +15,7 @@ class Config:
     and to access configuration values with dot notation support.
     """
 
-    def __init__(self, config_path_or_data: str | dict[str, Any] = None) -> None:
+    def __init__(self, config_path_or_data: str | dict[str, Any] | None = None) -> None:
         """
         Initialize the configuration.
 
@@ -23,7 +23,7 @@ class Config:
             config_path_or_data: Path to YAML configuration file or a configuration dictionary
         """
         self.config_data: dict[str, Any] = {}
-        self.config_path = None
+        self.config_path: str | None = None
 
         # Load configuration if provided
         if config_path_or_data:
@@ -47,7 +47,8 @@ class Config:
         """
         try:
             with open(config_path) as file:
-                self.config_data = yaml.safe_load(file) or {}
+                loaded_data = yaml.safe_load(file)
+                self.config_data = loaded_data if loaded_data is not None else {}
                 self.config_path = config_path
                 logger.info(f"Loaded configuration from {config_path}")
                 return True
@@ -66,24 +67,30 @@ class Config:
         Args:
             prefix: Prefix for environment variables
         """
-        for key, value in os.environ.items():
+        for key, value_str in os.environ.items():
             if key.startswith(prefix):
                 # Convert environment variable name to config path
                 # e.g., CYBERDELTA_EXCHANGES_HYPERLIQUID_ENABLED -> exchanges.hyperliquid.enabled
                 config_path = key[len(prefix) :].lower().replace("_", ".")
 
+                # Convert the string value to appropriate type
+                typed_value: Any
+
                 # Convert value to appropriate type
-                if value.lower() == "true":
-                    value = True
-                elif value.lower() == "false":
-                    value = False
-                elif value.isdigit():
-                    value = int(value)
-                elif value.replace(".", "", 1).isdigit() and value.count(".") == 1:
-                    value = float(value)
+                if value_str.lower() == "true":
+                    typed_value = True
+                elif value_str.lower() == "false":
+                    typed_value = False
+                elif value_str.isdigit():
+                    typed_value = int(value_str)
+                elif value_str.replace(".", "", 1).isdigit() and value_str.count(".") == 1:
+                    typed_value = float(value_str)
+                else:
+                    # Default to string if no other type matches
+                    typed_value = value_str
 
                 # Set the value
-                self.set(config_path, value)
+                self.set(config_path, typed_value)
                 logger.debug(f"Set configuration {config_path} from environment variable {key}")
 
     def get(self, key: str, default: Any | None = None) -> Any:
@@ -131,7 +138,7 @@ class Config:
         # Set the value
         current[parts[-1]] = value
 
-    def save(self, path: str = None) -> bool:
+    def save(self, path: str | None = None) -> bool:
         """
         Save configuration to a YAML file.
 

@@ -387,7 +387,7 @@ class APIErrorBreaker(CircuitBreaker):
         # Record error with current time
         now = datetime.now(UTC)
         self.errors.append((now, error_message))
-        
+
         # Reset consecutive success counter since we had an error
         self.consecutive_success_count = 0
 
@@ -398,7 +398,7 @@ class APIErrorBreaker(CircuitBreaker):
     def record_success(self) -> None:
         """
         Record a successful API call.
-        
+
         This helps track the ratio of successful to failed calls
         and can be used to determine if recovery is appropriate.
         """
@@ -406,11 +406,12 @@ class APIErrorBreaker(CircuitBreaker):
         self.success_count += 1
         self.consecutive_success_count += 1
         self.last_success_time = now
-        
+
         # If we're in half-open state and have enough consecutive successes,
         # this could help determine if recovery should happen
-        if (self.state == BreakerState.HALF_OPEN and 
-            self.consecutive_success_count >= max(3, self.error_threshold)):
+        if self.state == BreakerState.HALF_OPEN and self.consecutive_success_count >= max(
+            3, self.error_threshold
+        ):
             # Consider this a strong signal for recovery
             logger.info(
                 f"APIErrorBreaker {self.name}: {self.consecutive_success_count} consecutive "
@@ -460,9 +461,7 @@ class APIErrorBreaker(CircuitBreaker):
         recent_errors = [e for e in self.errors if e[0] >= cutoff]
 
         # Check if the consecutive success count is promising
-        success_recovery = (
-            self.consecutive_success_count >= max(3, self.error_threshold // 2)
-        )
+        success_recovery = self.consecutive_success_count >= max(3, self.error_threshold // 2)
 
         # Consider both error count and success streak
         if len(recent_errors) < self.error_threshold // 2:
@@ -848,7 +847,7 @@ class CircuitBreakerSystem:
             context: Optional context (e.g., symbol, operation type)
         """
         logger.debug(f"Recording API success for {exchange}{' for ' + context if context else ''}")
-        
+
         # Check exchange-specific breaker
         exchange_breaker_name = f"{exchange}_api_errors"
         if exchange_breaker_name in self.breakers:
@@ -858,23 +857,31 @@ class CircuitBreakerSystem:
                 if breaker.state == BreakerState.OPEN:
                     # Only transition to HALF_OPEN if cooldown period has passed
                     now = datetime.now(UTC)
-                    if (breaker.trip_time is not None and 
-                        (now - breaker.trip_time).total_seconds() >= breaker.cooldown_seconds):
+                    if (
+                        breaker.trip_time is not None
+                        and (now - breaker.trip_time).total_seconds() >= breaker.cooldown_seconds
+                    ):
                         breaker.state = BreakerState.HALF_OPEN
-                        logger.info(f"API success recorded: {exchange_breaker_name} transitioning to HALF_OPEN state")
-                
+                        logger.info(
+                            f"API success recorded: {exchange_breaker_name} transitioning to HALF_OPEN state"
+                        )
+
                 # If breaker is in HALF_OPEN, test recovery
                 if breaker.state == BreakerState.HALF_OPEN:
                     recovery_success = breaker.test_recovery()
                     if recovery_success:
-                        logger.info(f"API success confirmed recovery: {exchange_breaker_name} reset to CLOSED state")
+                        logger.info(
+                            f"API success confirmed recovery: {exchange_breaker_name} reset to CLOSED state"
+                        )
                     else:
-                        logger.info(f"API success not sufficient for recovery: {exchange_breaker_name} remains in OPEN state")
-                
+                        logger.info(
+                            f"API success not sufficient for recovery: {exchange_breaker_name} remains in OPEN state"
+                        )
+
                 # Record success in error tracking (might reduce counter in some implementations)
-                if hasattr(breaker, "record_success") and callable(getattr(breaker, "record_success")):
+                if hasattr(breaker, "record_success") and callable(breaker.record_success):
                     breaker.record_success()
-        
+
         # Also update global API breaker if present
         if "global_api_errors" in self.breakers:
             breaker = self.breakers["global_api_errors"]
@@ -883,10 +890,12 @@ class CircuitBreakerSystem:
                 if breaker.state == BreakerState.HALF_OPEN:
                     recovery_success = breaker.test_recovery()
                     if recovery_success:
-                        logger.info("API success confirmed recovery: global_api_errors reset to CLOSED state")
-                
+                        logger.info(
+                            "API success confirmed recovery: global_api_errors reset to CLOSED state"
+                        )
+
                 # Record success in error tracking
-                if hasattr(breaker, "record_success") and callable(getattr(breaker, "record_success")):
+                if hasattr(breaker, "record_success") and callable(breaker.record_success):
                     breaker.record_success()
 
     def record_critical_failure(self, exchange: str, error_message: str) -> None:

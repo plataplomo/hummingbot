@@ -139,7 +139,7 @@ class LogCapture:
         root_logger.addHandler(self.handler)
 
         # Store reference to logs
-        setattr(self.handler, 'logs', self.logs)
+        self.handler.logs = self.logs
 
         # Add custom emit method to handler
         original_emit = self.handler.emit
@@ -148,7 +148,7 @@ class LogCapture:
             self.logs.append(formatter.format(record))
             original_emit(record)
 
-        setattr(self.handler, 'emit', custom_emit)
+        self.handler.emit = custom_emit
 
         return self
 

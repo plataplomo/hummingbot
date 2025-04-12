@@ -1,11 +1,11 @@
 from __future__ import annotations  # Enable postponed evaluation
 
+import logging
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -119,29 +119,33 @@ class Balance:
         """Ensure fields are Decimal, handle None for optional fields."""
         self.total = self._safe_decimal_convert(self.total, "total", self.asset, allow_none=False)
 
+        # Handle available field - ensure it's never None after initialization
         if self.available is None:
             self.available = self.total  # Default available to total if not provided
         else:
             available_decimal = self._safe_decimal_convert(
-                self.available, "available", self.asset, allow_none=True
+                self.available, "available", self.asset, allow_none=False
             )
-            self.available = available_decimal if available_decimal is not None else self.total
+            # This is safe now because _safe_decimal_convert will raise an error if it can't convert
+            self.available = available_decimal
 
-        free_decimal = self._safe_decimal_convert(
-            self.free, "free", self.asset, allow_none=True, default=Decimal("0.0")
-        )
-        self.free = free_decimal if free_decimal is not None else Decimal("0.0")
-        
-        locked_decimal = self._safe_decimal_convert(
-            self.locked, "locked", self.asset, allow_none=True, default=Decimal("0.0")
-        )
-        self.locked = locked_decimal if locked_decimal is not None else Decimal("0.0")
+        # Handle free field - ensure it's never None after initialization
+        if self.free is None:
+            self.free = Decimal("0.0")  # Default to zero
+        else:
+            free_decimal = self._safe_decimal_convert(
+                self.free, "free", self.asset, allow_none=False
+            )
+            self.free = free_decimal
 
-        # Ensure available is not None after potential defaulting
-        if self.available is None:
-            # This case should ideally not happen if total is required and available defaults to it
-            # but adding a safeguard.
-            self.available = Decimal("0.0")
+        # Handle locked field - ensure it's never None after initialization
+        if self.locked is None:
+            self.locked = Decimal("0.0")  # Default to zero
+        else:
+            locked_decimal = self._safe_decimal_convert(
+                self.locked, "locked", self.asset, allow_none=False
+            )
+            self.locked = locked_decimal
 
     @staticmethod
     def _safe_decimal_convert(
@@ -288,33 +292,40 @@ class Position:
         return self.size is not None and self.size != Decimal("0")
 
     def calculate_unrealized_pnl(self, current_mark_price: Decimal | None) -> Decimal | None:
-        """Calculates the unrealized PNL based on a provided mark price."""
+        """Calculates the unrealized PNL based on a provided mark price.
+
+        Args:
+            current_mark_price: The current mark price to use for calculation
+
+        Returns:
+            The calculated unrealized PNL as a Decimal, or None if calculation is not possible
+        """
         # First check if we have valid data to calculate PNL
         if current_mark_price is None:
             return self.unrealized_pnl
-        
+
         # Check for other required values
         if self.entry_price is None or self.size is None:
             return self.unrealized_pnl
-            
+
         # Check for zero size
         if self.size == Decimal("0"):
-            return self.unrealized_pnl
+            return Decimal("0.0")  # Return zero instead of None for zero size
 
-        # Convert current_mark_price to Decimal
-        current_mark_price = self._safe_decimal_convert(
+        # Convert current_mark_price to Decimal (this is safe since we checked for None above)
+        mark_price_decimal = self._safe_decimal_convert(
             current_mark_price, "current_mark_price", self.symbol, allow_none=False
         )
 
         # Calculate PNL based on side
         if self.side == OrderSide.BUY:
-            pnl = (current_mark_price - self.entry_price) * self.size
+            pnl = (mark_price_decimal - self.entry_price) * self.size
         elif self.side == OrderSide.SELL:
-            pnl = (self.entry_price - current_mark_price) * self.size
+            pnl = (self.entry_price - mark_price_decimal) * self.size
         else:
             # Handle unexpected OrderSide (shouldn't happen with enum)
             logger.warning(f"Unexpected OrderSide value: {self.side} for {self.symbol}")
-            pnl = Decimal("0.0")  
+            pnl = Decimal("0.0")
 
         self.unrealized_pnl = pnl
         return pnl
@@ -354,28 +365,37 @@ class Order:
         self.quantity = self._safe_decimal_convert(
             self.quantity, "quantity", self.symbol, allow_none=False
         )
-        self.price = self._safe_decimal_convert(self.price, "price", self.symbol, allow_none=True)
-        
-        # Handle filled_quantity properly to ensure it's never None
-        filled_quantity_decimal = self._safe_decimal_convert(
-            self.filled_quantity,
-            "filled_quantity",
-            self.symbol,
-            allow_none=True,
-            default=Decimal("0.0"),
-        )
-        self.filled_quantity = filled_quantity_decimal if filled_quantity_decimal is not None else Decimal("0.0")
-        
-        # Handle avg_fill_price
-        self.avg_fill_price = self._safe_decimal_convert(
-            self.avg_fill_price, "avg_fill_price", self.symbol, allow_none=True
-        )
+
+        # Handle price field - may be None for market orders
+        if self.price is None and self.type != OrderType.MARKET:
+            # For non-market orders, we need a price
+            raise ValueError(f"Price cannot be None for {self.type} orders")
+        elif self.price is not None:
+            # Convert price to Decimal if provided
+            self.price = self._safe_decimal_convert(
+                self.price, "price", self.symbol, allow_none=False
+            )
+
+        # Handle filled_quantity - ensure it's never None
+        if self.filled_quantity is None:
+            self.filled_quantity = Decimal("0.0")
+        else:
+            filled_qty = self._safe_decimal_convert(
+                self.filled_quantity, "filled_quantity", self.symbol, allow_none=False
+            )
+            self.filled_quantity = filled_qty
+
+        # Handle avg_fill_price - may be None if order not filled at all
+        if self.avg_fill_price is not None:
+            self.avg_fill_price = self._safe_decimal_convert(
+                self.avg_fill_price, "avg_fill_price", self.symbol, allow_none=False
+            )
 
         # Set defaults for optional fields if they are None after init
         if self.status is None:
             self.status = OrderStatus.UNKNOWN
         if self.client_order_id is None:
-            self.client_order_id = ""  # Default empty string?
+            self.client_order_id = ""  # Default empty string
         if self.reduce_only is None:
             self.reduce_only = False  # Default False
 
@@ -445,21 +465,30 @@ class Trade:
         self.quantity = self._safe_decimal_convert(
             self.quantity, "quantity", self.symbol, allow_none=False
         )
-        self.fee = self._safe_decimal_convert(self.fee, "fee", self.symbol, allow_none=True)
 
-        if self.cost is None and self.price is not None and self.quantity is not None:
+        # Handle optional fee field
+        if self.fee is not None:
+            self.fee = self._safe_decimal_convert(self.fee, "fee", self.symbol, allow_none=False)
+
+        # Calculate cost if not provided
+        if self.cost is None:
+            # We already ensured price and quantity are Decimal above
             self.cost = self.price * self.quantity
         else:
-            self.cost = self._safe_decimal_convert(self.cost, "cost", self.symbol, allow_none=True)
+            # If cost is provided, convert it to Decimal
+            self.cost = self._safe_decimal_convert(self.cost, "cost", self.symbol, allow_none=False)
 
+        # Create datetime from timestamp if needed
         if self.timestamp and self.datetime is None:
             try:
                 # Assume timestamp is in milliseconds
                 self.datetime = datetime.fromtimestamp(self.timestamp / 1000, tz=UTC)
             except (TypeError, ValueError, OSError):
-                # Log warning or handle error if timestamp is invalid
-                # print(f"Warning: Could not convert timestamp {self.timestamp} to datetime: {e}")
-                self.datetime = None  # Keep as None if conversion fails
+                # Log warning if timestamp is invalid
+                logger.warning(
+                    f"Could not convert timestamp {self.timestamp} to datetime for trade {self.id}"
+                )
+                self.datetime = None
 
     @staticmethod
     def _safe_decimal_convert(
@@ -534,7 +563,7 @@ class Ticker:
                     f"Using default: {default}"
                 )
                 return default
-            
+
             # If not allowed to be None, raise the error
             raise ValueError(
                 f"Invalid value '{value}' for Ticker field '{field_name}' for symbol '{symbol}'. "
@@ -641,7 +670,7 @@ class FundingRate:
                     f"Using default: {default}"
                 )
                 return default
-            
+
             # If not allowed to be None, raise the error
             raise ValueError(
                 f"Invalid value '{value}' for FundingRate field '{field_name}' for symbol '{symbol}'. "

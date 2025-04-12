@@ -549,14 +549,13 @@ class BackpackAPI(ExchangeAPI):
             return {"success": True, "orderId": order_id, "symbol": symbol, "response": response}
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Error canceling order {order_id}: {e}",
-                exc_info=True
+                f"[{self.exchange_name}] Error canceling order {order_id}: {e}", exc_info=True
             )
             # Raise APIError as per ExchangeAPI
             api_error = self._map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
-                exchange_message=f"Error canceling order {order_id} for {symbol} (Path: {request_path}): {e}"
+                exchange_message=f"Error canceling order {order_id} for {symbol} (Path: {request_path}): {e}",
             )
             raise api_error from e
 
@@ -615,7 +614,7 @@ class BackpackAPI(ExchangeAPI):
             api_error = self._map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
-                exchange_message=f"Error getting open orders for {symbol or 'all'} (Path: {request_path}): {e}"
+                exchange_message=f"Error getting open orders for {symbol or 'all'} (Path: {request_path}): {e}",
             )
             raise api_error from e
 
@@ -784,18 +783,20 @@ class BackpackAPI(ExchangeAPI):
         elif "invalid quantity" in error_body_lower or "invalid size" in error_body_lower:
             # Consider mapping to QUANTITY_OUT_OF_RANGE if more specific
             mapped_code = APIErrorCode.INVALID_ORDER_SIZE  # Use Enum member
-        elif ("invalid parameter" in error_body_lower or 
-              "bad request" in error_body_lower):
-            mapped_code = APIErrorCode.INVALID_REQUEST # Use Enum member (more specific than BAD_REQUEST)
+        elif "invalid parameter" in error_body_lower or "bad request" in error_body_lower:
+            mapped_code = (
+                APIErrorCode.INVALID_REQUEST
+            )  # Use Enum member (more specific than BAD_REQUEST)
         # Order specific errors
         elif "order not found" in error_body_lower:
             mapped_code = APIErrorCode.ORDER_NOT_FOUND  # Use Enum member
         elif "insufficient balance" in error_body_lower or "insufficient funds" in error_body_lower:
             mapped_code = APIErrorCode.INSUFFICIENT_FUNDS  # Use Enum member
         # Server / Availability Errors
-        elif ("service unavailable" in error_body_lower or 
-              "internal server error" in error_body_lower):
-            mapped_code = APIErrorCode.SERVICE_UNAVAILABLE # Use Enum member
+        elif (
+            "service unavailable" in error_body_lower or "internal server error" in error_body_lower
+        ):
+            mapped_code = APIErrorCode.SERVICE_UNAVAILABLE  # Use Enum member
         # --- End Guesses ---
 
         # Log the original error for debugging

@@ -3,10 +3,10 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio
 import time
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
@@ -443,7 +443,7 @@ class ExecutionHandler:
                     time_in_force=TimeInForce.GTC if order_type_to_use == OrderType.LIMIT else None,
                     retry_delay=self.retry_delay_base,
                     max_retries=self.max_retries,
-                    reduce_only=False
+                    reduce_only=False,
                 )
                 if long_order_result and long_order_result.status not in (
                     OrderStatus.FAILED,
@@ -458,10 +458,12 @@ class ExecutionHandler:
                         order_type=order_type_to_use,
                         quantity=short_quantity,
                         price=short_price_dec if order_type_to_use == OrderType.LIMIT else None,
-                        time_in_force=TimeInForce.GTC if order_type_to_use == OrderType.LIMIT else None,
+                        time_in_force=TimeInForce.GTC
+                        if order_type_to_use == OrderType.LIMIT
+                        else None,
                         retry_delay=self.retry_delay_base,
                         max_retries=self.max_retries,
-                        reduce_only=False
+                        reduce_only=False,
                     )
                 else:
                     logger.warning(
@@ -481,10 +483,12 @@ class ExecutionHandler:
                         order_type=order_type_to_use,
                         quantity=long_quantity,
                         price=long_price_dec if order_type_to_use == OrderType.LIMIT else None,
-                        time_in_force=TimeInForce.GTC if order_type_to_use == OrderType.LIMIT else None,
+                        time_in_force=TimeInForce.GTC
+                        if order_type_to_use == OrderType.LIMIT
+                        else None,
                         retry_delay=self.retry_delay_base,
                         max_retries=self.max_retries,
-                        reduce_only=False
+                        reduce_only=False,
                     ),
                     self._place_order_with_retry(
                         client=short_client,
@@ -494,10 +498,12 @@ class ExecutionHandler:
                         order_type=order_type_to_use,
                         quantity=short_quantity,
                         price=short_price_dec if order_type_to_use == OrderType.LIMIT else None,
-                        time_in_force=TimeInForce.GTC if order_type_to_use == OrderType.LIMIT else None,
+                        time_in_force=TimeInForce.GTC
+                        if order_type_to_use == OrderType.LIMIT
+                        else None,
                         retry_delay=self.retry_delay_base,
                         max_retries=self.max_retries,
-                        reduce_only=False
+                        reduce_only=False,
                     ),
                     return_exceptions=True,  # Important to catch errors from either leg
                 )
@@ -1185,9 +1191,7 @@ class ExecutionHandler:
             symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange)
 
         if not symbol:
-            self.logger.error(
-                f"Could not map symbol {internal_symbol} for exchange {exchange}"
-            )
+            self.logger.error(f"Could not map symbol {internal_symbol} for exchange {exchange}")
             return None
 
         try:

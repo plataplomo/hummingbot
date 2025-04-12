@@ -8,17 +8,17 @@ without dependencies on external databases or web frameworks.
 import csv
 import logging
 import os
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Union
-import uuid
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from cyberdelta.core.models import ArbitrageOpportunity, TradeSignal, SignalType, OrderSide
+from cyberdelta.core.models import ArbitrageOpportunity, OrderSide, SignalType, TradeSignal
 
 logger = logging.getLogger(__name__)
 
@@ -157,13 +157,13 @@ class SimplePerformanceTracker:
         # Create signal metrics with proper error handling
         try:
             signal_id = getattr(signal, "signal_id", str(uuid.uuid4()))
-            
+
             # Handle signal_type conversion safely
             if hasattr(signal.signal_type, "name"):
                 signal_type_str = signal.signal_type.name
             else:
                 signal_type_str = str(signal.signal_type)
-                
+
             # Create signal metrics
             signal_metrics = SignalMetrics(
                 signal_id=signal_id,
@@ -183,7 +183,7 @@ class SimplePerformanceTracker:
             self._record_metrics()
 
             return signal_metrics
-            
+
         except AttributeError as e:
             logger.error(f"Invalid TradeSignal format: {e}")
             raise ValueError(f"TradeSignal is missing required attributes: {e}")
@@ -331,8 +331,12 @@ class SimplePerformanceTracker:
             "short_exchange": opportunity.short_exchange,
             "symbol": opportunity.symbol,
             "timestamp": opportunity.timestamp,
-            "funding_rate": str(opportunity.funding_rate) if hasattr(opportunity, "funding_rate") else None,
-            "expected_profit": str(opportunity.expected_profit) if hasattr(opportunity, "expected_profit") else None,
+            "funding_rate": str(opportunity.funding_rate)
+            if hasattr(opportunity, "funding_rate")
+            else None,
+            "expected_profit": str(opportunity.expected_profit)
+            if hasattr(opportunity, "expected_profit")
+            else None,
         }
 
         self.opportunity_history[opportunity_id] = opportunity_dict
@@ -381,7 +385,7 @@ class SimplePerformanceTracker:
 
         Args:
             filename_prefix: Optional prefix for the CSV filenames
-            
+
         Returns:
             Dictionary mapping file types to file paths, or None if error
         """
@@ -502,7 +506,7 @@ class SimplePerformanceAnalyzer:
         """
         # Convert Decimal values to float for pandas calculations
         pnl_series_float = pnl_series.astype(float)
-        
+
         # Calculate cumulative PnL
         cumulative = pnl_series_float.cumsum()
 
@@ -527,7 +531,7 @@ class SimplePerformanceAnalyzer:
         """
         # Convert Decimal values to float for calculations
         returns_float = returns.astype(float)
-        
+
         if returns_float.empty or returns_float.std() == 0:
             return 0.0
 
@@ -569,7 +573,7 @@ class SimplePerformanceAnalyzer:
 
         # Group by exit date and sum PnL
         trades_df["exit_date"] = trades_df["exit_time"].dt.date
-        
+
         # Convert pnl to float for aggregation
         if "pnl" in trades_df.columns:
             trades_df["pnl_float"] = trades_df["pnl"].astype(float)
@@ -591,7 +595,7 @@ class SimplePerformanceAnalyzer:
 
         # Get daily PnL
         daily_pnl = self.get_daily_pnl()
-        
+
         # Convert dataframe if needed to handle Decimal values
         if not trades_df.empty and "pnl" in trades_df.columns:
             pnl_float = trades_df["pnl"].astype(float)
@@ -603,7 +607,9 @@ class SimplePerformanceAnalyzer:
 
         # Calculate metrics
         metrics = {
-            "total_pnl": float(self.tracker.total_pnl),  # Convert to float for consistent return type
+            "total_pnl": float(
+                self.tracker.total_pnl
+            ),  # Convert to float for consistent return type
             "win_rate": self.calculate_win_rate(),
             "total_trades": len(trades_df),
             "winning_trades": len(winners) if not trades_df.empty else 0,
@@ -674,9 +680,9 @@ if __name__ == "__main__":
         source_strategy="ExampleStrategy",
         metadata={},
         price=Decimal("50000.0"),  # Add required price field with Decimal
-        quantity=Decimal("1.0"),   # Add required quantity field with Decimal
+        quantity=Decimal("1.0"),  # Add required quantity field with Decimal
     )
-    
+
     signal2 = TradeSignal(
         symbol="ETH-USDT",
         signal_type=SignalType.ENTER_SHORT,
@@ -695,12 +701,20 @@ if __name__ == "__main__":
     tracker.track_signal_execution("2", False)
 
     # Track some trades
-    tracker.track_trade("trade1", "BTC-USDT", "Binance", "LONG", Decimal("1.0"), Decimal("50000.0"), now, "1")
-    tracker.track_trade("trade2", "ETH-USDT", "Binance", "SHORT", Decimal("10.0"), Decimal("3000.0"), now)
+    tracker.track_trade(
+        "trade1", "BTC-USDT", "Binance", "LONG", Decimal("1.0"), Decimal("50000.0"), now, "1"
+    )
+    tracker.track_trade(
+        "trade2", "ETH-USDT", "Binance", "SHORT", Decimal("10.0"), Decimal("3000.0"), now
+    )
 
     # Track trade exits
-    tracker.track_trade_exit("trade1", Decimal("52000.0"), now + timedelta(days=1), Decimal("2000.0"))
-    tracker.track_trade_exit("trade2", Decimal("2800.0"), now + timedelta(days=2), Decimal("2000.0"))
+    tracker.track_trade_exit(
+        "trade1", Decimal("52000.0"), now + timedelta(days=1), Decimal("2000.0")
+    )
+    tracker.track_trade_exit(
+        "trade2", Decimal("2800.0"), now + timedelta(days=2), Decimal("2000.0")
+    )
 
     # Export data
     tracker.export_to_csv()
