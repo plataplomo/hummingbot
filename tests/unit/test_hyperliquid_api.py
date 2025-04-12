@@ -203,40 +203,28 @@ class TestHyperliquidAPI:
     @pytest.mark.asyncio
     async def test_authentication(self, api_client):
         """Test the _authenticate method produces correct signature."""
-        # Need a real client instance to test the protected method
-        real_client = HyperliquidAPI(config=api_client.config, secrets=api_client.secrets)
+        # The api_client fixture already provides a configured HyperliquidAPI instance
+        # We can call the protected _authenticate method on it directly for testing.
 
-        # Prepare action data
-        timestamp = int(time.time() * 1000)
-        action = {
-            "type": "order",
-            "grouping": "na",
-            "orders": [
-                {
-                    "a": 0,
-                    "b": True,
-                    "p": "42000.0",
-                    "s": "0.1",
-                    "r": False,
-                    "t": {"limit": {"tif": "Gtc"}},
-                }
-            ],
-        }
-        nonce = real_client._create_nonce(timestamp)
+        # Prepare sample inputs for authentication
+        method = "POST"
+        path = "/info"
+        data = {"type": "clearinghouseState", "user": api_client._wallet_address}
 
-        # Generate signature (this calls the actual logic)
-        signature = real_client._authenticate(action, nonce)
+        # Call the method to test
+        auth_data = await api_client._authenticate(method=method, path=path, data=data)
 
-        # Verify signature components exist and have expected types
-        assert isinstance(signature, dict)
-        assert "signature" in signature
-        assert "nonce" in signature
-        assert isinstance(signature["signature"], str)
-        assert len(signature["signature"]) > 0  # Basic check for non-empty signature
-        assert signature["nonce"] == nonce
-
-        # Note: Verifying the exact signature value is complex due to EIP-712
-        # This test primarily checks that the method runs and returns the expected structure.
+        # Verify the output structure
+        assert isinstance(auth_data, dict)
+        assert "headers" in auth_data
+        assert "X-HL-Signature" in auth_data["headers"]
+        assert "X-HL-Timestamp" in auth_data["headers"]
+        assert "X-HL-Nonce" in auth_data["headers"]
+        assert auth_data["headers"]["X-HL-Signature"] != "0x" + "0" * 130 # Ensure it's not the mock signature
+        assert int(auth_data["headers"]["X-HL-Timestamp"]) > 0
+        assert int(auth_data["headers"]["X-HL-Nonce"]) > 0
+        assert auth_data["params"] is None # Params were not provided
+        assert auth_data["data"] == data
 
     # TODO: Add tests for other methods (get_ticker, get_order_book, etc.)
     # TODO: Add tests for error handling (e.g., API errors, invalid data)

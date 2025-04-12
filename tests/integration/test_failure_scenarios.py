@@ -79,8 +79,12 @@ class TestFailureScenarios:
         )
         await real_portfolio_tracker.initialize()
         ts = datetime.now(UTC)
-        mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts))
-        mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts))
+        # Ensure BOTH exchanges have valid tickers configured *before* error simulation
+        bp_symbol = mock_config.get(f"exchanges.{target_exchange}.symbols.BTC")
+        hl_symbol = mock_config.get(f"exchanges.{other_exchange}.symbols.BTC")
+
+        mock_bp_api.set_mock_ticker(create_mock_ticker(bp_symbol, 30000, 30001, 30000.5, ts))
+        mock_hl_api.set_mock_ticker(create_mock_ticker(hl_symbol, 30010, 30011, 30010.5, ts))
 
         # Configure mock_bp to consistently fail order placement
         error_message = "Simulated API error during order placement"

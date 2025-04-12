@@ -140,8 +140,24 @@ def test_add_from_opportunity(mock_config, sample_opportunity):
     """Test creating and adding a signal from an arbitrage opportunity."""
     queue = PrioritySignalQueue(mock_config)
 
-    # Add from opportunity
-    signal = queue.add_from_opportunity(sample_opportunity, "funding_arb_strategy")
+    # Correctly extract needed fields from the ArbitrageOpportunity
+    # The sample_opportunity fixture seems to have these fields.
+    metadata = {
+        "utility_score": sample_opportunity.utility_score,
+        "long_exchange": sample_opportunity.long_exchange,
+        "short_exchange": sample_opportunity.short_exchange,
+        "long_price": str(sample_opportunity.long_price), # Store as string in metadata for simplicity
+        "short_price": str(sample_opportunity.short_price),
+        "long_funding_rate": str(sample_opportunity.long_funding_rate),
+        "short_funding_rate": str(sample_opportunity.short_funding_rate),
+        "net_funding_differential": str(sample_opportunity.net_funding_differential),
+    }
+
+    # Add from opportunity using the method
+    signal = queue.add_from_opportunity(
+        opportunity=sample_opportunity, # Pass the object itself
+        source_strategy="funding_arb_strategy"
+    )
 
     assert signal is not None
     assert len(queue.signal_queue) == 1

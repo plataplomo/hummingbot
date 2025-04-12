@@ -36,6 +36,7 @@ class OrderStatus(Enum):
     REJECTED = "REJECTED"
     EXPIRED = "EXPIRED"
     OPEN = "OPEN"
+    FAILED = "FAILED"
     UNKNOWN = "UNKNOWN"
 
 

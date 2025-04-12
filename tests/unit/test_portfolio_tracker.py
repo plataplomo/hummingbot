@@ -72,17 +72,17 @@ class TestPortfolioTracker:
             # Verify methods were called for both exchanges
             assert mock_fetch_balances.call_count == 2
             assert mock_fetch_positions.call_count == 2
-            assert mock_fetch_orders.call_count == 2
+            # assert mock_fetch_orders.call_count == 2 # Commented out: Order fetching removed from init
 
             # Verify calls for hyperliquid
             mock_fetch_balances.assert_any_call("hyperliquid")
             mock_fetch_positions.assert_any_call("hyperliquid")
-            mock_fetch_orders.assert_any_call("hyperliquid")
+            # mock_fetch_orders.assert_any_call("hyperliquid") # Commented out as orders aren't fetched in init
 
             # Verify calls for backpack
             mock_fetch_balances.assert_any_call("backpack")
             mock_fetch_positions.assert_any_call("backpack")
-            mock_fetch_orders.assert_any_call("backpack")
+            # mock_fetch_orders.assert_any_call("backpack") # Commented out as orders aren't fetched in init
 
     @pytest.mark.asyncio
     async def test_fetch_exchange_balances(self, portfolio_tracker, mock_exchange_api):

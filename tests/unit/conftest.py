@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import aiohttp
 import pytest
+from web3.auto import w3  # Import w3
 
 from cyberdelta.utils.config import Config
 
@@ -118,10 +119,20 @@ def backpack_config():
 
 @pytest.fixture
 def hyperliquid_secrets():
-    """Fixture to provide Hyperliquid API secrets."""
+    """Fixture to provide Hyperliquid API secrets with a VALID derived address."""
+    # Use a fixed dummy private key for reproducibility in tests
+    dummy_private_key = "0x1111111111111111111111111111111111111111111111111111111111111111"
+    try:
+        account = w3.eth.account.from_key(dummy_private_key)
+        derived_address = account.address
+    except Exception as e:
+        # Fallback if w3 or account generation fails unexpectedly
+        print(f"Error generating Hyperliquid mock account: {e}")
+        derived_address = "0xMockAddressCreationFailed" # Provide a fallback
+
     return {
-        "HYPERLIQUID_WALLET_PRIVATE_KEY": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-        "HYPERLIQUID_WALLET_ADDRESS": "0xabcdef1234567890abcdef1234567890abcdef12",
+        "HYPERLIQUID_WALLET_PRIVATE_KEY": dummy_private_key,
+        "HYPERLIQUID_WALLET_ADDRESS": derived_address,
     }
 
 

@@ -6,6 +6,8 @@ import pytest
 from cyberdelta.core.models import ArbitrageOpportunity, Ticker
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.utils.config import Config  # Assuming Config class is used
+from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 # --- Integration Test Specific Helpers & Fixtures ---
 
@@ -162,20 +164,20 @@ def execution_handler(
     mock_bp_api,
     circuit_breaker_system,
 ):
-    """Execution Handler instance with real tracker, mock APIs, and main circuit breaker."""
+    """Execution Handler instance with real tracker, mock APIs, CB system, and SymbolMapper."""
     from cyberdelta.core.execution_handler import ExecutionHandler
 
+    # Instantiate SymbolMapper using the mock_config
+    symbol_mapper = SymbolMapper(mock_config.config_data)
+
     eh = ExecutionHandler(
-        mock_config,
-        real_portfolio_tracker,
+        config=mock_config,
+        portfolio_tracker=real_portfolio_tracker,
+        symbol_mapper=symbol_mapper,
         circuit_breaker_system=circuit_breaker_system,
     )
-    # Ensure APIs are registered on the tracker if not already done by its fixture
-    if "mock_hl" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
-    if "mock_bp" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
-    # Register APIs directly with the execution handler as well
+
+    # Register APIs with the execution handler
     eh.register_api_client("mock_hl", mock_hl_api)
     eh.register_api_client("mock_bp", mock_bp_api)
     return eh

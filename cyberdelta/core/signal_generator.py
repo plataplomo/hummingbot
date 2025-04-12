@@ -10,10 +10,7 @@ import numpy as np
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import ArbitrageOpportunity, FundingRate, Ticker
-
-# from cyberdelta.core.models import ( # Moved below
-#     ArbitrageOpportunity,
-# )
+from cyberdelta.core.symbol_mapper import SymbolMapper, SymbolMappingError
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger  # <--- Use get_logger
 
@@ -38,16 +35,18 @@ class SignalGenerator:
     - Generating and ranking arbitrage opportunities
     """
 
-    def __init__(self, config: Config, data_handler: DataHandler) -> None:
+    def __init__(self, config: Config, data_handler: DataHandler, symbol_mapper: SymbolMapper) -> None:
         """
         Initialize the signal generator.
 
         Args:
             config: Application configuration
             data_handler: DataHandler for market data
+            symbol_mapper: SymbolMapper for translating symbols
         """
         self.config = config
         self.data_handler = data_handler
+        self.symbol_mapper = symbol_mapper
 
         # Parameters from config - ensure Decimal where appropriate
         self.min_funding_differential = Decimal(
@@ -88,75 +87,77 @@ class SignalGenerator:
 
         # Initialize data structures
         self._initialize_data_structures()
+        logger.info("SignalGenerator initialized.")
 
     def _initialize_data_structures(self) -> None:
-        """Initialize data structures for historical data."""
-        # Get all configured exchanges and symbols
-        exchanges = []
-        all_internal_symbols = set()
-        for exchange_id in self.config.get("exchanges", {}).keys():
-            if self.config.get(f"exchanges.{exchange_id}.enabled", False):
-                exchanges.append(exchange_id)
-                # Collect all unique internal symbols
-                symbol_map = self.config.get(f"exchanges.{exchange_id}.symbols", {})
-                all_internal_symbols.update(symbol_map.keys())
+        """Initialize data structures for historical data using SymbolMapper."""
+        all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
+        configured_exchanges = self.config.get("exchanges", {}).keys() # Get exchanges from config
 
-        # Initialize historical funding rate storage per exchange
-        for exchange in exchanges:
-            self.historical_funding_rates[exchange] = {}
-            symbol_map = self.config.get(f"exchanges.{exchange}.symbols", {})
-            for internal_symbol in symbol_map.keys():
-                # Use internal_symbol for the key, initialize with deque
-                self.historical_funding_rates[exchange][internal_symbol] = deque()
+        enabled_exchanges = [
+            ex_id for ex_id in configured_exchanges
+            if self.config.get(f"exchanges.{ex_id}.enabled", False)
+        ]
 
-        # Initialize basis history using internal symbols
+        # Initialize historical funding rate storage per enabled exchange
+        for exchange_id in enabled_exchanges:
+            self.historical_funding_rates[exchange_id] = {}
+            # Get symbols mapped *for this specific exchange*
+            exchange_specific_mappings = self.symbol_mapper.get_internal_symbols_for_exchange(exchange_id)
+            internal_symbols_for_exchange = exchange_specific_mappings.values()
+
+            for internal_symbol in internal_symbols_for_exchange:
+                # Check if internal symbol is globally recognized (optional sanity check)
+                if internal_symbol in all_internal_symbols:
+                     # Use internal_symbol for the key, initialize with deque
+                    self.historical_funding_rates[exchange_id][internal_symbol] = deque()
+                else:
+                    # This case implies inconsistency between get_all_internal_symbols and get_internal_symbols_for_exchange
+                    logger.warning(f"Internal symbol '{internal_symbol}' from exchange '{exchange_id}' mapping not found in global internal symbols list. Skipping.")
+
+        # Initialize basis history using all known internal symbols
         for internal_symbol in all_internal_symbols:
             self.historical_basis[internal_symbol] = deque()
+
+        logger.info(f"Initialized historical data structures for {len(enabled_exchanges)} enabled exchanges and {len(all_internal_symbols)} internal symbols.")
 
     def update_historical_data(self) -> None:
         """
         Update historical funding rate and basis data with latest information.
         Should be called regularly to maintain up-to-date volatility calculations.
+        Uses SymbolMapper for translation.
         """
         now = datetime.now(UTC)
+        all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
 
-        # Get all configured exchanges and symbols
-        exchanges = []
-        all_internal_symbols = set()
-        exchange_symbol_map: dict[
-            str, dict[str, str]
-        ] = {}  # {exchange: {internal: exchange_symbol}}
-        internal_to_exchange_map: dict[
-            str, dict[str, str]
-        ] = {}  # {exchange: {exchange_symbol: internal}}
+        # Determine enabled exchanges directly from config
+        configured_exchanges = self.config.get("exchanges", {}).keys()
+        enabled_exchanges = [
+            ex_id for ex_id in configured_exchanges
+            if self.config.get(f"exchanges.{ex_id}.enabled", False)
+        ]
 
-        for exchange_id in self.config.get("exchanges", {}).keys():
-            if self.config.get(f"exchanges.{exchange_id}.enabled", False):
-                exchanges.append(exchange_id)
-                symbols_config = self.config.get(f"exchanges.{exchange_id}.symbols", {})
-                exchange_symbol_map[exchange_id] = symbols_config
-                internal_to_exchange_map[exchange_id] = {
-                    v: k for k, v in symbols_config.items()
-                }  # Build reverse map
-                all_internal_symbols.update(symbols_config.keys())
+        # --- Update funding rate history ---
+        for exchange_id in enabled_exchanges:
+            # Iterate through the internal symbols expected for this exchange based on initialization
+            expected_internal_symbols = self.historical_funding_rates.get(exchange_id, {}).keys()
 
-        # Update funding rate history
-        for exchange in exchanges:
-            # Iterate through the expected internal symbols for this exchange based on init
-            expected_internal_symbols = self.historical_funding_rates.get(exchange, {}).keys()
             for internal_symbol in expected_internal_symbols:
-                # Get the corresponding exchange symbol needed for the data handler
-                exchange_symbol = exchange_symbol_map.get(exchange, {}).get(internal_symbol)
+                # Get the corresponding exchange symbol using the mapper
+                exchange_symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange_id)
+
                 if not exchange_symbol:
-                    logger.warning(
-                        f"No exchange symbol mapping found for "
-                        f"internal symbol {internal_symbol} on {exchange}"
+                    # This indicates a possible inconsistency if the symbol was present during init
+                    logger.error(
+                        f"Symbol mapping inconsistency: Cannot find exchange symbol for "
+                        f"internal symbol '{internal_symbol}' on '{exchange_id}', "
+                        f"though it was expected during initialization. Skipping update."
                     )
                     continue
 
                 # Fetch data using the exchange-specific symbol
                 funding_data: FundingRate | None = self.data_handler.get_funding_rate(
-                    exchange, exchange_symbol
+                    exchange_id, exchange_symbol
                 )
 
                 if funding_data:
@@ -170,52 +171,64 @@ class SignalGenerator:
                         except Exception as e:
                             logger.warning(
                                 f"Could not convert funding rate '{rate}' to Decimal for "
-                                f"{exchange}/{exchange_symbol} (Internal: {internal_symbol}). "
+                                f"{exchange_id}/{exchange_symbol} (Internal: {internal_symbol}). "
                                 f"Error: {e}"
                             )
-                            continue
+                            continue # Skip this data point
 
                     # Add to history using internal_symbol key
-                    history_deque = self.historical_funding_rates[exchange][internal_symbol]
-                    history_deque.append((timestamp, rate))
+                    # Ensure the structure exists (might be overly cautious if init is correct)
+                    if exchange_id in self.historical_funding_rates and internal_symbol in self.historical_funding_rates[exchange_id]:
+                        history_deque = self.historical_funding_rates[exchange_id][internal_symbol]
+                        history_deque.append((timestamp, rate))
 
-                    # Trim history using deque's efficient popleft
-                    cutoff_time = now - timedelta(
-                        seconds=self.funding_sample_period * self.funding_sample_count
-                    )
-                    while history_deque and history_deque[0][0] < cutoff_time:
-                        history_deque.popleft()
+                        # Trim history using deque's efficient popleft
+                        cutoff_time = now - timedelta(
+                            seconds=self.funding_sample_period * self.funding_sample_count
+                        )
+                        while history_deque and history_deque[0][0] < cutoff_time:
+                            history_deque.popleft()
+                    else:
+                        logger.error(f"Historical funding rate deque not found for {exchange_id}/{internal_symbol} during update.")
 
-        # Update basis history (price difference between exchanges)
+
+        # --- Update basis history (price difference between exchanges) ---
         for internal_symbol in all_internal_symbols:
             # Find exchanges that map this internal symbol
             valid_exchanges_for_symbol = []
-            exchange_tickers: dict[str, Ticker] = {}  # Changed type hint to Ticker
-            for exchange in exchanges:
-                if internal_symbol in exchange_symbol_map.get(exchange, {}):
-                    exchange_symbol = exchange_symbol_map[exchange][internal_symbol]
+            exchange_tickers: dict[str, Ticker] = {}  # Store valid tickers
+
+            # Check all enabled exchanges
+            for exchange_id in enabled_exchanges:
+                # Get exchange symbol using mapper
+                exchange_symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange_id)
+
+                if exchange_symbol: # Check if mapping exists
                     ticker: Ticker | None = self.data_handler.get_ticker(
-                        exchange, exchange_symbol
-                    )  # Added type hint
+                        exchange_id, exchange_symbol
+                    )
                     # Ensure ticker and price are valid
                     if ticker and ticker.price is not None:
                         # Attempt to convert price to Decimal immediately for validation
                         try:
                             price_decimal = Decimal(str(ticker.price))
-                            valid_exchanges_for_symbol.append(exchange)
+                            valid_exchanges_for_symbol.append(exchange_id)
                             # Store the ticker *after* ensuring its price is valid and convertible
-                            exchange_tickers[exchange] = ticker
+                            exchange_tickers[exchange_id] = ticker
                             # Overwrite price with validated Decimal for consistency downstream
                             ticker.price = price_decimal
                         except decimal.InvalidOperation:
                             logger.warning(
                                 f"Could not convert ticker price '{ticker.price}' to Decimal for "
-                                f"{exchange}/{exchange_symbol} (Internal: {internal_symbol})"
+                                f"{exchange_id}/{exchange_symbol} (Internal: {internal_symbol})"
                             )
                             # Do not add this exchange/ticker if price is invalid
+                # No else needed, if no exchange_symbol, we skip this exchange for this internal_symbol
 
+            # Need at least two valid prices to calculate basis
             if len(valid_exchanges_for_symbol) >= 2:
-                # Use the first two valid exchanges found
+                # Use the first two valid exchanges found (simple approach)
+                # A more robust approach might average prices or use specific pairs
                 exchange1, exchange2 = (
                     valid_exchanges_for_symbol[0],
                     valid_exchanges_for_symbol[1],
@@ -232,24 +245,28 @@ class SignalGenerator:
                     basis = price1 - price2
 
                     # Add to historical data using internal symbol key
-                    basis_deque = self.historical_basis[
-                        internal_symbol
-                    ]  # Already initialized as deque
-                    basis_deque.append((now, basis))
+                    # Ensure the deque exists
+                    if internal_symbol in self.historical_basis:
+                        basis_deque = self.historical_basis[internal_symbol]
+                        basis_deque.append((now, basis))
 
-                    # Trim to keep only recent samples using popleft
-                    cutoff_time = now - timedelta(
-                        seconds=self.funding_sample_period * self.funding_sample_count
-                    )
-                    while basis_deque and basis_deque[0][0] < cutoff_time:
-                        basis_deque.popleft()
+                        # Trim to keep only recent samples using popleft
+                        cutoff_time = now - timedelta(
+                            seconds=self.funding_sample_period * self.funding_sample_count
+                        )
+                        while basis_deque and basis_deque[0][0] < cutoff_time:
+                            basis_deque.popleft()
+                    else:
+                         logger.error(f"Historical basis deque not found for {internal_symbol} during update.")
+
                 else:
                     # This case should ideally not be reached due to earlier checks
                     logger.error(
                         f"Unexpected non-Decimal price found when calculating basis for "
-                        f"{internal_symbol} between {exchange1} and {exchange2}. "
-                        f"Prices: {price1}, {price2}"
+                        f"'{internal_symbol}' between {exchange1} and {exchange2}. "
+                        f"Price1: {price1} ({type(price1)}), Price2: {price2} ({type(price2)})"
                     )
+            # else: No basis calculation possible if fewer than 2 prices found
 
     def calculate_funding_rate_volatility(self, exchange: str, internal_symbol: str) -> Decimal:
         """Calculates the volatility of historical funding rates."""
@@ -377,216 +394,218 @@ class SignalGenerator:
     def generate_opportunities(self) -> list[ArbitrageOpportunity]:
         """
         Generate a list of arbitrage opportunities sorted by utility score.
+        Uses SymbolMapper for translation.
         """
         opportunities = []
-        processed_pairs = set()  # Keep track of processed pairs to avoid duplicates
+        processed_pairs = set()  # Keep track of processed pairs (exchange1, exchange2, internal_symbol)
         now = datetime.now(UTC)
 
-        # Get configured exchanges and symbols
-        exchanges = []
-        exchange_to_internal_symbols: dict[str, set[str]] = {}
-        exchange_symbol_map: dict[
-            str, dict[str, str]
-        ] = {}  # {exchange: {internal: exchange_symbol}}
+        # Determine enabled exchanges from config
+        configured_exchanges = self.config.get("exchanges", {}).keys()
+        enabled_exchanges = [
+            ex_id for ex_id in configured_exchanges
+            if self.config.get(f"exchanges.{ex_id}.enabled", False)
+        ]
 
-        for exchange_id in self.config.get("exchanges", {}).keys():
-            if self.config.get(f"exchanges.{exchange_id}.enabled", False):
-                exchanges.append(exchange_id)
-                symbols_config = self.config.get(f"exchanges.{exchange_id}.symbols", {})
-                exchange_symbol_map[exchange_id] = symbols_config
-                exchange_to_internal_symbols[exchange_id] = set(symbols_config.keys())
-
-        if len(exchanges) < 2:
+        if len(enabled_exchanges) < 2:
             logger.info(
                 "Need at least two enabled exchanges to generate funding rate opportunities."
             )
-            return []  # Return early if not enough exchanges
+            return []  # Return early
 
-        logger.debug(f"Generating opportunities across exchanges: {exchanges}")
+        logger.debug(f"Generating opportunities across enabled exchanges: {enabled_exchanges}")
 
-        for i in range(len(exchanges)):
-            for j in range(i + 1, len(exchanges)):
-                exchange1 = exchanges[i]
-                exchange2 = exchanges[j]
+        # Get all unique internal symbols known to the mapper
+        all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
 
-                # Find common *internal* symbols supported by both exchanges
-                common_internal_symbols = list(
-                    exchange_to_internal_symbols.get(exchange1, set()).intersection(
-                        exchange_to_internal_symbols.get(exchange2, set())
-                    )
-                )
+        # Iterate through all pairs of enabled exchanges
+        for i in range(len(enabled_exchanges)):
+            for j in range(i + 1, len(enabled_exchanges)):
+                exchange1 = enabled_exchanges[i]
+                exchange2 = enabled_exchanges[j]
+
+                # Find common *internal* symbols supported by *both* exchanges using the mapper
+                symbols1 = set(self.symbol_mapper.get_internal_symbols_for_exchange(exchange1).values())
+                symbols2 = set(self.symbol_mapper.get_internal_symbols_for_exchange(exchange2).values())
+                common_internal_symbols = list(symbols1.intersection(symbols2))
 
                 logger.debug(
-                    f"Checking pair: {exchange1} vs {exchange2}. Common symbols: {common_internal_symbols}"
+                    f"Checking pair: {exchange1} vs {exchange2}. Common internal symbols: {common_internal_symbols}"
                 )
 
                 if not common_internal_symbols:
-                    continue  # Skip if no common internal symbols
+                    continue  # Skip if no common symbols
 
                 for internal_symbol in common_internal_symbols:
                     # Avoid processing the same pair twice (e.g., A-B vs B-A)
                     pair_key = tuple(sorted((exchange1, exchange2))) + (internal_symbol,)
                     if pair_key in processed_pairs:
                         continue
+                    processed_pairs.add(pair_key) # Mark as processed
+
 
                     logger.debug(
-                        f"Processing symbol: {internal_symbol} for pair {exchange1}/{exchange2}"
+                        f"Processing internal symbol: '{internal_symbol}' for pair {exchange1}/{exchange2}"
                     )
 
-                    # Get exchange-specific symbols from config map
-                    symbol1 = exchange_symbol_map.get(exchange1, {}).get(internal_symbol)
-                    symbol2 = exchange_symbol_map.get(exchange2, {}).get(internal_symbol)
+                    # Get exchange-specific symbols using the mapper
+                    symbol1 = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange1)
+                    symbol2 = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange2)
 
+                    # --- CRITICAL: Check if mapping was successful ---
                     if not symbol1 or not symbol2:
-                        logger.warning(
-                            f"Symbol mapping missing for internal symbol '{internal_symbol}' on {exchange1} or {exchange2}. Skipping."
+                        logger.error( # Use ERROR level as this indicates a config/logic issue
+                            f"Symbol mapping failed for internal symbol '{internal_symbol}' on {exchange1} ('{symbol1}') "
+                            f"or {exchange2} ('{symbol2}'). Skipping opportunity check. Verify configuration."
                         )
-                        continue
+                        continue # Skip this symbol for this pair
+                    # --- End Critical Check ---
 
-                    logger.debug(f"  Mapped symbols: {exchange1}={symbol1}, {exchange2}={symbol2}")
+                    logger.debug(f"  Mapped symbols: {exchange1}='{symbol1}', {exchange2}='{symbol2}'")
 
-                    # Get latest data using *exchange-specific* symbols
+                    # Get latest data using the retrieved *exchange-specific* symbols
                     funding1 = self.data_handler.get_funding_rate(exchange1, symbol1)
                     funding2 = self.data_handler.get_funding_rate(exchange2, symbol2)
                     ticker1 = self.data_handler.get_ticker(exchange1, symbol1)
                     ticker2 = self.data_handler.get_ticker(exchange2, symbol2)
 
-                    # Add logging for retrieved data
+                    # Log retrieved data for debugging
                     logger.debug(f"    {exchange1} Funding ({symbol1}): {funding1}")
                     logger.debug(f"    {exchange2} Funding ({symbol2}): {funding2}")
                     logger.debug(f"    {exchange1} Ticker ({symbol1}): {ticker1}")
                     logger.debug(f"    {exchange2} Ticker ({symbol2}): {ticker2}")
 
+                    # --- Data Validation ---
                     if not all([funding1, funding2, ticker1, ticker2]):
                         logger.debug(
-                            f"  Missing required data for {internal_symbol} on {exchange1}/{exchange2}. Skipping opportunity check."
+                            f"  Missing required data for {internal_symbol} (mapped: {symbol1}/{symbol2}) "
+                            f"on {exchange1}/{exchange2}. Skipping opportunity check."
                         )
                         continue
 
-                    # Ensure prices are not None before proceeding
                     if ticker1.price is None or ticker2.price is None:
                         logger.debug(
-                            f"  Missing ticker price for {internal_symbol} on {exchange1}/{exchange2}. Skipping opportunity check."
+                            f"  Missing ticker price for {internal_symbol} (mapped: {symbol1}/{symbol2}) "
+                            f"on {exchange1}/{exchange2}. Skipping opportunity check."
                         )
                         continue
 
-                    # Ensure correct types (Decimal) - defensive check
+                    # Ensure necessary components for calculation are Decimal
                     try:
                         rate1 = Decimal(str(funding1.funding_rate))
                         rate2 = Decimal(str(funding2.funding_rate))
-                        ask1 = Decimal(str(ticker1.ask))
-                        bid1 = Decimal(str(ticker1.bid))
-                        ask2 = Decimal(str(ticker2.ask))
-                        bid2 = Decimal(str(ticker2.bid))
-                    except (InvalidOperation, TypeError) as e:
+                        # Use ask/bid for potential trade prices
+                        ask1 = Decimal(str(ticker1.ask)) if ticker1.ask is not None else None
+                        bid1 = Decimal(str(ticker1.bid)) if ticker1.bid is not None else None
+                        ask2 = Decimal(str(ticker2.ask)) if ticker2.ask is not None else None
+                        bid2 = Decimal(str(ticker2.bid)) if ticker2.bid is not None else None
+
+                        # Check if all required prices for opportunity checks are available
+                        if None in [ask1, bid1, ask2, bid2]:
+                            logger.debug(f" Missing ask/bid price for {internal_symbol} ({symbol1}/{symbol2}). Skipping.")
+                            continue
+
+                    except (InvalidOperation, TypeError, ValueError) as e: # Added ValueError
                         logger.warning(
-                            f"Failed to convert data to Decimal for {internal_symbol} on {exchange1}/{exchange2}: {e}. Skipping."
+                            f"Failed to convert funding/ticker data to Decimal for {internal_symbol} "
+                            f"(mapped: {symbol1}/{symbol2}) on {exchange1}/{exchange2}: {e}. Skipping."
                         )
                         continue
+                    # --- End Data Validation ---
+
 
                     # Calculate basis volatility using the *internal* symbol
                     basis_volatility = self.calculate_basis_volatility(internal_symbol)
 
-                    # Opportunity 1: rate1 < rate2 -> Long on 1, Short on 2
-                    # This direction seems potentially reversed based on test expectation.
-                    # Let's assume the test is correct: Long the exchange with the *higher* funding rate.
-                    # If rate1 < rate2, then rate2 is higher. We should LONG exchange2, SHORT exchange1.
+
+                    # Opportunity Check 1: rate1 < rate2 => Long exchange2, Short exchange1
                     if rate1 < rate2:
                         net_differential = rate2 - rate1
-                        logger.debug(
-                            f"  NFD Calc (rate2 - rate1): {rate2} - {rate1} = {net_differential}"
-                        )
-                        if (
-                            net_differential.copy_abs() > self.min_funding_differential
-                        ):  # Use abs for threshold check
-                            # Corrected logic: Long the higher rate (rate2 -> exchange2), Short the lower rate (rate1 -> exchange1)
+                        logger.debug(f"  Potential NFD (rate2-rate1): {rate2} - {rate1} = {net_differential}")
+                        if net_differential > self.min_funding_differential: # NFD is already positive
                             long_exchange_actual, short_exchange_actual = exchange2, exchange1
                             long_rate_actual, short_rate_actual = rate2, rate1
-                            long_price_actual, short_price_actual = (
-                                ask2,
-                                bid1,
-                            )  # Buy at ask2, Sell at bid1
+                            # Buy at ask2 (higher price), Sell at bid1 (lower price)
+                            long_price_actual, short_price_actual = ask2, bid1
 
                             logger.debug(
-                                f"    NFD {net_differential} > threshold {self.min_funding_differential}. Opportunity: Long {long_exchange_actual}, Short {short_exchange_actual}"
+                                f"    NFD {net_differential} > threshold {self.min_funding_differential}. "
+                                f"Opportunity: Long {long_exchange_actual}/{symbol2}, Short {short_exchange_actual}/{symbol1}"
                             )
                             try:
-                                # Calculate estimated profit and utility
-                                optimal_size_placeholder = Decimal("1000")
-                                expected_profit = net_differential * optimal_size_placeholder
-                                utility_score = float(expected_profit) - self.risk_aversion * (
-                                    float(basis_volatility) ** 2
-                                )
+                                # Simplified utility calculation (replace with more sophisticated model later)
+                                optimal_size_placeholder = Decimal("1.0") # Placeholder size
+                                expected_profit = net_differential * optimal_size_placeholder # Per unit size
+                                utility_score = float(expected_profit) - self.risk_aversion * (float(basis_volatility) ** 2)
+
                                 logger.debug(
-                                    f"      Expected Profit (Simplified): {expected_profit}, Basis Vol: {basis_volatility}, Utility: {utility_score}"
-                                )
+                                     f"      Expected Profit/Unit: {expected_profit}, Basis Vol: {basis_volatility}, Utility: {utility_score}"
+                                 )
 
                                 opportunity = ArbitrageOpportunity(
-                                    symbol=internal_symbol,
+                                    symbol=internal_symbol, # Use internal symbol
                                     long_exchange=long_exchange_actual,
                                     short_exchange=short_exchange_actual,
+                                    long_exchange_symbol=symbol2, # Add exchange symbols
+                                    short_exchange_symbol=symbol1, # Add exchange symbols
                                     long_price=long_price_actual,
                                     short_price=short_price_actual,
                                     long_funding_rate=long_rate_actual,
                                     short_funding_rate=short_rate_actual,
                                     net_funding_differential=net_differential,
                                     timestamp=now,
-                                    optimal_size=None,
-                                    expected_profit=expected_profit,
+                                    optimal_size=None, # To be determined later
+                                    expected_profit=expected_profit, # Per unit
                                     confidence=None,
                                     basis_volatility=float(basis_volatility),
                                     utility_score=utility_score,
                                 )
                                 opportunities.append(opportunity)
                                 logger.info(
-                                    f"  Appended Opportunity: Long {long_exchange_actual}/{symbol2} vs Short {short_exchange_actual}/{symbol1} for {internal_symbol}"
+                                    f"  Appended Opportunity: Long {long_exchange_actual}/{symbol2} vs "
+                                    f"Short {short_exchange_actual}/{symbol1} for '{internal_symbol}'"
                                 )
                             except Exception as e:
                                 logger.error(
-                                    f"Error creating opportunity (Long {long_exchange_actual}/Short {short_exchange_actual}) for symbol {internal_symbol}: {e}",
+                                    f"Error creating opportunity (Long {long_exchange_actual}/Short {short_exchange_actual}) "
+                                    f"for symbol '{internal_symbol}' (mapped: {symbol1}/{symbol2}): {e}",
                                     exc_info=True,
                                 )
                         else:
                             logger.debug(
-                                f"    NFD {net_differential} magnitude <= threshold {self.min_funding_differential}"
+                                f"    NFD {net_differential} <= threshold {self.min_funding_differential}"
                             )
 
-                    # Opportunity 2: rate2 < rate1 -> Long on 1, Short on 2
-                    # If rate2 < rate1, then rate1 is higher. We should LONG exchange1, SHORT exchange2.
+                    # Opportunity Check 2: rate2 < rate1 => Long exchange1, Short exchange2
                     elif rate2 < rate1:
-                        net_differential = rate1 - rate2  # Keep NFD positive for calculation
-                        logger.debug(
-                            f"  NFD Calc (rate1 - rate2): {rate1} - {rate2} = {net_differential}"
-                        )
-                        if (
-                            net_differential.copy_abs() > self.min_funding_differential
-                        ):  # Use abs for threshold check
-                            # Corrected logic: Long the higher rate (rate1 -> exchange1), Short the lower rate (rate2 -> exchange2)
+                        net_differential = rate1 - rate2  # Keep NFD positive
+                        logger.debug(f"  Potential NFD (rate1-rate2): {rate1} - {rate2} = {net_differential}")
+                        if net_differential > self.min_funding_differential:
                             long_exchange_actual, short_exchange_actual = exchange1, exchange2
                             long_rate_actual, short_rate_actual = rate1, rate2
-                            long_price_actual, short_price_actual = (
-                                ask1,
-                                bid2,
-                            )  # Buy at ask1, Sell at bid2
+                             # Buy at ask1 (higher price), Sell at bid2 (lower price)
+                            long_price_actual, short_price_actual = ask1, bid2
 
                             logger.debug(
-                                f"    NFD {net_differential} > threshold {self.min_funding_differential}. Opportunity: Long {long_exchange_actual}, Short {short_exchange_actual}"
+                                f"    NFD {net_differential} > threshold {self.min_funding_differential}. "
+                                f"Opportunity: Long {long_exchange_actual}/{symbol1}, Short {short_exchange_actual}/{symbol2}"
                             )
                             try:
-                                # Calculate estimated profit and utility
-                                optimal_size_placeholder = Decimal("1000")
+                                # Simplified utility calculation
+                                optimal_size_placeholder = Decimal("1.0") # Placeholder size
                                 expected_profit = net_differential * optimal_size_placeholder
-                                utility_score = float(expected_profit) - self.risk_aversion * (
-                                    float(basis_volatility) ** 2
-                                )
+                                utility_score = float(expected_profit) - self.risk_aversion * (float(basis_volatility) ** 2)
+
                                 logger.debug(
-                                    f"      Expected Profit (Simplified): {expected_profit}, Basis Vol: {basis_volatility}, Utility: {utility_score}"
-                                )
+                                     f"      Expected Profit/Unit: {expected_profit}, Basis Vol: {basis_volatility}, Utility: {utility_score}"
+                                 )
 
                                 opportunity = ArbitrageOpportunity(
-                                    symbol=internal_symbol,
+                                    symbol=internal_symbol, # Use internal symbol
                                     long_exchange=long_exchange_actual,
                                     short_exchange=short_exchange_actual,
+                                    long_exchange_symbol=symbol1, # Add exchange symbols
+                                    short_exchange_symbol=symbol2, # Add exchange symbols
                                     long_price=long_price_actual,
                                     short_price=short_price_actual,
                                     long_funding_rate=long_rate_actual,
@@ -601,28 +620,27 @@ class SignalGenerator:
                                 )
                                 opportunities.append(opportunity)
                                 logger.info(
-                                    f"  Appended Opportunity: Long {long_exchange_actual}/{symbol1} vs Short {short_exchange_actual}/{symbol2} for {internal_symbol}"
+                                    f"  Appended Opportunity: Long {long_exchange_actual}/{symbol1} vs "
+                                    f"Short {short_exchange_actual}/{symbol2} for '{internal_symbol}'"
                                 )
                             except Exception as e:
                                 logger.error(
-                                    f"Error creating opportunity (Long {long_exchange_actual}/Short {short_exchange_actual}) for symbol {internal_symbol}: {e}",
+                                    f"Error creating opportunity (Long {long_exchange_actual}/Short {short_exchange_actual}) "
+                                    f"for symbol '{internal_symbol}' (mapped: {symbol1}/{symbol2}): {e}",
                                     exc_info=True,
                                 )
                         else:
-                            logger.debug(
-                                f"    NFD {net_differential} magnitude <= threshold {self.min_funding_differential}"
+                             logger.debug(
+                                f"    NFD {net_differential} <= threshold {self.min_funding_differential}"
                             )
+                    else: # Rates are equal
+                         logger.debug(f"  Funding rates are equal for {internal_symbol} ({symbol1}/{symbol2}). No NFD.")
 
-                    processed_pairs.add(pair_key)
 
-        logger.debug(f"Finished generating opportunities. Found: {len(opportunities)}. Sorting...")
+        # Sort opportunities by utility score (descending)
+        opportunities.sort(key=lambda x: x.utility_score, reverse=True)
 
-        # Sort opportunities by utility score (handle None safely)
-        opportunities.sort(
-            key=lambda x: x.utility_score if x.utility_score is not None else -float("inf"),
-            reverse=True,
-        )
-
+        logger.info(f"Generated {len(opportunities)} potential arbitrage opportunities.")
         return opportunities
 
     def _check_funding_rate_opportunity(

@@ -24,7 +24,7 @@ from cyberdelta.core.models import (
 )
 
 # Correct the import to use the new typing module
-from cyberdelta.core.typing import Symbol
+from cyberdelta.core.symbol_mapper import Symbol
 from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,7 @@
 import time
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
+from typing import Any
 
 import pytest
 
@@ -18,8 +19,49 @@ from cyberdelta.core.models import (
     Position,
     Ticker,
     Trade,
+    TimeInForce,
+    MarketData,
 )
+from cyberdelta.apis.base import (
+    ExchangeAPI,
+    MessageHandler,
+    APIError,
+    APIErrorCode
+)
+from cyberdelta.utils.config import Config
+from cyberdelta.config.secrets_manager import SecretsManager
 
+# --- Minimal Concrete Subclass for Testing --- #
+class ConcreteBackpackAPI(BackpackAPI):
+    """Minimal implementation for testing inherited methods like _sign_request."""
+    # Implement all abstract methods with basic placeholders or mocks
+    async def _handle_websocket_message(self, message: dict[str, Any]) -> None: pass
+    async def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]: return {}
+    async def connect_websocket(self) -> None: pass
+    async def get_funding_rates(self, symbol: str | None = None) -> list[FundingRate]: return []
+    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[MarketData]: return []
+    def get_message_type(self, message: dict[str, Any]) -> str: return "unknown"
+    async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]: return []
+    async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]: return []
+    def parse_account_update_message(self, message: dict[str, Any]) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]: return None, None
+    def parse_balance(self, data: dict[str, Any]) -> Balance: raise NotImplementedError
+    def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate: raise NotImplementedError
+    def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None: return None
+    def parse_order(self, order_data: dict[str, Any]) -> Order: raise NotImplementedError
+    def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook: raise NotImplementedError
+    def parse_order_update_message(self, message: dict[str, Any]) -> Order | None: return None
+    def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None: return None
+    def parse_position(self, data: dict[str, Any]) -> Position: raise NotImplementedError
+    def parse_ticker(self, data: dict[str, Any], symbol: str) -> Ticker: raise NotImplementedError
+    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None: return None
+    def parse_trade(self, data: dict[str, Any], symbol: str) -> Trade: raise NotImplementedError
+    def parse_trade_message(self, message: dict[str, Any]) -> Trade | None: return None
+    async def ping_websocket(self) -> None: pass
+    async def subscribe_to_account_updates(self) -> None: pass
+    async def subscribe_to_order_book(self, symbol: str, handler: MessageHandler) -> None: pass
+    async def subscribe_to_ticker(self, symbol: str, handler: MessageHandler) -> None: pass
+    async def subscribe_to_trades(self, symbol: str, handler: MessageHandler) -> None: pass
+# --- End Minimal Subclass --- #
 
 class TestBackpackAPI:
     """Test suite for BackpackAPI client."""
@@ -333,25 +375,27 @@ class TestBackpackAPI:
         api_client.cancel_order.assert_called_once_with("123456789", "BTCUSDC")
 
     @pytest.mark.asyncio
-    async def test_sign_request(self, api_client):
+    async def test_sign_request(self, backpack_config, backpack_secrets):
         """Test the _sign_request method produces correct signature."""
-        # Need a real client instance to test the protected method
-        # Or make _sign_request static/standalone if possible
-        # For now, let's manually invoke the logic if BackpackAPI can be instantiated
-        # Add necessary attributes to the mock client for instantiation
-        api_client.config = MagicMock(spec=ConfigManager)
-        api_client.secrets = MagicMock(spec=SecretsManager)
-        # Mock specific config/secrets values if needed by BackpackAPI init or _sign_request
-        api_client.secrets.get.return_value = "test_secret_key"
+        # Instantiate the CONCRETE subclass for testing
+        # We need to provide actual mock objects for config and secrets managers if
+        # the BackpackAPI __init__ requires them.
+        mock_config_obj = MagicMock(spec=Config)
+        mock_secrets_obj = MagicMock(spec=SecretsManager)
 
-        # Now instantiate using the mocked attributes
-        real_client = BackpackAPI(config=api_client.config, secrets=api_client.secrets)
+        # Configure secrets mock to return the dummy secret key
+        mock_secrets_obj.get.return_value = backpack_secrets["BACKPACK_API_SECRET"]
+
+        # Pass the correct args to the concrete class constructor
+        client = ConcreteBackpackAPI(api_config=backpack_config, secrets=backpack_secrets)
+        # Explicitly set the secret if it's read directly in _sign_request
+        client.api_secret = backpack_secrets["BACKPACK_API_SECRET"]
 
         # Prepare mock request parameters
         method = "POST"
         endpoint = "/api/v1/order"
         params = {
-            "symbol": "BTC_USDC",
+            "symbol": "SOL_USDC",
             "side": "Bid",
             "orderType": "Limit",
             "quantity": "0.01",
@@ -360,15 +404,22 @@ class TestBackpackAPI:
             "timestamp": 1678886400000,  # Example timestamp
         }
 
-        # Set a dummy API secret for the real client if needed
-        real_client.api_secret = "test_secret_key"
-        # Call the protected method (requires name mangling)
-        signature = real_client._sign_request(method, endpoint, params=params)
+        # Call the protected method (requires name mangling for protected methods)
+        # Assuming _sign_request is intended to be protected
+        auth_data = client._sign_request(method=method, path=endpoint, params=params)
+        signature = auth_data["headers"]["X-Signature"] # Extract only the signature string
 
         # Assert the signature is a non-empty string (actual validation is complex)
         assert isinstance(signature, str)
         assert len(signature) > 0
-        # Example of a more specific check if the expected signature format is known
-        # assert signature == "expected_signature_for_test_data"
+        # A more robust test would compare against a known-good signature,
+        # but that requires managing the timestamp and exact signing logic alignment.
+        # For now, checking type and non-emptiness is a basic sanity check.
+        # Example expected signature (will vary based on timestamp etc.)
+        # expected_signature = "..."
+        # assert signature == expected_signature
+
+        # Verify secrets manager was called correctly (if needed)
+        # mock_secrets_obj.get.assert_called_once_with("BACKPACK_API_SECRET")
 
     # TODO: Add tests for edge cases and error handling (e.g., API errors)

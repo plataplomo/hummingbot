@@ -365,6 +365,7 @@ async def test_position_reconciler_detects_discrepancy(
         mark_price=Decimal("30100"),  # Use Decimal
         side=OrderSide.BUY,
         status="OPEN",
+        leverage=Decimal("1"),  # Added missing leverage (assume 1x for mock)
     )
 
     # Manually set position in mock API, but NOT in tracker

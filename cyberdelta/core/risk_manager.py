@@ -1116,8 +1116,10 @@ class RiskManager:
             opportunity.net_funding_differential * 100
         )  # Convert Decimal rate to float percentage
         risk_adjusted_return = (
-            float(opportunity.utility_score) if hasattr(opportunity, "utility_score") else 0.0
-        )  # Use utility score as proxy (float)
+            float(opportunity.utility_score)
+            if hasattr(opportunity, "utility_score") and opportunity.utility_score is not None
+            else 0.0
+        )  # Use utility score as proxy (float), handle None
 
         # 7. Create SizedOpportunity object
         sized_opportunity = SizedOpportunity(
