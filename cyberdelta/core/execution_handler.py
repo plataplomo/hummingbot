@@ -1,6 +1,7 @@
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
+import time
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -10,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 
 # Import models needed at runtime directly
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, Position, Ticker
+from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, Position, Ticker, Trade
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbol_mapper import SymbolMapper, SymbolMappingError
@@ -621,8 +622,32 @@ class ExecutionHandler:
 
                 if order:
                     logger.info(f"Order placed successfully on {exchange_id}: ID {order.id}, Symbol {symbol}, Status {order.status.name}")
-                    # Update portfolio tracker (uses order details including symbol)
+                    # Update portfolio tracker order state
                     self.portfolio_tracker.update_order(exchange_id, order)
+
+                    # --- ADDED: Update position based on fill --- 
+                    if order.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED) and order.filled_quantity > Decimal("0"):
+                        try:
+                             # Construct Trade object (ensure necessary fields are present in Order)
+                            trade = Trade(
+                                id=f"trade_{order.id}_{int(time.time() * 1000)}", # Generate unique trade ID
+                                order_id=order.id,
+                                exchange=exchange_id,
+                                symbol=self.symbol_mapper.get_internal_symbol(symbol, exchange_id) or symbol, # Map back to internal symbol
+                                side=order.side,
+                                quantity=order.filled_quantity,
+                                price=order.avg_fill_price or order.price or Decimal("0"), # Use avg_fill_price first
+                                # Fee calculation might need refinement depending on Order model details
+                                fee=order.fee if hasattr(order, 'fee') and order.fee is not None else Decimal("0"),
+                                fee_asset=order.fee_asset if hasattr(order, 'fee_asset') else None,
+                                timestamp=order.time # Use order time
+                            )
+                            self.portfolio_tracker.process_trade(exchange_id, trade)
+                            logger.info(f"PortfolioTracker updated for trade from order {order.id} on {exchange_id}")
+                        except Exception as trade_proc_err:
+                             logger.error(f"Error processing trade for order {order.id} in PortfolioTracker: {trade_proc_err}", exc_info=True)
+                             # Decide if this error should propagate or just be logged
+                    # --- END ADDED --- 
                     return order
                 else:
                      # Should not happen if place_order adheres to return type hint, but handle defensively
@@ -649,14 +674,19 @@ class ExecutionHandler:
 
         # If all retries fail
         logger.error(f"Failed to place order {side.name} {quantity} {symbol} on {exchange_id} after {self.max_retries} attempts. Last error: {error}")
-        # Record failure if circuit breaker exists and the error wasn't an APIError
-        if self.circuit_breaker_system and not isinstance(error, APIError):
-            exchange_for_failure = exchange_id  # Use the exchange ID from the failed retry
-            error_msg_for_failure = f"Generic failure placing order after retries: {error}"
-            # Replace generic record_failure with record_api_error
-            self.circuit_breaker_system.record_api_error(
-                exchange_for_failure, error_msg_for_failure
-            )
+        # Record failure if circuit breaker exists
+        if self.circuit_breaker_system:
+            exchange_for_failure = exchange_id
+            error_msg_for_failure = f"Failed to place order {side.name} {symbol} after {self.max_retries} retries: {error}"
+            # Record as API error if it was one, otherwise critical failure
+            if isinstance(error, APIError):
+                 self.circuit_breaker_system.record_api_error(
+                    exchange_for_failure, error_msg_for_failure
+                 )
+            else:
+                self.circuit_breaker_system.record_critical_failure(
+                    exchange_for_failure, error_msg_for_failure
+                )
 
         # Return None after all retries failed
         return None
@@ -683,8 +713,31 @@ class ExecutionHandler:
 
             if order:
                 logger.debug(f"Got order status for {order_id}: {order.status.name}, Filled: {order.filled_quantity}")
-                # Update portfolio tracker (uses order details including symbol)
+                # Update portfolio tracker order state
                 self.portfolio_tracker.update_order(exchange_id, order)
+                # --- ADDED: Update position based on fill from status check --- 
+                if order.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED) and order.filled_quantity > Decimal("0"):
+                    try:
+                         # Construct Trade object (ensure necessary fields are present in Order)
+                        trade = Trade(
+                            id=f"trade_{order.id}_{int(time.time() * 1000)}_status", # Unique trade ID
+                            order_id=order.id,
+                            exchange=exchange_id,
+                            symbol=self.symbol_mapper.get_internal_symbol(symbol, exchange_id) or symbol, # Map back to internal symbol
+                            side=order.side,
+                            quantity=order.filled_quantity,
+                            price=order.avg_fill_price or order.price or Decimal("0"), # Use avg_fill_price first
+                             # Fee calculation might need refinement depending on Order model details
+                            fee=order.fee if hasattr(order, 'fee') and order.fee is not None else Decimal("0"),
+                            fee_asset=order.fee_asset if hasattr(order, 'fee_asset') else None,
+                            timestamp=order.time # Use order time
+                        )
+                        self.portfolio_tracker.process_trade(exchange_id, trade)
+                        logger.info(f"PortfolioTracker updated for trade from order status check {order.id} on {exchange_id}")
+                    except Exception as trade_proc_err:
+                         logger.error(f"Error processing trade from status check for order {order.id} in PortfolioTracker: {trade_proc_err}", exc_info=True)
+                         # Decide if this error should propagate or just be logged
+                # --- END ADDED --- 
                 return order
             else:
                 logger.warning(f"get_order_status returned None for ID {order_id} on {exchange_id}")
@@ -718,10 +771,31 @@ class ExecutionHandler:
         quantity: Decimal,
     ) -> bool:
         """Attempts to compensate for a partially filled or failed order leg."""
+        # --- Log current position size before compensation --- 
+        current_position = self.portfolio_tracker.get_position(exchange_id, internal_symbol)
+        current_pos_size = current_position.size if current_position else Decimal("0")
+        logger.debug(
+            f"Compensation PRE-CHECK for {exchange_id}/{internal_symbol}: "
+            f"Current position size: {current_pos_size}. Intended compensation quantity: {quantity}."
+            f" (Original failed side: {original_failed_side.name})"
+        )
+        if current_position and abs(current_pos_size) < abs(quantity):
+            logger.warning(
+                f"Compensation quantity ({quantity}) exceeds current position size ({current_pos_size}) "
+                f"for {exchange_id}/{internal_symbol}. Adjusting compensation quantity."
+            )
+            # Adjust quantity to avoid exceeding current position size when closing
+            quantity = abs(current_pos_size)
+
         logger.info(
             f"Attempting compensation on {exchange_id} for internal symbol '{internal_symbol}' "
-            f"(original failed side: {original_failed_side.value}) for quantity {quantity}"
+            f"(original failed side: {original_failed_side.name}) for adjusted quantity {quantity}"
         )
+
+        # Check if quantity is effectively zero after adjustment
+        if quantity <= Decimal("1E-12"): # Use a small threshold
+            logger.info(f"Compensation quantity for {exchange_id}/{internal_symbol} is negligible ({quantity}). Skipping compensation order.")
+            return True # Consider it successful as no action needed
 
         # --- Use SymbolMapper to get the required exchange-specific symbol ---
         exchange_symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange_id)
@@ -804,6 +878,9 @@ class ExecutionHandler:
             logger.info(
                 f"Placing compensating order: {compensating_side.name} {quantity} {exchange_symbol}@{order_type_to_use.name} on {exchange_id}"
             )
+
+            # --- Add final check of quantity before placing --- 
+            logger.debug(f"Final check before placing compensation order for {exchange_symbol}: Quantity={quantity}, ReduceOnly=True")
 
             # Place the compensating order (MUST be reduce_only)
             compensating_order = await self._place_order_with_retry(

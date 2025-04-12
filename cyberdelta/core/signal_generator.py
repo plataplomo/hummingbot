@@ -92,32 +92,35 @@ class SignalGenerator:
     def _initialize_data_structures(self) -> None:
         """Initialize data structures for historical data using SymbolMapper."""
         all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
-        configured_exchanges = self.config.get("exchanges", {}).keys() # Get exchanges from config
+        configured_exchanges = self.config.get("exchanges", {}).keys()
 
         enabled_exchanges = [
             ex_id for ex_id in configured_exchanges
             if self.config.get(f"exchanges.{ex_id}.enabled", False)
         ]
 
-        # Initialize historical funding rate storage per enabled exchange
+        logger.debug(f"Initializing data structures for enabled exchanges: {enabled_exchanges} and internal symbols: {all_internal_symbols}")
+
+        # Initialize historical funding rate storage
         for exchange_id in enabled_exchanges:
             self.historical_funding_rates[exchange_id] = {}
-            # Get symbols mapped *for this specific exchange*
-            exchange_specific_mappings = self.symbol_mapper.get_internal_symbols_for_exchange(exchange_id)
-            internal_symbols_for_exchange = exchange_specific_mappings.values()
-
-            for internal_symbol in internal_symbols_for_exchange:
-                # Check if internal symbol is globally recognized (optional sanity check)
-                if internal_symbol in all_internal_symbols:
-                     # Use internal_symbol for the key, initialize with deque
+            for internal_symbol in all_internal_symbols:
+                # Check if this exchange has a mapping for the internal symbol
+                exchange_symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange_id)
+                if exchange_symbol:
                     self.historical_funding_rates[exchange_id][internal_symbol] = deque()
-                else:
-                    # This case implies inconsistency between get_all_internal_symbols and get_internal_symbols_for_exchange
-                    logger.warning(f"Internal symbol '{internal_symbol}' from exchange '{exchange_id}' mapping not found in global internal symbols list. Skipping.")
+                    logger.debug(f"  Initialized funding deque for {exchange_id} / {internal_symbol} (maps to {exchange_symbol})")
+                # else: # No need to log missing mappings, it's expected
+                #    logger.debug(f"  No mapping found for {internal_symbol} on {exchange_id}, skipping funding deque.")
 
         # Initialize basis history using all known internal symbols
         for internal_symbol in all_internal_symbols:
             self.historical_basis[internal_symbol] = deque()
+            logger.debug(f"  Initialized basis deque for {internal_symbol}")
+
+        # Log the final structure for verification
+        # logger.debug(f"Final historical_funding_rates structure: {self.historical_funding_rates}")
+        # logger.debug(f"Final historical_basis structure: {self.historical_basis}")
 
         logger.info(f"Initialized historical data structures for {len(enabled_exchanges)} enabled exchanges and {len(all_internal_symbols)} internal symbols.")
 
@@ -546,8 +549,6 @@ class SignalGenerator:
                                     symbol=internal_symbol, # Use internal symbol
                                     long_exchange=long_exchange_actual,
                                     short_exchange=short_exchange_actual,
-                                    long_exchange_symbol=symbol2, # Add exchange symbols
-                                    short_exchange_symbol=symbol1, # Add exchange symbols
                                     long_price=long_price_actual,
                                     short_price=short_price_actual,
                                     long_funding_rate=long_rate_actual,
@@ -604,8 +605,6 @@ class SignalGenerator:
                                     symbol=internal_symbol, # Use internal symbol
                                     long_exchange=long_exchange_actual,
                                     short_exchange=short_exchange_actual,
-                                    long_exchange_symbol=symbol1, # Add exchange symbols
-                                    short_exchange_symbol=symbol2, # Add exchange symbols
                                     long_price=long_price_actual,
                                     short_price=short_price_actual,
                                     long_funding_rate=long_rate_actual,

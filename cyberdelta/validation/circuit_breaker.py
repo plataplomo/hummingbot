@@ -755,6 +755,12 @@ class CircuitBreakerSystem:
         if exchange in self.exchange_breakers:
             for breaker_type, breaker in self.exchange_breakers[exchange].items():
                 breaker_name = f"exchange:{exchange}:{breaker_type}"
+
+                # === DEBUG LOGGING REMOVED ===
+                # if breaker.name == "mock_bp_api_errors":
+                #     logger.critical(f"[DEBUG CB TEST] Checking {breaker.name}. Current State: {breaker.state.name}")
+                # === END DEBUG LOGGING ===
+
                 if not breaker.allow_operation():
                     reason = f"Exchange breaker '{breaker_name}' for {exchange} is OPEN due to: {breaker.trip_reason}"
                     logger.warning(f"Execution blocked for {exchange}: {reason}")

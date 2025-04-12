@@ -347,6 +347,12 @@ class TestExecutionHandler:
     @pytest.mark.asyncio
     async def test_compensate_position_success(self, execution_handler, mock_hl_api, mock_symbol_mapper):
         """Test successful compensation placement."""
+        # --- MOCK Portfolio Tracker --- 
+        mock_position = MagicMock(spec=Position)
+        mock_position.size = Decimal("0.6") # Example size
+        execution_handler.portfolio_tracker.get_position.return_value = mock_position
+        # -----------------------------
+
         # Mock ticker needed for limit price calculation
         mock_ticker = Ticker(symbol="BTC-PERP", timestamp=time.time()*1000, bid=Decimal("40000"), ask=Decimal("40010"), price=Decimal("40005"))
         mock_hl_api.get_ticker.return_value = mock_ticker
@@ -382,6 +388,12 @@ class TestExecutionHandler:
     @pytest.mark.asyncio
     async def test_compensate_position_mapping_failure(self, execution_handler, mock_hl_api, mock_symbol_mapper, mock_circuit_breaker_system):
         """Test compensation fails if symbol mapping returns None."""
+        # --- MOCK Portfolio Tracker (to avoid TypeError even if mapping fails early) --- 
+        mock_position = MagicMock(spec=Position)
+        mock_position.size = Decimal("1.0")
+        execution_handler.portfolio_tracker.get_position.return_value = mock_position
+        # -------------------------------------------------------------------------------
+
         # Configure mapper to fail
         mock_symbol_mapper.get_exchange_symbol.return_value = None
 
@@ -470,6 +482,17 @@ class TestExecutionHandler:
     @pytest.mark.asyncio
     async def test_execute_opportunity_compensation_needed(self, execution_handler, sized_opportunity, mock_symbol_mapper, mock_hl_api, mock_bp_api, mock_circuit_breaker_system):
         """Test execution flow when one leg fails and compensation is triggered."""
+        # --- MOCK Portfolio Tracker for compensation check ---
+        mock_position_hl = MagicMock(spec=Position)
+        # Simulate the long position existing before compensation
+        mock_position_hl.size = (Decimal("1000") / Decimal("40005")).quantize(Decimal("1e-6")) 
+        def mock_get_position(exchange_id, internal_symbol):
+            if exchange_id == "hyperliquid" and internal_symbol == "BTC":
+                return mock_position_hl
+            return None
+        execution_handler.portfolio_tracker.get_position = mock_get_position
+        # -----------------------------------------------------
+
         # Mock Tickers
         hl_ticker = Ticker(symbol="BTC-PERP", timestamp=time.time()*1000, bid=Decimal("40000"), ask=Decimal("40010"), price=Decimal("40005"))
         bp_ticker = Ticker(symbol="BTC_USDC", timestamp=time.time()*1000, bid=Decimal("40020"), ask=Decimal("40030"), price=Decimal("40025"))

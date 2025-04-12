@@ -1,5 +1,7 @@
 import pytest
 from typing import Dict
+import logging
+import structlog
 
 from cyberdelta.core.symbol_mapper import SymbolMapper, SymbolMappingError
 
@@ -69,7 +71,7 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog):
             "invalid_value_type": {"symbols": {"ETH": 456}}, # Non-string value
         }
     }
-    with caplog.at_level("WARNING"):
+    with caplog.at_level(logging.WARNING): # Use logging.WARNING constant
         mapper = SymbolMapper(config_with_invalid)
 
     assert mapper is not None

@@ -24,7 +24,7 @@ from cyberdelta.core.models import (
 )
 
 # Correct the import to use the new typing module
-from cyberdelta.core.symbol_mapper import Symbol
+# REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
 from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
@@ -267,7 +267,7 @@ class MockExchangeAPI(ExchangeAPI):
         logger.debug(f"Mock {self.exchange_name}: Getting balances")
         return self._balances
 
-    async def get_positions(self, symbols: list[Symbol] | None = None) -> list[Position]:
+    async def get_positions(self, symbols: list[str] | None = None) -> list[Position]:
         """
         Return mock positions, optionally filtered by symbol.
         Handles mapping internal symbols if full_config is available.
@@ -526,7 +526,7 @@ class MockExchangeAPI(ExchangeAPI):
         logger.debug(f"Mock {self.exchange_name}: Getting order status for {order_id}")
         return self._orders.get(order_id)
 
-    async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
+    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Return mock open orders, optionally filtered by symbol."""
         self._check_error("get_open_orders")
         await self._simulate_latency()
@@ -652,7 +652,7 @@ class MockExchangeAPI(ExchangeAPI):
         logger.info(f"MockExchangeAPI {self.exchange_name} reset.")
         self._positions = {}
 
-    async def fetch_ticker(self, symbol: Symbol) -> Ticker:
+    async def fetch_ticker(self, symbol: str) -> Ticker:
         if self._fail_on_method == "fetch_ticker":
             raise self._failure_exception
         if self._mock_tickers and self._mock_tickers.get(symbol):
@@ -666,7 +666,7 @@ class MockExchangeAPI(ExchangeAPI):
             timestamp=int(datetime.now(UTC).timestamp() * 1000),
         )
 
-    async def fetch_funding_rate(self, symbol: Symbol) -> FundingRate:
+    async def fetch_funding_rate(self, symbol: str) -> FundingRate:
         if self._fail_on_method == "fetch_funding_rate":
             raise self._failure_exception
         if self._mock_funding_rates and self._mock_funding_rates.get(symbol):
@@ -684,7 +684,7 @@ class MockExchangeAPI(ExchangeAPI):
         await asyncio.sleep(0.01)  # Simulate network latency
         return self._balances.copy()
 
-    async def fetch_positions(self) -> dict[Symbol, Position]:
+    async def fetch_positions(self) -> dict[str, Position]:
         if self._fail_on_method == "fetch_positions":
             raise self._failure_exception
         await asyncio.sleep(0.01)  # Simulate network latency
@@ -763,26 +763,38 @@ class MockExchangeAPI(ExchangeAPI):
             if existing_position.side == trade.side:
                 # Increasing position size
                 new_size = existing_position.size + trade.quantity
+                trade_fee = trade.fee if trade.fee is not None else Decimal("0")
+                trade_cost_basis_adjustment = trade.price * trade.quantity
+                if trade.side == OrderSide.BUY:
+                    trade_cost_basis_adjustment += trade_fee
+                else: # SELL
+                    trade_cost_basis_adjustment -= trade_fee
+
                 if new_size == Decimal("0"):  # Avoid division by zero if size becomes exactly 0
                     new_avg_entry = Decimal("0.0")
                 else:
-                    new_avg_entry = (
-                        (existing_position.size * existing_position.entry_price)
-                        + (trade.quantity * trade.price)
-                    ) / new_size
+                    # Calculate cost of existing position
+                    original_cost = existing_position.size * existing_position.entry_price
+                    # New average entry = (Original Cost + New Trade Cost Adjustment) / New Size
+                    new_avg_entry = (original_cost + trade_cost_basis_adjustment) / new_size
+
                 existing_position.entry_price = new_avg_entry
                 existing_position.size = new_size
+                logger.debug(f"Increased position size. New Avg Entry: {new_avg_entry}, New Size: {new_size}")
             else:
                 # Reducing or flipping position
+                trade_fee = trade.fee if trade.fee is not None else Decimal("0") # Fee is realized on close/reduce
                 if trade.quantity >= existing_position.size:
                     # Closing or flipping position
-                    pnl = (
-                        (trade.price - existing_position.entry_price) * existing_position.size
-                        if existing_position.side == OrderSide.BUY
-                        else (existing_position.entry_price - trade.price) * existing_position.size
-                    )
-                    # TODO: Add realized PNL tracking if needed
-                    logger.debug(f"Position closed/flipped. Realized PNL (approx): {pnl}")
+                    close_quantity = existing_position.size
+                    # Calculate PNL considering fee
+                    if existing_position.side == OrderSide.BUY: # Selling to close LONG
+                        pnl = (trade.price * close_quantity - trade_fee) - (existing_position.entry_price * close_quantity)
+                    else: # Buying to close SHORT
+                        pnl = (existing_position.entry_price * close_quantity) - (trade.price * close_quantity + trade_fee)
+
+                    # TODO: Add realized PNL tracking if needed (using self.portfolio_tracker._update_realized_pnl?)
+                    logger.debug(f"Position closed/flipped. Realized PNL (approx, incl. fee): {pnl}")
 
                     remaining_trade_qty = trade.quantity - existing_position.size
                     if remaining_trade_qty > Decimal(
@@ -801,15 +813,19 @@ class MockExchangeAPI(ExchangeAPI):
                         existing_position = None  # Mark as deleted
                 else:
                     # Reducing position size
-                    pnl = (
-                        (trade.price - existing_position.entry_price) * trade.quantity
-                        if existing_position.side == OrderSide.BUY
-                        else (existing_position.entry_price - trade.price) * trade.quantity
-                    )
+                    reduce_quantity = trade.quantity
+                    trade_fee = trade.fee if trade.fee is not None else Decimal("0") # Fee is realized on reduce
+                    # Calculate realized PNL for the reduced portion
+                    if existing_position.side == OrderSide.BUY: # Selling to reduce LONG
+                         pnl = (trade.price * reduce_quantity - trade_fee) - (existing_position.entry_price * reduce_quantity)
+                    else: # Buying to reduce SHORT
+                         pnl = (existing_position.entry_price * reduce_quantity) - (trade.price * reduce_quantity + trade_fee)
+
                     # TODO: Add realized PNL tracking if needed
-                    logger.debug(f"Position size reduced. Realized PNL (approx): {pnl}")
-                    existing_position.size -= trade.quantity
+                    logger.debug(f"Position size reduced. Realized PNL (approx, incl. fee): {pnl}")
+                    existing_position.size -= reduce_quantity
                     # Entry price remains the same when reducing
+                    logger.debug(f"Reduced position size. New Size: {existing_position.size}")
 
             # Update timestamp or other fields if needed (e.g., mark price from ticker)
             if existing_position:  # Check if not deleted
@@ -861,7 +877,7 @@ class MockExchangeAPI(ExchangeAPI):
         # Add basic handling or pass
         pass
 
-    async def cancel_all_orders(self, symbol: Symbol | None = None) -> dict[str, Any]:
+    async def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]:
         logger.debug(f"Mock {self.exchange_name}: cancel_all_orders called for {symbol}")
         # Simulate cancelling some orders if needed for tests
         cancelled_count = 0
@@ -885,14 +901,14 @@ class MockExchangeAPI(ExchangeAPI):
         # Return a mock connection object or identifier if needed
         return {"connection_id": f"mock_ws_{self.exchange_name}"}
 
-    async def get_funding_rates(self, symbols: list[Symbol] | None = None) -> list[FundingRate]:
+    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         logger.debug(f"Mock {self.exchange_name}: get_funding_rates called for {symbols}")
         if symbols is None:
             return list(self._mock_funding_rates.values())
         else:
             return [self._mock_funding_rates[s] for s in symbols if s in self._mock_funding_rates]
 
-    async def get_market_data(self, symbol: Symbol) -> dict[str, Any]:
+    async def get_market_data(self, symbol: str) -> dict[str, Any]:
         logger.debug(f"Mock {self.exchange_name}: get_market_data called for {symbol}")
         # Return a combined dict of ticker, orderbook, etc. or None
         ticker = self._mock_tickers.get(symbol)
@@ -905,7 +921,7 @@ class MockExchangeAPI(ExchangeAPI):
         return message.get("type")  # Example
 
     async def get_order_history(
-        self, symbol: Symbol | None = None, limit: int | None = None
+        self, symbol: str | None = None, limit: int | None = None
     ) -> list[Order]:
         logger.debug(f"Mock {self.exchange_name}: get_order_history called for {symbol}")
         # Return a filtered list of historical orders (could be same as self._orders for simplicity)
@@ -917,7 +933,7 @@ class MockExchangeAPI(ExchangeAPI):
         return history
 
     async def get_trade_history(
-        self, symbol: Symbol | None = None, limit: int | None = None
+        self, symbol: str | None = None, limit: int | None = None
     ) -> list[Trade]:
         logger.debug(f"Mock {self.exchange_name}: get_trade_history called for {symbol}")
         history = list(self._trades)
@@ -1108,15 +1124,15 @@ class MockExchangeAPI(ExchangeAPI):
         logger.debug(f"Mock {self.exchange_name}: subscribe_to_account_updates called")
         pass
 
-    async def subscribe_to_order_book(self, symbols: list[Symbol], **kwargs: Any) -> None:
+    async def subscribe_to_order_book(self, symbols: list[str], **kwargs: Any) -> None:
         logger.debug(f"Mock {self.exchange_name}: subscribe_to_order_book called for {symbols}")
         pass
 
-    async def subscribe_to_ticker(self, symbols: list[Symbol], **kwargs: Any) -> None:
+    async def subscribe_to_ticker(self, symbols: list[str], **kwargs: Any) -> None:
         logger.debug(f"Mock {self.exchange_name}: subscribe_to_ticker called for {symbols}")
         pass
 
-    async def subscribe_to_trades(self, symbols: list[Symbol], **kwargs: Any) -> None:
+    async def subscribe_to_trades(self, symbols: list[str], **kwargs: Any) -> None:
         logger.debug(f"Mock {self.exchange_name}: subscribe_to_trades called for {symbols}")
         pass
 

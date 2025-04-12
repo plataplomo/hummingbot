@@ -5,6 +5,7 @@ import pytest
 
 from cyberdelta.core.models import ArbitrageOpportunity, Ticker
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.utils.config import Config  # Assuming Config class is used
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
@@ -32,7 +33,7 @@ def basic_opportunity():
     # Note: basis_volatility is set after creation currently, which is fine.
     # Ensure all required fields are present.
     return ArbitrageOpportunity(
-        symbol="BTC-PERP",
+        symbol="BTC",
         long_exchange="mock_bp",
         short_exchange="mock_hl",
         long_price=Decimal("30001"),  # Already correct
@@ -133,14 +134,17 @@ def data_handler(mock_config, mock_hl_api, mock_bp_api):
     return dh
 
 
+# Define symbol_mapper fixture
 @pytest.fixture
-def signal_generator(mock_config: Config, data_handler):
-    """Signal Generator instance. Uses the mock_config fixture."""
-    # Removed internal recreation of config, using the injected mock_config directly
-    from cyberdelta.core.signal_generator import SignalGenerator
+def symbol_mapper(mock_config: Config) -> SymbolMapper:
+    """Provides a SymbolMapper instance initialized with mock config."""
+    return SymbolMapper(mock_config.config_data)
 
-    # Assumes data_handler fixture provides a handler with registered APIs
-    return SignalGenerator(mock_config, data_handler)
+
+@pytest.fixture(scope="function")
+def signal_generator(mock_config, data_handler, symbol_mapper):
+    """Fixture for a SignalGenerator instance with mock data handler."""
+    return SignalGenerator(mock_config, data_handler, symbol_mapper)
 
 
 @pytest.fixture

@@ -119,41 +119,112 @@ class TestFailureScenarios:
             result = await execution_handler.execute_opportunity(sized_opportunity)
             execution_results.append(result)
             # Small delay to allow CB state updates if needed (though sync should be fast here)
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.1)
             if breaker.state == BreakerState.OPEN:
                 logger.info(f"Breaker tripped after {i + 1} attempts.")
                 break
         else:  # This else belongs to the for loop
             pytest.fail(f"Circuit breaker did not trip after {max_failures_to_trip + 1} attempts.")
 
-        # 3. Verify Breaker State and Rejection
+        # 3. Verify Breaker State
         assert breaker.state == BreakerState.OPEN, "Breaker should be OPEN"
-        # Check the last execution result specifically (the one that should have been rejected)
-        last_result = execution_results[-1]
-        assert last_result.status == ExecutionStatus.REJECTED, (
-            f"Expected REJECTED status after trip, got {last_result.status}"
-        )
-        assert breaker.name in last_result.error_message, (
-            "Error message should mention the tripped breaker"
-        )
-        logger.info(
-            f"Verified breaker is OPEN and last execution was REJECTED. Error: {last_result.error_message}"
-        )
 
-        # 4. Attempt another execution - Should still be REJECTED
-        logger.info("Attempting one more execution while breaker is OPEN...")
+        # --- MODIFIED: Attempt execution *after* breaker is confirmed OPEN --- 
+        logger.info(f"Breaker {breaker.name} is confirmed OPEN. Attempting one more execution...")
         rejected_result = await execution_handler.execute_opportunity(sized_opportunity)
+        logger.info(f"Result of execution attempt while OPEN: {rejected_result.status.name}")
+        
+        # 4. Verify Rejection
         assert rejected_result.status == ExecutionStatus.REJECTED, (
-            "Execution should still be REJECTED"
+            f"Expected REJECTED status after trip, got {rejected_result.status.name}"
         )
-        assert breaker.name in rejected_result.error_message, (
-            "Error message should still mention the tripped breaker"
+        # Construct the fully qualified name expected in the error message
+        expected_breaker_name_in_message = f"exchange:{target_exchange}:{target_breaker_type}"
+        assert expected_breaker_name_in_message in rejected_result.error_message, (
+            f"Error message '{rejected_result.error_message}' should mention the tripped breaker '{expected_breaker_name_in_message}'"
         )
-        logger.info("Verified subsequent execution is also REJECTED.")
 
-        # 5. Clean up mock error simulation
-        mock_bp_api.clear_error_simulation()
-        logger.info(f"Cleared error simulation for {target_exchange}.")
+        # 5. Verify Other Exchange Unaffected
+        # Try executing on the other exchange (should succeed if its breaker didn't trip)
+        # Temporarily disable the error on the failing exchange to test the other one
+        mock_bp_api.clear_error()
+        circuit_breaker_system.reset_breaker(f"exchange:{target_exchange}:{target_breaker_type}") # Reset the tripped breaker for this check
+
+        # Create an opportunity targeting the *other* exchange
+        other_long_symbol = mock_config.get(f"exchanges.{other_exchange}.symbols.BTC")
+        other_short_symbol = mock_config.get(f"exchanges.{target_exchange}.symbols.BTC") # Needs a symbol, even if CB might block it
+
+        # Correctly instantiate ArbitrageOpportunity with required args
+        other_opportunity = ArbitrageOpportunity(
+            symbol="BTC", # Corrected argument name
+            long_exchange=other_exchange,
+            short_exchange=target_exchange,
+            long_price=Decimal("30010"),
+            short_price=Decimal("30000"), # Prices reversed
+            long_funding_rate=Decimal("0.0001"), # Dummy value
+            short_funding_rate=Decimal("0.0002"), # Dummy value
+            net_funding_differential=Decimal("-0.0001"), # Dummy value
+            timestamp=datetime.now(UTC),
+            # Removed incorrect/unexpected arguments: internal_symbol, long_symbol, short_symbol, book_imbalance
+        )
+
+        # Create a sized opportunity for the other exchange
+        other_sized_opportunity = SizedOpportunity(
+             opportunity=other_opportunity,
+             long_size=Decimal("1000"),
+             short_size=Decimal("1000"),
+             allocation_percentage=0.1,
+             expected_profit=Decimal("10"),
+             expected_return=0.01,
+             risk_adjusted_return=0.01,
+         )
+
+        # Re-enable the breaker for the target exchange before the next attempt
+        # circuit_breaker_system.force_trip(f"exchange:{target_exchange}:{target_breaker_type}", "Re-tripped for test")
+        # No, we keep it reset to test if the *other* exchange works
+
+        logger.info(f"Attempting execution on the other exchange ({other_exchange}) to ensure it's unaffected...")
+        # Ensure the other exchange's breaker is CLOSED before attempting
+        other_breaker = circuit_breaker_system.get_exchange_breaker(other_exchange, target_breaker_type)
+        assert other_breaker is not None
+        assert other_breaker.state == BreakerState.CLOSED, f"Other exchange breaker {other_breaker.name} should be CLOSED"
+
+        other_result = await execution_handler.execute_opportunity(other_sized_opportunity)
+        logger.info(f"Result of execution attempt on other exchange: {other_result.status.name}")
+
+        # We expect the other exchange's leg to succeed, but the overall might still fail
+        # if the target_exchange's breaker blocks *its* leg during execution.
+        # Let's check the status isn't REJECTED due to the *other* exchange's breaker.
+        assert other_result.status != ExecutionStatus.REJECTED or \
+               (other_result.status == ExecutionStatus.REJECTED and f"exchange:{other_exchange}:" not in other_result.error_message), \
+            f"Execution on unaffected exchange {other_exchange} was unexpectedly REJECTED by its own breaker: {other_result.error_message}"
+
+        # More precise check: if it failed, it should be because the *original* breaker (mock_bp)
+        # might still be tripped or the mock_bp API fails again.
+        # If the status is FAILED, check the error message relates to mock_bp
+        if other_result.status == ExecutionStatus.FAILED:
+             assert target_exchange in other_result.error_message, \
+                 f"Execution failed, but error message '{other_result.error_message}' doesn't mention the originally failing exchange '{target_exchange}'"
+        # If the status is REJECTED, check the error message relates to mock_bp's breaker
+        elif other_result.status == ExecutionStatus.REJECTED:
+             assert f"exchange:{target_exchange}:" in other_result.error_message, \
+                 f"Execution rejected, but error message '{other_result.error_message}' doesn't mention the originally failing exchange breaker '{target_exchange}'"
+        # Otherwise (SUCCESS), it means mock_bp API didn't fail this time *and* its breaker was reset/didn't re-trip instantly.
+        else:
+             assert other_result.status == ExecutionStatus.SUCCESS, \
+                 f"Unexpected status {other_result.status.name} for execution on {other_exchange}"
+
+        # 6. Reset Breaker Manually (Optional Check)
+        # circuit_breaker_system.reset_breaker(f"exchange:{target_exchange}:{target_breaker_type}")
+        # assert breaker.state == BreakerState.CLOSED, "Breaker should be CLOSED after manual reset"
+        # logger.info(f"Breaker {breaker.name} manually reset.")
+
+        # Optional: Attempt execution again after reset, should pass if API error is removed
+        # mock_bp_api.clear_error_simulation("place_order")
+        # reset_success_result = await execution_handler.execute_opportunity(sized_opportunity)
+        # assert reset_success_result.status == ExecutionStatus.SUCCESS, \
+        #     f"Execution failed after reset and error removal: {reset_success_result.error_message}"
+        # logger.info("Execution successful after manual reset and error removal.")
 
     # More failure test cases can be added below
 

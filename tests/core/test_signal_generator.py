@@ -20,6 +20,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.utils.config import Config
+from cyberdelta.core.symbol_mapper import SymbolMapper
 
 logger = logging.getLogger(__name__)
 
@@ -152,9 +153,29 @@ class TestSignalGenerator:
         return handler
 
     @pytest.fixture
-    def signal_generator(self, config, data_handler):
+    def symbol_mapper(self, config):
+        """Fixture for a SymbolMapper using the mock config."""
+        from cyberdelta.core.symbol_mapper import SymbolMapper
+        # Correctly reconstruct the config structure needed by SymbolMapper
+        # by fetching the specific nested keys from the mock config.
+        config_data = {
+            "exchanges": {
+                "hyperliquid": {
+                    "enabled": config.get("exchanges.hyperliquid.enabled", False),
+                    "symbols": config.get("exchanges.hyperliquid.symbols", {})
+                },
+                "backpack": {
+                    "enabled": config.get("exchanges.backpack.enabled", False),
+                    "symbols": config.get("exchanges.backpack.symbols", {})
+                }
+            }
+        }
+        return SymbolMapper(config_data)
+
+    @pytest.fixture
+    def signal_generator(self, config, data_handler, symbol_mapper):
         """Create a SignalGenerator instance for testing."""
-        return SignalGenerator(config, data_handler)
+        return SignalGenerator(config, data_handler, symbol_mapper)
 
     def test_init(self, signal_generator, config, data_handler):
         """Test initializing the signal generator."""
@@ -186,6 +207,7 @@ class TestSignalGenerator:
         # Verify dependencies were set
         assert signal_generator.config == config
         assert signal_generator.data_handler == data_handler
+        assert signal_generator.symbol_mapper is not None
 
     @patch("cyberdelta.core.signal_generator.datetime")  # Patch datetime
     def test_update_historical_data(self, mock_datetime, signal_generator, data_handler):

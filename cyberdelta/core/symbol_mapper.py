@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import structlog
+import logging # Use standard logging
 from typing import Dict, List, Optional
 
 # Assuming a config structure like:
@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 #     }
 # }
 
-logger = structlog.get_logger(__name__)
+logger = logging.getLogger(__name__) # Use standard logging logger
 
 class SymbolMappingError(Exception):
     """Custom exception for symbol mapping failures."""

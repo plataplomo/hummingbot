@@ -160,7 +160,7 @@ def mock_config():
         "exchanges": {
             "mock_hl": {
                 "enabled": True,
-                "symbols": {"BTC-PERP": "BTC", "ETH-PERP": "ETH"},
+                "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
                 "websocket": {
                     "reconnect_delay": 1,
                     "max_reconnect_delay": 5,
@@ -170,7 +170,7 @@ def mock_config():
             },
             "mock_bp": {
                 "enabled": True,
-                "symbols": {"BTC-PERP": "BTCUSDC", "ETH-PERP": "ETHUSDC"},
+                "symbols": {"BTC": "BTCUSDC", "ETH": "ETHUSDC"},
                 "websocket": {
                     "reconnect_delay": 1,
                     "max_reconnect_delay": 5,

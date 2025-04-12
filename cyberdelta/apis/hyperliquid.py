@@ -116,19 +116,23 @@ class HyperliquidAPI(ExchangeAPI):
 
         timestamp = int(time.time() * 1000)
 
-        structured_data = {
-            "types": {
-                "EIP712Domain": [
-                    {"name": "name", "type": "string"},
-                    {"name": "version", "type": "string"},
-                    {"name": "chainId", "type": "uint256"},
-                    {"name": "verifyingContract", "type": "address"},
-                ],
-                "Agent": [
-                    {"name": "source", "type": "string"},
-                    {"name": "connectionId", "type": "bytes32"},
-                ],
-            },
+        # Separate the type definitions from the data to be signed
+        eip712_types = {
+            "EIP712Domain": [
+                {"name": "name", "type": "string"},
+                {"name": "version", "type": "string"},
+                {"name": "chainId", "type": "uint256"},
+                {"name": "verifyingContract", "type": "address"},
+            ],
+            "Agent": [
+                {"name": "source", "type": "string"},
+                {"name": "connectionId", "type": "bytes32"},
+            ],
+        }
+
+        # Data structure for signing (domain and message)
+        structured_data_to_sign = {
+            "types": eip712_types,
             "primaryType": "Agent",
             "domain": {
                 "name": "Hyperliquid",
@@ -144,7 +148,8 @@ class HyperliquidAPI(ExchangeAPI):
         }
 
         try:
-            signable_message = encode_typed_data(structured_data)
+            # Pass the structured data including types to encode_typed_data
+            signable_message = encode_typed_data(full_message=structured_data_to_sign)
             signed_message = self.account.sign_message(signable_message)
             signature = signed_message.signature.hex()
         except Exception as e:
