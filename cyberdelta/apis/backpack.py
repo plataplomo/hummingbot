@@ -262,12 +262,11 @@ class BackpackAPI(ExchangeAPI):
                     trades.append(trade)
                 except KeyError as e:
                     logger.warning(
-                        f"[{self.exchange_name}] Missing expected key {e} in trade data: {trade_data}"
+                        f"[{self.exchange_name}] Missing expected key {e} in trade data: "
+                        f"{trade_data}"
                     )
                 except Exception as e:
-                    logger.warning(
-                        f"[{self.exchange_name}] Error parsing trade data: {e} - Data: {trade_data}"
-                    )
+                    logger.warning(f"[{self.exchange_name}] Error processing trade: {e}")
 
             return trades
         except Exception as e:
@@ -305,14 +304,16 @@ class BackpackAPI(ExchangeAPI):
                 funding_data = response
             else:
                 logger.warning(
-                    f"[{self.exchange_name}] Unexpected funding rate data format for {symbol}: {response}"
+                    f"[{self.exchange_name}] Unexpected funding rate data format for {symbol}: "
+                    f"{response}"
                 )
                 return None
 
             # Ensure fields exist before accessing
             if not all(k in funding_data for k in ["rate", "markPrice", "indexPrice", "time"]):
                 logger.warning(
-                    f"[{self.exchange_name}] Missing keys in funding rate data for {symbol}: {funding_data}"
+                    f"[{self.exchange_name}] Missing keys in funding rate data for {symbol}: "
+                    f"{funding_data}"
                 )
                 return None
 
@@ -555,7 +556,9 @@ class BackpackAPI(ExchangeAPI):
             api_error = self._map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
-                exchange_message=f"Error canceling order {order_id} for {symbol} (Path: {request_path}): {e}",
+                exchange_message=(
+                    f"Error canceling order {order_id} for {symbol} (Path: {request_path}): {e}"
+                ),
             )
             raise api_error from e
 
@@ -614,7 +617,9 @@ class BackpackAPI(ExchangeAPI):
             api_error = self._map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
-                exchange_message=f"Error getting open orders for {symbol or 'all'} (Path: {request_path}): {e}",
+                exchange_message=(
+                    f"Error getting open orders for {symbol or 'all'} (Path: {request_path}): {e}"
+                ),
             )
             raise api_error from e
 

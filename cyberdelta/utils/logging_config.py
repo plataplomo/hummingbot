@@ -1,10 +1,14 @@
 import logging
 import logging.handlers
 import os
-from datetime import UTC, datetime
+import sys
 from types import TracebackType
 
 from cyberdelta.utils.config import Config
+
+# Standard time formatting for all logs
+DEFAULT_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def setup_logging(config: Config) -> None:
@@ -14,14 +18,9 @@ def setup_logging(config: Config) -> None:
     Args:
         config: Application configuration
     """
-    # Get logging parameters from config
     log_level_str = config.get("general.log_level", "INFO")
-    log_file = config.get("general.log_file", None)
-    log_dir = config.get("general.log_directory", "logs")
-    log_max_size = config.get("general.log_max_size", 10 * 1024 * 1024)  # 10 MB
-    log_backup_count = config.get("general.log_backup_count", 5)
 
-    # Map log level string to logging level
+    # Map string log level to logging constants
     log_level_map = {
         "DEBUG": logging.DEBUG,
         "INFO": logging.INFO,
@@ -29,62 +28,62 @@ def setup_logging(config: Config) -> None:
         "ERROR": logging.ERROR,
         "CRITICAL": logging.CRITICAL,
     }
-    log_level = log_level_map.get(log_level_str.upper(), logging.INFO)
 
-    # Create formatter
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    # Convert string to log level, default to INFO
+    log_level = log_level_map.get(log_level_str, logging.INFO)
 
-    # Create root logger
+    # Configure root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
 
-    # Clear existing handlers
+    # Remove existing handlers
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
-    # Create console handler
-    console_handler = logging.StreamHandler()
+    # Create console handler with a higher log level
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
+
+    # Create formatter
+    formatter = logging.Formatter(DEFAULT_LOG_FORMAT, DEFAULT_DATE_FORMAT)
     console_handler.setFormatter(formatter)
+
+    # Add console handler to root logger
     root_logger.addHandler(console_handler)
 
-    # Create file handler if log file is specified
+    # Add file handler if log file is configured
+    log_file = config.get("general.log_file")
     if log_file:
-        # Ensure log directory exists
-        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        # Create the directory if it doesn't exist
+        log_dir = os.path.dirname(log_file)
+        if log_dir and not os.path.exists(log_dir):
+            try:
+                os.makedirs(log_dir)
+            except Exception as e:
+                root_logger.warning(f"Failed to create log directory {log_dir}: {e}")
 
-        # Create rotating file handler
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file, maxBytes=log_max_size, backupCount=log_backup_count
-        )
-        file_handler.setLevel(log_level)
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
-    elif log_dir:
-        # Create log directory if it doesn't exist
-        os.makedirs(log_dir, exist_ok=True)
+        try:
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setLevel(log_level)
+            file_handler.setFormatter(formatter)
+            root_logger.addHandler(file_handler)
+            root_logger.info(f"Logging to file: {log_file}")
+        except Exception as e:
+            root_logger.warning(f"Failed to create log file {log_file}: {e}")
 
-        # Generate log file name based on current date
-        date_str = datetime.now(UTC).strftime("%Y-%m-%d")
-        log_file = os.path.join(log_dir, f"cyberdelta_{date_str}.log")
+    # Apply module-specific log levels if specified
+    module_levels = config.get("general.module_log_levels", {})
+    for module_name, level_str in module_levels.items():
+        try:
+            module_level = log_level_map.get(level_str, logging.INFO)
+            module_logger = logging.getLogger(module_name)
+            module_logger.setLevel(module_level)
+            root_logger.info(f"Set {module_name} log level to {level_str}")
+        except Exception as e:
+            root_logger.warning(f"Failed to set log level for {module_name}: {e}")
 
-        # Create rotating file handler
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file, maxBytes=log_max_size, backupCount=log_backup_count
-        )
-        file_handler.setLevel(log_level)
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
-
-    # Set specific logger levels (if specified in config)
-    logger_levels = config.get("general.logger_levels", {})
-    for logger_name, level_str in logger_levels.items():
-        if logger_name and level_str:
-            level = log_level_map.get(level_str.upper(), logging.INFO)
-            logging.getLogger(logger_name).setLevel(level)
-
-    # Log the initialization
-    logging.info(f"Logging initialized at level {log_level_str}")
+    # Log the configured log level
+    root_logger.info(f"Logging initialized with level: {log_level_str}")
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -92,7 +91,7 @@ def get_logger(name: str) -> logging.Logger:
     Get a logger with the specified name.
 
     Args:
-        name: Logger name
+        name: Logger name, usually __name__ of the module
 
     Returns:
         Logger instance
@@ -100,18 +99,30 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
+# Create our custom MemoryHandler subclass for log capturing
+class CapturingMemoryHandler(logging.handlers.MemoryHandler):
+    """Memory handler that captures logs to a list."""
+
+    def __init__(self, capacity: int, logs_list: list[str]):
+        """Initialize with a capacity and a reference to a logs list."""
+        super().__init__(capacity=capacity)
+        self.logs_list = logs_list
+        # Use a standard formatter
+        self.setFormatter(logging.Formatter(DEFAULT_LOG_FORMAT))
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Emit a record and capture it to the logs list."""
+        # Capture the formatted log
+        self.logs_list.append(self.format(record))
+        # Call parent emit to handle the buffering
+        super().emit(record)
+
+
 class LogCapture:
     """
-    Context manager to capture logs.
+    Context manager for capturing log messages.
 
-    Usage:
-    ```
-    with LogCapture() as logs:
-        # Code that generates logs
-        ...
-
-    captured_logs = logs.get_logs()
-    ```
+    Use this to capture and inspect log messages for testing or debugging.
     """
 
     def __init__(self, level: int = logging.INFO) -> None:
@@ -122,33 +133,18 @@ class LogCapture:
             level: Minimum log level to capture
         """
         self.level = level
-        self.handler: logging.handlers.MemoryHandler | None = None
+        self.handler: CapturingMemoryHandler | None = None
         self.logs: list[str] = []
 
     def __enter__(self) -> "LogCapture":
-        """Enter context."""
-        self.handler = logging.handlers.MemoryHandler(capacity=1000)
+        """Enter context and start capturing logs."""
+        # Create memory handler with reference to our logs list
+        self.handler = CapturingMemoryHandler(capacity=1000, logs_list=self.logs)
         self.handler.setLevel(self.level)
-
-        # Add custom formatter to handler
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        self.handler.setFormatter(formatter)
 
         # Add handler to root logger
         root_logger = logging.getLogger()
         root_logger.addHandler(self.handler)
-
-        # Store reference to logs
-        self.handler.logs = self.logs
-
-        # Add custom emit method to handler
-        original_emit = self.handler.emit
-
-        def custom_emit(record: logging.LogRecord) -> None:
-            self.logs.append(formatter.format(record))
-            original_emit(record)
-
-        self.handler.emit = custom_emit
 
         return self
 

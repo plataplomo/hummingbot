@@ -539,8 +539,8 @@ class ExecutionHandler:
                 raise ValueError(f"Unsupported execution.order_placement_type: {execution_type}")
 
             # --- Process Order Results ---
-            execution.long_order_id = long_order_result.id if long_order_result else None
-            execution.short_order_id = short_order_result.id if short_order_result else None
+            execution.long_order_id = long_order_result.order_id if long_order_result else None
+            execution.short_order_id = short_order_result.order_id if short_order_result else None
 
             # Check results and handle failures/partial fills
             long_status = long_order_result.status if long_order_result else OrderStatus.FAILED
@@ -737,14 +737,14 @@ class ExecutionHandler:
             except (InvalidOperation, TypeError, ValueError) as e:
                 self.logger.error(f"Invalid price provided: {price} - {e}")
                 failed_order = Order(
-                    id=str(uuid.uuid4()),
+                    order_id=str(uuid.uuid4()),
                     symbol=symbol,
                     side=side,
-                    type=order_type,
+                    order_type=order_type,
                     quantity=quantity,
                     price=None,
                     status=OrderStatus.FAILED,
-                    time=int(datetime.now(UTC).timestamp() * 1000),
+                    timestamp=datetime.now(UTC),
                     client_order_id="",
                 )
                 return failed_order
@@ -766,7 +766,7 @@ class ExecutionHandler:
                 )
 
                 self.logger.info(
-                    f"Order placed: {order.id} on {exchange_id} for {symbol}, {side.name}, {quantity}"
+                    f"Order placed: {order.order_id} on {exchange_id} for {symbol}, {side.name}, {quantity}"
                 )
 
                 # Return the order object directly
@@ -783,14 +783,14 @@ class ExecutionHandler:
                     self.logger.error(f"Non-retryable API error: {e.code.name} - {e.message}")
                     # Create a failed order record
                     failed_order = Order(
-                        id=str(uuid.uuid4()),
+                        order_id=str(uuid.uuid4()),
                         symbol=symbol,
                         side=side,
-                        type=order_type,
+                        order_type=order_type,
                         quantity=quantity,
                         price=price,
                         status=OrderStatus.FAILED,
-                        time=int(datetime.now(UTC).timestamp() * 1000),
+                        timestamp=datetime.now(UTC),
                         client_order_id="",
                     )
                     return failed_order
@@ -801,14 +801,14 @@ class ExecutionHandler:
                     )
                     # Create a failed order record
                     failed_order = Order(
-                        id=str(uuid.uuid4()),
+                        order_id=str(uuid.uuid4()),
                         symbol=symbol,
                         side=side,
-                        type=order_type,
+                        order_type=order_type,
                         quantity=quantity,
                         price=price,
                         status=OrderStatus.FAILED,
-                        time=int(datetime.now(UTC).timestamp() * 1000),
+                        timestamp=datetime.now(UTC),
                         client_order_id="",
                     )
                     return failed_order
@@ -819,14 +819,14 @@ class ExecutionHandler:
             except Exception as e:
                 self.logger.error(f"Unexpected error placing order: {e}")
                 failed_order = Order(
-                    id=str(uuid.uuid4()),
+                    order_id=str(uuid.uuid4()),
                     symbol=symbol,
                     side=side,
-                    type=order_type,
+                    order_type=order_type,
                     quantity=quantity,
                     price=price,
                     status=OrderStatus.FAILED,
-                    time=int(datetime.now(UTC).timestamp() * 1000),
+                    timestamp=datetime.now(UTC),
                     client_order_id="",
                 )
                 return failed_order
@@ -834,14 +834,14 @@ class ExecutionHandler:
         # If we reach here, all retries have been exhausted
         self.logger.error(f"All retries exhausted for order on {exchange_id} {symbol}")
         failed_order = Order(
-            id=str(uuid.uuid4()),
+            order_id=str(uuid.uuid4()),
             symbol=symbol,
             side=side,
-            type=order_type,
+            order_type=order_type,
             quantity=quantity,
             price=price,
             status=OrderStatus.FAILED,
-            time=int(datetime.now(UTC).timestamp() * 1000),
+            timestamp=datetime.now(UTC),
             client_order_id="",
         )
         return failed_order
@@ -886,8 +886,8 @@ class ExecutionHandler:
                     try:
                         # Construct Trade object (ensure necessary fields are present in Order)
                         trade = Trade(
-                            id=f"trade_{order.id}_{int(time.time() * 1000)}_status",  # Unique trade ID
-                            order_id=order.id,
+                            id=f"trade_{order.order_id}_{int(time.time() * 1000)}_status",  # Unique trade ID
+                            order_id=order.order_id,
                             exchange=exchange_id,
                             symbol=self.symbol_mapper.get_internal_symbol(symbol, exchange_id)
                             or symbol,  # Map back to internal symbol
@@ -901,15 +901,19 @@ class ExecutionHandler:
                             if hasattr(order, "fee") and order.fee is not None
                             else Decimal("0"),
                             fee_asset=order.fee_asset if hasattr(order, "fee_asset") else None,
-                            timestamp=order.time,  # Use order time
+                            timestamp=int(order.timestamp.timestamp() * 1000)
+                            if order.timestamp
+                            else int(
+                                time.time() * 1000
+                            ),  # Convert datetime to unix timestamp in ms
                         )
                         self.portfolio_tracker.process_trade(exchange_id, trade)
                         logger.info(
-                            f"PortfolioTracker updated for trade from order status check {order.id} on {exchange_id}"
+                            f"PortfolioTracker updated for trade from order status check {order.order_id} on {exchange_id}"
                         )
                     except Exception as trade_proc_err:
                         logger.error(
-                            f"Error processing trade from status check for order {order.id} in PortfolioTracker: {trade_proc_err}",
+                            f"Error processing trade from status check for order {order.order_id} in PortfolioTracker: {trade_proc_err}",
                             exc_info=True,
                         )
                         # Decide if this error should propagate or just be logged
@@ -1089,7 +1093,7 @@ class ExecutionHandler:
 
             if compensating_order:
                 logger.info(
-                    f"Compensation order submitted successfully for {exchange_symbol}: ID {compensating_order.id}, Status: {compensating_order.status.name}"
+                    f"Compensation order submitted successfully for {exchange_symbol}: ID {compensating_order.order_id}, Status: {compensating_order.status.name}"
                 )
                 # TODO: Need to monitor the status of this compensating order
                 # For now, assume success if placed without error.
@@ -1100,12 +1104,12 @@ class ExecutionHandler:
                     OrderStatus.CANCELED,
                 ):
                     logger.info(
-                        f"Compensation order {compensating_order.id} placed successfully for {exchange_symbol}."
+                        f"Compensation order {compensating_order.order_id} placed successfully for {exchange_symbol}."
                     )
                     return True
                 else:
                     logger.error(
-                        f"Compensation order {compensating_order.id} for {exchange_symbol} failed/rejected/cancelled. Status: {compensating_order.status.name}"
+                        f"Compensation order {compensating_order.order_id} for {exchange_symbol} failed/rejected/cancelled. Status: {compensating_order.status.name}"
                     )
                     return False
             else:

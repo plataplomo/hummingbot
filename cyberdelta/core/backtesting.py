@@ -29,7 +29,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 class BacktestStrategy(ABC):
     """Abstract base class for trading strategies in backtesting"""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         """Initialize the strategy with a name"""
         self._name = name
 
@@ -76,7 +76,7 @@ class BacktestEngine:
         commission: float = 0.001,  # 0.1% per trade
         slippage: float = 0.001,  # 0.1% slippage
         results_dir: str = "backtest_results",
-    ):
+    ) -> None:
         """
         Initialize the backtest engine
 
@@ -378,7 +378,7 @@ class StrategyAdapter(BacktestStrategy):
     Adapter class to use production Strategy instances with the BacktestEngine
     """
 
-    def __init__(self, strategy: Strategy):
+    def __init__(self, strategy: Strategy) -> None:
         """
         Initialize with a production strategy
 

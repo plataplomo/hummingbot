@@ -1,7 +1,7 @@
 from __future__ import annotations  # Enable postponed evaluation
 
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
@@ -78,6 +78,8 @@ class MarketData:
 
     def __post_init__(self) -> None:
         """Ensure all numeric fields are Decimals, converting safely."""
+        # For MarketData fields, the type annotation guarantees they should be Decimal
+        # and _safe_decimal_convert will always return a Decimal or raise an error
         self.open = self._safe_decimal_convert(self.open, "open", self.symbol)
         self.high = self._safe_decimal_convert(self.high, "high", self.symbol)
         self.low = self._safe_decimal_convert(self.low, "low", self.symbol)
@@ -85,24 +87,25 @@ class MarketData:
         self.volume = self._safe_decimal_convert(self.volume, "volume", self.symbol)
 
     @staticmethod
-    def _safe_decimal_convert(value: Any, field_name: str, symbol: str) -> Decimal:
+    def _safe_decimal_convert(
+        value: str | int | float | Decimal, field_name: str, symbol: str
+    ) -> Decimal:
         """Safely convert a value to Decimal, logging errors."""
         if isinstance(value, Decimal):
             return value
         if value is None:
-            # Decide handling: raise error, return 0, or log and return 0?
-            # Assuming non-nullable based on type hint, raise error.
+            # For MarketData, we don't allow None values - raise an error
             raise ValueError(
                 f"MarketData field '{field_name}' for symbol '{symbol}' cannot be None"
             )
         try:
             return Decimal(str(value))
-        except (InvalidOperation, TypeError):
+        except (InvalidOperation, TypeError) as err:
             # Log error or raise? Let's raise for critical market data.
             raise ValueError(
                 f"Invalid value '{value}' for MarketData field '{field_name}' "
                 f"for symbol '{symbol}'. Cannot convert to Decimal."
-            )
+            ) from err
 
 
 @dataclass
@@ -117,39 +120,62 @@ class Balance:
 
     def __post_init__(self) -> None:
         """Ensure fields are Decimal, handle None for optional fields."""
-        self.total = self._safe_decimal_convert(self.total, "total", self.asset, allow_none=False)
-
-        # Handle available field - ensure it's never None after initialization
-        if self.available is None:
-            self.available = self.total  # Default available to total if not provided
+        # Since total is non-optional, we know _safe_decimal_convert won't return None
+        # when allow_none=False
+        decimal_value = self._safe_decimal_convert(
+            self.total, "total", self.asset, allow_none=False
+        )
+        if decimal_value is not None:  # This is just for type checking, it will always be non-None
+            self.total = decimal_value
         else:
-            available_decimal = self._safe_decimal_convert(
+            # This should never happen due to the allow_none=False, but satisfies the type checker
+            self.total = Decimal("0.0")
+
+        # Handle available field
+        if self.available is None:
+            # Default available to total if not provided
+            self.available = self.total
+        else:
+            decimal_value = self._safe_decimal_convert(
                 self.available, "available", self.asset, allow_none=False
             )
-            # This is safe now because _safe_decimal_convert will raise an error if it can't convert
-            self.available = available_decimal
+            if decimal_value is not None:  # This is just for type checking
+                self.available = decimal_value
+            else:
+                # This should never happen due to the allow_none=False
+                self.available = Decimal("0.0")
 
-        # Handle free field - ensure it's never None after initialization
+        # Handle free field
         if self.free is None:
-            self.free = Decimal("0.0")  # Default to zero
+            # Default to zero
+            self.free = Decimal("0.0")
         else:
-            free_decimal = self._safe_decimal_convert(
+            decimal_value = self._safe_decimal_convert(
                 self.free, "free", self.asset, allow_none=False
             )
-            self.free = free_decimal
+            if decimal_value is not None:  # This is just for type checking
+                self.free = decimal_value
+            else:
+                # This should never happen due to the allow_none=False
+                self.free = Decimal("0.0")
 
-        # Handle locked field - ensure it's never None after initialization
+        # Handle locked field
         if self.locked is None:
-            self.locked = Decimal("0.0")  # Default to zero
+            # Default to zero
+            self.locked = Decimal("0.0")
         else:
-            locked_decimal = self._safe_decimal_convert(
+            decimal_value = self._safe_decimal_convert(
                 self.locked, "locked", self.asset, allow_none=False
             )
-            self.locked = locked_decimal
+            if decimal_value is not None:  # This is just for type checking
+                self.locked = decimal_value
+            else:
+                # This should never happen due to the allow_none=False
+                self.locked = Decimal("0.0")
 
     @staticmethod
     def _safe_decimal_convert(
-        value: Any,
+        value: str | int | float | Decimal | None,
         field_name: str,
         asset: str,
         allow_none: bool = False,
@@ -159,17 +185,19 @@ class Balance:
         if isinstance(value, Decimal):
             return value
         if value is None:
-            if allow_none:
+            if allow_none and default is not None:
                 return default
+            elif allow_none:
+                return None
             else:
                 raise ValueError(f"Balance field '{field_name}' for asset '{asset}' cannot be None")
         try:
             return Decimal(str(value))
-        except (InvalidOperation, TypeError):
+        except (InvalidOperation, TypeError) as err:
             raise ValueError(
                 f"Invalid value '{value}' for Balance field '{field_name}' "
                 f"for asset '{asset}'. Cannot convert to Decimal."
-            )
+            ) from err
 
     def to_dict(self) -> dict[str, Any]:
         """Convert Balance to dictionary, ensuring Decimals are strings."""
@@ -231,12 +259,33 @@ class Position:
 
     def __post_init__(self) -> None:
         """Ensure numeric fields are Decimal, handle None."""
-        self.size = self._safe_decimal_convert(self.size, "size", self.symbol, allow_none=False)
-        self.entry_price = self._safe_decimal_convert(
+        # These fields are required and can't be None per the type annotation
+        if self.size is None:
+            raise ValueError(f"Position field 'size' for symbol '{self.symbol}' cannot be None")
+        if self.entry_price is None:
+            raise ValueError(
+                f"Position field 'entry_price' for symbol '{self.symbol}' cannot be None"
+            )
+
+        # For required fields, we know _safe_decimal_convert won't return None
+        # when allow_none=False
+        decimal_value = self._safe_decimal_convert(self.size, "size", self.symbol, allow_none=False)
+        if decimal_value is not None:  # This is just for type checking
+            self.size = decimal_value
+        else:
+            # This should never happen due to the allow_none=False, but satisfies the type checker
+            raise ValueError(f"Failed to convert size to Decimal for symbol '{self.symbol}'")
+
+        decimal_value = self._safe_decimal_convert(
             self.entry_price, "entry_price", self.symbol, allow_none=False
         )
+        if decimal_value is not None:  # This is just for type checking
+            self.entry_price = decimal_value
+        else:
+            # This should never happen due to the allow_none=False, but satisfies the type checker
+            raise ValueError(f"Failed to convert entry_price to Decimal for symbol '{self.symbol}'")
 
-        # Handle Optional Decimal fields
+        # Handle Optional Decimal fields - these can remain as is since they're allowed to be None
         self.leverage = self._safe_decimal_convert(
             self.leverage, "leverage", self.symbol, allow_none=True
         )
@@ -281,18 +330,19 @@ class Position:
         try:
             # Force string conversion first for robustness against float inputs
             return Decimal(str(value))
-        except (InvalidOperation, TypeError):
+        except (InvalidOperation, TypeError) as err:
             raise ValueError(
                 f"Invalid value '{value}' for Position field '{field_name}' "
                 f"for symbol '{symbol}'. Cannot convert to Decimal."
-            )
+            ) from err
 
     def is_active(self) -> bool:
         """Check if the position is actively held (size is non-zero)."""
         return self.size is not None and self.size != Decimal("0")
 
-    def calculate_unrealized_pnl(self, current_mark_price: Decimal | None) -> Decimal | None:
-        """Calculates the unrealized PNL based on a provided mark price.
+    def calculate_unrealized_pnl(self, current_mark_price: Decimal | None = None) -> Decimal | None:
+        """
+        Calculate the current unrealized PNL for this position.
 
         Args:
             current_mark_price: The current mark price to use for calculation
@@ -301,32 +351,20 @@ class Position:
             The calculated unrealized PNL as a Decimal, or None if calculation is not possible
         """
         # First check if we have valid data to calculate PNL
-        if current_mark_price is None:
+        if current_mark_price is None or self.entry_price is None:
             return self.unrealized_pnl
 
-        # Check for other required values
-        if self.entry_price is None or self.size is None:
-            return self.unrealized_pnl
-
-        # Check for zero size
+        # Check for zero size - we know self.size is never None due to __post_init__ validation
         if self.size == Decimal("0"):
-            return Decimal("0.0")  # Return zero instead of None for zero size
-
-        # Convert current_mark_price to Decimal (this is safe since we checked for None above)
-        mark_price_decimal = self._safe_decimal_convert(
-            current_mark_price, "current_mark_price", self.symbol, allow_none=False
-        )
+            return Decimal("0.0")  # Return zero for zero-sized positions
 
         # Calculate PNL based on side
         if self.side == OrderSide.BUY:
-            pnl = (mark_price_decimal - self.entry_price) * self.size
-        elif self.side == OrderSide.SELL:
-            pnl = (self.entry_price - mark_price_decimal) * self.size
-        else:
-            # Handle unexpected OrderSide (shouldn't happen with enum)
-            logger.warning(f"Unexpected OrderSide value: {self.side} for {self.symbol}")
-            pnl = Decimal("0.0")
+            pnl = (current_mark_price - self.entry_price) * self.size
+        else:  # Assume OrderSide.SELL
+            pnl = (self.entry_price - current_mark_price) * self.size
 
+        # Update the stored unrealized PnL
         self.unrealized_pnl = pnl
         return pnl
 
@@ -345,99 +383,109 @@ class Position:
 
 @dataclass
 class Order:
-    """Represents an order."""
+    """Represents an order on an exchange."""
 
-    id: str
-    symbol: str
-    side: OrderSide
-    type: OrderType
-    quantity: Decimal
-    price: Decimal | None = None
-    filled_quantity: Decimal = Decimal("0.0")
-    status: OrderStatus = OrderStatus.UNKNOWN
-    time: int | None = None  # Consider datetime? Timestamp in ms is common
-    client_order_id: str | None = None  # Make optional
-    reduce_only: bool | None = None  # Make optional
-    avg_fill_price: Decimal | None = None
+    symbol: str  # Trading pair symbol (e.g., "BTC-USDT")
+    order_id: str  # Exchange-assigned order ID
+    side: OrderSide  # Buy or sell
+    order_type: OrderType  # Limit, market, etc.
+    quantity: Decimal  # Original order quantity
+    status: OrderStatus  # Status of the order (open, filled, canceled, etc.)
+    client_order_id: str | None = None  # Client-assigned order ID (optional)
+    price: Decimal | None = None  # Limit price (None for market orders)
+    filled_quantity: Decimal | None = None  # Amount of the order that has been filled
+    remaining_quantity: Decimal | None = None  # Amount of the order that remains to be filled
+    timestamp: datetime | None = None  # When the order was created or last updated
+    leverage: Decimal | None = None  # Leverage used for the order (if applicable)
+    time_in_force: TimeInForce | None = None  # Time in force for the order
+    post_only: bool = False  # Whether the order is post-only (maker-only)
+    reduce_only: bool = False  # Whether the order is reduce-only (cannot increase position)
+    associated_signal_id: str | None = None  # ID of the signal that generated this order
+    metadata: dict[str, Any] = field(default_factory=dict)  # Additional exchange-specific data
 
     def __post_init__(self) -> None:
-        """Ensure numeric fields are Decimal, handle None."""
-        self.quantity = self._safe_decimal_convert(
+        """Ensure numeric fields are Decimal and validate fields."""
+        # Convert numeric fields to Decimal
+        self.price = self._safe_decimal_convert(self.price, "price", self.symbol, allow_none=True)
+
+        # For required fields, we use allow_none=False to ensure we get a Decimal
+        # When allow_none=False, _safe_decimal_convert will raise ValueError if value is None
+        quantity_decimal = self._safe_decimal_convert(
             self.quantity, "quantity", self.symbol, allow_none=False
         )
-
-        # Handle price field - may be None for market orders
-        if self.price is None and self.type != OrderType.MARKET:
-            # For non-market orders, we need a price
-            raise ValueError(f"Price cannot be None for {self.type} orders")
-        elif self.price is not None:
-            # Convert price to Decimal if provided
-            self.price = self._safe_decimal_convert(
-                self.price, "price", self.symbol, allow_none=False
-            )
-
-        # Handle filled_quantity - ensure it's never None
-        if self.filled_quantity is None:
-            self.filled_quantity = Decimal("0.0")
+        if (
+            quantity_decimal is not None
+        ):  # This is for type checking; should never be None with allow_none=False
+            self.quantity = quantity_decimal
         else:
-            filled_qty = self._safe_decimal_convert(
-                self.filled_quantity, "filled_quantity", self.symbol, allow_none=False
-            )
-            self.filled_quantity = filled_qty
+            # This should never happen as _safe_decimal_convert should raise an error when allow_none=False
+            raise ValueError(f"Failed to convert quantity to Decimal for symbol '{self.symbol}'")
 
-        # Handle avg_fill_price - may be None if order not filled at all
-        if self.avg_fill_price is not None:
-            self.avg_fill_price = self._safe_decimal_convert(
-                self.avg_fill_price, "avg_fill_price", self.symbol, allow_none=False
-            )
+        self.filled_quantity = self._safe_decimal_convert(
+            self.filled_quantity, "filled_quantity", self.symbol, allow_none=True
+        )
+        self.remaining_quantity = self._safe_decimal_convert(
+            self.remaining_quantity, "remaining_quantity", self.symbol, allow_none=True
+        )
+        self.leverage = self._safe_decimal_convert(
+            self.leverage, "leverage", self.symbol, allow_none=True
+        )
 
-        # Set defaults for optional fields if they are None after init
-        if self.status is None:
-            self.status = OrderStatus.UNKNOWN
-        if self.client_order_id is None:
-            self.client_order_id = ""  # Default empty string
-        if self.reduce_only is None:
-            self.reduce_only = False  # Default False
+        # Validate required fields based on order type
+        if self.order_type in (OrderType.LIMIT, OrderType.STOP_LIMIT) and self.price is None:
+            raise ValueError(f"Price is required for {self.order_type} orders")
 
-    @staticmethod
+        # Ensure timestamp is timezone-aware
+        if self.timestamp is not None and self.timestamp.tzinfo is None:
+            self.timestamp = self.timestamp.replace(tzinfo=UTC)
+
     def _safe_decimal_convert(
-        value: Any,
-        field_name: str,
-        symbol: str,
-        allow_none: bool = False,
-        default: Decimal | None = None,
+        self, value: Any, field_name: str, symbol: str, allow_none: bool = False
     ) -> Decimal | None:
-        """Safely convert a value to Decimal, handling None and defaults."""
-        if isinstance(value, Decimal):
-            return value
+        """Safely convert a value to Decimal, with appropriate error handling."""
         if value is None:
-            if allow_none:
-                return default
-            else:
-                # Consider if quantity=None should raise error or be 0? Raising for now.
-                raise ValueError(f"Order field '{field_name}' for symbol '{symbol}' cannot be None")
+            if not allow_none:
+                raise ValueError(f"Order field '{field_name}' for {symbol} cannot be None")
+            return None
+
         try:
+            if isinstance(value, str):
+                # Handle potential commas in string representation
+                value = value.replace(",", "")
             return Decimal(str(value))
-        except (InvalidOperation, TypeError):
+        except (ValueError, TypeError, InvalidOperation) as e:
             raise ValueError(
-                f"Invalid value '{value}' for Order field '{field_name}' "
-                f"for symbol '{symbol}'. Cannot convert to Decimal."
+                f"Failed to convert {field_name} value '{value}' to Decimal for {symbol}: {str(e)}"
             )
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert order to dictionary representation."""
-        d = asdict(self)
-        # Convert enums and Decimals for serialization
-        for key, value in d.items():
-            if isinstance(value, Decimal):
-                d[key] = str(value)
-            elif isinstance(value, (OrderSide, OrderType, OrderStatus)):
-                d[key] = value.value
-            elif isinstance(value, datetime):  # If time becomes datetime
-                d[key] = value.isoformat()
-        # Ensure None values are represented correctly (as null in JSON)
-        # asdict handles this, but explicit check might be needed depending on target format
-        return d
+        """Convert order to dictionary, with proper formatting for serialization."""
+        result = {
+            "symbol": self.symbol,
+            "order_id": self.order_id,
+            "client_order_id": self.client_order_id,
+            "side": self.side.value if isinstance(self.side, OrderSide) else self.side,
+            "order_type": self.order_type.value
+            if isinstance(self.order_type, OrderType)
+            else self.order_type,
+            "price": str(self.price) if self.price is not None else None,
+            "quantity": str(self.quantity),
+            "filled_quantity": str(self.filled_quantity)
+            if self.filled_quantity is not None
+            else None,
+            "remaining_quantity": str(self.remaining_quantity)
+            if self.remaining_quantity is not None
+            else None,
+            "status": self.status.value if isinstance(self.status, OrderStatus) else self.status,
+            "timestamp": self.timestamp.isoformat() if self.timestamp is not None else None,
+            "leverage": str(self.leverage) if self.leverage is not None else None,
+            "time_in_force": self.time_in_force.value if self.time_in_force is not None else None,
+            "post_only": self.post_only,
+            "reduce_only": self.reduce_only,
+            "associated_signal_id": self.associated_signal_id,
+            "metadata": self.metadata,
+        }
+        return result
 
 
 @dataclass
@@ -461,14 +509,16 @@ class Trade:
 
     def __post_init__(self) -> None:
         """Ensure numeric fields are Decimal and calculate cost/datetime if needed."""
-        self.price = self._safe_decimal_convert(self.price, "price", self.symbol, allow_none=False)
-        self.quantity = self._safe_decimal_convert(
-            self.quantity, "quantity", self.symbol, allow_none=False
-        )
+        # Handle required fields
+        self.price = self._safe_decimal_convert(self.price, "price", self.symbol)
+        self.quantity = self._safe_decimal_convert(self.quantity, "quantity", self.symbol)
 
         # Handle optional fee field
         if self.fee is not None:
-            self.fee = self._safe_decimal_convert(self.fee, "fee", self.symbol, allow_none=False)
+            fee_decimal = self._safe_decimal_convert_optional(self.fee, "fee", self.symbol)
+            # Ensure we only assign non-None values to self.fee
+            if fee_decimal is not None:
+                self.fee = fee_decimal
 
         # Calculate cost if not provided
         if self.cost is None:
@@ -476,7 +526,10 @@ class Trade:
             self.cost = self.price * self.quantity
         else:
             # If cost is provided, convert it to Decimal
-            self.cost = self._safe_decimal_convert(self.cost, "cost", self.symbol, allow_none=False)
+            cost_decimal = self._safe_decimal_convert_optional(self.cost, "cost", self.symbol)
+            # Ensure we only assign non-None values to self.cost (which is Decimal | None)
+            if cost_decimal is not None:
+                self.cost = cost_decimal
 
         # Create datetime from timestamp if needed
         if self.timestamp and self.datetime is None:
@@ -495,24 +548,38 @@ class Trade:
         value: Any,
         field_name: str,
         symbol: str,
-        allow_none: bool = False,
-        default: Decimal | None = None,
-    ) -> Decimal | None:
-        """Safely convert a value to Decimal, handling None and defaults."""
+    ) -> Decimal:
+        """Safely convert a value to Decimal, raising errors for None."""
         if isinstance(value, Decimal):
             return value
         if value is None:
-            if allow_none:
-                return default
-            else:
-                raise ValueError(f"Trade field '{field_name}' for symbol '{symbol}' cannot be None")
+            raise ValueError(f"Trade field '{field_name}' for symbol '{symbol}' cannot be None")
         try:
             return Decimal(str(value))
-        except (InvalidOperation, TypeError):
+        except (InvalidOperation, TypeError) as err:
             raise ValueError(
                 f"Invalid value '{value}' for Trade field '{field_name}' "
                 f"for symbol '{symbol}'. Cannot convert to Decimal."
-            )
+            ) from err
+
+    @staticmethod
+    def _safe_decimal_convert_optional(
+        value: Any,
+        field_name: str,
+        symbol: str,
+    ) -> Decimal | None:
+        """Safely convert a value to Decimal, allowing None values."""
+        if isinstance(value, Decimal):
+            return value
+        if value is None:
+            return None
+        try:
+            return Decimal(str(value))
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError(
+                f"Invalid value '{value}' for Trade field '{field_name}' "
+                f"for symbol '{symbol}'. Cannot convert to Decimal."
+            ) from err
 
 
 @dataclass
@@ -555,20 +622,20 @@ class Ticker:
                 )
         try:
             return Decimal(str(value))
-        except (InvalidOperation, TypeError):
+        except (InvalidOperation, TypeError) as err:
             # Log warning or use default if allowed
             if allow_none:
                 logger.warning(
-                    f"Invalid value '{value}' for Ticker field '{field_name}' for symbol '{symbol}'. "
-                    f"Using default: {default}"
+                    f"Invalid value '{value}' for Ticker field '{field_name}'"
+                    f" for symbol '{symbol}'. Using default: {default}"
                 )
                 return default
 
             # If not allowed to be None, raise the error
             raise ValueError(
-                f"Invalid value '{value}' for Ticker field '{field_name}' for symbol '{symbol}'. "
-                f"Cannot convert to Decimal."
-            )
+                f"Invalid value '{value}' for Ticker field '{field_name}'"
+                f" for symbol '{symbol}'. Cannot convert to Decimal."
+            ) from err
 
 
 @dataclass
@@ -582,12 +649,14 @@ class OrderBook:
 
     def __post_init__(self) -> None:
         """Ensure bids and asks contain Decimal tuples, converting safely."""
+        # Convert both bids and asks to ensure they are in the correct format
+        # Use fresh lists to avoid type checking issues with the original lists
         self.bids = self._safe_convert_level_list(self.bids, "bids", self.symbol)
         self.asks = self._safe_convert_level_list(self.asks, "asks", self.symbol)
 
     @staticmethod
     def _safe_convert_level_list(
-        levels: Any, field_name: str, symbol: str
+        levels: list[Any], field_name: str, symbol: str
     ) -> list[tuple[Decimal, Decimal]]:
         """Safely convert a list of price/quantity pairs to Decimal tuples."""
         if not isinstance(levels, list):
@@ -595,22 +664,24 @@ class OrderBook:
                 f"OrderBook field '{field_name}' for symbol '{symbol}' must be a list."
             )
 
-        converted_levels = []
+        converted_levels: list[tuple[Decimal, Decimal]] = []
         for i, level in enumerate(levels):
-            if not isinstance(level, (list, tuple)) or len(level) != 2:
+            if not isinstance(level, list | tuple) or len(level) != 2:
                 raise ValueError(
-                    f"Invalid item format in OrderBook field '{field_name}' for symbol '{symbol}' at index {i}. "
+                    f"Invalid item format in OrderBook field '{field_name}'"
+                    f" for symbol '{symbol}' at index {i}. "
                     f"Expected tuple/list of length 2, got: {level}"
                 )
             try:
                 price = Decimal(str(level[0]))
                 quantity = Decimal(str(level[1]))
                 converted_levels.append((price, quantity))
-            except (InvalidOperation, TypeError, IndexError):
+            except (InvalidOperation, TypeError, IndexError) as err:
                 raise ValueError(
-                    f"Invalid price/quantity in OrderBook field '{field_name}' for symbol '{symbol}' at index {i}. "
+                    f"Invalid price/quantity in OrderBook field '{field_name}'"
+                    f" for symbol '{symbol}' at index {i}. "
                     f"Cannot convert {level} to Decimal tuple."
-                )
+                ) from err
         return converted_levels
 
 
@@ -655,27 +726,27 @@ class FundingRate:
             return value
         if value is None:
             if allow_none:
-                return default
+                return None
             else:
                 raise ValueError(
                     f"FundingRate field '{field_name}' for symbol '{symbol}' cannot be None"
                 )
         try:
             return Decimal(str(value))
-        except (InvalidOperation, TypeError):
+        except (InvalidOperation, TypeError) as err:
             # Log warning or use default if allowed
             if allow_none:
                 logger.warning(
-                    f"Invalid value '{value}' for FundingRate field '{field_name}' for symbol '{symbol}'. "
-                    f"Using default: {default}"
+                    f"Invalid value '{value}' for FundingRate field '{field_name}'"
+                    f" for symbol '{symbol}'. Using None as default."
                 )
-                return default
+                return None
 
             # If not allowed to be None, raise the error
             raise ValueError(
-                f"Invalid value '{value}' for FundingRate field '{field_name}' for symbol '{symbol}'. "
-                f"Cannot convert to Decimal."
-            )
+                f"Invalid value '{value}' for FundingRate field '{field_name}'"
+                f" for symbol '{symbol}'. Cannot convert to Decimal."
+            ) from err
 
 
 # ArbitrageOpportunity is not a dataclass, handle conversion in __init__
@@ -687,18 +758,18 @@ class ArbitrageOpportunity:
         symbol: str,
         long_exchange: str,
         short_exchange: str,
-        long_price: Any,  # Accept Any initially
-        short_price: Any,
-        long_funding_rate: Any,
-        short_funding_rate: Any,
-        net_funding_differential: Any,
+        long_price: str | int | float | Decimal | None,
+        short_price: str | int | float | Decimal | None,
+        long_funding_rate: str | int | float | Decimal | None,
+        short_funding_rate: str | int | float | Decimal | None,
+        net_funding_differential: str | int | float | Decimal | None,
         timestamp: datetime,
-        optimal_size: Any | None = None,
-        expected_profit: Any | None = None,
+        optimal_size: str | int | float | Decimal | None = None,
+        expected_profit: str | int | float | Decimal | None = None,
         confidence: float | None = None,
         basis_volatility: float | None = None,
         utility_score: float | None = None,
-    ):
+    ) -> None:
         self.symbol = symbol
         self.long_exchange = long_exchange
         self.short_exchange = short_exchange
@@ -731,16 +802,7 @@ class ArbitrageOpportunity:
         )
 
         # Validate required fields are not None after conversion
-        if None in [
-            self.long_price,
-            self.short_price,
-            self.long_funding_rate,
-            self.short_funding_rate,
-            self.net_funding_differential,
-        ]:
-            raise ValueError(
-                f"Required Decimal field is None after conversion for ArbitrageOpportunity (symbol: {symbol})"
-            )
+        self.validate_required_fields()
 
         # Expiration calculation
         # Use timezone-aware comparison if timestamp has timezone
@@ -752,28 +814,47 @@ class ArbitrageOpportunity:
 
     @staticmethod
     def _safe_decimal_convert(
-        value: Any,
+        value: str | int | float | Decimal | None,
         field_name: str,
         symbol: str,
         allow_none: bool = False,
-        default: Decimal | None = None,
     ) -> Decimal | None:
-        """Safely convert a value to Decimal, handling None and defaults."""
+        """Safely convert a value to Decimal, handling None values."""
         if isinstance(value, Decimal):
             return value
         if value is None:
             if allow_none:
-                return default
+                return None
             else:
                 raise ValueError(
                     f"ArbitrageOpportunity field '{field_name}' for symbol '{symbol}' cannot be None"
                 )
         try:
             return Decimal(str(value))
-        except (InvalidOperation, TypeError):
+        except (InvalidOperation, TypeError) as err:
             raise ValueError(
                 f"Invalid value '{value}' for ArbitrageOpportunity field '{field_name}' "
                 f"for symbol '{symbol}'. Cannot convert to Decimal."
+            ) from err
+
+    def validate_required_fields(self) -> None:
+        """Check if all required fields are set and not None."""
+        # Define required fields (critical for an arbitrage opportunity)
+        required_fields = [
+            "long_price",
+            "short_price",
+            "long_funding_rate",
+            "short_funding_rate",
+            "net_funding_differential",
+        ]
+
+        # Check which fields are None
+        missing_fields = [field for field in required_fields if getattr(self, field) is None]
+
+        if missing_fields:
+            raise ValueError(
+                f"Required fields {', '.join(missing_fields)} are None after conversion"
+                f" for ArbitrageOpportunity (symbol: {self.symbol})"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -830,16 +911,15 @@ class TradeSignal:
     metadata: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
-        """Ensure numeric fields are Decimal, handle None."""
-        self.price = self._safe_decimal_convert(self.price, "price", self.symbol, allow_none=True)
-        self.quantity = self._safe_decimal_convert(
-            self.quantity, "quantity", self.symbol, allow_none=True
+        """Ensure numeric fields are Decimal and handle None values."""
+        # Convert Decimal fields safely - all are optional in TradeSignal
+        self.price = self._safe_decimal_convert_optional(self.price, "price", self.symbol)
+        self.quantity = self._safe_decimal_convert_optional(self.quantity, "quantity", self.symbol)
+        self.stop_loss = self._safe_decimal_convert_optional(
+            self.stop_loss, "stop_loss", self.symbol
         )
-        self.stop_loss = self._safe_decimal_convert(
-            self.stop_loss, "stop_loss", self.symbol, allow_none=True
-        )
-        self.take_profit = self._safe_decimal_convert(
-            self.take_profit, "take_profit", self.symbol, allow_none=True
+        self.take_profit = self._safe_decimal_convert_optional(
+            self.take_profit, "take_profit", self.symbol
         )
 
         # Ensure timestamp and expiration are timezone-aware (UTC) if provided
@@ -849,30 +929,23 @@ class TradeSignal:
             self.expiration = self.expiration.replace(tzinfo=UTC)
 
     @staticmethod
-    def _safe_decimal_convert(
+    def _safe_decimal_convert_optional(
         value: Any,
         field_name: str,
         symbol: str,
-        allow_none: bool = False,
-        default: Decimal | None = None,
     ) -> Decimal | None:
-        """Safely convert a value to Decimal, handling None and defaults."""
+        """Safely convert a value to Decimal, handling None values."""
         if isinstance(value, Decimal):
             return value
         if value is None:
-            if allow_none:
-                return default
-            else:
-                raise ValueError(
-                    f"TradeSignal field '{field_name}' for symbol '{symbol}' cannot be None"
-                )
+            return None
         try:
             return Decimal(str(value))
-        except (InvalidOperation, TypeError):
+        except (InvalidOperation, TypeError) as err:
             raise ValueError(
                 f"Invalid value '{value}' for TradeSignal field '{field_name}' "
                 f"for symbol '{symbol}'. Cannot convert to Decimal."
-            )
+            ) from err
 
     def is_valid(self) -> bool:
         """Check if the signal is still valid (e.g., not expired)."""
@@ -882,13 +955,13 @@ class TradeSignal:
         return datetime.now(UTC) < self.expiration
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert TradeSignal to dictionary representation."""
+        """Convert signal to dictionary, handling Decimal conversion."""
         d = asdict(self)
-        # Convert enums, Decimals, and datetimes for serialization
+        # Convert special types to serializable values
         for key, value in d.items():
             if isinstance(value, Decimal):
                 d[key] = str(value)
-            elif isinstance(value, (SignalType, OrderSide)):
+            elif isinstance(value, SignalType | OrderSide):
                 d[key] = value.value
             elif isinstance(value, datetime):
                 d[key] = value.isoformat()

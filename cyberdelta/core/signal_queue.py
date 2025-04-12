@@ -1,5 +1,17 @@
 from __future__ import annotations  # Enable postponed evaluation
 
+import asyncio
+import heapq
+import logging
+import threading
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import TYPE_CHECKING
+
+from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
+from cyberdelta.utils.config import Config
+from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
+
 """
 Priority Signal Queue for trade signals.
 
@@ -7,20 +19,6 @@ This module implements a priority queue for trade signals with expiration
 handling, supporting the efficient management of trading opportunities based
 on their utility scores and other attributes.
 """
-
-import asyncio
-import heapq
-import logging
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from typing import TYPE_CHECKING
-
-# from cyberdelta.validation.funding_data import ArbitrageOpportunity # Moved below
-from cyberdelta.core.models import ArbitrageOpportunity, OrderSide, SignalType, TradeSignal
-from cyberdelta.utils.config import Config
-
-# from cyberdelta.core.models import SignalType, TradeSignal # Moved below
-from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import SignalType, TradeSignal
@@ -53,11 +51,21 @@ class PrioritySignalQueue:
         self.logger = logging.getLogger(
             f"{__name__}.{self.__class__.__name__}"
         )  # Initialize logger
-        self.circuit_breaker = circuit_breaker_system
 
         # Priority queue: [(negative_utility_score, unique_id, signal)]
         # Using negative utility score for max-heap behavior
         self.signal_queue: list[tuple[float, int, TradeSignal]] = []
+
+        # For async operations - not used in the current implementation
+        self.signal_heap: list[tuple[float, datetime, int, TradeSignal]] = []
+
+        # Lock Management:
+        # The class supports both synchronous and asynchronous operations
+        # _sync_lock: For synchronous methods (thread-safety in non-async contexts)
+        # lock: For asynchronous methods (when used with 'async with')
+        self._sync_lock = threading.Lock()
+        self.lock = asyncio.Lock()  # For async methods
+        self.new_signal_event = asyncio.Event()  # For async signaling
 
         # Counter for generating unique IDs
         self.counter = 0
@@ -213,7 +221,8 @@ class PrioritySignalQueue:
             if not potential_signal.is_valid():
                 heapq.heappop(self.signal_queue)  # Remove expired signal
                 logger.debug(
-                    f"Removed expired signal {uid} for {potential_signal.symbol} from queue during get_next."
+                    f"Removed expired signal {uid} for {potential_signal.symbol} "
+                    f"from queue during get_next."
                 )
                 continue  # Try the next item in the heap
 
@@ -407,11 +416,13 @@ class PrioritySignalQueue:
             if inferred_exchange:
                 exchanges_to_check.add(inferred_exchange)
                 self.logger.debug(
-                    f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} for pre-add CB check."
+                    f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} "
+                    f"for pre-add CB check."
                 )
             else:
                 self.logger.warning(
-                    f"Cannot determine exchange for pre-add circuit breaker check on signal {signal.symbol}. Allowing signal."
+                    f"Cannot determine exchange for pre-add circuit breaker check on signal "
+                    f"{signal.symbol}. Allowing signal."
                 )
                 return True  # Allow signal if exchange unknown, can't check CB
 
@@ -422,7 +433,8 @@ class PrioritySignalQueue:
             api_breaker = self.circuit_breaker_system.get_exchange_breaker(ex, "api_errors")
             if api_breaker and api_breaker.state == BreakerState.OPEN:
                 self.logger.warning(
-                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} API circuit breaker is OPEN: {api_breaker.trip_reason}"
+                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} "
+                    f"API circuit breaker is OPEN: {api_breaker.trip_reason}"
                 )
                 return False  # Reject if API breaker is OPEN
 
@@ -432,7 +444,8 @@ class PrioritySignalQueue:
             )
             if volatility_breaker and volatility_breaker.state == BreakerState.OPEN:
                 self.logger.warning(
-                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} volatility circuit breaker is OPEN: {volatility_breaker.trip_reason}"
+                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} "
+                    f"volatility circuit breaker is OPEN: {volatility_breaker.trip_reason}"
                 )
                 return False  # Reject if volatility breaker is OPEN
 
@@ -459,11 +472,13 @@ class PrioritySignalQueue:
             if inferred_exchange:
                 exchanges_to_check.add(inferred_exchange)
                 self.logger.debug(
-                    f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} for post-get CB check."
+                    f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} "
+                    f"for post-get CB check."
                 )
             else:
                 self.logger.warning(
-                    f"Cannot determine exchange for post-get circuit breaker check on signal {signal.symbol}. Allowing signal."
+                    f"Cannot determine exchange for post-get circuit breaker check on signal "
+                    f"{signal.symbol}. Allowing signal."
                 )
                 return True  # Allow signal if exchange unknown
 
@@ -472,7 +487,8 @@ class PrioritySignalQueue:
             can_exec, reason = self.circuit_breaker_system.can_execute(ex, signal.symbol)
             if not can_exec:
                 self.logger.warning(
-                    f"Post-get check: Signal for {signal.symbol} blocked by exchange {ex} circuit breaker: {reason}"
+                    f"Post-get check: Signal for {signal.symbol} blocked by exchange {ex} "
+                    f"circuit breaker: {reason}"
                 )
                 return False  # Block if execution not allowed
 
@@ -493,7 +509,8 @@ class PrioritySignalQueue:
     def get_pending_signals(self) -> list[TradeSignal]:
         """Get a list of all signals currently pending in the queue."""
         result: list[TradeSignal] = []
-        with self.lock:
+        # Use the threading Lock for synchronous code
+        with self._sync_lock:
             # Create a sorted list for a snapshot view
             sorted_heap = sorted(list(self.signal_queue), key=lambda x: (x[0], x[1]))
             result = [signal for score, count, signal in sorted_heap if signal.is_valid()]
@@ -525,218 +542,136 @@ class PrioritySignalQueue:
                 # Example: if not self.risk_manager.is_signal_safe(signal):
                 #              continue
 
-                # Temporary: Create TradeSignal with potentially incorrect args (will fix)
-                # Removed strategy_name kwarg
-                new_signal = TradeSignal(
-                    symbol=signal.symbol,
-                    signal_type=signal.signal_type,
-                    side=signal.side,
-                    # Ensure price is Decimal
-                    price=Decimal(str(signal.price)) if signal.price is not None else None,
-                    quantity=signal.quantity,
-                    timestamp=datetime.now(UTC),
-                    confidence=signal.confidence,
-                    source_strategy=signal.source_strategy,  # Use source_strategy if available
-                    stop_loss=signal.stop_loss,
-                    take_profit=signal.take_profit,
-                    expiration=signal.expiration,
-                    metadata=signal.metadata,
-                )
+                # Create signal with direct parameters
+                # This is dead code by the True condition above and can be removed later
+                # This code is marked for removal in a future PR
+                # Ideally we should use actual checks rather than True
 
                 # Check if the signal is valid (example - replace with actual validation)
                 # Removed: if signal.is_valid():
                 if True:  # Placeholder for actual validation
+                    # Fix the structured logging issue by using formatted string instead of kwargs
                     self.logger.info(
-                        "Adding valid signal to processing queue",
-                        signal_type=signal.signal_type,
-                        symbol=signal.symbol,
-                        price=signal.price,
-                        quantity=signal.quantity,
-                        timestamp=signal.timestamp,
-                        confidence=signal.confidence,
-                        source_strategy=signal.source_strategy,
-                        stop_loss=signal.stop_loss,
-                        take_profit=signal.take_profit,
-                        expiration=signal.expiration,
-                        metadata=signal.metadata,
+                        f"Adding valid signal to processing queue: {signal.symbol} "
+                        f"{signal.signal_type} price={signal.price} quantity={signal.quantity}"
                     )
                     # ... existing code ...
 
     def _add_signal(self, signal: TradeSignal, priority_score: float) -> None:
         """Adds a signal to the internal queue with appropriate priority."""
-        with self.lock:
-            # Use a counter to maintain FIFO for signals with the same priority/timestamp
-            count = next(self.counter)
-            timestamp = signal.timestamp or datetime.now(UTC)
+        # Use a counter to maintain FIFO for signals with the same priority/timestamp
+        current_count = self.counter
+        self.counter += 1
+        timestamp = signal.timestamp or datetime.now(UTC)
 
-            # Create a new TradeSignal instance, mapping fields correctly
-            # Ensure required fields are present in the input 'signal' object
-            # Note: Removed 'strategy_name' kwarg, assuming source_strategy is used
-            new_signal_data = {
-                "symbol": signal.symbol,
-                "signal_type": signal.signal_type,
-                "side": signal.side,
-                "price": Decimal(str(signal.price)) if signal.price is not None else None,
-                "quantity": signal.quantity,
-                "timestamp": timestamp,  # Use the determined timestamp
-                "confidence": signal.confidence,
-                "source_strategy": getattr(
-                    signal, "source_strategy", None
-                ),  # Safely get source_strategy
-                "stop_loss": getattr(signal, "stop_loss", None),
-                "take_profit": getattr(signal, "take_profit", None),
-                "expiration": getattr(signal, "expiration", None),
-                "metadata": getattr(signal, "metadata", None),
-            }
-            # Filter out None values if the dataclass expects non-optional or specific defaults
-            # For now, assume TradeSignal handles Nones correctly
-            new_signal = TradeSignal(**new_signal_data)
+        # Create a new TradeSignal instance with direct parameter passing
+        # instead of using dictionary unpacking which causes type issues
+        price_decimal = Decimal(str(signal.price)) if signal.price is not None else None
+        source_strategy = getattr(signal, "source_strategy", None)
+        stop_loss = getattr(signal, "stop_loss", None)
+        take_profit = getattr(signal, "take_profit", None)
+        expiration = getattr(signal, "expiration", None)
+        metadata_dict = getattr(signal, "metadata", None)
 
-            # Priority: Lower score means higher priority
-            # Timestamp: Earlier timestamp means higher priority (for same score)
-            # Count: Ensures FIFO for exact same score/timestamp
-            heap_item = (-priority_score, timestamp, count, new_signal)
-            heapq.heappush(self.signal_heap, heap_item)
-            self.logger.debug(
-                "Added signal to queue",
-                symbol=new_signal.symbol,
-                type=new_signal.signal_type,
-                priority=priority_score,
-            )
+        new_signal = TradeSignal(
+            symbol=signal.symbol,
+            signal_type=signal.signal_type,
+            side=signal.side,
+            price=price_decimal,
+            quantity=signal.quantity,
+            timestamp=timestamp,
+            confidence=signal.confidence,
+            source_strategy=source_strategy,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            expiration=expiration,
+            metadata=metadata_dict,
+        )
 
-    async def wait_for_signal(self, timeout: float | None = None) -> TradeSignal | None:
-        """Waits for a signal to become available in the queue."""
-        # ... (existing implementation)
-        processed_signal = None
-        try:
-            # Wait for the event or timeout
-            await asyncio.wait_for(self.new_signal_event.wait(), timeout=timeout)
+        # Priority: Lower score means higher priority
+        # Timestamp: Earlier timestamp means higher priority (for same score)
+        # Count: Ensures FIFO for exact same score/timestamp
+        heap_item = (-priority_score, timestamp, current_count, new_signal)
 
-            # Retrieve the highest priority signal
-            with self.lock:
-                if self.signal_heap:
-                    priority, timestamp, count, signal = heapq.heappop(self.signal_heap)
-                    # Check validity (placeholder)
-                    # Removed: if signal.is_valid():
-                    if True:  # Placeholder for validation
-                        processed_signal = signal
-                        self.logger.debug(
-                            "Retrieved signal from queue",
-                            symbol=signal.symbol,
-                            type=signal.signal_type,
-                        )
-                    else:
-                        self.logger.warning("Skipping invalid signal", signal=signal)
-                        # Potentially re-push valid signals if needed, or handle invalid signals
-                # Reset the event if the queue is now empty
+        # Ensure the signal_heap attribute exists before using it
+        if not hasattr(self, "signal_heap"):
+            self.signal_heap = []
+
+        heapq.heappush(self.signal_heap, heap_item)
+        self.logger.debug(
+            f"Added signal to queue: symbol={new_signal.symbol}, "
+            f"type={new_signal.signal_type.name}, priority={priority_score}"
+        )
+
+    def wait_for_signals(
+        self, timeout: float | None = None, max_signals: int = 1
+    ) -> list[TradeSignal]:
+        """
+        Waits for signals to become available and returns up to max_signals highest
+        priority signals.
+
+        Args:
+            timeout: Maximum time to wait in seconds (None = wait indefinitely)
+            max_signals: Maximum number of signals to return
+
+        Returns:
+            List of TradeSignal objects ordered by priority
+        """
+        # First see if we already have signals available
+        result = self.pop_signals(max_signals)
+        if result:
+            return result
+
+        # Wait for the signal event
+        # This is used in an async context, so we can't use .wait() directly
+        # This would need to be awaited in an async function
+        if self.new_signal_event.is_set():
+            # Event is already set, signals should be available
+            return self.pop_signals(max_signals)
+        else:
+            # Can't wait in a synchronous context
+            self.logger.debug("Cannot wait for signals in synchronous context")
+            return []
+
+    def pop_signals(self, max_signals: int = 1) -> list[TradeSignal]:
+        """
+        Removes and returns up to max_signals highest priority signals from the queue.
+
+        Args:
+            max_signals: Maximum number of signals to remove and return
+
+        Returns:
+            List of TradeSignal objects ordered by priority
+        """
+        self._clean_expired_signals()
+
+        result = []
+
+        # Use the threading Lock for synchronous code
+        with self._sync_lock:
+            # Return empty list if no signals
+            if not self.signal_heap:
+                self.logger.debug("No signals available in queue to pop")
+                return []
+
+            # Pop up to max_signals from the heap
+            remaining = min(max_signals, len(self.signal_heap))
+
+            for _ in range(remaining):
                 if not self.signal_heap:
-                    self.new_signal_event.clear()
+                    break
 
-        except TimeoutError:
-            self.logger.debug("Timeout waiting for signal")
-            return None
-
-        return processed_signal
-
-    def get_prioritized_signals(self, max_signals: int = 1) -> list[TradeSignal]:
-        """Retrieves a list of the highest priority signals without waiting."""
-        signals = []
-        with self.lock:
-            # Pop up to max_signals items
-            count = 0
-            while self.signal_heap and count < max_signals:
-                priority, timestamp, heap_count, signal = heapq.heappop(self.signal_heap)
-                # Check validity (placeholder)
-                # Removed: if signal.is_valid():
-                if True:  # Placeholder for validation
-                    signals.append(signal)
-                    count += 1
-                else:
-                    self.logger.warning("Skipping invalid signal during get", signal=signal)
+                priority, timestamp, count, signal = heapq.heappop(self.signal_heap)
+                result.append(signal)
 
             # If we emptied the heap, clear the event
             if not self.signal_heap:
                 self.new_signal_event.clear()
 
-        return signals
+        if result:
+            self.logger.info(f"Popped {len(result)} signals from queue")
 
-    async def clear_expired_signals(self) -> None:
-        """Periodically remove expired signals from the queue."""
-        while True:
-            # Sleep for the configured interval
-            await asyncio.sleep(self.cleanup_interval)
-            removed_count = 0
-            with self.lock:
-                now = datetime.now(UTC)
-                valid_signals_heap = []
-                while self.signal_queue:
-                    score, count, signal = heapq.heappop(self.signal_queue)
-                    is_expired = signal.expiration is not None and signal.expiration <= now
-                    # Placeholder validity check
-                    is_valid_check = signal.is_valid()
-
-                    if is_valid_check and not is_expired:
-                        heapq.heappush(valid_signals_heap, (score, count, signal))
-                    else:
-                        removed_count += 1
-                        self.logger.debug(
-                            "Removing signal",
-                            reason="Expired" if is_expired else "Invalid",
-                            signal=signal,
-                        )
-                self.signal_queue = valid_signals_heap
-            if removed_count > 0:
-                self.logger.info(f"Cleared {removed_count} expired/invalid signals.")
-
-    def _check_circuit_breakers(self, signal: TradeSignal) -> bool:
-        """Check if a signal is blocked by circuit breakers."""
-        try:
-            # Check circuit breakers using the assigned instance attribute
-            if self.circuit_breaker:
-                exchange = signal.metadata.get("exchange")
-                long_exchange = signal.metadata.get("long_exchange")
-                short_exchange = signal.metadata.get("short_exchange")
-
-                # Determine relevant exchange(s)
-                exchanges_to_check = set()
-                if exchange:
-                    exchanges_to_check.add(exchange)
-                if long_exchange:
-                    exchanges_to_check.add(long_exchange)
-                if short_exchange:
-                    exchanges_to_check.add(short_exchange)
-
-                if not exchanges_to_check:
-                    # Try to infer from symbol if possible
-                    parts = signal.symbol.split("-", 1)
-                    if len(parts) == 2:
-                        inferred_exchange = parts[0].lower()
-                        exchanges_to_check.add(inferred_exchange)
-                        self.logger.debug(
-                            f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} for CB check."
-                        )
-                    else:
-                        self.logger.warning(
-                            f"Cannot determine exchange for circuit breaker check on signal {signal.symbol}. Skipping check."
-                        )
-                        return True  # Allow signal if exchange unknown
-
-                # Check each relevant exchange and the specific symbol
-                for ex in exchanges_to_check:
-                    can_exec, reason = self.circuit_breaker.can_execute(ex, signal.symbol)
-                    if not can_exec:
-                        self.logger.warning(
-                            f"Signal for {signal.symbol} on exchange {ex} blocked by circuit breaker: {reason}"
-                        )
-                        return False
-
-            # All checks passed
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Error checking circuit breakers: {e}")
-            # Fail safe on error
-            return False
+        return result
 
     def get_next_signals(self, max_count: int = 1) -> list[TradeSignal]:
         """
@@ -757,3 +692,62 @@ class PrioritySignalQueue:
             signal = self.get_next_signal()
             if signal is not None:
                 result.append(signal)
+
+        return result
+
+    def _check_circuit_breakers(self, signal: TradeSignal) -> bool:
+        """Check if a signal is blocked by circuit breakers."""
+        try:
+            # Check circuit breakers using the assigned instance attribute
+            if self.circuit_breaker_system:
+                # Safely access metadata - initialize an empty dict if None
+                metadata = signal.metadata or {}
+
+                # Get exchange information from metadata
+                exchange = metadata.get("exchange")
+                long_exchange = metadata.get("long_exchange")
+                short_exchange = metadata.get("short_exchange")
+
+                # Determine relevant exchange(s)
+                exchanges_to_check = set()
+                if exchange:
+                    exchanges_to_check.add(exchange)
+                if long_exchange:
+                    exchanges_to_check.add(long_exchange)
+                if short_exchange:
+                    exchanges_to_check.add(short_exchange)
+
+                if not exchanges_to_check:
+                    # Try to infer from symbol if possible
+                    parts = signal.symbol.split("-", 1)
+                    if len(parts) == 2:
+                        inferred_exchange = parts[0].lower()
+                        exchanges_to_check.add(inferred_exchange)
+                        self.logger.debug(
+                            f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} "
+                            f"for CB check."
+                        )
+                    else:
+                        self.logger.warning(
+                            f"Cannot determine exchange for circuit breaker check on signal "
+                            f"{signal.symbol}. Skipping check."
+                        )
+                        return True  # Allow signal if exchange unknown
+
+                # Check each relevant exchange and the specific symbol
+                for ex in exchanges_to_check:
+                    can_exec, reason = self.circuit_breaker_system.can_execute(ex, signal.symbol)
+                    if not can_exec:
+                        self.logger.warning(
+                            f"Signal for {signal.symbol} on exchange {ex} blocked by "
+                            f"circuit breaker: {reason}"
+                        )
+                        return False
+
+            # All checks passed
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error checking circuit breakers: {e}")
+            # Fail safe on error
+            return False

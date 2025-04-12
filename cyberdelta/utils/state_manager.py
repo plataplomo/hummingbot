@@ -269,8 +269,8 @@ class StateManager:
         expected_checksum = metadata["checksum"]
         actual_checksum = self._calculate_checksum(state_data["state"])
 
-        # Return true if checksums match, ensuring bool type
-        return bool(expected_checksum == actual_checksum)
+        # Return true if checksums match
+        return expected_checksum == actual_checksum
 
     def _calculate_checksum(self, state: dict[str, Any]) -> str:
         """

@@ -29,15 +29,15 @@ def create_mock_order(
     status: OrderStatus = OrderStatus.OPEN,
 ) -> Order:
     return Order(
-        id="order123",
         symbol="BTC-PERP",
+        order_id="order123",
         side=side,
-        type=OrderType.LIMIT if price else OrderType.MARKET,
+        order_type=OrderType.LIMIT if price else OrderType.MARKET,
         price=price,
         quantity=quantity,
         filled_quantity=filled,
         status=status,
-        time=int(datetime.now(UTC).timestamp() * 1000),
+        timestamp=datetime.now(UTC),
     )
 
 

@@ -29,7 +29,7 @@ from cyberdelta.config.secrets_manager import SecretsManager
 class TestSecureConfigManager(unittest.TestCase):
     """Tests for the ConfigManager class with focus on security aspects"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test case with temporary config files"""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.config_path = os.path.join(self.temp_dir.name, "config.yaml")
@@ -82,46 +82,46 @@ general:
         self.config_manager = ConfigManager(self.config_path)
         self.config_manager.load()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up temporary files"""
         self.temp_dir.cleanup()
 
-    def test_config_validation_success(self):
+    def test_config_validation_success(self) -> None:
         """Test that a valid config passes validation"""
         config_manager = ConfigManager(self.config_path)
         result = config_manager.load()
         self.assertTrue(result)
         self.assertTrue(config_manager.loaded)
 
-    def test_config_validation_failure(self):
+    def test_config_validation_failure(self) -> None:
         """Test that an invalid config fails validation"""
         config_manager = ConfigManager(self.invalid_config_path)
         result = config_manager.load()
         self.assertFalse(result)
         self.assertFalse(config_manager.loaded)
 
-    def test_env_variable_config_path(self):
+    def test_env_variable_config_path(self) -> None:
         """Test that environment variable overrides default config path"""
         with patch.dict("os.environ", {"CYBERDELTA_CONFIG_PATH": self.config_path}):
             # Create a config manager without specifying a path
             config_manager = ConfigManager()
             self.assertEqual(config_manager.config_path, self.config_path)
 
-    def test_deep_nested_access(self):
+    def test_deep_nested_access(self) -> None:
         """Test accessing deeply nested configuration values"""
         self.assertEqual(
             self.config_manager.get("strategies.hl_perp_bp_spot.symbols.hl_symbol"),
             "BTC",
         )
 
-    def test_missing_nested_access(self):
+    def test_missing_nested_access(self) -> None:
         """Test that missing nested paths return default value"""
         self.assertEqual(
             self.config_manager.get("strategies.nonexistent.symbols.hl_symbol", "default"),
             "default",
         )
 
-    def test_reload_after_change(self):
+    def test_reload_after_change(self) -> None:
         """Test that configuration changes are detected on reload"""
         # Modify the configuration with new values
         with open(self.config_path) as f:
@@ -142,7 +142,7 @@ general:
 class TestSecureSecretsManager(unittest.TestCase):
     """Tests for the SecretsManager class with focus on security aspects"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test case with temporary secrets files"""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.secrets_path = os.path.join(self.temp_dir.name, "secrets.yaml")
@@ -180,13 +180,13 @@ exchanges:
     api_key: "home_api_key_456"
             """)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up temporary files"""
         self.temp_dir.cleanup()
         self.home_dir.cleanup()
 
     @patch("pathlib.Path.home")
-    def test_fallback_to_home_dir(self, mock_home):
+    def test_fallback_to_home_dir(self, mock_home) -> None:
         """Test fallback to ~/.cyberdelta/secrets.yaml when env var not set"""
         # Mock the home directory to point to our temp directory
         mock_home.return_value = Path(self.home_dir.name)
@@ -211,8 +211,8 @@ exchanges:
             if original_env is not None:
                 os.environ["CYBERDELTA_SECRETS_PATH"] = original_env
 
-    def test_env_variable_override(self):
-        """Test that environment variable overrides default paths"""
+    def test_env_variable_override(self) -> None:
+        """Test that environment variable overrides default secrets path"""
         with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": self.secrets_path}):
             secrets_manager = SecretsManager()
             result = secrets_manager.load_secrets()
@@ -222,8 +222,8 @@ exchanges:
                 secrets_manager.get("exchanges.hyperliquid.api_key"), "test_api_key_123"
             )
 
-    def test_nonexistent_secrets_file(self):
-        """Test behavior when secrets file doesn't exist"""
+    def test_nonexistent_secrets_file(self) -> None:
+        """Test handling of nonexistent secrets file"""
         nonexistent_path = os.path.join(self.temp_dir.name, "nonexistent.yaml")
 
         with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": nonexistent_path}):
@@ -233,8 +233,8 @@ exchanges:
             self.assertFalse(result)
             self.assertFalse(secrets_manager.secrets_loaded)
 
-    def test_deep_nested_access(self):
-        """Test accessing deeply nested secrets"""
+    def test_deep_nested_access(self) -> None:
+        """Test accessing deeply nested secrets values"""
         with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": self.secrets_path}):
             secrets_manager = SecretsManager()
             secrets_manager.load_secrets()
@@ -244,8 +244,8 @@ exchanges:
                 "test_private_key_789",
             )
 
-    def test_automatic_loading_on_get(self):
-        """Test that secrets are automatically loaded when get is called"""
+    def test_automatic_loading_on_get(self) -> None:
+        """Test that secrets are automatically loaded on get if not already loaded"""
         with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": self.secrets_path}):
             secrets_manager = SecretsManager()
             # Don't explicitly call load_secrets
@@ -257,9 +257,9 @@ exchanges:
 
 
 class TestIntegrationConfigSecrets(unittest.TestCase):
-    """Integration tests for ConfigManager and SecretsManager working together"""
+    """Tests for the integration between ConfigManager and SecretsManager"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test case with temporary config and secrets files"""
         self.temp_dir = tempfile.TemporaryDirectory()
 
@@ -299,12 +299,12 @@ exchanges:
     api_secret: "test_api_secret_abc"
             """)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up temporary files"""
         self.temp_dir.cleanup()
 
-    def test_config_secrets_integration(self):
-        """Test that config and secrets can be used together correctly"""
+    def test_config_secrets_integration(self) -> None:
+        """Test that config can reference and use secrets"""
         with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": self.secrets_path}):
             # Load both config and secrets
             config = ConfigManager(self.config_path)

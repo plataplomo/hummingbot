@@ -10,16 +10,20 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from enum import Enum, auto
-from typing import Any
+from typing import Any, Union
 
 from cyberdelta.apis.base import ExchangeAPI
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType
+from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderStatus, OrderType
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 # Configure logger
 logger = logging.getLogger(__name__)
+
+# Define a type for opportunity that can be various types
+OpportunityType = Union[ArbitrageOpportunity, dict[str, Any]]
 
 
 class VerificationStatus(Enum):
@@ -96,7 +100,7 @@ class ExecutionContext:
     def __init__(
         self,
         execution_id: str,
-        opportunity: Any,
+        opportunity: OpportunityType,
         strategy: str,
         start_time: datetime,
         status: ExecutionStatus,
@@ -286,7 +290,7 @@ class ExecutionCoordinator:
         self.executions = {}
 
     async def start_execution(
-        self, execution_id: str, opportunity: Any, strategy: str
+        self, execution_id: str, opportunity: OpportunityType, strategy: str
     ) -> ExecutionContext:
         """
         Start a new execution with verification checkpoints.
@@ -462,7 +466,7 @@ class SynchronizedOrderSubmissionService:
         self.verification_interval = config.get("execution.verification_interval", 1.0)  # seconds
 
     async def submit_orders(
-        self, opportunity, execution_strategy: str = "sequential_lock_in"
+        self, opportunity: OpportunityType, execution_strategy: str = "sequential_lock_in"
     ) -> ExecutionResult:
         """
         Submit orders with synchronized verification.
@@ -549,7 +553,7 @@ class SynchronizedOrderSubmissionService:
                 abort_details=abort_result,
             )
 
-    async def _verify_pre_execution(self, opportunity) -> dict[str, Any]:
+    async def _verify_pre_execution(self, opportunity: OpportunityType) -> dict[str, Any]:
         """Perform pre-execution verification checks."""
         results = {}
         all_success = True
@@ -577,7 +581,7 @@ class SynchronizedOrderSubmissionService:
             "details": results,
         }
 
-    async def _verify_market_conditions(self, opportunity) -> dict[str, Any]:
+    async def _verify_market_conditions(self, opportunity: OpportunityType) -> dict[str, Any]:
         """Verify market conditions (e.g., price spreads, volatility)."""
         # Placeholder implementation
         return {
@@ -587,7 +591,7 @@ class SynchronizedOrderSubmissionService:
             "details": {"spread_ok": True, "volatility_ok": True},
         }
 
-    async def _verify_balances(self, opportunity) -> dict[str, Any]:
+    async def _verify_balances(self, opportunity: OpportunityType) -> dict[str, Any]:
         """Verify sufficient balances are available on both exchanges."""
         # Placeholder implementation - needs integration with PortfolioTracker
         # and opportunity details (required sizes)
@@ -599,7 +603,7 @@ class SynchronizedOrderSubmissionService:
         }
 
     async def _execute_sequential_with_verification(
-        self, opportunity, execution_context: ExecutionContext
+        self, opportunity: OpportunityType, execution_context: ExecutionContext
     ) -> ExecutionResult:
         """
         Execute trades sequentially with lock-in and verification.
@@ -884,7 +888,7 @@ class SynchronizedOrderSubmissionService:
             logger.error(f"Error during compensation for {exchange}/{order_id}: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
-    def _prepare_order(self, opportunity: Any, leg_type: str) -> Order:
+    def _prepare_order(self, opportunity: OpportunityType, leg_type: str) -> Order:
         """Prepare an Order object for a specific leg of the opportunity."""
         # Placeholder - Needs actual implementation based on opportunity structure
         # Should return an Order object with symbol, side, type, quantity, price etc.
@@ -910,7 +914,7 @@ class SynchronizedOrderSubmissionService:
             raise ValueError(f"Invalid leg type: {leg_type}")
 
     async def _execute_simultaneous_with_verification(
-        self, opportunity: Any, execution_context: ExecutionContext
+        self, opportunity: OpportunityType, execution_context: ExecutionContext
     ) -> dict[str, Any]:
         """Execute trades simultaneously with verification (less common for arbitrage)."""
         # Placeholder implementation
@@ -924,7 +928,7 @@ class SynchronizedOrderSubmissionService:
         }
 
     async def _verify_post_execution(
-        self, opportunity: Any, execution_result: ExecutionResult
+        self, opportunity: OpportunityType, execution_result: ExecutionResult
     ) -> dict[str, Any]:
         """Perform comprehensive post-execution verification."""
         results = {}
@@ -965,7 +969,7 @@ class SynchronizedOrderSubmissionService:
         }
 
     async def _verify_positions(
-        self, opportunity: Any, execution_result: ExecutionResult
+        self, opportunity: OpportunityType, execution_result: ExecutionResult
     ) -> dict[str, Any]:
         """
         Verify positions after execution.
@@ -982,7 +986,7 @@ class SynchronizedOrderSubmissionService:
         return {"checked": True}
 
     async def _verify_fills(
-        self, opportunity: Any, execution_result: ExecutionResult
+        self, opportunity: OpportunityType, execution_result: ExecutionResult
     ) -> dict[str, Any]:
         """
         Verify fills match expected quantities.
@@ -999,7 +1003,7 @@ class SynchronizedOrderSubmissionService:
         return {"checked": True}
 
     async def _verify_orders(
-        self, opportunity: Any, execution_result: ExecutionResult
+        self, opportunity: OpportunityType, execution_result: ExecutionResult
     ) -> dict[str, Any]:
         """
         Verify no unexpected orders were created.
@@ -1017,7 +1021,7 @@ class SynchronizedOrderSubmissionService:
 
     async def _compensate_verification_failure(
         self,
-        opportunity: Any,
+        opportunity: OpportunityType,
         execution_result: ExecutionResult,
         verification_result: dict[str, Any],
     ) -> dict[str, Any]:
@@ -1036,7 +1040,7 @@ class SynchronizedOrderSubmissionService:
         # Actual implementation would compensate for verification failures
         return {"compensated": True}
 
-    def _generate_execution_id(self, opportunity: Any) -> str:
+    def _generate_execution_id(self, opportunity: OpportunityType) -> str:
         """
         Generate a unique execution ID.
 

@@ -22,7 +22,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 class TestConfigExample(unittest.TestCase):
     """Tests for the config_example.py script"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test environment"""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.example_script = os.path.join(
@@ -37,11 +37,11 @@ class TestConfigExample(unittest.TestCase):
             f"Example script not found at {self.example_script}",
         )
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up temporary files"""
         self.temp_dir.cleanup()
 
-    def test_create_example(self):
+    def test_create_example(self) -> None:
         """Test that the script creates example files"""
         # Create a temporary directory for the config files
         config_dir = os.path.join(self.temp_dir.name, "config")
@@ -90,7 +90,7 @@ class TestConfigExample(unittest.TestCase):
                 "No example files were created in any of the expected locations",
             )
 
-    def test_benchmark(self):
+    def test_benchmark(self) -> None:
         """Test that the benchmark function runs"""
         # Create temporary config and secrets files
         config_path = os.path.join(self.temp_dir.name, "config.yaml")
@@ -152,7 +152,7 @@ exchanges:
         # Check that the script executed successfully
         self.assertEqual(exit_code, 0, f"Benchmark failed with exit code {exit_code}")
 
-    def test_display_config(self):
+    def test_display_config(self) -> None:
         """Test that the script displays configuration correctly"""
         # Create temporary config and secrets files
         config_path = os.path.join(self.temp_dir.name, "config.yaml")

@@ -71,7 +71,7 @@ class BalanceMonitor:
         # Load exchange-specific requirements
         self._load_exchange_requirements()
 
-    def _load_exchange_requirements(self):
+    def _load_exchange_requirements(self) -> None:
         """Load exchange-specific balance requirements from config."""
         for exchange_id in self.config.get("exchanges", {}).keys():
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
