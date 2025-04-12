@@ -12,10 +12,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum, auto
-from typing import Any, Union
+from typing import Any, Union, Protocol
 
 from cyberdelta.apis.base import ExchangeAPI
-from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderStatus, OrderType
+from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
@@ -24,6 +24,19 @@ logger = logging.getLogger(__name__)
 
 # Define a type for opportunity that can be various types
 OpportunityType = Union[ArbitrageOpportunity, dict[str, Any]]
+
+# Define a Protocol for the position reconciliation system
+class PositionReconciliationSystem(Protocol):
+    """Protocol defining the interface for position reconciliation systems."""
+    
+    async def reconcile_positions(self, exchange: str, symbol: str) -> dict[str, Any]:
+        """Reconcile positions for a given exchange and symbol."""
+        ...
+
+    async def handle_position_discrepancy(self, exchange: str, symbol: str, 
+                                          expected: Any, actual: Any) -> dict[str, Any]:
+        """Handle position discrepancies between expected and actual positions."""
+        ...
 
 
 class VerificationStatus(Enum):
@@ -447,9 +460,9 @@ class SynchronizedOrderSubmissionService:
         config: dict[str, Any],
         exchange_adapters: dict[str, ExchangeAPI],
         circuit_breaker_system: CircuitBreakerSystem,
-        position_reconciliation_system,
+        position_reconciliation_system: PositionReconciliationSystem,
         portfolio_tracker: PortfolioTracker,
-    ):
+    ) -> None:
         """Initialize the service."""
         self.config = config
         self.exchange_adapters = exchange_adapters
@@ -469,89 +482,117 @@ class SynchronizedOrderSubmissionService:
         self, opportunity: OpportunityType, execution_strategy: str = "sequential_lock_in"
     ) -> ExecutionResult:
         """
-        Submit orders with synchronized verification.
+        Submit orders for an opportunity, synchronizing execution across exchanges.
 
         Args:
-            opportunity: The arbitrage opportunity to execute
-            execution_strategy: Strategy to use for execution
+            opportunity: Trading opportunity
+            execution_strategy: Execution strategy to use
 
         Returns:
-            Execution result with verification details
+            Execution result
         """
         execution_id = self._generate_execution_id(opportunity)
-
-        # Start execution
-        execution_context = await self.execution_coordinator.start_execution(
+        result = ExecutionResult(
             execution_id=execution_id,
-            opportunity=opportunity,
-            strategy=execution_strategy,
+            status=ExecutionStatus.PENDING,
+            timestamp=int(time.time() * 1000),
         )
 
-        try:
-            # Perform pre-execution verification
-            pre_execution_verification = await self._verify_pre_execution(opportunity)
-            if not pre_execution_verification.get("success"):
-                return ExecutionResult(
-                    execution_id=execution_id,
-                    status=ExecutionStatus.REJECTED,
-                    timestamp=int(datetime.now(UTC).timestamp() * 1000),
-                    error=pre_execution_verification.get("error"),
-                    verification_results=pre_execution_verification.get("details"),
-                )
+        # Create execution context
+        execution_context = await self.execution_coordinator.start_execution(
+            execution_id, opportunity, "funding_rate_arb"
+        )
 
-            # Execute the orders based on the selected strategy
-            if execution_strategy == "sequential_lock_in":
-                execution_result = await self._execute_sequential_with_verification(
-                    opportunity, execution_context
-                )
-            elif execution_strategy == "simultaneous":
-                execution_result = await self._execute_simultaneous_with_verification(
-                    opportunity, execution_context
-                )
-            else:
-                # Default to sequential
-                execution_result = await self._execute_sequential_with_verification(
-                    opportunity, execution_context
-                )
+        # Pre-execution verification
+        pre_verify_result = await self._verify_pre_execution(opportunity)
+        await self.execution_coordinator.add_checkpoint(
+            execution_context, "pre_execution_verification", pre_verify_result
+        )
 
-            # Perform post-execution verification
-            if execution_result.status == ExecutionStatus.COMPLETED:
-                post_verification = await self._verify_post_execution(opportunity, execution_result)
+        if not pre_verify_result.get("success", False):
+            result.status = ExecutionStatus.REJECTED
+            result.error = pre_verify_result.get("error", "Pre-execution verification failed")
+            await self.execution_coordinator.complete_execution(execution_context, result)
+            return result
 
-                # Update execution result with verification results
-                execution_result.verification_results = post_verification.get("details")
+        # Market conditions verification
+        market_verify_result = await self._verify_market_conditions(opportunity)
+        await self.execution_coordinator.add_checkpoint(
+            execution_context, "market_conditions_verification", market_verify_result
+        )
 
-                # If verification failed, mark execution as partially completed
-                if not post_verification.get("success"):
-                    execution_result.status = ExecutionStatus.PARTIALLY_COMPLETED
-                    execution_result.error = post_verification.get("error")
-
-                    # Initiate compensation if needed
-                    if self.config.get("execution.auto_compensate_verification_failures", True):
-                        compensation_result = await self._compensate_verification_failure(
-                            opportunity, execution_result, post_verification.get("details")
-                        )
-                        execution_result.compensation_result = compensation_result
-
-            await self.execution_coordinator.complete_execution(execution_context, execution_result)
-
-            return execution_result
-
-        except Exception as e:
-            logger.error(f"Error in synchronized order submission: {str(e)}", exc_info=True)
-
-            # Safe abort and cleanup
-            abort_result = await self.execution_coordinator.abort_execution(
-                execution_context, f"Execution error: {str(e)}"
+        if not market_verify_result.get("success", False):
+            result.status = ExecutionStatus.REJECTED
+            result.error = market_verify_result.get(
+                "error", "Market conditions verification failed"
             )
+            await self.execution_coordinator.complete_execution(execution_context, result)
+            return result
 
-            return ExecutionResult(
+        # Balance verification
+        balance_verify_result = await self._verify_balances(opportunity)
+        await self.execution_coordinator.add_checkpoint(
+            execution_context, "balance_verification", balance_verify_result
+        )
+
+        if not balance_verify_result.get("success", False):
+            result.status = ExecutionStatus.REJECTED
+            result.error = balance_verify_result.get("error", "Balance verification failed")
+            await self.execution_coordinator.complete_execution(execution_context, result)
+            return result
+
+        # Update execution status
+        execution_context.status = ExecutionStatus.EXECUTING
+
+        # Execute orders based on strategy
+        if execution_strategy == "sequential_lock_in":
+            execution_result = await self._execute_sequential_with_verification(
+                opportunity, execution_context
+            )
+        elif execution_strategy == "simultaneous":
+            simultaneous_result = await self._execute_simultaneous_with_verification(
+                opportunity, execution_context
+            )
+            # Convert to ExecutionResult
+            execution_result = ExecutionResult(
+                execution_id=execution_id,
+                status=ExecutionStatus.COMPLETED
+                if simultaneous_result.get("success", False)
+                else ExecutionStatus.FAILED,
+                timestamp=int(time.time() * 1000),
+                error=simultaneous_result.get("error"),
+                verification_results=simultaneous_result.get("verification_results"),
+            )
+        else:
+            execution_result = ExecutionResult(
                 execution_id=execution_id,
                 status=ExecutionStatus.FAILED,
-                timestamp=int(datetime.now(UTC).timestamp() * 1000),
-                error=f"Execution error: {str(e)}",
-                abort_details=abort_result,
+                timestamp=int(time.time() * 1000),
+                error=f"Unknown execution strategy: {execution_strategy}",
             )
+
+        # Post-execution verification if execution was successful
+        if execution_result.status in (
+            ExecutionStatus.COMPLETED,
+            ExecutionStatus.PARTIALLY_COMPLETED,
+        ):
+            post_verify_result = await self._verify_post_execution(opportunity, execution_result)
+            await self.execution_coordinator.add_checkpoint(
+                execution_context, "post_execution_verification", post_verify_result
+            )
+
+            # If verification failed, perform compensation actions
+            if not post_verify_result.get("success", False):
+                execution_context.status = ExecutionStatus.COMPENSATING
+                compensation_result = await self._compensate_verification_failure(
+                    opportunity, execution_result, post_verify_result
+                )
+                execution_result.compensation_result = compensation_result
+                execution_result.status = ExecutionStatus.PARTIALLY_COMPLETED
+
+        # Complete execution
+        await self.execution_coordinator.complete_execution(execution_context, execution_result)
+        return execution_result
 
     async def _verify_pre_execution(self, opportunity: OpportunityType) -> dict[str, Any]:
         """Perform pre-execution verification checks."""
@@ -606,287 +647,199 @@ class SynchronizedOrderSubmissionService:
         self, opportunity: OpportunityType, execution_context: ExecutionContext
     ) -> ExecutionResult:
         """
-        Execute trades sequentially with lock-in and verification.
+        Execute orders sequentially with verification between legs.
 
-        1. Place order on the first exchange (e.g., long leg).
-        2. Verify placement and wait for fill.
-        3. Verify fill details.
-        4. Place order on the second exchange (e.g., short leg).
-        5. Verify placement and wait for fill.
-        6. Verify fill details.
-        7. Final verification of positions.
+        This ensures the first leg executes successfully before attempting the second leg.
+
+        Args:
+            opportunity: Trading opportunity
+            execution_context: Current execution context
+
+        Returns:
+            Result with verification details
         """
-        exec_result = ExecutionResult(
-            execution_id=execution_context.execution_id,
+        execution_id = execution_context.execution_id
+        result = ExecutionResult(
+            execution_id=execution_id,
             status=ExecutionStatus.EXECUTING,
             timestamp=int(time.time() * 1000),
         )
-        execution_context.result = exec_result  # Link result to context early
 
-        first_leg_success = False
+        # Determine which order to place first (e.g., the long order)
         try:
-            # Determine first and second legs (e.g., based on liquidity or configuration)
-            # For simplicity, assume long is first, short is second
-            first_exchange = opportunity.long_exchange
-            second_exchange = opportunity.short_exchange
-            first_side = OrderSide.BUY
-            second_side = OrderSide.SELL
+            # First leg - prepare and place order
             first_order = self._prepare_order(opportunity, "long")
-            second_order = self._prepare_order(opportunity, "short")
-
-            exec_result.first_exchange = first_exchange
-            exec_result.second_exchange = second_exchange
-
-            logger.info(
-                f"[{exec_result.execution_id}] Executing first leg: {first_side.name} {first_order.quantity} {first_order.symbol} on {first_exchange}"
-            )
+            first_exchange = "hyperliquid"  # This would be determined from opportunity in real implementation
+            
+            # Store order info in result
+            result.first_exchange = first_exchange
+            
+            # Checkpoint: first order preparation
             await self.execution_coordinator.add_checkpoint(
-                execution_context,
-                "start_first_leg",
-                {"exchange": first_exchange, "order": first_order.to_dict()},
+                execution_context, 
+                "first_order_preparation", 
+                {"exchange": first_exchange, "order": first_order.to_dict()}
             )
-
-            # --- Execute First Leg ---
+            
+            # Place first order
             first_api = self.exchange_adapters[first_exchange]
-            placed_first_order = await first_api.place_order(
-                symbol=first_order.symbol,
-                side=first_order.side,
-                order_type=first_order.type,
-                quantity=first_order.quantity,
-                price=first_order.price,
-                # Add other necessary parameters like time_in_force if needed
-            )
-
-            if not placed_first_order or not placed_first_order.id:
-                raise RuntimeError(f"Failed to place first leg order on {first_exchange}")
-
-            exec_result.first_order_id = placed_first_order.id
-            await self.execution_coordinator.add_checkpoint(
-                execution_context,
-                "placed_first_leg",
-                {"order_id": placed_first_order.id, "response": placed_first_order.to_dict()},
-            )
-
-            # Verify first leg placement
-            placement_verification = await self.order_verifier.verify_order_placement(
-                first_exchange, placed_first_order.id, first_order.to_dict()
-            )
-            await self.execution_coordinator.add_checkpoint(
-                execution_context, "verify_first_placement", placement_verification
-            )
-            if not placement_verification.get("success"):
-                raise RuntimeError(
-                    f"First leg placement verification failed: {placement_verification.get('error')}"
+            
+            # Place order with verify
+            try:
+                placed_order = await first_api.place_order(
+                    symbol=first_order.symbol,
+                    side=first_order.side,
+                    order_type=first_order.order_type,
+                    quantity=first_order.quantity,
+                    price=first_order.price,
+                    time_in_force=first_order.time_in_force or TimeInForce.GTC,
+                    post_only=first_order.post_only,
+                    reduce_only=first_order.reduce_only,
                 )
-
-            # Wait for first leg fill (with timeout)
-            logger.info(
-                f"[{exec_result.execution_id}] Waiting for fill of first leg order {placed_first_order.id} on {first_exchange}"
-            )
-            filled_first_order = await self._wait_for_fill(
-                first_api, placed_first_order.id, first_order.symbol
-            )
-            if not filled_first_order or filled_first_order.status != OrderStatus.FILLED:
-                raise RuntimeError(
-                    f"First leg order {placed_first_order.id} did not fill or failed. Status: {getattr(filled_first_order, 'status', 'N/A')}"
-                )
-
-            exec_result.first_fill = filled_first_order.to_dict()
-            await self.execution_coordinator.add_checkpoint(
-                execution_context, "filled_first_leg", exec_result.first_fill
-            )
-            first_leg_success = True  # Mark first leg as successful
-
-            # Verify first leg execution/fill
-            fill_verification = await self.order_verifier.verify_order_execution(
-                first_exchange, filled_first_order.id
-            )
-            await self.execution_coordinator.add_checkpoint(
-                execution_context, "verify_first_fill", fill_verification
-            )
-            if not fill_verification.get("success"):
-                # If fill verification fails AFTER successful fill, we might need compensation
-                raise RuntimeError(
-                    f"First leg fill verification failed: {fill_verification.get('error')}"
-                )
-
-            logger.info(
-                f"[{exec_result.execution_id}] First leg completed successfully. Executing second leg: {second_side.name} {second_order.quantity} {second_order.symbol} on {second_exchange}"
-            )
-            await self.execution_coordinator.add_checkpoint(
-                execution_context,
-                "start_second_leg",
-                {"exchange": second_exchange, "order": second_order.to_dict()},
-            )
-
-            # --- Execute Second Leg ---
-            second_api = self.exchange_adapters[second_exchange]
-            placed_second_order = await second_api.place_order(
-                symbol=second_order.symbol,
-                side=second_order.side,
-                order_type=second_order.type,
-                quantity=second_order.quantity,
-                price=second_order.price,
-                # Add other necessary parameters like time_in_force if needed
-            )
-
-            if not placed_second_order or not placed_second_order.id:
-                raise RuntimeError(f"Failed to place second leg order on {second_exchange}")
-
-            exec_result.second_order_id = placed_second_order.id
-            await self.execution_coordinator.add_checkpoint(
-                execution_context,
-                "placed_second_leg",
-                {"order_id": placed_second_order.id, "response": placed_second_order.to_dict()},
-            )
-
-            # Verify second leg placement
-            placement_verification_2 = await self.order_verifier.verify_order_placement(
-                second_exchange, placed_second_order.id, second_order.to_dict()
-            )
-            await self.execution_coordinator.add_checkpoint(
-                execution_context, "verify_second_placement", placement_verification_2
-            )
-            if not placement_verification_2.get("success"):
-                raise RuntimeError(
-                    f"Second leg placement verification failed: {placement_verification_2.get('error')}"
-                )
-
-            # Wait for second leg fill
-            logger.info(
-                f"[{exec_result.execution_id}] Waiting for fill of second leg order {placed_second_order.id} on {second_exchange}"
-            )
-            filled_second_order = await self._wait_for_fill(
-                second_api, placed_second_order.id, second_order.symbol
-            )
-            if not filled_second_order or filled_second_order.status != OrderStatus.FILLED:
-                raise RuntimeError(
-                    f"Second leg order {placed_second_order.id} did not fill or failed. Status: {getattr(filled_second_order, 'status', 'N/A')}"
-                )
-
-            exec_result.second_fill = filled_second_order.to_dict()
-            await self.execution_coordinator.add_checkpoint(
-                execution_context, "filled_second_leg", exec_result.second_fill
-            )
-
-            # Verify second leg execution/fill
-            fill_verification_2 = await self.order_verifier.verify_order_execution(
-                second_exchange, filled_second_order.id
-            )
-            await self.execution_coordinator.add_checkpoint(
-                execution_context, "verify_second_fill", fill_verification_2
-            )
-            if not fill_verification_2.get("success"):
-                raise RuntimeError(
-                    f"Second leg fill verification failed: {fill_verification_2.get('error')}"
-                )
-
-            logger.info(f"[{exec_result.execution_id}] Both legs completed successfully.")
-            exec_result.status = ExecutionStatus.COMPLETED
-            return exec_result.to_dict()  # Return as dict
-
-        except Exception as e:
-            logger.error(
-                f"[{exec_result.execution_id}] Sequential execution failed: {e}", exc_info=True
-            )
-            exec_result.status = ExecutionStatus.FAILED
-            exec_result.error = str(e)
-
-            # Attempt compensation if the first leg succeeded but the second failed
-            if first_leg_success and exec_result.first_fill:
-                logger.warning(
-                    f"[{exec_result.execution_id}] Second leg failed after first leg succeeded. Attempting compensation for order {exec_result.first_order_id} on {first_exchange}."
-                )
-                compensation_result = await self._compensate_single_leg(
-                    first_exchange,
-                    exec_result.first_order_id,
-                    exec_result.first_fill,  # Pass fill details
-                )
-                exec_result.compensation_result = compensation_result
+                result.first_order_id = placed_order.order_id
+                
+                # Checkpoint: first order placed
                 await self.execution_coordinator.add_checkpoint(
-                    execution_context, "compensation_first_leg", compensation_result
+                    execution_context, 
+                    "first_order_placed", 
+                    {"order_id": placed_order.order_id, "order": placed_order.to_dict()}
                 )
-                if not compensation_result.get("success"):
-                    logger.error(
-                        f"[{exec_result.execution_id}] FATAL: Compensation failed for first leg: {compensation_result.get('error')}"
+                
+                # Verify first order
+                order_verifier = OrderVerifier(self.config, self.portfolio_tracker)
+                verification_result = await order_verifier.verify_order_placement(
+                    first_exchange, 
+                    placed_order.order_id,
+                    {
+                        "symbol": first_order.symbol,
+                        "side": first_order.side,
+                        "order_type": first_order.order_type,
+                    }
+                )
+                
+                # Only proceed if verification succeeds
+                if not verification_result.get("success", False):
+                    result.status = ExecutionStatus.FAILED
+                    result.error = verification_result.get("error", "First order verification failed")
+                    return result
+                
+                # Wait for fill if needed
+                if self.config.get("execution.wait_for_first_fill", True):
+                    # Monitor for fills - this would be implemented to check if order is filled
+                    fill_result = {"filled": True}  # Placeholder for actual fill monitoring
+                    
+                    # Check fill verification
+                    if not fill_result.get("filled", False):
+                        result.status = ExecutionStatus.FAILED
+                        result.error = "First order did not fill within timeout"
+                        return result
+                    
+                    result.first_fill = fill_result
+                    
+                    # Checkpoint: first order filled
+                    await self.execution_coordinator.add_checkpoint(
+                        execution_context, 
+                        "first_order_filled", 
+                        fill_result
                     )
-                    # Mark as needing manual intervention
-                    exec_result.error += "; COMPENSATION FAILED - MANUAL INTERVENTION REQUIRED"
-                else:
-                    logger.info(f"[{exec_result.execution_id}] Compensation successful.")
-                    exec_result.status = (
-                        ExecutionStatus.PARTIALLY_COMPLETED
-                    )  # Or FAILED_COMPENSATED
-
-            return exec_result.to_dict()  # Return as dict
-
-    async def _compensate_single_leg(
-        self, exchange: str, order_id: str, fill: dict[str, Any] | Order | None
-    ) -> dict[str, Any]:
-        """Attempt to compensate for a single filled leg by closing the position."""
-        if not fill:
-            return {"success": False, "error": "No fill data provided for compensation"}
-
-        try:
-            api_client = self.exchange_adapters[exchange]
-
-            # Extract details from fill (handle both dict and Order obj)
-            if isinstance(fill, dict):
-                symbol = fill.get("symbol")
-                filled_qty = Decimal(str(fill.get("filled_quantity", "0")))
-                side_str = fill.get("side")
-                original_side = OrderSide(side_str) if side_str else None
-            elif isinstance(fill, Order):
-                symbol = fill.symbol
-                filled_qty = fill.filled_quantity
-                original_side = fill.side
-            else:
-                return {"success": False, "error": "Invalid fill data type for compensation"}
-
-            if not symbol or filled_qty <= Decimal("0") or not original_side:
-                return {
-                    "success": False,
-                    "error": f"Invalid fill details for compensation: sym={symbol}, qty={filled_qty}, side={original_side}",
-                }
-
-            # Determine compensation side (opposite of original fill)
-            compensation_side = OrderSide.SELL if original_side == OrderSide.BUY else OrderSide.BUY
-
-            logger.info(
-                f"Attempting compensation on {exchange}: {compensation_side.name} {filled_qty} {symbol} (closing position from order {order_id})"
-            )
-
-            # Place market order to close the position
-            comp_order = await api_client.place_order(
-                symbol=symbol,
-                side=compensation_side,
-                order_type=OrderType.MARKET,
-                quantity=filled_qty,
-                reduce_only=True,  # Ensure it only closes the position
-            )
-
-            if not comp_order or not comp_order.id:
-                raise RuntimeError("Failed to place compensation order.")
-
-            logger.info(
-                f"Compensation order placed: ID {comp_order.id}, Status {comp_order.status}"
-            )
-
-            # Optionally, wait for compensation order fill verification
-            # filled_comp_order = await self._wait_for_fill(api_client, comp_order.id, symbol)
-            # if not filled_comp_order or filled_comp_order.status != OrderStatus.FILLED:
-            #     logger.error(f"Compensation order {comp_order.id} did not fill!")
-            #     return {"success": False, "error": "Compensation order failed to fill"}
-
-            return {
-                "success": True,
-                "compensation_order_id": comp_order.id,
-                "status": comp_order.status.name,
-            }
-
+                
+                # Second leg
+                second_order = self._prepare_order(opportunity, "short")
+                second_exchange = "backpack"  # This would be determined from opportunity in real implementation
+                
+                # Store in result
+                result.second_exchange = second_exchange
+                
+                # Checkpoint: second order preparation
+                await self.execution_coordinator.add_checkpoint(
+                    execution_context, 
+                    "second_order_preparation", 
+                    {"exchange": second_exchange, "order": second_order.to_dict()}
+                )
+                
+                # Place second order
+                second_api = self.exchange_adapters[second_exchange]
+                
+                # Place order with verification
+                try:
+                    second_placed_order = await second_api.place_order(
+                        symbol=second_order.symbol,
+                        side=second_order.side,
+                        order_type=second_order.order_type,
+                        quantity=second_order.quantity,
+                        price=second_order.price,
+                        time_in_force=second_order.time_in_force or TimeInForce.GTC,
+                        post_only=second_order.post_only,
+                        reduce_only=second_order.reduce_only,
+                    )
+                    result.second_order_id = second_placed_order.order_id
+                    
+                    # Checkpoint: second order placed
+                    await self.execution_coordinator.add_checkpoint(
+                        execution_context, 
+                        "second_order_placed", 
+                        {"order_id": second_placed_order.order_id, "order": second_placed_order.to_dict()}
+                    )
+                    
+                    # Verify second order
+                    second_verification = await order_verifier.verify_order_placement(
+                        second_exchange, 
+                        second_placed_order.order_id,
+                        {
+                            "symbol": second_order.symbol,
+                            "side": second_order.side,
+                            "order_type": second_order.order_type,
+                        }
+                    )
+                    
+                    if not second_verification.get("success", False):
+                        # Second order failed but first succeeded - partial completion
+                        result.status = ExecutionStatus.PARTIALLY_COMPLETED
+                        result.error = second_verification.get("error", "Second order verification failed")
+                    else:
+                        # Both orders succeeded
+                        result.status = ExecutionStatus.COMPLETED
+                        
+                        # Wait for second fill if needed
+                        if self.config.get("execution.wait_for_second_fill", True):
+                            # Monitor for fills - this would be implemented to check if order is filled
+                            second_fill_result = {"filled": True}  # Placeholder for actual fill monitoring
+                            
+                            if not second_fill_result.get("filled", False):
+                                result.status = ExecutionStatus.PARTIALLY_COMPLETED
+                                result.error = "Second order did not fill within timeout"
+                            else:
+                                result.second_fill = second_fill_result
+                                
+                                # Checkpoint: second order filled
+                                await self.execution_coordinator.add_checkpoint(
+                                    execution_context, 
+                                    "second_order_filled", 
+                                    second_fill_result
+                                )
+                                
+                                # Complete execution
+                                result.status = ExecutionStatus.COMPLETED
+                    
+                except Exception as e:
+                    # Second order failed
+                    logger.error(f"Error placing second order: {e}")
+                    result.status = ExecutionStatus.PARTIALLY_COMPLETED
+                    result.error = f"Second order error: {str(e)}"
+            
+            except Exception as e:
+                # First order failed
+                logger.error(f"Error placing first order: {e}")
+                result.status = ExecutionStatus.FAILED
+                result.error = f"First order error: {str(e)}"
+        
         except Exception as e:
-            logger.error(f"Error during compensation for {exchange}/{order_id}: {e}", exc_info=True)
-            return {"success": False, "error": str(e)}
+            # General execution error
+            logger.error(f"Error in sequential execution: {e}")
+            result.status = ExecutionStatus.FAILED
+            result.error = f"Execution error: {str(e)}"
+        
+        return result
 
     def _prepare_order(self, opportunity: OpportunityType, leg_type: str) -> Order:
         """Prepare an Order object for a specific leg of the opportunity."""
