@@ -719,3 +719,24 @@ class PrioritySignalQueue:
             self.logger.error(f"Error checking circuit breakers: {e}")
             # Fail safe on error
             return False
+
+    def get_next_signals(self, max_count: int = 1) -> list[TradeSignal]:
+        """
+        Get multiple highest priority unexpired signals and remove them from the queue.
+
+        Args:
+            max_count: Maximum number of signals to return
+
+        Returns:
+            List of valid trade signals in priority order
+        """
+        result: list[TradeSignal] = []
+        
+        # Clean expired signals before processing
+        self._clean_expired_signals()
+        
+        while self.signal_queue and len(result) < max_count:
+            signal = self.get_next_signal()
+            if signal is not None:
+                result.append(signal)
+                

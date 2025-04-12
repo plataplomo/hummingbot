@@ -3,15 +3,17 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional, Dict, List, Set, Tuple, Union, cast, TypeVar, Callable, Coroutine
+import random
+from zoneinfo import ZoneInfo
 
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 
 # Import models needed at runtime directly
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, Ticker, Trade
+from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, Ticker, Trade, TimeInForce
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbol_mapper import SymbolMapper
@@ -393,8 +395,8 @@ class ExecutionHandler:
                 "side": OrderSide.BUY,
                 "order_type": order_type_to_use,
                 "quantity": long_quantity,
+                "time_in_force": None,  # Default to None for MARKET orders
                 "price": None,  # Set if LIMIT order
-                # Add other params like time_in_force if needed
             }
             short_order_params = {
                 "client": short_client,
@@ -403,8 +405,8 @@ class ExecutionHandler:
                 "side": OrderSide.SELL,
                 "order_type": order_type_to_use,
                 "quantity": short_quantity,
+                "time_in_force": None,  # Default to None for MARKET orders
                 "price": None,  # Set if LIMIT order
-                # Add other params like time_in_force if needed
             }
 
             # Placeholder for placed order objects
@@ -631,152 +633,188 @@ class ExecutionHandler:
         self,
         client: ExchangeAPI,
         exchange_id: str,
-        symbol: str,  # THIS SHOULD BE THE EXCHANGE-SPECIFIC SYMBOL
+        symbol: str,
         side: OrderSide,
         order_type: OrderType,
         quantity: Decimal,
-        price: Decimal | None = None,
-        time_in_force: str = "GTC",
-        retry_count: int = 0,
+        price: Optional[Decimal] = None,
+        time_in_force: Optional[TimeInForce] = None,
+        retry_delay: float = 0.5,
+        max_retries: int = 3,
         reduce_only: bool = False,
-    ) -> Order | None:
+    ) -> Order:
         """
-        Place an order with retry logic.
-        Assumes 'symbol' is the correct exchange-specific symbol.
+        Place an order with retry logic to handle transient failures.
+        
         Args:
-            client: ExchangeAPI client
+            client: Exchange API client
             exchange_id: Exchange identifier
-            symbol: The exchange-specific trading symbol.
-            side: BUY or SELL
-            order_type: LIMIT or MARKET
+            symbol: Market symbol
+            side: Order side (BUY/SELL)
+            order_type: Order type (MARKET/LIMIT)
             quantity: Order quantity
-            price: Order price (for LIMIT orders)
-            time_in_force: Time-in-force for the order
-            retry_count: Current retry attempt count
-            reduce_only: Whether the order is a reduce-only order
-
+            price: Order price (required for LIMIT orders)
+            time_in_force: Time In Force instruction for the order
+            retry_delay: Delay between retries in seconds
+            max_retries: Maximum number of retry attempts
+            reduce_only: Whether the order should only reduce position size
+            
         Returns:
-            The placed order object if successful, None otherwise.
+            Order object with details of the placed order, or with status failed if placement unsuccessful
         """
-        error: Exception | None = None
-        for attempt in range(self.max_retries):
+        order: Optional[Order] = None
+        retries = 0
+        
+        # Ensure quantity is Decimal
+        if not isinstance(quantity, Decimal):
             try:
-                # Calculate retry delay with exponential backoff
-                if attempt > 0:
-                    delay = self.retry_delay_base * (2 ** (attempt - 1))
-                    logger.info(
-                        f"Retrying order placement (attempt {attempt + 1}/{self.max_retries}) "
-                        f"after {delay:.1f}s"
-                    )
-                    await asyncio.sleep(delay)
-
-                # Place the order using the provided exchange-specific symbol
-                logger.debug(
-                    f"Placing order attempt {attempt + 1}: {exchange_id} {symbol} {side.name} {quantity} {order_type.name} ..."
+                quantity = Decimal(str(quantity))
+            except (InvalidOperation, TypeError, ValueError) as e:
+                self.logger.error(f"Invalid quantity provided: {quantity} - {e}")
+                failed_order = Order(
+                    id=str(uuid.uuid4()),
+                    exchange_id=exchange_id,
+                    symbol=symbol,
+                    side=side,
+                    order_type=order_type,
+                    quantity=Decimal("0"),  # Use zero as placeholder
+                    price=price,
+                    status=OrderStatus.FAILED,
+                    timestamp=datetime.now(UTC),
+                    error_message=f"Invalid quantity: {quantity}"
                 )
-                order = await client.place_order(
-                    symbol=symbol,  # Pass the exchange-specific symbol directly
+                return failed_order
+                
+        # Ensure price is Decimal if provided
+        if price is not None and not isinstance(price, Decimal):
+            try:
+                price = Decimal(str(price))
+            except (InvalidOperation, TypeError, ValueError) as e:
+                self.logger.error(f"Invalid price provided: {price} - {e}")
+                failed_order = Order(
+                    id=str(uuid.uuid4()),
+                    exchange_id=exchange_id,
+                    symbol=symbol,
+                    side=side,
+                    order_type=order_type,
+                    quantity=quantity,
+                    price=None,
+                    status=OrderStatus.FAILED,
+                    timestamp=datetime.now(UTC),
+                    error_message=f"Invalid price: {price}"
+                )
+                return failed_order
+        
+        while retries <= max_retries:
+            try:
+                order_id = await client.place_order(
+                    symbol=symbol,
+                    side=side,
+                    order_type=order_type,
+                    quantity=quantity,
+                    time_in_force=time_in_force,
+                    price=price,
+                    reduce_only=reduce_only,
+                )
+                
+                order = Order(
+                    id=order_id,
+                    exchange_id=exchange_id,
+                    symbol=symbol,
                     side=side,
                     order_type=order_type,
                     quantity=quantity,
                     price=price,
-                    time_in_force=time_in_force,
-                    reduce_only=reduce_only,
+                    status=OrderStatus.NEW,
+                    timestamp=datetime.now(UTC),
                 )
-
-                if order:
-                    logger.info(
-                        f"Order placed successfully on {exchange_id}: ID {order.id}, Symbol {symbol}, Status {order.status.name}"
-                    )
-                    # Update portfolio tracker order state
-                    self.portfolio_tracker.update_order(exchange_id, order)
-
-                    # --- ADDED: Update position based on fill ---
-                    if order.status in (
-                        OrderStatus.FILLED,
-                        OrderStatus.PARTIALLY_FILLED,
-                    ) and order.filled_quantity > Decimal("0"):
-                        try:
-                            # Construct Trade object (ensure necessary fields are present in Order)
-                            trade = Trade(
-                                id=f"trade_{order.id}_{int(time.time() * 1000)}",  # Generate unique trade ID
-                                order_id=order.id,
-                                exchange=exchange_id,
-                                symbol=self.symbol_mapper.get_internal_symbol(symbol, exchange_id)
-                                or symbol,  # Map back to internal symbol
-                                side=order.side,
-                                quantity=order.filled_quantity,
-                                price=order.avg_fill_price
-                                or order.price
-                                or Decimal("0"),  # Use avg_fill_price first
-                                # Fee calculation might need refinement depending on Order model details
-                                fee=order.fee
-                                if hasattr(order, "fee") and order.fee is not None
-                                else Decimal("0"),
-                                fee_asset=order.fee_asset if hasattr(order, "fee_asset") else None,
-                                timestamp=order.time,  # Use order time
-                            )
-                            self.portfolio_tracker.process_trade(exchange_id, trade)
-                            logger.info(
-                                f"PortfolioTracker updated for trade from order {order.id} on {exchange_id}"
-                            )
-                        except Exception as trade_proc_err:
-                            logger.error(
-                                f"Error processing trade for order {order.id} in PortfolioTracker: {trade_proc_err}",
-                                exc_info=True,
-                            )
-                            # Decide if this error should propagate or just be logged
-                    # --- END ADDED ---
-                    return order
-                else:
-                    # Should not happen if place_order adheres to return type hint, but handle defensively
-                    logger.warning(
-                        f"place_order returned None for {exchange_id}/{symbol} attempt {attempt + 1}"
-                    )
-                    # Treat as failure for retry logic
-                    raise APIError(
-                        "place_order returned None unexpectedly",
-                        code=APIErrorCode.UNKNOWN,
-                        exchange_code=exchange_id,
-                    )
-
+                
+                self.logger.info(
+                    f"Order placed: {order_id} on {exchange_id} for {symbol}, {side.name}, {quantity}"
+                )
+                
+                # Record the order
+                return order
+                
             except APIError as e:
-                logger.warning(
-                    f"API Error placing order on {exchange_id} (Attempt {attempt + 1}/{self.max_retries}): {e}"
+                retries += 1
+                self.logger.warning(
+                    f"API error placing order on {exchange_id} for {symbol}, {side.name}, {quantity}: {e}"
                 )
-                error = e  # Store error for potential re-raise
+                
+                if e.code in [APIErrorCode.INSUFFICIENT_FUNDS, APIErrorCode.INVALID_QUANTITY]:
+                    # Don't retry certain errors
+                    self.logger.error(
+                        f"Non-retryable API error: {e.code.name} - {e.message}"
+                    )
+                    # Create a failed order record
+                    failed_order = Order(
+                        id=str(uuid.uuid4()),  # Generate a placeholder ID
+                        exchange_id=exchange_id,
+                        symbol=symbol,
+                        side=side,
+                        order_type=order_type,
+                        quantity=quantity,
+                        price=price,
+                        status=OrderStatus.FAILED,
+                        timestamp=datetime.now(UTC),
+                        error_message=f"{e.code.name}: {e.message}"
+                    )
+                    return failed_order
+                
+                if retries > max_retries:
+                    self.logger.error(
+                        f"Max retries ({max_retries}) exceeded placing order on {exchange_id}"
+                    )
+                    # Create a failed order record
+                    failed_order = Order(
+                        id=str(uuid.uuid4()),  # Generate a placeholder ID
+                        exchange_id=exchange_id,
+                        symbol=symbol,
+                        side=side,
+                        order_type=order_type,
+                        quantity=quantity,
+                        price=price,
+                        status=OrderStatus.FAILED,
+                        timestamp=datetime.now(UTC),
+                        error_message=f"Max retries exceeded: {e.code.name} - {e.message}"
+                    )
+                    return failed_order
+                
+                # Wait before retrying
+                await asyncio.sleep(retry_delay)
+                
             except Exception as e:
-                logger.error(
-                    f"Unexpected error placing order on {exchange_id} (Attempt {attempt + 1}/{self.max_retries}): {e}"
+                self.logger.error(f"Unexpected error placing order: {e}")
+                failed_order = Order(
+                    id=str(uuid.uuid4()),  # Generate a placeholder ID
+                    exchange_id=exchange_id,
+                    symbol=symbol,
+                    side=side,
+                    order_type=order_type,
+                    quantity=quantity,
+                    price=price,
+                    status=OrderStatus.FAILED,
+                    timestamp=datetime.now(UTC),
+                    error_message=f"Unexpected error: {str(e)}"
                 )
-                error = e  # Store error for potential re-raise
-
-            # Exponential backoff
-            if attempt < self.max_retries - 1:
-                delay = self.retry_delay_base * (2**attempt)
-                logger.info(f"Retrying order placement in {delay:.2f} seconds...")
-                await asyncio.sleep(delay)
-
-        # If all retries fail
-        logger.error(
-            f"Failed to place order {side.name} {quantity} {symbol} on {exchange_id} after {self.max_retries} attempts. Last error: {error}"
+                return failed_order
+        
+        # This should never be reached due to the returns in the loop
+        self.logger.error(f"Unexpected exit from retry loop for {exchange_id} {symbol}")
+        failed_order = Order(
+            id=str(uuid.uuid4()),
+            exchange_id=exchange_id,
+            symbol=symbol,
+            side=side,
+            order_type=order_type,
+            quantity=quantity,
+            price=price,
+            status=OrderStatus.FAILED,
+            timestamp=datetime.now(UTC),
+            error_message="Unexpected exit from retry loop"
         )
-        # Record failure if circuit breaker exists
-        if self.circuit_breaker_system:
-            exchange_for_failure = exchange_id
-            error_msg_for_failure = f"Failed to place order {side.name} {symbol} after {self.max_retries} retries: {error}"
-            # Record as API error if it was one, otherwise critical failure
-            if isinstance(error, APIError):
-                self.circuit_breaker_system.record_api_error(
-                    exchange_for_failure, error_msg_for_failure
-                )
-            else:
-                self.circuit_breaker_system.record_critical_failure(
-                    exchange_for_failure, error_msg_for_failure
-                )
-
-        # Return None after all retries failed
-        return None
+        return failed_order
 
     async def _get_order_status(
         self,
