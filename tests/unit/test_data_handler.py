@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from cyberdelta.apis.base import ExchangeAPI
-from cyberdelta.core.models import Balance, MarketData, Ticker, FundingRate
+from cyberdelta.core.models import Balance, MarketData, Ticker, FundingRate, OrderBook
 from cyberdelta.core.data_handler import DataHandler
 
 
@@ -156,15 +156,15 @@ class TestDataHandler:
     @pytest.mark.asyncio
     async def test_collect_tickers(self, data_handler, mock_exchange_api):
         """Test collecting ticker data."""
-        # Set up a test ticker
+        # Set up a test ticker with UTC timestamp
         test_ticker = MarketData(
             symbol="BTC",
-            timestamp=datetime.now(),
-            open=40000.0,
-            high=42000.0,
-            low=39000.0,
-            close=41500.0,
-            volume=100.0,
+            timestamp=datetime.now(UTC),
+            open=Decimal("40000.0"),
+            high=Decimal("42000.0"),
+            low=Decimal("39000.0"),
+            close=Decimal("41500.0"),
+            volume=Decimal("100.0"),
         )
 
         # Mock the get_ticker method to return our test ticker
@@ -188,38 +188,47 @@ class TestDataHandler:
         assert isinstance(
             data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"], datetime
         )
+        # Ensure stored timestamp is aware
+        assert data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"].tzinfo is not None
 
     @pytest.mark.asyncio
     async def test_collect_funding_rates(self, data_handler, mock_exchange_api):
         """Test collecting funding rate data."""
         # Set up a test funding rate
         rate = 0.0001
-        timestamp = datetime.now()
+        timestamp = datetime.now(UTC)
 
-        # Mock the get_funding_rate method
-        mock_exchange_api.get_funding_rate.return_value = {
-            "funding_rate": rate,
-            "timestamp": timestamp,
-        }
+        # Mock the get_funding_rates method (plural) which is called by _collect_funding_rates
+        # It should return a list of FundingRate objects
+        mock_rate_obj = FundingRate(
+            symbol="BTC",
+            funding_rate=Decimal(str(rate)),
+            timestamp=timestamp
+        )
+        mock_exchange_api.get_funding_rates = AsyncMock(return_value=[mock_rate_obj])
 
         # Call the _collect_funding_rates method
         await data_handler._collect_funding_rates("hyperliquid", ["BTC"])
 
         # Verify the API client was called with the correct parameters
-        mock_exchange_api.get_funding_rate.assert_called_once_with("BTC")
+        mock_exchange_api.get_funding_rates.assert_awaited_once_with(["BTC"])
 
         # Check that the funding rate was stored correctly
         assert "hyperliquid" in data_handler.funding_rates
         assert "BTC" in data_handler.funding_rates["hyperliquid"]
+        # Verify stored data format (rate, timestamp tuple)
+        stored_rate, stored_ts = data_handler.funding_rates["hyperliquid"]["BTC"]
+        assert stored_rate == mock_rate_obj.funding_rate
+        assert stored_ts == mock_rate_obj.timestamp
 
-        # Check that the timestamp was updated
+        # Check that the last_update_time was updated correctly
         assert "hyperliquid" in data_handler.last_update_time
         assert "funding_rate" in data_handler.last_update_time["hyperliquid"]
         assert "BTC" in data_handler.last_update_time["hyperliquid"]["funding_rate"]
-        assert isinstance(
-            data_handler.last_update_time["hyperliquid"]["funding_rate"]["BTC"],
-            datetime,
-        )
+        last_update_ts = data_handler.last_update_time["hyperliquid"]["funding_rate"]["BTC"]
+        assert isinstance(last_update_ts, datetime)
+        # Ensure stored timestamp is aware
+        assert last_update_ts.tzinfo is not None
 
     @pytest.mark.asyncio
     async def test_update_all_data(self, data_handler):
@@ -256,20 +265,20 @@ class TestDataHandler:
 
     def test_get_ticker(self, data_handler):
         """Test retrieving ticker data."""
-        # Set up a test ticker
+        # Set up a test ticker with UTC timestamp
         test_ticker = MarketData(
             symbol="BTC",
-            timestamp=datetime.now(),
-            open=40000.0,
-            high=42000.0,
-            low=39000.0,
-            close=41500.0,
-            volume=100.0,
+            timestamp=datetime.now(UTC),
+            open=Decimal("40000.0"),
+            high=Decimal("42000.0"),
+            low=Decimal("39000.0"),
+            close=Decimal("41500.0"),
+            volume=Decimal("100.0"),
         )
 
         # Store the ticker in the DataHandler
         data_handler.tickers["hyperliquid"] = {"BTC": test_ticker}
-        data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"] = datetime.now()
+        data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"] = datetime.now(UTC)
 
         # Get the ticker
         result = data_handler.get_ticker("hyperliquid", "BTC")
@@ -279,7 +288,7 @@ class TestDataHandler:
 
         # Test with stale data
         data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"] = (
-            datetime.now() - timedelta(seconds=120)
+            datetime.now(UTC) - timedelta(seconds=120)
         )
         result = data_handler.get_ticker("hyperliquid", "BTC")
 
@@ -292,26 +301,38 @@ class TestDataHandler:
 
     def test_get_funding_rate(self, data_handler):
         """Test retrieving funding rate data."""
-        # Set up a test funding rate
-        rate = 0.0001
-        timestamp = datetime.now()
-
-        # Store the funding rate in the DataHandler
-        data_handler.funding_rates["hyperliquid"] = {"BTC": (rate, timestamp)}
-        data_handler.last_update_time["hyperliquid"]["funding_rate"]["BTC"] = (
-            datetime.now()
+        # Set up a test funding rate object
+        test_funding_rate = FundingRate(
+             symbol="BTC",
+             funding_rate=Decimal("0.0001"),
+             timestamp=datetime.now(UTC)
         )
 
-        # Get the funding rate
+        # Store the funding rate in the DataHandler (using _update_funding_rate method)
+        data_handler._update_funding_rate("hyperliquid", "BTC", test_funding_rate)
+
+        # Verify the internal storage format (tuple)
+        assert data_handler.funding_rates["hyperliquid"]["BTC"] == (
+            test_funding_rate.funding_rate, test_funding_rate.timestamp
+        )
+        # Verify last update time is aware
+        assert data_handler.last_update_time["hyperliquid"]["funding_rate"]["BTC"].tzinfo is not None
+
+        # Get the funding rate object using the public getter
         result = data_handler.get_funding_rate("hyperliquid", "BTC")
 
-        # Verify the result
-        assert result == (rate, timestamp)
+        # Verify the result is the correct FundingRate object
+        assert isinstance(result, FundingRate)
+        assert result.symbol == "BTC"
+        assert result.funding_rate == test_funding_rate.funding_rate
+        assert result.timestamp == test_funding_rate.timestamp
 
         # Test with stale data
-        data_handler.last_update_time["hyperliquid"]["funding_rate"]["BTC"] = (
-            datetime.now() - timedelta(seconds=600)
-        )
+        # Manually set the last update time to be stale
+        stale_time = datetime.now(UTC) - timedelta(seconds=600)
+        data_handler.last_update_time["hyperliquid"]["funding_rate"]["BTC"] = stale_time
+
+        # Call the getter again
         result = data_handler.get_funding_rate("hyperliquid", "BTC")
 
         # Should return None for stale data
@@ -382,14 +403,14 @@ class TestDataHandler:
         # Mock the get_message_type method
         mock_exchange_api.get_message_type = MagicMock(return_value="ticker")
 
-        # Mock the parse_ticker_message method
-        test_ticker = MarketData(
+        # Mock the parse_ticker_message method to return a Ticker object
+        now_ts = datetime.now(UTC)
+        test_ticker = Ticker(
             symbol="BTC",
-            timestamp=datetime.now(UTC),
-            open=Decimal("40000.0"),
-            high=Decimal("42000.0"),
-            low=Decimal("39000.0"),
-            close=Decimal("42000.0"),
+            timestamp=int(now_ts.timestamp() * 1000),
+            price=Decimal("42000.0"),
+            bid=Decimal("41999.0"),
+            ask=Decimal("42001.0"),
             volume=Decimal("100.0"),
         )
         mock_exchange_api.parse_ticker_message = MagicMock(
@@ -403,14 +424,26 @@ class TestDataHandler:
 
             # Verify the correct methods were called
             mock_exchange_api.get_message_type.assert_called_once_with(test_message)
-            mock_exchange_api.parse_ticker_message.assert_called_once_with(message=test_message)
-            # Verify _update_and_notify was called with correct args
-            mock_update_notify.assert_awaited_once_with(
-                exchange_id="hyperliquid",
-                data_type="ticker",
-                symbol="BTC",
-                data=test_ticker,
-            )
+            mock_exchange_api.parse_ticker_message.assert_called_once_with(test_message)
+            # Verify _update_and_notify was called with correct args, matching the unpacked data
+            # The data passed should be the MarketData object created inside _handle_websocket_message
+            assert mock_update_notify.call_count == 1
+            call_args, call_kwargs = mock_update_notify.call_args
+            assert call_kwargs == {}
+            assert len(call_args) == 4
+            assert call_args[0] == "hyperliquid" # exchange_id
+            assert call_args[1] == "ticker"      # data_type
+            assert call_args[2] == "BTC"         # symbol (unpacked)
+            # Verify the MarketData object passed
+            passed_market_data = call_args[3]     # data
+            assert isinstance(passed_market_data, MarketData)
+            assert passed_market_data.symbol == test_ticker.symbol
+            assert passed_market_data.close == test_ticker.price # MarketData.close uses Ticker.price
+            assert passed_market_data.open == test_ticker.price # MarketData.open uses Ticker.price
+            assert passed_market_data.high == test_ticker.price
+            assert passed_market_data.low == test_ticker.price
+            assert passed_market_data.volume == test_ticker.volume
+            assert passed_market_data.timestamp == datetime.fromtimestamp(test_ticker.timestamp / 1000, UTC)
 
     @pytest.mark.asyncio
     async def test_maintain_websocket_connection(self, data_handler, mock_exchange_api):

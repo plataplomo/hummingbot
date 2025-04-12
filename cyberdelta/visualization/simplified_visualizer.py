@@ -7,7 +7,7 @@ without dependencies on complex web frameworks.
 
 import logging
 import os
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt

@@ -15,6 +15,7 @@ from .balance_monitor import BalanceMonitor
 from .data_handler import DataHandler
 from .engine import Engine
 from .execution_handler import CircuitBreakerSystem, ExecutionHandler
+
 # from .models import ( # REMOVING self-import - likely circular
 #     ArbitrageOpportunity,
 #     Balance,
@@ -38,7 +39,7 @@ from .signal_generator import SignalGenerator
 
 # Check if SignalQueue is correctly defined and imported
 # from .signal_queue import SignalQueue # Incorrect name
-from .signal_queue import PrioritySignalQueue # Correct name
+from .signal_queue import PrioritySignalQueue  # Correct name
 from .strategy import Strategy
 
 __all__ = [

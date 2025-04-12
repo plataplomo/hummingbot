@@ -3,13 +3,13 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio
 import logging
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any  # Added TYPE_CHECKING
 
 from cyberdelta.apis.base import ExchangeAPI
 
 # from cyberdelta.core.models import MarketData # Moved under TYPE_CHECKING
-from cyberdelta.core.models import FundingRate, MarketData, OrderBook
+from cyberdelta.core.models import FundingRate, MarketData, OrderBook, Ticker
 from cyberdelta.utils.config import Config
 
 if TYPE_CHECKING:
@@ -46,7 +46,7 @@ class DataHandler:
         self.api_clients: dict[str, ExchangeAPI] = {}
 
         # Market data storage
-        self.tickers: dict[str, dict[str, "MarketData"]] = {}  # Changed hint
+        self.tickers: dict[str, dict[str, MarketData]] = {}  # Changed hint
         self.funding_rates: dict[
             str, dict[str, tuple[float, datetime]]
         ] = {}  # exchange -> symbol -> (rate, timestamp)
@@ -248,20 +248,33 @@ class DataHandler:
             message_type = client.get_message_type(message)
 
             if message_type == "ticker":
-                parsed_data = client.parse_ticker_message(message)
-                if parsed_data:
+                parsed_output = client.parse_ticker_message(message)
+                if parsed_output:
+                    # Handle potential tuple return (symbol, ticker_data) vs just ticker_data
+                    if isinstance(parsed_output, tuple) and len(parsed_output) == 2:
+                        symbol, ticker_data = parsed_output
+                        if not isinstance(ticker_data, Ticker):
+                            logger.warning(f"Parsed ticker data is not Ticker type for {exchange_id}: {type(ticker_data)}")
+                            return
+                    elif isinstance(parsed_output, Ticker):
+                        symbol = parsed_output.symbol
+                        ticker_data = parsed_output
+                    else:
+                        logger.warning(f"Unexpected data format from parse_ticker_message for {exchange_id}: {type(parsed_output)}")
+                        return
+
                     # Convert Ticker to MarketData before updating and notifying
                     market_data = MarketData(
-                        symbol=parsed_data.symbol,
-                        timestamp=datetime.fromtimestamp(parsed_data.timestamp / 1000, UTC),
-                        open=parsed_data.price, # Use last price for OHLC if not available
-                        high=parsed_data.price,
-                        low=parsed_data.price,
-                        close=parsed_data.price,
-                        volume=parsed_data.volume,
+                        symbol=symbol, # Use unpacked symbol
+                        timestamp=datetime.fromtimestamp(ticker_data.timestamp / 1000, UTC),
+                        open=ticker_data.price, # Use last price for OHLC if not available
+                        high=ticker_data.price,
+                        low=ticker_data.price,
+                        close=ticker_data.price,
+                        volume=ticker_data.volume,
                     )
                     await self._update_and_notify(
-                        exchange_id, "ticker", parsed_data.symbol, market_data
+                        exchange_id, "ticker", symbol, market_data # Use unpacked symbol
                     )
             elif message_type == "orderbook":
                 parsed_data = client.parse_orderbook_message(message)

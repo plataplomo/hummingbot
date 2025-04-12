@@ -13,7 +13,6 @@ from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 if TYPE_CHECKING:  # This block should contain the only import from models
     from cyberdelta.core.models import (
         ArbitrageOpportunity,
-        Order,
         TradeSignal,
     )
 

@@ -8,7 +8,7 @@ confidence-scored funding rate data.
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .funding_data import (
@@ -216,12 +216,23 @@ class MultiTierFundingProvider:
             source_func = self.primary_sources[exchange]
             raw_data = await source_func(symbol)
 
+            # Ensure timestamp is timezone-aware (assume UTC if naive)
+            ts = raw_data.get("timestamp", datetime.now(UTC))
+            if isinstance(ts, datetime) and ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            elif not isinstance(ts, datetime):
+                # Handle non-datetime case, e.g., if it's an int timestamp
+                try:
+                   ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC) # Assume ms
+                except (ValueError, TypeError):
+                   ts = datetime.now(UTC) # Fallback if conversion fails
+
             # Create funding data
             funding_data = FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=raw_data.get("timestamp", datetime.now(UTC)),
+                timestamp=ts, # Use aware timestamp
                 source_type=SourceType.PRIMARY,
                 source_reliability=SourceReliability.HIGH,
                 raw_data=raw_data,
@@ -252,12 +263,22 @@ class MultiTierFundingProvider:
             source_func = self.secondary_sources[exchange]
             raw_data = await source_func(symbol)
 
+            # Ensure timestamp is timezone-aware (assume UTC if naive)
+            ts = raw_data.get("timestamp", datetime.now(UTC))
+            if isinstance(ts, datetime) and ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            elif not isinstance(ts, datetime):
+                try:
+                   ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC) # Assume ms
+                except (ValueError, TypeError):
+                   ts = datetime.now(UTC)
+
             # Create funding data
             funding_data = FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=raw_data.get("timestamp", datetime.now(UTC)),
+                timestamp=ts, # Use aware timestamp
                 source_type=SourceType.SECONDARY,
                 source_reliability=SourceReliability.MEDIUM,
                 raw_data=raw_data,
@@ -288,12 +309,22 @@ class MultiTierFundingProvider:
             source_func = self.tertiary_sources[exchange]
             raw_data = await source_func(symbol)
 
+            # Ensure timestamp is timezone-aware (assume UTC if naive)
+            ts = raw_data.get("timestamp", datetime.now(UTC))
+            if isinstance(ts, datetime) and ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            elif not isinstance(ts, datetime):
+                try:
+                   ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC) # Assume ms
+                except (ValueError, TypeError):
+                   ts = datetime.now(UTC)
+
             # Create funding data
             funding_data = FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=raw_data.get("timestamp", datetime.now(UTC)),
+                timestamp=ts, # Use aware timestamp
                 source_type=SourceType.TERTIARY,
                 source_reliability=SourceReliability.LOW,
                 raw_data=raw_data,
@@ -326,12 +357,22 @@ class MultiTierFundingProvider:
             source_func = self.fallback_sources[exchange]
             raw_data = await source_func(symbol)
 
+            # Ensure timestamp is timezone-aware (assume UTC if naive)
+            ts = raw_data.get("timestamp", datetime.now(UTC))
+            if isinstance(ts, datetime) and ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            elif not isinstance(ts, datetime):
+                try:
+                   ts = datetime.fromtimestamp(int(ts) / 1000, tz=UTC) # Assume ms
+                except (ValueError, TypeError):
+                   ts = datetime.now(UTC)
+
             # Create funding data
             fallback_data = FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=raw_data.get("timestamp", datetime.now(UTC)),
+                timestamp=ts, # Use aware timestamp
                 source_type=SourceType.FALLBACK,
                 source_reliability=SourceReliability.LOWEST,
                 raw_data=raw_data,
@@ -339,7 +380,11 @@ class MultiTierFundingProvider:
 
             # Use lower confidence for fallback data and adjust for age
             base_confidence = 0.2
-            age = (datetime.now(UTC) - fallback_data.timestamp).total_seconds()
+            # Ensure fallback_data.timestamp is aware before subtraction
+            fallback_ts_aware = fallback_data.timestamp
+            if fallback_ts_aware.tzinfo is None:
+                 fallback_ts_aware = fallback_ts_aware.replace(tzinfo=UTC) # Should not happen due to above logic, but belt-and-suspenders
+            age = (datetime.now(UTC) - fallback_ts_aware).total_seconds()
             decay_factor = max(0, 1 - (age / (self.max_acceptable_age * 4)))
             adjusted_confidence = base_confidence * decay_factor
             adjusted_rate = fallback_data.rate
@@ -419,11 +464,24 @@ class MultiTierFundingProvider:
 
         # Calculate weighted average timestamp
         # Convert timestamps to seconds since epoch for calculation
-        epoch = datetime(1970, 1, 1)
-        timestamps_seconds = [(ts - epoch).total_seconds() for ts in timestamps]
+        epoch = datetime(1970, 1, 1, tzinfo=UTC) # Use timezone-aware epoch
+        timestamps_seconds = []
+        for ts in timestamps:
+            # Ensure timestamp is timezone-aware (assume UTC if naive)
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+            timestamps_seconds.append((ts - epoch).total_seconds())
+
+        # weighted_timestamp_seconds = sum(
+        #     ts * w for ts, w in zip(timestamps_seconds, normalized_weights, strict=True)
+        # )
+        # Fix for potential zip strict=True issue if lists have different lengths unexpectedly
+        min_len = min(len(timestamps_seconds), len(normalized_weights))
         weighted_timestamp_seconds = sum(
-            ts * w for ts, w in zip(timestamps_seconds, normalized_weights, strict=True)
+            timestamps_seconds[i] * normalized_weights[i] for i in range(min_len)
         )
+
+        # Resulting timestamp will be timezone-aware (UTC)
         integrated_timestamp = epoch + timedelta(seconds=weighted_timestamp_seconds)
 
         # Calculate dispersion (e.g., standard deviation of rates)

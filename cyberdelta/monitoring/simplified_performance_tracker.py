@@ -9,16 +9,14 @@ import csv
 import logging
 import os
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from cyberdelta.core.models import ArbitrageOpportunity
-from cyberdelta.core.models import TradeSignal
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.models import ArbitrageOpportunity, TradeSignal
 
 logger = logging.getLogger(__name__)
 

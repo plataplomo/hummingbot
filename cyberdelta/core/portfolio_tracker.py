@@ -1,11 +1,10 @@
-from __future__ import annotations # Enable postponed evaluation
+from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 import json
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import simplejson as json
 
@@ -1134,7 +1133,7 @@ class PortfolioTracker:
 
     # Method to load state from JSON string
     @classmethod
-    def from_json(cls, json_str: str, config: Config) -> "PortfolioTracker":
+    def from_json(cls, json_str: str, config: Config) -> PortfolioTracker:
         """Deserialize the portfolio state from a JSON string."""
         state_dict = json.loads(json_str)  # Use standard json.loads for initial parse
         instance = cls(config)

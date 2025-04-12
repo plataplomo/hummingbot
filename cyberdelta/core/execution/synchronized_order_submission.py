@@ -8,11 +8,10 @@ with comprehensive verification at every step.
 import asyncio
 import logging
 import time
-import traceback
-from datetime import datetime, UTC
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import Enum, auto
 from typing import Any
-from dataclasses import dataclass
 
 from cyberdelta.apis.base import ExchangeAPI
 from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType
@@ -494,6 +493,7 @@ class SynchronizedOrderSubmissionService:
                 return ExecutionResult(
                     execution_id=execution_id,
                     status=ExecutionStatus.REJECTED,
+                    timestamp=int(datetime.now(UTC).timestamp() * 1000),
                     error=pre_execution_verification.get("error"),
                     verification_results=pre_execution_verification.get("details"),
                 )
@@ -547,6 +547,7 @@ class SynchronizedOrderSubmissionService:
             return ExecutionResult(
                 execution_id=execution_id,
                 status=ExecutionStatus.FAILED,
+                timestamp=int(datetime.now(UTC).timestamp() * 1000),
                 error=f"Execution error: {str(e)}",
                 abort_details=abort_result,
             )

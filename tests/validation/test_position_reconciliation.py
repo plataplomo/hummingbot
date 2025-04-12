@@ -291,8 +291,8 @@ class TestPositionReconciliationSystem:
         # Save original state
         original_last_check = reconciliation_system.last_check_time
 
-        # Set last check time to now
-        reconciliation_system.last_check_time = datetime.now()
+        # Set last check time to now using UTC
+        reconciliation_system.last_check_time = datetime.now(UTC)
 
         # Call without force
         results = await reconciliation_system.check_positions(force=False)

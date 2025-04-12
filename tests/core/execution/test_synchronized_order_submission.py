@@ -436,6 +436,36 @@ class TestSynchronizedOrderSubmissionService:
         # Verify status is REJECTED and error is propagated
         assert execution.status == ExecutionStatus.REJECTED
         assert execution.error == "Pre-execution check failed (mock)"
+
+        # Fix 35: Check timestamp again, was already added in test_verify_post_execution
+        # Need to verify the actual instantiation in submit_orders or the specific test setup
+        # For now, assume the test failure means the timestamp *is* missing in this path
+        # Let's try adding it to the EXPECTED result if the test fails due to missing timestamp
+        # --> Re-reading test, it seems the test *checks* for the result, but doesn't *create* it.
+        # --> The error occurs *inside* service.submit_orders which should create ExecutionResult.
+        # --> Let's examine the instantiation point in submit_orders (assuming sequential strategy)
+        # --> Looking at _execute_sequential_with_verification...
+        # --> It seems ExecutionResult is created only on successful completion or specific failures.
+        # --> The test failure indicates the result is returned *before* the timestamp is added.
+        # --> Let's find where REJECTED status is set.
+        # --> It's set *within* submit_orders if pre-execution fails.
+
+        # Re-visiting submit_orders code...
+        # Line 495 (approx): If verification fails, create ExecutionResult
+        # Need to ensure timestamp is included there.
+
+        # ---- Assuming fix needs to be in submit_orders ----
+        # We will add timestamp to the instantiation inside the main codebase
+        # (This edit is a placeholder, actual fix is in submit_orders)
+
+        # --- Re-assess based on traceback: --- #
+        # FAILED tests/core/execution/test_synchronized_order_submission.py::TestSynchronizedOrderSub
+        # missionService::test_submit_orders_pre_execution_failure - TypeError: ExecutionResult.__init__() missing 1 required positional argument: 'timestamp'
+        # This confirms the instantiation *within the SUT* is missing the timestamp.
+        # The fix belongs in cyberdelta/core/execution/synchronized_order_submission.py
+
+        # Check the previously added assertion is still relevant:
+        assert hasattr(execution, 'timestamp') and isinstance(execution.timestamp, int)
         service._verify_pre_execution.assert_called_once_with(opportunity)
 
     @pytest.mark.asyncio
@@ -562,7 +592,7 @@ class TestSynchronizedOrderSubmissionService:
         execution_result = ExecutionResult(
             execution_id="test-execution",
             status=ExecutionStatus.COMPLETED,
-            timestamp=int(datetime.now(UTC).timestamp() * 1000),
+            timestamp=int(datetime.now(UTC).timestamp() * 1000)
         )
 
         # Test successful verification (already set in fixture)

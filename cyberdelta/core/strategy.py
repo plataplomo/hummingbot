@@ -1,9 +1,9 @@
-from __future__ import annotations # Enable postponed evaluation
+from __future__ import annotations  # Enable postponed evaluation
 
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import TYPE_CHECKING, Any # Added TYPE_CHECKING
+from typing import TYPE_CHECKING, Any  # Added TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import MarketData, TradeSignal
@@ -32,12 +32,12 @@ class Strategy(ABC):
         self.enabled = False
         self.last_signal_time: datetime | None = None
         self.signals_generated = 0
-        self._historical_data: list["MarketData"] = [] # Changed
+        self._historical_data: list[MarketData] = [] # Changed
 
         logger.info(f"Initialized strategy '{name}' for {symbol}")
 
     @abstractmethod
-    def process_data(self, data: "MarketData") -> "TradeSignal" | None: # Changed
+    def process_data(self, data: MarketData) -> TradeSignal | None: # Changed
         """
         Process new market data and optionally generate a trading signal
 
@@ -49,7 +49,7 @@ class Strategy(ABC):
         """
         pass
 
-    def update_historical_data(self, data: "MarketData", max_bars: int = 1000) -> None: # Changed
+    def update_historical_data(self, data: MarketData, max_bars: int = 1000) -> None: # Changed
         """
         Update the strategy's historical data cache
 

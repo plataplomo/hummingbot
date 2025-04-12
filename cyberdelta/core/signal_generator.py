@@ -16,12 +16,13 @@ from cyberdelta.core.models import ArbitrageOpportunity, FundingRate, Ticker
 #     ArbitrageOpportunity,
 # )
 from cyberdelta.utils.config import Config
+from cyberdelta.utils.logging_config import get_logger # <--- Use get_logger
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import ArbitrageOpportunity
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__) # <--- Use configured logger
 
 # Set precision for Decimal
 getcontext().prec = 28
@@ -521,3 +522,142 @@ class SignalGenerator:
         )
 
         return opportunities
+
+    def _check_funding_rate_opportunity(
+        self,
+        exchange1: str,
+        exchange2: str,
+        internal_symbol: str,
+    ) -> ArbitrageOpportunity | None:
+        """Check for funding rate arbitrage between two exchanges."""
+        now = datetime.now(UTC)
+        logger.debug(f"Checking opportunity for {internal_symbol} between {exchange1} and {exchange2}")
+
+        # Get exchange-specific symbols
+        symbol1 = self.config.get(f"exchanges.{exchange1}.symbols.{internal_symbol}")
+        symbol2 = self.config.get(f"exchanges.{exchange2}.symbols.{internal_symbol}")
+        if not symbol1 or not symbol2:
+            logger.warning(
+                f"Symbol mapping missing for {internal_symbol} on {exchange1} or {exchange2}"
+            )
+            return None
+
+        # Get data from DataHandler
+        ticker1 = self.data_handler.get_ticker(exchange1, symbol1)
+        ticker2 = self.data_handler.get_ticker(exchange2, symbol2)
+        funding_rate1 = self.data_handler.get_funding_rate(exchange1, symbol1)
+        funding_rate2 = self.data_handler.get_funding_rate(exchange2, symbol2)
+
+        # --- Start Fix 36 Logging ---
+        logger.debug(f"  {exchange1} Ticker: {ticker1}")
+        logger.debug(f"  {exchange2} Ticker: {ticker2}")
+        logger.debug(f"  {exchange1} FundingRate: {funding_rate1}")
+        logger.debug(f"  {exchange2} FundingRate: {funding_rate2}")
+
+        # Check if data is available and valid
+        if not all([ticker1, ticker2, funding_rate1, funding_rate2]):
+            logger.debug("  Missing ticker or funding rate data, cannot calculate opportunity.")
+            return None
+
+        if ticker1.price is None or ticker2.price is None:
+            logger.debug("  Ticker price is None, cannot calculate opportunity.")
+            return None
+        # --- End Fix 36 Logging ---
+
+        # Perform checks (ensure Decimal)
+        try:
+            # Convert rates to Decimal, default to 0 if None/invalid
+            rate1 = funding_rate1.funding_rate if funding_rate1 else Decimal("0")
+            rate2 = funding_rate2.funding_rate if funding_rate2 else Decimal("0")
+            if not isinstance(rate1, Decimal):
+                rate1 = Decimal(str(rate1))
+            if not isinstance(rate2, Decimal):
+                rate2 = Decimal(str(rate2))
+
+            # Convert prices to Decimal, default to 0 if None/invalid
+            price1 = ticker1.price
+            price2 = ticker2.price
+            if not isinstance(price1, Decimal):
+                price1 = Decimal(str(price1))
+            if not isinstance(price2, Decimal):
+                price2 = Decimal(str(price2))
+
+        except Exception as e:
+            logger.error(f"Error converting data for {internal_symbol}: {e}")
+            return None
+
+        # Calculate Net Funding Differential (NFD)
+        net_funding_differential = rate1 - rate2
+        logger.debug(f"  NFD: {net_funding_differential:.8f}") # Fix 36 Logging
+
+        # Check minimum differential threshold
+        if abs(net_funding_differential) < self.min_funding_differential:
+            logger.debug(f"  NFD below threshold ({self.min_funding_differential:.8f})") # Fix 36 Logging
+            return None
+
+        # Determine long/short exchanges
+        if net_funding_differential > 0: # rate1 > rate2 -> Short exchange1, Long exchange2
+            short_exchange, long_exchange = exchange1, exchange2
+            short_rate, long_rate = rate1, rate2
+            short_ticker, long_ticker = ticker1, ticker2
+        else: # rate1 < rate2 -> Long exchange1, Short exchange2
+            long_exchange, short_exchange = exchange1, exchange2
+            long_rate, short_rate = rate1, rate2
+            long_ticker, short_ticker = ticker1, ticker2
+
+        # Prices for entry
+        long_entry_price = long_ticker.ask
+        short_entry_price = short_ticker.bid
+
+        # Calculate Basis and Volatility
+        basis = price1 - price2
+        basis_volatility = self.calculate_basis_volatility(internal_symbol)
+        funding_rate_volatility = (
+            self.calculate_funding_rate_volatility(exchange1, internal_symbol)
+            + self.calculate_funding_rate_volatility(exchange2, internal_symbol)
+        ) / 2
+        logger.debug(f"  Basis Vol: {basis_volatility:.8f}, Funding Vol: {funding_rate_volatility:.8f}") # Fix 36 Logging
+
+        # Estimate Costs (Assuming $1000 notional for cost estimation)
+        estimated_trade_size = Decimal("1000.0")
+        long_slippage = self.estimate_slippage(long_exchange, estimated_trade_size, long_exchange)
+        short_slippage = self.estimate_slippage(short_exchange, estimated_trade_size, short_exchange)
+        long_fee_rate = Decimal(str(self.config.get(f"exchanges.{long_exchange}.fee_rate", 0.001)))
+        short_fee_rate = Decimal(str(self.config.get(f"exchanges.{short_exchange}.fee_rate", 0.001)))
+        total_costs = estimated_trade_size * (long_slippage + short_slippage + long_fee_rate + short_fee_rate)
+        logger.debug(f"  Estimated Costs (for $1000): {total_costs:.4f}") # Fix 36 Logging
+
+        # Calculate Expected Profit (adjust based on $1000 size)
+        expected_profit = (estimated_trade_size * abs(net_funding_differential)) - total_costs
+        logger.debug(f"  Expected Profit (for $1000): {expected_profit:.4f}") # Fix 36 Logging
+
+        # Check minimum profit threshold
+        if expected_profit < self.min_profit_threshold:
+            logger.debug(f"  Expected Profit below threshold (${self.min_profit_threshold})") # Fix 36 Logging
+            return None
+
+        # Calculate Utility Score
+        combined_volatility = basis_volatility + funding_rate_volatility # Simple sum for now
+        utility_score = float(expected_profit - (self.risk_aversion * (combined_volatility**2)))
+        logger.debug(f"  Utility Score: {utility_score:.4f}") # Fix 36 Logging
+
+        # Create opportunity
+        opportunity = ArbitrageOpportunity(
+            symbol=internal_symbol,
+            long_exchange=long_exchange,
+            short_exchange=short_exchange,
+            long_price=long_entry_price,
+            short_price=short_entry_price,
+            long_funding_rate=long_rate,
+            short_funding_rate=short_rate,
+            net_funding_differential=abs(net_funding_differential),
+            timestamp=now,
+            expected_profit=expected_profit, # Store profit based on $1000 estimate
+            utility_score=utility_score,
+            basis_volatility=float(basis_volatility),
+            confidence=None, # Confidence could be derived later
+            optimal_size=None, # Optimal size determined by RiskManager
+        )
+
+        logger.info(f"Generated opportunity: {opportunity}")
+        return opportunity

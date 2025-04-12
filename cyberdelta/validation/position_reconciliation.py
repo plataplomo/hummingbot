@@ -5,7 +5,7 @@ This module provides validation between various position tracking systems to ens
 """
 
 import logging
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 

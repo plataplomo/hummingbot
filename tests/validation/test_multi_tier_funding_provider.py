@@ -3,7 +3,7 @@ Tests for the multi-tier funding rate provider.
 """
 
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -320,7 +320,7 @@ class TestMultiTierFundingProvider(unittest.TestCase):
     def test_clear_stale_cache_entries(self):
         """Test clearing stale entries from funding rate cache."""
         # Add some data to cache
-        now = datetime.now()
+        now = datetime.now(UTC)
         fresh_entry = IntegratedFundingData(
             exchange="hyperliquid",
             symbol="BTC-PERP",

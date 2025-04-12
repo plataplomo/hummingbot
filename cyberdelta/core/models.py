@@ -1,14 +1,12 @@
-from __future__ import annotations # Enable postponed evaluation
+from __future__ import annotations  # Enable postponed evaluation
 
+import decimal
 import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from enum import Enum
-from typing import Any
-import decimal
-
-
+from typing import Any, Optional
 
 
 class OrderSide(Enum):
@@ -291,23 +289,23 @@ class Ticker:
         if self.price is not None and not isinstance(self.price, Decimal):
             try:
                 self.price = Decimal(str(self.price))
-            except decimal.InvalidOperation:
+            except InvalidOperation:
                 # Handle potential conversion error, e.g., log and set to None or raise
                 self.price = None # Or raise appropriate error
         if self.bid is not None and not isinstance(self.bid, Decimal):
             try:
                 self.bid = Decimal(str(self.bid))
-            except decimal.InvalidOperation:
+            except InvalidOperation:
                 self.bid = None
         if self.ask is not None and not isinstance(self.ask, Decimal):
             try:
                 self.ask = Decimal(str(self.ask))
-            except decimal.InvalidOperation:
+            except InvalidOperation:
                 self.ask = None
         if self.volume is not None and not isinstance(self.volume, Decimal):
             try:
                 self.volume = Decimal(str(self.volume))
-            except decimal.InvalidOperation:
+            except InvalidOperation:
                 self.volume = None
         # Ensure timestamp is datetime if provided
         # if self.timestamp is not None and not isinstance(self.timestamp, datetime):
@@ -342,25 +340,26 @@ class FundingRate:
     mark_price: Decimal | None = None     # Made optional
     index_price: Decimal | None = None    # Made optional
     next_funding_time: int | None = None    # Made optional
+    timestamp: int | None = None # Added Optional timestamp field (Fix 13)
     historical_rates: list[dict[str, Any]] | None = None  # Historical funding rates (Optional)
 
     def __post_init__(self) -> None:
         # Ensure numeric fields are Decimal, handle None explicitly
         if self.funding_rate is not None and not isinstance(self.funding_rate, Decimal):
             try: self.funding_rate = Decimal(str(self.funding_rate))
-            except decimal.InvalidOperation: self.funding_rate = None # Or raise
-        
+            except InvalidOperation: self.funding_rate = None # Handle conversion error
+
         if self.predicted_rate is not None and not isinstance(self.predicted_rate, Decimal):
             try: self.predicted_rate = Decimal(str(self.predicted_rate))
-            except decimal.InvalidOperation: self.predicted_rate = None # Or raise
-        
+            except InvalidOperation: self.predicted_rate = None # Handle conversion error
+
         if self.mark_price is not None and not isinstance(self.mark_price, Decimal):
             try: self.mark_price = Decimal(str(self.mark_price))
-            except decimal.InvalidOperation: self.mark_price = None # Or raise
-        
+            except InvalidOperation: self.mark_price = None # Handle conversion error
+
         if self.index_price is not None and not isinstance(self.index_price, Decimal):
             try: self.index_price = Decimal(str(self.index_price))
-            except decimal.InvalidOperation: self.index_price = None # Or raise
+            except InvalidOperation: self.index_price = None # Handle conversion error
 
 
 class ArbitrageOpportunity:

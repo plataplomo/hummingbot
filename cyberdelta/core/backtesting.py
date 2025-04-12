@@ -14,7 +14,7 @@ import logging
 import os
 import pathlib
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 from numpy.random import Generator
 
-from cyberdelta.core.models import MarketData, TradeSignal, SignalType
+from cyberdelta.core.models import MarketData, SignalType, TradeSignal
 from cyberdelta.core.strategy import Strategy
 
 # Configure logging

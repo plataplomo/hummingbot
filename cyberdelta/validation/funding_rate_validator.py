@@ -8,12 +8,10 @@ against actual payments received/paid.
 import logging
 import math
 import time
-from datetime import datetime, timedelta, UTC
-from typing import Any
+from datetime import UTC, datetime, timedelta
 
 # from cyberdelta.config import Config # Incorrect path
-from cyberdelta.utils.config import Config # Correct path
-from cyberdelta.core.data_handler import DataHandler
+from cyberdelta.utils.config import Config  # Correct path
 
 
 class FundingRateValidator:

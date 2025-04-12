@@ -576,7 +576,7 @@ class TestCircuitBreakerSystem:
         # Use get_exchange_breaker for exchange-specific breakers
         api_breaker = system.get_exchange_breaker("test_exchange", "api_errors")
         assert api_breaker is not None
-        assert api_breaker.cooldown_seconds == 600 # Value from mock_config for test_exchange api_errors
+        assert api_breaker.cooldown_seconds == 300 # Corrected based on mock_config (Fix 23)
 
         drawdown_breaker = system.get_exchange_breaker("another_exchange", "drawdown")
         assert drawdown_breaker is not None

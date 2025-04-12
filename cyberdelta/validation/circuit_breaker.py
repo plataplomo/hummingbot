@@ -17,6 +17,12 @@ from cyberdelta.utils.config import Config
 logger = logging.getLogger(__name__)
 
 
+# Add the custom exception class
+class CircuitBreakerTrippedError(Exception):
+    """Custom exception raised when a circuit breaker prevents an operation."""
+    pass
+
+
 class BreakerState(Enum):
     """State of a circuit breaker."""
 

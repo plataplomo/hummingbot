@@ -1,20 +1,21 @@
-from __future__ import annotations # Enable postponed evaluation
+from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any # Added TYPE_CHECKING
+from typing import TYPE_CHECKING, Any  # Added TYPE_CHECKING
 
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
+
 # Import models needed at runtime directly
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, Position
+from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, Position, Ticker
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem, CircuitBreakerTrippedError
 
 # Keep imports for type checking only if they cause circular dependencies otherwise
 if TYPE_CHECKING:
@@ -194,78 +195,65 @@ class ExecutionHandler:
             long_exchange = opportunity.opportunity.long_exchange
             short_exchange = opportunity.opportunity.short_exchange
 
-            # Check global and exchange-specific circuit breakers from the main system
+            # --- Start Circuit Breaker Checks ---
             if self.circuit_breaker_system:
-                # Access the nested opportunity object for exchange IDs
-                # long_exchange = opportunity.opportunity.long_exchange # Moved up
-                # short_exchange = opportunity.opportunity.short_exchange # Moved up
-
-                # Check long exchange
-                can_trade_long, reason_long = self.circuit_breaker_system.can_execute(
-                    exchange=long_exchange
-                )
-                if not can_trade_long:
-                    logger.info(f"Execution blocked by main circuit breaker system: {reason_long}")
-                    execution.status = ExecutionStatus.REJECTED
-                    execution.error_message = reason_long
-                    return execution
-
-                # Check short exchange
-                can_trade_short, reason_short = self.circuit_breaker_system.can_execute(
-                    exchange=short_exchange
-                )
-                if not can_trade_short:
-                    logger.info(f"Execution blocked by main circuit breaker system: {reason_short}")
-                    execution.status = ExecutionStatus.REJECTED
-                    execution.error_message = reason_short
-                    return execution
+                can_proceed, reason = self.circuit_breaker_system.can_execute(long_exchange, opportunity.opportunity.symbol)
+                if not can_proceed:
+                    raise CircuitBreakerTrippedError(f"Long exchange ({long_exchange}) breaker tripped: {reason}")
+                can_proceed, reason = self.circuit_breaker_system.can_execute(short_exchange, opportunity.opportunity.symbol)
+                if not can_proceed:
+                    raise CircuitBreakerTrippedError(f"Short exchange ({short_exchange}) breaker tripped: {reason}")
+                # Check global last if specific passed
+                can_proceed, reason = self.circuit_breaker_system.check_all() # Assuming check_all returns like can_execute
+                if not can_proceed:
+                    raise CircuitBreakerTrippedError(f"Global breaker tripped: {reason}")
             else:
                 logger.warning(
                     "No main circuit breaker system provided to ExecutionHandler. Skipping checks."
                 )
+            # --- End Circuit Breaker Checks ---
 
-            execution.start_time = datetime.now(UTC)
+            # --- Start Ticker/Price Checks (Moved from original location) ---
+            # Get tickers required for quantity calculation
+            long_client = self.api_clients.get(long_exchange)
+            short_client = self.api_clients.get(short_exchange)
+            if not long_client or not short_client:
+                 raise ValueError(f"API client not found for {long_exchange} or {short_exchange}")
+
+            long_exchange_symbol = self.config.get(f"exchanges.{long_exchange}.symbols.{opportunity.opportunity.symbol}")
+            short_exchange_symbol = self.config.get(f"exchanges.{short_exchange}.symbols.{opportunity.opportunity.symbol}")
+
+            long_ticker = await long_client.get_ticker(long_exchange_symbol)
+            short_ticker = await short_client.get_ticker(short_exchange_symbol)
+
+            # Validate tickers
+            if long_ticker is None or not isinstance(long_ticker, Ticker) or long_ticker.ask <= 0:
+                error_msg = f"Invalid ticker or zero/negative ask price for {long_exchange_symbol} on {long_exchange}"
+                logger.error(f"Execution {execution.id}: {error_msg}")
+                execution.status = ExecutionStatus.FAILED
+                execution.error_message = error_msg
+                execution.end_time = datetime.now(UTC)
+                return execution
+
+            if short_ticker is None or not isinstance(short_ticker, Ticker) or short_ticker.bid <= 0:
+                error_msg = f"Invalid ticker or zero/negative bid price for {short_exchange_symbol} on {short_exchange}"
+                logger.error(f"Execution {execution.id}: {error_msg}")
+                execution.status = ExecutionStatus.FAILED
+                execution.error_message = error_msg
+                execution.end_time = datetime.now(UTC)
+                return execution
+            # --- End Ticker/Price Checks ---
+
+            # Calculate order quantities (using checked tickers)
+            # This might need adjustment based on how quantity is determined (e.g., fixed size, risk-based)
+            # Assuming we use the sized opportunity's USD size and the ticker prices
+            long_quantity = opportunity.long_size / long_ticker.ask
+            short_quantity = opportunity.short_size / short_ticker.bid
+
+            # Update execution state
             execution.status = ExecutionStatus.EXECUTING
 
-            long_client = self.api_clients[long_exchange]
-            short_client = self.api_clients[short_exchange]
-            internal_symbol = opportunity.opportunity.symbol
-
-            # --- Calculate Long Quantity ---
-            long_exchange_symbol = self.config.get(
-                f"exchanges.{long_exchange}.symbols.{internal_symbol}"
-            )
-            if not long_exchange_symbol:
-                raise ValueError(
-                    f"Symbol mapping not found for {internal_symbol} on {long_exchange}"
-                )
-            try:
-                long_ticker = await long_client.get_ticker(long_exchange_symbol)
-                if not long_ticker or long_ticker.ask == 0:
-                    raise ValueError(
-                        f"Invalid ticker or zero ask price for {long_exchange_symbol} "
-                        f"on {long_exchange}"
-                    )
-                long_base_quantity = opportunity.long_size / long_ticker.ask
-                logger.debug(
-                    f"Calculated long quantity for {long_exchange}: {opportunity.long_size} USD / "
-                    f"{long_ticker.ask} = {long_base_quantity:.8f} {internal_symbol}"
-                )
-            except (APIError, ValueError, ZeroDivisionError) as e:
-                execution.status = ExecutionStatus.FAILED
-                execution.error_message = f"Failed to get ticker or calculate long quantity: {e}"
-                # --- ADDED: Record API error with circuit breaker ---
-                if self.circuit_breaker_system and isinstance(e, APIError):
-                    # Correct keyword: error_message (based on CB signature)
-                    self.circuit_breaker_system.record_api_error(
-                        exchange=long_exchange, error_message=str(e)
-                    )
-                    logger.warning(
-                        f"API Error recorded for {long_exchange} during ticker/qty calc: {e}"
-                    )
-                # ----------------------------------------------------
-                return execution
-            # --------------------------------
+            execution.start_time = datetime.now(UTC)
 
             # Place long order with retry using base quantity and exchange symbol
             long_order = await self._place_order_with_retry(
@@ -274,7 +262,7 @@ class ExecutionHandler:
                 symbol=long_exchange_symbol,  # Use EXCHANGE-SPECIFIC symbol
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
-                quantity=long_base_quantity,  # Pass calculated base quantity
+                quantity=long_quantity,  # Pass calculated base quantity
             )
 
             if not long_order:
@@ -285,64 +273,6 @@ class ExecutionHandler:
             execution.long_order_id = long_order.id
             execution.long_order_response = long_order.to_dict()
 
-            # --- Calculate Short Quantity ---
-            short_exchange_symbol = self.config.get(
-                f"exchanges.{short_exchange}.symbols.{internal_symbol}"
-            )
-            if not short_exchange_symbol:
-                raise ValueError(
-                    f"Symbol mapping not found for {internal_symbol} on {short_exchange}"
-                )
-            try:
-                short_ticker = await short_client.get_ticker(short_exchange_symbol)
-                if not short_ticker or short_ticker.bid == 0:
-                    raise ValueError(
-                        f"Invalid ticker or zero bid price for {short_exchange_symbol} "
-                        f"on {short_exchange}"
-                    )
-                short_base_quantity = opportunity.short_size / short_ticker.bid
-                logger.debug(
-                    f"Calculated short quantity for {short_exchange}: {opportunity.short_size} USD / "
-                    f"{short_ticker.bid} = {short_base_quantity:.8f} {internal_symbol}"
-                )
-            except (APIError, ValueError, ZeroDivisionError) as e:
-                # If short quantity calc fails, we might still need to compensate the long leg
-                execution.status = ExecutionStatus.COMPENSATING
-                execution.error_message = (
-                    f"Failed to get ticker or calculate short quantity: {e}. Compensating long."
-                )
-                logger.warning(f"{execution.error_message}")
-                # --- ADDED: Record API error with circuit breaker ---
-                if self.circuit_breaker_system and isinstance(e, APIError):
-                    # Correct keyword: error_message (based on CB signature)
-                    self.circuit_breaker_system.record_api_error(
-                        exchange=short_exchange, error_message=str(e)
-                    )
-                    logger.warning(
-                        f"API Error recorded for {short_exchange} during ticker/qty calc: {e}"
-                    )
-                # ----------------------------------------------------
-
-                # Attempt compensation (best effort)
-                try:
-                    await self._compensate_position(
-                        client=long_client,
-                        exchange_id=long_exchange,
-                        symbol=internal_symbol,
-                        original_failed_side=OrderSide.SELL,
-                        quantity=long_order.filled_quantity,  # Compensate what was filled
-                    )
-                    execution.status = (
-                        ExecutionStatus.FAILED
-                    )  # Mark as failed after compensation attempt
-                    return execution
-                except Exception as comp_err:
-                    execution.error_message = f"Failed to compensate long leg: {comp_err}"
-                    logger.error(f"Failed to compensate long leg: {comp_err}")
-                    execution.status = ExecutionStatus.FAILED
-                    return execution
-            # ---------------------------------
-
             # Place short order with retry using base quantity and exchange symbol
             short_order = await self._place_order_with_retry(
                 client=short_client,
@@ -350,7 +280,7 @@ class ExecutionHandler:
                 symbol=short_exchange_symbol,  # Use EXCHANGE-SPECIFIC symbol
                 side=OrderSide.SELL,
                 order_type=OrderType.MARKET,
-                quantity=short_base_quantity,  # Pass calculated base quantity
+                quantity=short_quantity,  # Pass calculated base quantity
             )
 
             # --- ADDED: Compensation logic if short fails after long succeeds ---
@@ -663,76 +593,80 @@ class ExecutionHandler:
 
             return execution
 
-        except APIError as e:
-            logger.error(f"API Error during execution {execution.id}: {e}")
+        except CircuitBreakerTrippedError as cb_error:
+            # Handle specific breaker errors
+            logger.warning(f"Execution {execution.id} rejected by circuit breaker: {cb_error}")
+            execution.status = ExecutionStatus.REJECTED
+            execution.error_message = str(cb_error)
+            execution.end_time = datetime.now(UTC)
+            # No need to record API error here, breaker system handles its state
+
+        except APIError as api_error:
+            # Handle API errors from _place_order_with_retry etc.
+            logger.error(
+                f"Execution {execution.id} failed due to API error: {api_error}", exc_info=True
+            )
             execution.status = ExecutionStatus.FAILED
-            execution.error_message = str(e)
-            # Record API error with the system
-            if self.circuit_breaker_system:
-                try:
-                    # Determine which exchange the error occurred on
-                    error_exchange = (
-                        long_exchange if execution.long_order_id is None else short_exchange
-                    )
-                    logger.info(
-                        f"Recording API error for {error_exchange} to circuit breaker system."
-                    )
-                    self.circuit_breaker_system.record_api_error(error_exchange, str(e))
-                except Exception as cb_err:
-                    logger.error(f"Failed to record API error in circuit breaker system: {cb_err}")
+            execution.error_message = f"API Error: {api_error}"
+            execution.end_time = datetime.now(UTC)
+            # Record API error with the circuit breaker system
+            # Determine which exchange failed if possible (needs more context)
+            # self.circuit_breaker_system.record_api_error(failed_exchange, str(api_error))
 
         except Exception as e:
-            # Log unexpected errors during execution
-            logger.error(f"Unexpected error during execution {execution.id}: {e}", exc_info=True)
+            # Handle unexpected errors
+            logger.error(
+                f"Execution {execution.id}: Unexpected error during execution: {str(e)}",
+                exc_info=True,
+            )
             execution.status = ExecutionStatus.FAILED
-            execution.error_message = str(e)
-            # Attempt to record generic error to the appropriate breaker
-            if self.circuit_breaker_system:  # Check if system exists
+            execution.error_message = f"Unexpected internal error: {str(e)}"
+            execution.end_time = datetime.now(UTC)
+            # Record generic error with circuit breakers for both involved exchanges
+            if self.circuit_breaker_system:
                 try:
-                    # Determine which exchange might be related (best effort)
-                    error_exchange = (
-                        long_exchange if execution.long_order_response is None else short_exchange
-                    )
-                    logger.info(
-                        f"Recording generic execution error to {error_exchange} api_errors breaker."
-                    )
-                    # Use the main system record_error method if available, otherwise target specific breaker
-                    self.circuit_breaker_system.record_api_error(
-                        error_exchange, f"Generic execution error: {e}"
-                    )
-                except Exception as cb_err:
-                    logger.error(
-                        f"Failed to record generic execution error in circuit breaker: {cb_err}"
-                    )
-            else:
-                logger.warning("Circuit breaker system not available, cannot record generic error.")
+                    self.circuit_breaker_system.record_api_error(long_exchange, str(e))
+                    self.circuit_breaker_system.record_api_error(short_exchange, str(e))
+                except Exception as cb_record_error:
+                     logger.error(f"Failed to record generic error with circuit breaker: {cb_record_error}")
 
         finally:
-            execution.end_time = datetime.now(UTC)
-            # Remove from active, add to history
+            # Ensure execution is removed from active list and history is updated
             if execution_id in self.active_executions:
-                del self.active_executions[execution_id]
-            self.execution_history.append(execution)
-            if len(self.execution_history) > self.max_execution_history:
-                self.execution_history.pop(0)  # Keep history size bounded
+                finished_execution = self.active_executions.pop(execution_id)
+                if finished_execution.end_time is None:
+                    finished_execution.end_time = datetime.now(UTC)
+                # Ensure status is set if not already done in except blocks
+                if finished_execution.status == ExecutionStatus.PENDING:
+                     logger.warning(f"Execution {execution_id} finished in finally block with PENDING status, setting to FAILED.")
+                     finished_execution.status = ExecutionStatus.FAILED
+                     finished_execution.error_message = finished_execution.error_message or "Finished unexpectedly in PENDING state."
+                
+                self.execution_history.append(finished_execution)
+                if len(self.execution_history) > self.max_execution_history:
+                    self.execution_history.pop(0)
+                logger.info(
+                    f"Execution {finished_execution.id} finished with status: {finished_execution.status.name}"
+                )
+            else:
+                 logger.warning(f"Execution {execution_id} not found in active executions during finally block.")
 
-            logger.info(f"Execution {execution.id} finished with status: {execution.status.name}")
-
-        return execution
+            # Return the final execution state
+            return execution
 
     async def _place_order_with_retry(
         self,
         client: ExchangeAPI,
         exchange_id: str,
         symbol: str,
-        side: "OrderSide", # Changed
-        order_type: "OrderType", # Changed
+        side: OrderSide, # Changed
+        order_type: OrderType, # Changed
         quantity: Decimal,
         price: Decimal | None = None,
         time_in_force: str = "GTC", # Default Time-in-force
         retry_count: int = 0,
         reduce_only: bool = False, # <-- ADD reduce_only parameter
-    ) -> "Order" | None: # Changed
+    ) -> Order | None: # Changed
         """
         Place an order with retry logic, applying slippage checks.
 
@@ -829,7 +763,7 @@ class ExecutionHandler:
 
     async def _get_order_status(
         self, client: ExchangeAPI, exchange_id: str, order_id: str
-    ) -> "Order" | None: # Changed
+    ) -> Order | None: # Changed
         """
         Get the status of an order with retry logic.
 
@@ -871,7 +805,7 @@ class ExecutionHandler:
         client: ExchangeAPI,
         exchange_id: str,
         symbol: str,
-        original_failed_side: "OrderSide", # Changed
+        original_failed_side: OrderSide, # Changed
         quantity: Decimal,
     ) -> bool:
         """Attempts to compensate for a partially filled or failed order leg."""
@@ -1042,7 +976,7 @@ class ExecutionHandler:
 
     async def _verify_order_state(
         self, execution_id: str, exchange: str, order_id: str
-    ) -> "Order" | None: # Changed
+    ) -> Order | None: # Changed
         """
         Verify the final state of an order after execution attempt.
 

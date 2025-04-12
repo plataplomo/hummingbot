@@ -7,7 +7,7 @@ strategy performance using Dash and Plotly for visualization.
 
 import logging
 import threading
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 import dash
 import dash_bootstrap_components as dbc

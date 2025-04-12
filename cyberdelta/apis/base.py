@@ -1,4 +1,4 @@
-from __future__ import annotations # Enable postponed evaluation
+from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 import json
@@ -41,11 +41,11 @@ if TYPE_CHECKING:
         MarketData,
         Order,
         OrderBook,
-        OrderSide, # Moved back
-        OrderType, # Moved back
+        OrderSide,  # Moved back
+        OrderType,  # Moved back
         Position,
         Ticker,
-        TimeInForce, # Moved back
+        TimeInForce,  # Moved back
         Trade,
     )
 
@@ -874,40 +874,40 @@ class ExchangeAPI(ABC):
     # --- Core Data Fetching --- #
 
     @abstractmethod
-    async def get_ticker(self, symbol: str) -> "Ticker":
+    async def get_ticker(self, symbol: str) -> Ticker:
         """Fetch the latest ticker information for a symbol."""
         raise NotImplementedError
 
     @abstractmethod
-    async def get_order_book(self, symbol: str, depth: int = 20) -> "OrderBook":
+    async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
         """Fetch the order book for a symbol."""
         raise NotImplementedError
 
     @abstractmethod
     async def get_funding_rates(
         self, symbol: str | None = None
-    ) -> list["FundingRate"]:
+    ) -> list[FundingRate]:
         """Fetch historical funding rates for a symbol or all symbols."""
         raise NotImplementedError
 
     @abstractmethod
     async def get_market_data(
         self, symbol: str, timeframe: str, limit: int = 100
-    ) -> list["MarketData"]:
+    ) -> list[MarketData]:
         """Fetch historical market data (OHLCV/Kline) for a specific symbol and timeframe."""
         raise NotImplementedError
 
     # --- Account Information --- #
 
     @abstractmethod
-    async def get_balances(self) -> dict[str, "Balance"]:
+    async def get_balances(self) -> dict[str, Balance]:
         """Fetch account balances for all assets."""
         raise NotImplementedError
 
     @abstractmethod
     async def get_positions(
         self, symbol: str | None = None
-    ) -> list["Position"]:
+    ) -> list[Position]:
         """Fetch current open positions, optionally filtered by symbol."""
         raise NotImplementedError
 
@@ -917,15 +917,15 @@ class ExchangeAPI(ABC):
     async def place_order(
         self,
         symbol: str,
-        side: "OrderSide",
-        order_type: "OrderType",
+        side: OrderSide,
+        order_type: OrderType,
         quantity: Decimal,
-        time_in_force: "TimeInForce",
+        time_in_force: TimeInForce,
         price: Decimal | None = None,
         client_order_id: str | None = None,
         reduce_only: bool = False,
         post_only: bool = False,
-    ) -> "Order":
+    ) -> Order:
         """Place a new order on the exchange."""
         raise NotImplementedError
 
@@ -946,21 +946,21 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def get_open_orders(
         self, symbol: str | None = None
-    ) -> list["Order"]:
+    ) -> list[Order]:
         """Fetch all currently open orders, optionally filtered by symbol."""
         raise NotImplementedError
 
     @abstractmethod
     async def get_order_history(
         self, symbol: str | None = None, limit: int = 100
-    ) -> list["Order"]:
+    ) -> list[Order]:
         """Fetch historical order data."""
         raise NotImplementedError
 
     @abstractmethod
     async def get_trade_history(
         self, symbol: str | None = None, limit: int = 100
-    ) -> list["Trade"]:
+    ) -> list[Trade]:
         """Fetch historical trade data (account fills)."""
         raise NotImplementedError
 
@@ -1015,77 +1015,77 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def parse_ticker(self, data: dict[str, Any], symbol: str) -> "Ticker":
+    def parse_ticker(self, data: dict[str, Any], symbol: str) -> Ticker:
         """Parse raw ticker data into a Ticker object."""
         raise NotImplementedError
 
     @abstractmethod
     def parse_order_book(
         self, data: dict[str, Any], symbol: str
-    ) -> "OrderBook":
+    ) -> OrderBook:
         """Parse raw order book data into an OrderBook object."""
         raise NotImplementedError
 
     @abstractmethod
-    def parse_trade(self, data: dict[str, Any], symbol: str) -> "Trade":
+    def parse_trade(self, data: dict[str, Any], symbol: str) -> Trade:
         """Parse raw trade data into a Trade object."""
         raise NotImplementedError
 
     @abstractmethod
-    def parse_balance(self, data: dict[str, Any]) -> "Balance":
+    def parse_balance(self, data: dict[str, Any]) -> Balance:
         """Parse raw balance data into a Balance object."""
         raise NotImplementedError
 
     @abstractmethod
-    def parse_position(self, data: dict[str, Any]) -> "Position":
+    def parse_position(self, data: dict[str, Any]) -> Position:
         """Parse raw position data into a Position object."""
         raise NotImplementedError
 
     @abstractmethod
-    def parse_order(self, data: dict[str, Any]) -> "Order":
+    def parse_order(self, data: dict[str, Any]) -> Order:
         """Parse raw order data into an Order object."""
         raise NotImplementedError
 
     @abstractmethod
-    def parse_funding_rate(self, data: dict[str, Any]) -> "FundingRate":
+    def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate:
         """Parse raw funding rate data into a FundingRate object."""
         raise NotImplementedError
 
     @abstractmethod
-    def parse_ticker_message(self, message: dict[str, Any]) -> "Ticker" | None:
+    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None:
         """Parse a WebSocket message containing ticker information."""
         raise NotImplementedError
 
     @abstractmethod
     def parse_orderbook_message(
         self, message: dict[str, Any]
-    ) -> "OrderBook" | None:
+    ) -> OrderBook | None:
         """Parse a WebSocket message containing order book information."""
         raise NotImplementedError
 
     @abstractmethod
-    def parse_trade_message(self, message: dict[str, Any]) -> "Trade" | None:
+    def parse_trade_message(self, message: dict[str, Any]) -> Trade | None:
         """Parse a WebSocket message containing trade information."""
         raise NotImplementedError
 
     @abstractmethod
     def parse_account_update_message(
         self, message: dict[str, Any]
-    ) -> tuple[dict[str, "Balance"] | None, dict[str, "Position"] | None]:
+    ) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]:
         """Parse a WebSocket message containing account (balance/position) updates."""
         raise NotImplementedError
 
     @abstractmethod
     def parse_order_update_message(
         self, message: dict[str, Any]
-    ) -> "Order" | None:
+    ) -> Order | None:
         """Parse a WebSocket message containing order updates."""
         raise NotImplementedError
 
     @abstractmethod
     def parse_funding_rate_message(
         self, message: dict[str, Any]
-    ) -> "FundingRate" | None:
+    ) -> FundingRate | None:
         """Parse a WebSocket message containing funding rate updates."""
         raise NotImplementedError
 

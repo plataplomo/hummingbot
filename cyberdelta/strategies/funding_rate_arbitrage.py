@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, UTC
-from decimal import getcontext, Decimal
+from datetime import UTC, datetime
+from decimal import Decimal, getcontext
 from typing import Any
 
 from cyberdelta.core.data_handler import DataHandler
+from cyberdelta.core.models import ArbitrageOpportunity, MarketData, TradeSignal
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
-from cyberdelta.core.models import ArbitrageOpportunity, MarketData, TradeSignal
 from cyberdelta.core.strategy import Strategy
 
 # Set precision for Decimal
