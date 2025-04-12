@@ -35,7 +35,9 @@ class PerformanceMetricsCalculator:
         std_dev_excess_return = excess_returns.std()
 
         if std_dev_excess_return == 0:
-            logger.warning("Standard deviation of excess returns is zero. Cannot calculate Sharpe ratio.")
+            logger.warning(
+                "Standard deviation of excess returns is zero. Cannot calculate Sharpe ratio."
+            )
             return np.nan  # Or handle as appropriate, e.g., return 0 or raise error
 
         sharpe_ratio = mean_excess_return / std_dev_excess_return
@@ -64,13 +66,15 @@ class PerformanceMetricsCalculator:
         # Calculate downside deviation
         downside_returns = excess_returns[excess_returns < 0]
         if downside_returns.empty:
-             logger.warning("No downside returns found. Cannot calculate Sortino ratio.")
-             return np.inf # Or np.nan, depending on desired behavior when no losses occur
+            logger.warning("No downside returns found. Cannot calculate Sortino ratio.")
+            return np.inf  # Or np.nan, depending on desired behavior when no losses occur
 
         downside_deviation = np.sqrt((downside_returns**2).mean())
 
         if downside_deviation == 0:
-            logger.warning("Downside deviation is zero. Cannot calculate Sortino ratio meaningfully.")
+            logger.warning(
+                "Downside deviation is zero. Cannot calculate Sortino ratio meaningfully."
+            )
             # If mean excess return is positive, technically infinite Sortino, else Nan/0
             return np.inf if mean_excess_return > 0 else np.nan
 
@@ -93,7 +97,7 @@ class PerformanceMetricsCalculator:
         rolling_max = cumulative_returns.cummax()
         drawdown = (cumulative_returns / rolling_max) - 1
         max_drawdown = drawdown.min()
-        return max_drawdown # Typically expressed as a negative number
+        return max_drawdown  # Typically expressed as a negative number
 
     @staticmethod
     def calculate_calmar_ratio(returns: pd.Series, periods_per_year: int = 252) -> float:
@@ -115,7 +119,6 @@ class PerformanceMetricsCalculator:
             # If mean return is positive, technically infinite Calmar, else Nan/0
             return np.inf if mean_annual_return > 0 else np.nan
 
-
         calmar_ratio = mean_annual_return / abs(max_drawdown)
         return calmar_ratio
 
@@ -131,10 +134,10 @@ class PerformanceMetricsCalculator:
         Returns:
             Win rate (percentage of winning trades).
         """
-        if trades is None or trades.empty or 'pnl' not in trades.columns:
+        if trades is None or trades.empty or "pnl" not in trades.columns:
             logger.warning("Trade data is missing or invalid for win rate calculation.")
             return np.nan
-        winning_trades = trades[trades['pnl'] > 0]
+        winning_trades = trades[trades["pnl"] > 0]
         total_trades = len(trades)
         if total_trades == 0:
             return 0.0
@@ -152,16 +155,18 @@ class PerformanceMetricsCalculator:
         Returns:
             Profit factor (Gross Profits / Gross Losses).
         """
-        if trades is None or trades.empty or 'pnl' not in trades.columns:
+        if trades is None or trades.empty or "pnl" not in trades.columns:
             logger.warning("Trade data is missing or invalid for profit factor calculation.")
             return np.nan
 
-        gross_profits = trades[trades['pnl'] > 0]['pnl'].sum()
-        gross_losses = abs(trades[trades['pnl'] < 0]['pnl'].sum())
+        gross_profits = trades[trades["pnl"] > 0]["pnl"].sum()
+        gross_losses = abs(trades[trades["pnl"] < 0]["pnl"].sum())
 
         if gross_losses == 0:
-            logger.warning("No losses recorded. Profit factor is infinite (or undefined if no profits either).")
-            return np.inf if gross_profits > 0 else np.nan # Indicate infinite if profits exist
+            logger.warning(
+                "No losses recorded. Profit factor is infinite (or undefined if no profits either)."
+            )
+            return np.inf if gross_profits > 0 else np.nan  # Indicate infinite if profits exist
 
         return gross_profits / gross_losses
 
@@ -211,5 +216,7 @@ class PerformanceMetricsCalculator:
         metrics["annualized_return"] = returns.mean() * periods_per_year
         metrics["annualized_volatility"] = returns.std() * np.sqrt(periods_per_year)
 
-        logger.info(f"Calculated performance metrics: { {k: f'{v:.4f}' if isinstance(v, float) else v for k, v in metrics.items()} }")
-        return metrics 
+        logger.info(
+            f"Calculated performance metrics: { {k: f'{v:.4f}' if isinstance(v, float) else v for k, v in metrics.items()} }"
+        )
+        return metrics

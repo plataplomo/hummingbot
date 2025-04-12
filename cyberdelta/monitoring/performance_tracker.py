@@ -140,11 +140,11 @@ class PerformanceTracker:
                     break
 
             if found_index != -1:
-                 # Update existing trade in memory
-                 self.trades[found_index] = trade
+                # Update existing trade in memory
+                self.trades[found_index] = trade
             else:
-                 # Add new trade to memory
-                 self.trades.append(trade)
+                # Add new trade to memory
+                self.trades.append(trade)
 
             # Delegate saving the entire list to persistence handler
             self.persistence.save_trades(self.trades)
@@ -183,18 +183,15 @@ class PerformanceTracker:
                     # Ensure entry_time is datetime before calculating duration
                     entry_time = self.trades[i].get("entry_time")
                     if isinstance(entry_time, datetime) and isinstance(exit_time, datetime):
-                         self.trades[i]["duration"] = (
-                             exit_time - entry_time
-                         ).total_seconds() / 60
+                        self.trades[i]["duration"] = (exit_time - entry_time).total_seconds() / 60
                     else:
-                         self.trades[i]["duration"] = None # Handle missing or invalid entry_time
+                        self.trades[i]["duration"] = None  # Handle missing or invalid entry_time
 
                     # Update metadata
                     if metadata:
                         # Ensure metadata exists and is a dict before updating
-                        if (
-                            "metadata" not in self.trades[i]
-                            or not isinstance(self.trades[i]["metadata"], dict)
+                        if "metadata" not in self.trades[i] or not isinstance(
+                            self.trades[i]["metadata"], dict
                         ):
                             self.trades[i]["metadata"] = {}
                         self.trades[i]["metadata"].update(metadata)
@@ -212,24 +209,23 @@ class PerformanceTracker:
                             if initial_value > 0:
                                 return_value_to_track = pnl / initial_value
                         except (ValueError, TypeError):
-                             logger.warning(
-                                 f"Could not calculate initial value for return tracking "
-                                 f"on trade {trade_id}"
-                             )
+                            logger.warning(
+                                f"Could not calculate initial value for return tracking "
+                                f"on trade {trade_id}"
+                            )
 
-                    break # Exit loop once trade is found and updated
+                    break  # Exit loop once trade is found and updated
 
             if trade_updated:
-                 # Delegate saving the entire updated list
-                 self.persistence.save_trades(self.trades)
+                # Delegate saving the entire updated list
+                self.persistence.save_trades(self.trades)
             else:
                 # Trade not found
                 logger.warning(f"Trade with ID {trade_id} not found for exit tracking")
 
         # Track return separately if needed (avoids nested locking with track_return)
         if strategy_name_for_return and return_value_to_track is not None:
-             self.track_return(strategy_name_for_return, exit_time, return_value_to_track)
-
+            self.track_return(strategy_name_for_return, exit_time, return_value_to_track)
 
     def track_signal(
         self,
@@ -263,7 +259,7 @@ class PerformanceTracker:
                 "timestamp": timestamp,
                 "confidence": confidence,
                 "metadata": metadata or {},
-                "executed": False, # Default state
+                "executed": False,  # Default state
             }
 
             # Check if signal already exists in memory
@@ -274,11 +270,11 @@ class PerformanceTracker:
                     break
 
             if found_index != -1:
-                 # Update existing signal in memory
-                 self.signals[found_index] = signal
+                # Update existing signal in memory
+                self.signals[found_index] = signal
             else:
-                 # Add new signal to memory
-                 self.signals.append(signal)
+                # Add new signal to memory
+                self.signals.append(signal)
 
             # Delegate saving the entire list
             self.persistence.save_signals(self.signals)
@@ -305,23 +301,21 @@ class PerformanceTracker:
                     # Update metadata
                     if metadata:
                         # Ensure metadata exists and is a dict before updating
-                        if (
-                            "metadata" not in self.signals[i]
-                            or not isinstance(self.signals[i]["metadata"], dict)
+                        if "metadata" not in self.signals[i] or not isinstance(
+                            self.signals[i]["metadata"], dict
                         ):
                             self.signals[i]["metadata"] = {}
                         self.signals[i]["metadata"].update(metadata)
 
                     signal_updated = True
-                    break # Exit loop once signal found
+                    break  # Exit loop once signal found
 
             if signal_updated:
-                 # Delegate saving the entire list
-                 self.persistence.save_signals(self.signals)
+                # Delegate saving the entire list
+                self.persistence.save_signals(self.signals)
             else:
                 # Signal not found
                 logger.warning(f"Signal with ID {signal_id} not found for execution tracking")
-
 
     def track_funding_rate(
         self,
@@ -404,7 +398,7 @@ class PerformanceTracker:
             all_timestamps = set()
             for strategy in target_strategies:
                 if strategy in self.returns:
-                     all_timestamps.update(self.returns[strategy].keys())
+                    all_timestamps.update(self.returns[strategy].keys())
 
             if not all_timestamps:
                 return pd.DataFrame()
@@ -416,13 +410,12 @@ class PerformanceTracker:
             # Fill with returns for each strategy
             for strategy in target_strategies:
                 if strategy in self.returns:
-                     # Create Series with datetime index before assigning
-                     strategy_returns = self.returns[strategy]
-                     series = pd.Series(
-                         strategy_returns,
-                         index=pd.to_datetime(list(strategy_returns.keys()))
-                     )
-                     df[strategy] = series
+                    # Create Series with datetime index before assigning
+                    strategy_returns = self.returns[strategy]
+                    series = pd.Series(
+                        strategy_returns, index=pd.to_datetime(list(strategy_returns.keys()))
+                    )
+                    df[strategy] = series
 
             # Sort by timestamp (already sorted by index creation)
             # df = df.sort_index()
@@ -470,14 +463,15 @@ class PerformanceTracker:
                 ]
 
             if completed_only:
-                 filtered_trades = [t for t in filtered_trades if t.get("is_completed", False)]
+                filtered_trades = [t for t in filtered_trades if t.get("is_completed", False)]
 
             # Filter by time (ensure times are datetime)
             if start_time:
                 start_dt = pd.to_datetime(start_time)
                 filtered_trades = [
-                    t for t in filtered_trades if t.get("entry_time")
-                    and pd.to_datetime(t["entry_time"]) >= start_dt
+                    t
+                    for t in filtered_trades
+                    if t.get("entry_time") and pd.to_datetime(t["entry_time"]) >= start_dt
                 ]
 
             if end_time:
@@ -485,10 +479,10 @@ class PerformanceTracker:
                 # Filter based on entry time <= end_time? Or exit_time?
                 # Let's use entry_time for consistency.
                 filtered_trades = [
-                    t for t in filtered_trades if t.get("entry_time")
-                    and pd.to_datetime(t["entry_time"]) <= end_dt
+                    t
+                    for t in filtered_trades
+                    if t.get("entry_time") and pd.to_datetime(t["entry_time"]) <= end_dt
                 ]
-
 
             if not filtered_trades:
                 return pd.DataFrame()
@@ -496,12 +490,12 @@ class PerformanceTracker:
             # Convert to DataFrame
             df = pd.DataFrame(filtered_trades)
             # Attempt conversion to appropriate dtypes after DF creation
-            df['entry_time'] = pd.to_datetime(df['entry_time'], errors='coerce')
-            df['exit_time'] = pd.to_datetime(df['exit_time'], errors='coerce')
-            numeric_cols = ['size', 'entry_price', 'exit_price', 'pnl', 'duration']
+            df["entry_time"] = pd.to_datetime(df["entry_time"], errors="coerce")
+            df["exit_time"] = pd.to_datetime(df["exit_time"], errors="coerce")
+            numeric_cols = ["size", "entry_price", "exit_price", "pnl", "duration"]
             for col in numeric_cols:
                 if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
 
             return df
 
@@ -536,27 +530,29 @@ class PerformanceTracker:
 
             # Filter by time
             if start_time:
-                 start_dt = pd.to_datetime(start_time)
-                 filtered_signals = [
-                     s for s in filtered_signals if s.get("timestamp")
-                     and pd.to_datetime(s["timestamp"]) >= start_dt
-                 ]
+                start_dt = pd.to_datetime(start_time)
+                filtered_signals = [
+                    s
+                    for s in filtered_signals
+                    if s.get("timestamp") and pd.to_datetime(s["timestamp"]) >= start_dt
+                ]
 
             if end_time:
-                 end_dt = pd.to_datetime(end_time)
-                 filtered_signals = [
-                     s for s in filtered_signals if s.get("timestamp")
-                     and pd.to_datetime(s["timestamp"]) <= end_dt
-                 ]
+                end_dt = pd.to_datetime(end_time)
+                filtered_signals = [
+                    s
+                    for s in filtered_signals
+                    if s.get("timestamp") and pd.to_datetime(s["timestamp"]) <= end_dt
+                ]
 
             if not filtered_signals:
                 return pd.DataFrame()
 
             # Convert to DataFrame
             df = pd.DataFrame(filtered_signals)
-            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-            if 'confidence' in df.columns:
-                 df['confidence'] = pd.to_numeric(df['confidence'], errors='coerce')
+            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+            if "confidence" in df.columns:
+                df["confidence"] = pd.to_numeric(df["confidence"], errors="coerce")
 
             return df
 
@@ -566,7 +562,7 @@ class PerformanceTracker:
         symbol: str | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-        pivot: bool = False, # Add pivot option
+        pivot: bool = False,  # Add pivot option
     ) -> pd.DataFrame:
         """
         Get funding rate data as a DataFrame from in-memory data.
@@ -598,15 +594,17 @@ class PerformanceTracker:
             if start_time:
                 start_dt = pd.to_datetime(start_time)
                 filtered_rates = [
-                    r for r in filtered_rates if r.get("timestamp")
-                    and pd.to_datetime(r["timestamp"]) >= start_dt
+                    r
+                    for r in filtered_rates
+                    if r.get("timestamp") and pd.to_datetime(r["timestamp"]) >= start_dt
                 ]
 
             if end_time:
                 end_dt = pd.to_datetime(end_time)
                 filtered_rates = [
-                    r for r in filtered_rates if r.get("timestamp")
-                    and pd.to_datetime(r["timestamp"]) <= end_dt
+                    r
+                    for r in filtered_rates
+                    if r.get("timestamp") and pd.to_datetime(r["timestamp"]) <= end_dt
                 ]
 
             if not filtered_rates:
@@ -614,22 +612,22 @@ class PerformanceTracker:
 
             # Convert to DataFrame
             df = pd.DataFrame(filtered_rates)
-            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-            numeric_cols = ['funding_rate', 'predicted_rate']
+            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+            numeric_cols = ["funding_rate", "predicted_rate"]
             for col in numeric_cols:
-                 if col in df.columns:
-                     df[col] = pd.to_numeric(df[col], errors='coerce')
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
 
             # Set index
             df = df.set_index("timestamp")
 
             # Pivot if requested
-            if pivot and 'symbol' in df.columns and 'funding_rate' in df.columns:
+            if pivot and "symbol" in df.columns and "funding_rate" in df.columns:
                 try:
                     # Pivot requires unique index/column combinations
                     # Drop duplicates based on index (timestamp) and symbol before pivoting
                     df_unique = df.reset_index().drop_duplicates(
-                        subset=['timestamp', 'symbol'], keep='last'
+                        subset=["timestamp", "symbol"], keep="last"
                     )
                     df_pivot = df_unique.pivot(
                         index="timestamp", columns="symbol", values="funding_rate"
@@ -642,7 +640,7 @@ class PerformanceTracker:
                     # Return the unpivoted DataFrame if pivot fails
                     return df.sort_index()
             else:
-                 return df.sort_index()
+                return df.sort_index()
 
     # --- Persistence Methods (delegated) --- #
 

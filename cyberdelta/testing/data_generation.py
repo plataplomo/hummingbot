@@ -4,7 +4,6 @@ Utilities for generating synthetic market data for testing purposes.
 
 import logging
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 
 import numpy as np
 import pandas as pd
@@ -62,7 +61,7 @@ def generate_synthetic_data(
             prices = start_price * np.exp(log_returns.cumsum())
             df_symbol[("mid_price", symbol)] = prices
             # Simulate bid/ask spread
-            spread = rng.uniform(0.0005, 0.002) * prices # Spread as fraction of price
+            spread = rng.uniform(0.0005, 0.002) * prices  # Spread as fraction of price
             df_symbol[("bid_price", symbol)] = prices - spread / 2
             df_symbol[("ask_price", symbol)] = prices + spread / 2
 
@@ -87,5 +86,7 @@ def generate_synthetic_data(
     combined_df.columns = pd.MultiIndex.from_tuples(combined_df.columns)
     combined_df = combined_df.sort_index(axis=1, level=[1, 0])
 
-    logger.info(f"Generated synthetic {data_type} data for {symbols} with shape {combined_df.shape}")
-    return combined_df 
+    logger.info(
+        f"Generated synthetic {data_type} data for {symbols} with shape {combined_df.shape}"
+    )
+    return combined_df

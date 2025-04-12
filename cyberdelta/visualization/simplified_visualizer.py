@@ -66,11 +66,15 @@ class SimpleVisualizer:
         ax.xaxis.set_major_locator(mdates.AutoDateLocator())
         fig.autofmt_xdate()
 
-    def _finalize_plot(self, fig: plt.Figure, ax: plt.Axes, plot_name: str, save: bool, show: bool) -> None:
+    def _finalize_plot(
+        self, fig: plt.Figure, ax: plt.Axes, plot_name: str, save: bool, show: bool
+    ) -> None:
         """Applies final layout adjustments, saves, shows, and closes the plot."""
         plt.tight_layout()
         if save:
-            filename = os.path.join(self.output_dir, f"{self.tracker.strategy_name}_{plot_name}.png")
+            filename = os.path.join(
+                self.output_dir, f"{self.tracker.strategy_name}_{plot_name}.png"
+            )
             try:
                 plt.savefig(filename)
                 logger.info(f"Plot saved to {filename}")
@@ -147,11 +151,10 @@ class SimpleVisualizer:
             # Annotation can sometimes fail with certain data, log but continue
             logger.warning(f"Could not add final PnL annotation: {e}")
 
-
         # Finalize plot (save/show/close)
         self._finalize_plot(fig, ax, "cumulative_pnl", save, show)
 
-        return fig # Return the figure object (though it's closed if not shown live)
+        return fig  # Return the figure object (though it's closed if not shown live)
 
     def plot_drawdown(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
@@ -198,7 +201,7 @@ class SimpleVisualizer:
             ax.annotate(
                 f"Max DD: {max_dd:.2f}%",
                 xy=(max_dd_idx, max_dd),
-                xytext=(15, -15), # Adjust position slightly
+                xytext=(15, -15),  # Adjust position slightly
                 textcoords="offset points",
                 arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
             )
@@ -224,7 +227,7 @@ class SimpleVisualizer:
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
 
-        if trades_df.empty or 'pnl' not in trades_df.columns:
+        if trades_df.empty or "pnl" not in trades_df.columns:
             logger.warning("No completed trades with PnL data to plot distribution")
             return None
 
@@ -244,14 +247,16 @@ class SimpleVisualizer:
         min_ylim, max_ylim = ax.get_ylim()
         ax.text(
             mean_pnl * 1.1, max_ylim * 0.9, f"Mean: ${mean_pnl:.2f}", color="red"
-        ) # Adjust text position
+        )  # Adjust text position
 
         # Finalize plot
         self._finalize_plot(fig, ax, "trade_distribution", save, show)
 
         return fig
 
-    def plot_winning_vs_losing_trades(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_winning_vs_losing_trades(
+        self, save: bool = False, show: bool = True
+    ) -> plt.Figure | None:
         """
         Plot comparison of winning vs losing trades.
 
@@ -265,7 +270,7 @@ class SimpleVisualizer:
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
 
-        if trades_df.empty or 'pnl' not in trades_df.columns:
+        if trades_df.empty or "pnl" not in trades_df.columns:
             logger.warning("No completed trades with PnL data to plot win/loss comparison")
             return None
 
@@ -291,18 +296,22 @@ class SimpleVisualizer:
         win_rate = (len(winners) / len(trades_df)) * 100 if len(trades_df) > 0 else 0
 
         stats_text = (
-            f"Win Rate: {win_rate:.2f}%\n"
-            f"Avg Win: ${avg_win:.2f}\n"
-            f"Avg Loss: ${avg_loss:.2f}"
+            f"Win Rate: {win_rate:.2f}%\nAvg Win: ${avg_win:.2f}\nAvg Loss: ${avg_loss:.2f}"
         )
         # Position text box
-        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-        ax.text(0.05, 0.95, stats_text, transform=ax.transAxes, fontsize=10,
-                verticalalignment='top', bbox=props)
-
+        props = dict(boxstyle="round", facecolor="wheat", alpha=0.5)
+        ax.text(
+            0.05,
+            0.95,
+            stats_text,
+            transform=ax.transAxes,
+            fontsize=10,
+            verticalalignment="top",
+            bbox=props,
+        )
 
         # Remove x-axis ticks if desired, or adjust labels
-        ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=True)
+        ax.tick_params(axis="x", which="both", bottom=False, top=False, labelbottom=True)
 
         # Finalize plot
         self._finalize_plot(fig, ax, "winning_losing_trades", save, show)
@@ -323,7 +332,11 @@ class SimpleVisualizer:
         # Get trades data
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
 
-        if trades_df.empty or 'pnl' not in trades_df.columns or 'exit_time' not in trades_df.columns:
+        if (
+            trades_df.empty
+            or "pnl" not in trades_df.columns
+            or "exit_time" not in trades_df.columns
+        ):
             logger.warning("Insufficient trade data for monthly performance plot")
             return None
 
@@ -336,7 +349,7 @@ class SimpleVisualizer:
             return None
 
         # Resample to monthly PnL
-        monthly_pnl = trades_df["pnl"].resample("ME").sum() # 'ME' for Month End
+        monthly_pnl = trades_df["pnl"].resample("ME").sum()  # 'ME' for Month End
 
         if monthly_pnl.empty:
             logger.warning("No monthly PnL data after resampling")
@@ -350,17 +363,19 @@ class SimpleVisualizer:
         bars = monthly_pnl.plot(kind="bar", ax=ax, color=colors, alpha=0.8)
 
         # Format x-axis labels (Month Abbreviation - Year)
-        ax.set_xticklabels([idx.strftime("%b-%Y") for idx in monthly_pnl.index], rotation=45, ha="right")
+        ax.set_xticklabels(
+            [idx.strftime("%b-%Y") for idx in monthly_pnl.index], rotation=45, ha="right"
+        )
 
         # Add PnL values on bars
-        ax.bar_label(bars, fmt="$%.2f", label_type='edge', padding=3)
+        ax.bar_label(bars, fmt="$%.2f", label_type="edge", padding=3)
 
         # Add horizontal line at zero
         ax.axhline(y=0, color="gray", linestyle="--", alpha=0.7)
 
         # Adjust y-axis limits for better visualization of labels
         min_ylim, max_ylim = ax.get_ylim()
-        ax.set_ylim(min_ylim - abs(min_ylim)*0.1, max_ylim + abs(max_ylim)*0.1)
+        ax.set_ylim(min_ylim - abs(min_ylim) * 0.1, max_ylim + abs(max_ylim) * 0.1)
 
         # Finalize plot
         self._finalize_plot(fig, ax, "monthly_performance", save, show)
@@ -390,20 +405,34 @@ class SimpleVisualizer:
 
         # --- Plotting (Text Display) ---
         fig, ax = plt.subplots()
-        fig.set_size_inches(8, 6) # Adjust size for text
-        ax.set_title(f"Performance Metrics ({self.tracker.strategy_name})", fontsize=14, fontweight="bold")
+        fig.set_size_inches(8, 6)  # Adjust size for text
+        ax.set_title(
+            f"Performance Metrics ({self.tracker.strategy_name})", fontsize=14, fontweight="bold"
+        )
 
         # Prepare text
-        metrics_text = "\n".join([f"{key.replace('_', ' ').title()}: {value:.4f}" 
-                                 if isinstance(value, (float, np.number)) else f"{key.replace('_', ' ').title()}: {value}"
-                                 for key, value in metrics.items()])
+        metrics_text = "\n".join(
+            [
+                f"{key.replace('_', ' ').title()}: {value:.4f}"
+                if isinstance(value, (float, np.number))
+                else f"{key.replace('_', ' ').title()}: {value}"
+                for key, value in metrics.items()
+            ]
+        )
 
         # Display text
-        ax.text(0.05, 0.95, metrics_text, transform=ax.transAxes, fontsize=12,
-                verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        ax.text(
+            0.05,
+            0.95,
+            metrics_text,
+            transform=ax.transAxes,
+            fontsize=12,
+            verticalalignment="top",
+            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+        )
 
         # Hide axes
-        ax.axis('off')
+        ax.axis("off")
 
         # Finalize plot (save/show/close)
         # Note: Saving this will save an image of the text

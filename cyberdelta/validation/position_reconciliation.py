@@ -337,7 +337,7 @@ class PositionReconciliationSystem:
                     exchange_position = next(
                         (
                             p
-                            for p in self.portfolio_tracker._get_exchange_positions(exchange)
+                            for p in self.portfolio_tracker._fetch_exchange_positions(exchange)
                             if p.symbol == symbol
                         ),
                         None,

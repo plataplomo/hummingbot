@@ -7,7 +7,7 @@ import logging
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 # Assuming Decimal might be used in trade/signal data, import if needed
 # from decimal import Decimal
@@ -83,10 +83,10 @@ class PerformanceDataPersistence:
             if isinstance(loaded_data, dict | list):
                 return loaded_data
             else:
-                 logger.warning(
-                     f"Loaded data from {filepath} is not dict or list: {type(loaded_data)}"
-                 )
-                 return None
+                logger.warning(
+                    f"Loaded data from {filepath} is not dict or list: {type(loaded_data)}"
+                )
+                return None
         except json.JSONDecodeError as e:
             logger.error(f"JSON decoding error loading {filepath}: {e}", exc_info=True)
         except OSError as e:
@@ -108,10 +108,10 @@ class PerformanceDataPersistence:
                     is_returns_dict = all(isinstance(k, datetime) for k in first_val.keys())
 
             if is_returns_dict:
-                 return {
-                     strategy: {ts.isoformat(): val for ts, val in returns.items()}
-                     for strategy, returns in data.items()
-                 }
+                return {
+                    strategy: {ts.isoformat(): val for ts, val in returns.items()}
+                    for strategy, returns in data.items()
+                }
             # General dict processing
             # Ruff UP038 fix: Use X | Y
             return {
@@ -119,7 +119,7 @@ class PerformanceDataPersistence:
                 for k, v in data.items()
             }
         elif isinstance(data, list):
-             # Handle list of trades/signals/funding_rates (which are dicts)
+            # Handle list of trades/signals/funding_rates (which are dicts)
             if all(isinstance(item, dict) for item in data):
                 return [self._make_dict_serializable(item) for item in data]
             # General list processing
@@ -140,7 +140,7 @@ class PerformanceDataPersistence:
                 item_copy[key] = value.isoformat()
             # Recursively handle nested dicts/lists if necessary
             elif isinstance(value, dict | list):
-                 item_copy[key] = self._make_serializable(value)
+                item_copy[key] = self._make_serializable(value)
             # Add Decimal handling if needed and not using encoder that stringifies it
             # elif isinstance(value, Decimal):
             #     item_copy[key] = str(value)
@@ -150,52 +150,54 @@ class PerformanceDataPersistence:
     def post_process_loaded_data(
         self, data_type: str, loaded_data: dict | list | None
     ) -> dict | list | None:
-         """Converts loaded data structures back (e.g., string to datetime)."""
-         if loaded_data is None:
-             return None # Or appropriate default (e.g., empty list/dict)
+        """Converts loaded data structures back (e.g., string to datetime)."""
+        if loaded_data is None:
+            return None  # Or appropriate default (e.g., empty list/dict)
 
-         if data_type == "returns" and isinstance(loaded_data, dict):
-             # Input: {strategy: {iso_timestamp_str: value}}
-             # Mypy fix: Add type annotation
-             processed_data: dict[str, dict[datetime, float]] = {}
-             for strategy, returns_dict in loaded_data.items():
-                 if isinstance(returns_dict, dict):
-                     processed_data[strategy] = {}
-                     for ts_str, val in returns_dict.items():
-                         if isinstance(ts_str, str):
-                             try:
-                                 # Assuming val is float or compatible
-                                 processed_data[strategy][datetime.fromisoformat(ts_str)] = float(val)
-                             except (ValueError, TypeError):
-                                 logger.warning(
-                                     f"Could not parse timestamp {ts_str} or value "
-                                     f"{val} in {data_type} data"
-                                 )
-                         else:
-                              logger.warning(
-                                  f"Non-string timestamp key '{ts_str}' found in returns for {strategy}"
-                              )
-                 else:
-                     logger.warning(
-                         f"Invalid returns format for strategy {strategy}: "
-                         f"expected dict, got {type(returns_dict)}"
-                     )
-             return processed_data
-         elif data_type in ["trades", "signals", "funding_rates"] and isinstance(loaded_data, list):
-             # Input: list[dict]
-             processed_list = []
-             for item_dict in loaded_data:
-                  if isinstance(item_dict, dict):
-                       processed_list.append(self._post_process_dict(item_dict))
-                  else:
-                      logger.warning(f"Non-dict item found in {data_type} list: {type(item_dict)}")
-             return processed_list
-         else:
-             logger.warning(
-                 f"Loaded data for {data_type} is not the expected type (dict/list): "
-                 f"{type(loaded_data)}"
-             )
-             return loaded_data # Return original if type mismatch
+        if data_type == "returns" and isinstance(loaded_data, dict):
+            # Input: {strategy: {iso_timestamp_str: value}}
+            # Mypy fix: Add type annotation
+            processed_data: dict[str, dict[datetime, float]] = {}
+            for strategy, returns_dict in loaded_data.items():
+                if isinstance(returns_dict, dict):
+                    processed_data[strategy] = {}
+                    for ts_str, val in returns_dict.items():
+                        if isinstance(ts_str, str):
+                            try:
+                                # Assuming val is float or compatible
+                                processed_data[strategy][datetime.fromisoformat(ts_str)] = float(
+                                    val
+                                )
+                            except (ValueError, TypeError):
+                                logger.warning(
+                                    f"Could not parse timestamp {ts_str} or value "
+                                    f"{val} in {data_type} data"
+                                )
+                        else:
+                            logger.warning(
+                                f"Non-string timestamp key '{ts_str}' found in returns for {strategy}"
+                            )
+                else:
+                    logger.warning(
+                        f"Invalid returns format for strategy {strategy}: "
+                        f"expected dict, got {type(returns_dict)}"
+                    )
+            return processed_data
+        elif data_type in ["trades", "signals", "funding_rates"] and isinstance(loaded_data, list):
+            # Input: list[dict]
+            processed_list = []
+            for item_dict in loaded_data:
+                if isinstance(item_dict, dict):
+                    processed_list.append(self._post_process_dict(item_dict))
+                else:
+                    logger.warning(f"Non-dict item found in {data_type} list: {type(item_dict)}")
+            return processed_list
+        else:
+            logger.warning(
+                f"Loaded data for {data_type} is not the expected type (dict/list): "
+                f"{type(loaded_data)}"
+            )
+            return loaded_data  # Return original if type mismatch
 
     def _post_process_dict(self, item: dict) -> dict:
         """Converts known string fields back to datetime in a loaded dict."""
@@ -203,14 +205,14 @@ class PerformanceDataPersistence:
         # Define keys that might contain ISO datetime strings
         datetime_keys = ["timestamp", "entry_time", "exit_time"]
         for key in datetime_keys:
-             if key in item_copy and isinstance(item_copy[key], str):
-                 try:
-                     item_copy[key] = datetime.fromisoformat(item_copy[key])
-                 except (ValueError, TypeError):
-                     logger.warning(
-                         f"Could not parse datetime string '{item_copy[key]}' for key '{key}'"
-                     )
-                     item_copy[key] = None # Set to None if parsing fails
+            if key in item_copy and isinstance(item_copy[key], str):
+                try:
+                    item_copy[key] = datetime.fromisoformat(item_copy[key])
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Could not parse datetime string '{item_copy[key]}' for key '{key}'"
+                    )
+                    item_copy[key] = None  # Set to None if parsing fails
         # Recursively handle nested structures if needed
         for key, value in item_copy.items():
             if isinstance(value, dict):
@@ -243,23 +245,25 @@ class PerformanceDataPersistence:
                     # Post-process: convert keys back to datetime
                     all_returns[strategy_name] = {}
                     for ts_str, val in loaded_data.items():
-                         if isinstance(ts_str, str):
-                             try:
+                        if isinstance(ts_str, str):
+                            try:
                                 # Assuming val is float or compatible
-                                all_returns[strategy_name][datetime.fromisoformat(ts_str)] = float(val)
-                             except (ValueError, TypeError):
-                                 logger.warning(
-                                     f"Could not parse timestamp {ts_str} or value "
-                                     f"{val} in returns file {filepath.name}"
-                                 )
-                         else:
+                                all_returns[strategy_name][datetime.fromisoformat(ts_str)] = float(
+                                    val
+                                )
+                            except (ValueError, TypeError):
+                                logger.warning(
+                                    f"Could not parse timestamp {ts_str} or value "
+                                    f"{val} in returns file {filepath.name}"
+                                )
+                        else:
                             logger.warning(
                                 f"Non-string timestamp key found in returns file {filepath.name}"
                             )
                 else:
-                     logger.warning(
-                         f"Loaded data for {strategy_name} returns is not a dict: {type(loaded_data)}"
-                     )
+                    logger.warning(
+                        f"Loaded data for {strategy_name} returns is not a dict: {type(loaded_data)}"
+                    )
         return all_returns
 
     def save_trades(self, trades_data: list[dict[str, Any]]) -> None:
@@ -272,10 +276,8 @@ class PerformanceDataPersistence:
         loaded_data = self.load_data("trades", "trades.json")
         # Ensure loaded_data is list before passing to post-processing
         if not isinstance(loaded_data, list):
-             logger.warning(
-                 f"Loaded trades data is not a list: {type(loaded_data)}"
-             )
-             loaded_data = []
+            logger.warning(f"Loaded trades data is not a list: {type(loaded_data)}")
+            loaded_data = []
         processed_data = self.post_process_loaded_data("trades", loaded_data)
         return processed_data if isinstance(processed_data, list) else []
 
@@ -287,10 +289,8 @@ class PerformanceDataPersistence:
         """Loads the list of signals."""
         loaded_data = self.load_data("signals", "signals.json")
         if not isinstance(loaded_data, list):
-             logger.warning(
-                 f"Loaded signals data is not a list: {type(loaded_data)}"
-             )
-             loaded_data = []
+            logger.warning(f"Loaded signals data is not a list: {type(loaded_data)}")
+            loaded_data = []
         processed_data = self.post_process_loaded_data("signals", loaded_data)
         return processed_data if isinstance(processed_data, list) else []
 
@@ -302,9 +302,7 @@ class PerformanceDataPersistence:
         """Loads the list of funding rates."""
         loaded_data = self.load_data("funding_rates", "funding_rates.json")
         if not isinstance(loaded_data, list):
-             logger.warning(
-                 f"Loaded funding_rates data is not a list: {type(loaded_data)}"
-             )
-             loaded_data = []
+            logger.warning(f"Loaded funding_rates data is not a list: {type(loaded_data)}")
+            loaded_data = []
         processed_data = self.post_process_loaded_data("funding_rates", loaded_data)
-        return processed_data if isinstance(processed_data, list) else [] 
+        return processed_data if isinstance(processed_data, list) else []

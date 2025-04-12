@@ -9,23 +9,18 @@ It handles data splitting, strategy execution, performance metrics calculation,
 and results visualization.
 """
 
-import json
 import logging
-import os
 import pathlib
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, cast
+from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from numpy.random import Generator
 
 from cyberdelta.core.models import MarketData, SignalType, TradeSignal
 from cyberdelta.core.strategy import Strategy
-from cyberdelta.utils.serialization import CyberDeltaJSONEncoder, dump_json
 
 # Configure logging
 logger: logging.Logger = logging.getLogger(__name__)
@@ -235,7 +230,7 @@ class BacktestEngine:
 
         # --- Post-Processing with Results Handler ---
         try:
-            from .results import BacktestResultsHandler # Local import
+            from .results import BacktestResultsHandler  # Local import
 
             results_handler = BacktestResultsHandler(
                 strategy_name=self.strategy.name,
