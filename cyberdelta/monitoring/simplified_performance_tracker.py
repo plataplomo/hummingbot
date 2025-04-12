@@ -9,7 +9,7 @@ import csv
 import logging
 import os
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -127,7 +127,7 @@ class SimplePerformanceTracker:
         """Record current performance metrics."""
         metrics = PerformanceMetrics(
             strategy_name=self.strategy_name,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             signals_generated=self.total_signals_generated,
             signals_executed=self.total_signals_executed,
             trades_executed=self.total_trades_executed,
@@ -369,7 +369,7 @@ class SimplePerformanceTracker:
             filename_prefix: Optional prefix for the CSV filenames
         """
         prefix = filename_prefix or self.strategy_name
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
         # Export metrics
         metrics_file = Path(self.output_dir) / f"{prefix}_metrics_{timestamp}.csv"
@@ -624,7 +624,7 @@ if __name__ == "__main__":
     # Simulate some trades
     from datetime import timedelta
 
-    now = datetime.now()
+    now = datetime.now(UTC)
 
     # Track some signals
     signal1 = type(

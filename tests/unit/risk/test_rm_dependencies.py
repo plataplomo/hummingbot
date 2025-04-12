@@ -91,7 +91,7 @@ class TestRiskManagerDependencyFailures:
         risk_manager: RiskManager,
         mock_config: MagicMock,
         mock_circuit_breaker: MagicMock,
-        mock_funding_validator: MagicMock, # Add validator mock
+        mock_funding_validator: MagicMock, # Now using this!
         sample_opportunity: ArbitrageOpportunity,
         scope_to_trip: str
     ) -> None:
@@ -102,7 +102,10 @@ class TestRiskManagerDependencyFailures:
             "risk.simple_sizing_method": "fixed_fraction",
             "risk.simple_fixed_fraction": "0.10", # 10% -> 10k initial size
             "risk.circuit_breaker_recovery_factor": "0.3",
-            "risk.min_validation_factor": "0.9" # High FV factor, should not affect size
+            # Need these config keys for the validation factor calculation:
+            "risk.min_validation_factor": "0.1", # Low min factor, shouldn't be used
+            "risk.max_acceptable_rmse": 0.05,
+            "risk.max_acceptable_bias": 0.02,
         }
         combined_config = {**mock_config.default_values, **test_overrides}
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
@@ -110,8 +113,11 @@ class TestRiskManagerDependencyFailures:
         # Set mocks for initial sizing and other controls
         risk_manager.max_position_size = Decimal("20000.0") # High cap
         risk_manager._apply_portfolio_exposure_management = MagicMock(side_effect=lambda opp, size: size)
-        # ** Directly mock _get_validation_metrics to return 1.0 float to isolate CB effect **
-        risk_manager._get_validation_metrics = MagicMock(return_value=1.0)
+        # ** Ensure underlying FundingRateValidator returns metrics that yield factor=1.0 **
+        mock_funding_validator.get_validation_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
+        # Assign the updated validator mock back to the risk_manager instance
+        risk_manager.funding_rate_validator = mock_funding_validator
+
         risk_manager._check_portfolio_constraints = MagicMock(return_value=True)
 
         # Mock can_execute to return False only for the specified scope
@@ -128,9 +134,12 @@ class TestRiskManagerDependencyFailures:
         # --- Assert ---
         assert isinstance(sized_opp, SizedOpportunity)
         mock_circuit_breaker.can_execute.assert_called()
+        # Verify the validator was called (it should be, by the actual code path)
+        mock_funding_validator.get_validation_metrics.assert_called()
 
         initial_size = Decimal("100000.0") * Decimal("0.10") # 10000
-        expected_size = initial_size * Decimal("0.3") # Apply ONLY CB factor (FV mocked to 1.0 via _get_validation_metrics)
+        # Now expect size reduced ONLY by CB factor (0.3), as FV factor should be 1.0
+        expected_size = initial_size * Decimal("0.3")
         final_expected = min(expected_size, risk_manager.max_position_size)
 
         assert sized_opp.long_size == final_expected, f"Scope {scope_to_trip} failed (Expected: {final_expected}, Got: {sized_opp.long_size})"

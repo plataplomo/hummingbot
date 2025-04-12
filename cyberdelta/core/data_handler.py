@@ -487,15 +487,17 @@ class DataHandler:
             )
             return None
 
-        # Calculate staleness
-        now = datetime.now(last_update.tzinfo) # Ensure timezone comparison if applicable
-        staleness = (now - last_update).total_seconds()
+        # Add UTC timezone info if last_update is naive
+        if last_update and last_update.tzinfo is None:
+            last_update = last_update.replace(tzinfo=UTC)
+        
+        time_since_update = (datetime.now(UTC) - last_update).total_seconds()
 
         # Check against staleness threshold
         staleness_threshold = self.staleness_thresholds["ticker"]
-        if staleness > staleness_threshold:
+        if time_since_update > staleness_threshold:
             logger.warning(
-                f"Stale ticker: {exchange_id}/{symbol} {staleness:.1f}s > {staleness_threshold}s"
+                f"Stale ticker: {exchange_id}/{symbol} {time_since_update:.1f}s > {staleness_threshold}s"
             )
             # For now, return None if stale, matching previous behavior but could be configurable
             # TODO: Add robust handling requirement
@@ -532,17 +534,21 @@ class DataHandler:
                 return None
 
             last_update = self.last_update_time[exchange_id]["funding_rate"][symbol]
-            seconds_since_update = (datetime.now(UTC) - last_update).total_seconds()
+            # Add UTC timezone info if last_update is naive
+            if last_update and last_update.tzinfo is None:
+                last_update = last_update.replace(tzinfo=UTC)
+            
+            time_since_update = (datetime.now(UTC) - last_update).total_seconds()
 
             staleness_threshold = self.config.get(
                 "data.staleness_thresholds.funding_rate",
                 self.staleness_thresholds["funding_rate"],
             )
 
-            if seconds_since_update > staleness_threshold:
+            if time_since_update > staleness_threshold:
                 logger.warning(
                     f"Stale funding rate: {exchange_id}/{symbol} "
-                    f"{seconds_since_update:.1f}s > {staleness_threshold}s"
+                    f"{time_since_update:.1f}s > {staleness_threshold}s"
                 )
                 return None
 

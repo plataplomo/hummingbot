@@ -224,7 +224,7 @@ class ExecutionHandler:
                     "No main circuit breaker system provided to ExecutionHandler. Skipping checks."
                 )
 
-            execution.start_time = datetime.now()
+            execution.start_time = datetime.now(UTC)
             execution.status = ExecutionStatus.EXECUTING
 
             long_client = self.api_clients[long_exchange]

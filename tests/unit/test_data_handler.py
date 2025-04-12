@@ -385,55 +385,32 @@ class TestDataHandler:
         # Mock the parse_ticker_message method
         test_ticker = MarketData(
             symbol="BTC",
-            timestamp=datetime.now(),
-            open=40000.0,
-            high=42000.0,
-            low=39000.0,
-            close=42000.0,
-            volume=100.0,
+            timestamp=datetime.now(UTC),
+            open=Decimal("40000.0"),
+            high=Decimal("42000.0"),
+            low=Decimal("39000.0"),
+            close=Decimal("42000.0"),
+            volume=Decimal("100.0"),
         )
         mock_exchange_api.parse_ticker_message = MagicMock(
             return_value=("BTC", test_ticker)
         )
 
-        # Patch the _update_ticker method
-        with patch.object(data_handler, "_update_ticker") as mock_update:
-            # Handle the message
+        # Patch the _update_and_notify method which is called after parsing
+        with patch.object(data_handler, "_update_and_notify", new_callable=AsyncMock) as mock_update_notify:
+            # Call the handler
             await data_handler._handle_websocket_message("hyperliquid", test_message)
 
-            # Verify methods were called with the correct parameters
+            # Verify the correct methods were called
             mock_exchange_api.get_message_type.assert_called_once_with(test_message)
-            mock_exchange_api.parse_ticker_message.assert_called_once_with(test_message)
-            mock_update.assert_called_once_with("hyperliquid", "BTC", test_ticker)
-
-    def test_update_ticker(self, data_handler):
-        """Test updating ticker data."""
-        # Set up a test ticker
-        test_ticker = MarketData(
-            symbol="BTC",
-            timestamp=datetime.now(),
-            open=40000.0,
-            high=42000.0,
-            low=39000.0,
-            close=41500.0,
-            volume=100.0,
-        )
-
-        # Call the _update_ticker method
-        data_handler._update_ticker("hyperliquid", "BTC", test_ticker)
-
-        # Verify the ticker was stored correctly
-        assert "hyperliquid" in data_handler.tickers
-        assert "BTC" in data_handler.tickers["hyperliquid"]
-        assert data_handler.tickers["hyperliquid"]["BTC"] == test_ticker
-
-        # Verify the timestamp was updated
-        assert "hyperliquid" in data_handler.last_update_time
-        assert "ticker" in data_handler.last_update_time["hyperliquid"]
-        assert "BTC" in data_handler.last_update_time["hyperliquid"]["ticker"]
-        assert isinstance(
-            data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"], datetime
-        )
+            mock_exchange_api.parse_ticker_message.assert_called_once_with(message=test_message)
+            # Verify _update_and_notify was called with correct args
+            mock_update_notify.assert_awaited_once_with(
+                exchange_id="hyperliquid",
+                data_type="ticker",
+                symbol="BTC",
+                data=test_ticker,
+            )
 
     @pytest.mark.asyncio
     async def test_maintain_websocket_connection(self, data_handler, mock_exchange_api):

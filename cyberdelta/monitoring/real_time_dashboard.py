@@ -7,7 +7,7 @@ strategy performance using Dash and Plotly for visualization.
 
 import logging
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 import dash
 import dash_bootstrap_components as dbc
@@ -78,7 +78,7 @@ class RealTimeDashboard:
 
         # Cache for data to avoid repeated calculations
         self.data_cache = {}
-        self.last_update_time = datetime.now()
+        self.last_update_time = datetime.now(UTC)
 
     def setup_layout(self) -> None:
         """Set up the dashboard layout."""
@@ -309,7 +309,7 @@ class RealTimeDashboard:
             Input("interval-component", "n_intervals"),
         )
         def update_time_display(n_intervals: int) -> str:
-            self.last_update_time = datetime.now()
+            self.last_update_time = datetime.now(UTC)
             return f"Last Updated: {self.last_update_time.strftime('%Y-%m-%d %H:%M:%S')}"
 
         # Update performance overview chart
@@ -587,7 +587,7 @@ class RealTimeDashboard:
             return self.data_cache[cache_key]
 
         # Get time range
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         if time_range == "1h":
             start_time = end_time - timedelta(hours=1)
         elif time_range == "1d":
@@ -597,7 +597,7 @@ class RealTimeDashboard:
         elif time_range == "1m":
             start_time = end_time - timedelta(days=30)
         else:  # all time
-            start_time = datetime(2020, 1, 1)  # Use a very early date
+            start_time = datetime(2020, 1, 1, tzinfo=UTC)  # Use a very early date
 
         # Get returns data from performance tracker
         returns_data = self.performance_tracker.get_returns_dataframe(
@@ -628,7 +628,7 @@ class RealTimeDashboard:
             return self.data_cache[cache_key]
 
         # Get time range
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         if time_range == "1h":
             start_time = end_time - timedelta(hours=1)
         elif time_range == "1d":
@@ -638,7 +638,7 @@ class RealTimeDashboard:
         elif time_range == "1m":
             start_time = end_time - timedelta(days=30)
         else:  # all time
-            start_time = datetime(2020, 1, 1)  # Use a very early date
+            start_time = datetime(2020, 1, 1, tzinfo=UTC)  # Use a very early date
 
         # Get trade data from performance tracker
         trade_data = self.performance_tracker.get_trades_dataframe(
@@ -668,7 +668,7 @@ class RealTimeDashboard:
             return self.data_cache[cache_key]
 
         # Get time range
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         if time_range == "1h":
             start_time = end_time - timedelta(hours=1)
         elif time_range == "1d":
@@ -678,7 +678,7 @@ class RealTimeDashboard:
         elif time_range == "1m":
             start_time = end_time - timedelta(days=30)
         else:  # all time
-            start_time = datetime(2020, 1, 1)  # Use a very early date
+            start_time = datetime(2020, 1, 1, tzinfo=UTC)  # Use a very early date
 
         # Get funding rate data from performance tracker
         funding_data = self.performance_tracker.get_funding_rates_dataframe(

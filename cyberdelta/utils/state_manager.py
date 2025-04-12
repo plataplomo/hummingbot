@@ -3,7 +3,7 @@ import logging
 import os
 import shutil
 import time
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any
 
 from cyberdelta.utils.config import Config
@@ -103,7 +103,7 @@ class StateManager:
             state_data = {
                 "state": state,
                 "metadata": {
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "checksum": self._calculate_checksum(state),
                 },
             }
@@ -120,7 +120,7 @@ class StateManager:
             shutil.move(temp_file, self.state_file)
 
             # Update last save time
-            self.last_save_time = datetime.now()
+            self.last_save_time = datetime.now(UTC)
 
             logger.info(f"Successfully saved state to {self.state_file}")
             return True

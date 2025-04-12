@@ -234,11 +234,12 @@ class Trade:
     id: str
     symbol: str
     timestamp: int
-    side: OrderSide
+    # side: OrderSide # Changed to optional
     price: Decimal
     quantity: Decimal
 
     # Optional fields (with defaults) last - REORDERED
+    side: OrderSide | None = None # CHANGED: Made optional
     order_id: str | None = None
     exchange: str | None = None
     datetime: datetime | None = None
@@ -337,22 +338,29 @@ class FundingRate:
 
     symbol: str
     funding_rate: Decimal  # Current funding rate (Decimal)
-    predicted_rate: Decimal = Decimal("0.0")  # Predicted next funding rate (Decimal)
-    mark_price: Decimal = Decimal("0.0")  # Current mark price (Decimal)
-    index_price: Decimal = Decimal("0.0")  # Current index price (Decimal)
-    next_funding_time: int = 0  # Next funding timestamp
+    predicted_rate: Decimal | None = None # Made optional
+    mark_price: Decimal | None = None     # Made optional
+    index_price: Decimal | None = None    # Made optional
+    next_funding_time: int | None = None    # Made optional
     historical_rates: list[dict[str, Any]] | None = None  # Historical funding rates (Optional)
 
     def __post_init__(self) -> None:
-        # Ensure numeric fields are Decimal
-        if not isinstance(self.funding_rate, Decimal):
-            self.funding_rate = Decimal(str(self.funding_rate))
-        if not isinstance(self.predicted_rate, Decimal):
-            self.predicted_rate = Decimal(str(self.predicted_rate))
-        if not isinstance(self.mark_price, Decimal):
-            self.mark_price = Decimal(str(self.mark_price))
-        if not isinstance(self.index_price, Decimal):
-            self.index_price = Decimal(str(self.index_price))
+        # Ensure numeric fields are Decimal, handle None explicitly
+        if self.funding_rate is not None and not isinstance(self.funding_rate, Decimal):
+            try: self.funding_rate = Decimal(str(self.funding_rate))
+            except decimal.InvalidOperation: self.funding_rate = None # Or raise
+        
+        if self.predicted_rate is not None and not isinstance(self.predicted_rate, Decimal):
+            try: self.predicted_rate = Decimal(str(self.predicted_rate))
+            except decimal.InvalidOperation: self.predicted_rate = None # Or raise
+        
+        if self.mark_price is not None and not isinstance(self.mark_price, Decimal):
+            try: self.mark_price = Decimal(str(self.mark_price))
+            except decimal.InvalidOperation: self.mark_price = None # Or raise
+        
+        if self.index_price is not None and not isinstance(self.index_price, Decimal):
+            try: self.index_price = Decimal(str(self.index_price))
+            except decimal.InvalidOperation: self.index_price = None # Or raise
 
 
 class ArbitrageOpportunity:

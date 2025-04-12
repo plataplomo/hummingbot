@@ -8,7 +8,7 @@ confidence-scored funding rate data.
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Any
 
 from .funding_data import (
@@ -126,7 +126,7 @@ class MultiTierFundingProvider:
         cache_key = (exchange, symbol)
         if cache_key in self.funding_cache:
             cached_data = self.funding_cache[cache_key]
-            age = (datetime.now() - cached_data.timestamp).total_seconds()
+            age = (datetime.now(UTC) - cached_data.timestamp).total_seconds()
             if age <= self.max_acceptable_age:
                 logger.debug(f"Using fresh cached funding rate for {exchange}:{symbol}")
                 return cached_data.rate, cached_data.confidence_score
@@ -221,7 +221,7 @@ class MultiTierFundingProvider:
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=raw_data.get("timestamp", datetime.now()),
+                timestamp=raw_data.get("timestamp", datetime.now(UTC)),
                 source_type=SourceType.PRIMARY,
                 source_reliability=SourceReliability.HIGH,
                 raw_data=raw_data,
@@ -257,7 +257,7 @@ class MultiTierFundingProvider:
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=raw_data.get("timestamp", datetime.now()),
+                timestamp=raw_data.get("timestamp", datetime.now(UTC)),
                 source_type=SourceType.SECONDARY,
                 source_reliability=SourceReliability.MEDIUM,
                 raw_data=raw_data,
@@ -293,7 +293,7 @@ class MultiTierFundingProvider:
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=raw_data.get("timestamp", datetime.now()),
+                timestamp=raw_data.get("timestamp", datetime.now(UTC)),
                 source_type=SourceType.TERTIARY,
                 source_reliability=SourceReliability.LOW,
                 raw_data=raw_data,
@@ -331,7 +331,7 @@ class MultiTierFundingProvider:
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
-                timestamp=raw_data.get("timestamp", datetime.now()),
+                timestamp=raw_data.get("timestamp", datetime.now(UTC)),
                 source_type=SourceType.FALLBACK,
                 source_reliability=SourceReliability.LOWEST,
                 raw_data=raw_data,
@@ -339,7 +339,7 @@ class MultiTierFundingProvider:
 
             # Use lower confidence for fallback data and adjust for age
             base_confidence = 0.2
-            age = (datetime.now() - fallback_data.timestamp).total_seconds()
+            age = (datetime.now(UTC) - fallback_data.timestamp).total_seconds()
             decay_factor = max(0, 1 - (age / (self.max_acceptable_age * 4)))
             adjusted_confidence = base_confidence * decay_factor
             adjusted_rate = fallback_data.rate
@@ -479,7 +479,7 @@ class MultiTierFundingProvider:
         dispersion_score = max(0, 1 - (integrated_data.dispersion / max_dispersion))
 
         # Freshness score (more recent = higher confidence)
-        age_seconds = (datetime.now() - integrated_data.timestamp).total_seconds()
+        age_seconds = (datetime.now(UTC) - integrated_data.timestamp).total_seconds()
         freshness_score = max(0, 1 - (age_seconds / self.max_acceptable_age))
 
         return ConfidenceFactors(
@@ -541,7 +541,7 @@ class MultiTierFundingProvider:
             Number of stale entries cleared
         """
         max_age = max_age_seconds or self.max_acceptable_age
-        now = datetime.now()
+        now = datetime.now(UTC)
         stale_keys = [
             key
             for key, data in self.funding_cache.items()

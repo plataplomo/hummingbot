@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any
 
 import structlog
@@ -134,7 +134,7 @@ class StrategyManager:
             List of trade signals generated from strategies
         """
         signals: list[TradeSignal] = []
-        self.last_update_time = datetime.now()
+        self.last_update_time = datetime.now(UTC)
 
         # Only process data for symbols we're actually tracking
         if data.symbol not in self.active_symbols:

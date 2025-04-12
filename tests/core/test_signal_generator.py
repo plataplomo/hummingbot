@@ -2,7 +2,7 @@
 Tests for the SignalGenerator class.
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 from decimal import Decimal
 import logging
@@ -141,9 +141,9 @@ class TestSignalGenerator:
     def test_update_historical_data(self, mock_datetime, signal_generator, data_handler):
         """Test updating historical funding rate and basis data using deque."""
         # Set a fixed time for consistent testing
-        fixed_now = datetime(2023, 1, 1, 12, 0, 0)
+        fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_datetime.now.return_value = fixed_now
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw, tzinfo=UTC)
 
         # --- Initial Update --- Find internal symbols used
         hyperliquid_btc_internal = "BTC" # Assumes internal symbol is BTC for hyperliquid
@@ -249,7 +249,7 @@ class TestSignalGenerator:
         assert signal_generator.calculate_basis_volatility(internal_symbol) == Decimal("0.0")
 
         # Add historical basis data using deque
-        now = datetime.now()
+        now = datetime.now(UTC)
         basis_deque = deque()
         basis_values = [Decimal("100"), Decimal("120"), Decimal("90"), Decimal("110")]
         timestamps = [now - timedelta(hours=3), now - timedelta(hours=2), now - timedelta(hours=1), now]
@@ -274,7 +274,7 @@ class TestSignalGenerator:
         assert signal_generator.calculate_funding_rate_volatility(exchange, internal_symbol) == Decimal("0.0")
 
         # Test with insufficient data (1 point)
-        now = datetime.now()
+        now = datetime.now(UTC)
         funding_deque = deque()
         funding_deque.append((now, Decimal("0.01")))
         signal_generator.historical_funding_rates[exchange][internal_symbol] = funding_deque
@@ -372,7 +372,7 @@ class TestSignalGenerator:
         # Minimal test to check ArbitrageOpportunity object creation logic
         # This assumes generate_opportunities works correctly based on other tests
         # Setup simple mock data directly if needed, or rely on existing fixtures
-        now = datetime.now()
+        now = datetime.now(UTC)
         opp = ArbitrageOpportunity(
             symbol="TEST/USD",
             long_exchange="ex1",

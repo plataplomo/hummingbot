@@ -48,7 +48,7 @@ class PositionReconciliationSystem:
         )  # seconds
 
         # Track the last reconciliation time
-        self.last_check_time = datetime.now() - timedelta(seconds=self.check_interval + 1)
+        self.last_check_time = datetime.now(UTC) - timedelta(seconds=self.check_interval + 1)
 
         # Record of discrepancies found
         self.discrepancy_history: list[dict[str, Any]] = []
@@ -75,7 +75,7 @@ class PositionReconciliationSystem:
         Returns:
             Dictionary of reconciliation results by exchange
         """
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         # Check if we should run reconciliation
         if not force and (now - self.last_check_time).total_seconds() < self.check_interval:
@@ -406,7 +406,7 @@ class PositionReconciliationSystem:
         Returns:
             Report with summary statistics and recent discrepancies
         """
-        now = datetime.now()
+        now = datetime.now(UTC)
         recent_discrepancies = self.get_discrepancy_history(days=1)
 
         # Group discrepancies by exchange

@@ -98,7 +98,7 @@ class TestPortfolioTracker:
                     quantity=Decimal("0.5"),
                     filled_quantity=Decimal("0.0"),
                     status=OrderStatus.NEW.value,
-                    time=int(datetime.now().timestamp() * 1000),
+                    time=int(datetime.now(UTC).timestamp() * 1000),
                     client_order_id="client-order-1",
                 )
             ],
@@ -112,7 +112,7 @@ class TestPortfolioTracker:
                     quantity=Decimal("5.0"),
                     filled_quantity=Decimal("5.0"),
                     status=OrderStatus.FILLED.value,
-                    time=int(datetime.now().timestamp() * 1000),
+                    time=int(datetime.now(UTC).timestamp() * 1000),
                     client_order_id="client-order-2",
                 )
             ],
@@ -235,7 +235,7 @@ class TestPortfolioTracker:
             quantity=Decimal("1.0"),
             filled_quantity=Decimal("0.0"),
             status=OrderStatus.NEW.value,
-            time=int(datetime.now().timestamp() * 1000),
+            time=int(datetime.now(UTC).timestamp() * 1000),
             client_order_id="client-order-3",
         )
 
@@ -440,7 +440,7 @@ class TestPortfolioTracker:
             quantity=Decimal("0.5"),
             filled_quantity=Decimal("0.1"), # Partially filled
             status=OrderStatus.PARTIALLY_FILLED, # Use Enum member
-            time=int(datetime.now().timestamp() * 1000),
+            time=int(datetime.now(UTC).timestamp() * 1000),
             client_order_id="client-order-open",
         )
         portfolio_tracker.update_order("hyperliquid", open_order)
@@ -456,7 +456,7 @@ class TestPortfolioTracker:
             filled_quantity=Decimal("0.0"),
             # status=OrderStatus.CANCELED.value, # Original: used string value
             status=OrderStatus.CANCELED, # Use Enum member
-            time=int(datetime.now().timestamp() * 1000),
+            time=int(datetime.now(UTC).timestamp() * 1000),
             client_order_id="client-order-4",
         )
         portfolio_tracker.update_order("hyperliquid", cancelled_order)

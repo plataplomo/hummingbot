@@ -7,7 +7,7 @@ of funding rate data from multiple sources.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 from typing import Any
 
@@ -52,7 +52,7 @@ class FundingData:
         Returns:
             True if data is stale, False otherwise
         """
-        age = (datetime.now() - self.timestamp).total_seconds()
+        age = (datetime.now(UTC) - self.timestamp).total_seconds()
         return age > max_age_seconds
 
 
@@ -80,7 +80,7 @@ class IntegratedFundingData:
         Returns:
             Age in seconds
         """
-        return (datetime.now() - self.timestamp).total_seconds()
+        return (datetime.now(UTC) - self.timestamp).total_seconds()
 
     def is_stale(self, max_age_seconds: float) -> bool:
         """
@@ -193,7 +193,7 @@ class ArbitrageOpportunity:
         if self.expiration is None:
             return False
 
-        return datetime.now() > self.expiration
+        return datetime.now(UTC) > self.expiration
 
 
 @dataclass

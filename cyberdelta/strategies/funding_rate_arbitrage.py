@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from decimal import getcontext, Decimal
 from typing import Any
 
@@ -108,7 +108,7 @@ class FundingRateArbitrageStrategy(Strategy):
             return None
 
         # Get current time
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         # Get prices for basis calculation
         perp_ticker = await self.data_handler.get_ticker(self.perp_exchange, self.symbol)
@@ -283,7 +283,7 @@ class FundingRateArbitrageStrategy(Strategy):
         self.update_historical_data(data)
 
         # Check if it's time to check for opportunities
-        now = datetime.now()
+        now = datetime.now(UTC)
         if (
             self.last_opportunity_check is None
             or (now - self.last_opportunity_check).total_seconds() >= self.check_interval
@@ -415,7 +415,7 @@ class FundingRateArbitrageStrategy(Strategy):
             spot_quantity = default_size
 
         self.signals_generated += 1
-        self.last_signal_time = datetime.now()
+        self.last_signal_time = datetime.now(UTC)
 
         # Create trade signal with enhanced metadata
         opportunity_id = str(id(opportunity))
@@ -424,7 +424,7 @@ class FundingRateArbitrageStrategy(Strategy):
             strategy_name=self.name,
             signal_type=SignalType.ENTER_LONG if perp_side == "LONG" else SignalType.ENTER_SHORT,
             symbol=self.symbol,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             signal_id=f"{self.name}_{self.signals_generated}",
             trades=[
                 {
@@ -505,13 +505,13 @@ class FundingRateArbitrageStrategy(Strategy):
         )
 
         self.signals_generated += 1
-        self.last_signal_time = datetime.now()
+        self.last_signal_time = datetime.now(UTC)
 
         return TradeSignal(
             strategy_name=self.name,
             signal_type=SignalType.REBALANCE,
             symbol=self.symbol,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             signal_id=f"{self.name}_rebalance_{self.signals_generated}",
             trades=[
                 {

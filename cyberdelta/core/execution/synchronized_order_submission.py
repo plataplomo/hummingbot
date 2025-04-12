@@ -9,7 +9,7 @@ import asyncio
 import logging
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum, auto
 from typing import Any
 from dataclasses import dataclass
@@ -308,7 +308,7 @@ class ExecutionCoordinator:
             execution_id=execution_id,
             opportunity=opportunity,
             strategy=strategy,
-            start_time=datetime.now(),
+            start_time=datetime.now(UTC),
             status=ExecutionStatus.PENDING,
             checkpoints=[],
         )
@@ -321,7 +321,7 @@ class ExecutionCoordinator:
             context,
             "execution_started",
             {
-                "time": datetime.now().isoformat(),
+                "time": datetime.now(UTC).isoformat(),
                 "opportunity": opportunity.to_dict()
                 if hasattr(opportunity, "to_dict")
                 else str(opportunity),
@@ -344,7 +344,7 @@ class ExecutionCoordinator:
         """
         checkpoint = {
             "name": checkpoint_name,
-            "time": datetime.now().isoformat(),
+            "time": datetime.now(UTC).isoformat(),
             "details": details,
         }
 
@@ -362,7 +362,7 @@ class ExecutionCoordinator:
             result: Execution result
         """
         context.status = result.status
-        context.end_time = datetime.now()
+        context.end_time = datetime.now(UTC)
         context.result = result
 
         # Add final checkpoint
@@ -396,7 +396,7 @@ class ExecutionCoordinator:
             Abort details
         """
         context.status = ExecutionStatus.FAILED
-        context.end_time = datetime.now()
+        context.end_time = datetime.now(UTC)
         context.abort_reason = reason
 
         # Add abort checkpoint

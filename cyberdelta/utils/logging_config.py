@@ -1,7 +1,7 @@
 import logging
 import logging.handlers
 import os
-from datetime import datetime
+from datetime import datetime, UTC
 from types import TracebackType
 from typing import Any
 
@@ -66,7 +66,7 @@ def setup_logging(config: Config) -> None:
         os.makedirs(log_dir, exist_ok=True)
 
         # Generate log file name based on current date
-        date_str = datetime.now().strftime("%Y-%m-%d")
+        date_str = datetime.now(UTC).strftime("%Y-%m-%d")
         log_file = os.path.join(log_dir, f"cyberdelta_{date_str}.log")
 
         # Create rotating file handler

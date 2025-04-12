@@ -8,7 +8,7 @@ against actual payments received/paid.
 import logging
 import math
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Any
 
 # from cyberdelta.config import Config # Incorrect path
@@ -123,7 +123,7 @@ class FundingRateValidator:
             Dictionary with accuracy metrics (RMSE, MAE, bias, etc.)
         """
         # Calculate time threshold (milliseconds)
-        threshold_time = datetime.now() - timedelta(days=days)
+        threshold_time = datetime.now(UTC) - timedelta(days=days)
         threshold_ms = int(threshold_time.timestamp() * 1000)
 
         # Filter predictions for the given exchange, symbol, and time range
@@ -321,7 +321,7 @@ class FundingRateValidator:
             Dictionary with timestamp, predicted, and actual rate lists
         """
         # Calculate time threshold
-        threshold_time = datetime.now() - timedelta(days=days)
+        threshold_time = datetime.now(UTC) - timedelta(days=days)
         threshold_ms = int(threshold_time.timestamp() * 1000)
 
         # Filter predictions
@@ -366,7 +366,7 @@ class FundingRateValidator:
         Args:
             days_to_keep: Number of days of data to retain
         """
-        threshold_time = datetime.now() - timedelta(days=days_to_keep)
+        threshold_time = datetime.now(UTC) - timedelta(days=days_to_keep)
         threshold_ms = int(threshold_time.timestamp() * 1000)
 
         # Filter out old predictions

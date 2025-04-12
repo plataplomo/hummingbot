@@ -183,10 +183,12 @@ class TestExecutionHandler:
         hl_api_mock.get_order_status = AsyncMock()
         hl_api_mock.cancel_order = AsyncMock()
         hl_api_mock.get_ticker = AsyncMock()
+        hl_api_mock.get_last_price = AsyncMock(return_value=Decimal("50000.0"))
         bp_api_mock.place_order = AsyncMock()
         bp_api_mock.get_order_status = AsyncMock()
         bp_api_mock.cancel_order = AsyncMock()
         bp_api_mock.get_ticker = AsyncMock()
+        bp_api_mock.get_last_price = AsyncMock(return_value=Decimal("50000.0"))
         handler.register_api_client("hyperliquid", hl_api_mock)
         handler.register_api_client("backpack", bp_api_mock)
 

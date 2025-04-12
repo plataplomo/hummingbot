@@ -64,7 +64,7 @@ class PrioritySignalQueue:
         self.default_expiration_seconds = config.get("default_signal_expiration_seconds", 300)
         self.max_queue_size = config.get("max_signal_queue_size", 100)
         self.cleanup_interval = config.get("queue_cleanup_interval", 10)
-        self.last_cleanup = datetime.now()
+        self.last_cleanup = datetime.now(UTC)
 
         logger.info("Initialized priority signal queue")
 
@@ -97,7 +97,7 @@ class PrioritySignalQueue:
             return False
 
         # Clean expired signals periodically
-        now = datetime.now()
+        now = datetime.now(UTC)
         if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
             self._clean_expired_signals()
             self.last_cleanup = now
@@ -148,7 +148,7 @@ class PrioritySignalQueue:
             source_strategy=strategy_name,
             symbol=opportunity.symbol,
             signal_type=SignalType.ENTER_LONG,  # TODO: Adjust based on opportunity
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             price=Decimal('0'),  # Default to Decimal zero
             expiration=opportunity.expiration if hasattr(opportunity, "expiration") else None,
             metadata={
@@ -431,7 +431,7 @@ class PrioritySignalQueue:
                     # Ensure price is Decimal
                     price=Decimal(str(signal.price)) if signal.price is not None else None,
                     quantity=signal.quantity,
-                    timestamp=signal.timestamp,
+                    timestamp=datetime.now(UTC),
                     confidence=signal.confidence,
                     source_strategy=signal.source_strategy,  # Use source_strategy if available
                     stop_loss=signal.stop_loss,

@@ -14,7 +14,7 @@ import logging
 import os
 import pathlib
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
@@ -508,7 +508,7 @@ class BacktestEngine:
         if filename is None:
             filename = os.path.join(
                 self.results_dir,
-                f"{self.strategy.name}_backtest_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                f"{self.strategy.name}_backtest_results_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json",
             )
 
         # Prepare a serializable version of the results
@@ -836,7 +836,7 @@ def generate_synthetic_data(
 
     rng: Generator = np.random.default_rng()
 
-    end_date: datetime = datetime.now()
+    end_date: datetime = datetime.now(UTC)
     start_date: datetime = end_date - timedelta(days=days)
 
     dates: pd.DatetimeIndex = pd.date_range(

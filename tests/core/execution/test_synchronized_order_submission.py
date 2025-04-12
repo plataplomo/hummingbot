@@ -3,7 +3,7 @@ Tests for the synchronize order submission module.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -62,7 +62,7 @@ class TestOrderVerifier:
             quantity=1.0,
             filled_quantity=1.0,
             status=OrderStatus.FILLED,
-            time=int(datetime.now().timestamp() * 1000),
+            time=int(datetime.now(UTC).timestamp() * 1000),
             client_order_id="client-order-1",
         )
 
@@ -77,7 +77,7 @@ class TestOrderVerifier:
             quantity=1.0,
             filled_quantity=1.0,
             status=OrderStatus.FILLED,
-            time=int(datetime.now().timestamp() * 1000),
+            time=int(datetime.now(UTC).timestamp() * 1000),
             client_order_id="client-order-1",
         )
         mock_api_client.get_order.return_value = mock_api_order
@@ -88,7 +88,7 @@ class TestOrderVerifier:
                 "side": "BUY",
                 "price": 50000.0,
                 "quantity": 1.0,
-                "timestamp": int(datetime.now().timestamp() * 1000),
+                "timestamp": int(datetime.now(UTC).timestamp() * 1000),
             }
         ]
 
@@ -244,7 +244,7 @@ class TestExecutionCoordinator:
         result = ExecutionResult(
             execution_id="test-execution-3",
             status=ExecutionStatus.COMPLETED,
-            timestamp=int(datetime.now().timestamp() * 1000)
+            timestamp=int(datetime.now(UTC).timestamp() * 1000)
         )
 
         await coordinator.complete_execution(context, result)
@@ -378,7 +378,7 @@ class TestSynchronizedOrderSubmissionService:
             return_value=ExecutionResult(
                 execution_id="test-execution",
                 status=ExecutionStatus.COMPLETED,
-                timestamp=int(datetime.now().timestamp() * 1000),
+                timestamp=int(datetime.now(UTC).timestamp() * 1000),
             )
         )
 
@@ -386,7 +386,7 @@ class TestSynchronizedOrderSubmissionService:
             return_value=ExecutionResult(
                 execution_id="test-execution",
                 status=ExecutionStatus.COMPLETED,
-                timestamp=int(datetime.now().timestamp() * 1000),
+                timestamp=int(datetime.now(UTC).timestamp() * 1000),
             )
         )
 
@@ -562,7 +562,7 @@ class TestSynchronizedOrderSubmissionService:
         execution_result = ExecutionResult(
             execution_id="test-execution",
             status=ExecutionStatus.COMPLETED,
-            timestamp=int(datetime.now().timestamp() * 1000),
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
         )
 
         # Test successful verification (already set in fixture)

@@ -182,6 +182,11 @@ def mock_hl_api(mock_config, mock_secrets):
     api_mock.cancel_order = MagicMock()
     api_mock.get_balances = MagicMock(return_value={})
     api_mock.get_positions = MagicMock(return_value=[])
+    api_mock.reset = MagicMock()
+    # Add test helper mocks identified from failures
+    api_mock.reset_failure = MagicMock()
+    api_mock.set_mock_ticker = MagicMock()
+    api_mock.clear_error = MagicMock()
     # Mock other methods as needed by tests
     return api_mock
 
@@ -198,6 +203,11 @@ def mock_bp_api(mock_config, mock_secrets):
     api_mock.cancel_order = MagicMock()
     api_mock.get_balances = MagicMock(return_value={})
     api_mock.get_positions = MagicMock(return_value=[])
+    api_mock.reset = MagicMock()
+    # Add test helper mocks identified from failures
+    api_mock.reset_failure = MagicMock()
+    api_mock.set_mock_ticker = MagicMock()
+    api_mock.clear_error = MagicMock()
     # Mock other methods as needed by tests
     return api_mock
 

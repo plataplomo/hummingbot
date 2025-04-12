@@ -117,7 +117,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
             self.data_handler.get_latest_price.reset_mock()
 
             # Set the last opportunity check to now
-            self.strategy.last_opportunity_check = datetime.now()
+            self.strategy.last_opportunity_check = datetime.now(UTC)
 
             # --- Test the rebalancing branch --- 
             # Now, simulate having positions for rebalancing check
@@ -170,7 +170,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
         # Create test data
         data = MarketData(
             symbol="BTC-PERP",
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             open=Decimal("30000.0"),
             high=Decimal("30100.0"),
             low=Decimal("29900.0"),
@@ -203,7 +203,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
             symbol="BTC-PERP",
             funding_rate=Decimal("0.1"),  # 0.1% per hour - increased to pass minimum threshold
             predicted_rate=Decimal("0.1"),
-            next_funding_time=int(datetime.now().timestamp() * 1000) + 3600000,
+            next_funding_time=int(datetime.now(UTC).timestamp() * 1000) + 3600000,
             mark_price=Decimal("30000.0"),
             index_price=Decimal("29990.0"),
         )
@@ -214,7 +214,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
             bid=Decimal("29995.0"),
             ask=Decimal("30005.0"),
             volume=Decimal("100.0"),
-            timestamp=int(datetime.now().timestamp() * 1000),
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
         )
 
         spot_ticker = Ticker(
@@ -223,7 +223,7 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
             bid=Decimal("29985.0"),
             ask=Decimal("29995.0"),
             volume=Decimal("50.0"),
-            timestamp=int(datetime.now().timestamp() * 1000),
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
         )
 
         logger.info(f"Set up funding_rate: {funding_rate}")
@@ -254,11 +254,11 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
         # Make sure historical basis data exists with sufficient history
         self.strategy.historical_basis = {
             "BTC-PERP": [
-                (datetime.now(), Decimal("10.0")),
-                (datetime.now(), Decimal("12.0")),
-                (datetime.now(), Decimal("8.0")),
-                (datetime.now(), Decimal("11.0")),
-                (datetime.now(), Decimal("9.0")),
+                (datetime.now(UTC), Decimal("10.0")),
+                (datetime.now(UTC), Decimal("12.0")),
+                (datetime.now(UTC), Decimal("8.0")),
+                (datetime.now(UTC), Decimal("11.0")),
+                (datetime.now(UTC), Decimal("9.0")),
             ]
         }
 
@@ -369,11 +369,11 @@ class TestFundingRateArbitrageStrategy(unittest.TestCase):
         # Add some historical basis data
         self.strategy.historical_basis = {
             "BTC-PERP": [
-                (datetime.now(), Decimal("10.0")),
-                (datetime.now(), Decimal("12.0")),
-                (datetime.now(), Decimal("8.0")),
-                (datetime.now(), Decimal("11.0")),
-                (datetime.now(), Decimal("9.0")),
+                (datetime.now(UTC), Decimal("10.0")),
+                (datetime.now(UTC), Decimal("12.0")),
+                (datetime.now(UTC), Decimal("8.0")),
+                (datetime.now(UTC), Decimal("11.0")),
+                (datetime.now(UTC), Decimal("9.0")),
             ]
         }
 
