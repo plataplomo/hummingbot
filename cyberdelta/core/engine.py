@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -11,8 +9,7 @@ import pandas as pd
 import structlog
 
 if TYPE_CHECKING:
-    from cyberdelta.core.models import MarketData, OrderSide, Position, SignalType, TradeSignal
-from cyberdelta.utils.constants import PositionStatus
+    from cyberdelta.core.models import MarketData, TradeSignal
 
 from .strategy import Strategy
 
@@ -22,373 +19,345 @@ logger = structlog.get_logger(__name__)
 class Engine:
     """
     Core trading engine responsible for:
-    - Managing strategies
-    - Processing market data
-    - Executing trade signals
-    - Tracking positions
+    - Managing strategies and their states (enabled/disabled).
+    - Routing incoming market data to relevant, enabled strategies.
+    - Receiving trade signals from strategies and forwarding them to a configured
+      handler (e.g., RiskManager).
+    - DOES NOT manage positions, calculate PnL, or execute trades directly.
     """
 
     def __init__(self, name: str = "CyberDeltaEngine") -> None:
         self.name = name
         self.strategies: dict[str, Strategy] = {}
-        self.positions: dict[str, Position] = {}
-        self.active_positions: dict[str, Position] = {}
-        self.closed_positions: list[Position] = []
-        self.signal_handlers: list[Callable[[TradeSignal], None]] = []
+        self.enabled_strategies: set[str] = set() # Track enabled strategy names
+        self.active_symbols: set[str] = set() # Track symbols monitored by strategies
+        # Must be set via set_signal_handler
+        self.signal_handler: Callable[[TradeSignal], None] | None = None
         self.is_running = False
         self.start_time: datetime | None = None
-        self.last_update_time: datetime | None = None
+        self.last_data_time: datetime | None = None
         self.logger = structlog.get_logger(engine_name=name)
 
         logger.info(f"Engine '{name}' initialized")
 
     def add_strategy(self, strategy: Strategy) -> None:
         """
-        Add a strategy to the engine
+        Add a strategy instance to the engine. Replaces existing strategy with the same name.
+        The strategy is disabled by default upon adding.
 
         Args:
-            strategy: Strategy instance to add
+            strategy: Strategy instance to add.
         """
         if strategy.name in self.strategies:
-            logger.warning(f"Strategy '{strategy.name}' already exists, replacing")
+            logger.warning(f"Strategy '{strategy.name}' already exists, replacing.")
+            # Ensure the old strategy is disabled if replaced
+            if strategy.name in self.enabled_strategies:
+                self.disable_strategy(strategy.name)
 
         self.strategies[strategy.name] = strategy
-        logger.info(f"Added strategy '{strategy.name}' for symbol '{strategy.symbol}'")
+        # Do not automatically enable; require explicit call to enable_strategy
+        strategy.disable()
+        self._refresh_active_symbols()
+        logger.info(
+            f"Added strategy '{strategy.name}' for symbol '{strategy.symbol}'. "
+            f"Strategy is initially disabled."
+        )
 
     def remove_strategy(self, strategy_name: str) -> None:
         """
-        Remove a strategy from the engine
+        Remove a strategy from the engine.
 
         Args:
-            strategy_name: Name of the strategy to remove
+            strategy_name: Name of the strategy to remove.
         """
         if strategy_name in self.strategies:
             logger.info(f"Removing strategy '{strategy_name}'")
+            # Ensure strategy is disabled before removal
+            if strategy_name in self.enabled_strategies:
+                self.disable_strategy(strategy_name) # Also calls strategy.disable()
             del self.strategies[strategy_name]
+            self._refresh_active_symbols()
         else:
-            logger.warning(f"Strategy '{strategy_name}' not found")
+            logger.warning(f"Strategy '{strategy_name}' not found for removal.")
 
-    def register_signal_handler(self, handler: Callable[[TradeSignal], None]) -> None:
+    def enable_strategy(self, strategy_name: str) -> None:
+        """Enable a registered strategy to process data and generate signals."""
+        if strategy_name not in self.strategies:
+            logger.warning(f"Cannot enable non-existent strategy '{strategy_name}'.")
+            return
+        if strategy_name in self.enabled_strategies:
+            logger.debug(f"Strategy '{strategy_name}' is already enabled.")
+            return
+
+        strategy = self.strategies[strategy_name]
+        strategy.enable() # Update the strategy's internal state
+        self.enabled_strategies.add(strategy_name)
+        # Ensure active symbols reflects enabled state if needed (optional refinement)
+        self._refresh_active_symbols()
+        logger.info(f"Enabled strategy '{strategy_name}'.")
+
+    def disable_strategy(self, strategy_name: str) -> None:
+        """Disable a registered strategy."""
+        if strategy_name not in self.strategies:
+            logger.warning(f"Cannot disable non-existent strategy '{strategy_name}'.")
+            return
+        if strategy_name not in self.enabled_strategies:
+            logger.debug(f"Strategy '{strategy_name}' is already disabled.")
+            return
+
+        strategy = self.strategies[strategy_name]
+        strategy.disable() # Update the strategy's internal state
+        self.enabled_strategies.discard(strategy_name)
+        # Refreshing symbols might not be strictly needed on disable
+        # self._refresh_active_symbols()
+        logger.info(f"Disabled strategy '{strategy_name}'.")
+
+    def set_signal_handler(self, handler: Callable[[TradeSignal], None]) -> None:
         """
-        Register a handler for trade signals
+        Set the single handler responsible for processing generated TradeSignals.
+        This should typically be the entry point for the RiskManager or a SignalQueue.
 
         Args:
-            handler: Callable that takes a TradeSignal
+            handler: The callable that accepts a TradeSignal.
         """
-        self.signal_handlers.append(handler)
-        logger.info(f"Registered signal handler {handler.__name__}")
+        self.signal_handler = handler
+        # Use getattr for safe name retrieval, fallback to repr
+        handler_name = getattr(handler, '__name__', repr(handler))
+        logger.info(f"Signal handler set to: {handler_name}")
 
     def process_market_data(self, data: MarketData) -> None:
         """
-        Process market data through all strategies for the relevant symbol
+        Process incoming market data.
+        Routes the data to relevant, enabled strategies based on symbol.
+        Forwards any generated TradeSignal to the configured signal_handler.
 
         Args:
-            data: MarketData object containing market information
+            data: MarketData object containing market information.
         """
         if not self.is_running:
-            logger.warning("Engine is not running, ignoring market data")
+            logger.warning("Engine is not running, ignoring market data.")
             return
 
-        self.last_update_time = datetime.now()
+        if not self.signal_handler:
+            logger.error("Engine has no signal handler configured. Signals cannot be processed.")
+            # Depending on requirements, could buffer signals or drop them. Currently dropping.
+            return
 
-        # Process through relevant strategies
-        for strategy in self.strategies.values():
-            if strategy.symbol == data.symbol and strategy.enabled:
-                signal = strategy.process_data(data)
-                if signal:
-                    self._handle_signal(signal, strategy.name)
+        self.last_data_time = datetime.now(UTC) # Use UTC
 
-        # Update positions with latest data
-        for position_id, position in self.active_positions.items():
-            if position.symbol == data.symbol:
-                self._update_position_status(position_id, data)
+        # Optimization: Check if any strategy cares about this symbol before iterating
+        if data.symbol not in self.active_symbols:
+            logger.debug(f"No active strategy for symbol {data.symbol}, ignoring data.")
+            return
+
+        # Route data ONLY to enabled strategies for the matching symbol
+        for strategy_name in self.enabled_strategies:
+            strategy = self.strategies[strategy_name]
+            if strategy.symbol == data.symbol:
+                try:
+                    # Strategy is responsible for managing its own state/history
+                    signal = strategy.process_data(data)
+                    if signal:
+                        logger.info(
+                            f"Strategy '{strategy.name}' generated signal: "
+                            f"{signal.signal_type.name} for {signal.symbol}." # Compacted log
+                        )
+                        # Forward signal IMMEDIATELY to the configured handler
+                        # Ensure handler exists (checked at start, but belt-and-suspenders)
+                        if self.signal_handler:
+                            self.signal_handler(signal)
+                        else:
+                            # This case should theoretically not be reached due
+                            # to the check at the method start
+                            logger.error(
+                                f"Signal from {strategy.name} but no handler configured!"
+                            )
+
+                except Exception as e:
+                    # Log the error and potentially disable the faulty strategy
+                    # to prevent repeated errors
+                    logger.error(
+                        f"Error processing data in strategy '{strategy.name}': {e}",
+                        symbol=data.symbol,
+                        strategy_name=strategy.name,
+                        exc_info=True # Include stack trace
+                    )
+                    # Option: Automatically disable faulty strategy (consider implications)
+                    # logger.warning(
+                    #     f"Disabling faulty strategy '{strategy.name}' due to processing error."
+                    # )
+                    # self.disable_strategy(strategy_name)
 
     def process_dataframe(self, df: pd.DataFrame, symbol: str) -> None:
         """
-        Process a pandas DataFrame of historical/batch market data
+        Process a pandas DataFrame of historical/batch market data.
+        Converts rows to MarketData objects and feeds them to process_market_data.
 
         Args:
-            df: DataFrame with market data (must have timestamp and OHLCV columns)
-            symbol: Symbol this data represents
+            df: DataFrame with market data (must have timestamp, open, high, low, close, volume).
+            symbol: Symbol this data represents.
         """
         required_cols = ["timestamp", "open", "high", "low", "close", "volume"]
         missing = [col for col in required_cols if col not in df.columns]
 
         if missing:
+            # Use logger for errors
+            logger.error(
+                f"DataFrame processing failed for {symbol}: Missing required columns: {missing}"
+            )
             raise ValueError(f"DataFrame missing required columns: {missing}")
 
-        for _, row in df.iterrows():
-            # Convert to Decimal safely
+        logger.info(f"Processing DataFrame for {symbol} with {len(df)} rows.")
+        for index, row in df.iterrows():
+            # Convert to Decimal safely, handle potential errors per row
             try:
+                # Ensure conversion from string for precision
                 open_p = Decimal(str(row["open"]))
                 high_p = Decimal(str(row["high"]))
                 low_p = Decimal(str(row["low"]))
                 close_p = Decimal(str(row["close"]))
                 volume_p = Decimal(str(row["volume"]))
-            except (InvalidOperation, TypeError) as e:
-                self.logger.error("Error converting DataFrame row to Decimal", row=row, error=e)
+
+                # Ensure timestamp is timezone-aware (UTC)
+                ts = row["timestamp"]
+                if not isinstance(ts, datetime):
+                    ts = pd.to_datetime(ts) # Pandas handles various formats
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=UTC) # Assume UTC if naive
+                else:
+                    ts = ts.astimezone(UTC) # Convert to UTC if already aware
+
+            except (InvalidOperation, TypeError, ValueError) as e:
+                self.logger.error(
+                    f"Error converting DataFrame row {index} for {symbol} to MarketData types",
+                    row_data=row.to_dict(), # Log the problematic row data
+                    error=e,
+                    exc_info=False # Keep log concise for per-row errors
+                )
                 continue # Skip this row if conversion fails
 
+            # Create MarketData instance
             data = MarketData(
                 symbol=symbol,
-                timestamp=row["timestamp"]
-                if isinstance(row["timestamp"], datetime)
-                else pd.to_datetime(row["timestamp"]).replace(tzinfo=UTC), # Ensure timezone aware
+                timestamp=ts,
                 open=open_p,
                 high=high_p,
                 low=low_p,
                 close=close_p,
                 volume=volume_p,
-                # Removed additional_data argument
             )
+            # Delegate processing to the main method
             self.process_market_data(data)
+        logger.info(f"Finished processing DataFrame for {symbol}.")
 
     def start(self) -> None:
-        """Start the trading engine and all enabled strategies"""
+        """Start the trading engine. Calls on_start() for all enabled strategies."""
         if self.is_running:
-            logger.warning("Engine is already running")
+            logger.warning("Engine is already running.")
             return
 
-        logger.info(f"Starting engine '{self.name}'")
-        self.is_running = True
-        self.start_time = datetime.now()
+        if not self.signal_handler:
+             logger.error("Cannot start Engine: Signal handler has not been set.")
+             # Prevent starting without a crucial dependency
+             raise RuntimeError("Engine cannot start without a configured signal handler.")
 
-        # Start all enabled strategies
-        for strategy in self.strategies.values():
-            if strategy.enabled:
-                strategy.on_start()
+        logger.info(f"Starting engine '{self.name}'...")
+        self.is_running = True
+        self.start_time = datetime.now(UTC) # Use UTC
+
+        # Start only enabled strategies
+        enabled_count = 0
+        # Iterate copy in case on_start fails/disables
+        for strategy_name in list(self.enabled_strategies):
+             strategy = self.strategies.get(strategy_name)
+             if strategy: # Should always exist if in enabled_strategies set
+                 try:
+                    logger.debug(f"Calling on_start for strategy '{strategy.name}'...")
+                    strategy.on_start()
+                    enabled_count += 1
+                 except Exception as e:
+                      logger.error(
+                          f"Error calling on_start for strategy '{strategy.name}': {e}. "
+                          f"Disabling strategy.",
+                          exc_info=True
+                      )
+                      self.disable_strategy(strategy_name) # Disable faulty strategy
+
+        logger.info(f"Engine '{self.name}' started with {enabled_count} enabled strategies.")
 
     def stop(self) -> None:
-        """Stop the trading engine and all strategies"""
+        """
+        Stop the trading engine. Calls on_stop() for all enabled strategies
+        and ensures all strategies are marked as disabled.
+        """
         if not self.is_running:
-            logger.warning("Engine is not running")
+            logger.warning("Engine is not running.")
             return
 
-        logger.info(f"Stopping engine '{self.name}'")
+        logger.info(f"Stopping engine '{self.name}'...")
         self.is_running = False
 
-        # Stop all strategies
-        for strategy in self.strategies.values():
-            if strategy.enabled:
-                strategy.on_stop()
+        # Stop all currently enabled strategies first
+        stopped_count = 0
+        for strategy_name in list(self.enabled_strategies): # Iterate copy
+             strategy = self.strategies.get(strategy_name)
+             if strategy:
+                 try:
+                    logger.debug(f"Calling on_stop for strategy '{strategy.name}'...")
+                    strategy.on_stop()
+                    stopped_count += 1
+                 except Exception as e:
+                      logger.error(
+                          f"Error calling on_stop for strategy '{strategy.name}': {e}",
+                          exc_info=True
+                      )
+                 # Always disable after stopping, even if on_stop failed
+                 self.disable_strategy(strategy_name)
 
-    def _handle_signal(self, signal: TradeSignal, strategy_name: str) -> str | None:
-        """
-        Handle a trade signal from a strategy
+        # Ensure any remaining strategies (if any inconsistencies occurred) are disabled
+        for strategy_name, strategy in self.strategies.items():
+            if strategy.enabled: # Should not happen if logic is correct, but good safety check
+                logger.warning(
+                    f"Strategy '{strategy_name}' was still marked as enabled during stop. "
+                    f"Forcibly disabling."
+                )
+                strategy.disable()
+                self.enabled_strategies.discard(strategy_name)
 
-        Args:
-            signal: The trading signal
-            strategy_name: Name of the strategy that generated the signal
+        logger.info(f"Engine '{self.name}' stopped. Called on_stop for {stopped_count} strategies.")
 
-        Returns:
-            Position ID if a new position was created, None otherwise
-        """
-        logger.info(
-            f"Received {signal.signal_type} signal from {strategy_name} for {signal.symbol}"
-        )
-
-        # Notify all registered signal handlers
-        for handler in self.signal_handlers:
-            try:
-                handler(signal)
-            except Exception as e:
-                logger.error(f"Error in signal handler: {e}")
-
-        # Process the signal based on type - Use correct SignalType members
-        if signal.signal_type == SignalType.ENTER_LONG:
-            # TODO: Determine side correctly based on SignalType?
-            # Assuming ENTER_LONG implies BUY side for opening
-            return self._open_position(signal, strategy_name, OrderSide.BUY)
-        elif signal.signal_type == SignalType.ENTER_SHORT:
-            # Assuming ENTER_SHORT implies SELL side for opening
-            return self._open_position(signal, strategy_name, OrderSide.SELL)
-        elif signal.signal_type in (SignalType.EXIT_LONG, SignalType.EXIT_SHORT):
-            # Find and close relevant active positions
-            position_closed = False
-            # Iterate over a copy of keys to allow modification during iteration
-            for pos_id in list(self.active_positions.keys()):
-                pos = self.active_positions.get(pos_id)
-                # Match strategy, symbol, and ensure side matches exit type
-                if (
-                    pos and pos.strategy_name == strategy_name and pos.symbol == signal.symbol and
-                    ((signal.signal_type == SignalType.EXIT_LONG and pos.side == OrderSide.BUY) or
-                     (signal.signal_type == SignalType.EXIT_SHORT and pos.side == OrderSide.SELL))
-                ):
-                    self.logger.info(f"Closing position {pos_id} due to {signal.signal_type} signal")
-                    # Use the timestamp from the signal if available
-                    close_timestamp = signal.timestamp or datetime.now(UTC)
-                    # Price might come from signal or market data - using signal.price for now
-                    self._close_position(pos_id, signal.price, close_timestamp)
-                    position_closed = True
-            if not position_closed:
-                 self.logger.warning(
-                     f"Received {signal.signal_type} signal from {strategy_name} for {signal.symbol}, "
-                     f"but no matching active position found to close."
-                 )
-            return None # Closing doesn't return a new position ID
-        elif signal.signal_type == SignalType.HOLD or signal.signal_type == SignalType.REBALANCE:
-             self.logger.debug(f"Ignoring {signal.signal_type} signal type for now.")
-             return None
-        else:
-             self.logger.warning(f"Unhandled signal type: {signal.signal_type}")
-             return None
-
-    def _open_position(self, signal: TradeSignal, strategy_name: str, side: OrderSide) -> str:
-        """Open a new position based on a signal."""
-        position_id = str(uuid.uuid4())
-        now_utc = datetime.now(UTC)
-
-        # TODO: Critical - This needs proper integration with RiskManager for sizing
-        # and ExecutionHandler for actual order placement and confirmation.
-        # Using placeholder values from signal for now, which is incorrect for a live engine.
-        entry_price = signal.price or Decimal("0") # Placeholder - Should come from fill
-        quantity = signal.quantity or Decimal("1") # Placeholder - Should come from sizing
-
-        if entry_price <= 0 or quantity <= 0:
-             self.logger.error(
-                 f"Cannot open position {position_id} for {signal.symbol}: Invalid price/quantity from signal",
-                 signal=signal
-             )
-             # Raise an error or return None/empty string to indicate failure
-             raise ValueError("Cannot open position with zero or negative price/quantity from signal")
-
-        # Create Position object using ONLY defined fields
-        position = Position(
-            symbol=signal.symbol,
-            side=side, # Use the determined OrderSide
-            size=quantity, # Placeholder
-            entry_price=entry_price, # Placeholder
-            leverage=Decimal("1"), # Placeholder - Should come from config/strategy
-            id=position_id,
-            status=PositionStatus.OPEN.value, # Use enum value
-            timestamp=int(now_utc.timestamp() * 1000),
-            strategy_name=strategy_name, # Add strategy_name if it's part of Position model
-            # Removed quantity, open_time - redundant or incorrect
-            # Removed stop_loss, take_profit, metadata - needs specific handling if Position model supports them
-        )
-
-        self.active_positions[position_id] = position
-        self.logger.info(f"Opened position {position_id}: {position}")
-        return position_id
-
-    def _close_position(self, position_id: str, price: Decimal | None, timestamp: datetime) -> None:
-        """Close an active position."""
-        if position_id not in self.active_positions:
-            self.logger.warning(f"Position {position_id} not found for closing")
-            return
-
-        position = self.active_positions.pop(position_id)
-        close_price = price or position.mark_price or position.entry_price # Best available close price
-
-        if close_price is None:
-            self.logger.error(f"Cannot determine close price for position {position_id}. Cannot calculate PNL.")
-            pnl = Decimal("0.0") # Cannot calculate PNL
-        else:
-            # Ensure Decimal math
-            close_price_dec = Decimal(str(close_price))
-            entry_price_dec = Decimal(str(position.entry_price))
-            size_dec = Decimal(str(position.size))
-
-            if position.side == OrderSide.BUY:
-                pnl = (close_price_dec - entry_price_dec) * size_dec
-            else: # SELL
-                pnl = (entry_price_dec - close_price_dec) * size_dec
-
-        position.status = PositionStatus.CLOSED.value
-        position.close_price = close_price_dec if close_price is not None else None # Store close price if known
-        position.close_time = timestamp # Store close time
-        position.pnl = pnl # Store calculated PNL
-
-        self.closed_positions.append(position) # Add to list of closed positions
-        self.logger.info(f"Closed position {position_id}: PNL = {pnl:.2f}")
-
-        # TODO: Update portfolio tracker/realized PNL
-
-    def _update_position_status(self, position_id: str, data: "MarketData") -> None:
-        """
-        Update the status and PnL of an active position based on new market data.
-
-        Args:
-            position_id: The ID of the position to update.
-            data: The latest MarketData for the position's symbol.
-        """
-        if position_id not in self.active_positions:
-            return
-
-        position = self.active_positions[position_id]
-        price = data.close
-
-        # Check for stop loss hit
-        if position.stop_loss and position.side == SignalType.BUY and price <= position.stop_loss:
-            logger.info(f"Stop loss triggered for position {position_id} at {price}")
-            self._close_position(position_id, price, data.timestamp)
-        elif (
-            position.stop_loss and position.side == SignalType.SELL and price >= position.stop_loss
-        ):
-            logger.info(f"Stop loss triggered for position {position_id} at {price}")
-            self._close_position(position_id, price, data.timestamp)
-
-        # Check for take profit hit
-        elif (
-            position.take_profit
-            and position.side == SignalType.BUY
-            and price >= position.take_profit
-        ):
-            logger.info(f"Take profit triggered for position {position_id} at {price}")
-            self._close_position(position_id, price, data.timestamp)
-        elif (
-            position.take_profit
-            and position.side == SignalType.SELL
-            and price <= position.take_profit
-        ):
-            logger.info(f"Take profit triggered for position {position_id} at {price}")
-            self._close_position(position_id, price, data.timestamp)
-
-        # Update mark price (example)
-        position.mark_price = data.close # Assume close price is the mark price
-        # TODO: Proper unrealized PNL calculation requires PortfolioTracker or similar
-        # position.unrealized_pnl = self.portfolio_tracker.calculate_unrealized_pnl(position)
-
-        # Placeholder for Stop Loss / Take Profit logic
-        # This requires the Position model to actually have stop_loss/take_profit fields
-        # and for these to be set when opening.
-        # check_price = data.close
-        # if position.side == OrderSide.BUY:
-        #     if position.stop_loss and check_price <= position.stop_loss:
-        #         self.logger.info(f"Stop loss triggered for {position_id}")
-        #         # self._close_position(position_id, position.stop_loss, data.timestamp)
-        #     elif position.take_profit and check_price >= position.take_profit:
-        #         self.logger.info(f"Take profit triggered for {position_id}")
-        #         # self._close_position(position_id, position.take_profit, data.timestamp)
-        # elif position.side == OrderSide.SELL:
-        #     if position.stop_loss and check_price >= position.stop_loss:
-        #         self.logger.info(f"Stop loss triggered for {position_id}")
-        #         # self._close_position(position_id, position.stop_loss, data.timestamp)
-        #     elif position.take_profit and check_price <= position.take_profit:
-        #         self.logger.info(f"Take profit triggered for {position_id}")
-        #         # self._close_position(position_id, position.take_profit, data.timestamp)
-        # Removed references to self.portfolio_tracker for now
-        pass # Keep simplified
+    def _refresh_active_symbols(self) -> None:
+        """Internal helper to update the set of symbols monitored by registered strategies."""
+        self.active_symbols = {s.symbol for s in self.strategies.values()}
+        logger.debug(f"Engine active symbols refreshed: {self.active_symbols}")
 
     def get_engine_info(self) -> dict[str, Any]:
         """
-        Get information about the engine's current state
+        Get basic information about the engine's operational state.
+        Does NOT include position or P&L information.
 
         Returns:
-            Dictionary with engine information
+            Dictionary with engine state information.
         """
-        total_pnl_closed = sum(
-            p.pnl for p in self.closed_positions if p.pnl is not None
-        ) # Sum pnl from list
+        # Removed PNL calculation - Engine doesn't track closed positions
+        # total_pnl_closed = sum(...)
+
+        uptime_seconds = (
+            (datetime.now(UTC) - self.start_time).total_seconds()
+            if self.start_time and self.is_running
+            else 0
+        )
+
         return {
             "name": self.name,
             "running": self.is_running,
             "start_time": self.start_time.isoformat() if self.start_time else None,
-            "uptime": (datetime.now() - self.start_time).total_seconds() if self.start_time else 0,
-            "last_update": self.last_update_time.isoformat() if self.last_update_time else None,
-            "strategy_count": len(self.strategies),
-            "active_strategies": sum(1 for s in self.strategies.values() if s.enabled),
-            "active_positions": len(self.active_positions),
-            "closed_positions_count": len(self.closed_positions),
-            "total_realized_pnl": total_pnl_closed, # Use calculated sum
+            "uptime_seconds": uptime_seconds,
+            "last_data_time": self.last_data_time.isoformat() if self.last_data_time else None,
+            "total_strategies": len(self.strategies),
+            "enabled_strategies": len(self.enabled_strategies),
+            # Removed position counts and PNL
+            # "active_positions": len(self.active_positions),
+            # "closed_positions_count": len(self.closed_positions),
+            # "total_realized_pnl": total_pnl_closed,
         }

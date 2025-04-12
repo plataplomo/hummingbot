@@ -53,6 +53,12 @@ risk:
     max_position_usd: 1000.0      # Max size per single arbitrage position
     max_total_exposure_usd: 5000.0 # Max total value across all open positions
     
+  # --- Simple Sizing Path (Optional Alternative to Kelly) ---
+  use_simple_sizing_path: false            # Default to standard Kelly sizing
+  simple_sizing_method: "fixed_fraction" # Default method if simple path is enabled
+  simple_fixed_fraction: "0.01"           # Default fraction (1%) if method is fixed_fraction
+  simple_fixed_usd_size: "100.0"          # Default USD size if method is fixed_usd
+
 # Execution parameters
 execution:
   # Slippage for market orders (if used, Taker orders preferred for prototype)

@@ -1286,6 +1286,32 @@ class PortfolioTracker:
 
         return max_trade_size
 
+    def as_dict(self) -> dict[str, Any]:
+        """Serialize portfolio state to a dictionary."""
+        # Serialize balances, positions, orders, and other relevant state
+        # Convert Decimal to str for JSON compatibility if using standard json
+        serialized_balances = {
+            ex: {asset: balance.to_dict() for asset, balance in bals.items()}
+            for ex, bals in self._balances.items()
+        }
+        serialized_positions = {
+            ex: {pid: pos.to_dict() for pid, pos in positions.items()}
+            for ex, positions in self._positions.items()
+        }
+        serialized_orders = {
+            ex: {oid: order.to_dict() for oid, order in orders.items()}
+            for ex, orders in self._orders.items()
+        }
+
+        return {
+            "balances": serialized_balances,
+            "positions": serialized_positions,
+            "orders": serialized_orders,
+            "realized_pnl": str(self._realized_pnl), # Store as string
+            "high_watermark": str(self._high_watermark), # Store as string
+            # Add other state variables if needed
+        }
+
 
 # Example usage (consider moving to tests or main application logic)
 # tracker = PortfolioTracker(config)

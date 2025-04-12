@@ -181,27 +181,27 @@ def main():
 
 
 def create_example_files():
-    """Create example configuration and secrets files."""
-    # Create paths for both locations
-    cyberdelta_config_dir = os.path.join(
-        os.path.dirname(__file__), "../cyberdelta/config"
-    )
-    root_config_dir = os.path.join(os.path.dirname(__file__), "../config")
+    """Create example configuration and secrets files in the correct locations."""
+    # Define the primary config directory used by the application
+    cyberdelta_config_dir = Path(__file__).parent.parent / "cyberdelta" / "config"
+    os.makedirs(cyberdelta_config_dir, exist_ok=True)
 
-    for config_dir in [cyberdelta_config_dir, root_config_dir]:
-        os.makedirs(config_dir, exist_ok=True)
+    # Define the recommended user secrets directory
+    user_secrets_dir = Path.home() / ".cyberdelta"
+    os.makedirs(user_secrets_dir, exist_ok=True)
 
-    # Example configuration content matching the proper structure
-    config_content = """# CyberDeltaEngine Configuration for Prototype 0.0.1
+    # Example configuration content (ensure this matches the latest structure)
+    config_content = """# CyberDeltaEngine Configuration (Example)
+# Copy this file to config.yaml and customize it.
 
 # General settings
 general:
   log_level: INFO
-  safe_mode: true  # Start in safe mode (read-only)
+  safe_mode: true
   state_file: "data/state.json"
   state_backup_directory: "data/state_backups"
-  state_save_interval: 300  # seconds
-  state_backup_count: 5     # Number of previous state files to keep
+  state_save_interval: 300
+  state_backup_count: 5
 
 # Exchange configuration
 exchanges:
@@ -209,214 +209,130 @@ exchanges:
     enabled: true
     api_base_url: "https://api.hyperliquid.xyz"
     ws_url: "wss://api.hyperliquid.xyz/ws"
-    rate_limit_per_minute: 120 # Placeholder - Actual logic needs per-endpoint handling
+    rate_limit_per_minute: 120
     symbols:
-      # Map internal symbol names to exchange-specific symbols
-      BTC: "BTC" 
+      BTC: "BTC"
       ETH: "ETH"
-    
+
   backpack:
     enabled: true
     api_base_url: "https://api.backpack.exchange"
     ws_url: "wss://ws.backpack.exchange"
-    rate_limit_per_minute: 120 # Placeholder - Actual logic needs per-endpoint handling
+    rate_limit_per_minute: 120
     symbols:
-      BTC: "BTC_USDC" # Example Spot market
-      # BTC: "BTC-PERP" # Example Perp market
+      BTC: "BTC_USDC"
       ETH: "ETH_USDC"
 
-# Strategy configuration (Simplified for Prototype 0.0.1)
+# Strategy configuration
 strategies:
-  # Focus: HyperLiquid Perpetual vs. Backpack Spot
   hl_perp_bp_spot:
     enabled: true
-    # Define symbols using the internal names (mapped above)
-    long_exchange: "hyperliquid" # Where we go long (buy perpetual)
-    short_exchange: "backpack"  # Where we go short (sell spot)
-    symbol_long: "BTC"        # Internal symbol for the long leg
-    symbol_short: "BTC"       # Internal symbol for the short leg
-    
+    long_exchange: "hyperliquid"
+    short_exchange: "backpack"
+    symbol_long: "BTC"
+    symbol_short: "BTC"
     params:
-      funding_threshold: 0.0001  # Minimum positive funding rate on long leg (HL)
-      max_price_spread_pct: 0.002 # Maximum allowed percentage difference between perp and spot price (0.2%)
-      min_profit_usd: 1.0      # Minimum estimated profit in USD to consider the trade
-      
-# Risk management (Simplified for Prototype 0.0.1)
+      funding_threshold: 0.0001
+      max_price_spread_pct: 0.002
+      min_profit_usd: 1.0
+
+# Risk management
 risk:
   global:
-    max_position_usd: 1000.0      # Max size per single arbitrage position
-    max_total_exposure_usd: 5000.0 # Max total value across all open positions
-    
+    max_position_usd: 1000.0
+    max_total_exposure_usd: 5000.0
+
+  # --- Simple Sizing Path (Optional Alternative to Kelly) ---
+  use_simple_sizing_path: false
+  simple_sizing_method: "fixed_fraction"
+  simple_fixed_fraction: "0.01"
+  simple_fixed_usd_size: "100.0"
+
 # Execution parameters
 execution:
-  # Slippage for market orders (if used, Taker orders preferred for prototype)
-  max_slippage_pct: 0.001 # 0.1% maximum slippage tolerance
-  
-  # Retry logic for failed API calls (e.g., temporary network issues)
+  max_slippage_pct: 0.001
   max_retries: 3
-  retry_delay_base_sec: 1.0 # Initial delay in seconds for exponential backoff
-  
-  # Delay after placing orders before checking status (improves reliability with mocks/latency)
-  settlement_delay: 2.0 # seconds 
-
-  # Compensation settings (NEW)
+  retry_delay_base_sec: 1.0
+  settlement_delay: 2.0
   compensation:
-    use_limit_orders: true # Use limit orders for compensation by default
-    limit_price_offset_pct: 0.05 # % offset for limit price (0.05%)
+    use_limit_orders: true
+    limit_price_offset_pct: 0.05
 
 # Safety Systems Configuration
 safety_systems:
-  # Circuit Breakers to halt trading on excessive failures
   circuit_breakers:
     enabled: true
-    # Global breaker (trips if *any* exchange hits its limit)
-    global_consecutive_failures: 5 # Trips after 5 consecutive failures globally
-    global_reset_timeout_sec: 300  # Reset after 5 minutes if tripped
-    
-    # Per-exchange breakers
-    exchange_consecutive_failures: 3 # Trips after 3 consecutive failures for a specific exchange
-    exchange_reset_timeout_sec: 180 # Reset after 3 minutes
+    global_consecutive_failures: 5
+    global_reset_timeout_sec: 300
+    exchange_consecutive_failures: 3
+    exchange_reset_timeout_sec: 180
 
-  # Position reconciliation checker
   position_reconciliation:
     enabled: true
-    check_interval_sec: 600 # Check every 10 minutes
-    max_discrepancy_pct: 0.01 # Alert if discrepancy > 0.01% of expected size
+    check_interval_sec: 600
+    max_discrepancy_pct: 0.01
 
-  # Balance checker
   balance_monitoring:
     enabled: true
-    check_interval_sec: 300 # Check every 5 minutes
+    check_interval_sec: 300
     min_balance_thresholds_usd:
       hyperliquid: 100.0
       backpack: 100.0
 
-# Monitoring and Notifications (Simplified placeholders)
+# Monitoring and Notifications
 monitoring:
   notifications_enabled: true
-  alert_methods: ["log"] # Start simple, just log alerts
-  # alert_methods: ["log", "telegram"] # Example for later
+  alert_methods: ["log"]
 """
 
-    # Example secrets content matching the proper structure
-    secrets_content = """# CyberDeltaEngine Secrets Configuration
-# 
-# IMPORTANT: DO NOT STORE REAL SECRETS IN THE REPOSITORY
-# This is only an example file. Actual secrets should be stored outside the repository at:
-# ~/.cyberdelta/secrets.yaml, /etc/cyberdelta/secrets.yaml, or a location specified by the CYBERDELTA_SECRETS_PATH environment variable.
+    # Example secrets content
+    secrets_content = """# CyberDeltaEngine Secrets Configuration (Example)
+# Copy this file to your secrets location (e.g., ~/.cyberdelta/secrets.yaml)
+# and add your actual credentials.
+# IMPORTANT: DO NOT COMMIT YOUR ACTUAL SECRETS.
 
-# Exchange credentials
 exchanges:
-  # HyperLiquid exchange credentials
   hyperliquid:
     api_key: "YOUR_HYPERLIQUID_API_KEY"
     api_secret: "YOUR_HYPERLIQUID_API_SECRET"
-    private_key: "YOUR_HYPERLIQUID_PRIVATE_KEY"  # If applicable
-    passphrase: "YOUR_HYPERLIQUID_PASSPHRASE"    # If applicable
-
-  # Backpack exchange credentials
   backpack:
     api_key: "YOUR_BACKPACK_API_KEY"
     api_secret: "YOUR_BACKPACK_API_SECRET"
-    private_key: "YOUR_BACKPACK_PRIVATE_KEY"  # If applicable
-    passphrase: "YOUR_BACKPACK_PASSPHRASE"    # If applicable
 
-# Database credentials
-database:
-  host: "localhost"
-  port: 5432
-  username: "db_user"
-  password: "db_password"
-  database_name: "cyberdelta"
-
-# Notification services
 notifications:
   telegram:
     bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
     chat_id: "YOUR_TELEGRAM_CHAT_ID"
-
-  discord:
-    webhook_url: "YOUR_DISCORD_WEBHOOK_URL"
-
-# Other service credentials
-third_party_services:
-  service_name:
-    api_key: "YOUR_SERVICE_API_KEY"
-    api_secret: "YOUR_SERVICE_API_SECRET"
 """
 
-    # Create example files in cyberdelta/config directory (used by the application)
-    cyberdelta_config_example_path = os.path.join(
-        cyberdelta_config_dir, "config.yaml.example"
-    )
-    cyberdelta_secrets_example_path = os.path.join(
-        cyberdelta_config_dir, "secrets.yaml.example"
-    )
+    # --- Create example files ONLY --- #
 
-    # Create example files in root config directory
-    root_config_example_path = os.path.join(root_config_dir, "config.example.yaml")
-    root_secrets_example_path = os.path.join(root_config_dir, "secrets.example.yaml")
-
-    # Write example files to cyberdelta/config
+    # Example config in cyberdelta/config/
+    cyberdelta_config_example_path = cyberdelta_config_dir / "config.yaml.example"
     with open(cyberdelta_config_example_path, "w") as f:
         f.write(config_content)
+    print(f"Example config created at: {cyberdelta_config_example_path}")
 
+    # Example secrets in cyberdelta/config/
+    cyberdelta_secrets_example_path = cyberdelta_config_dir / "secrets.yaml.example"
     with open(cyberdelta_secrets_example_path, "w") as f:
         f.write(secrets_content)
+    print(f"Example secrets created at: {cyberdelta_secrets_example_path}")
 
-    # Write example files to root/config
-    with open(root_config_example_path, "w") as f:
-        f.write(config_content)
-
-    with open(root_secrets_example_path, "w") as f:
-        f.write(secrets_content)
-
-    # Create actual config files in cyberdelta/config (main location used by the application)
-    cyberdelta_config_path = os.path.join(cyberdelta_config_dir, "config.yaml")
-
-    # Create config files in root/config (used by the example script)
-    root_config_path = os.path.join(root_config_dir, "config.yaml")
-    root_secrets_path = os.path.join(root_config_dir, "secrets.yaml")
-
-    # Write actual config files
-    with open(cyberdelta_config_path, "w") as f:
-        f.write(config_content)
-
-    with open(root_config_path, "w") as f:
-        f.write(config_content)
-
-    with open(root_secrets_path, "w") as f:
-        f.write(secrets_content)
-
-    # Create a user secrets directory outside the repository (as recommended in the guide)
-    home_dir = Path.home()
-    user_secrets_dir = home_dir / ".cyberdelta"
-    os.makedirs(user_secrets_dir, exist_ok=True)
-
-    # Create or update example secrets in the user's home directory
+    # Example secrets in user's home directory
     user_secrets_example_path = user_secrets_dir / "secrets.yaml.example"
     with open(user_secrets_example_path, "w") as f:
         f.write(secrets_content)
+    print(f"Example secrets created at: {user_secrets_example_path}")
 
-    print("Example config created at:")
-    print(f"  - {cyberdelta_config_example_path}")
-    print(f"  - {root_config_example_path}")
-    print("Example secrets created at:")
-    print(f"  - {cyberdelta_secrets_example_path}")
-    print(f"  - {root_secrets_example_path}")
-    print(f"  - {user_secrets_example_path}")
-    print("\nActual config files created at:")
-    print(f"  - {cyberdelta_config_path}")
-    print(f"  - {root_config_path}")
-    print(f"  - {root_secrets_path}")
+    # --- Remove creation of actual/root files --- #
+    # Removed code that created files in root config/ and actual .yaml files
+
     print("\nIMPORTANT:")
-    print(
-        "1. Copy secrets.yaml to ~/.cyberdelta/secrets.yaml (recommended secure location)"
-    )
-    print("2. Add your actual API keys to the secrets file")
-    print(
-        "3. Set CYBERDELTA_SECRETS_PATH environment variable to your secrets file location"
-    )
+    print(f"1. Copy {cyberdelta_config_example_path} to {cyberdelta_config_dir / 'config.yaml'} and customize.")
+    print(f"2. Copy {user_secrets_example_path} to {user_secrets_dir / 'secrets.yaml'} (recommended) or another secure location.")
+    print("3. Add your actual API keys/secrets to your secrets file.")
+    print("4. Ensure the CYBERDELTA_SECRETS_PATH environment variable points to your actual secrets file if not using the default ~/.cyberdelta/secrets.yaml.")
 
 
 def run_benchmark(config_path, secrets_path):

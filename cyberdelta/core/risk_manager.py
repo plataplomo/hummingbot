@@ -420,16 +420,23 @@ class RiskManager:
         short_exchange = opportunity.short_exchange
 
         # Get portfolio metrics
-        total_capital = self.portfolio_tracker.get_total_capital()  # Assuming Decimal
+        total_capital = self.portfolio_tracker.get_total_capital()
         if not isinstance(total_capital, Decimal):
-            total_capital = Decimal(str(total_capital))
+            self.logger.warning(
+                f"Total capital from tracker is not Decimal: {total_capital}. Converting."
+            )
+            try:
+                total_capital = Decimal(str(total_capital))
+            except InvalidOperation:
+                self.logger.error(f"Could not convert total capital '{total_capital}' to Decimal.")
+                return min(base_size, self.max_position_size)  # Return Decimal
 
         if total_capital <= Decimal("0"):
             self.logger.warning("Cannot apply portfolio constraints: total capital is zero or negative")
             return min(base_size, self.max_position_size)  # Return Decimal
 
         # Calculate current exposures
-        current_total_exposure = self.portfolio_tracker.get_total_exposure()  # Assuming Decimal
+        current_total_exposure = self.portfolio_tracker.get_total_exposure()
         if not isinstance(current_total_exposure, Decimal):
             current_total_exposure = Decimal(str(current_total_exposure))
 
@@ -542,74 +549,82 @@ class RiskManager:
         self, base_size: Decimal, opportunity: ArbitrageOpportunity
     ) -> Decimal:
         """
-        Apply portfolio level controls like volatility, drawdown, correlation.
-
-        Args:
-            base_size: Base position size (Decimal)
-            opportunity: Arbitrage opportunity
-
-        Returns:
-            Adjusted position size (Decimal)
+        Apply portfolio-level risk controls (e.g., volatility, drawdown, correlation, safety systems).
+        Conditionally skips complex adjustments if simple path is enabled.
+        Safety systems (Circuit Breaker, Funding Validation) are always applied.
         """
         adjusted_size = base_size
         symbol = opportunity.symbol
         long_exchange = opportunity.long_exchange
         short_exchange = opportunity.short_exchange
 
-        # 1. Volatility Adjustment
-        try:
-            adjusted_size = self._apply_volatility_adjustment(
-                adjusted_size, symbol, long_exchange, short_exchange
-            )
-        except Exception as e:
-            self.logger.error(f"Error applying volatility adjustment: {e}", exc_info=True)
+        use_simple_path = self.config.get("risk.use_simple_sizing_path", False)
 
-        # 2. Drawdown Protection
-        try:
-            adjusted_size = self._apply_drawdown_protection(
-                adjusted_size, long_exchange, short_exchange
-            )
-        except Exception as e:
-            self.logger.error(f"Error applying drawdown protection: {e}", exc_info=True)
+        # Conditionally apply complex dynamic adjustments
+        if not use_simple_path:
+            self.logger.info("Applying standard portfolio level controls (Volatility, Drawdown, Correlation).")
+            # 1. Apply Volatility Adjustment
+            try:
+                size_after_vol = self._apply_volatility_adjustment(
+                    adjusted_size, symbol, long_exchange, short_exchange
+                )
+                if size_after_vol != adjusted_size:
+                    self.logger.debug(f"After Volatility Adj: ${adjusted_size:.2f} -> ${size_after_vol:.2f}")
+                    adjusted_size = size_after_vol
+            except Exception as e:
+                self.logger.error(f"Error applying volatility adjustment: {e}", exc_info=True)
+                # Continue with potentially unadjusted size
 
-        # 3. Correlation Limits (Ensure _calculate_portfolio_correlation exists and handles Decimal)
-        try:
-            adjusted_size = self._apply_correlation_limits(adjusted_size, symbol)
-        except AttributeError:
-            self.logger.debug(
-                "Skipping correlation limits due to missing method "
-                "_apply_correlation_limits or related methods."
-            )
-        except Exception as e:
-            self.logger.error(f"Error applying correlation limits: {e}", exc_info=True)
+            # 2. Apply Drawdown Protection
+            try:
+                size_after_drawdown = self._apply_drawdown_protection(
+                    adjusted_size, long_exchange, short_exchange
+                )
+                if size_after_drawdown != adjusted_size:
+                    self.logger.debug(f"After Drawdown Protection: ${adjusted_size:.2f} -> ${size_after_drawdown:.2f}")
+                    adjusted_size = size_after_drawdown
+            except Exception as e:
+                self.logger.error(f"Error applying drawdown protection: {e}", exc_info=True)
+                # Continue
 
-        # 4. Apply Circuit Breaker Adjustments if system exists
+            # 3. Apply Correlation Limits
+            try:
+                size_after_correlation = self._apply_correlation_limits(adjusted_size, symbol)
+                if size_after_correlation != adjusted_size:
+                    self.logger.debug(f"After Correlation Limits: ${adjusted_size:.2f} -> ${size_after_correlation:.2f}")
+                    adjusted_size = size_after_correlation
+            except Exception as e:
+                self.logger.error(f"Error applying correlation limits: {e}", exc_info=True)
+                # Continue
+        else:
+            self.logger.info("Skipping complex portfolio controls (Volatility, Drawdown, Correlation) - Simple Path Active.")
+
+        # --- Safety System Adjustments (ALWAYS RUN) ---
+
+        # 4. Apply Circuit Breaker Adjustment if system exists
         if self.circuit_breaker_system:
             try:
-                recovery_factor = Decimal("1.0")
-                # Check global breaker
-                if self.circuit_breaker_system.is_global_open():
-                    recovery_factor = min(
-                        recovery_factor,
-                        Decimal(str(self.circuit_breaker_recovery_factor)),
-                    )
-                    self.logger.warning("Global circuit breaker is OPEN. Applying recovery factor.")
+                apply_cb_factor = False
+                # Check global breakers first
+                can_run_global, reason_global = self.circuit_breaker_system.can_execute("global")
+                if not can_run_global:
+                    self.logger.warning(f"Global circuit breaker check failed: {reason_global}")
+                    apply_cb_factor = True
+                else:
+                    # If global is fine, check specific exchanges
+                    can_run_long, reason_long = self.circuit_breaker_system.can_execute(long_exchange)
+                    if not can_run_long:
+                        self.logger.warning(f"Exchange circuit breaker check failed for {long_exchange}: {reason_long}")
+                        apply_cb_factor = True
+                    else:
+                        can_run_short, reason_short = self.circuit_breaker_system.can_execute(short_exchange)
+                        if not can_run_short:
+                            self.logger.warning(f"Exchange circuit breaker check failed for {short_exchange}: {reason_short}")
+                            apply_cb_factor = True
 
-                # Check exchange-specific breakers
-                for ex_name in [long_exchange, short_exchange]:
-                    if self.circuit_breaker_system.is_exchange_open(ex_name):
-                        recovery_factor = min(
-                            recovery_factor,
-                            Decimal(str(self.circuit_breaker_recovery_factor)),
-                        )
-                        self.logger.warning(
-                            f"Exchange circuit breaker for {ex_name} is OPEN. "
-                            f"Applying recovery factor."
-                        )
-                        break  # Apply only once if any relevant breaker is open
-
-                adjusted_size *= recovery_factor
-                if recovery_factor < Decimal("1.0"):
+                if apply_cb_factor:
+                    recovery_factor = Decimal(str(self.circuit_breaker_recovery_factor))
+                    adjusted_size *= recovery_factor
                     self.logger.info(
                         f"Applied circuit breaker recovery factor {recovery_factor:.2f}. "
                         f"New size: ${adjusted_size:.2f}"
@@ -667,69 +682,6 @@ class RiskManager:
         # For now, return zero assuming no correlation considered
         # If implemented, ensure Decimal calculations
         return Decimal("0.0")
-
-    def _apply_safety_system_adjustments(
-        self, opportunity: ArbitrageOpportunity, base_size: Decimal
-    ) -> Decimal:
-        """Apply adjustments based on safety systems like circuit breakers."""
-        # NOTE: This method seems redundant as its logic is now incorporated into
-        # _apply_portfolio_level_controls. Consider removing or refactoring.
-        # For now, replicate the relevant logic from _apply_portfolio_level_controls.
-        adjusted_size = base_size
-
-        # Apply circuit breaker factor
-        if self.circuit_breaker_system:
-            try:
-                recovery_factor = Decimal("1.0")
-                if self.circuit_breaker_system.is_global_open():
-                    recovery_factor = min(
-                        recovery_factor,
-                        Decimal(str(self.circuit_breaker_recovery_factor)),
-                    )
-                if self.circuit_breaker_system.is_exchange_open(opportunity.long_exchange):
-                    recovery_factor = min(
-                        recovery_factor,
-                        Decimal(str(self.circuit_breaker_recovery_factor)),
-                    )
-                if self.circuit_breaker_system.is_exchange_open(opportunity.short_exchange):
-                    recovery_factor = min(
-                        recovery_factor,
-                        Decimal(str(self.circuit_breaker_recovery_factor)),
-                    )
-
-                if recovery_factor < Decimal("1.0"):
-                    adjusted_size *= recovery_factor
-                    self.logger.warning(
-                        f"Safety System: Circuit breaker active. "
-                        f"Applying factor {recovery_factor:.2f}. New size: ${adjusted_size:.2f}"
-                    )
-            except Exception as e:
-                self.logger.error(f"Error applying CB in safety adjustments: {e}")
-
-        # Apply funding rate validation factor
-        if self.funding_rate_validator:
-            try:
-                long_factor = self._get_validation_metrics(
-                    opportunity.long_exchange, opportunity.symbol
-                )
-                short_factor = self._get_validation_metrics(
-                    opportunity.short_exchange, opportunity.symbol
-                )
-                min_validation_factor_float = min(long_factor, short_factor)
-                final_factor = max(
-                    Decimal(str(self.min_validation_factor)),
-                    Decimal(str(min_validation_factor_float)),
-                )
-                if final_factor < Decimal("1.0"):
-                    adjusted_size *= final_factor
-                    self.logger.info(
-                        f"Safety System: Applied funding validation factor {final_factor:.2f}. "
-                        f"New size: ${adjusted_size:.2f}"
-                    )
-            except Exception as e:
-                self.logger.error(f"Error applying FV in safety adjustments: {e}")
-
-        return max(Decimal("0"), adjusted_size)
 
     def _apply_volatility_adjustment(
         self, base_size: Decimal, symbol: str, long_exchange: str, short_exchange: str
@@ -1009,59 +961,81 @@ class RiskManager:
             )
             return None
 
-        # 1. Get Total Capital
-        total_capital = self.portfolio_tracker.get_total_capital()
-        if not isinstance(total_capital, Decimal):
-            self.logger.warning(
-                f"Total capital from tracker is not Decimal: {total_capital}. Converting."
-            )
-            total_capital = Decimal(str(total_capital))
-
-        if total_capital <= Decimal("0"):
-            self.logger.warning("Cannot size opportunity: total capital is zero or negative.")
-            return None
-
-        # 2. Kelly Criterion Sizing
+        # Wrap ALL sizing logic in a try-except block
         try:
-            kelly_size = self._calculate_kelly_size(opportunity, total_capital)
-        except Exception as e:
-            self.logger.error(f"Error during Kelly sizing: {e}", exc_info=True)
-            return None
+            # 1. Get Total Capital
+            total_capital = self.portfolio_tracker.get_total_capital()
+            if not isinstance(total_capital, Decimal):
+                self.logger.warning(
+                    f"Total capital from tracker is not Decimal: {total_capital}. Converting."
+                )
+                try:
+                    total_capital = Decimal(str(total_capital))
+                except InvalidOperation:
+                    self.logger.error(f"Could not convert total capital '{total_capital}' to Decimal.")
+                    return None # Cannot proceed without valid capital
 
-        # 3. Apply Portfolio Exposure Management
-        try:
+            if total_capital <= Decimal("0"):
+                self.logger.warning("Cannot size opportunity: total capital is zero or negative.")
+                return None
+
+            # 2. Calculate Initial Base Size (v0.0.1 Simple Path vs. Kelly)
+            initial_base_size = Decimal("0")
+            use_simple_path = self.config.get("risk.use_simple_sizing_path", False)
+
+            # Inner try-except specifically for initial sizing calculation errors
+            try:
+                if use_simple_path:
+                    self.logger.info("Using v0.0.1 simple sizing path.")
+                    sizing_method = self.config.get("risk.simple_sizing_method", "fixed_fraction")
+                    if sizing_method == "fixed_fraction":
+                        fraction = Decimal(self.config.get("risk.simple_fixed_fraction", "0.01"))
+                        initial_base_size = total_capital * fraction
+                        self.logger.info(f"Simple Sizing: Fixed Fraction ({fraction:.2%}). Base size: ${initial_base_size:.2f}")
+                    elif sizing_method == "fixed_usd":
+                        initial_base_size = Decimal(self.config.get("risk.simple_fixed_usd_size", "100"))
+                        self.logger.info(f"Simple Sizing: Fixed USD. Base size: ${initial_base_size:.2f}")
+                    else:
+                        self.logger.error(f"Invalid simple_sizing_method: {sizing_method}. Defaulting to 0.")
+                        initial_base_size = Decimal("0")
+                else:
+                    self.logger.info("Using standard sizing path (Kelly Criterion).")
+                    initial_base_size = self._calculate_kelly_size(opportunity, total_capital)
+                    self.logger.info(f"Standard Sizing: Kelly Result. Base size: ${initial_base_size:.2f}")
+
+            except Exception as e:
+                self.logger.error(f"Error during initial base size calculation: {e}", exc_info=True)
+                return None # Exit if initial sizing fails
+
+            # Ensure initial size is non-negative before proceeding
+            initial_base_size = max(Decimal("0"), initial_base_size)
+            if initial_base_size <= Decimal("0"):
+                 self.logger.warning("Initial base size calculated as zero or negative. Rejecting opportunity.")
+                 return None
+
+            # Steps 3, 4, 5 remain within the main try-except block
+            # 3. Apply Portfolio Exposure Management (Applies to both paths)
+            exposure_adjusted_size = Decimal("0")
             exposure_adjusted_size = self._apply_portfolio_exposure_management(
-                opportunity, kelly_size
+                opportunity, initial_base_size
             )
-        except Exception as e:
-            self.logger.error(f"Error applying portfolio exposure management: {e}", exc_info=True)
-            return None
+            self.logger.debug(f"After Exposure Mgmt: ${initial_base_size:.2f} -> ${exposure_adjusted_size:.2f}")
 
-        # 4. Apply Portfolio Level Controls (Volatility, Drawdown, Correlation, Safety Systems)
-        try:
+            # 4. Apply Portfolio Level Controls (Will conditionally skip complex adjustments inside)
+            final_base_size = Decimal("0")
             final_base_size = self._apply_portfolio_level_controls(
                 exposure_adjusted_size, opportunity
             )
-        except Exception as e:
-            self.logger.error(f"Error applying portfolio level controls: {e}", exc_info=True)
-            return None
+            self.logger.debug(f"After Portfolio Controls: ${exposure_adjusted_size:.2f} -> ${final_base_size:.2f}")
 
-        # Ensure size doesn't exceed individual max position size (Decimal comparison)
-        final_size = min(final_base_size, self.max_position_size)
+            # Ensure size doesn't exceed individual max position size
+            final_size = min(final_base_size, self.max_position_size)
+            if final_size < final_base_size:
+                 self.logger.info(f"Applied Max Position Size Cap: ${final_base_size:.2f} -> ${final_size:.2f}")
 
-        # Ensure size is not negative
-        final_size = max(Decimal("0"), final_size)
-
-        if final_size <= Decimal("0"):
-            self.logger.info(
-                f"Opportunity {opportunity.symbol} sized to zero or less after risk adjustments."
-            )
-            return None
-
-        # 5. Check Portfolio Constraints with Final Size (Uses Decimal)
-        long_size = final_size
-        short_size = final_size
-        try:
+            # 5. Check Portfolio Constraints with Final Size
+            long_size = final_size
+            short_size = final_size
             if not self._check_portfolio_constraints(
                 opportunity.long_exchange,
                 opportunity.short_exchange,
@@ -1070,11 +1044,12 @@ class RiskManager:
             ):
                 self.logger.info("Opportunity failed portfolio constraints check after sizing.")
                 return None
-        except Exception as e:
-            self.logger.error(f"Error checking portfolio constraints: {e}", exc_info=True)
-            return None
 
-        # 6. Calculate derived metrics
+        except Exception as e:
+            self.logger.error(f"Unhandled exception during sizing process for {opportunity.symbol}: {e}", exc_info=True)
+            return None # Return None if any step from 1 to 5 fails unexpectedly
+
+        # 6. Calculate derived metrics (Outside the main try-except)
         allocation_percentage = (
             float((final_size / total_capital) * Decimal("100"))
             if total_capital > Decimal("0")
@@ -1363,29 +1338,6 @@ class RiskManager:
             self.logger.error(f"Invalid leverage provided for margin calculation: {leverage_dec}")
             return Decimal("Infinity") # Or raise an error
         return abs(size_dec * price_dec) / leverage_dec
-
-    def calculate_position_value(self, symbol: str) -> Decimal | None:
-        # This seems redundant with calculate_position_exposure, let's alias or deprecate?
-        # For now, delegate to calculate_position_exposure
-        self.logger.debug(f"calculate_position_value called for {symbol}, delegating to calculate_position_exposure")
-        return self.calculate_position_exposure(symbol)
-
-    def check_order_risk(self, order: Order) -> bool:
-        """Check basic risk parameters for a single order."""
-        # Check Fat Finger (price deviation) - Needs market data access
-        # current_price = self.portfolio_tracker.get_current_price(order.exchange, order.symbol)
-        # This needs access to market data, which PortfolioTracker doesn't provide.
-        # Skipping fat finger check here, should be done closer to data source.
-        # self.logger.debug(f"Skipping fat finger check for order {order.id} - requires market data.")
-
-        # Check max size based on config (already handled by sizing logic usually)
-        if order.quantity and order.price:
-             order_value = abs(Decimal(str(order.quantity)) * Decimal(str(order.price)))
-             if order_value > self.max_position_size:
-                  self.logger.warning(f"Order {order.id} value ${order_value:.2f} exceeds max position size ${self.max_position_size:.2f}")
-                  # return False # Decide if this check is redundant with sizing
-
-        return True # Basic checks passed (or skipped)
 
     def evaluate_liquidation_risk(self, symbol: str) -> Decimal | None:
         """Evaluate liquidation risk for a symbol (e.g., distance to liq price)."""

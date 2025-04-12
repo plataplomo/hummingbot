@@ -1,19 +1,22 @@
-from __future__ import annotations # Enable postponed evaluation
+from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 import logging
 import time
-from datetime import datetime
-from typing import TYPE_CHECKING, Any # Added TYPE_CHECKING
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any  # Added TYPE_CHECKING
 
 from cyberdelta.apis.base import ExchangeAPI
+
 # from cyberdelta.core.models import MarketData # Moved under TYPE_CHECKING
-from cyberdelta.core.models import MarketData # Moved import back to top level
+from cyberdelta.core.models import FundingRate, MarketData, OrderBook
 from cyberdelta.utils.config import Config
 
 if TYPE_CHECKING:
     # This can remain for linters/type checkers if desired, but isn't strictly needed now
     # from cyberdelta.core.models import MarketData 
+    # Keep Callable import for type hinting observers
+    from collections.abc import Callable, Coroutine
     pass 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +35,7 @@ class DataHandler:
     - Providing clean, consistent data access
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config) -> None:
         """
         Initialize the DataHandler.
 
@@ -58,6 +61,11 @@ class DataHandler:
         self.ws_connections: dict[str, Any] = {}
         self.ws_tasks: dict[str, asyncio.Task] = {}
         self.reconnect_attempts: dict[str, int] = {}
+
+        # --- Observer Pattern --- #
+        # List of async callable observers (e.g., Engine.process_market_data)
+        self.observers: list[Callable[[MarketData], Coroutine[Any, Any, None]]] = []
+        self.observer_lock = asyncio.Lock()
 
         # Data staleness thresholds (in seconds)
         self.staleness_thresholds = {"ticker": 60, "funding_rate": 300, "orderbook": 60}
@@ -94,12 +102,12 @@ class DataHandler:
         self.api_clients[exchange_id] = client
         logger.info(f"Registered API client for {exchange_id}")
 
-    async def initialize(self) -> None:
-        """Initialize connections and start data collection."""
+    async def initialize(self, fetch_initial: bool = True) -> None:
+        """Initialize connections, start background tasks, and optionally fetch initial data."""
         # Start WebSocket connections for all exchanges
-        for exchange_id, client in self.api_clients.items():
+        for exchange_id, _ in self.api_clients.items():
             try:
-                if self.config.get(f"exchanges.{exchange_id}.enabled", False) == False:
+                if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
                     logger.debug(
                         f"Exchange {exchange_id} is disabled, skipping WebSocket initialization"
                     )
@@ -116,15 +124,17 @@ class DataHandler:
                     exc_info=True,
                 )
 
-        # Initial data collection (synchronous to ensure we have data before proceeding)
-        await self._collect_initial_data()
+        # Optional initial data collection (e.g., fetch balances, tickers)
+        if fetch_initial:
+            await self._collect_initial_data()
+
         logger.info("Initialization completed")
 
     async def _collect_initial_data(self) -> None:
         """Collect initial data from all exchanges."""
         collection_tasks = []
 
-        for exchange_id, client in self.api_clients.items():
+        for exchange_id, _ in self.api_clients.items():
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 continue
 
@@ -223,125 +233,157 @@ class DataHandler:
             if message:
                 await self._handle_websocket_message(exchange_id, message)
 
-    async def _handle_websocket_message(self, exchange_id: str, message: dict[str, Any]) -> None:
-        """
-        Handle a WebSocket message.
-
-        Args:
-            exchange_id: Exchange identifier
-            message: WebSocket message
-        """
+    async def _handle_websocket_message(
+        self, exchange_id: str, message: dict[str, Any]
+    ) -> None:
+        """Handle an incoming message from a WebSocket connection."""
+        # Get message type using the API client's helper
         client = self.api_clients.get(exchange_id)
         if not client:
-            logger.error(f"No API client available for {exchange_id}")
+            logger.warning(f"Received WS message for {exchange_id} but no client registered.")
             return
 
         try:
-            # Get message type
+            # Use parser methods from the specific API client implementation
             message_type = client.get_message_type(message)
 
-            # Handle different types of messages
             if message_type == "ticker":
-                # Parse ticker message
-                symbol, ticker_data = client.parse_ticker_message(message)
-                if symbol and ticker_data:
-                    # Update ticker data
-                    self._update_ticker(exchange_id, symbol, ticker_data)
-
+                parsed_data = client.parse_ticker_message(message)
+                if parsed_data:
+                    # Convert Ticker to MarketData before updating and notifying
+                    market_data = MarketData(
+                        symbol=parsed_data.symbol,
+                        timestamp=datetime.fromtimestamp(parsed_data.timestamp / 1000, UTC),
+                        open=parsed_data.price, # Use last price for OHLC if not available
+                        high=parsed_data.price,
+                        low=parsed_data.price,
+                        close=parsed_data.price,
+                        volume=parsed_data.volume,
+                    )
+                    await self._update_and_notify(
+                        exchange_id, "ticker", parsed_data.symbol, market_data
+                    )
             elif message_type == "orderbook":
-                # Parse orderbook message
-                symbol, orderbook_data = client.parse_orderbook_message(message)
-                if symbol and orderbook_data:
-                    # Update orderbook data
-                    self._update_orderbook(exchange_id, symbol, orderbook_data)
-
+                parsed_data = client.parse_orderbook_message(message)
+                if parsed_data:
+                    self._update_orderbook(exchange_id, parsed_data.symbol, parsed_data)
+                    # Notify with OrderBook? Needs MarketData conversion or diff observer.
+            elif message_type == "trades":
+                parsed_data = client.parse_trade_message(message)
+                if parsed_data:
+                    # Notify with Trade? Needs MarketData conversion or diff observer.
+                    # Example: Potentially update VWAP or latest price
+                    pass
             elif message_type == "funding":
-                # Parse funding message
-                symbol, funding_data = client.parse_funding_message(message)
-                if symbol and funding_data:
-                    # Update funding data
-                    self._update_funding_rate(exchange_id, symbol, funding_data)
-
-            else:
-                logger.warning(
-                    f"Received unhandled message type '{message_type}' from {exchange_id}"
+                parsed_data = client.parse_funding_message(message)
+                if parsed_data:
+                    self._update_funding_rate(exchange_id, parsed_data.symbol, parsed_data)
+            elif message_type == "account_update": # e.g., balances, positions
+                # Data should go to PortfolioTracker, not via DataHandler observers
+                logger.debug(
+                    f"Received account update on {exchange_id}, needs routing."
                 )
-
+            elif message_type == "orders": # e.g., order updates
+                # Data should go to PortfolioTracker/ExecutionHandler
+                logger.debug(
+                    f"Received order update on {exchange_id}, needs routing."
+                )
+            else:
+                logger.debug(f"Unhandled message type '{message_type}' from {exchange_id}")
         except Exception as e:
             logger.error(f"Error handling message from {exchange_id}: {str(e)}", exc_info=True)
 
-    def _update_ticker(self, exchange_id: str, symbol: str, ticker_data: Any) -> None:
+    async def _update_and_notify(
+        self,
+        exchange_id: str, data_type: str, symbol: str, data: MarketData | OrderBook | FundingRate
+    ) -> None:
         """
-        Update ticker data.
+        Update internal cache for a given data type and notify observers if it's MarketData.
 
         Args:
             exchange_id: Exchange identifier
+            data_type: Type of data ('ticker', 'orderbook', 'funding_rate')
             symbol: Trading symbol
-            ticker_data: Ticker data (as dict or MarketData object)
+            data: The actual data object (MarketData, OrderBook, FundingRate)
         """
-        # Handle both MarketData objects and dictionaries
-        if isinstance(ticker_data, MarketData):
-            market_data = ticker_data
-        else:
-            # Create MarketData object from dict
-            market_data = MarketData(
-                symbol=symbol,
-                timestamp=ticker_data.get("timestamp", datetime.now()),
-                open=ticker_data.get("open", 0.0),
-                high=ticker_data.get("high", 0.0),
-                low=ticker_data.get("low", 0.0),
-                close=ticker_data.get("close", 0.0),
-                volume=ticker_data.get("volume", 0.0),
+        now = datetime.now(UTC)
+        try:
+            # Update internal cache based on type
+            if data_type == "ticker" and isinstance(data, MarketData):
+                if exchange_id not in self.tickers:
+                    self.tickers[exchange_id] = {}
+                self.tickers[exchange_id][symbol] = data
+                # Notify observers only for MarketData updates
+                await self._notify_observers(data)
+            elif data_type == "orderbook" and isinstance(data, OrderBook):
+                if exchange_id not in self.orderbooks:
+                    self.orderbooks[exchange_id] = {}
+                self.orderbooks[exchange_id][symbol] = data # Store raw OrderBook
+                # Optional: Convert OrderBook to MarketData snapshot and notify?
+            elif data_type == "funding_rate" and isinstance(data, FundingRate):
+                if exchange_id not in self.funding_rates:
+                    self.funding_rates[exchange_id] = {}
+                # Store as tuple (rate, timestamp)
+                self.funding_rates[exchange_id][symbol] = (data.funding_rate, data.timestamp)
+                # Optional: Create MarketData-like object for funding and notify?
+            else:
+                logger.warning(f"Attempted to update with unsupported data type: {data_type}")
+                return
+
+            # Update last update time
+            if exchange_id not in self.last_update_time:
+                self.last_update_time[exchange_id] = {}
+            if data_type not in self.last_update_time[exchange_id]:
+                self.last_update_time[exchange_id][data_type] = {}
+            self.last_update_time[exchange_id][data_type][symbol] = now
+
+            logger.debug(f"Updated {data_type} for {symbol} on {exchange_id}")
+
+        except KeyError as e:
+            logger.error(
+                f"KeyError updating {data_type} for {symbol} on {exchange_id}: {e}",
+                exc_info=True,
             )
-
-        # Store the market data
-        if exchange_id not in self.tickers:
-            self.tickers[exchange_id] = {}
-        self.tickers[exchange_id][symbol] = market_data
-
-        # Update timestamp
-        if exchange_id not in self.last_update_time:
-            self.last_update_time[exchange_id] = {
-                "ticker": {},
-                "funding_rate": {},
-                "orderbook": {},
-            }
-        if "ticker" not in self.last_update_time[exchange_id]:
-            self.last_update_time[exchange_id]["ticker"] = {}
-        self.last_update_time[exchange_id]["ticker"][symbol] = datetime.now()
+        except Exception as e:
+            logger.error(f"Update error for {data_type}/{symbol}/{exchange_id}: {e}")
 
     def _update_orderbook(
-        self, exchange_id: str, symbol: str, orderbook_data: dict[str, Any]
+        self, exchange_id: str, symbol: str, orderbook_data: OrderBook
     ) -> None:
-        """
-        Update orderbook data.
-
-        Args:
-            exchange_id: Exchange identifier
-            symbol: Trading symbol
-            orderbook_data: Orderbook data
-        """
-        self.orderbooks[exchange_id][symbol] = orderbook_data
-        self.last_update_time[exchange_id]["orderbook"][symbol] = datetime.now()
+        """Update the orderbook data for a specific exchange and symbol."""
+        now = datetime.now(UTC)
+        try:
+            self.orderbooks[exchange_id][symbol] = orderbook_data
+            self.last_update_time[exchange_id]["orderbook"][symbol] = now
+            logger.debug(f"Updated orderbook for {symbol} on {exchange_id}")
+        except KeyError as e:
+            logger.error(f"KeyError updating orderbook for {symbol} on {exchange_id}: {e}")
+        except Exception as e:
+            logger.error(f"Update error for orderbook/{symbol}/{exchange_id}: {e}")
 
     def _update_funding_rate(
-        self, exchange_id: str, symbol: str, funding_data: dict[str, Any]
+        self, exchange_id: str, symbol: str, funding_data: FundingRate
     ) -> None:
-        """
-        Update funding rate data.
+        """Update the funding rate data for a specific exchange and symbol."""
+        now = datetime.now(UTC)
+        try:
+            # Store as tuple (rate, timestamp)
+            if exchange_id not in self.funding_rates:
+                self.funding_rates[exchange_id] = {}
+            self.funding_rates[exchange_id][symbol] = (funding_data.funding_rate, funding_data.timestamp)
 
-        Args:
-            exchange_id: Exchange identifier
-            symbol: Trading symbol
-            funding_data: Funding rate data
-        """
-        rate = funding_data.get("rate", 0.0)
-        timestamp = funding_data.get("timestamp", datetime.now())
+            # Update last update time
+            if exchange_id not in self.last_update_time:
+                self.last_update_time[exchange_id] = {}
+            if "funding_rate" not in self.last_update_time[exchange_id]:
+                self.last_update_time[exchange_id]["funding_rate"] = {}
+            self.last_update_time[exchange_id]["funding_rate"][symbol] = now
 
-        self.funding_rates[exchange_id][symbol] = (rate, timestamp)
-        self.last_update_time[exchange_id]["funding_rate"][symbol] = datetime.now()
-
-        logger.info(f"Updated funding rate for {exchange_id}/{symbol}: {rate} at {timestamp}")
+            logger.debug(f"Updated funding rate for {symbol} on {exchange_id}: Rate={funding_data.funding_rate}")
+        except KeyError as e:
+            logger.error(f"KeyError updating funding rate for {symbol} on {exchange_id}: {e}")
+        except Exception as e:
+            logger.error(f"Update error for funding_rate/{symbol}/{exchange_id}: {e}")
 
     async def _collect_tickers(self, exchange_id: str, symbols: list[str]) -> None:
         """
@@ -365,7 +407,7 @@ class DataHandler:
 
                     # Update the ticker data
                     if ticker:
-                        self._update_ticker(exchange_id, symbol, ticker)
+                        await self._update_and_notify(exchange_id, "ticker", symbol, ticker)
                 except Exception as e:
                     logger.error(
                         f"Error collecting ticker for {symbol} from {exchange_id}: {str(e)}",
@@ -376,65 +418,32 @@ class DataHandler:
             logger.error(f"Error collecting tickers from {exchange_id}: {str(e)}", exc_info=True)
 
     async def _collect_funding_rates(self, exchange_id: str, symbols: list[str]) -> None:
-        """
-        Collect funding rate data for a list of symbols from an exchange.
-
-        Args:
-            exchange_id: Exchange identifier
-            symbols: List of symbols to collect
-        """
+        """Collect initial funding rates from an exchange."""
         client = self.api_clients.get(exchange_id)
         if not client:
-            logger.error(f"No API client available for {exchange_id}")
+            logger.error(f"Cannot collect funding rates, no API client for {exchange_id}")
             return
 
         try:
-            # Collect funding rate data for each symbol
-            for symbol in symbols:
-                try:
-                    # Get funding rate from API
-                    funding_data = await client.get_funding_rate(symbol)
+            if not symbols:
+                logger.warning(f"No symbols for initial funding fetch on {exchange_id}")
+                return
 
-                    # Update the funding rate data
-                    if funding_data and "funding_rate" in funding_data:
-                        rate = funding_data["funding_rate"]
-                        timestamp = funding_data.get("timestamp", datetime.now())
+            # Use FundingRate type hint
+            rates_data: list[FundingRate] = await client.get_funding_rates(symbols)
+            for rate in rates_data:
+                if rate:
+                    self._update_funding_rate(exchange_id, rate.symbol, rate)
 
-                        # Initialize if not already
-                        if exchange_id not in self.funding_rates:
-                            self.funding_rates[exchange_id] = {}
-
-                        # Store the funding rate
-                        self.funding_rates[exchange_id][symbol] = (rate, timestamp)
-
-                        # Update timestamp
-                        if exchange_id not in self.last_update_time:
-                            self.last_update_time[exchange_id] = {
-                                "ticker": {},
-                                "funding_rate": {},
-                                "orderbook": {},
-                            }
-                        if "funding_rate" not in self.last_update_time[exchange_id]:
-                            self.last_update_time[exchange_id]["funding_rate"] = {}
-
-                        self.last_update_time[exchange_id]["funding_rate"][symbol] = datetime.now()
-                except Exception as e:
-                    logger.error(
-                        f"Error collecting funding rate for {symbol} from {exchange_id}: {str(e)}",
-                        exc_info=True,
-                    )
-
+            logger.info(f"Collected initial funding rates for {exchange_id}")
         except Exception as e:
-            logger.error(
-                f"Error collecting funding rates from {exchange_id}: {str(e)}",
-                exc_info=True,
-            )
+            logger.error(f"Initial funding fetch failed for {exchange_id}: {e}", exc_info=True)
 
     async def update_all_data(self) -> None:
         """Update all market data for all exchanges."""
         tasks = []
 
-        for exchange_id, client in self.api_clients.items():
+        for exchange_id, _ in self.api_clients.items():
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 continue
 
@@ -453,7 +462,7 @@ class DataHandler:
 
         logger.debug("Updated all market data")
 
-    def get_ticker(self, exchange_id: str, symbol: str) -> "MarketData" | None: # Changed hint
+    def get_ticker(self, exchange_id: str, symbol: str) -> MarketData | None:
         """
         Get the latest ticker data for a specific symbol from an exchange.
 
@@ -474,7 +483,7 @@ class DataHandler:
 
         if not last_update:
             logger.warning(
-                f"No last update time found for ticker {symbol} on {exchange_id}, data might be stale."
+                f"No last update time for ticker {symbol} on {exchange_id}, assume stale."
             )
             return None
 
@@ -483,17 +492,19 @@ class DataHandler:
         staleness = (now - last_update).total_seconds()
 
         # Check against staleness threshold
-        if staleness > self.staleness_thresholds["ticker"]:
+        staleness_threshold = self.staleness_thresholds["ticker"]
+        if staleness > staleness_threshold:
             logger.warning(
-                f"Ticker data for {symbol} on {exchange_id} is stale ({staleness:.1f}s old, threshold: {self.staleness_thresholds['ticker']}s)"
+                f"Stale ticker: {exchange_id}/{symbol} {staleness:.1f}s > {staleness_threshold}s"
             )
-            # Explicitly return None for stale data as per robust handling requirement
+            # For now, return None if stale, matching previous behavior but could be configurable
+            # TODO: Add robust handling requirement
             return None
 
         # Data is valid
         return ticker_data
 
-    def get_funding_rate(self, exchange_id: str, symbol: str) -> tuple[float, datetime] | None:
+    def get_funding_rate(self, exchange_id: str, symbol: str) -> FundingRate | None:
         """
         Get the latest funding rate for a symbol.
 
@@ -502,7 +513,7 @@ class DataHandler:
             symbol: Trading symbol
 
         Returns:
-            Tuple of (rate, timestamp) if available and fresh, None otherwise
+            FundingRate object or None if not available/stale
         """
         try:
             # Check if funding rate exists
@@ -521,7 +532,7 @@ class DataHandler:
                 return None
 
             last_update = self.last_update_time[exchange_id]["funding_rate"][symbol]
-            seconds_since_update = (datetime.now() - last_update).total_seconds()
+            seconds_since_update = (datetime.now(UTC) - last_update).total_seconds()
 
             staleness_threshold = self.config.get(
                 "data.staleness_thresholds.funding_rate",
@@ -530,11 +541,14 @@ class DataHandler:
 
             if seconds_since_update > staleness_threshold:
                 logger.warning(
-                    f"Stale funding rate data for {exchange_id}/{symbol}: {seconds_since_update:.1f}s old"
+                    f"Stale funding rate: {exchange_id}/{symbol} "
+                    f"{seconds_since_update:.1f}s > {staleness_threshold}s"
                 )
                 return None
 
-            return self.funding_rates[exchange_id][symbol]
+            # Return a FundingRate object
+            rate, timestamp = self.funding_rates[exchange_id][symbol]
+            return FundingRate(symbol=symbol, funding_rate=rate, timestamp=timestamp)
 
         except Exception as e:
             logger.error(
@@ -579,7 +593,7 @@ class DataHandler:
                 logger.error(f"Error canceling WebSocket task for {exchange_id}: {str(e)}")
 
         # Close WebSocket connections
-        for exchange_id, ws in self.ws_connections.items():
+        for exchange_id, _ in self.ws_connections.items():
             try:
                 client = self.api_clients[exchange_id]
                 await client.close_websocket()
@@ -588,98 +602,41 @@ class DataHandler:
 
         logger.info("DataHandler shutdown complete")
 
-    async def start_market_data_streams(self) -> None:
-        """Starts WebSocket streams for configured symbols and data types."""
-        logger.info("Starting market data streams...")
-        if not self.api_clients:
-            logger.warning("No API clients registered, cannot start streams.")
-            return
+    async def _notify_observers(self, market_data: MarketData) -> None:
+        """Notify all registered observers about a market data update."""
+        async with self.observer_lock: # Ensure observer list isn't modified during iteration
+            if not self.observers:
+                return
+            # Create tasks for all observers to run concurrently
+            tasks = [asyncio.create_task(observer(market_data)) for observer in self.observers]
+            logger.debug(f"Scheduled {len(tasks)} observer notifications for {market_data.symbol}")
 
-        symbols_to_subscribe = self.config.get("trading", {}).get("symbols", [])
-        data_types = self.config.get("market_data", {}).get(
-            "streams", ["ticker", "trades", "orderbook"]
-        )
-
-        tasks = []
-        for exchange_name, api_client in self.api_clients.items():
-            for symbol in symbols_to_subscribe:
-                if "ticker" in data_types:
-                    tasks.append(api_client.subscribe_to_ticker(symbol))
-                if "orderbook" in data_types:
-                    tasks.append(api_client.subscribe_to_order_book(symbol))
-                if "trades" in data_types:
-                    tasks.append(api_client.subscribe_to_trades(symbol))
-            if self.config.get("market_data", {}).get("subscribe_funding", True):
-                tasks.append(api_client.subscribe_to_account_updates())
-
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-            logger.info("Market data streams started.")
-        else:
-            logger.warning("No market data streams were configured to start.")
-
-    async def _listen_to_exchange(self, exchange_name: str, api_client: ExchangeAPI) -> None:
-        """Listens to WebSocket messages from a single exchange."""
-        while True:
-            try:
-                await asyncio.sleep(1)
-                if not api_client.is_connected:
-                    logger.warning(
-                        f"WebSocket disconnected for {exchange_name}. Attempting reconnect..."
-                    )
-                    await api_client.connect_websocket()
-
-            except asyncio.CancelledError:
-                logger.info(f"Listener task for {exchange_name} cancelled.")
-                break
-            except Exception as e:
-                logger.error(f"Error in WebSocket listener for {exchange_name}", error=e)
-                await asyncio.sleep(5)
-
-    async def _handle_message(self, exchange_name: str, message: dict[str, Any]) -> None:
-        """Handles incoming WebSocket messages."""
-        api_client = self.api_clients.get(exchange_name)
-        if not api_client:
-            return
-
-        message_type = api_client.get_message_type(message)
-
+    def register_observer(self, observer: Callable[[MarketData], None]) -> None:
+        """Register an observer (async callable) to receive MarketData updates."""
+        async def register() -> None:
+            async with self.observer_lock:
+                if observer not in self.observers:
+                    self.observers.append(observer)
+                    logger.info(f"Observer registered: {getattr(observer, '__name__', 'Unknown')}")
+                else:
+                    logger.warning(f"Observer already registered: {getattr(observer, '__name__', 'Unknown')}")
+        # Run registration asynchronously if called from sync context, or directly if in async
         try:
-            if message_type == "ticker":
-                ticker = api_client.parse_ticker_message(message)
-                if ticker:
-                    symbol = ticker.symbol
-                    self.tickers[exchange_name][symbol] = ticker
-                    await self.notify_observers(
-                        topic=f"ticker.{exchange_name}.{symbol}", data=ticker
-                    )
-            elif message_type == "orderbook":
-                orderbook = api_client.parse_orderbook_message(message)
-                if orderbook:
-                    symbol = orderbook.symbol
-                    self.orderbooks[exchange_name][symbol] = orderbook
-                    await self.notify_observers(
-                        topic=f"orderbook.{exchange_name}.{symbol}", data=orderbook
-                    )
-            elif message_type == "trade":
-                trade = api_client.parse_trade_message(message)
-                if trade:
-                    symbol = trade.symbol
-                    await self.notify_observers(topic=f"trade.{exchange_name}.{symbol}", data=trade)
-            elif message_type == "funding_rate":
-                funding_rate = api_client.parse_funding_rate_message(message)
-                if funding_rate:
-                    symbol = funding_rate.symbol
-                    self.funding_rates[exchange_name][symbol] = funding_rate
-                    await self.notify_observers(
-                        topic=f"funding.{exchange_name}.{symbol}", data=funding_rate
-                    )
-            elif message_type == "account_update":
-                balances, positions = api_client.parse_account_update_message(message)
-                if balances:
-                    await self.notify_observers(topic=f"balances.{exchange_name}", data=balances)
-                if positions:
-                    pass  # TODO: Implement position handling logic
+            asyncio.get_running_loop().create_task(register())
+        except RuntimeError:
+             asyncio.run(register())
 
-        except Exception as e:
-            logger.error(f"Error handling message from {exchange_name}: {str(e)}", exc_info=True)
+    def unregister_observer(self, observer: Callable[[MarketData], None]) -> None:
+        """Unregister an observer."""
+        async def unregister() -> None:
+            async with self.observer_lock:
+                try:
+                    self.observers.remove(observer)
+                    logger.info(f"Observer unregistered: {getattr(observer, '__name__', 'Unknown')}")
+                except ValueError:
+                    logger.warning(f"Observer not found: {getattr(observer, '__name__', 'Unknown')}")
+        # Run unregistration asynchronously
+        try:
+            asyncio.get_running_loop().create_task(unregister())
+        except RuntimeError:
+            asyncio.run(unregister())
