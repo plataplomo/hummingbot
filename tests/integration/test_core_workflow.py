@@ -28,7 +28,7 @@ from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.utils.config import Config  # Assuming Config class is used
 
 # Mocks & Config
-from tests.integration.mocks.mock_exchange import MockExchangeAPI, MockAPIError  # Import MockAPIError (Fix 30)
+from tests.integration.mocks.mock_exchange import MockExchangeAPI, MockAPIError
 
 # Helper Functions
 # def create_mock_ticker(symbol, bid, ask, price, timestamp): # Moved to integration/conftest.py
@@ -170,57 +170,29 @@ def mock_secrets():
 
 @pytest.fixture
 def mock_hl_api(mock_config, mock_secrets):
-    """Mock API for Hyperliquid using MagicMock spec."""
-    api_mock = MagicMock(spec=ExchangeAPI)
-    api_mock.exchange_name = "mock_hl"
-    # Configure necessary return values or side effects here or in tests
-    api_mock.get_ticker = AsyncMock(return_value=None)
-    api_mock.get_funding_rate = MagicMock(return_value=None)
-    api_mock.place_order = MagicMock()
-    api_mock.cancel_order = MagicMock()
-    # Add get_order_status mock
-    api_mock.get_order_status = AsyncMock(return_value=None)
-    # Make get_balances and get_positions return awaitables (Fix 24)
-    api_mock.get_balances = AsyncMock(return_value={})
-    api_mock.get_positions = AsyncMock(return_value=[])
-    api_mock.reset = MagicMock()
-    # Add test helper mocks identified from failures
-    api_mock.reset_failure = MagicMock()
-    api_mock.set_mock_ticker = MagicMock()
-    api_mock.clear_error = MagicMock()
-    api_mock.set_mock_funding_rate = MagicMock()
-    api_mock.set_open_orders_behavior = MagicMock()
-    api_mock.set_mock_balance = MagicMock()
-    api_mock.configure_error = MagicMock()
-    # Mock other methods as needed by tests
+    """Instantiate the actual Mock API for Hyperliquid."""
+    exchange_config = mock_config.get("exchanges.mock_hl", {})
+    secrets = mock_secrets.get("mock_hl", {})
+    api_mock = MockExchangeAPI(
+        exchange_name="mock_hl",
+        config=exchange_config,
+        secrets=secrets,
+        config_obj=mock_config
+    )
     return api_mock
 
 
 @pytest.fixture
 def mock_bp_api(mock_config, mock_secrets):
-    """Mock API for Backpack using MagicMock spec."""
-    api_mock = MagicMock(spec=ExchangeAPI)
-    api_mock.exchange_name = "mock_bp"
-    # Configure necessary return values or side effects here or in tests
-    api_mock.get_ticker = AsyncMock(return_value=None)
-    api_mock.get_funding_rate = MagicMock(return_value=None)
-    api_mock.place_order = MagicMock()
-    api_mock.cancel_order = MagicMock()
-    # Add get_order_status mock
-    api_mock.get_order_status = AsyncMock(return_value=None)
-    # Make get_balances and get_positions return awaitables (Fix 24)
-    api_mock.get_balances = AsyncMock(return_value={})
-    api_mock.get_positions = AsyncMock(return_value=[])
-    api_mock.reset = MagicMock()
-    # Add test helper mocks identified from failures
-    api_mock.reset_failure = MagicMock()
-    api_mock.set_mock_ticker = MagicMock()
-    api_mock.clear_error = MagicMock()
-    api_mock.set_mock_funding_rate = MagicMock()
-    api_mock.set_open_orders_behavior = MagicMock()
-    # Mock other methods as needed by tests
-    api_mock.set_mock_balance = MagicMock()
-    api_mock.configure_error = MagicMock()
+    """Instantiate the actual Mock API for Backpack."""
+    exchange_config = mock_config.get("exchanges.mock_bp", {})
+    secrets = mock_secrets.get("mock_bp", {})
+    api_mock = MockExchangeAPI(
+        exchange_name="mock_bp",
+        config=exchange_config,
+        secrets=secrets,
+        config_obj=mock_config
+    )
     return api_mock
 
 
@@ -291,18 +263,10 @@ async def test_happy_path_full_cycle(
 
     initial_usd_balance = Decimal("10000.0")
     mock_hl_api.set_mock_balance(
-        Balance(
-            asset="USD",
-            total=float(initial_usd_balance),
-            available=float(initial_usd_balance),
-        )
+        {"USD": {"total": str(initial_usd_balance), "available": str(initial_usd_balance)}}
     )
     mock_bp_api.set_mock_balance(
-        Balance(
-            asset="USDC",
-            total=float(initial_usd_balance),
-            available=float(initial_usd_balance),
-        )
+        {"USDC": {"total": str(initial_usd_balance), "available": str(initial_usd_balance)}}
     )
     await portfolio_tracker.initialize()
 
@@ -501,7 +465,7 @@ async def test_api_error_during_placement(
         create_mock_funding_rate(hl_symbol, 0.002, next_funding_ts)
     )
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=10000.0, available=10000.0)
+        {"USD": {"total": "10000.0", "available": "10000.0"}}
     )
     mock_hl_api.set_open_orders_behavior("fill_immediately")
     mock_bp_api.set_mock_ticker(
@@ -511,7 +475,7 @@ async def test_api_error_during_placement(
         create_mock_funding_rate(bp_symbol, -0.002, next_funding_ts)
     )
     mock_bp_api.set_mock_balance(
-        Balance(asset="USDC", total=10000.0, available=10000.0)
+        {"USDC": {"total": "10000.0", "available": "10000.0"}}
     )
     mock_bp_api.configure_error("place_order", MockAPIError("BP connection failed"))
 
@@ -649,10 +613,10 @@ async def test_insufficient_balance(
 
     # --- Set Mock Balances (Low for BP) ---
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=10000.0, available=10000.0)
+        {"USD": {"total": "10000.0", "available": "10000.0"}}
     )
     mock_bp_api.set_mock_balance(
-        Balance(asset="USDC", total=1.0, available=1.0)
+        {"USDC": {"total": "1.0", "available": "1.0"}}
     )
 
     # --- Manually Populate DataHandler for Test ---

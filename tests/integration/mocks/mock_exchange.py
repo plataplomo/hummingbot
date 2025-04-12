@@ -272,12 +272,11 @@ class MockExchangeAPI(ExchangeAPI):
         return self._mock_funding_rates.get(symbol)
 
     async def get_balances(self) -> dict[str, Balance]:
-        """Return the mock balances."""
-        if self._fail_on_method == "get_balances":
-            raise self._failure_exception
-        await asyncio.sleep(0.01)  # Simulate latency
-        # Return a deep copy to prevent external modification
-        return copy.deepcopy(self._balances)
+        """Return predefined mock balances."""
+        self._check_error("get_balances")
+        await self._simulate_latency()
+        logger.debug(f"Mock {self.exchange_name}: Getting balances")
+        return self._balances
 
     async def get_positions(
         self, symbols: list[Symbol] | None = None
@@ -522,11 +521,18 @@ class MockExchangeAPI(ExchangeAPI):
             raise APIError("Order not found", code=APIErrorCode.ORDER_NOT_FOUND)
 
     async def get_order(self, order_id: str) -> Order | None:
-        """Return a specific order by its ID from the mock store."""
-        if self._fail_on_method == "get_order":
-            raise self._failure_exception
-        await asyncio.sleep(0.01)  # Simulate latency
-        return copy.deepcopy(self._orders.get(order_id))
+        """Return a specific order by ID."""
+        self._check_error("get_order")
+        await self._simulate_latency()
+        logger.debug(f"Mock {self.exchange_name}: Getting order {order_id}")
+        return self._orders.get(order_id)
+
+    async def get_order_status(self, order_id: str, **kwargs) -> Order | None:
+        """Return the status of a specific order by ID. Alias for get_order in mock."""
+        # In this mock, getting status is the same as getting the order object itself.
+        # Real APIs might have a dedicated status endpoint.
+        logger.debug(f"Mock {self.exchange_name}: Getting order status for {order_id} (via get_order)")
+        return await self.get_order(order_id)
 
     async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
         """Return mock open orders, optionally filtered by symbol."""
@@ -554,42 +560,46 @@ class MockExchangeAPI(ExchangeAPI):
         self._mock_tickers[ticker.symbol] = ticker
 
     def set_mock_funding_rate(self, funding_rate: FundingRate):
-        """Set a funding rate value for the mock to return."""
-        logger.debug(
-            f"Mock {self.exchange_name}: Setting mock funding rate for {funding_rate.symbol}"
-        )
-        self._mock_funding_rates[funding_rate.symbol] = funding_rate
+        """Set a specific funding rate for testing."""
+        if funding_rate.symbol:
+            self._mock_funding_rates[funding_rate.symbol] = funding_rate
 
-    def set_mock_balance(self, balance: Balance):
-        """Set a balance value for the mock to return. Ensures values are stored as Decimal."""
-        logger.debug(
-            f"Mock {self.exchange_name}: Setting mock balance for {balance.asset}"
-        )
-        try:
-            # Create a new Balance object with Decimal values
-            decimal_balance = Balance(
-                asset=balance.asset,
-                # Convert potential float/int/str to Decimal via string
-                total=Decimal(str(balance.total))
-                if balance.total is not None
-                else Decimal("0.0"),
-                free=Decimal(str(balance.free))
-                if balance.free is not None
-                else Decimal("0.0"),
-                locked=Decimal(str(balance.locked))
-                if balance.locked is not None
-                else Decimal("0.0"),
-            )
-            self._balances[balance.asset] = decimal_balance
-        except Exception as e:
-            logger.error(
-                f"Error converting/setting mock balance for {balance.asset}: {e}. Original: {balance}"
-            )
-            # Fallback: store original if conversion fails, though this might lead to later TypeErrors
-            self._balances[balance.asset] = balance
+    def set_mock_balance(self, balance_data: dict[str, dict[str, str]] | Balance):
+        """Set a balance value for the mock to return. Accepts dict or Balance object."""
+        if isinstance(balance_data, Balance):
+            # Handle direct Balance object input (legacy or specific tests)
+            asset = balance_data.asset
+            balance_obj = balance_data
+            logger.debug(f"Mock {self.exchange_name}: Setting mock balance for {asset} using Balance object.")
+        elif isinstance(balance_data, dict):
+            # Handle dictionary input (preferred, mimics API response)
+            if len(balance_data) != 1:
+                logger.warning(f"Mock {self.exchange_name}: set_mock_balance dict input should have exactly one asset key. Got: {balance_data}")
+                return
+            asset = list(balance_data.keys())[0]
+            info = balance_data[asset]
+            logger.debug(f"Mock {self.exchange_name}: Setting mock balance for {asset} using dict: {info}")
+            try:
+                balance_obj = Balance(
+                    asset=asset,
+                    total=Decimal(info.get('total', '0')),
+                    available=Decimal(info.get('available', info.get('total', '0')))
+                )
+            except Exception as e:
+                 logger.error(f"Mock {self.exchange_name}: Failed to create Balance object from dict for {asset}: {e} - Data: {info}")
+                 return
+        else:
+             logger.error(f"Mock {self.exchange_name}: Invalid type provided to set_mock_balance: {type(balance_data)}")
+             return
+
+        # Store the created/provided Balance object in the internal dict
+        if asset:
+             self._balances[asset] = balance_obj
+        else:
+             logger.warning(f"Mock {self.exchange_name}: Attempted to set mock balance without a valid asset.")
 
     def set_mock_position(self, position: Position):
-        """Set a position value for the mock to return."""
+        """Set a specific position for testing."""
         logger.debug(
             f"Mock {self.exchange_name}: Setting mock position for {position.symbol}"
         )
@@ -619,6 +629,7 @@ class MockExchangeAPI(ExchangeAPI):
         self._fail_on_method = None
         self._open_orders_behavior = "default"
         logger.info(f"MockExchangeAPI {self.exchange_name} reset.")
+        self._positions = {}
 
     async def fetch_ticker(self, symbol: Symbol) -> Ticker:
         if self._fail_on_method == "fetch_ticker":
@@ -747,16 +758,17 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Update position (very basic) - Ensure Decimal usage
         if trade.symbol not in self._positions:
-            # Initialize position with Decimal values
+            # Create new position
             self._positions[trade.symbol] = Position(
                 symbol=trade.symbol,
-                size=Decimal("0.0"),  # Initialize with Decimal zero
-                entry_price=Decimal("0.0"),  # Initialize with Decimal zero
-                mark_price=trade.price,  # Already Decimal from Trade
-                side=trade.side,  # side is enum
-                liquidation_price=Decimal("0.0"),  # Initialize
+                side=trade.side,
+                size=trade.quantity,
+                entry_price=trade.price,
+                leverage=Decimal("1.0"),  # <-- ADD DEFAULT LEVERAGE
                 unrealized_pnl=Decimal("0.0"),  # Initialize
             )
+        else:
+            logger.error(f"Mock {self.exchange_name}: Could not determine trade direction (buy/sell) for balance update.")
 
         pos = self._positions[trade.symbol]
         # Ensure calculations use Decimal
@@ -820,3 +832,230 @@ class MockExchangeAPI(ExchangeAPI):
 
     def get_orders(self) -> dict[str, Order]:
         return self._orders.copy()
+
+    # Add placeholder implementations for all abstract methods from ExchangeAPI
+    # to allow instantiation of MockExchangeAPI
+
+    async def _handle_websocket_message(self, message: dict[str, Any]):
+        logger.debug(f"Mock {self.exchange_name}: _handle_websocket_message called with {message}")
+        # Add basic handling or pass
+        pass
+
+    async def cancel_all_orders(self, symbol: Symbol | None = None) -> dict[str, Any]:
+        logger.debug(f"Mock {self.exchange_name}: cancel_all_orders called for {symbol}")
+        # Simulate cancelling some orders if needed for tests
+        cancelled_count = 0
+        orders_to_remove = []
+        for order_id, order in list(self._orders.items()): # Iterate over a copy
+             if symbol is None or order.symbol == symbol:
+                 if order.status not in [OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED]:
+                     order.status = OrderStatus.CANCELED
+                     cancelled_count += 1
+                     # Optionally remove from active orders or just update status
+                     # If removing: orders_to_remove.append(order_id)
+        # for order_id in orders_to_remove: del self._orders[order_id]
+        return {"status": "success", "cancelled_count": cancelled_count}
+
+    async def connect_websocket(self):
+        logger.debug(f"Mock {self.exchange_name}: connect_websocket called")
+        # Return a mock connection object or identifier if needed
+        return {"connection_id": f"mock_ws_{self.exchange_name}"}
+
+    async def get_funding_rates(self, symbols: list[Symbol] | None = None) -> list[FundingRate]:
+        logger.debug(f"Mock {self.exchange_name}: get_funding_rates called for {symbols}")
+        if symbols is None:
+            return list(self._mock_funding_rates.values())
+        else:
+            return [self._mock_funding_rates[s] for s in symbols if s in self._mock_funding_rates]
+
+    async def get_market_data(self, symbol: Symbol) -> dict[str, Any]:
+         logger.debug(f"Mock {self.exchange_name}: get_market_data called for {symbol}")
+         # Return a combined dict of ticker, orderbook, etc. or None
+         ticker = self._mock_tickers.get(symbol)
+         # Add orderbook, etc. if needed
+         return {"ticker": ticker.to_dict() if ticker else None} if ticker else {}
+
+    def get_message_type(self, message: dict[str, Any]) -> str | None:
+        logger.debug(f"Mock {self.exchange_name}: get_message_type called with {message}")
+        # Implement basic logic based on mock message structure
+        return message.get("type") # Example
+
+    async def get_order_history(self, symbol: Symbol | None = None, limit: int | None = None) -> list[Order]:
+        logger.debug(f"Mock {self.exchange_name}: get_order_history called for {symbol}")
+        # Return a filtered list of historical orders (could be same as self._orders for simplicity)
+        history = list(self._orders.values())
+        if symbol:
+            history = [o for o in history if o.symbol == symbol]
+        if limit:
+            history = history[-limit:]
+        return history
+
+    async def get_trade_history(self, symbol: Symbol | None = None, limit: int | None = None) -> list[Trade]:
+        logger.debug(f"Mock {self.exchange_name}: get_trade_history called for {symbol}")
+        history = list(self._trades)
+        if symbol:
+            history = [t for t in history if t.symbol == symbol]
+        if limit:
+            history = history[-limit:]
+        return history
+
+    def parse_account_update_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
+        logger.debug(f"Mock {self.exchange_name}: parse_account_update_message called")
+        # Return parsed balance/position update or None
+        return None # Placeholder
+
+    def parse_balance(self, data: Any) -> Balance | None:
+        logger.debug(f"Mock {self.exchange_name}: parse_balance called")
+        # Assume data is already a Balance object or dict usable by Balance constructor
+        if isinstance(data, Balance):
+            return data
+        elif isinstance(data, dict):
+            try:
+                return Balance(**data)
+            except Exception: return None
+        return None
+
+    def parse_funding_rate(self, data: Any) -> FundingRate | None:
+         logger.debug(f"Mock {self.exchange_name}: parse_funding_rate called")
+         if isinstance(data, FundingRate):
+             return data
+         elif isinstance(data, dict):
+             try:
+                 return FundingRate(**data)
+             except Exception: return None
+         return None
+
+    def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
+        logger.debug(f"Mock {self.exchange_name}: parse_funding_rate_message called")
+        # Extract data and parse
+        data = message.get("data")
+        return self.parse_funding_rate(data)
+
+    def parse_order(self, data: Any) -> Order | None:
+        logger.debug(f"Mock {self.exchange_name}: parse_order called")
+        if isinstance(data, Order):
+            return data
+        elif isinstance(data, dict):
+            try:
+                # Basic conversion, might need more sophisticated parsing for real APIs
+                 # Convert side/status/type strings to enums if present
+                 if isinstance(data.get("side"), str): data["side"] = OrderSide(data["side"].lower())
+                 if isinstance(data.get("status"), str): data["status"] = OrderStatus(data["status"].upper())
+                 if isinstance(data.get("type"), str): data["type"] = OrderType(data["type"].lower())
+                 # Convert numeric strings/floats to Decimal
+                 for key in ["price", "quantity", "filled_quantity", "avg_fill_price"]:
+                      if key in data and data[key] is not None:
+                          data[key] = Decimal(str(data[key]))
+
+                 return Order(**data)
+            except Exception as e:
+                 logger.error(f"Mock Error parsing order dict: {e} - Data: {data}")
+                 return None
+        return None
+
+    def parse_order_book(self, data: Any) -> OrderBook | None:
+        logger.debug(f"Mock {self.exchange_name}: parse_order_book called")
+        if isinstance(data, OrderBook):
+            return data
+        elif isinstance(data, dict):
+             try:
+                 # Ensure bids/asks are lists of tuples with Decimals
+                 data['bids'] = [(Decimal(str(p)), Decimal(str(q))) for p, q in data.get('bids', [])]
+                 data['asks'] = [(Decimal(str(p)), Decimal(str(q))) for p, q in data.get('asks', [])]
+                 return OrderBook(**data)
+             except Exception: return None
+        return None
+
+    def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
+        logger.debug(f"Mock {self.exchange_name}: parse_order_update_message called")
+        data = message.get("data")
+        return self.parse_order(data)
+
+    def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
+        logger.debug(f"Mock {self.exchange_name}: parse_orderbook_message called")
+        data = message.get("data")
+        return self.parse_order_book(data)
+
+    def parse_position(self, data: Any) -> Position | None:
+        logger.debug(f"Mock {self.exchange_name}: parse_position called")
+        if isinstance(data, Position):
+            return data
+        elif isinstance(data, dict):
+             try:
+                 # Handle enum/Decimal conversion similar to parse_order
+                 if isinstance(data.get("side"), str): data["side"] = OrderSide(data["side"].lower())
+                 for key in ["size", "entry_price", "mark_price", "liquidation_price", "leverage", "unrealized_pnl"]:
+                      if key in data and data[key] is not None:
+                          data[key] = Decimal(str(data[key]))
+                 return Position(**data)
+             except Exception: return None
+        return None
+
+    def parse_ticker(self, data: Any) -> Ticker | None:
+         logger.debug(f"Mock {self.exchange_name}: parse_ticker called")
+         if isinstance(data, Ticker):
+             return data
+         elif isinstance(data, dict):
+             try:
+                 # Handle Decimal conversion
+                 for key in ["price", "bid", "ask", "volume"]:
+                      if key in data and data[key] is not None:
+                          data[key] = Decimal(str(data[key]))
+                 return Ticker(**data)
+             except Exception: return None
+         return None
+
+    def parse_ticker_message(self, message: dict[str, Any]) -> tuple[str, Ticker] | Ticker | None:
+         logger.debug(f"Mock {self.exchange_name}: parse_ticker_message called")
+         # Assume structure like {'type': 'ticker', 'symbol': 'BTC-PERP', 'data': {...}}
+         data = message.get("data")
+         ticker = self.parse_ticker(data)
+         # Return tuple or just Ticker based on expected format
+         # Example: return (ticker.symbol, ticker) if ticker else None
+         return ticker # Simpler return for now
+
+    def parse_trade(self, data: Any) -> Trade | None:
+         logger.debug(f"Mock {self.exchange_name}: parse_trade called")
+         if isinstance(data, Trade):
+             return data
+         elif isinstance(data, dict):
+             try:
+                 # Handle enum/Decimal conversion similar to parse_order
+                 if isinstance(data.get("side"), str): data["side"] = OrderSide(data["side"].lower())
+                 for key in ["price", "quantity", "fee", "cost"]:
+                     if key in data and data[key] is not None:
+                         data[key] = Decimal(str(data[key]))
+                 return Trade(**data)
+             except Exception: return None
+         return None
+
+    def parse_trade_message(self, message: dict[str, Any]) -> list[Trade] | Trade | None:
+        logger.debug(f"Mock {self.exchange_name}: parse_trade_message called")
+        # Assume structure like {'type': 'trades', 'data': [{...}, {...}]} or single trade
+        data = message.get("data")
+        if isinstance(data, list):
+            return [self.parse_trade(t) for t in data if self.parse_trade(t)]
+        else:
+            return self.parse_trade(data)
+
+    async def ping_websocket(self) -> None:
+        logger.debug(f"Mock {self.exchange_name}: ping_websocket called")
+        pass
+
+    async def subscribe_to_account_updates(self) -> None:
+        logger.debug(f"Mock {self.exchange_name}: subscribe_to_account_updates called")
+        pass
+
+    async def subscribe_to_order_book(self, symbols: list[Symbol]) -> None:
+        logger.debug(f"Mock {self.exchange_name}: subscribe_to_order_book called for {symbols}")
+        pass
+
+    async def subscribe_to_ticker(self, symbols: list[Symbol]) -> None:
+        logger.debug(f"Mock {self.exchange_name}: subscribe_to_ticker called for {symbols}")
+        pass
+
+    async def subscribe_to_trades(self, symbols: list[Symbol]) -> None:
+        logger.debug(f"Mock {self.exchange_name}: subscribe_to_trades called for {symbols}")
+        pass
+
+    # --- End Added Placeholders ---

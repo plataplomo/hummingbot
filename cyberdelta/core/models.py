@@ -99,10 +99,18 @@ class Balance:
         # Ensure fields are Decimal
         self.total = Decimal(str(self.total)) if not isinstance(self.total, Decimal) else self.total
         self.available = Decimal(str(self.available)) if not isinstance(self.available, Decimal) else self.available
-        if self.free is not None:
+        
+        # --- ADD INITIALIZATION FOR free and locked ---
+        if self.free is None:
+            self.free = Decimal("0.0")
+        else:
              self.free = Decimal(str(self.free)) if not isinstance(self.free, Decimal) else self.free
-        if self.locked is not None:
+             
+        if self.locked is None:
+            self.locked = Decimal("0.0")
+        else:
             self.locked = Decimal(str(self.locked)) if not isinstance(self.locked, Decimal) else self.locked
+        # --- END INITIALIZATION ---
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

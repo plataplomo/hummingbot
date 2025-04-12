@@ -130,10 +130,30 @@ class PortfolioTracker:
             f"Balances after: {self._balances}"
         )
 
-        # Process results for errors
-        for result in results:
+        # Process results for errors - **MODIFIED FOR STRICTNESS**
+        initialization_failed = False
+        failed_tasks_info = [] # Store info about failed tasks
+        for i, result in enumerate(results):
             if isinstance(result, Exception):
-                logger.error(f"Error during initialization: {result}", exc_info=True)
+                # Attempt to determine which task failed (requires mapping index to task type/exchange)
+                # This mapping is implicit based on the order tasks were appended.
+                # For now, log the generic error and its index.
+                task_description = f"task index {i}" # Basic description
+                # TODO: Improve task description mapping if possible
+                logger.critical(
+                    f"CRITICAL ERROR during PortfolioTracker initialization ({task_description}): {result}",
+                    exc_info=result # Pass the exception for traceback logging
+                )
+                failed_tasks_info.append(f"{task_description}: {result}")
+                initialization_failed = True
+
+        if initialization_failed:
+            error_summary = "; ".join(failed_tasks_info)
+            raise RuntimeError(
+                f"PortfolioTracker failed to initialize essential data from one or more exchanges. "
+                f"Cannot proceed. Errors: {error_summary}"
+            )
+        # --- END MODIFICATION ---
 
         logger.info("Portfolio state initialized")
 
@@ -143,36 +163,81 @@ class PortfolioTracker:
             api_client = self.api_clients[exchange_id]
             balances_data = await api_client.get_balances()
 
+            # ---> ADD DEBUG LOGGING <---
+            logger.debug(
+                f"_fetch_exchange_balances ({exchange_id}): Received balances_data: "
+                f"{balances_data} (Type: {type(balances_data)})"
+            )
+            # ---> END DEBUG LOGGING <---
+
             if isinstance(balances_data, dict):
                 updated_balances = {}
+                # ---> ADD DEBUG LOGGING <---
+                logger.debug(f"_fetch_exchange_balances ({exchange_id}): Starting balance processing loop.")
+                # ---> END DEBUG LOGGING <---
                 for asset, balance_info in balances_data.items():
+                    # ---> ADD DEBUG LOGGING <---
+                    logger.debug(
+                        f"_fetch_exchange_balances ({exchange_id}): Processing asset='{asset}', "
+                        f"balance_info='{balance_info}', type='{type(balance_info)}'"
+                    )
+                    # ---> END DEBUG LOGGING <---
+                    balance_instance = None # Initialize to None
                     if isinstance(balance_info, Balance): # Already a Balance object
-                        updated_balances[asset] = balance_info
+                        logger.debug(f"_fetch_exchange_balances ({exchange_id}): Asset '{asset}' is already a Balance object.")
+                        balance_instance = balance_info
                     elif isinstance(balance_info, dict): # Attempt to create from dict
+                        logger.debug(f"_fetch_exchange_balances ({exchange_id}): Asset '{asset}' is dict, attempting Balance creation.")
                         try:
                             # Adapt based on expected dict structure from API
                             balance_instance = Balance(\
                                 asset=asset,\
                                 total=Decimal(balance_info.get('total', '0')),\
-                                available=Decimal(balance_info.get('available', balance_info.get('total', '0'))) # Use total if available missing\
+                                available=Decimal(balance_info.get('available', balance_info.get('total', '0'))) # Use total if available missing
                             )
-                            updated_balances[asset] = balance_instance
+                            logger.debug(f"_fetch_exchange_balances ({exchange_id}): Successfully created Balance for '{asset}' from dict.")
                         except (TypeError, KeyError, InvalidOperation) as e:
-                            logger.error(f"Error creating Balance object from dict for {asset} on {exchange_id}: {e} - Data: {balance_info}")
+                            logger.error(f"Error creating Balance object from dict for {asset} on {exchange_id}: {e} - Data: {balance_info}", exc_info=True)
                     elif isinstance(balance_info, (int, float, str, Decimal)): # Attempt to create from raw value
+                        logger.debug(f"_fetch_exchange_balances ({exchange_id}): Asset '{asset}' is value type, attempting Balance creation.")
                         try:
                             balance_instance = Balance(\
                                asset=asset,\
                                total=Decimal(balance_info),\
                                available=Decimal(balance_info)\
                             )
-                            updated_balances[asset] = balance_instance
+                            logger.debug(f"_fetch_exchange_balances ({exchange_id}): Successfully created Balance for '{asset}' from value.")
                         except (TypeError, InvalidOperation) as e:
-                           logger.error(f"Error creating Balance object from value for {asset} on {exchange_id}: {e} - Value: {balance_info}")
+                           logger.error(f"Error creating Balance object from value for {asset} on {exchange_id}: {e} - Value: {balance_info}", exc_info=True)
                     else:
                         logger.warning(f"Unsupported balance data type for {asset} on {exchange_id}: {type(balance_info)}")
 
+                    # ---> ADD DEBUG LOGGING <---
+                    if balance_instance:
+                        updated_balances[asset] = balance_instance
+                        logger.debug(f"_fetch_exchange_balances ({exchange_id}): Added Balance for '{asset}' to updated_balances.")
+                    else:
+                        logger.debug(f"_fetch_exchange_balances ({exchange_id}): No Balance object created/added for '{asset}'.")
+                    # ---> END DEBUG LOGGING <---
+
+                # ---> ADD DEBUG LOGGING <---
+                logger.debug(f"_fetch_exchange_balances ({exchange_id}): Finished balance processing loop.")
+                # ---> END DEBUG LOGGING <---
+
+                # ---> ADD DEBUG LOGGING <---
+                logger.debug(
+                    f"_fetch_exchange_balances ({exchange_id}): Assigning updated_balances: "
+                    f"{updated_balances}. Current self._balances: {self._balances}"
+                )
+                # --------> CRITICAL LINE <--------
                 self._balances[exchange_id] = updated_balances
+                # ---> ADD DEBUG LOGGING <---
+                logger.debug(
+                    f"_fetch_exchange_balances ({exchange_id}): After assignment, self._balances: "
+                    f"{self._balances}"
+                )
+                # --------> END DEBUG LOGGING <---
+
                 self._last_update_time[exchange_id] = datetime.now(UTC)
                 logger.info(f"Fetched and processed balances for {exchange_id}")
                 return True
