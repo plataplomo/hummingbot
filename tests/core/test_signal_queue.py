@@ -146,7 +146,9 @@ def test_add_from_opportunity(mock_config, sample_opportunity):
         "utility_score": sample_opportunity.utility_score,
         "long_exchange": sample_opportunity.long_exchange,
         "short_exchange": sample_opportunity.short_exchange,
-        "long_price": str(sample_opportunity.long_price), # Store as string in metadata for simplicity
+        "long_price": str(
+            sample_opportunity.long_price
+        ),  # Store as string in metadata for simplicity
         "short_price": str(sample_opportunity.short_price),
         "long_funding_rate": str(sample_opportunity.long_funding_rate),
         "short_funding_rate": str(sample_opportunity.short_funding_rate),
@@ -155,8 +157,8 @@ def test_add_from_opportunity(mock_config, sample_opportunity):
 
     # Add from opportunity using the method
     signal = queue.add_from_opportunity(
-        opportunity=sample_opportunity, # Pass the object itself
-        source_strategy="funding_arb_strategy"
+        opportunity=sample_opportunity,  # Pass the object itself
+        source_strategy="funding_arb_strategy",
     )
 
     assert signal is not None

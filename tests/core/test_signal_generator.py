@@ -19,8 +19,8 @@ from cyberdelta.core.models import (
     Ticker,
 )
 from cyberdelta.core.signal_generator import SignalGenerator
-from cyberdelta.utils.config import Config
 from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -155,19 +155,18 @@ class TestSignalGenerator:
     @pytest.fixture
     def symbol_mapper(self, config):
         """Fixture for a SymbolMapper using the mock config."""
-        from cyberdelta.core.symbol_mapper import SymbolMapper
         # Correctly reconstruct the config structure needed by SymbolMapper
         # by fetching the specific nested keys from the mock config.
         config_data = {
             "exchanges": {
                 "hyperliquid": {
                     "enabled": config.get("exchanges.hyperliquid.enabled", False),
-                    "symbols": config.get("exchanges.hyperliquid.symbols", {})
+                    "symbols": config.get("exchanges.hyperliquid.symbols", {}),
                 },
                 "backpack": {
                     "enabled": config.get("exchanges.backpack.enabled", False),
-                    "symbols": config.get("exchanges.backpack.symbols", {})
-                }
+                    "symbols": config.get("exchanges.backpack.symbols", {}),
+                },
             }
         }
         return SymbolMapper(config_data)

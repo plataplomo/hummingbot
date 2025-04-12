@@ -128,7 +128,7 @@ def hyperliquid_secrets():
     except Exception as e:
         # Fallback if w3 or account generation fails unexpectedly
         print(f"Error generating Hyperliquid mock account: {e}")
-        derived_address = "0xMockAddressCreationFailed" # Provide a fallback
+        derived_address = "0xMockAddressCreationFailed"  # Provide a fallback
 
     return {
         "HYPERLIQUID_WALLET_PRIVATE_KEY": dummy_private_key,

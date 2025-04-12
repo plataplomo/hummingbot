@@ -220,10 +220,12 @@ class TestHyperliquidAPI:
         assert "X-HL-Signature" in auth_data["headers"]
         assert "X-HL-Timestamp" in auth_data["headers"]
         assert "X-HL-Nonce" in auth_data["headers"]
-        assert auth_data["headers"]["X-HL-Signature"] != "0x" + "0" * 130 # Ensure it's not the mock signature
+        assert (
+            auth_data["headers"]["X-HL-Signature"] != "0x" + "0" * 130
+        )  # Ensure it's not the mock signature
         assert int(auth_data["headers"]["X-HL-Timestamp"]) > 0
         assert int(auth_data["headers"]["X-HL-Nonce"]) > 0
-        assert auth_data["params"] is None # Params were not provided
+        assert auth_data["params"] is None  # Params were not provided
         assert auth_data["data"] == data
 
     # TODO: Add tests for other methods (get_ticker, get_order_book, etc.)

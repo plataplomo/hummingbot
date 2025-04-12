@@ -33,9 +33,9 @@ from cyberdelta.core.models import (
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_generator import SignalGenerator
+from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config  # Assuming Config class is used
 from cyberdelta.utils.logging_config import get_logger
-from cyberdelta.core.symbol_mapper import SymbolMapper
 
 # Mocks & Config
 from tests.integration.mocks.mock_exchange import MockAPIError, MockExchangeAPI
@@ -361,7 +361,9 @@ def symbol_mapper(mock_config: Config) -> SymbolMapper:
 
 
 @pytest.fixture
-def signal_generator(mock_config: Config, data_handler: DataHandler, symbol_mapper: SymbolMapper) -> SignalGenerator:
+def signal_generator(
+    mock_config: Config, data_handler: DataHandler, symbol_mapper: SymbolMapper
+) -> SignalGenerator:
     """Signal Generator instance."""
     return SignalGenerator(mock_config, data_handler, symbol_mapper)
 
@@ -791,8 +793,8 @@ async def test_partial_fill(
     partial_fill_qty = target_qty / 2
     long_order_id_bp = "bp_long_partial"
     short_order_id_hl = "hl_short_full"
-    compensation_order_id_bp = "bp_compensate_sell_partial" # New ID for BP compensation
-    compensation_order_id_hl = "hl_compensate_buy_partial" # New ID for HL compensation
+    compensation_order_id_bp = "bp_compensate_sell_partial"  # New ID for BP compensation
+    compensation_order_id_hl = "hl_compensate_buy_partial"  # New ID for HL compensation
 
     # BP (Long) - Simulate partial fill then full fill
     bp_place_call_count = 0
@@ -812,13 +814,13 @@ async def test_partial_fill(
     bp_compensation_order = Order(
         id=compensation_order_id_bp,
         status=OrderStatus.FILLED,
-        filled_quantity=partial_fill_qty, # Compensate only the filled amount
-        avg_fill_price=mock_bp_ticker.bid, # Use current bid for compensation sell
+        filled_quantity=partial_fill_qty,  # Compensate only the filled amount
+        avg_fill_price=mock_bp_ticker.bid,  # Use current bid for compensation sell
         symbol=bp_symbol,
         side=OrderSide.SELL,
         type=OrderType.MARKET,
         quantity=partial_fill_qty,
-        time=int(now.timestamp() * 1000 + 1000), # Slightly later time
+        time=int(now.timestamp() * 1000 + 1000),  # Slightly later time
     )
 
     async def place_order_side_effect_bp(*args: Any, **kwargs: Any) -> Order:
@@ -850,10 +852,12 @@ async def test_partial_fill(
         if order_id == long_order_id_bp:
             # Simulate it stays partially filled until compensation is triggered
             logger.debug(f"MOCK BP get_order_status: Returning PARTIALLY_FILLED for {order_id}")
-            return bp_initial_partial_order # Keep returning partial status
+            return bp_initial_partial_order  # Keep returning partial status
         elif order_id == compensation_order_id_bp:
-             logger.debug(f"MOCK BP get_order_status: Returning FILLED for compensation order {order_id}")
-             return bp_compensation_order
+            logger.debug(
+                f"MOCK BP get_order_status: Returning FILLED for compensation order {order_id}"
+            )
+            return bp_compensation_order
         else:
             logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
             return None
@@ -878,13 +882,13 @@ async def test_partial_fill(
     hl_compensation_order = Order(
         id=compensation_order_id_hl,
         status=OrderStatus.FILLED,
-        filled_quantity=target_qty, # Compensate the full initial amount
-        avg_fill_price=mock_hl_ticker.ask, # Use current ask for compensation buy
+        filled_quantity=target_qty,  # Compensate the full initial amount
+        avg_fill_price=mock_hl_ticker.ask,  # Use current ask for compensation buy
         symbol=hl_symbol,
         side=OrderSide.BUY,
         type=OrderType.MARKET,
         quantity=target_qty,
-        time=int(now.timestamp() * 1000 + 1000), # Slightly later time
+        time=int(now.timestamp() * 1000 + 1000),  # Slightly later time
     )
 
     async def place_order_side_effect_hl(*args: Any, **kwargs: Any) -> Order:
@@ -913,7 +917,9 @@ async def test_partial_fill(
             logger.debug(f"MOCK HL get_order_status: Returning FILLED for initial order {order_id}")
             return hl_initial_full_order
         elif order_id == compensation_order_id_hl:
-            logger.debug(f"MOCK HL get_order_status: Returning FILLED for compensation order {order_id}")
+            logger.debug(
+                f"MOCK HL get_order_status: Returning FILLED for compensation order {order_id}"
+            )
             return hl_compensation_order
         else:
             logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
@@ -958,8 +964,9 @@ async def test_partial_fill(
     # Verify that the execution handler correctly identifies the partial fill
     # and potentially enters a state reflecting this (e.g., PARTIALLY_COMPLETED or FAILED depending on desired logic)
     # CURRENT LOGIC: Neither order FAILED initially, so it goes to COMPLETED placeholder.
-    assert trade_execution_result.status == ExecutionStatus.COMPLETED, \
-           f"Expected COMPLETED status (current behavior), got {trade_execution_result.status.name}"
+    assert trade_execution_result.status == ExecutionStatus.COMPLETED, (
+        f"Expected COMPLETED status (current behavior), got {trade_execution_result.status.name}"
+    )
 
     # Further checks:
     # - Verify PortfolioTracker reflects the partial fill on BP and full fill on HL *before* any compensation.
@@ -975,12 +982,18 @@ async def test_partial_fill(
 
     # Check the state *as left* by the ExecutionHandler (which doesn't wait for full fills/compensation)
     assert bp_final_pos is not None
-    assert abs(bp_final_pos.size) == pytest.approx(partial_fill_qty) # Should reflect the partial fill recorded
+    assert abs(bp_final_pos.size) == pytest.approx(
+        partial_fill_qty
+    )  # Should reflect the partial fill recorded
     assert hl_final_pos is not None
-    assert abs(hl_final_pos.size) == pytest.approx(target_qty) # Should reflect the full fill recorded
+    assert abs(hl_final_pos.size) == pytest.approx(
+        target_qty
+    )  # Should reflect the full fill recorded
 
     # Assert that compensation was NOT triggered in logs (as neither leg initially FAILED)
-    assert "compensation" not in caplog.text.lower(), "Compensation logic should not have been triggered for PARTIAL_FILL"
+    assert "compensation" not in caplog.text.lower(), (
+        "Compensation logic should not have been triggered for PARTIAL_FILL"
+    )
 
     logger.info("Partial fill test completed validation (expecting COMPLETED status).")
 
@@ -1195,7 +1208,9 @@ async def test_execution_failure_compensation(
     logger.info(f"Execution result: {trade_execution_result}")
 
     # 4. Verification
-    assert trade_execution_result.status == ExecutionStatus.FAILED, "Expected FAILED status after execution failure compensation"
+    assert trade_execution_result.status == ExecutionStatus.FAILED, (
+        "Expected FAILED status after execution failure compensation"
+    )
 
     # Verify compensation order was placed and filled (check mocks and logs)
     mock_bp_api.place_order.assert_called()
@@ -1222,6 +1237,8 @@ async def test_execution_failure_compensation(
 
     # Check logs for confirmation
     expected_log_part = f"Failed to place order SELL 0.000500 {hl_symbol} on {mock_hl_api.exchange_name} after {execution_handler.max_retries} attempts."
-    assert expected_log_part in caplog.text, f"Expected log substring not found: {expected_log_part}"
+    assert expected_log_part in caplog.text, (
+        f"Expected log substring not found: {expected_log_part}"
+    )
 
     logger.info("Execution failure compensation test completed successfully.")

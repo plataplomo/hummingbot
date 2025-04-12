@@ -767,7 +767,7 @@ class MockExchangeAPI(ExchangeAPI):
                 trade_cost_basis_adjustment = trade.price * trade.quantity
                 if trade.side == OrderSide.BUY:
                     trade_cost_basis_adjustment += trade_fee
-                else: # SELL
+                else:  # SELL
                     trade_cost_basis_adjustment -= trade_fee
 
                 if new_size == Decimal("0"):  # Avoid division by zero if size becomes exactly 0
@@ -780,21 +780,31 @@ class MockExchangeAPI(ExchangeAPI):
 
                 existing_position.entry_price = new_avg_entry
                 existing_position.size = new_size
-                logger.debug(f"Increased position size. New Avg Entry: {new_avg_entry}, New Size: {new_size}")
+                logger.debug(
+                    f"Increased position size. New Avg Entry: {new_avg_entry}, New Size: {new_size}"
+                )
             else:
                 # Reducing or flipping position
-                trade_fee = trade.fee if trade.fee is not None else Decimal("0") # Fee is realized on close/reduce
+                trade_fee = (
+                    trade.fee if trade.fee is not None else Decimal("0")
+                )  # Fee is realized on close/reduce
                 if trade.quantity >= existing_position.size:
                     # Closing or flipping position
                     close_quantity = existing_position.size
                     # Calculate PNL considering fee
-                    if existing_position.side == OrderSide.BUY: # Selling to close LONG
-                        pnl = (trade.price * close_quantity - trade_fee) - (existing_position.entry_price * close_quantity)
-                    else: # Buying to close SHORT
-                        pnl = (existing_position.entry_price * close_quantity) - (trade.price * close_quantity + trade_fee)
+                    if existing_position.side == OrderSide.BUY:  # Selling to close LONG
+                        pnl = (trade.price * close_quantity - trade_fee) - (
+                            existing_position.entry_price * close_quantity
+                        )
+                    else:  # Buying to close SHORT
+                        pnl = (existing_position.entry_price * close_quantity) - (
+                            trade.price * close_quantity + trade_fee
+                        )
 
                     # TODO: Add realized PNL tracking if needed (using self.portfolio_tracker._update_realized_pnl?)
-                    logger.debug(f"Position closed/flipped. Realized PNL (approx, incl. fee): {pnl}")
+                    logger.debug(
+                        f"Position closed/flipped. Realized PNL (approx, incl. fee): {pnl}"
+                    )
 
                     remaining_trade_qty = trade.quantity - existing_position.size
                     if remaining_trade_qty > Decimal(
@@ -814,12 +824,18 @@ class MockExchangeAPI(ExchangeAPI):
                 else:
                     # Reducing position size
                     reduce_quantity = trade.quantity
-                    trade_fee = trade.fee if trade.fee is not None else Decimal("0") # Fee is realized on reduce
+                    trade_fee = (
+                        trade.fee if trade.fee is not None else Decimal("0")
+                    )  # Fee is realized on reduce
                     # Calculate realized PNL for the reduced portion
-                    if existing_position.side == OrderSide.BUY: # Selling to reduce LONG
-                         pnl = (trade.price * reduce_quantity - trade_fee) - (existing_position.entry_price * reduce_quantity)
-                    else: # Buying to reduce SHORT
-                         pnl = (existing_position.entry_price * reduce_quantity) - (trade.price * reduce_quantity + trade_fee)
+                    if existing_position.side == OrderSide.BUY:  # Selling to reduce LONG
+                        pnl = (trade.price * reduce_quantity - trade_fee) - (
+                            existing_position.entry_price * reduce_quantity
+                        )
+                    else:  # Buying to reduce SHORT
+                        pnl = (existing_position.entry_price * reduce_quantity) - (
+                            trade.price * reduce_quantity + trade_fee
+                        )
 
                     # TODO: Add realized PNL tracking if needed
                     logger.debug(f"Position size reduced. Realized PNL (approx, incl. fee): {pnl}")

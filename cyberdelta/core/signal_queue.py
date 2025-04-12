@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING  # Added TYPE_CHECKING
 
 # from cyberdelta.validation.funding_data import ArbitrageOpportunity # Moved below
-from cyberdelta.core.models import ArbitrageOpportunity, SignalType, TradeSignal, OrderSide
+from cyberdelta.core.models import ArbitrageOpportunity, OrderSide, SignalType, TradeSignal
 from cyberdelta.utils.config import Config
 
 # from cyberdelta.core.models import SignalType, TradeSignal # Moved below
@@ -147,7 +147,7 @@ class PrioritySignalQueue:
         """
         # Determine SignalType based on opportunity details (simplified example)
         # TODO: Refine logic to determine signal type based on opportunity context
-        signal_type = SignalType.ENTER_LONG # Default, needs better logic
+        signal_type = SignalType.ENTER_LONG  # Default, needs better logic
         side = OrderSide.BUY if signal_type == SignalType.ENTER_LONG else OrderSide.SELL
 
         # Extract required fields
@@ -158,13 +158,21 @@ class PrioritySignalQueue:
         metadata = {
             "utility_score": getattr(opportunity, "utility_score", 0.0),
             "confidence_score": getattr(opportunity, "confidence_score", None),
-            "expected_profit": str(getattr(opportunity, "expected_profit", Decimal("0"))), # Store as str
+            "expected_profit": str(
+                getattr(opportunity, "expected_profit", Decimal("0"))
+            ),  # Store as str
             "basis_volatility": getattr(opportunity, "basis_volatility", None),
             "long_exchange": opportunity.long_exchange,
             "short_exchange": opportunity.short_exchange,
-            "long_funding_rate": str(getattr(opportunity, "long_funding_rate", None)), # Store as str
-            "short_funding_rate": str(getattr(opportunity, "short_funding_rate", None)), # Store as str
-            "net_funding_differential": str(getattr(opportunity, "net_funding_differential", None)), # Store as str
+            "long_funding_rate": str(
+                getattr(opportunity, "long_funding_rate", None)
+            ),  # Store as str
+            "short_funding_rate": str(
+                getattr(opportunity, "short_funding_rate", None)
+            ),  # Store as str
+            "net_funding_differential": str(
+                getattr(opportunity, "net_funding_differential", None)
+            ),  # Store as str
             # Add other relevant opportunity details if needed
         }
 
@@ -176,7 +184,7 @@ class PrioritySignalQueue:
             side=side,
             timestamp=timestamp,
             price=None,  # Price might be determined later or based on execution
-            quantity=None, # Quantity determined by RiskManager
+            quantity=None,  # Quantity determined by RiskManager
             expiration=getattr(opportunity, "expiration", None),
             metadata=metadata,
         )

@@ -6,8 +6,8 @@ import pytest
 from cyberdelta.core.models import ArbitrageOpportunity, Ticker
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.signal_generator import SignalGenerator
-from cyberdelta.utils.config import Config  # Assuming Config class is used
 from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.utils.config import Config  # Assuming Config class is used
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 # --- Integration Test Specific Helpers & Fixtures ---
@@ -227,7 +227,6 @@ def position_reconciler(mock_config, real_portfolio_tracker, mock_hl_api, mock_b
 @pytest.fixture
 def circuit_breaker_system(mock_config):
     """Provides a CircuitBreakerSystem instance."""
-    from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
     # Pass mock_config to ensure it uses the test configuration
     return CircuitBreakerSystem(mock_config)

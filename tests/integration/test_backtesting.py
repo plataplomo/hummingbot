@@ -8,16 +8,12 @@ Tests the integration of the backtesting framework with actual strategies
 import logging
 import os
 import shutil
-import tempfile
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from unittest.mock import MagicMock
 
-import numpy as np
 import pandas as pd
 import pytest
-from numpy.random import Generator
 
 from cyberdelta.core.backtesting import (
     BacktestEngine,
@@ -27,7 +23,6 @@ from cyberdelta.core.backtesting import (
 )
 from cyberdelta.core.models import MarketData, OrderSide, SignalType, TradeSignal
 from cyberdelta.core.strategy import Strategy
-from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +37,7 @@ TEST_RESULTS_DIR = Path("test_backtest_results")
 
 # Define paths for test data and results relative to the tests directory
 TEST_DATA_DIR = Path("test_data")
+
 
 # Test Class for Backtesting Integration
 # Use a class-level fixture for setup/teardown
@@ -77,12 +73,13 @@ class TestBacktestingIntegration:
 
     def test_strategy_adapter_integration(self):
         """Test that the StrategyAdapter works with actual strategies"""
+
         # Create a mock strategy
         class MockStrategy(Strategy):
             def __init__(self, name, symbol):
-                super().__init__(name, symbol, {}) # Use provided symbol
-                self.entry_threshold = Decimal("0") # Initialize attribute
-                self._target_symbol = symbol # Store target symbol
+                super().__init__(name, symbol, {})  # Use provided symbol
+                self.entry_threshold = Decimal("0")  # Initialize attribute
+                self._target_symbol = symbol  # Store target symbol
 
             def process_data(self, data: MarketData) -> TradeSignal | None:
                 # Only process data for the strategy's configured symbol
@@ -90,21 +87,21 @@ class TestBacktestingIntegration:
                     return None
 
                 # Mock processing - Return signal if condition met for the target symbol
-                if data.close is not None and data.close > self.entry_threshold: # Basic condition
+                if data.close is not None and data.close > self.entry_threshold:  # Basic condition
                     return TradeSignal(
                         symbol=self._target_symbol,
                         signal_type=SignalType.ENTER_LONG,
                         side=OrderSide.BUY,
-                        price=data.close, # Use current close price
-                        quantity=Decimal("1.0"), # Sample quantity
-                        timestamp=data.timestamp
+                        price=data.close,  # Use current close price
+                        quantity=Decimal("1.0"),  # Sample quantity
+                        timestamp=data.timestamp,
                     )
                 return None
 
         # Instantiate with a symbol present in the test data
         target_test_symbol = self.funding_data.columns.get_level_values(0)[0]
         mock_strategy = MockStrategy("MockStrategy", target_test_symbol)
-        mock_strategy.entry_threshold = Decimal("30000.0") # Set Decimal threshold
+        mock_strategy.entry_threshold = Decimal("30000.0")  # Set Decimal threshold
 
         # Create adapter
         adapter = StrategyAdapter(mock_strategy)
@@ -121,7 +118,7 @@ class TestBacktestingIntegration:
         # Check if the condition in MockStrategy was met by the first row
         # Assuming the first symbol in the MultiIndex is the relevant one
         first_symbol = self.funding_data.columns.get_level_values(0)[0]
-        first_close_price = self.funding_data[(first_symbol, 'close')].iloc[0]
+        first_close_price = self.funding_data[(first_symbol, "close")].iloc[0]
 
         expected_signal_count = 0
         try:
@@ -131,19 +128,21 @@ class TestBacktestingIntegration:
             # Handle cases where close price might be NaN or non-numeric
             pass
 
-        assert len(result["signals"]) == expected_signal_count, \
-               f"Expected {expected_signal_count} signal(s) based on first row close price {first_close_price} vs threshold {mock_strategy.entry_threshold}, got {len(result['signals'])}"
+        assert len(result["signals"]) == expected_signal_count, (
+            f"Expected {expected_signal_count} signal(s) based on first row close price {first_close_price} vs threshold {mock_strategy.entry_threshold}, got {len(result['signals'])}"
+        )
 
     def test_funding_rate_strategy_integration(self):
         """Test integration with the FundingRateArbitrageStrategy"""
         # Skip if the strategy class doesn't exist yet
         try:
-            from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
-            from unittest.mock import MagicMock # Import MagicMock
+            from unittest.mock import MagicMock  # Import MagicMock
 
-            # --- ADD MOCK DEPENDENCIES --- 
-            self.data_handler = MagicMock() # Mock DataHandler
-            self.portfolio_tracker = MagicMock() # Mock PortfolioTracker
+            from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
+
+            # --- ADD MOCK DEPENDENCIES ---
+            self.data_handler = MagicMock()  # Mock DataHandler
+            self.portfolio_tracker = MagicMock()  # Mock PortfolioTracker
             # Configure mock returns if needed
             self.portfolio_tracker.get_total_capital.return_value = 100000.0
             # --- END MOCK DEPENDENCIES ---
@@ -151,15 +150,15 @@ class TestBacktestingIntegration:
             # Create actual strategy instance with mock dependencies
             strategy = FundingRateArbitrageStrategy(
                 name="test_funding_arb",
-                symbol="BTC-PERP", # Assuming this is handled internally or by adapter
+                symbol="BTC-PERP",  # Assuming this is handled internally or by adapter
                 data_handler=self.data_handler,
                 portfolio_tracker=self.portfolio_tracker,
                 params={
                     "min_funding_differential": 0.01,  # 0.01% minimum
                     "min_profit_threshold": 1.0,  # $1 minimum expected profit
                     "risk_aversion": 0.5,
-                    "perp_exchange": "hyperliquid", # Example
-                    "spot_exchange": "backpack",     # Example
+                    "perp_exchange": "hyperliquid",  # Example
+                    "spot_exchange": "backpack",  # Example
                 },
             )
             adapter = StrategyAdapter(strategy)
@@ -172,7 +171,7 @@ class TestBacktestingIntegration:
             assert results is not None
             assert "metrics" in results
             # Add more specific assertions based on expected strategy behavior
-            assert results["metrics"].get("num_trades", 0) >= 0 # Expect zero or more trades
+            assert results["metrics"].get("num_trades", 0) >= 0  # Expect zero or more trades
 
         except ImportError:
             pytest.skip("FundingRateArbitrageStrategy not implemented yet")
@@ -332,8 +331,12 @@ class TestBacktestingIntegration:
             # If std dev is zero, Sharpe is undefined/meaningless.
             # Check that the key IS present but its value might be 0 or NaN (depending on implementation).
             # Current implementation logs setting it to 0.00.
-            assert "sharpe_ratio" in loaded_results["metrics"], "Sharpe ratio key should still exist even if calculation failed"
-            assert loaded_results["metrics"]["sharpe_ratio"] == 0.0, "Expected Sharpe ratio to be 0.0 when std dev is zero"
+            assert "sharpe_ratio" in loaded_results["metrics"], (
+                "Sharpe ratio key should still exist even if calculation failed"
+            )
+            assert loaded_results["metrics"]["sharpe_ratio"] == 0.0, (
+                "Expected Sharpe ratio to be 0.0 when std dev is zero"
+            )
             logger.info("Verified Sharpe Ratio handling when equity std dev is zero.")
         else:
             # If no error, Sharpe ratio should be present and a float

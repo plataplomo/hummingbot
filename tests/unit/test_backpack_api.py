@@ -1,16 +1,17 @@
 import time
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from cyberdelta.apis.backpack import BackpackAPI
-from cyberdelta.config.config_manager import ConfigManager
+from cyberdelta.apis.base import MessageHandler
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
+    MarketData,
     Order,
     OrderBook,
     OrderSide,
@@ -19,49 +20,100 @@ from cyberdelta.core.models import (
     Position,
     Ticker,
     Trade,
-    TimeInForce,
-    MarketData,
-)
-from cyberdelta.apis.base import (
-    ExchangeAPI,
-    MessageHandler,
-    APIError,
-    APIErrorCode
 )
 from cyberdelta.utils.config import Config
-from cyberdelta.config.secrets_manager import SecretsManager
+
 
 # --- Minimal Concrete Subclass for Testing --- #
 class ConcreteBackpackAPI(BackpackAPI):
     """Minimal implementation for testing inherited methods like _sign_request."""
+
     # Implement all abstract methods with basic placeholders or mocks
-    async def _handle_websocket_message(self, message: dict[str, Any]) -> None: pass
-    async def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]: return {}
-    async def connect_websocket(self) -> None: pass
-    async def get_funding_rates(self, symbol: str | None = None) -> list[FundingRate]: return []
-    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[MarketData]: return []
-    def get_message_type(self, message: dict[str, Any]) -> str: return "unknown"
-    async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]: return []
-    async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]: return []
-    def parse_account_update_message(self, message: dict[str, Any]) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]: return None, None
-    def parse_balance(self, data: dict[str, Any]) -> Balance: raise NotImplementedError
-    def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate: raise NotImplementedError
-    def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None: return None
-    def parse_order(self, order_data: dict[str, Any]) -> Order: raise NotImplementedError
-    def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook: raise NotImplementedError
-    def parse_order_update_message(self, message: dict[str, Any]) -> Order | None: return None
-    def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None: return None
-    def parse_position(self, data: dict[str, Any]) -> Position: raise NotImplementedError
-    def parse_ticker(self, data: dict[str, Any], symbol: str) -> Ticker: raise NotImplementedError
-    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None: return None
-    def parse_trade(self, data: dict[str, Any], symbol: str) -> Trade: raise NotImplementedError
-    def parse_trade_message(self, message: dict[str, Any]) -> Trade | None: return None
-    async def ping_websocket(self) -> None: pass
-    async def subscribe_to_account_updates(self) -> None: pass
-    async def subscribe_to_order_book(self, symbol: str, handler: MessageHandler) -> None: pass
-    async def subscribe_to_ticker(self, symbol: str, handler: MessageHandler) -> None: pass
-    async def subscribe_to_trades(self, symbol: str, handler: MessageHandler) -> None: pass
+    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
+        pass
+
+    async def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]:
+        return {}
+
+    async def connect_websocket(self) -> None:
+        pass
+
+    async def get_funding_rates(self, symbol: str | None = None) -> list[FundingRate]:
+        return []
+
+    async def get_market_data(
+        self, symbol: str, timeframe: str, limit: int = 100
+    ) -> list[MarketData]:
+        return []
+
+    def get_message_type(self, message: dict[str, Any]) -> str:
+        return "unknown"
+
+    async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]:
+        return []
+
+    async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
+        return []
+
+    def parse_account_update_message(
+        self, message: dict[str, Any]
+    ) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]:
+        return None, None
+
+    def parse_balance(self, data: dict[str, Any]) -> Balance:
+        raise NotImplementedError
+
+    def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate:
+        raise NotImplementedError
+
+    def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
+        return None
+
+    def parse_order(self, order_data: dict[str, Any]) -> Order:
+        raise NotImplementedError
+
+    def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
+        raise NotImplementedError
+
+    def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
+        return None
+
+    def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
+        return None
+
+    def parse_position(self, data: dict[str, Any]) -> Position:
+        raise NotImplementedError
+
+    def parse_ticker(self, data: dict[str, Any], symbol: str) -> Ticker:
+        raise NotImplementedError
+
+    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None:
+        return None
+
+    def parse_trade(self, data: dict[str, Any], symbol: str) -> Trade:
+        raise NotImplementedError
+
+    def parse_trade_message(self, message: dict[str, Any]) -> Trade | None:
+        return None
+
+    async def ping_websocket(self) -> None:
+        pass
+
+    async def subscribe_to_account_updates(self) -> None:
+        pass
+
+    async def subscribe_to_order_book(self, symbol: str, handler: MessageHandler) -> None:
+        pass
+
+    async def subscribe_to_ticker(self, symbol: str, handler: MessageHandler) -> None:
+        pass
+
+    async def subscribe_to_trades(self, symbol: str, handler: MessageHandler) -> None:
+        pass
+
+
 # --- End Minimal Subclass --- #
+
 
 class TestBackpackAPI:
     """Test suite for BackpackAPI client."""
@@ -407,7 +459,7 @@ class TestBackpackAPI:
         # Call the protected method (requires name mangling for protected methods)
         # Assuming _sign_request is intended to be protected
         auth_data = client._sign_request(method=method, path=endpoint, params=params)
-        signature = auth_data["headers"]["X-Signature"] # Extract only the signature string
+        signature = auth_data["headers"]["X-Signature"]  # Extract only the signature string
 
         # Assert the signature is a non-empty string (actual validation is complex)
         assert isinstance(signature, str)

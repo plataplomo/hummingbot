@@ -10,7 +10,7 @@ import numpy as np
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import ArbitrageOpportunity, FundingRate, Ticker
-from cyberdelta.core.symbol_mapper import SymbolMapper, SymbolMappingError
+from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger  # <--- Use get_logger
 
@@ -35,7 +35,9 @@ class SignalGenerator:
     - Generating and ranking arbitrage opportunities
     """
 
-    def __init__(self, config: Config, data_handler: DataHandler, symbol_mapper: SymbolMapper) -> None:
+    def __init__(
+        self, config: Config, data_handler: DataHandler, symbol_mapper: SymbolMapper
+    ) -> None:
         """
         Initialize the signal generator.
 
@@ -95,21 +97,28 @@ class SignalGenerator:
         configured_exchanges = self.config.get("exchanges", {}).keys()
 
         enabled_exchanges = [
-            ex_id for ex_id in configured_exchanges
+            ex_id
+            for ex_id in configured_exchanges
             if self.config.get(f"exchanges.{ex_id}.enabled", False)
         ]
 
-        logger.debug(f"Initializing data structures for enabled exchanges: {enabled_exchanges} and internal symbols: {all_internal_symbols}")
+        logger.debug(
+            f"Initializing data structures for enabled exchanges: {enabled_exchanges} and internal symbols: {all_internal_symbols}"
+        )
 
         # Initialize historical funding rate storage
         for exchange_id in enabled_exchanges:
             self.historical_funding_rates[exchange_id] = {}
             for internal_symbol in all_internal_symbols:
                 # Check if this exchange has a mapping for the internal symbol
-                exchange_symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange_id)
+                exchange_symbol = self.symbol_mapper.get_exchange_symbol(
+                    internal_symbol, exchange_id
+                )
                 if exchange_symbol:
                     self.historical_funding_rates[exchange_id][internal_symbol] = deque()
-                    logger.debug(f"  Initialized funding deque for {exchange_id} / {internal_symbol} (maps to {exchange_symbol})")
+                    logger.debug(
+                        f"  Initialized funding deque for {exchange_id} / {internal_symbol} (maps to {exchange_symbol})"
+                    )
                 # else: # No need to log missing mappings, it's expected
                 #    logger.debug(f"  No mapping found for {internal_symbol} on {exchange_id}, skipping funding deque.")
 
@@ -122,7 +131,9 @@ class SignalGenerator:
         # logger.debug(f"Final historical_funding_rates structure: {self.historical_funding_rates}")
         # logger.debug(f"Final historical_basis structure: {self.historical_basis}")
 
-        logger.info(f"Initialized historical data structures for {len(enabled_exchanges)} enabled exchanges and {len(all_internal_symbols)} internal symbols.")
+        logger.info(
+            f"Initialized historical data structures for {len(enabled_exchanges)} enabled exchanges and {len(all_internal_symbols)} internal symbols."
+        )
 
     def update_historical_data(self) -> None:
         """
@@ -136,7 +147,8 @@ class SignalGenerator:
         # Determine enabled exchanges directly from config
         configured_exchanges = self.config.get("exchanges", {}).keys()
         enabled_exchanges = [
-            ex_id for ex_id in configured_exchanges
+            ex_id
+            for ex_id in configured_exchanges
             if self.config.get(f"exchanges.{ex_id}.enabled", False)
         ]
 
@@ -147,7 +159,9 @@ class SignalGenerator:
 
             for internal_symbol in expected_internal_symbols:
                 # Get the corresponding exchange symbol using the mapper
-                exchange_symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange_id)
+                exchange_symbol = self.symbol_mapper.get_exchange_symbol(
+                    internal_symbol, exchange_id
+                )
 
                 if not exchange_symbol:
                     # This indicates a possible inconsistency if the symbol was present during init
@@ -177,11 +191,14 @@ class SignalGenerator:
                                 f"{exchange_id}/{exchange_symbol} (Internal: {internal_symbol}). "
                                 f"Error: {e}"
                             )
-                            continue # Skip this data point
+                            continue  # Skip this data point
 
                     # Add to history using internal_symbol key
                     # Ensure the structure exists (might be overly cautious if init is correct)
-                    if exchange_id in self.historical_funding_rates and internal_symbol in self.historical_funding_rates[exchange_id]:
+                    if (
+                        exchange_id in self.historical_funding_rates
+                        and internal_symbol in self.historical_funding_rates[exchange_id]
+                    ):
                         history_deque = self.historical_funding_rates[exchange_id][internal_symbol]
                         history_deque.append((timestamp, rate))
 
@@ -192,8 +209,9 @@ class SignalGenerator:
                         while history_deque and history_deque[0][0] < cutoff_time:
                             history_deque.popleft()
                     else:
-                        logger.error(f"Historical funding rate deque not found for {exchange_id}/{internal_symbol} during update.")
-
+                        logger.error(
+                            f"Historical funding rate deque not found for {exchange_id}/{internal_symbol} during update."
+                        )
 
         # --- Update basis history (price difference between exchanges) ---
         for internal_symbol in all_internal_symbols:
@@ -204,9 +222,11 @@ class SignalGenerator:
             # Check all enabled exchanges
             for exchange_id in enabled_exchanges:
                 # Get exchange symbol using mapper
-                exchange_symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange_id)
+                exchange_symbol = self.symbol_mapper.get_exchange_symbol(
+                    internal_symbol, exchange_id
+                )
 
-                if exchange_symbol: # Check if mapping exists
+                if exchange_symbol:  # Check if mapping exists
                     ticker: Ticker | None = self.data_handler.get_ticker(
                         exchange_id, exchange_symbol
                     )
@@ -260,7 +280,9 @@ class SignalGenerator:
                         while basis_deque and basis_deque[0][0] < cutoff_time:
                             basis_deque.popleft()
                     else:
-                         logger.error(f"Historical basis deque not found for {internal_symbol} during update.")
+                        logger.error(
+                            f"Historical basis deque not found for {internal_symbol} during update."
+                        )
 
                 else:
                     # This case should ideally not be reached due to earlier checks
@@ -400,13 +422,16 @@ class SignalGenerator:
         Uses SymbolMapper for translation.
         """
         opportunities = []
-        processed_pairs = set()  # Keep track of processed pairs (exchange1, exchange2, internal_symbol)
+        processed_pairs = (
+            set()
+        )  # Keep track of processed pairs (exchange1, exchange2, internal_symbol)
         now = datetime.now(UTC)
 
         # Determine enabled exchanges from config
         configured_exchanges = self.config.get("exchanges", {}).keys()
         enabled_exchanges = [
-            ex_id for ex_id in configured_exchanges
+            ex_id
+            for ex_id in configured_exchanges
             if self.config.get(f"exchanges.{ex_id}.enabled", False)
         ]
 
@@ -428,8 +453,12 @@ class SignalGenerator:
                 exchange2 = enabled_exchanges[j]
 
                 # Find common *internal* symbols supported by *both* exchanges using the mapper
-                symbols1 = set(self.symbol_mapper.get_internal_symbols_for_exchange(exchange1).values())
-                symbols2 = set(self.symbol_mapper.get_internal_symbols_for_exchange(exchange2).values())
+                symbols1 = set(
+                    self.symbol_mapper.get_internal_symbols_for_exchange(exchange1).values()
+                )
+                symbols2 = set(
+                    self.symbol_mapper.get_internal_symbols_for_exchange(exchange2).values()
+                )
                 common_internal_symbols = list(symbols1.intersection(symbols2))
 
                 logger.debug(
@@ -444,8 +473,7 @@ class SignalGenerator:
                     pair_key = tuple(sorted((exchange1, exchange2))) + (internal_symbol,)
                     if pair_key in processed_pairs:
                         continue
-                    processed_pairs.add(pair_key) # Mark as processed
-
+                    processed_pairs.add(pair_key)  # Mark as processed
 
                     logger.debug(
                         f"Processing internal symbol: '{internal_symbol}' for pair {exchange1}/{exchange2}"
@@ -457,14 +485,16 @@ class SignalGenerator:
 
                     # --- CRITICAL: Check if mapping was successful ---
                     if not symbol1 or not symbol2:
-                        logger.error( # Use ERROR level as this indicates a config/logic issue
+                        logger.error(  # Use ERROR level as this indicates a config/logic issue
                             f"Symbol mapping failed for internal symbol '{internal_symbol}' on {exchange1} ('{symbol1}') "
                             f"or {exchange2} ('{symbol2}'). Skipping opportunity check. Verify configuration."
                         )
-                        continue # Skip this symbol for this pair
+                        continue  # Skip this symbol for this pair
                     # --- End Critical Check ---
 
-                    logger.debug(f"  Mapped symbols: {exchange1}='{symbol1}', {exchange2}='{symbol2}'")
+                    logger.debug(
+                        f"  Mapped symbols: {exchange1}='{symbol1}', {exchange2}='{symbol2}'"
+                    )
 
                     # Get latest data using the retrieved *exchange-specific* symbols
                     funding1 = self.data_handler.get_funding_rate(exchange1, symbol1)
@@ -505,10 +535,12 @@ class SignalGenerator:
 
                         # Check if all required prices for opportunity checks are available
                         if None in [ask1, bid1, ask2, bid2]:
-                            logger.debug(f" Missing ask/bid price for {internal_symbol} ({symbol1}/{symbol2}). Skipping.")
+                            logger.debug(
+                                f" Missing ask/bid price for {internal_symbol} ({symbol1}/{symbol2}). Skipping."
+                            )
                             continue
 
-                    except (InvalidOperation, TypeError, ValueError) as e: # Added ValueError
+                    except (InvalidOperation, TypeError, ValueError) as e:  # Added ValueError
                         logger.warning(
                             f"Failed to convert funding/ticker data to Decimal for {internal_symbol} "
                             f"(mapped: {symbol1}/{symbol2}) on {exchange1}/{exchange2}: {e}. Skipping."
@@ -516,16 +548,18 @@ class SignalGenerator:
                         continue
                     # --- End Data Validation ---
 
-
                     # Calculate basis volatility using the *internal* symbol
                     basis_volatility = self.calculate_basis_volatility(internal_symbol)
-
 
                     # Opportunity Check 1: rate1 < rate2 => Long exchange2, Short exchange1
                     if rate1 < rate2:
                         net_differential = rate2 - rate1
-                        logger.debug(f"  Potential NFD (rate2-rate1): {rate2} - {rate1} = {net_differential}")
-                        if net_differential > self.min_funding_differential: # NFD is already positive
+                        logger.debug(
+                            f"  Potential NFD (rate2-rate1): {rate2} - {rate1} = {net_differential}"
+                        )
+                        if (
+                            net_differential > self.min_funding_differential
+                        ):  # NFD is already positive
                             long_exchange_actual, short_exchange_actual = exchange2, exchange1
                             long_rate_actual, short_rate_actual = rate2, rate1
                             # Buy at ask2 (higher price), Sell at bid1 (lower price)
@@ -537,16 +571,20 @@ class SignalGenerator:
                             )
                             try:
                                 # Simplified utility calculation (replace with more sophisticated model later)
-                                optimal_size_placeholder = Decimal("1.0") # Placeholder size
-                                expected_profit = net_differential * optimal_size_placeholder # Per unit size
-                                utility_score = float(expected_profit) - self.risk_aversion * (float(basis_volatility) ** 2)
+                                optimal_size_placeholder = Decimal("1.0")  # Placeholder size
+                                expected_profit = (
+                                    net_differential * optimal_size_placeholder
+                                )  # Per unit size
+                                utility_score = float(expected_profit) - self.risk_aversion * (
+                                    float(basis_volatility) ** 2
+                                )
 
                                 logger.debug(
-                                     f"      Expected Profit/Unit: {expected_profit}, Basis Vol: {basis_volatility}, Utility: {utility_score}"
-                                 )
+                                    f"      Expected Profit/Unit: {expected_profit}, Basis Vol: {basis_volatility}, Utility: {utility_score}"
+                                )
 
                                 opportunity = ArbitrageOpportunity(
-                                    symbol=internal_symbol, # Use internal symbol
+                                    symbol=internal_symbol,  # Use internal symbol
                                     long_exchange=long_exchange_actual,
                                     short_exchange=short_exchange_actual,
                                     long_price=long_price_actual,
@@ -555,8 +593,8 @@ class SignalGenerator:
                                     short_funding_rate=short_rate_actual,
                                     net_funding_differential=net_differential,
                                     timestamp=now,
-                                    optimal_size=None, # To be determined later
-                                    expected_profit=expected_profit, # Per unit
+                                    optimal_size=None,  # To be determined later
+                                    expected_profit=expected_profit,  # Per unit
                                     confidence=None,
                                     basis_volatility=float(basis_volatility),
                                     utility_score=utility_score,
@@ -580,11 +618,13 @@ class SignalGenerator:
                     # Opportunity Check 2: rate2 < rate1 => Long exchange1, Short exchange2
                     elif rate2 < rate1:
                         net_differential = rate1 - rate2  # Keep NFD positive
-                        logger.debug(f"  Potential NFD (rate1-rate2): {rate1} - {rate2} = {net_differential}")
+                        logger.debug(
+                            f"  Potential NFD (rate1-rate2): {rate1} - {rate2} = {net_differential}"
+                        )
                         if net_differential > self.min_funding_differential:
                             long_exchange_actual, short_exchange_actual = exchange1, exchange2
                             long_rate_actual, short_rate_actual = rate1, rate2
-                             # Buy at ask1 (higher price), Sell at bid2 (lower price)
+                            # Buy at ask1 (higher price), Sell at bid2 (lower price)
                             long_price_actual, short_price_actual = ask1, bid2
 
                             logger.debug(
@@ -593,16 +633,18 @@ class SignalGenerator:
                             )
                             try:
                                 # Simplified utility calculation
-                                optimal_size_placeholder = Decimal("1.0") # Placeholder size
+                                optimal_size_placeholder = Decimal("1.0")  # Placeholder size
                                 expected_profit = net_differential * optimal_size_placeholder
-                                utility_score = float(expected_profit) - self.risk_aversion * (float(basis_volatility) ** 2)
+                                utility_score = float(expected_profit) - self.risk_aversion * (
+                                    float(basis_volatility) ** 2
+                                )
 
                                 logger.debug(
-                                     f"      Expected Profit/Unit: {expected_profit}, Basis Vol: {basis_volatility}, Utility: {utility_score}"
-                                 )
+                                    f"      Expected Profit/Unit: {expected_profit}, Basis Vol: {basis_volatility}, Utility: {utility_score}"
+                                )
 
                                 opportunity = ArbitrageOpportunity(
-                                    symbol=internal_symbol, # Use internal symbol
+                                    symbol=internal_symbol,  # Use internal symbol
                                     long_exchange=long_exchange_actual,
                                     short_exchange=short_exchange_actual,
                                     long_price=long_price_actual,
@@ -629,12 +671,13 @@ class SignalGenerator:
                                     exc_info=True,
                                 )
                         else:
-                             logger.debug(
+                            logger.debug(
                                 f"    NFD {net_differential} <= threshold {self.min_funding_differential}"
                             )
-                    else: # Rates are equal
-                         logger.debug(f"  Funding rates are equal for {internal_symbol} ({symbol1}/{symbol2}). No NFD.")
-
+                    else:  # Rates are equal
+                        logger.debug(
+                            f"  Funding rates are equal for {internal_symbol} ({symbol1}/{symbol2}). No NFD."
+                        )
 
         # Sort opportunities by utility score (descending)
         opportunities.sort(key=lambda x: x.utility_score, reverse=True)

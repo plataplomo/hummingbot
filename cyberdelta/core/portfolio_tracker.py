@@ -9,7 +9,15 @@ from typing import Any
 import simplejson as json
 
 from cyberdelta.apis.base import ExchangeAPI
-from cyberdelta.core.models import Balance, Order, OrderSide, OrderStatus, OrderType, Position, Trade
+from cyberdelta.core.models import (
+    Balance,
+    Order,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    Position,
+    Trade,
+)
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger
 from cyberdelta.utils.serialization import dump_json
@@ -573,10 +581,10 @@ class PortfolioTracker:
                 size=trade_size_signed,
                 entry_price=trade_price,
                 leverage=Decimal("1.0"),  # TODO: Leverage should come from config or context
-                timestamp=int(trade.timestamp), # Use trade timestamp
+                timestamp=int(trade.timestamp),  # Use trade timestamp
                 unrealized_pnl=Decimal("0.0"),
-                realized_pnl=Decimal("0.0"), # Initial realized PNL for this position
-                id=f"pos_{trade.symbol}_{exchange_id}", # Simple ID
+                realized_pnl=Decimal("0.0"),  # Initial realized PNL for this position
+                id=f"pos_{trade.symbol}_{exchange_id}",  # Simple ID
             )
             self._positions[exchange_id][trade.symbol] = new_position
             logger.info(f"New position opened: {new_position}")
@@ -588,38 +596,46 @@ class PortfolioTracker:
             original_entry = current_position.entry_price
 
             new_size = original_size + trade_size_signed
-            new_entry_price = original_entry # Default if closing out
+            new_entry_price = original_entry  # Default if closing out
             realized_pnl_from_trade = Decimal("0.0")
 
             # Calculate realized P&L if the trade reduces or closes the position
-            closing_trade = (original_size > 0 and trade_side == OrderSide.SELL) or \
-                            (original_size < 0 and trade_side == OrderSide.BUY)
+            closing_trade = (original_size > 0 and trade_side == OrderSide.SELL) or (
+                original_size < 0 and trade_side == OrderSide.BUY
+            )
 
             if closing_trade and abs(trade_size_signed) <= abs(original_size):
                 size_closed = min(abs(trade_size), abs(original_size))
                 if current_position.side == OrderSide.BUY:
                     realized_pnl_from_trade = (trade_price - original_entry) * size_closed
-                else: # Position was SHORT
+                else:  # Position was SHORT
                     realized_pnl_from_trade = (original_entry - trade_price) * size_closed
 
-                self._update_realized_pnl(realized_pnl_from_trade) # Update global realized PNL
+                self._update_realized_pnl(realized_pnl_from_trade)  # Update global realized PNL
                 # Optionally update position's realized PNL if tracked per-position
-                if current_position.realized_pnl is None: current_position.realized_pnl = Decimal(0)
+                if current_position.realized_pnl is None:
+                    current_position.realized_pnl = Decimal(0)
                 current_position.realized_pnl += realized_pnl_from_trade
-                logger.info(f"Trade closed {size_closed} of position. Realized PNL: {realized_pnl_from_trade:.4f}")
+                logger.info(
+                    f"Trade closed {size_closed} of position. Realized PNL: {realized_pnl_from_trade:.4f}"
+                )
 
             # Calculate new average entry price if increasing position or partially closing
             if new_size != Decimal("0"):
-                 # If signs are the same (increasing position) or different but new_size != 0 (partial close/flip)
-                 if (original_size * trade_size_signed >= 0) or \
-                    (original_size * trade_size_signed < 0 and new_size != 0) :
-                     if abs(new_size) > Decimal("1e-9"): # Avoid division by zero on full close
-                         new_entry_price = ((original_entry * abs(original_size)) + (trade_price * abs(trade_size_signed))) / abs(new_size)
-                         # Handle case where signs were different (flipping position)
-                         if original_size * new_size < 0:
-                             new_entry_price = trade_price # If flipped, new entry is the trade price of the flipping trade
-                     else: # Effectively closed
-                         new_entry_price = Decimal("0.0") # Or keep original?
+                # If signs are the same (increasing position) or different but new_size != 0 (partial close/flip)
+                if (original_size * trade_size_signed >= 0) or (
+                    original_size * trade_size_signed < 0 and new_size != 0
+                ):
+                    if abs(new_size) > Decimal("1e-9"):  # Avoid division by zero on full close
+                        new_entry_price = (
+                            (original_entry * abs(original_size))
+                            + (trade_price * abs(trade_size_signed))
+                        ) / abs(new_size)
+                        # Handle case where signs were different (flipping position)
+                        if original_size * new_size < 0:
+                            new_entry_price = trade_price  # If flipped, new entry is the trade price of the flipping trade
+                    else:  # Effectively closed
+                        new_entry_price = Decimal("0.0")  # Or keep original?
 
             # Update position object
             current_position.entry_price = new_entry_price
@@ -631,8 +647,8 @@ class PortfolioTracker:
                 current_position.side = OrderSide.SELL
             else:
                 # Position closed, maybe set side to None or keep last? Keeping last for now.
-                 logger.info(f"Position for {trade.symbol} on {exchange_id} closed.")
-                 # Optionally remove from dict? self._positions[exchange_id].pop(trade.symbol, None)
+                logger.info(f"Position for {trade.symbol} on {exchange_id} closed.")
+                # Optionally remove from dict? self._positions[exchange_id].pop(trade.symbol, None)
 
             # Update timestamp? Maybe last modified time?
             current_position.timestamp = int(trade.timestamp)
@@ -640,15 +656,17 @@ class PortfolioTracker:
             # Recalculate unrealized P&L if needed (or leave to separate update)
             # Assuming mark price update happens elsewhere
 
-            logger.info(f"Position updated: Size={current_position.size}, Entry={current_position.entry_price:.4f}")
+            logger.info(
+                f"Position updated: Size={current_position.size}, Entry={current_position.entry_price:.4f}"
+            )
 
         # Update Balances (Simplified: Reduce base currency by cost/add quote currency)
         # TODO: Need robust balance update logic considering fees and assets
-        base_asset = trade.symbol.split('-')[0] # Assuming format like BTC-PERP
-        quote_asset = "USDC" # Assuming quote is USDC for now
+        base_asset = trade.symbol.split("-")[0]  # Assuming format like BTC-PERP
+        quote_asset = "USDC"  # Assuming quote is USDC for now
         cost = trade.quantity * trade.price
         fee = trade.fee or Decimal("0.0")
-        fee_asset = trade.fee_asset or quote_asset # Assume fee in quote if not specified
+        fee_asset = trade.fee_asset or quote_asset  # Assume fee in quote if not specified
 
         # logger.debug(f"Attempting balance update: Cost={cost}, Fee={fee} {fee_asset}")
         # try:
