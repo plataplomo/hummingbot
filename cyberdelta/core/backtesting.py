@@ -198,194 +198,193 @@ class BacktestEngine:
             logger.error("Strategy initialization failed")
             return {"success": False, "error": "Strategy initialization failed"}
 
-        logger.info(f"Strategy initialized. Backtesting on {len(test_data)} data points")
-
-        # Initialize backtest state
-        self.capital = self.initial_capital  # Ensure capital starts as Decimal
-
-        # Ensure the first timestamp is a valid datetime object
-        first_timestamp = test_data.index[0]
-        if isinstance(first_timestamp, pd.Timestamp):
-            first_timestamp = first_timestamp.to_pydatetime()  # Convert pd.Timestamp
-        elif not isinstance(first_timestamp, datetime):
-            # This should ideally not happen due to the __init__ check, but as a safeguard:
-            logger.error(
-                f"First timestamp in test data is not a datetime object: {first_timestamp}"
-            )
-            # Attempt conversion or raise error
-            try:
-                first_timestamp = pd.to_datetime(first_timestamp).to_pydatetime()
-            except Exception as e:
-                raise TypeError(
-                    f"Could not convert first timestamp {first_timestamp} to datetime: {e}"
-                ) from e
-
-        self.equity_curve = [(first_timestamp, self.capital)]
-
-        # Backtest on each data point
-        for i in range(len(test_data)):
-            timestamp = test_data.index[i]
-
-            # Get current data
-            if isinstance(test_data, pd.DataFrame) and len(test_data.columns) > 1:
-                current_data = test_data.iloc[i]
-            else:
-                current_data = test_data.iloc[i : i + 1]
-
-            # Update strategy
-            update_result = self.strategy.update(current_data)
-
-            # Process signals and update capital
-            self._process_signals(update_result, timestamp)
-
-            # Record equity
-            self.equity_curve.append((timestamp, self.capital))
-
-        logger.info(f"Backtest finished for {self.strategy.name}")
-
-        # --- Post-Processing with Results Handler ---
+        # Initialize results handler
         try:
             from .results import BacktestResultsHandler  # Local import
-
+            
             results_handler = BacktestResultsHandler(
                 strategy_name=self.strategy.name,
                 initial_capital=self.initial_capital,
-                final_capital=self.capital,
-                commission=self.commission,
-                slippage=self.slippage,
-                equity_curve=self.equity_curve,
-                trades=self.trades,
-                results_dir=self.results_dir,
+                results_dir=self.results_dir
             )
-
-            # Calculate metrics using the handler
-            self.metrics = results_handler.calculate_metrics()
-
-            # Optionally plot and save results using the handler
-            # plot_path = results_handler.plot_results(show=False) # Example: Save plot without showing
-            # save_path = results_handler.save_results() # Example: Save JSON results
-
-            return {
-                "success": True,
-                "metrics": self.metrics,
-                # "plot_path": plot_path, # Uncomment if plotting
-                # "save_path": save_path, # Uncomment if saving
-            }
-
         except ImportError as e:
-            logger.error(f"Could not import BacktestResultsHandler: {e}", exc_info=True)
+            logger.error(f"Could not import BacktestResultsHandler: {e}")
             return {"success": False, "error": "Failed to load results handler."}
-        except Exception as e:
-            logger.error(f"Error during results processing: {e}", exc_info=True)
-            return {"success": False, "error": f"Results processing failed: {e}"}
 
-    def _process_signals(self, update_result: dict[str, Any], timestamp: datetime) -> None:
+        # Reset capital to initial value
+        self.capital = self.initial_capital
+        current_capital = self.initial_capital
+
+        # Loop through test data
+        positions = {}  # symbol -> position
+
+        # Store initial equity point
+        start_time = test_data.index[0] if not test_data.empty else datetime.now()
+        results_handler.add_equity_point(start_time, current_capital)
+
+        for idx, row in test_data.iterrows():
+            # Update strategy with new data
+            result = self.strategy.update(row)
+
+            # Process trades
+            if result and "signals" in result:
+                for signal in result["signals"]:
+                    # Process signal
+                    if "type" in signal and "symbol" in signal:
+                        # Get signal details
+                        signal_type = signal["type"]
+                        symbol = signal["symbol"]
+                        side = signal.get("side", "buy")  # Default to buy
+                        price = signal.get("price", 0)
+                        size = signal.get("size", 0)
+
+                        # Handle entry signals
+                        if signal_type in ["ENTER_LONG", "ENTER_SHORT"]:
+                            # Calculate position value
+                            if isinstance(price, str):
+                                try:
+                                    price = Decimal(price)
+                                except InvalidOperation:
+                                    logger.error(f"Invalid price value: {price}")
+                                    continue
+                            elif not isinstance(price, Decimal):
+                                try:
+                                    price = Decimal(str(price))
+                                except InvalidOperation:
+                                    logger.error(f"Invalid price value: {price}")
+                                    continue
+
+                            if isinstance(size, str):
+                                try:
+                                    size = Decimal(size)
+                                except InvalidOperation:
+                                    logger.error(f"Invalid size value: {size}")
+                                    continue
+                            elif not isinstance(size, Decimal):
+                                try:
+                                    size = Decimal(str(size))
+                                except InvalidOperation:
+                                    logger.error(f"Invalid size value: {size}")
+                                    continue
+
+                            position_value = price * size
+                            
+                            # Check if we have enough capital
+                            if position_value > current_capital:
+                                logger.warning(
+                                    f"Insufficient capital: {float(current_capital)} < {float(position_value)}"
+                                )
+                                continue
+
+                            # Create position
+                            position = {
+                                "symbol": symbol,
+                                "side": side,
+                                "entry_price": price,
+                                "size": size,
+                                "entry_time": idx,
+                            }
+                            positions[symbol] = position
+                            
+                            # Track position
+                            results_handler.add_position(position)
+
+                            # Deduct from capital
+                            current_capital -= position_value
+
+                            # Add entry trade
+                            trade = {
+                                "symbol": symbol,
+                                "side": side,
+                                "price": float(price),
+                                "size": float(size),
+                                "value": float(position_value),
+                                "time": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
+                                "type": "ENTRY",
+                            }
+                            results_handler.add_trade(trade)
+
+                        # Handle exit signals
+                        elif signal_type in ["EXIT_LONG", "EXIT_SHORT"] and symbol in positions:
+                            position = positions[symbol]
+                            entry_price = position["entry_price"]
+                            position_size = position["size"]
+
+                            # Calculate exit value
+                            if isinstance(price, str):
+                                try:
+                                    price = Decimal(price)
+                                except InvalidOperation:
+                                    logger.error(f"Invalid price value: {price}")
+                                    continue
+                            elif not isinstance(price, Decimal):
+                                try:
+                                    price = Decimal(str(price))
+                                except InvalidOperation:
+                                    logger.error(f"Invalid price value: {price}")
+                                    continue
+
+                            # Calculate exit value and P&L
+                            exit_value = price * position_size
+                            
+                            # Calculate P&L based on side
+                            if position["side"].lower() == "buy":  # Long position
+                                pnl = (price - entry_price) * position_size
+                            else:  # Short position
+                                pnl = (entry_price - price) * position_size
+
+                            # Add exit trade
+                            trade = {
+                                "symbol": symbol,
+                                "side": "sell" if position["side"].lower() == "buy" else "buy",
+                                "price": float(price),
+                                "size": float(position_size),
+                                "value": float(exit_value),
+                                "pnl": float(pnl),
+                                "time": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
+                                "type": "EXIT",
+                            }
+                            results_handler.add_trade(trade)
+
+                            # Update capital
+                            current_capital += exit_value
+                            
+                            # Remove position
+                            del positions[symbol]
+
+            # Record equity point at this timestamp
+            results_handler.add_equity_point(idx, current_capital)
+
+        # Calculate final results
+        # Get the final metrics and results
+        return results_handler.format_results_for_output()
+        
+    def save_results(self, filename: str = None) -> str:
         """
-        Process trade signals from strategy update
-
+        Save backtest results to a file.
+        
         Args:
-            update_result: Result from strategy update
-            timestamp: Current timestamp
+            filename: Optional custom filename
+            
+        Returns:
+            Path to saved file
         """
-        # Extract trade signals
-        signals = update_result.get("signals", [])
-
-        for signal in signals:
-            signal_type = signal.get("type")
-            symbol = signal.get("symbol")
-            side = signal.get("side")
-            size = signal.get("size", 0)
-            price = signal.get("price", 0)
-
-            # Ensure size is Decimal before calculation
+        # Run backtest if not already run
+        if not hasattr(self, 'results_handler') or not self.results_handler:
             try:
-                # Size comes from signal.quantity, which should be Decimal
-                signal_size_decimal = signal.get("size")  # 'size' key holds the quantity value
-                if not isinstance(signal_size_decimal, Decimal):
-                    # Attempt conversion if not already Decimal (shouldn't happen ideally)
-                    signal_size_decimal = Decimal(str(signal_size_decimal))
-
-            except (TypeError, InvalidOperation, KeyError) as e:
-                logger.error(
-                    f"Invalid signal size {signal.get('size')} for {symbol} at {timestamp}: {e}. Skipping signal."
+                from .results import BacktestResultsHandler
+                self.results_handler = BacktestResultsHandler(
+                    strategy_name=self.strategy.name,
+                    initial_capital=self.initial_capital,
+                    results_dir=self.results_dir
                 )
-                continue  # Skip processing this signal
-
-            # Calculate trade size in capital terms (Decimal * Decimal)
-            trade_size_capital = self.capital * signal_size_decimal  # Now Decimal * Decimal
-
-            # Apply commission and slippage (Decimal math)
-            transaction_cost = trade_size_capital * (
-                self.commission + self.slippage
-            )  # Decimal * (Decimal + Decimal)
-
-            # Process based on signal type
-            if signal_type in ["enter", "ENTER_LONG", "ENTER_SHORT"]:
-                # Record trade
-                self.trades.append(
-                    {
-                        "timestamp": timestamp,
-                        "symbol": symbol,
-                        "action": signal_type,
-                        "side": side,
-                        # Store as strings to preserve Decimal precision for JSON
-                        "price": str(signal.get("price", Decimal("0"))),
-                        "size": str(trade_size_capital),  # Size in capital terms
-                        "cost": str(transaction_cost),
-                        "quantity": str(signal_size_decimal),  # Original quantity from signal
-                    }
-                )
-
-                # Deduct transaction costs (Decimal - Decimal)
-                self.capital -= transaction_cost
-
-                # Update positions
-                self.positions.append(
-                    {
-                        "timestamp": timestamp,
-                        "symbol": symbol,
-                        "side": side,
-                        "size": trade_size_capital,  # Keep as Decimal for internal calculations
-                        "entry_price": price,  # Keep as Decimal for internal calculations
-                    }
-                )
-
-            elif signal_type in ["exit", "EXIT_LONG", "EXIT_SHORT"]:
-                # Calculate PnL (Ensure pnl from signal is Decimal or converted)
-                try:
-                    pnl_value = signal.get("pnl", Decimal("0"))
-                    if not isinstance(pnl_value, Decimal):
-                        pnl_value = Decimal(str(pnl_value))
-                except (InvalidOperation, TypeError) as e:
-                    logger.error(
-                        f"Invalid PnL value {signal.get('pnl')} for exit signal {symbol}: {e}. Assuming PnL=0."
-                    )
-                    pnl_value = Decimal("0")
-
-                # Scale PnL by trade size (Decimal * Decimal)
-                total_pnl = pnl_value * trade_size_capital
-
-                # Record trade
-                self.trades.append(
-                    {
-                        "timestamp": timestamp,
-                        "symbol": symbol,
-                        "action": signal_type,
-                        "side": side,
-                        # Store as strings to preserve Decimal precision for JSON
-                        "price": str(signal.get("price", Decimal("0"))),
-                        "size": str(trade_size_capital),  # Size in capital terms
-                        "cost": str(transaction_cost),
-                        "pnl": str(total_pnl),  # Store calculated total PnL
-                        "quantity": str(signal_size_decimal),  # Original quantity from signal
-                    }
-                )
-
-                # Update capital with PnL and deduct costs (Decimal + Decimal - Decimal)
-                self.capital += total_pnl - transaction_cost
-
-                # Remove from positions
-                self.positions = [p for p in self.positions if p["symbol"] != symbol]
+                results = self.run()
+            except ImportError as e:
+                logger.error(f"Could not import BacktestResultsHandler: {e}")
+                raise ImportError("Results handler not available") from e
+                
+        # Save results
+        return self.results_handler.save_results(filename)
 
 
 class StrategyAdapter(BacktestStrategy):
@@ -679,3 +678,60 @@ class StrategyAdapter(BacktestStrategy):
 
 
 # --- Example Strategy (for demonstration) ---
+
+def generate_synthetic_data(days: int = 10, volatility: float = 0.02, symbols: list[str] = None) -> pd.DataFrame:
+    """
+    Generate synthetic market data for backtesting.
+
+    Args:
+        days: Number of days of data to generate
+        volatility: Daily volatility to simulate
+        symbols: List of symbols to generate data for, defaults to ['BTC', 'ETH', 'SOL']
+
+    Returns:
+        DataFrame with synthetic OHLCV data
+    """
+    symbols = symbols or ['BTC', 'ETH', 'SOL']
+    
+    # Generate date range
+    dates = pd.date_range(start=datetime.now() - pd.Timedelta(days=days), periods=days)
+    
+    # Initialize multi-level columns DataFrame
+    columns = pd.MultiIndex.from_product([symbols, ['open', 'high', 'low', 'close', 'volume']])
+    data = pd.DataFrame(index=dates, columns=columns)
+    
+    # Generate price data for each symbol
+    for symbol in symbols:
+        # Generate random starting price in a reasonable range
+        if symbol == 'BTC':
+            starting_price = np.random.uniform(25000, 35000)
+        elif symbol == 'ETH':
+            starting_price = np.random.uniform(1500, 2500)
+        else:
+            starting_price = np.random.uniform(50, 200)
+        
+        # Generate log returns with specified volatility
+        returns = np.random.normal(0, volatility, days)
+        
+        # Generate price series
+        prices = starting_price * np.exp(np.cumsum(returns))
+        
+        # Generate OHLC data
+        for i, date in enumerate(dates):
+            price = prices[i]
+            daily_volatility = price * volatility
+            
+            # Generate OHLC
+            data.loc[date, (symbol, 'open')] = price 
+            data.loc[date, (symbol, 'high')] = price * (1 + np.random.uniform(0, volatility * 2))
+            data.loc[date, (symbol, 'low')] = price * (1 - np.random.uniform(0, volatility * 1.5))
+            data.loc[date, (symbol, 'close')] = price * (1 + np.random.normal(0, volatility))
+            
+            # Generate volume (in units)
+            data.loc[date, (symbol, 'volume')] = np.random.uniform(100, 1000) * (price / 100)
+    
+    # Add funding rate columns for perpetual contracts
+    for symbol in symbols:
+        data[(symbol, 'funding_rate')] = np.random.normal(0, 0.001, days)  # small funding rates
+    
+    return data

@@ -301,20 +301,21 @@ class SignalGenerator:
             # else: logger.debug(f"Skipping basis calculation for {internal_symbol}: Need at least 2 exchanges with valid tickers.")
 
     def calculate_funding_rate_volatility(self, exchange: str, internal_symbol: str) -> Decimal:
-        """Calculate the volatility (std dev) of historical funding rates."""
-        if (
-            exchange not in self.historical_funding_rates
-            or internal_symbol not in self.historical_funding_rates[exchange]
-        ):
-            # logger.debug(f"No historical funding rate data for {exchange}/{internal_symbol}. Returning default volatility.")
-            return Decimal("0.0001")  # Default low volatility if no data
+        """Calculate the volatility (std dev) of the historical funding rates."""
+        if exchange not in self.historical_funding_rates:
+            logger.debug(f"No funding data for {exchange}. Returning default volatility.")
+            return Decimal("0.0001")  # Default funding volatility
+
+        if internal_symbol not in self.historical_funding_rates[exchange]:
+            # logger.debug(f"No funding data for {internal_symbol} on {exchange}. Returning default.")
+            return Decimal("0.0001")  # Default funding volatility 
 
         history_deque = self.historical_funding_rates[exchange][internal_symbol]
         if len(history_deque) < 2:
-            # logger.debug(f"Insufficient historical funding rate data for {exchange}/{internal_symbol} (need >= 2). Returning default.")
-            return Decimal("0.0001")  # Default low volatility
+            # Need at least 2 points to calculate volatility
+            return Decimal("0.0001")  # Default volatility
 
-        # Extract rates (they should be Decimal)
+        # Extract just the rates
         rates = [rate for _, rate in history_deque]
 
         try:
@@ -330,20 +331,18 @@ class SignalGenerator:
             variance = sum((r - mean) ** 2 for r in decimal_rates) / Decimal(n - 1)
             
             # Take square root for standard deviation
-            # Use Decimal's power function with 0.5 exponent for square root
-            std_dev_decimal = variance ** Decimal('0.5')
+            std_dev_decimal = variance.sqrt()
             
             # Return a minimum non-zero volatility
             return max(Decimal("1e-8"), std_dev_decimal)  # Ensure non-zero return
         except (InvalidOperation, TypeError, ValueError) as e:
-            # Fallback to numpy if Decimal calculation fails
             logger.warning(
                 f"Decimal calculation failed for {exchange}/{internal_symbol}: {e}. "
                 f"Falling back to numpy (with potential precision loss)."
             )
             try:
                 # Convert Decimal list to list of floats for numpy
-                rates_float = [float(r) for r in rates]
+                rates_float = [float(str(r)) for r in rates]  # Convert via string to minimize loss
                 std_dev = np.std(rates_float)
                 # Convert result back to Decimal
                 std_dev_decimal = Decimal(str(std_dev))
@@ -380,7 +379,7 @@ class SignalGenerator:
             variance = sum((b - mean) ** 2 for b in decimal_basis) / Decimal(n - 1)
             
             # Take square root for standard deviation
-            std_dev_decimal = variance ** Decimal('0.5')
+            std_dev_decimal = variance.sqrt()
             
             # Return a minimum non-zero volatility
             return max(Decimal("1e-8"), std_dev_decimal)  # Ensure non-zero return
@@ -391,7 +390,7 @@ class SignalGenerator:
                 f"Falling back to numpy (with potential precision loss)."
             )
             try:
-                basis_float = [float(b) for b in basis_values]
+                basis_float = [float(str(b)) for b in basis_values]  # Convert via string to minimize loss
                 std_dev = np.std(basis_float)
                 std_dev_decimal = Decimal(str(std_dev))
                 return max(Decimal("1e-8"), std_dev_decimal)

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -781,7 +782,7 @@ class ArbitrageOpportunity:
         self.short_exchange = short_exchange
         self.timestamp = timestamp
 
-        # Perform safe Decimal conversions
+        # Perform safe Decimal conversions for financial values
         self.long_price = self._safe_decimal_convert(
             long_price, "long_price", symbol, allow_none=False
         )
@@ -803,15 +804,11 @@ class ArbitrageOpportunity:
         self.expected_profit = self._safe_decimal_convert(
             expected_profit, "expected_profit", symbol, allow_none=True
         )
-        self.confidence = self._safe_decimal_convert(
-            confidence, "confidence", symbol, allow_none=True
-        )  # Decimal or None
-        self.basis_volatility = self._safe_decimal_convert(
-            basis_volatility, "basis_volatility", symbol, allow_none=True
-        )  # Decimal or None
-        self.utility_score = self._safe_decimal_convert(
-            utility_score, "utility_score", symbol, allow_none=True
-        )  # Decimal or None
+        
+        # Use float for statistical/ranking metrics that don't require financial precision
+        self.confidence = self._safe_float_convert(confidence, "confidence", symbol)
+        self.basis_volatility = self._safe_float_convert(basis_volatility, "basis_volatility", symbol)
+        self.utility_score = self._safe_float_convert(utility_score, "utility_score", symbol)
 
         # Validate required fields are not None after conversion
         self.validate_required_fields()
@@ -848,6 +845,29 @@ class ArbitrageOpportunity:
                 f"Invalid value '{value}' for ArbitrageOpportunity field '{field_name}' "
                 f"for symbol '{symbol}'. Cannot convert to Decimal."
             ) from err
+    
+    @staticmethod
+    def _safe_float_convert(
+        value: str | int | float | Decimal | None,
+        field_name: str,
+        symbol: str,
+    ) -> float | None:
+        """Safely convert a value to float for non-financial metrics, handling None values."""
+        if value is None:
+            return None
+        if isinstance(value, float):
+            return value
+        try:
+            if isinstance(value, Decimal):
+                # Convert via string to avoid float precision issues with direct float(Decimal)
+                return float(str(value))
+            return float(value)
+        except (ValueError, TypeError) as err:
+            logger.warning(
+                f"Invalid value '{value}' for ArbitrageOpportunity field '{field_name}' "
+                f"for symbol '{symbol}'. Cannot convert to float. Using None."
+            )
+            return None
 
     def validate_required_fields(self) -> None:
         """Check if all required fields are set and not None."""
@@ -877,25 +897,18 @@ class ArbitrageOpportunity:
             "short_exchange": self.short_exchange,
             "long_price": str(self.long_price) if self.long_price is not None else None,
             "short_price": str(self.short_price) if self.short_price is not None else None,
-            "long_funding_rate": str(self.long_funding_rate)
-            if self.long_funding_rate is not None
-            else None,
-            "short_funding_rate": str(self.short_funding_rate)
-            if self.short_funding_rate is not None
-            else None,
-            "net_funding_differential": str(self.net_funding_differential)
-            if self.net_funding_differential is not None
-            else None,
-            "timestamp": self.timestamp.isoformat(),
+            "long_funding_rate": str(self.long_funding_rate) if self.long_funding_rate is not None else None,
+            "short_funding_rate": str(self.short_funding_rate) if self.short_funding_rate is not None else None,
+            "net_funding_differential": str(self.net_funding_differential) if self.net_funding_differential is not None else None,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "optimal_size": str(self.optimal_size) if self.optimal_size is not None else None,
-            "expected_profit": str(self.expected_profit)
-            if self.expected_profit is not None
-            else None,
-            "confidence": str(self.confidence) if self.confidence is not None else None,
-            "basis_volatility": str(self.basis_volatility) if self.basis_volatility is not None else None,
-            "utility_score": str(self.utility_score) if self.utility_score is not None else None,
-            # Add expiration_timestamp if needed in dict
+            "expected_profit": str(self.expected_profit) if self.expected_profit is not None else None,
+            # Float fields don't need str() conversion
+            "confidence": self.confidence,
+            "basis_volatility": self.basis_volatility, 
+            "utility_score": self.utility_score,
             "expiration_timestamp": self.expiration_timestamp,
+            "id": str(uuid.uuid4())
         }
 
     @property
@@ -915,12 +928,13 @@ class TradeSignal:
     price: Decimal | None = None
     quantity: Decimal | None = None
     timestamp: datetime | None = None
-    confidence: Decimal | None = None
+    confidence: float | None = None  # Changed from Decimal to float for statistical measure
     source_strategy: str | None = None
     stop_loss: Decimal | None = None
     take_profit: Decimal | None = None
     expiration: datetime | None = None
     metadata: dict[str, Any] | None = None
+    signal_id: str | None = None  # Unique identifier, should be added if not in dataclass already
 
     def __post_init__(self) -> None:
         """Ensure numeric fields are Decimal and handle None values."""
@@ -933,15 +947,29 @@ class TradeSignal:
         self.take_profit = self._safe_decimal_convert_optional(
             self.take_profit, "take_profit", self.symbol
         )
-        self.confidence = self._safe_decimal_convert_optional(
-            self.confidence, "confidence", self.symbol
-        )
+        
+        # Convert confidence to float (statistical measure, not financial)
+        if self.confidence is not None:
+            try:
+                # Handle if confidence is a Decimal
+                if isinstance(self.confidence, Decimal):
+                    self.confidence = float(str(self.confidence))
+                # Otherwise, try direct conversion
+                elif not isinstance(self.confidence, float):
+                    self.confidence = float(self.confidence)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Could not convert confidence to float: {e}. Using None.")
+                self.confidence = None
 
         # Ensure timestamp and expiration are timezone-aware (UTC) if provided
         if self.timestamp and self.timestamp.tzinfo is None:
             self.timestamp = self.timestamp.replace(tzinfo=UTC)
         if self.expiration and self.expiration.tzinfo is None:
             self.expiration = self.expiration.replace(tzinfo=UTC)
+            
+        # Generate unique signal_id if not provided
+        if self.signal_id is None:
+            self.signal_id = str(uuid.uuid4())
 
     @staticmethod
     def _safe_decimal_convert_optional(
@@ -970,17 +998,24 @@ class TradeSignal:
         return datetime.now(UTC) < self.expiration
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert signal to dictionary, handling Decimal conversion."""
-        d = asdict(self)
-        # Convert special types to serializable values
-        for key, value in d.items():
-            if isinstance(value, Decimal):
-                d[key] = str(value)
-            elif isinstance(value, SignalType | OrderSide):
-                d[key] = value.value
-            elif isinstance(value, datetime):
-                d[key] = value.isoformat()
-        return d
+        """Convert TradeSignal to dictionary."""
+        result = {
+            "symbol": self.symbol,
+            "signal_type": self.signal_type.name if isinstance(self.signal_type, SignalType) else self.signal_type,
+            "side": self.side.name if isinstance(self.side, OrderSide) else self.side,
+            "price": str(self.price) if self.price is not None else None,
+            "quantity": str(self.quantity) if self.quantity is not None else None,
+            "timestamp": self.timestamp.isoformat() if self.timestamp is not None else None,
+            # Float values don't need str() conversion like Decimal
+            "confidence": self.confidence,  # Now a float
+            "source_strategy": self.source_strategy,
+            "stop_loss": str(self.stop_loss) if self.stop_loss is not None else None,
+            "take_profit": str(self.take_profit) if self.take_profit is not None else None,
+            "expiration": self.expiration.isoformat() if self.expiration is not None else None,
+            "metadata": self.metadata if self.metadata is not None else {},
+            "signal_id": self.signal_id,
+        }
+        return result
 
 
 # Helper function placed outside classes if used by multiple, or as staticmethod if only one
