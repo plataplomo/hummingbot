@@ -91,29 +91,29 @@ class TestPortfolioTracker:
         return {
             "hyperliquid": [
                 Order(
-                    order_id="hl-order-1", # Correct parameter name
+                    order_id="hl-order-1",  # Correct parameter name
                     symbol="BTC",
                     side=OrderSide.BUY,
-                    order_type=OrderType.LIMIT, # Correct parameter name
+                    order_type=OrderType.LIMIT,  # Correct parameter name
                     price=Decimal("49000.0"),
                     quantity=Decimal("0.5"),
                     filled_quantity=Decimal("0.0"),
-                    status=OrderStatus.NEW, # Use Enum member
-                    timestamp=datetime.now(UTC), # Use datetime object
+                    status=OrderStatus.NEW,  # Use Enum member
+                    timestamp=datetime.now(UTC),  # Use datetime object
                     client_order_id="client-order-1",
                 )
             ],
             "backpack": [
                 Order(
-                    order_id="bp-order-1", # Correct parameter name
+                    order_id="bp-order-1",  # Correct parameter name
                     symbol="ETH",
                     side=OrderSide.SELL,
-                    order_type=OrderType.MARKET, # Correct parameter name
-                    price=None, # Market orders typically don't have a pre-fill price
+                    order_type=OrderType.MARKET,  # Correct parameter name
+                    price=None,  # Market orders typically don't have a pre-fill price
                     quantity=Decimal("5.0"),
                     filled_quantity=Decimal("5.0"),
-                    status=OrderStatus.FILLED, # Use Enum member
-                    timestamp=datetime.now(UTC), # Use datetime object
+                    status=OrderStatus.FILLED,  # Use Enum member
+                    timestamp=datetime.now(UTC),  # Use datetime object
                     client_order_id="client-order-2",
                 )
             ],
@@ -147,7 +147,7 @@ class TestPortfolioTracker:
         await portfolio_tracker.initialize()
 
         # Verify API clients were called
-        for _exchange_id, client in api_clients.items(): # B007: Use _ for unused var
+        for _exchange_id, client in api_clients.items():  # B007: Use _ for unused var
             client.get_balances.assert_called_once()
             client.get_positions.assert_called_once()
             client.get_open_orders.assert_called_once()
@@ -193,7 +193,7 @@ class TestPortfolioTracker:
         await portfolio_tracker.initialize()
 
         # Reset the mock call counts
-        for _exchange_id, client in api_clients.items(): # B007: Use _ for unused var
+        for _exchange_id, client in api_clients.items():  # B007: Use _ for unused var
             client.get_balances.reset_mock()
             client.get_positions.reset_mock()
             client.get_open_orders.reset_mock()
@@ -210,7 +210,7 @@ class TestPortfolioTracker:
         await portfolio_tracker.update()
 
         # Verify only orders were updated (balances and positions not fetched)
-        for _exchange_id, client in api_clients.items(): # B007: Use _ for unused var
+        for _exchange_id, client in api_clients.items():  # B007: Use _ for unused var
             client.get_balances.assert_not_called()
             client.get_positions.assert_not_called()
             client.get_open_orders.assert_called_once()
@@ -224,7 +224,7 @@ class TestPortfolioTracker:
         )
 
         await portfolio_tracker.update()  # Should now fetch everything
-        for _exchange_id, client in api_clients.items(): # B007: Use _ for unused var
+        for _exchange_id, client in api_clients.items():  # B007: Use _ for unused var
             # Check counts after full reconciliation (add 1 to previous checks)
             assert client.get_balances.call_count == 1
             assert client.get_positions.call_count == 1
@@ -234,15 +234,15 @@ class TestPortfolioTracker:
         """Test updating an order in the portfolio tracker."""
         # Create a new order
         order = Order(
-            order_id="test-order-1", # Correct parameter name
+            order_id="test-order-1",  # Correct parameter name
             symbol="BTC",
             side=OrderSide.BUY,
-            order_type=OrderType.LIMIT, # Correct parameter name
+            order_type=OrderType.LIMIT,  # Correct parameter name
             price=Decimal("50000.0"),
             quantity=Decimal("1.0"),
             filled_quantity=Decimal("0.0"),
-            status=OrderStatus.NEW, # Use Enum member
-            timestamp=datetime.now(UTC), # Use datetime object
+            status=OrderStatus.NEW,  # Use Enum member
+            timestamp=datetime.now(UTC),  # Use datetime object
             client_order_id="client-order-3",
         )
 
@@ -252,19 +252,19 @@ class TestPortfolioTracker:
         # Verify the order was stored
         stored_order = portfolio_tracker.get_order("hyperliquid", "test-order-1")
         assert stored_order is not None
-        assert stored_order.order_id == "test-order-1" # Correct attribute
+        assert stored_order.order_id == "test-order-1"  # Correct attribute
         assert stored_order.symbol == "BTC"
         assert stored_order.side == OrderSide.BUY
 
         # Update the order status to filled
-        order.status = OrderStatus.FILLED # Use Enum member
+        order.status = OrderStatus.FILLED  # Use Enum member
         order.filled_quantity = Decimal("1.0")
         portfolio_tracker.update_order("hyperliquid", order)
 
         # Verify the order was updated
         stored_order = portfolio_tracker.get_order("hyperliquid", "test-order-1")
-        assert stored_order is not None # Check for None before accessing attributes
-        assert stored_order.status == OrderStatus.FILLED # Compare Enum member directly
+        assert stored_order is not None  # Check for None before accessing attributes
+        assert stored_order.status == OrderStatus.FILLED  # Compare Enum member directly
         assert stored_order.filled_quantity == Decimal("1.0")
 
     def test_update_position(self, portfolio_tracker: PortfolioTracker) -> None:
@@ -298,7 +298,7 @@ class TestPortfolioTracker:
 
         # Verify the position was updated
         stored_position = portfolio_tracker.get_position("hyperliquid", "BTC")
-        assert stored_position is not None # Check for None before accessing attributes
+        assert stored_position is not None  # Check for None before accessing attributes
         assert stored_position.mark_price == Decimal("52000.0")
         assert stored_position.unrealized_pnl == Decimal("2000.0")
 
@@ -443,12 +443,12 @@ class TestPortfolioTracker:
         # Test getting orders
         hl_order = portfolio_tracker.get_order("hyperliquid", "hl-order-1")
         assert hl_order is not None
-        assert hl_order.order_id == "hl-order-1" # Correct attribute name
+        assert hl_order.order_id == "hl-order-1"  # Correct attribute name
         assert hl_order.symbol == "BTC"
 
         bp_order = portfolio_tracker.get_order("backpack", "bp-order-1")
         assert bp_order is not None
-        assert bp_order.order_id == "bp-order-1" # Correct attribute name
+        assert bp_order.order_id == "bp-order-1"  # Correct attribute name
         assert bp_order.symbol == "ETH"
 
         # Test getting a non-existent order
@@ -465,30 +465,30 @@ class TestPortfolioTracker:
 
         # Add an order that should be considered open
         open_order = Order(
-            order_id="hl-order-open", # Correct parameter name
+            order_id="hl-order-open",  # Correct parameter name
             symbol="BTC",
             side=OrderSide.BUY,
-            order_type=OrderType.LIMIT, # Correct parameter name
+            order_type=OrderType.LIMIT,  # Correct parameter name
             price=Decimal("51000.0"),
             quantity=Decimal("0.5"),
             filled_quantity=Decimal("0.1"),  # Partially filled
             status=OrderStatus.PARTIALLY_FILLED,  # Use Enum member
-            timestamp=datetime.now(UTC), # Use datetime object
+            timestamp=datetime.now(UTC),  # Use datetime object
             client_order_id="client-order-open",
         )
         portfolio_tracker.update_order("hyperliquid", open_order)
 
         # Add an order that should NOT be considered open
         cancelled_order = Order(
-            order_id="hl-order-2", # Correct parameter name
+            order_id="hl-order-2",  # Correct parameter name
             symbol="BTC",
             side=OrderSide.SELL,
-            order_type=OrderType.LIMIT, # Correct parameter name
+            order_type=OrderType.LIMIT,  # Correct parameter name
             price=Decimal("53000.0"),
             quantity=Decimal("0.3"),
             filled_quantity=Decimal("0.0"),
             status=OrderStatus.CANCELED,  # Use Enum member
-            timestamp=datetime.now(UTC), # Use datetime object
+            timestamp=datetime.now(UTC),  # Use datetime object
             client_order_id="client-order-4",
         )
         portfolio_tracker.update_order("hyperliquid", cancelled_order)
@@ -507,14 +507,14 @@ class TestPortfolioTracker:
         assert len(open_orders) == expected_count
         assert all(o.status in [OrderStatus.NEW, OrderStatus.PARTIALLY_FILLED] for o in open_orders)
         # Ensure the cancelled order is not present
-        assert not any(o.order_id == "hl-order-2" for o in open_orders) # Correct attribute name
+        assert not any(o.order_id == "hl-order-2" for o in open_orders)  # Correct attribute name
 
-    def test_to_dict_and_from_dict( # TODO: Review this test logic, esp. from_dict
+    def test_to_dict_and_from_dict(  # TODO: Review this test logic, esp. from_dict
         self,
         portfolio_tracker: PortfolioTracker,
         sample_balances: dict[str, dict[str, Decimal]],
-        sample_positions: dict[str, list[Position]], # Corrected hint
-        sample_orders: dict[str, list[Order]], # Corrected hint
+        sample_positions: dict[str, list[Position]],  # Corrected hint
+        sample_orders: dict[str, list[Order]],  # Corrected hint
     ) -> None:
         """Test serialization and deserialization of the portfolio tracker state."""
         # Set up some test data

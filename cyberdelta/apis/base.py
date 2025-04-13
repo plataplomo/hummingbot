@@ -6,13 +6,13 @@ import logging
 import random
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Mapping, cast
-from aiohttp import ClientTimeout, ClientWSTimeout
+from typing import TYPE_CHECKING, Any, cast
 
 import aiohttp
+from aiohttp import ClientTimeout, ClientWSTimeout
 
 # Assuming models are in src.core.models
 # Adjust import path if structure changes
@@ -320,7 +320,11 @@ class ExchangeAPI(ABC):
     @property
     def is_connected(self) -> bool:
         """Returns whether the WebSocket connection is active."""
-        return self._is_connected and self._ws_connection is not None and not self._ws_connection.closed
+        return (
+            self._is_connected
+            and self._ws_connection is not None
+            and not self._ws_connection.closed
+        )
 
     async def _request(
         self,
@@ -507,7 +511,9 @@ class ExchangeAPI(ABC):
             code=APIErrorCode.UNKNOWN,
         )
 
-    def _update_rate_limit_from_headers(self, headers: Mapping[str, str], method: str, path: str) -> None:
+    def _update_rate_limit_from_headers(
+        self, headers: Mapping[str, str], method: str, path: str
+    ) -> None:
         """
         Update rate limit information based on response headers.
         This allows dynamic adaptation to exchange-reported limits.
@@ -687,7 +693,7 @@ class ExchangeAPI(ABC):
 
             self._ws_connection = await self._session.ws_connect(
                 self.ws_endpoint,
-                timeout=ClientWSTimeout(30.0), # Use ClientWSTimeout object
+                timeout=ClientWSTimeout(30.0),  # Use ClientWSTimeout object
                 heartbeat=30.0,  # Enable heartbeat to detect disconnects
             )
 
@@ -905,7 +911,9 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_positions(self, symbol: str | None = None) -> list[Position | dict[str, Any]] | None:
+    async def get_positions(
+        self, symbol: str | None = None
+    ) -> list[Position | dict[str, Any]] | None:
         """Fetch current open positions, optionally filtered by symbol."""
         raise NotImplementedError
 
@@ -938,7 +946,9 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order | dict[str, Any]] | dict[str, Order | dict[str, Any]] | None:
+    async def get_open_orders(
+        self, symbol: str | None = None
+    ) -> list[Order | dict[str, Any]] | dict[str, Order | dict[str, Any]] | None:
         """Fetch all currently open orders, optionally filtered by symbol."""
         raise NotImplementedError
 
