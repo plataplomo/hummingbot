@@ -548,10 +548,18 @@ class PortfolioTracker:
                                 f"Data: {position_info}"
                             )
                             # Exception already continues the loop - no need for explicit continue
-                    # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-                    #      logger.warning(f"Unsupported position item type in list for {exchange_id}: {type(position_info)}")
-            # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-            #      logger.error(f"Received unexpected data type for positions from {exchange_id}: {type(positions_data)}")
+                    # else: # Mypy error: Statement is unreachable [unreachable] - 
+                    # Removed unreachable code block
+                    #      logger.warning(
+                    #          f"Unsupported position item type in list for {exchange_id}: "
+                    #          f"{type(position_info)}"
+                    #      )
+            # else: # Mypy error: Statement is unreachable [unreachable] - 
+            # Removed unreachable code block
+            #      logger.error(
+            #          f"Received unexpected data type for positions from {exchange_id}: "
+            #          f"{type(positions_data)}"
+            #      )
             #      return False # Indicate failure due to unexpected data type
 
             # Replace old positions with the newly fetched ones
@@ -613,7 +621,8 @@ class PortfolioTracker:
 
                             if not symbol:
                                 logger.warning(
-                                    f"Skipping order dict without symbol on {exchange_id}: {order_info}"
+                                    f"Skipping order dict without symbol on {exchange_id}: "
+                                    f"{order_info}"
                                 )
                                 continue
                             try:
@@ -631,12 +640,15 @@ class PortfolioTracker:
                                     raise ValueError("Missing 'status'")
                             except ValueError as ve:
                                 logger.warning(
-                                    f"Invalid or missing enum value for order {order_id} on {exchange_id}: {ve}. Data: {order_info}"
+                                    f"Invalid or missing enum value for order {order_id} on "
+                                    f"{exchange_id}: {ve}. Data: {order_info}"
                                 )
                                 continue
 
-                            # The validation checks are already made above, and would have already continued
-                            # This condition and its continue statement is never reached (mypy error)
+                            # The validation checks are already made above, and would 
+                            # have already continued
+                            # This condition and its continue statement is never 
+                            # reached (mypy error)
                             # Removing the unreachable code:
                             try:
                                 # Create Order object from dict, ensuring Decimals and Enums
@@ -671,35 +683,31 @@ class PortfolioTracker:
                                 )
                                 # Further validation/conversion for timestamp if needed
                                 ts_val = parsed_order_instance.timestamp
-                                if isinstance(ts_val, (int, float)):
-                                    # Assuming timestamp is ms or s epoch, convert to datetime
-                                    # Mypy error: Statement is unreachable [unreachable] - Removed unreachable try block
-                                    # try:
-                                    # ts_sec = ts_val / 1000 if ts_val > 1e12 else ts_val # Mypy unreachable
-                                    # parsed_order_instance.timestamp = datetime.fromtimestamp(ts_sec, UTC)
-                                    # except (ValueError, TypeError):
-                                    #     logger.warning(f"Could not convert timestamp {ts_val} to datetime for order {order_id}")
-                                    #     parsed_order_instance.timestamp = None # Or set a default?
+                                if isinstance(ts_val, int | float):
                                     pass  # Placeholder for potential conversion logic if needed
-                                # elif ts_val is not None and not isinstance(ts_val, datetime): # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-                                #      logger.warning(f"Timestamp for order {order_id} is not int, float or datetime: {type(ts_val)}")
-                                #      parsed_order_instance.timestamp = None
-                                #      pass # Keep original value if not convertible and not datetime
+                                else:
+                                    timestamp = float(ts_val)
 
-                                order_instance = parsed_order_instance  # Assign parsed object
-
+                                return timestamp
                             except (InvalidOperation, ValueError, TypeError) as e:
                                 logger.error(
-                                    f"Error parsing order dict for order ID {order_id} on {exchange_id}: {e}. Data: {order_info}"
+                                    f"Error parsing order dict for order ID {order_id} on "
+                                    f"{exchange_id}: {e}. Data: {order_info}"
                                 )
-                                # The continue statement here was unreachable as the exception implicitly continues the loop.
-                        else:
-                            logger.warning(
-                                f"Skipping order dict without order_id/id on {exchange_id}: {order_info}"
-                            )
-                            continue
-                    # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-                    #     logger.warning(f"Unsupported order item type in list for {exchange_id}: {type(order_info)}")
+                                # The continue statement here was unreachable as the 
+                                # exception implicitly continues the loop.
+                            else:
+                                logger.warning(
+                                    f"Skipping order dict without order_id/id on "
+                                    f"{exchange_id}: {order_info}"
+                                )
+                                continue
+                    # else: # Mypy error: Statement is unreachable [unreachable] - 
+                    # Removed unreachable code block
+                    #     logger.warning(
+                    #         f"Unsupported order item type in list for {exchange_id}: "
+                    #         f"{type(order_info)}"
+                    #     )
                     #     continue
 
                     if order_instance and order_id:
@@ -730,7 +738,8 @@ class PortfolioTracker:
                                     order_instance.status = OrderStatus(order_instance.status)
                                 except ValueError:
                                     logger.warning(
-                                        f"Invalid status string '{order_instance.status}' for order {order_id}"
+                                        f"Invalid status string '{order_instance.status}' for "
+                                        f"order {order_id}"
                                     )
                                     order_instance.status = OrderStatus.UNKNOWN  # Or some default
 
@@ -738,19 +747,24 @@ class PortfolioTracker:
                 processed = True
 
             elif isinstance(orders_data, dict):
-                # Handle case where API returns a dict (e.g., order_id -> order_info)
                 logger.debug(f"Processing dict of orders for {exchange_id}")
                 # Similar parsing logic as for list items, but iterating dict items
-                for order_id, order_info in orders_data.items():
+                for _order_id, _order_info in orders_data.items():
                     # ... (parsing logic similar to list item handling) ...
                     pass  # Placeholder - implement if needed based on API behavior
+
                 processed = True  # Assume processed if dict handling is implemented
                 logger.warning(
-                    f"Processing dict response for orders on {exchange_id} - implementation pending."
+                    f"Processing dict response for orders on {exchange_id} - "
+                    f"implementation pending."
                 )
 
-            # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-            #      logger.error(f"Received unexpected data type for orders from {exchange_id}: {type(orders_data)}")
+            # else: # Mypy error: Statement is unreachable [unreachable] - 
+            # Removed unreachable code block
+            #      logger.error(
+            #          f"Received unexpected data type for orders from {exchange_id}: "
+            #          f"{type(orders_data)}"
+            #      )
             #      return False # Indicate failure
 
             # Add explicit return False if not processed (Mypy fix for missing return)
@@ -768,11 +782,16 @@ class PortfolioTracker:
                 self._orders[exchange_id] = updated_orders
                 self._last_update_time[exchange_id] = datetime.now(UTC)
                 logger.debug(
-                    f"Successfully updated open orders for {exchange_id}. Count: {len(updated_orders)}"
+                    f"Successfully updated open orders for {exchange_id}. "
+                    f"Count: {len(updated_orders)}"
                 )
                 return True
-            # else: # Mypy error: Missing return statement [return] - Added explicit return # Mypy unreachable
-            #      logger.error(f"Failed to process orders data for {exchange_id} (processed flag is False).")
+            # else: # Mypy error: Missing return statement [return] - Added explicit return 
+            # Mypy unreachable
+            #      logger.error(
+            #          f"Failed to process orders data for {exchange_id} "
+            #          f"(processed flag is False)."
+            #      )
             #      return False
 
         except Exception as e:
@@ -786,7 +805,7 @@ class PortfolioTracker:
         now = datetime.now(UTC)
         update_tasks = []
 
-        for exchange_id, client in self.api_clients.items():
+        for exchange_id, _client in self.api_clients.items():
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 continue
 
@@ -851,25 +870,34 @@ class PortfolioTracker:
 
         # Log previous state if exists
         # previous_order = self._orders[exchange_id].get(order_id_str)
-        # if previous_order:
-        #     logger.debug(f"Updating order {order_id_str} on {exchange_id}. Previous status: {previous_order.status}, New status: {order.status}")
+        # if previous_order is not None:
+        #     logger.debug(
+        #         f"Updating order {order_id_str} on {exchange_id}. Previous status: "
+        #         f"{previous_order.status}, New status: {order.status}"
+        #     )
         # else:
-        #     logger.debug(f"Adding new order {order_id_str} to {exchange_id} with status {order.status}")
+        #     logger.debug(
+        #         f"Adding new order {order_id_str} to {exchange_id} with "
+        #         f"status {order.status}"
+        #     )
 
         self._orders[exchange_id][order_id_str] = order
-        self._last_update_time[exchange_id] = datetime.now(UTC)
 
-        # If order is filled or partially filled, consider processing the trade
+        # Handle order state transitions
+        # In particular, we want to detect when an order reaches FILLED or PARTIALLY_FILLED
+        # and generate a corresponding trade for the position tracker
         if (
             order.status in [OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED]
             and order.filled_quantity is not None
             and order.filled_quantity > Decimal("0")
         ):
-            # This might need more info than just the order (e.g., execution price if different from order price)
+            # This might need more info than just the order (e.g., execution price 
+            # if different from order price)
             # For now, let's assume a simple Trade object can be created from the Order
             # This logic might belong in ExecutionHandler which then calls PortfolioTracker
             logger.info(
-                f"Order {order_id_str} on {exchange_id} is {order.status}. Triggering trade processing (placeholder)."
+                f"Order {order_id_str} on {exchange_id} is {order.status}. "
+                f"Triggering trade processing (placeholder)."
             )
             # self.process_trade(exchange_id, Trade(...)) # Requires Trade object creation logic
 
@@ -932,79 +960,76 @@ class PortfolioTracker:
             original_size = current_position.size
             trade_effect = trade.quantity if trade.side == OrderSide.BUY else -trade.quantity
 
-            # Ensure values are Decimal before calculation (Mypy Error Fix)
-            if not isinstance(original_size, Decimal) or not isinstance(trade_effect, Decimal):
-                # logger.error(f"Cannot process trade for {trade.symbol}: invalid size types. Original: {type(original_size)}, Trade: {type(trade_effect)}") # Mypy unreachable
-                pass  # Should not happen if types are correct upstream
-            else:  # Only proceed if types are correct
-                new_size = original_size + trade_effect
+            # Calculate new position size
+            new_position_size = original_size + trade_effect
 
-                # Mypy Error Fix: Ensure new_size is Decimal before comparison
-                if isinstance(new_size, Decimal) and abs(new_size) < Decimal(
-                    "1e-9"
-                ):  # Position closed
-                    logger.info(f"Position {trade.symbol} on {exchange_id} closed by trade.")
-                    # Calculate realized PNL for the closed position
-                    # Simplified PNL calc: (exit_price - entry_price) * quantity_closed * direction
-                    # This assumes the trade closes the entire position. Partial closes need more work.
-                    # Following lines were unreachable (mypy) and are rewritten for clarity:
-                    # Calculation assumes entry_price is valid Decimal - confirmed by type checking
-                    pnl = (trade.price - current_position.entry_price) * original_size.copy_sign(
-                        Decimal("1")
-                    )  # Assumes entry_price is valid Decimal
-                    if current_position.side == OrderSide.SELL:  # Short position closed by buying
-                        pnl = -pnl  # Invert PNL for short closes
+            # Calculate realized PNL for the closed position
+            # Simplified PNL calc: (exit_price - entry_price) * quantity_closed * direction
+            # This assumes the trade closes the entire position. 
+            # Partial closes need more work.
+            # Following lines were unreachable (mypy) and are rewritten for clarity:
+            # Calculation assumes entry_price is valid Decimal - confirmed by type checking
+            pnl = (trade.price - current_position.entry_price) * original_size.copy_sign(
+                Decimal("1")
+            )  # Assumes entry_price is valid Decimal
+            if current_position.side == OrderSide.SELL:  # Short position closed by buying
+                pnl = -pnl  # Invert PNL for short closes
 
-                    self._update_realized_pnl(pnl)
-                    logger.info(
-                        f"Realized PNL from closing {trade.symbol}: {pnl}. "
-                        f"Total Realized PNL: {self._realized_pnl}"
-                    )
+            self._update_realized_pnl(pnl)
+            logger.info(
+                f"Realized PNL from closing {trade.symbol}: {pnl}. "
+                f"Total Realized PNL: {self._realized_pnl}"
+            )
 
-                    # Remove closed position
-                    del self._positions[exchange_id][position_key]
+            # Remove closed position
+            del self._positions[exchange_id][position_key]
 
-                elif isinstance(
-                    new_size, Decimal
-                ):  # Position modified (size changed or average entry price adjusted)
-                    # Recalculate average entry price (Weighted average)
-                    # This assumes the trade adds to or reduces the existing position.
-                    # If the trade flips the position (long -> short or vice-versa), this logic is insufficient.
-                    # if current_position.entry_price is None or not isinstance(current_position.entry_price, Decimal): # Mypy unreachable
-                    #      # logger.warning(f"Cannot update average entry price for {trade.symbol}: missing or invalid current entry price. Resetting to trade price.") # Mypy unreachable
-                    #      current_position.entry_price = trade.price
-                    if original_size.copy_sign(Decimal("1")) == new_size.copy_sign(
-                        Decimal("1")
-                    ):  # Sign hasn't flipped
-                        new_entry_price = (
-                            (current_position.entry_price * original_size)
-                            + (trade.price * trade_effect)
-                        ) / new_size  # Assumes entry_price is valid Decimal
-                        current_position.entry_price = new_entry_price
-                        logger.debug(
-                            f"Position {trade.symbol} updated. New avg entry: {new_entry_price}"
-                        )
-                    # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-                    #      logger.warning(f"Position {trade.symbol} flipped side due to trade. Resetting entry price to trade price.")
-                    #      # Resetting entry price might be too simple. Need proper cost basis tracking.
-                    #      # For now, treat it like opening a new position at the trade price.
-                    #      current_position.entry_price = trade.price
-                    #      # Reset unrealized PNL as entry price changed significantly
-                    #      current_position.unrealized_pnl = Decimal("0.0")
+            # Recalculate average entry price (Weighted average)
+            # This assumes the trade adds to or reduces the existing position.
+            # If the trade flips the position (long -> short or vice-versa), 
+            # this logic is insufficient.
+            # if current_position.entry_price is None or 
+            # not isinstance(current_position.entry_price, Decimal): # Mypy unreachable
+            #      # logger.warning(
+            #      #    f"Cannot update average entry price for {trade.symbol}: "
+            #      #    f"missing or invalid current entry price. Resetting to trade price."
+            #      # ) # Mypy unreachable
+            #      current_position.entry_price = trade.price
 
-                    current_position.size = new_size
-                    current_position.side = OrderSide.BUY if new_size > 0 else OrderSide.SELL
-                    logger.debug(f"Position {trade.symbol} updated. New size: {new_size}")
+            # Increment position with same sign as existing position
+            if (current_position.size > Decimal("0") and trade_effect > Decimal("0")) or (
+                current_position.size < Decimal("0") and trade_effect < Decimal("0")
+            ):
+                # Calculate weighted average entry price
+                current_size = abs(current_position.size)
+                new_size = abs(new_position_size)
+                new_entry_price = (
+                    (current_position.entry_price * current_size)
+                    + (trade.price * abs(trade_effect))
+                ) / new_size
 
-                    # Mark price, liq price, unrealized PNL would be updated by market data streams
-                    # typically
-                    # Leverage might also change depending on exchange rules
-                # else: # Mypy error: Statement is unreachable - Removed unreachable code block
-                #     # This case should ideally not be reached if original_size and trade_effect
-                #     # are Decimals
-                #     logger.error(f"Could not determine new position size type for {trade.symbol}. "
-                #                 f"Original: {type(original_size)}, Trade: {type(trade_effect)}")
+                current_position.entry_price = new_entry_price
+                logger.debug(
+                    f"Position {trade.symbol} updated. New avg entry: {new_entry_price}"
+                )
+            # else: # Mypy error: Statement is unreachable [unreachable] - 
+            # Removed unreachable code block
+            #      logger.warning(
+            #          f"Position {trade.symbol} flipped side due to trade. "
+            #          f"Resetting entry price to trade price."
+            #      )
+            #      # Resetting entry price might be too simple. 
+            #      # Need proper cost basis tracking.
+            #      # For now, treat it like opening a new position at the trade price.
+            #      current_position.entry_price = trade.price
 
+            current_position.size = new_size
+            current_position.side = OrderSide.BUY if new_size > 0 else OrderSide.SELL
+            logger.debug(f"Position {trade.symbol} updated. New size: {new_size}")
+
+            # Mark price, liq price, unrealized PNL would be updated by market data streams
+            # typically
+            # Leverage might also change depending on exchange rules
         else:  # Opening a new position
             logger.debug(f"Opening new position for {trade.symbol} on {exchange_id}")
             # Ensure side is valid before creating Position (Mypy Error Fix)
@@ -1144,9 +1169,12 @@ class PortfolioTracker:
                 logger.debug(
                     f"Created new balance for {asset} on {exchange_id}. Total: {safe_amount}"
                 )
-        # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-        #      logger.error(f"Invalid amount type provided for {asset} on {exchange_id}: {type(amount)}")
-        #      return
+        else: 
+            logger.error(
+                f"Invalid amount type provided for {asset} on {exchange_id}: "
+                f"{type(amount)}"
+            )
+            return
 
         self._last_update_time[exchange_id] = datetime.now(UTC)
 
@@ -1176,9 +1204,7 @@ class PortfolioTracker:
         total_value = Decimal("0.0")
         for _exchange_id, balances in self._balances.items():
             for asset, balance in balances.items():
-                # if balance.total is None: # Mypy error: Statement is unreachable -
-                # Removed check
-                #     continue # Skip if total balance is unknown
+                # Skip check for None since total is never None in this implementation
 
                 value_in_base = balance.total
                 if asset != base_currency:
@@ -1193,14 +1219,6 @@ class PortfolioTracker:
                         f"Assuming balance.total for {asset} ({value_in_base}) is "
                         f"already in {base_currency}"
                     )
-                    # price = self.get_asset_price_in_usd(asset) # Removed - Method doesn't exist
-                    # here
-                    # if price is not None:
-                    #     value_in_base = balance.total * price
-                    # else:
-                    #     logger.warning(f"Could not get price for {asset} in {base_currency}. "
-                    #                   f"Skipping its value.")
-                    #     value_in_base = Decimal("0.0")
                     pass  # Keep value_in_base as balance.total
 
                 total_value += value_in_base
@@ -1216,10 +1234,7 @@ class PortfolioTracker:
         for position in self._positions.get(exchange_id, {}).values():
             if position.mark_price is not None and position.size is not None:
                 exposure += abs(position.size) * position.mark_price  # Absolute exposure value
-            # else: # Mypy error: Statement is unreachable [unreachable] -
-            # Removed unreachable code block
-            #      logger.warning(f"Cannot calculate exposure for position {position.symbol} on "
-            #                    f"{exchange_id}: missing mark_price or size.")
+            # Removed unreachable else block
         return exposure
 
     def get_total_exposure(self, valuation_asset: str = "USDT") -> Decimal:
@@ -1236,10 +1251,7 @@ class PortfolioTracker:
                     total_exposure += (
                         position_value  # Net exposure (longs positive, shorts negative)
                     )
-                # else: # Mypy error: Statement is unreachable [unreachable] -
-                # Removed unreachable code block
-                #      logger.warning(f"Cannot calculate exposure for position {position.symbol}: "
-                #                    f"missing mark_price or size.")
+                # Removed unreachable else block
         return total_exposure
 
     def get_pnl(self) -> tuple[Decimal, Decimal]:
@@ -1266,10 +1278,7 @@ class PortfolioTracker:
                             pnl = -pnl
                         total_unrealized_pnl += pnl
                         # logger.debug(f"Calculated unrealized PNL for {position.symbol}: {pnl}")
-                    # else: # Mypy error: Statement is unreachable [unreachable] -
-                    # Removed unreachable code block
-                    #      logger.warning(f"Cannot calculate PNL for position {position.symbol}: "
-                    #                    f"missing PNL, mark_price, entry_price, or size.")
+                    # Removed unreachable else block
 
         return total_unrealized_pnl, self._realized_pnl
 
@@ -1328,17 +1337,11 @@ class PortfolioTracker:
         current_capital = self.get_total_capital()
 
         if self._high_watermark <= Decimal("0.0"):
-            # logger.debug("High watermark is zero or negative, cannot calculate drawdown.")
             return Decimal("0.0")  # Or None? Returning 0 might be safer.
 
-        # if current_capital <= Decimal("0.0"): # Mypy error: Statement is unreachable -
-        # Removed unreachable code block
-        #      logger.warning(f"Current capital ({current_capital}) is zero or negative. "
-        #                    f"Reporting 100% drawdown.")
-        #      return Decimal("1.0") # 100% drawdown
-
-        drawdown = (self._high_watermark - current_capital) / self._high_watermark
-        return max(Decimal("0.0"), drawdown)  # Ensure drawdown is not negative
+        # Calculation of the drawdown as a ratio (0.1 = 10% drawdown)
+        drawdown_ratio = (self._high_watermark - current_capital) / self._high_watermark
+        return max(Decimal("0.0"), drawdown_ratio)  # Ensure drawdown is not negative
 
     # --- Order Access Methods ---
 

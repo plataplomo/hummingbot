@@ -616,9 +616,6 @@ class RiskManager:
             self.logger.debug(
                 f"[{symbol}] Size after portfolio-level controls: {adjusted_size:.2f} (was {base_size:.2f})"
             )
-        # Mypy fix [unreachable]: Remove dead code after return
-        # else: # Add this log statement if size wasn't reduced
-        #      self.logger.debug(f"[{symbol}] Size unchanged by portfolio-level controls: {adjusted_size:.2f}")
 
         return adjusted_size
 
