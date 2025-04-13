@@ -1,8 +1,6 @@
-import time
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Any, Dict, Tuple, Optional
 
 import pytest
 
@@ -51,7 +49,9 @@ class TestTradeExecution:
     """Test suite for TradeExecution component."""
 
     @pytest.fixture
-    def sized_opportunity(self, mock_arbitrage_opportunity: ArbitrageOpportunity) -> SizedOpportunity:
+    def sized_opportunity(
+        self, mock_arbitrage_opportunity: ArbitrageOpportunity
+    ) -> SizedOpportunity:
         """Create a SizedOpportunity for testing."""
         return SizedOpportunity(
             opportunity=mock_arbitrage_opportunity,
@@ -223,7 +223,9 @@ class TestExecutionHandler:
         return handler
 
     @pytest.fixture
-    def sized_opportunity(self, mock_arbitrage_opportunity: ArbitrageOpportunity) -> SizedOpportunity:
+    def sized_opportunity(
+        self, mock_arbitrage_opportunity: ArbitrageOpportunity
+    ) -> SizedOpportunity:
         """Create a SizedOpportunity for testing."""
         return SizedOpportunity(
             opportunity=mock_arbitrage_opportunity,
@@ -247,9 +249,10 @@ class TestExecutionHandler:
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_open_rejection(
-        self, execution_handler: ExecutionHandler,
+        self,
+        execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
-        mock_circuit_breaker_system: MagicMock
+        mock_circuit_breaker_system: MagicMock,
     ):
         """Test that executions are rejected when the relevant circuit breaker is open."""
         # Mock the system check to return False (blocked) for the long exchange
@@ -268,9 +271,10 @@ class TestExecutionHandler:
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_mapping_failure(
-        self, execution_handler: ExecutionHandler,
+        self,
+        execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
-        mock_symbol_mapper: MagicMock
+        mock_symbol_mapper: MagicMock,
     ):
         """Test execution fails if symbol mapping returns None."""
         # Configure mock mapper to fail for the short symbol lookup

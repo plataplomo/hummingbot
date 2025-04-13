@@ -170,7 +170,7 @@ class Engine:
                             # Check the callable directly, not its truthiness
                             # self.signal_handler(signal) # Original line caused truthy-function warning
                             handler = self.signal_handler
-                            handler(signal) # Call the handler
+                            handler(signal)  # Call the handler
 
                 except Exception as e:
                     # Log the error and potentially disable the faulty strategy

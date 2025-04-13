@@ -2,7 +2,7 @@
 """Integration Tests for RiskManager Dependency Failure Handling."""
 
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -149,7 +149,9 @@ class TestRiskManagerDependencyFailures:
         risk_manager._check_portfolio_constraints.return_value = True
 
         # Mock can_execute to return False only for the specified scope
-        def can_execute_side_effect(scope: str, symbol: Optional[str] = None) -> tuple[bool, Optional[str]]:
+        def can_execute_side_effect(
+            scope: str, symbol: str | None = None
+        ) -> tuple[bool, str | None]:
             if (
                 scope == scope_to_trip
                 or (scope == sample_opportunity.long_exchange and scope_to_trip == "long_exchange")
@@ -201,9 +203,7 @@ class TestRiskManagerDependencyFailures:
             "risk.simple_fixed_usd_size": "10000",  # Example initial size
         }
         combined_config = {**mock_config.default_values, **test_overrides}
-        mock_config.get.side_effect = lambda key, default=None: combined_config.get(
-            key, default
-        )
+        mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
         mock_portfolio_tracker.get_total_capital.return_value = Decimal(
             "100000.0"
         )  # Need for simple path

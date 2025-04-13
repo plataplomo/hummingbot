@@ -14,15 +14,16 @@ import pathlib
 from abc import ABC, abstractmethod
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-# Import necessary components at the top level
-from .results import BacktestResultsHandler
 from cyberdelta.core.models import MarketData, SignalType, TradeSignal
 from cyberdelta.core.strategy import Strategy
+
+# Import necessary components at the top level
+from .results import BacktestResultsHandler
 
 # Configure logging
 logger: logging.Logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class BacktestStrategy(ABC):
     def __init__(self, name: str) -> None:
         """Initialize the strategy with a name"""
         self._name = name
-        self.initialized = False # Track initialization status
+        self.initialized = False  # Track initialization status
 
     @abstractmethod
     def initialize(self, data: pd.DataFrame) -> bool:
@@ -48,7 +49,7 @@ class BacktestStrategy(ABC):
             bool: True if initialization was successful
         """
         pass
-        self.initialized = True # Assume success if abstract method doesn't raise error
+        self.initialized = True  # Assume success if abstract method doesn't raise error
 
     @abstractmethod
     def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
@@ -179,7 +180,7 @@ class BacktestEngine:
         # Create results directory if it doesn't exist
         pathlib.Path(results_dir).mkdir(parents=True, exist_ok=True)
 
-        self.results_handler: Optional[BacktestResultsHandler] = None # Initialize as None
+        self.results_handler: BacktestResultsHandler | None = None  # Initialize as None
 
     def run(self, training_portion: Decimal = Decimal("0.3")) -> dict[str, Any]:
         """
@@ -215,7 +216,7 @@ class BacktestEngine:
                 initial_capital=self.initial_capital,
                 results_dir=self.results_dir,
             )
-            self.results_handler = results_handler # Assign to instance attribute
+            self.results_handler = results_handler  # Assign to instance attribute
         except ImportError as e:
             logger.error(f"Could not import BacktestResultsHandler: {e}")
             return {"success": False, "error": "Failed to load results handler."}
@@ -225,7 +226,7 @@ class BacktestEngine:
         current_capital = self.initial_capital
 
         # Loop through test data
-        positions: Dict[str, Dict[str, Any]] = {}  # symbol -> position dict
+        positions: dict[str, dict[str, Any]] = {}  # symbol -> position dict
 
         # Store initial equity point
         start_time = test_data.index[0] if not test_data.empty else datetime.now()
@@ -370,7 +371,11 @@ class BacktestEngine:
         # Get the final metrics and results
         if not self.results_handler:
             logger.info("No results handler available, cannot calculate or save metrics.")
-            return {"success": True, "message": "Backtest completed, no results handler.", "final_equity": float(current_capital)}
+            return {
+                "success": True,
+                "message": "Backtest completed, no results handler.",
+                "final_equity": float(current_capital),
+            }
 
         metrics = self.results_handler.calculate_metrics()
 
@@ -384,7 +389,7 @@ class BacktestEngine:
             logger.error(f"Failed to save backtest results: {e}")
             return {"success": False, "error": "Failed to save results", "metrics": metrics}
 
-    def save_results(self, filename: Optional[str] = None) -> str:
+    def save_results(self, filename: str | None = None) -> str:
         """
         Save backtest results to a file.
 
@@ -416,7 +421,7 @@ class StrategyAdapter(BacktestStrategy):
         self.strategy = strategy
         self.positions = {}
         self._logger: logging.Logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.initialized = False # Track initialization status
+        self.initialized = False  # Track initialization status
 
     def initialize(self, data: pd.DataFrame) -> bool:
         """

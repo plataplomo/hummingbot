@@ -1,7 +1,7 @@
 import time
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock
-from typing import Dict, List, Any
 
 import pytest
 
@@ -11,9 +11,9 @@ from cyberdelta.core.models import (
     FundingRate,
     Order,
     OrderSide,
+    OrderStatus,
     OrderType,
     Position,
-    OrderStatus,
 )
 
 
@@ -21,14 +21,18 @@ class TestHyperliquidAPI:
     """Test suite for HyperliquidAPI client."""
 
     @pytest.fixture
-    def api_client(self, hyperliquid_config: Dict[str, Any], hyperliquid_secrets: Dict[str, str]) -> HyperliquidAPI:
+    def api_client(
+        self, hyperliquid_config: dict[str, Any], hyperliquid_secrets: dict[str, str]
+    ) -> HyperliquidAPI:
         """Create a HyperliquidAPI client instance for testing."""
+
         # Cannot instantiate abstract class directly, create a concrete subclass for testing
         class ConcreteHyperliquidAPI(HyperliquidAPI):
-            async def parse_account_update_message(self, message: Dict[str, Any]) -> None:
-                pass # Mock implementation
-            async def parse_l2_book_update_message(self, message: Dict[str, Any]) -> None:
-                pass # Mock implementation
+            async def parse_account_update_message(self, message: dict[str, Any]) -> None:
+                pass  # Mock implementation
+
+            async def parse_l2_book_update_message(self, message: dict[str, Any]) -> None:
+                pass  # Mock implementation
 
         client = ConcreteHyperliquidAPI(api_config=hyperliquid_config, secrets=hyperliquid_secrets)
         # Prevent actual network calls
@@ -51,7 +55,7 @@ class TestHyperliquidAPI:
         api_client.get_balances = AsyncMock(return_value=mock_balance_data)
 
         # Get balances
-        balances: Dict[str, Balance] = await api_client.get_balances()
+        balances: dict[str, Balance] = await api_client.get_balances()
 
         # Verify expected data
         assert "USDC" in balances
@@ -91,7 +95,7 @@ class TestHyperliquidAPI:
         api_client.get_positions = AsyncMock(return_value=mock_position_data)
 
         # Get positions
-        positions: List[Position] = await api_client.get_positions()
+        positions: list[Position] = await api_client.get_positions()
 
         # Verify expected data (list of Position objects)
         assert isinstance(positions, list)

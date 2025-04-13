@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go # type: ignore
+import plotly.graph_objects as go  # type: ignore
 
 from cyberdelta.visualization.performance_visualizer import (
     PerformanceMetricsCalculator,

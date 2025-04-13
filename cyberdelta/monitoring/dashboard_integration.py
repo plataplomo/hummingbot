@@ -14,7 +14,7 @@ from typing import Any
 import structlog
 
 # from cyberdelta.core.types import TradeOperation, TradeSignal # Remove old imports
-from cyberdelta.core.models import OrderSide, SignalType, TradeSignal  # Import from models
+from cyberdelta.core.models import TradeSignal  # Import from models
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
@@ -241,25 +241,25 @@ class DashboardIntegration:
             return
 
         # Adapt to new TradeSignal definition
-        strategy_id = getattr(signal, 'source_strategy', "UnknownStrategy") or "UnknownStrategy"
-        symbol = getattr(signal, 'symbol', "UnknownSymbol")
-        signal_type_enum = getattr(signal, 'signal_type', None)
+        strategy_id = getattr(signal, "source_strategy", "UnknownStrategy") or "UnknownStrategy"
+        symbol = getattr(signal, "symbol", "UnknownSymbol")
+        signal_type_enum = getattr(signal, "signal_type", None)
         signal_type_name = signal_type_enum.name if signal_type_enum else "UNKNOWN"
-        side_enum = getattr(signal, 'side', None)
+        side_enum = getattr(signal, "side", None)
         side_name = side_enum.name if side_enum else "UNKNOWN"
-        price = getattr(signal, 'price', None)
-        quantity = getattr(signal, 'quantity', None)
+        price = getattr(signal, "price", None)
+        quantity = getattr(signal, "quantity", None)
 
         # Record the signal in the performance tracker
         self.performance_tracker.record_signal(
-            timestamp=getattr(signal, 'timestamp', datetime.now(UTC)),
+            timestamp=getattr(signal, "timestamp", datetime.now(UTC)),
             strategy_id=strategy_id,
             symbol=symbol,
             signal_type=signal_type_name,
             side=side_name,
             price=price,
             quantity=quantity,
-            metadata=getattr(signal, 'metadata', None),
+            metadata=getattr(signal, "metadata", None),
         )
 
     def track_funding_rate(

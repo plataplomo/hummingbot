@@ -1,5 +1,6 @@
+from collections.abc import Callable
+from typing import Any
 from unittest.mock import MagicMock
-from typing import Any, Dict, Optional, Callable, Union, List, Tuple, AsyncGenerator
 
 import aiohttp
 import pytest
@@ -10,7 +11,13 @@ from cyberdelta.utils.config import Config
 
 # Mock aiohttp ClientSession and Response for API testing
 class MockResponse:
-    def __init__(self, data: Any, status: int = 200, headers: Optional[Dict[str, str]] = None, content_type: str = "application/json") -> None:
+    def __init__(
+        self,
+        data: Any,
+        status: int = 200,
+        headers: dict[str, str] | None = None,
+        content_type: str = "application/json",
+    ) -> None:
         self._data = data
         self.status = status
         self.headers = headers or {}
@@ -23,10 +30,12 @@ class MockResponse:
     async def text(self) -> str:
         return str(self._data)
 
-    async def __aenter__(self) -> 'MockResponse':
+    async def __aenter__(self) -> "MockResponse":
         return self
 
-    async def __aexit__(self, exc_type: Optional[type], exc_val: Optional[BaseException], exc_tb: Optional[Any]) -> None:
+    async def __aexit__(
+        self, exc_type: type | None, exc_val: BaseException | None, exc_tb: Any | None
+    ) -> None:
         pass
 
     def raise_for_status(self):
@@ -38,15 +47,17 @@ class MockResponse:
 
 
 class MockClientSession:
-    def __init__(self, responses: Optional[Dict[Tuple[str, str], MockResponse]] = None) -> None:
+    def __init__(self, responses: dict[tuple[str, str], MockResponse] | None = None) -> None:
         self.responses = responses or {}
         self.requests = []
         self.closed = False
 
-    async def __aenter__(self) -> 'MockClientSession':
+    async def __aenter__(self) -> "MockClientSession":
         return self
 
-    async def __aexit__(self, exc_type: Optional[type], exc_val: Optional[BaseException], exc_tb: Optional[Any]) -> None:
+    async def __aexit__(
+        self, exc_type: type | None, exc_val: BaseException | None, exc_tb: Any | None
+    ) -> None:
         pass
 
     async def close(self) -> None:
@@ -84,14 +95,16 @@ class MockClientSession:
 def mock_client_session() -> Callable[..., MockClientSession]:
     """Fixture to provide a mock aiohttp ClientSession."""
 
-    def create_session(responses: Optional[Dict[Tuple[str, str], MockResponse]] = None) -> MockClientSession:
+    def create_session(
+        responses: dict[tuple[str, str], MockResponse] | None = None,
+    ) -> MockClientSession:
         return MockClientSession(responses)
 
     return create_session
 
 
 @pytest.fixture
-def hyperliquid_config() -> Dict[str, Any]:
+def hyperliquid_config() -> dict[str, Any]:
     """Fixture to provide Hyperliquid API configuration."""
     return {
         "rest_endpoint": "https://api.hyperliquid.xyz",
@@ -105,7 +118,7 @@ def hyperliquid_config() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def backpack_config() -> Dict[str, Any]:
+def backpack_config() -> dict[str, Any]:
     """Fixture to provide Backpack API configuration."""
     return {
         "rest_endpoint": "https://api.backpack.exchange",
@@ -119,7 +132,7 @@ def backpack_config() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def hyperliquid_secrets() -> Dict[str, str]:
+def hyperliquid_secrets() -> dict[str, str]:
     """Fixture to provide Hyperliquid API secrets with a VALID derived address."""
     # Use a fixed dummy private key for reproducibility in tests
     dummy_private_key = "0x1111111111111111111111111111111111111111111111111111111111111111"
@@ -138,7 +151,7 @@ def hyperliquid_secrets() -> Dict[str, str]:
 
 
 @pytest.fixture
-def backpack_secrets() -> Dict[str, str]:
+def backpack_secrets() -> dict[str, str]:
     """Fixture to provide Backpack API secrets."""
     return {
         "BACKPACK_API_KEY": "backpack-api-key-123456",
@@ -150,7 +163,7 @@ def backpack_secrets() -> Dict[str, str]:
 def mock_config() -> Callable[..., Config]:
     """Fixture to create a Config object with the provided data dictionary."""
 
-    def _create_config(config_data: Optional[Dict[str, Any]] = None) -> Config:
+    def _create_config(config_data: dict[str, Any] | None = None) -> Config:
         if config_data is None:
             config_data = {
                 "general": {"log_level": "INFO", "safe_mode": True},

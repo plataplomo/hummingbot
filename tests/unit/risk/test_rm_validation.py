@@ -3,7 +3,6 @@
 
 from decimal import Decimal
 from unittest.mock import MagicMock
-from typing import Optional
 
 from cyberdelta.core.models import ArbitrageOpportunity
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
@@ -51,17 +50,17 @@ class TestRiskManagerValidation:
         )
 
         # Test mixed list
-        def size_side_effect(opp: ArbitrageOpportunity) -> Optional[SizedOpportunity]:
+        def size_side_effect(opp: ArbitrageOpportunity) -> SizedOpportunity | None:
             if opp == sample_opportunity:
                 return valid_sized
             else:
                 return None
 
         risk_manager.size_opportunity.side_effect = size_side_effect
-        mixed_opportunities: list[ArbitrageOpportunity] = [\
+        mixed_opportunities: list[ArbitrageOpportunity] = [
             # invalid_opportunity, # This mock causes type errors, replace with another valid one that will be filtered
-            sample_opportunity, # This will be sized successfully
-            ArbitrageOpportunity( # This one will fail sizing due to the side_effect mock
+            sample_opportunity,  # This will be sized successfully
+            ArbitrageOpportunity(  # This one will fail sizing due to the side_effect mock
                 symbol="OTHER-PERP",
                 long_exchange="other_long",
                 short_exchange="other_short",
@@ -70,7 +69,7 @@ class TestRiskManagerValidation:
                 timestamp=sample_opportunity.timestamp,
                 metadata={},
             ),
-            sample_opportunity, # Add the valid one again to test sorting/uniqueness
+            sample_opportunity,  # Add the valid one again to test sorting/uniqueness
         ]
         # We expect only one valid opportunity after validation and sorting
         validated_mixed = risk_manager.validate_opportunities(mixed_opportunities)

@@ -8,11 +8,11 @@ from decimal import Decimal
 import matplotlib.pyplot as plt
 import numpy as np
 
+from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.monitoring.simplified_performance_tracker import (
     SimplePerformanceTracker,
 )
 from cyberdelta.visualization.simplified_visualizer import SimpleVisualizer
-from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 
 
 class TestSimpleVisualizer(unittest.TestCase):

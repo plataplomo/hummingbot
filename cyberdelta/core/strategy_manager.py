@@ -189,10 +189,12 @@ class StrategyManager:
                 self.logger.error("Error processing data in strategy", error=result)
 
         # Send generated signals to the queue
-        if hasattr(self, 'signal_queue') and self.signal_queue: # Check if signal_queue exists
+        if hasattr(self, "signal_queue") and self.signal_queue:  # Check if signal_queue exists
             for signal in signals:
                 # Assign priority based on strategy config or signal properties
-                priority = getattr(signal, 'confidence', 0.5) or 0.5  # Example priority, handle None confidence
+                priority = (
+                    getattr(signal, "confidence", 0.5) or 0.5
+                )  # Example priority, handle None confidence
                 self.signal_queue.add_signal(signal, priority)
         else:
             logger.warning("Signal queue not available in StrategyManager, cannot queue signals.")

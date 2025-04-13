@@ -453,9 +453,11 @@ class ExecutionHandler:
                         f"due to long order failure/rejection."
                     )
                     # Handle compensation/cleanup if long order partially filled or failed
-                    if (long_order_result and
-                        long_order_result.filled_quantity is not None and
-                        long_order_result.filled_quantity > Decimal(0)):
+                    if (
+                        long_order_result
+                        and long_order_result.filled_quantity is not None
+                        and long_order_result.filled_quantity > Decimal(0)
+                    ):
                         logger.warning(
                             f"Execution {execution.id}: Long order failed but partially "
                             f"filled ({long_order_result.filled_quantity}). "
@@ -470,13 +472,9 @@ class ExecutionHandler:
                             quantity=long_order_result.filled_quantity,
                         )
                         if comp_success:
-                            logger.info(
-                                f"Compensated for partially filled long order."
-                            )
+                            logger.info("Compensated for partially filled long order.")
                         else:
-                            logger.error(
-                                f"FAILED to compensate for partially filled long order."
-                            )
+                            logger.error("FAILED to compensate for partially filled long order.")
                             # Record critical failure?
 
             elif execution_type == "concurrent":
@@ -579,9 +577,11 @@ class ExecutionHandler:
                     )
                     # Check short order status more accurately
                     # Assuming we need to close the short position placed by short_order_result
-                    if (short_order_result and
-                        short_order_result.filled_quantity is not None and
-                        short_order_result.filled_quantity > Decimal(0)):
+                    if (
+                        short_order_result
+                        and short_order_result.filled_quantity is not None
+                        and short_order_result.filled_quantity > Decimal(0)
+                    ):
                         needs_compensation = True
                         compensation_tasks.append(
                             self._compensate_position(
@@ -600,9 +600,11 @@ class ExecutionHandler:
                         f"compensation for long position."
                     )
                     # Assuming we need to close the long position placed by long_order_result
-                    if (long_order_result and
-                        long_order_result.filled_quantity is not None and
-                        long_order_result.filled_quantity > Decimal(0)):
+                    if (
+                        long_order_result
+                        and long_order_result.filled_quantity is not None
+                        and long_order_result.filled_quantity > Decimal(0)
+                    ):
                         needs_compensation = True
                         compensation_tasks.append(
                             self._compensate_position(
@@ -615,8 +617,7 @@ class ExecutionHandler:
                         )
 
                 # If both failed, no compensation usually needed unless one partially filled before failing
-                elif (long_status == OrderStatus.FAILED and
-                      short_status == OrderStatus.FAILED):
+                elif long_status == OrderStatus.FAILED and short_status == OrderStatus.FAILED:
                     logger.info(
                         f"Execution {execution.id}: Both order placements failed. "
                         f"No compensation needed."
@@ -658,18 +659,22 @@ class ExecutionHandler:
                 # For now, assume immediate completion if orders are not FAILED
                 # Update execution record with potential fill data (even if monitoring is needed)
                 execution.status = ExecutionStatus.COMPLETED  # Placeholder
-                execution.long_fill_quantity = long_order_result.filled_quantity if long_order_result else Decimal(0)
+                execution.long_fill_quantity = (
+                    long_order_result.filled_quantity if long_order_result else Decimal(0)
+                )
                 execution.short_fill_quantity = (
                     short_order_result.filled_quantity if short_order_result else Decimal(0)
                 )
                 # Use average fill price if available, otherwise fall back
                 execution.long_fill_price = (
                     (long_order_result.avg_fill_price or long_order_result.price)
-                    if long_order_result else None
+                    if long_order_result
+                    else None
                 )
                 execution.short_fill_price = (
                     (short_order_result.avg_fill_price or short_order_result.price)
-                    if short_order_result else None
+                    if short_order_result
+                    else None
                 )
                 execution.end_time = datetime.now(UTC)
                 # Record successful execution for CBs
@@ -911,9 +916,7 @@ class ExecutionHandler:
                 ) and order.filled_quantity > Decimal("0"):
                     try:
                         # Construct Trade object (ensure necessary fields are present in Order)
-                        trade_id = (
-                            f"trade_{order.order_id}_{int(time.time() * 1000)}_status"
-                        )
+                        trade_id = f"trade_{order.order_id}_{int(time.time() * 1000)}_status"
                         trade = Trade(
                             id=trade_id,
                             order_id=order.order_id,
@@ -921,12 +924,12 @@ class ExecutionHandler:
                             symbol=self.symbol_mapper.get_internal_symbol(symbol, exchange_id)
                             or symbol,  # Map back to internal symbol
                             side=order.side,
-                            quantity=order.filled_quantity if order.filled_quantity is not None else Decimal("0"),
+                            quantity=order.filled_quantity
+                            if order.filled_quantity is not None
+                            else Decimal("0"),
                             # Use avg_fill_price if available, otherwise order price,
                             # falling back to 0 if neither exist (should not happen)
-                            price=(order.avg_fill_price
-                            or order.price
-                            or Decimal("0")),
+                            price=(order.avg_fill_price or order.price or Decimal("0")),
                             # Fee calculation might need refinement depending on Order model details
                             fee=order.fee
                             if hasattr(order, "fee") and order.fee is not None

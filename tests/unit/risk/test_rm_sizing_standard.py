@@ -33,8 +33,8 @@ class TestRiskManagerSizingStandard:
         risk_manager._apply_portfolio_exposure_management.side_effect = (
             lambda opp, size: size * Decimal("0.9")
         )  # Apply 10% reduction
-        risk_manager._apply_portfolio_level_controls.side_effect = (
-            lambda size, opp: size * Decimal("0.95")
+        risk_manager._apply_portfolio_level_controls.side_effect = lambda size, opp: size * Decimal(
+            "0.95"
         )  # Apply 5% reduction
         risk_manager._check_portfolio_constraints.return_value = True
 

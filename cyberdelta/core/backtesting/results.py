@@ -216,9 +216,13 @@ class BacktestResultsHandler:
                         # Ensure holding_periods.mean() is a timedelta before calling total_seconds()
                         avg_period = holding_periods.mean()
                         if isinstance(avg_period, pd.Timedelta):
-                            self.metrics["avg_holding_period_hours"] = avg_period.total_seconds() / 3600
+                            self.metrics["avg_holding_period_hours"] = (
+                                avg_period.total_seconds() / 3600
+                            )
                         else:
-                            self.metrics["avg_holding_period_hours"] = np.nan # Handle case where mean is not timedelta
+                            self.metrics["avg_holding_period_hours"] = (
+                                np.nan
+                            )  # Handle case where mean is not timedelta
                     else:
                         self.metrics["avg_holding_period_hours"] = np.nan
                 else:

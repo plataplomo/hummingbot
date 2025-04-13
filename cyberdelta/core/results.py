@@ -137,7 +137,7 @@ class BacktestResultsHandler:
             "total_trades": num_trades,
             "winning_trades": winning_trades,
             "losing_trades": losing_trades,
-            "win_rate": float(win_rate), # Convert to float for consistency/JSON
+            "win_rate": float(win_rate),  # Convert to float for consistency/JSON
         }
 
         # Calculate returns metrics
@@ -145,7 +145,8 @@ class BacktestResultsHandler:
         # Check if returns_series length is zero before division
         annualized_return = (
             ((1 + total_return / 100) ** (252 / len(self.returns_series)) - 1) * 100
-            if len(self.returns_series) > 0 else 0.0
+            if len(self.returns_series) > 0
+            else 0.0
         )
         volatility = self.returns_series.std() * np.sqrt(252) * 100  # annualized, as percentage
 
