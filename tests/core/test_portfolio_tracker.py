@@ -23,7 +23,7 @@ class TestPortfolioTracker:
     """Test suite for the PortfolioTracker class."""
 
     @pytest.fixture
-    def config(self):
+    def config(self) -> MagicMock:
         """Create a mock config for testing."""
         config = MagicMock()
         config.get.side_effect = lambda key, default=None: {
@@ -35,7 +35,7 @@ class TestPortfolioTracker:
         return config
 
     @pytest.fixture
-    def api_clients(self):
+    def api_clients(self) -> dict[str, AsyncMock]:
         """Create mock API clients for testing."""
         hyperliquid_client = AsyncMock()
         backpack_client = AsyncMock()
@@ -43,7 +43,9 @@ class TestPortfolioTracker:
         return {"hyperliquid": hyperliquid_client, "backpack": backpack_client}
 
     @pytest.fixture
-    def portfolio_tracker(self, config, api_clients):
+    def portfolio_tracker(
+        self, config: MagicMock, api_clients: dict[str, AsyncMock]
+    ) -> PortfolioTracker:
         """Create a PortfolioTracker instance for testing."""
         tracker = PortfolioTracker(config)
 
@@ -54,7 +56,7 @@ class TestPortfolioTracker:
         return tracker
 
     @pytest.fixture
-    def sample_positions(self):
+    def sample_positions(self) -> dict[str, list[Position]]:
         """Create sample positions for testing."""
         return {
             "hyperliquid": [
@@ -84,41 +86,41 @@ class TestPortfolioTracker:
         }
 
     @pytest.fixture
-    def sample_orders(self):
+    def sample_orders(self) -> dict[str, list[Order]]:
         """Create sample orders for testing."""
         return {
             "hyperliquid": [
                 Order(
-                    id="hl-order-1",
+                    order_id="hl-order-1", # Correct parameter name
                     symbol="BTC",
                     side=OrderSide.BUY,
-                    type=OrderType.LIMIT,
+                    order_type=OrderType.LIMIT, # Correct parameter name
                     price=Decimal("49000.0"),
                     quantity=Decimal("0.5"),
                     filled_quantity=Decimal("0.0"),
-                    status=OrderStatus.NEW.value,
-                    time=int(datetime.now(UTC).timestamp() * 1000),
+                    status=OrderStatus.NEW, # Use Enum member
+                    timestamp=datetime.now(UTC), # Use datetime object
                     client_order_id="client-order-1",
                 )
             ],
             "backpack": [
                 Order(
-                    id="bp-order-1",
+                    order_id="bp-order-1", # Correct parameter name
                     symbol="ETH",
                     side=OrderSide.SELL,
-                    type=OrderType.MARKET,
-                    price=Decimal("3050.0"),
+                    order_type=OrderType.MARKET, # Correct parameter name
+                    price=None, # Market orders typically don't have a pre-fill price
                     quantity=Decimal("5.0"),
                     filled_quantity=Decimal("5.0"),
-                    status=OrderStatus.FILLED.value,
-                    time=int(datetime.now(UTC).timestamp() * 1000),
+                    status=OrderStatus.FILLED, # Use Enum member
+                    timestamp=datetime.now(UTC), # Use datetime object
                     client_order_id="client-order-2",
                 )
             ],
         }
 
     @pytest.fixture
-    def sample_balances(self):
+    def sample_balances(self) -> dict[str, dict[str, Decimal]]:
         """Create sample balances for testing."""
         return {
             "hyperliquid": {"USDC": Decimal("100000.0"), "BTC": Decimal("2.0")},
@@ -128,12 +130,12 @@ class TestPortfolioTracker:
     @pytest.mark.asyncio
     async def test_initialize(
         self,
-        portfolio_tracker,
-        api_clients,
-        sample_positions,
-        sample_orders,
-        sample_balances,
-    ):
+        portfolio_tracker: PortfolioTracker,
+        api_clients: dict[str, AsyncMock],
+        sample_positions: dict[str, list[Position]],
+        sample_orders: dict[str, list[Order]],
+        sample_balances: dict[str, dict[str, Decimal]],
+    ) -> None:
         """Test initializing the portfolio tracker."""
         # Setup mock responses
         for exchange_id, client in api_clients.items():
@@ -145,7 +147,7 @@ class TestPortfolioTracker:
         await portfolio_tracker.initialize()
 
         # Verify API clients were called
-        for exchange_id, client in api_clients.items():
+        for _exchange_id, client in api_clients.items(): # B007: Use _ for unused var
             client.get_balances.assert_called_once()
             client.get_positions.assert_called_once()
             client.get_open_orders.assert_called_once()
@@ -168,18 +170,18 @@ class TestPortfolioTracker:
         # Verify orders were stored properly
         for exchange_id, orders in sample_orders.items():
             for order in orders:
-                stored_order = portfolio_tracker._orders[exchange_id].get(order.id)
+                stored_order = portfolio_tracker._orders[exchange_id].get(order.order_id)
                 assert stored_order is not None
 
     @pytest.mark.asyncio
     async def test_update(
         self,
-        portfolio_tracker,
-        api_clients,
-        sample_positions,
-        sample_orders,
-        sample_balances,
-    ):
+        portfolio_tracker: PortfolioTracker,
+        api_clients: dict[str, AsyncMock],
+        sample_positions: dict[str, list[Position]],
+        sample_orders: dict[str, list[Order]],
+        sample_balances: dict[str, dict[str, Decimal]],
+    ) -> None:
         """Test updating the portfolio tracker."""
         # Setup mock responses
         for exchange_id, client in api_clients.items():
@@ -191,7 +193,7 @@ class TestPortfolioTracker:
         await portfolio_tracker.initialize()
 
         # Reset the mock call counts
-        for exchange_id, client in api_clients.items():
+        for _exchange_id, client in api_clients.items(): # B007: Use _ for unused var
             client.get_balances.reset_mock()
             client.get_positions.reset_mock()
             client.get_open_orders.reset_mock()
@@ -208,7 +210,7 @@ class TestPortfolioTracker:
         await portfolio_tracker.update()
 
         # Verify only orders were updated (balances and positions not fetched)
-        for exchange_id, client in api_clients.items():
+        for _exchange_id, client in api_clients.items(): # B007: Use _ for unused var
             client.get_balances.assert_not_called()
             client.get_positions.assert_not_called()
             client.get_open_orders.assert_called_once()
@@ -222,25 +224,25 @@ class TestPortfolioTracker:
         )
 
         await portfolio_tracker.update()  # Should now fetch everything
-        for exchange_id, client in api_clients.items():
+        for _exchange_id, client in api_clients.items(): # B007: Use _ for unused var
             # Check counts after full reconciliation (add 1 to previous checks)
             assert client.get_balances.call_count == 1
             assert client.get_positions.call_count == 1
             assert client.get_open_orders.call_count == 2  # Called once before, once now
 
-    def test_update_order(self, portfolio_tracker):
+    def test_update_order(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test updating an order in the portfolio tracker."""
         # Create a new order
         order = Order(
-            id="test-order-1",
+            order_id="test-order-1", # Correct parameter name
             symbol="BTC",
             side=OrderSide.BUY,
-            type=OrderType.LIMIT,
+            order_type=OrderType.LIMIT, # Correct parameter name
             price=Decimal("50000.0"),
             quantity=Decimal("1.0"),
             filled_quantity=Decimal("0.0"),
-            status=OrderStatus.NEW.value,
-            time=int(datetime.now(UTC).timestamp() * 1000),
+            status=OrderStatus.NEW, # Use Enum member
+            timestamp=datetime.now(UTC), # Use datetime object
             client_order_id="client-order-3",
         )
 
@@ -250,21 +252,22 @@ class TestPortfolioTracker:
         # Verify the order was stored
         stored_order = portfolio_tracker.get_order("hyperliquid", "test-order-1")
         assert stored_order is not None
-        assert stored_order.id == "test-order-1"
+        assert stored_order.order_id == "test-order-1" # Correct attribute
         assert stored_order.symbol == "BTC"
         assert stored_order.side == OrderSide.BUY
 
         # Update the order status to filled
-        order.status = OrderStatus.FILLED.value
+        order.status = OrderStatus.FILLED # Use Enum member
         order.filled_quantity = Decimal("1.0")
         portfolio_tracker.update_order("hyperliquid", order)
 
         # Verify the order was updated
         stored_order = portfolio_tracker.get_order("hyperliquid", "test-order-1")
-        assert stored_order.status == OrderStatus.FILLED.value
+        assert stored_order is not None # Check for None before accessing attributes
+        assert stored_order.status == OrderStatus.FILLED # Compare Enum member directly
         assert stored_order.filled_quantity == Decimal("1.0")
 
-    def test_update_position(self, portfolio_tracker):
+    def test_update_position(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test updating a position in the portfolio tracker."""
         # Create a new position
         position = Position(
@@ -295,10 +298,11 @@ class TestPortfolioTracker:
 
         # Verify the position was updated
         stored_position = portfolio_tracker.get_position("hyperliquid", "BTC")
+        assert stored_position is not None # Check for None before accessing attributes
         assert stored_position.mark_price == Decimal("52000.0")
         assert stored_position.unrealized_pnl == Decimal("2000.0")
 
-    def test_update_balance(self, portfolio_tracker):
+    def test_update_balance(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test updating a balance in the portfolio tracker."""
         # Update a balance in the tracker
         usdc_amount = Decimal("100000.0")
@@ -311,7 +315,11 @@ class TestPortfolioTracker:
         assert balance_obj.total == usdc_amount
         assert balance_obj.available == usdc_amount
 
-    def test_get_exchange_balance(self, portfolio_tracker, sample_balances):
+    def test_get_exchange_balance(
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_balances: dict[str, dict[str, Decimal]],
+    ) -> None:
         """Test getting an exchange balance."""
         # Set up some balances
         for exchange_id, balances in sample_balances.items():
@@ -330,7 +338,11 @@ class TestPortfolioTracker:
         # Test getting non-existent balance
         assert portfolio_tracker.get_exchange_balance("hyperliquid", "XYZ") is None
 
-    def test_get_total_capital(self, portfolio_tracker, sample_balances):
+    def test_get_total_capital(
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_balances: dict[str, dict[str, Decimal]],
+    ) -> None:
         """Test getting the total capital across all exchanges."""
         # Set up some balances
         for exchange_id, balances in sample_balances.items():
@@ -340,7 +352,11 @@ class TestPortfolioTracker:
         # Expected total capital: 100000 + 50000 = 150000 USDC
         assert portfolio_tracker.get_total_capital() == Decimal("150000.0")
 
-    def test_get_position(self, portfolio_tracker, sample_positions):
+    def test_get_position(
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_positions: dict[str, list[Position]],
+    ) -> None:
         """Test getting a position by ID."""
         # Set up some positions
         for exchange_id, positions in sample_positions.items():
@@ -361,7 +377,11 @@ class TestPortfolioTracker:
         # Test getting a non-existent position
         assert portfolio_tracker.get_position("hyperliquid", "ETH") is None
 
-    def test_get_positions_by_symbol(self, portfolio_tracker, sample_positions):
+    def test_get_positions_by_symbol(
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_positions: dict[str, list[Position]],
+    ) -> None:
         """Test getting positions by symbol."""
         # Set up some positions
         for exchange_id, positions in sample_positions.items():
@@ -387,7 +407,11 @@ class TestPortfolioTracker:
         assert btc_positions[0].symbol == "BTC"
         assert btc_positions[0].size == Decimal("0.5")
 
-    def test_get_all_positions(self, portfolio_tracker, sample_positions):
+    def test_get_all_positions(
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_positions: dict[str, list[Position]],
+    ) -> None:
         """Test getting all positions across exchanges."""
         # Set up some positions
         for exchange_id, positions in sample_positions.items():
@@ -407,7 +431,9 @@ class TestPortfolioTracker:
         assert "BTC" in symbols
         assert "ETH" in symbols
 
-    def test_get_order(self, portfolio_tracker, sample_orders):
+    def test_get_order(
+        self, portfolio_tracker: PortfolioTracker, sample_orders: dict[str, list[Order]]
+    ) -> None:
         """Test getting an order by ID."""
         # Set up some orders
         for exchange_id, orders in sample_orders.items():
@@ -417,18 +443,20 @@ class TestPortfolioTracker:
         # Test getting orders
         hl_order = portfolio_tracker.get_order("hyperliquid", "hl-order-1")
         assert hl_order is not None
-        assert hl_order.id == "hl-order-1"
+        assert hl_order.order_id == "hl-order-1" # Correct attribute name
         assert hl_order.symbol == "BTC"
 
         bp_order = portfolio_tracker.get_order("backpack", "bp-order-1")
         assert bp_order is not None
-        assert bp_order.id == "bp-order-1"
+        assert bp_order.order_id == "bp-order-1" # Correct attribute name
         assert bp_order.symbol == "ETH"
 
         # Test getting a non-existent order
         assert portfolio_tracker.get_order("hyperliquid", "non-existent") is None
 
-    def test_get_open_orders(self, portfolio_tracker, sample_orders):
+    def test_get_open_orders(
+        self, portfolio_tracker: PortfolioTracker, sample_orders: dict[str, list[Order]]
+    ) -> None:
         """Test getting open orders."""
         # Set up some orders
         for exchange_id, orders in sample_orders.items():
@@ -437,31 +465,30 @@ class TestPortfolioTracker:
 
         # Add an order that should be considered open
         open_order = Order(
-            id="hl-order-open",
+            order_id="hl-order-open", # Correct parameter name
             symbol="BTC",
             side=OrderSide.BUY,
-            type=OrderType.LIMIT,
+            order_type=OrderType.LIMIT, # Correct parameter name
             price=Decimal("51000.0"),
             quantity=Decimal("0.5"),
             filled_quantity=Decimal("0.1"),  # Partially filled
             status=OrderStatus.PARTIALLY_FILLED,  # Use Enum member
-            time=int(datetime.now(UTC).timestamp() * 1000),
+            timestamp=datetime.now(UTC), # Use datetime object
             client_order_id="client-order-open",
         )
         portfolio_tracker.update_order("hyperliquid", open_order)
 
         # Add an order that should NOT be considered open
         cancelled_order = Order(
-            id="hl-order-2",
+            order_id="hl-order-2", # Correct parameter name
             symbol="BTC",
             side=OrderSide.SELL,
-            type=OrderType.LIMIT,
+            order_type=OrderType.LIMIT, # Correct parameter name
             price=Decimal("53000.0"),
             quantity=Decimal("0.3"),
             filled_quantity=Decimal("0.0"),
-            # status=OrderStatus.CANCELED.value, # Original: used string value
             status=OrderStatus.CANCELED,  # Use Enum member
-            time=int(datetime.now(UTC).timestamp() * 1000),
+            timestamp=datetime.now(UTC), # Use datetime object
             client_order_id="client-order-4",
         )
         portfolio_tracker.update_order("hyperliquid", cancelled_order)
@@ -480,15 +507,15 @@ class TestPortfolioTracker:
         assert len(open_orders) == expected_count
         assert all(o.status in [OrderStatus.NEW, OrderStatus.PARTIALLY_FILLED] for o in open_orders)
         # Ensure the cancelled order is not present
-        assert not any(o.id == "hl-order-2" for o in open_orders)
+        assert not any(o.order_id == "hl-order-2" for o in open_orders) # Correct attribute name
 
-    def test_to_dict_and_from_dict(
+    def test_to_dict_and_from_dict( # TODO: Review this test logic, esp. from_dict
         self,
         portfolio_tracker: PortfolioTracker,
         sample_balances: dict[str, dict[str, Decimal]],
-        sample_positions: dict[str, dict[str, Position]],
-        sample_orders: list[Order],
-    ):
+        sample_positions: dict[str, list[Position]], # Corrected hint
+        sample_orders: dict[str, list[Order]], # Corrected hint
+    ) -> None:
         """Test serialization and deserialization of the portfolio tracker state."""
         # Set up some test data
         for exchange_id, balances in sample_balances.items():
