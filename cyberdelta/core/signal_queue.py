@@ -96,6 +96,16 @@ class PrioritySignalQueue:
         if "utility_score" not in signal.metadata:
             logger.warning(f"Signal for {signal.symbol} has no utility score, using default 0.0")
             signal.metadata["utility_score"] = 0.0
+        
+        # Ensure utility_score is a float
+        try:
+            signal.metadata["utility_score"] = float(signal.metadata["utility_score"])
+        except (ValueError, TypeError):
+            logger.warning(
+                f"Invalid utility_score '{signal.metadata['utility_score']}' for signal {signal.symbol}. "
+                f"Using default 0.0"
+            )
+            signal.metadata["utility_score"] = 0.0
 
         # Set expiration time if not already set
         if signal.expiration is None:
@@ -117,10 +127,11 @@ class PrioritySignalQueue:
             # Check if new signal has higher utility than the lowest in queue
             if len(self.signal_queue) > 0:
                 # Find minimum utility score (maximum negative score since we use negative values)
-                min_score = min(self.signal_queue, key=lambda x: x[0])[0]
+                min_score = max(self.signal_queue, key=lambda x: x[0])[0]
+                new_score = -float(signal.metadata["utility_score"])
 
                 # If new signal has lower utility than the lowest, reject it
-                if -signal.metadata["utility_score"] >= min_score:
+                if new_score >= min_score:
                     logger.debug(
                         f"Rejected signal for {signal.symbol} with score "
                         f"{signal.metadata['utility_score']} (lower than min {-min_score})"
@@ -213,36 +224,49 @@ class PrioritySignalQueue:
         # Clean expired signals
         self._clean_expired_signals()
 
-        while self.signal_queue:
-            # Get highest priority signal item without removing
-            neg_score, uid, potential_signal = self.signal_queue[0]
+        # Return None if queue is empty
+        if not self.signal_queue:
+            return None
 
-            # Check validity (expiration)
-            if not potential_signal.is_valid():
-                heapq.heappop(self.signal_queue)  # Remove expired signal
-                logger.debug(
-                    f"Removed expired signal {uid} for {potential_signal.symbol} "
-                    f"from queue during get_next."
-                )
-                continue  # Try the next item in the heap
+        try:
+            # Process signals from the heap until we find a valid one
+            while self.signal_queue:
+                # Get highest priority signal item without removing
+                neg_score, uid, potential_signal = self.signal_queue[0]
 
-            # Check circuit breakers before returning
-            if self.circuit_breaker_system and not self._check_circuit_breakers_post_get(
-                potential_signal
-            ):
-                heapq.heappop(self.signal_queue)  # Remove signal blocked by CB
-                logger.warning(
-                    f"Circuit breaker active for {potential_signal.symbol}, skipping signal {uid}"
-                )
-                continue  # Try the next item
+                # Check validity (expiration)
+                if not potential_signal.is_valid():
+                    # Remove expired signal and log
+                    removed_signal = heapq.heappop(self.signal_queue)
+                    logger.debug(
+                        f"Removed expired signal {uid} for {potential_signal.symbol} "
+                        f"from queue during get_next."
+                    )
+                    continue  # Try the next item in the heap
 
-            # If valid and passes CB, pop and return
-            heapq.heappop(self.signal_queue)
-            logger.debug(f"Returning signal {uid} for {potential_signal.symbol}")
-            return potential_signal
+                # Check circuit breakers before returning
+                if self.circuit_breaker_system and not self._check_circuit_breakers_post_get(
+                    potential_signal
+                ):
+                    # Remove signal blocked by CB and log
+                    removed_signal = heapq.heappop(self.signal_queue)
+                    logger.warning(
+                        f"Circuit breaker active for {potential_signal.symbol}, skipping signal {uid}"
+                    )
+                    continue  # Try the next item
 
-        # If loop finishes, queue is empty
-        return None
+                # If valid and passes CB, pop and return
+                removed_signal = heapq.heappop(self.signal_queue)
+                logger.debug(f"Returning signal {uid} for {potential_signal.symbol}")
+                return potential_signal
+
+            # If loop finishes, queue is empty
+            return None
+            
+        except Exception as e:
+            # Log error and return None to prevent system crash
+            logger.error(f"Error in get_next_signal: {e}")
+            return None
 
     def peek_next_signal(self) -> TradeSignal | None:
         """
@@ -278,12 +302,13 @@ class PrioritySignalQueue:
         self._clean_expired_signals()
         return self.peek_next_signal() if self.signal_queue else None
 
-    def get_signals(self, max_count: int = 10) -> list[TradeSignal]:
+    def get_signals(self, max_count: int = 10, symbol: str | None = None) -> list[TradeSignal]:
         """
         Get multiple signals in priority order.
 
         Args:
             max_count: Maximum number of signals to return
+            symbol: Optional symbol to filter by
 
         Returns:
             List of signals in priority order
@@ -299,7 +324,9 @@ class PrioritySignalQueue:
             _, _, signal = heapq.heappop(temp_queue)
             if signal.is_valid():
                 if not self.circuit_breaker_system or self._check_circuit_breakers(signal):
-                    result.append(signal)
+                    # Filter by symbol if provided
+                    if symbol is None or signal.symbol == symbol:
+                        result.append(signal)
 
         return result
 
@@ -331,7 +358,20 @@ class PrioritySignalQueue:
         # Filter out expired signals
         valid_signals = []
         for score, count, signal in self.signal_queue:
-            if signal.is_valid():
+            try:
+                if signal.is_valid():
+                    valid_signals.append((score, count, signal))
+                else:
+                    self.logger.debug(
+                        f"Removed expired signal for {signal.symbol} during cleanup"
+                    )
+            except Exception as e:
+                # If there's an error checking validity, log it and keep the signal
+                # This is safer than potentially dropping valid signals
+                self.logger.warning(
+                    f"Error checking validity of signal for {signal.symbol}: {e}. "
+                    f"Keeping signal in queue."
+                )
                 valid_signals.append((score, count, signal))
 
         # Rebuild queue if any signals were removed
@@ -361,8 +401,18 @@ class PrioritySignalQueue:
                 range(len(self.signal_queue)), key=lambda i: self.signal_queue[i][0]
             )
 
+            # Get the signal to log information
+            lowest_signal = self.signal_queue[lowest_priority_idx][2]
+            lowest_score = -self.signal_queue[lowest_priority_idx][0]  # Convert back to positive 
+            
             # Remove the item
             self.signal_queue.pop(lowest_priority_idx)
+            
+            # Log the removal
+            logger.debug(
+                f"Trimmed signal for {lowest_signal.symbol} with score {lowest_score} "
+                f"from queue to maintain max size of {self.max_queue_size}"
+            )
 
         # Re-heapify the queue
         heapq.heapify(self.signal_queue)
@@ -385,10 +435,23 @@ class PrioritySignalQueue:
 
         # Adjust based on signal confidence if available
         if signal.metadata and "confidence_score" in signal.metadata:
-            confidence = signal.metadata["confidence_score"]
-            # Lower confidence = shorter expiration
-            confidence_factor = 0.5 + confidence * 0.5  # Range: 0.5 - 1.0
-            expiration_seconds = base_expiration_seconds * confidence_factor
+            # Get confidence score and ensure it's a float
+            confidence_raw = signal.metadata["confidence_score"]
+            try:
+                # Handle if confidence is a string or another type
+                confidence = float(confidence_raw) if confidence_raw is not None else 0.5
+                # Ensure confidence is between 0 and 1
+                confidence = max(0.0, min(1.0, confidence))
+                # Lower confidence = shorter expiration
+                confidence_factor = 0.5 + confidence * 0.5  # Range: 0.5 - 1.0
+                expiration_seconds = base_expiration_seconds * confidence_factor
+            except (ValueError, TypeError):
+                # If conversion fails, use the base expiration time
+                self.logger.warning(
+                    f"Invalid confidence_score '{confidence_raw}' for signal {signal.symbol}. "
+                    f"Using default expiration time."
+                )
+                expiration_seconds = base_expiration_seconds
         else:
             expiration_seconds = base_expiration_seconds
 
@@ -495,15 +558,62 @@ class PrioritySignalQueue:
         return True  # Allow if all relevant breakers allow execution
 
     def _infer_exchange_from_symbol(self, symbol: str) -> str | None:
-        """Attempt to infer the exchange based on the symbol format (placeholder logic)."""
-        # Basic example: check for exchange prefixes or suffixes
-        # This needs to be adapted based on actual symbol conventions
-        if symbol.endswith("-PERP"):
-            # Could check if it's a known Hyperliquid symbol, etc.
-            return "hyperliquid"  # Example
-        elif "_" in symbol:
-            # Could check if it's a known Backpack symbol, etc.
-            return "backpack"  # Example
+        """
+        Attempt to infer the exchange based on the symbol format.
+        
+        This method tries to extract exchange information from the symbol formatting.
+        Different exchanges use different symbol formats.
+        
+        Args:
+            symbol: The trading symbol to analyze
+            
+        Returns:
+            Inferred exchange name or None if inference fails
+        """
+        if not symbol:
+            return None
+        
+        # Try different exchange-specific symbol formats
+        symbol = symbol.strip().upper()
+        
+        # Format: EXCHANGE-SYMBOL-PERP (e.g., HYPERLIQUID-BTC-PERP)
+        if "-PERP" in symbol:
+            parts = symbol.split("-")
+            if len(parts) == 3 and parts[0]:
+                return parts[0].lower()
+            return "hyperliquid"  # Default assumption for perp contracts
+            
+        # Format: EXCHANGE-SYMBOL (e.g., BINANCE-BTCUSDT)
+        if "-" in symbol:
+            parts = symbol.split("-", 1)
+            if len(parts) == 2 and parts[0]:
+                return parts[0].lower()
+                
+        # Format: SYMBOL_EXCHANGE (e.g., BTC_BACKPACK)
+        if "_" in symbol:
+            parts = symbol.split("_")
+            if len(parts) == 2 and parts[1]:
+                return parts[1].lower()
+            return "backpack"  # Example assumption
+            
+        # Format: SYMBOL:EXCHANGE (e.g., BTC:DYDX)
+        if ":" in symbol:
+            parts = symbol.split(":")
+            if len(parts) == 2 and parts[1]:
+                return parts[1].lower()
+        
+        # Try to extract common exchange names from the symbol
+        common_exchanges = [
+            "binance", "coinbase", "bybit", "okx", "kucoin", 
+            "dydx", "hyperliquid", "backpack", "kraken", "huobi"
+        ]
+        
+        for exchange in common_exchanges:
+            if exchange.lower() in symbol.lower():
+                return exchange.lower()
+                
+        # If no exchange could be inferred
+        self.logger.debug(f"Could not infer exchange from symbol: {symbol}")
         return None
 
     def get_pending_signals(self) -> list[TradeSignal]:
@@ -698,51 +808,51 @@ class PrioritySignalQueue:
     def _check_circuit_breakers(self, signal: TradeSignal) -> bool:
         """Check if a signal is blocked by circuit breakers."""
         try:
-            # Check circuit breakers using the assigned instance attribute
-            if self.circuit_breaker_system:
-                # Safely access metadata - initialize an empty dict if None
-                metadata = signal.metadata or {}
+            # If no circuit breaker system is configured, allow all signals
+            if not self.circuit_breaker_system:
+                return True
 
-                # Get exchange information from metadata
-                exchange = metadata.get("exchange")
-                long_exchange = metadata.get("long_exchange")
-                short_exchange = metadata.get("short_exchange")
+            # Initialize an empty dict if metadata is None
+            metadata = signal.metadata or {}
 
-                # Determine relevant exchange(s)
-                exchanges_to_check = set()
-                if exchange:
-                    exchanges_to_check.add(exchange)
-                if long_exchange:
-                    exchanges_to_check.add(long_exchange)
-                if short_exchange:
-                    exchanges_to_check.add(short_exchange)
+            # Determine relevant exchange(s) from metadata
+            exchanges_to_check = set()
+            exchange = metadata.get("exchange")
+            long_exchange = metadata.get("long_exchange")
+            short_exchange = metadata.get("short_exchange")
 
-                if not exchanges_to_check:
-                    # Try to infer from symbol if possible
-                    parts = signal.symbol.split("-", 1)
-                    if len(parts) == 2:
-                        inferred_exchange = parts[0].lower()
-                        exchanges_to_check.add(inferred_exchange)
-                        self.logger.debug(
-                            f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} "
-                            f"for CB check."
-                        )
-                    else:
-                        self.logger.warning(
-                            f"Cannot determine exchange for circuit breaker check on signal "
-                            f"{signal.symbol}. Skipping check."
-                        )
-                        return True  # Allow signal if exchange unknown
+            if exchange:
+                exchanges_to_check.add(str(exchange))
+            if long_exchange:
+                exchanges_to_check.add(str(long_exchange))
+            if short_exchange:
+                exchanges_to_check.add(str(short_exchange))
 
-                # Check each relevant exchange and the specific symbol
-                for ex in exchanges_to_check:
-                    can_exec, reason = self.circuit_breaker_system.can_execute(ex, signal.symbol)
-                    if not can_exec:
-                        self.logger.warning(
-                            f"Signal for {signal.symbol} on exchange {ex} blocked by "
-                            f"circuit breaker: {reason}"
-                        )
-                        return False
+            # If no exchanges were found in metadata, try to infer from symbol
+            if not exchanges_to_check:
+                inferred_exchange = self._infer_exchange_from_symbol(signal.symbol)
+                if inferred_exchange:
+                    exchanges_to_check.add(inferred_exchange)
+                    self.logger.debug(
+                        f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} "
+                        f"for circuit breaker check."
+                    )
+                else:
+                    self.logger.warning(
+                        f"Cannot determine exchange for circuit breaker check on signal "
+                        f"{signal.symbol}. Skipping check."
+                    )
+                    return True  # Allow signal if exchange unknown
+
+            # Check each relevant exchange and the specific symbol
+            for ex in exchanges_to_check:
+                can_exec, reason = self.circuit_breaker_system.can_execute(ex, signal.symbol)
+                if not can_exec:
+                    self.logger.warning(
+                        f"Signal for {signal.symbol} on exchange {ex} blocked by "
+                        f"circuit breaker: {reason}"
+                    )
+                    return False
 
             # All checks passed
             return True
@@ -751,3 +861,14 @@ class PrioritySignalQueue:
             self.logger.error(f"Error checking circuit breakers: {e}")
             # Fail safe on error
             return False
+
+    def is_empty(self) -> bool:
+        """
+        Check if the queue is empty.
+
+        Returns:
+            True if the queue is empty, False otherwise
+        """
+        # Clean expired signals first
+        self._clean_expired_signals()
+        return len(self.signal_queue) == 0

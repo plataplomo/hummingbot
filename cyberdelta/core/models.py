@@ -1028,24 +1028,3 @@ class TradeSignal:
             "signal_id": self.signal_id,
         }
         return result
-
-
-# Helper function placed outside classes if used by multiple, or as staticmethod if only one
-# def _safe_decimal_convert(value: Any, field_name: str, identifier: str, allow_none: bool = False, default: Optional[Decimal] = None) -> Optional[Decimal]:
-#     """Safely convert a value to Decimal, handling None and defaults."""
-#     if isinstance(value, Decimal):
-#         return value
-#     if value is None:
-#         if allow_none:
-#             return default
-#         else:
-#              raise ValueError(f"Field '{field_name}' for '{identifier}' cannot be None")
-#     try:
-#         # Force string conversion first for robustness against float inputs
-#         return Decimal(str(value))
-#     except (InvalidOperation, TypeError):
-#          # Log warning or raise? Raising for now.
-#          raise ValueError(
-#              f"Invalid value '{value}' for field '{field_name}' "
-#              f"for '{identifier}'. Cannot convert to Decimal."
-#          )
