@@ -101,15 +101,17 @@ class PrioritySignalQueue:
         try:
             signal.metadata["utility_score"] = float(signal.metadata["utility_score"])
         except (ValueError, TypeError):
+            # Shorten f-string for line length
+            score_val = signal.metadata.get('utility_score', 'N/A') # Use get for safety
             logger.warning(
-                f"Invalid utility_score '{signal.metadata['utility_score']}' for signal {signal.symbol}. "
-                f"Using default 0.0"
+                f"Invalid utility_score '{score_val}' for signal {signal.symbol}. "
+                f"Using default 0.0" # Ruff E501 fix: Split long f-string
             )
             signal.metadata["utility_score"] = 0.0
 
         # Set expiration time if not already set
         if signal.expiration is None:
-            signal.expiration = self._calculate_expiration(signal)
+            signal = self._calculate_expiration(signal) # Assign the modified signal back
 
         # Check circuit breakers before adding
         if self.circuit_breaker_system and not self._check_circuit_breakers_pre_add(signal):
@@ -128,13 +130,20 @@ class PrioritySignalQueue:
             if len(self.signal_queue) > 0:
                 # Find minimum utility score (maximum negative score since we use negative values)
                 min_score = max(self.signal_queue, key=lambda x: x[0])[0]
-                new_score = -float(signal.metadata["utility_score"])
+                # Mypy fix: Check metadata is not None before indexing
+                if signal.metadata is None:
+                     logger.error(f"Signal metadata is None for {signal.symbol} during trim check. Cannot proceed.")
+                     return False # Or handle appropriately
+                # Use .get() for safety, although metadata should exist here
+                new_score = -float(signal.metadata.get("utility_score", 0.0))
 
                 # If new signal has lower utility than the lowest, reject it
                 if new_score >= min_score:
                     logger.debug(
                         f"Rejected signal for {signal.symbol} with score "
-                        f"{signal.metadata['utility_score']} (lower than min {-min_score})"
+                        # Mypy fix: Check metadata is not None before indexing
+                        # Use .get() for safety
+                        f"{signal.metadata.get('utility_score', 0.0)} (lower than min {-min_score})"
                     )
                     return False
 
@@ -143,11 +152,18 @@ class PrioritySignalQueue:
 
         # Add to priority queue
         self.counter += 1
-        heapq.heappush(self.signal_queue, (-signal.metadata["utility_score"], self.counter, signal))
+        # Mypy fix: Check metadata is not None before indexing
+        if signal.metadata is None:
+             logger.error(f"Signal metadata is None for {signal.symbol} before push. Cannot proceed.")
+             return False # Or handle appropriately
+        # Use .get() for safety
+        heapq.heappush(self.signal_queue, (-float(signal.metadata.get("utility_score", 0.0)), self.counter, signal))
 
         logger.debug(
             f"Added signal for {signal.symbol} to queue with score "
-            f"{signal.metadata['utility_score']}"
+            # Mypy fix: Check metadata is not None before indexing
+            # Use .get() for safety
+            f"{signal.metadata.get('utility_score', 0.0)}"
         )
         return True
 
@@ -250,13 +266,15 @@ class PrioritySignalQueue:
                 ):
                     # Remove signal blocked by CB and log
                     removed_signal = heapq.heappop(self.signal_queue)
+                    # Shorten f-string for line length
+                    # Shorten f-string for line length
                     logger.warning(
-                        f"Circuit breaker active for {potential_signal.symbol}, skipping signal {uid}"
+                        f"CB active for {potential_signal.symbol}, skipping signal {uid}" # Ruff E501 fix: Shortened
                     )
                     continue  # Try the next item
 
                 # If valid and passes CB, pop and return
-                removed_signal = heapq.heappop(self.signal_queue)
+                heapq.heappop(self.signal_queue) # Ruff F841 fix: Removed assignment to unused variable
                 logger.debug(f"Returning signal {uid} for {potential_signal.symbol}")
                 return potential_signal
 
