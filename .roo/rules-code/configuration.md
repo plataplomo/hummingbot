@@ -1,0 +1,26 @@
+---
+description: 
+globs: pyproject.toml,mypy.ini
+alwaysApply: false
+---
+---
+description: Mandates the preservation of static analysis tool configurations (Ruff, Mypy).
+globs: ["pyproject.toml", "mypy.ini"] # Primarily relevant when these files might be considered for changes
+alwaysApply: true # This constraint should always be active
+---
+# Tool Configuration Integrity (Ruff & Mypy)
+
+1.  **Configuration Preservation (Strict):**
+    *   You **MUST NOT** modify the project's static analysis configuration files (`pyproject.toml` sections for `[tool.ruff.*]`, `[tool.mypy]`, or a separate `mypy.ini`) under **any circumstances** unless *explicitly instructed* to do so by the user with clear justification provided *by the user*.
+    *   This includes adding ignores, disabling rules, changing severity levels, or altering formatting/import sorting settings within these files.
+
+2.  **Handling Configuration-Related Blockers:**
+    *   If a linting or type checking error reported by Ruff or Mypy **cannot** be resolved by modifying the Python source code (`.py`, `.pyi`) *without* violating other rules (e.g., introducing logical errors, using excessive `Any` or `# type: ignore` or `noqa:` against policy) AND seems to stem from a potentially overly strict or inappropriate rule in the *existing* configuration:
+        *   **DO NOT** change the configuration file.
+        *   **DO** clearly **document the specific error** (tool, file, line, message, error code).
+        *   **DO** explain **why** the error cannot be fixed in the source code according to current rules and best practices.
+        *   **DO** suggest (but do not implement) a potential configuration change *if* you have high confidence it's the correct resolution.
+        *   **DO** **stop work** on the blocked task and explicitly state that **user review and potential configuration adjustment are required** before proceeding. Report this clearly in the workflow documentation.
+
+3.  **Rationale:** Maintaining consistent, project-wide static analysis standards defined in configuration is crucial for code quality and predictability. Unauthorized changes undermine these standards. Issues potentially requiring configuration changes need careful consideration and explicit approval by the project maintainers (the user, in this context).
+
