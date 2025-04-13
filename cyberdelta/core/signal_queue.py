@@ -132,7 +132,10 @@ class PrioritySignalQueue:
                 min_score = max(self.signal_queue, key=lambda x: x[0])[0]
                 # Mypy fix: Check metadata is not None before indexing
                 if signal.metadata is None:
-                     logger.error(f"Signal metadata is None for {signal.symbol} during trim check. Cannot proceed.")
+                     logger.error(
+                         f"Signal metadata is None for {signal.symbol} during trim check. "
+                         f"Cannot proceed."
+                     )
                      return False # Or handle appropriately
                 # Use .get() for safety, although metadata should exist here
                 new_score = -float(signal.metadata.get("utility_score", 0.0))
@@ -154,10 +157,14 @@ class PrioritySignalQueue:
         self.counter += 1
         # Mypy fix: Check metadata is not None before indexing
         if signal.metadata is None:
-             logger.error(f"Signal metadata is None for {signal.symbol} before push. Cannot proceed.")
+             logger.error(
+                 f"Signal metadata is None for {signal.symbol} before push. "
+                 f"Cannot proceed."
+             )
              return False # Or handle appropriately
         # Use .get() for safety
-        heapq.heappush(self.signal_queue, (-float(signal.metadata.get("utility_score", 0.0)), self.counter, signal))
+        utility_score = float(signal.metadata.get("utility_score", 0.0))
+        heapq.heappush(self.signal_queue, (-utility_score, self.counter, signal))
 
         logger.debug(
             f"Added signal for {signal.symbol} to queue with score "
@@ -253,7 +260,7 @@ class PrioritySignalQueue:
                 # Check validity (expiration)
                 if not potential_signal.is_valid():
                     # Remove expired signal and log
-                    removed_signal = heapq.heappop(self.signal_queue)
+                    heapq.heappop(self.signal_queue)
                     logger.debug(
                         f"Removed expired signal {uid} for {potential_signal.symbol} "
                         f"from queue during get_next."
@@ -265,16 +272,17 @@ class PrioritySignalQueue:
                     potential_signal
                 ):
                     # Remove signal blocked by CB and log
-                    removed_signal = heapq.heappop(self.signal_queue)
+                    heapq.heappop(self.signal_queue)
                     # Shorten f-string for line length
                     # Shorten f-string for line length
                     logger.warning(
-                        f"CB active for {potential_signal.symbol}, skipping signal {uid}" # Ruff E501 fix: Shortened
+                        f"CB active for {potential_signal.symbol}, "
+                        f"skipping signal {uid}"
                     )
                     continue  # Try the next item
 
                 # If valid and passes CB, pop and return
-                heapq.heappop(self.signal_queue) # Ruff F841 fix: Removed assignment to unused variable
+                heapq.heappop(self.signal_queue)
                 logger.debug(f"Returning signal {uid} for {potential_signal.symbol}")
                 return potential_signal
 

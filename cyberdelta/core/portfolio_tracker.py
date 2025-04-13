@@ -240,7 +240,8 @@ class PortfolioTracker:
                                 f"{balance_item}"
                             )
                             continue  # Skip this item
-                    # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
+                    # else: # Mypy error: Statement is unreachable [unreachable] -
+                    # Removed unreachable code block
                     #     continue # Skip this item
 
                     if parsed_balance and item_asset:
@@ -248,10 +249,12 @@ class PortfolioTracker:
                     # else: # Avoid logging again if parsing failed
                     #     if not isinstance(balance_item, Balance):
                     #          logger.warning(
-                    #             f"[_fetch_exchange_balances:{exchange_id}] Failed to process or assign balance item: {balance_item}"
+                    #             f"[_fetch_exchange_balances:{exchange_id}] Failed to process "
+                    #             f"or assign balance item: {balance_item}"
                     #         )
                 processed = True
-            # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
+            # else: # Mypy error: Statement is unreachable [unreachable] -
+            # Removed unreachable code block
             #     pass # Should not happen if API returns dict or list as expected
 
             if processed and updated_balances:
@@ -300,8 +303,9 @@ class PortfolioTracker:
         self, exchange_id: str, asset: str, balance_info: dict[str, Any] | Balance
     ) -> Balance | None:
         """Parse balance information into a Balance object."""
-        try:
-            if isinstance(balance_info, Balance):
+        # Handle Balance object case
+        if isinstance(balance_info, Balance):
+            try:
                 # Already a Balance object, ensure Decimal types
                 balance_info.total = self._safe_decimal_convert(
                     balance_info.total, "total", asset, exchange_id
@@ -313,8 +317,16 @@ class PortfolioTracker:
                     balance_info.locked, "locked", asset, exchange_id
                 )
                 return balance_info
+            except (InvalidOperation, ValueError, TypeError) as e:
+                logger.error(
+                    f"Error converting Balance fields for {asset} on {exchange_id}: "
+                    f"{e}. Data: {balance_info}"
+                )
+                return None
 
-            elif isinstance(balance_info, dict):
+        # Handle dictionary case
+        elif isinstance(balance_info, dict):
+            try:
                 total = self._safe_decimal_convert(
                     balance_info.get("total"), "total", asset, exchange_id
                 )
@@ -327,7 +339,8 @@ class PortfolioTracker:
 
                 if total is None:
                     logger.warning(
-                        f"Missing 'total' balance for {asset} on {exchange_id}. Cannot create Balance object."
+                        f"Missing 'total' balance for {asset} on {exchange_id}. "
+                        f"Cannot create Balance object."
                     )
                     return None
 
@@ -342,28 +355,32 @@ class PortfolioTracker:
                         free = total
                         locked = Decimal("0")
                         logger.warning(
-                            f"Missing 'free' and 'locked' for {asset} on {exchange_id}. Assuming all 'total' is free."
+                            f"Missing 'free' and 'locked' for {asset} on {exchange_id}. "
+                            f"Assuming all 'total' is free."
                         )
                     else:
                         free = Decimal("0")
                         locked = Decimal("0")
 
                 return Balance(asset=asset, total=total, free=free, locked=locked)
-            # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-            #     # logger.error(f"Unsupported balance_info type for {asset} on {exchange_id}: {type(balance_info)}") # This line was unreachable
-            #     return None # This line was unreachable
-
-        except (InvalidOperation, ValueError, TypeError) as e:
+            except (InvalidOperation, ValueError, TypeError) as e:
+                logger.error(
+                    f"Error parsing balance dict for {asset} on {exchange_id}: "
+                    f"{e}. Data: {balance_info}"
+                )
+                return None
+                
+        # Handle any other type (unexpected)
+        else:
             logger.error(
-                f"Error parsing balance info for {asset} on {exchange_id}: {e}. Data: {balance_info}"
+                f"Unsupported balance_info type for {asset} on {exchange_id}: "
+                f"{type(balance_info)}"
             )
             return None
-        # Mypy error: Statement is unreachable [unreachable] - Removed unreachable return
-        # return None # This line was unreachable
 
     @staticmethod
     def _safe_decimal_convert(
-        value: Any, field_name: str, asset: str, exchange_id: str
+        value: str | Decimal | None, field_name: str, asset: str, exchange_id: str
     ) -> Decimal | None:
         """Safely convert a value to Decimal, logging errors."""
         if value is None:
@@ -377,6 +394,8 @@ class PortfolioTracker:
                 # if abs(dec_value) < Decimal('1e-18'): # Adjust threshold as needed
                 #     return Decimal('0')
                 return dec_value
+            if isinstance(value, Decimal):
+                return value
             return Decimal(str(value))  # Convert via string for precision
         except (InvalidOperation, ValueError, TypeError) as e:
             logger.error(
@@ -447,13 +466,15 @@ class PortfolioTracker:
                             updated_positions[pos_id] = position_info
                         else:
                             logger.warning(
-                                f"Skipping Position object without symbol on {exchange_id}: {position_info}"
+                                f"Skipping Position object without symbol on {exchange_id}: "
+                                f"{position_info}"
                             )
                     elif isinstance(position_info, dict):
                         symbol = position_info.get("symbol")
                         if not symbol:
                             logger.warning(
-                                f"Skipping position dict without symbol on {exchange_id}: {position_info}"
+                                f"Skipping position dict without symbol on {exchange_id}: "
+                                f"{position_info}"
                             )
                             continue
 
@@ -465,7 +486,8 @@ class PortfolioTracker:
                                 side = OrderSide(side_val)
                             except ValueError:
                                 logger.warning(
-                                    f"Invalid 'side' value '{side_val}' for position {symbol} on {exchange_id}. Skipping."
+                                    f"Invalid 'side' value '{side_val}' for position {symbol} "
+                                    f"on {exchange_id}. Skipping."
                                 )
                                 continue
                         else:
@@ -474,11 +496,9 @@ class PortfolioTracker:
                             )
                             continue
 
-                        # If side is None after checks, we cannot proceed (Mypy Error Fix)
-                        if side is None:
-                            # logger.error(f"Logic error: side is None after validation for {symbol}. Skipping.") # Should not happen
-                            continue  # Skip this position
-
+                        # Side validation is already done above; we'd already have continued if None
+                        # This condition and statement is never reached (removed unreachable code)
+                        # Making the needed changes:
                         try:
                             # Attempt to create Position object, ensuring Decimals
                             pos_instance = Position(
@@ -517,16 +537,17 @@ class PortfolioTracker:
                                 ),
                                 side=side,  # Use validated side
                                 # Add other fields if necessary, ensuring type safety
-                                # id=position_info.get("id") # Use symbol or a generated ID if 'id' isn't reliable
+                                # id=position_info.get("id") # Use symbol as key or generate one
                             )
                             # Use symbol as key if no specific ID is provided/reliable
                             pos_id = position_info.get("id", symbol)
                             updated_positions[pos_id] = pos_instance
                         except (InvalidOperation, ValueError, TypeError) as e:
                             logger.error(
-                                f"Error parsing position dict for {symbol} on {exchange_id}: {e}. Data: {position_info}"
+                                f"Error parsing position dict for {symbol} on {exchange_id}: {e}. "
+                                f"Data: {position_info}"
                             )
-                            # The continue statement here was unreachable as the exception implicitly continues the loop.
+                            # Exception already continues the loop - no need for explicit continue
                     # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
                     #      logger.warning(f"Unsupported position item type in list for {exchange_id}: {type(position_info)}")
             # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
@@ -614,11 +635,9 @@ class PortfolioTracker:
                                 )
                                 continue
 
-                            # Ensure validated enums are not None before proceeding (Mypy Error Fix)
-                            if side is None or order_type is None or status is None:
-                                # logger.error(f"Logic error: Enum value is None after validation for order {order_id}. Skipping.") # Should not happen
-                                continue  # Skip this order
-
+                            # The validation checks are already made above, and would have already continued
+                            # This condition and its continue statement is never reached (mypy error)
+                            # Removing the unreachable code:
                             try:
                                 # Create Order object from dict, ensuring Decimals and Enums
                                 parsed_order_instance = Order(
@@ -879,7 +898,10 @@ class PortfolioTracker:
         # Ensure key is string
         position_key_str = str(position_key)
 
-        # logger.debug(f"Updating position {position_key_str} ({position.symbol}) on {exchange_id}. New size: {position.size}")
+        # logger.debug(
+        #     f"Updating position {position_key_str} ({position.symbol}) on {exchange_id}. "
+        #     f"New size: {position.size}"
+        # )
         self._positions[exchange_id][position_key_str] = position
         self._last_update_time[exchange_id] = datetime.now(UTC)
 
@@ -893,7 +915,8 @@ class PortfolioTracker:
             trade: Trade object representing the execution.
         """
         logger.info(
-            f"Processing trade on {exchange_id}: {trade.side} {trade.quantity} {trade.symbol} @ {trade.price}"
+            f"Processing trade on {exchange_id}: {trade.side} {trade.quantity} "
+            f"{trade.symbol} @ {trade.price}"
         )
 
         # 1. Update Realized PNL (Requires knowing the cost basis of the closed portion)
@@ -923,11 +946,9 @@ class PortfolioTracker:
                     logger.info(f"Position {trade.symbol} on {exchange_id} closed by trade.")
                     # Calculate realized PNL for the closed position
                     # Simplified PNL calc: (exit_price - entry_price) * quantity_closed * direction
-                    # This assumes the trade closes the entire position. Partial closes are more complex.
-                    # if current_position.entry_price is None or not isinstance(current_position.entry_price, Decimal): # Mypy unreachable
-                    #      # logger.warning(f"Cannot calculate realized PNL for closing {trade.symbol}: missing or invalid entry price.") # Mypy unreachable
-                    #      pnl = Decimal("0.0")
-                    # else:
+                    # This assumes the trade closes the entire position. Partial closes need more work.
+                    # Following lines were unreachable (mypy) and are rewritten for clarity:
+                    # Calculation assumes entry_price is valid Decimal - confirmed by type checking
                     pnl = (trade.price - current_position.entry_price) * original_size.copy_sign(
                         Decimal("1")
                     )  # Assumes entry_price is valid Decimal
@@ -936,7 +957,8 @@ class PortfolioTracker:
 
                     self._update_realized_pnl(pnl)
                     logger.info(
-                        f"Realized PNL from closing {trade.symbol}: {pnl}. Total Realized PNL: {self._realized_pnl}"
+                        f"Realized PNL from closing {trade.symbol}: {pnl}. "
+                        f"Total Realized PNL: {self._realized_pnl}"
                     )
 
                     # Remove closed position
@@ -974,11 +996,14 @@ class PortfolioTracker:
                     current_position.side = OrderSide.BUY if new_size > 0 else OrderSide.SELL
                     logger.debug(f"Position {trade.symbol} updated. New size: {new_size}")
 
-                    # Mark price, liq price, unrealized PNL would be updated by market data streams typically
+                    # Mark price, liq price, unrealized PNL would be updated by market data streams
+                    # typically
                     # Leverage might also change depending on exchange rules
-                # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-                #     # This case should ideally not be reached if original_size and trade_effect are Decimals
-                #     logger.error(f"Could not determine new position size type for {trade.symbol}. Original: {type(original_size)}, Trade: {type(trade_effect)}")
+                # else: # Mypy error: Statement is unreachable - Removed unreachable code block
+                #     # This case should ideally not be reached if original_size and trade_effect
+                #     # are Decimals
+                #     logger.error(f"Could not determine new position size type for {trade.symbol}. "
+                #                 f"Original: {type(original_size)}, Trade: {type(trade_effect)}")
 
         else:  # Opening a new position
             logger.debug(f"Opening new position for {trade.symbol} on {exchange_id}")
@@ -986,7 +1011,8 @@ class PortfolioTracker:
             side = trade.side
             if side is None:
                 logger.error(
-                    f"Cannot open position for {trade.symbol}: trade object missing 'side'. Trade: {trade}"
+                    f"Cannot open position for {trade.symbol}: trade object missing 'side'. "
+                    f"Trade: {trade}"
                 )
                 return
 
@@ -995,7 +1021,8 @@ class PortfolioTracker:
                 size=trade.quantity if side == OrderSide.BUY else -trade.quantity,
                 entry_price=trade.price,
                 side=side,  # Use validated side
-                # Other fields (mark_price, liq_price, pnl, leverage) need market data or further calculation
+                # Other fields (mark_price, liq_price, pnl, leverage) need market data or
+                # further calculation
                 mark_price=trade.price,  # Initial mark price can be trade price
                 unrealized_pnl=Decimal("0.0"),
                 # Assign a unique ID if possible/needed
@@ -1015,18 +1042,22 @@ class PortfolioTracker:
 
         if quote_asset and quote_asset in self._balances.get(exchange_id, {}):
             balance = self._balances[exchange_id][quote_asset]
-            # if balance.total is None: # Mypy error: Statement is unreachable [unreachable] - Removed check
-            #      logger.warning(f"Cannot update balance for {quote_asset} on {exchange_id}: total is None.")
+            # if balance.total is None: # Mypy error: Statement is unreachable -
+            # Removed check
+            # logger.warning(f"Cannot update balance for {quote_asset} on {exchange_id}: "
+            #               f"total is None.")
             if trade.side == OrderSide.BUY:
                 balance.total -= cost + fee
                 # Adjust free/locked based on settlement if needed
             else:  # Sell
                 balance.total += cost - fee
             logger.debug(
-                f"Updated {quote_asset} balance on {exchange_id} due to trade. New total: {balance.total}"
+                f"Updated {quote_asset} balance on {exchange_id} due to trade. "
+                f"New total: {balance.total}"
             )
-        # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-        #      logger.warning(f"Could not update balance for quote asset {quote_asset} on {exchange_id}")
+        # else: # Mypy error: Statement is unreachable - Removed unreachable code block
+        # logger.warning(f"Could not update balance for quote asset {quote_asset} "
+        #               f"on {exchange_id}")
 
         # Update base asset balance if tracking non-USD assets directly
         # if base_asset and base_asset in self._balances.get(exchange_id, {}):
@@ -1034,12 +1065,16 @@ class PortfolioTracker:
         #         self._balances[exchange_id][base_asset].total += trade.quantity
         #     else: # Sell
         #         self._balances[exchange_id][base_asset].total -= trade.quantity
-        #     logger.debug(f"Updated {base_asset} balance on {exchange_id}. New total: {self._balances[exchange_id][base_asset].total}")
+        #     logger.debug(f"Updated {base_asset} balance on {exchange_id}. "
+        #                 f"New total: {self._balances[exchange_id][base_asset].total}")
 
         self._last_update_time[exchange_id] = datetime.now(UTC)
 
     def _split_symbol(self, symbol: str) -> tuple[str, str]:
-        """Basic symbol splitting (e.g., BTC/USDC -> BTC, USDC). Needs refinement for complex symbols."""
+        """Basic symbol splitting (e.g., BTC/USDC -> BTC, USDC).
+        
+        Needs refinement for complex symbols.
+        """
         # This is a placeholder. Implement robust symbol parsing based on expected formats.
         parts = symbol.split("/")
         if len(parts) == 2:
@@ -1080,9 +1115,10 @@ class PortfolioTracker:
             amount.locked = self._safe_decimal_convert(amount.locked, "locked", asset, exchange_id)
             self._balances[exchange_id][asset] = amount
             logger.debug(
-                f"Updated balance for {asset} on {exchange_id} using Balance object. New total: {amount.total}"
+                f"Updated balance for {asset} on {exchange_id} using Balance object. "
+                f"New total: {amount.total}"
             )
-        elif isinstance(amount, (Decimal, int, float, str)):
+        elif isinstance(amount, Decimal | int | float | str):
             # If only a numerical amount is provided, update the total balance
             # This is less ideal as free/locked info is lost or becomes stale
             safe_amount = self._safe_decimal_convert(amount, "total", asset, exchange_id)
@@ -1097,7 +1133,8 @@ class PortfolioTracker:
                 self._balances[exchange_id][asset].total = safe_amount
                 # Mark free/locked as potentially stale if only total is updated?
                 logger.warning(
-                    f"Updating total balance for {asset} on {exchange_id} to {safe_amount}. Free/locked might be stale."
+                    f"Updating total balance for {asset} on {exchange_id} to {safe_amount}. "
+                    f"Free/locked might be stale."
                 )
             else:
                 # Create a new balance object, assuming all is free
@@ -1137,26 +1174,32 @@ class PortfolioTracker:
             Total portfolio value as a Decimal.
         """
         total_value = Decimal("0.0")
-        for exchange_id, balances in self._balances.items():
+        for _exchange_id, balances in self._balances.items():
             for asset, balance in balances.items():
-                # if balance.total is None: # Mypy error: Statement is unreachable [unreachable] - Removed check
+                # if balance.total is None: # Mypy error: Statement is unreachable -
+                # Removed check
                 #     continue # Skip if total balance is unknown
 
                 value_in_base = balance.total
                 if asset != base_currency:
                     # Need a way to get the current price of 'asset' in 'base_currency'
                     # This functionality might belong elsewhere (e.g., DataHandler or a PriceOracle)
-                    # For now, we assume 'total' is already in the base currency if asset != base_currency
+                    # For now, we assume 'total' is already in the base currency if asset !=
+                    # base_currency
                     # Or we skip non-base currency assets if no conversion is available.
-                    # Let's assume 'total' for non-base assets represents their value in base_currency.
+                    # Let's assume 'total' for non-base assets represents their value in
+                    # base_currency.
                     logger.debug(
-                        f"Assuming balance.total for {asset} ({value_in_base}) is already in {base_currency}"
+                        f"Assuming balance.total for {asset} ({value_in_base}) is "
+                        f"already in {base_currency}"
                     )
-                    # price = self.get_asset_price_in_usd(asset) # Removed - Method doesn't exist here
+                    # price = self.get_asset_price_in_usd(asset) # Removed - Method doesn't exist
+                    # here
                     # if price is not None:
                     #     value_in_base = balance.total * price
                     # else:
-                    #     logger.warning(f"Could not get price for {asset} in {base_currency}. Skipping its value.")
+                    #     logger.warning(f"Could not get price for {asset} in {base_currency}. "
+                    #                   f"Skipping its value.")
                     #     value_in_base = Decimal("0.0")
                     pass  # Keep value_in_base as balance.total
 
@@ -1173,8 +1216,10 @@ class PortfolioTracker:
         for position in self._positions.get(exchange_id, {}).values():
             if position.mark_price is not None and position.size is not None:
                 exposure += abs(position.size) * position.mark_price  # Absolute exposure value
-            # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-            #      logger.warning(f"Cannot calculate exposure for position {position.symbol} on {exchange_id}: missing mark_price or size.")
+            # else: # Mypy error: Statement is unreachable [unreachable] -
+            # Removed unreachable code block
+            #      logger.warning(f"Cannot calculate exposure for position {position.symbol} on "
+            #                    f"{exchange_id}: missing mark_price or size.")
         return exposure
 
     def get_total_exposure(self, valuation_asset: str = "USDT") -> Decimal:
@@ -1185,13 +1230,16 @@ class PortfolioTracker:
                 if position.mark_price is not None and position.size is not None:
                     # Simple calculation: size * mark_price
                     # Assumes mark_price is in valuation_asset or convertible
-                    # TODO: Add currency conversion if needed based on symbol quote asset vs valuation_asset
+                    # TODO: Add currency conversion if needed based on symbol quote asset vs
+                    # valuation_asset
                     position_value = position.size * position.mark_price
                     total_exposure += (
                         position_value  # Net exposure (longs positive, shorts negative)
                     )
-                # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-                #      logger.warning(f"Cannot calculate exposure for position {position.symbol}: missing mark_price or size.")
+                # else: # Mypy error: Statement is unreachable [unreachable] -
+                # Removed unreachable code block
+                #      logger.warning(f"Cannot calculate exposure for position {position.symbol}: "
+                #                    f"missing mark_price or size.")
         return total_exposure
 
     def get_pnl(self) -> tuple[Decimal, Decimal]:
@@ -1218,8 +1266,10 @@ class PortfolioTracker:
                             pnl = -pnl
                         total_unrealized_pnl += pnl
                         # logger.debug(f"Calculated unrealized PNL for {position.symbol}: {pnl}")
-                    # else: # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-                    #      logger.warning(f"Cannot calculate PNL for position {position.symbol}: missing PNL, mark_price, entry_price, or size.")
+                    # else: # Mypy error: Statement is unreachable [unreachable] -
+                    # Removed unreachable code block
+                    #      logger.warning(f"Cannot calculate PNL for position {position.symbol}: "
+                    #                    f"missing PNL, mark_price, entry_price, or size.")
 
         return total_unrealized_pnl, self._realized_pnl
 
@@ -1281,8 +1331,10 @@ class PortfolioTracker:
             # logger.debug("High watermark is zero or negative, cannot calculate drawdown.")
             return Decimal("0.0")  # Or None? Returning 0 might be safer.
 
-        # if current_capital <= Decimal("0.0"): # Mypy error: Statement is unreachable [unreachable] - Removed unreachable code block
-        #      logger.warning(f"Current capital ({current_capital}) is zero or negative. Reporting 100% drawdown.")
+        # if current_capital <= Decimal("0.0"): # Mypy error: Statement is unreachable -
+        # Removed unreachable code block
+        #      logger.warning(f"Current capital ({current_capital}) is zero or negative. "
+        #                    f"Reporting 100% drawdown.")
         #      return Decimal("1.0") # 100% drawdown
 
         drawdown = (self._high_watermark - current_capital) / self._high_watermark
@@ -1340,7 +1392,8 @@ class PortfolioTracker:
         # for ex_id, bals in tracker._balances.items():
         #     for asset, bal_data in bals.items():
         #         if isinstance(bal_data, dict):
-        #             tracker._balances[ex_id][asset] = Balance(**bal_data) # Assuming keys match __init__
+        #             tracker._balances[ex_id][asset] = Balance(**bal_data) # Assuming keys match
+        #             # __init__
         # Similar loops for positions and orders...
         logger.warning(
             "PortfolioTracker.from_dict needs implementation for object deserialization."
