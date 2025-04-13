@@ -609,295 +609,290 @@ class PerformanceVisualizer:
 class PerformanceMetricsCalculator:
     """
     Calculator for strategy performance metrics.
-    
+
     This class provides methods to calculate various performance metrics
     from strategy returns and trade data.
     """
-    
+
     def __init__(self, annualization_factor: int = 252) -> None:
         """
         Initialize the calculator.
-        
+
         Args:
             annualization_factor: Number of trading periods in a year
                 (252 for daily returns, 12 for monthly, etc.)
         """
         self.annualization_factor = annualization_factor
-    
+
     def calculate_sharpe_ratio(
-        self, 
-        returns: pd.Series, 
+        self,
+        returns: pd.Series,
         risk_free_rate: float = 0.0,
     ) -> float:
         """
         Calculate the Sharpe ratio.
-        
+
         Args:
             returns: Series of period returns
             risk_free_rate: Risk-free rate (annualized)
-            
+
         Returns:
             Sharpe ratio (annualized)
         """
         if len(returns) < 2:
             return 0.0
-            
+
         # Convert annual risk-free rate to period rate
         period_risk_free = risk_free_rate / self.annualization_factor
-        
+
         excess_returns = returns - period_risk_free
-        
+
         if excess_returns.std() == 0:
             return 0.0
-            
+
         sharpe = excess_returns.mean() / excess_returns.std()
-        
+
         # Annualize
         return sharpe * np.sqrt(self.annualization_factor)
-    
+
     def calculate_sortino_ratio(
-        self, 
-        returns: pd.Series, 
-        risk_free_rate: float = 0.0,
-        target_return: float = 0.0
+        self, returns: pd.Series, risk_free_rate: float = 0.0, target_return: float = 0.0
     ) -> float:
         """
         Calculate the Sortino ratio.
-        
+
         Args:
             returns: Series of period returns
             risk_free_rate: Risk-free rate (annualized)
             target_return: Minimum acceptable return (usually 0)
-            
+
         Returns:
             Sortino ratio (annualized)
         """
         if len(returns) < 2:
             return 0.0
-            
+
         # Convert annual rates to period rates
         period_risk_free = risk_free_rate / self.annualization_factor
         period_target = target_return / self.annualization_factor
-        
+
         # Calculate excess returns
         excess_returns = returns - period_risk_free
-        
+
         # Calculate downside deviation (below target)
         downside_returns = returns[returns < period_target]
-        
+
         if len(downside_returns) == 0 or downside_returns.std() == 0:
             # No downside or zero downside deviation
-            return float('inf') if excess_returns.mean() > 0 else 0.0
-        
+            return float("inf") if excess_returns.mean() > 0 else 0.0
+
         # Sortino ratio
         sortino = excess_returns.mean() / downside_returns.std()
-        
+
         # Annualize
         return sortino * np.sqrt(self.annualization_factor)
-    
+
     def calculate_max_drawdown(self, returns: pd.Series) -> float:
         """
         Calculate the maximum drawdown percentage.
-        
+
         Args:
             returns: Series of period returns
-            
+
         Returns:
             Maximum drawdown as a percentage (0-100)
         """
         if len(returns) < 2:
             return 0.0
-            
+
         # Calculate cumulative returns
         cum_returns = (1 + returns).cumprod()
-        
+
         # Calculate running maximum
         running_max = cum_returns.cummax()
-        
+
         # Calculate drawdowns
         drawdowns = (cum_returns / running_max - 1) * 100  # As percentage
-        
+
         # Find the maximum drawdown
         max_drawdown = abs(drawdowns.min())
-        
+
         return max_drawdown
-    
-    def calculate_calmar_ratio(
-        self, 
-        returns: pd.Series, 
-        period: int = 36
-    ) -> float:
+
+    def calculate_calmar_ratio(self, returns: pd.Series, period: int = 36) -> float:
         """
         Calculate the Calmar ratio.
-        
+
         Args:
             returns: Series of period returns
             period: Period in months for the Calmar ratio calculation
-            
+
         Returns:
             Calmar ratio
         """
         if len(returns) < 2:
             return 0.0
-            
+
         # Annualized return
         ann_return = self.calculate_annualized_return(returns) * 100  # As percentage
-        
+
         # Maximum drawdown
         max_dd = self.calculate_max_drawdown(returns)
-        
+
         if max_dd == 0:
-            return float('inf') if ann_return > 0 else 0.0
-            
+            return float("inf") if ann_return > 0 else 0.0
+
         # Calmar ratio
         return ann_return / max_dd
-    
+
     def calculate_annualized_return(self, returns: pd.Series) -> float:
         """
         Calculate the annualized return.
-        
+
         Args:
             returns: Series of period returns
-            
+
         Returns:
             Annualized return (decimal)
         """
         if len(returns) < 1:
             return 0.0
-            
+
         # Compound the returns
         total_return = (1 + returns).prod() - 1
-        
-        # Annualize 
+
+        # Annualize
         periods = len(returns)
         annualized_return = (1 + total_return) ** (self.annualization_factor / periods) - 1
-        
+
         return annualized_return
-    
+
     def calculate_annualized_volatility(self, returns: pd.Series) -> float:
         """
         Calculate the annualized volatility.
-        
+
         Args:
             returns: Series of period returns
-            
+
         Returns:
             Annualized volatility (decimal)
         """
         if len(returns) < 2:
             return 0.0
-            
+
         # Annualize the standard deviation
         return returns.std() * np.sqrt(self.annualization_factor)
-    
+
     def calculate_win_rate(self, trades: pd.DataFrame) -> float:
         """
         Calculate the win rate.
-        
+
         Args:
             trades: DataFrame of trades with 'pnl' column
-            
+
         Returns:
             Win rate as a percentage (0-100)
         """
         if len(trades) == 0:
             return 0.0
-            
+
         # Count winning trades
-        winning_trades = len(trades[trades['pnl'] > 0])
-        
+        winning_trades = len(trades[trades["pnl"] > 0])
+
         # Calculate win rate
         win_rate = (winning_trades / len(trades)) * 100
-        
+
         return win_rate
-    
+
     def calculate_profit_factor(self, trades: pd.DataFrame) -> float:
         """
         Calculate the profit factor.
-        
+
         Args:
             trades: DataFrame of trades with 'pnl' column
-            
+
         Returns:
             Profit factor (gross profit / gross loss)
         """
         if len(trades) == 0:
             return 0.0
-            
+
         # Separate winning and losing trades
-        winning_trades = trades[trades['pnl'] > 0]
-        losing_trades = trades[trades['pnl'] < 0]
-        
-        gross_profit = winning_trades['pnl'].sum() if len(winning_trades) > 0 else 0
-        gross_loss = abs(losing_trades['pnl'].sum()) if len(losing_trades) > 0 else 0
-        
+        winning_trades = trades[trades["pnl"] > 0]
+        losing_trades = trades[trades["pnl"] < 0]
+
+        gross_profit = winning_trades["pnl"].sum() if len(winning_trades) > 0 else 0
+        gross_loss = abs(losing_trades["pnl"].sum()) if len(losing_trades) > 0 else 0
+
         if gross_loss == 0:
-            return float('inf') if gross_profit > 0 else 0.0
-            
+            return float("inf") if gross_profit > 0 else 0.0
+
         return gross_profit / gross_loss
-    
-    def calculate_average_trade(self, trades: pd.DataFrame, win_loss: str = 'all') -> float:
+
+    def calculate_average_trade(self, trades: pd.DataFrame, win_loss: str = "all") -> float:
         """
         Calculate the average trade P&L.
-        
+
         Args:
             trades: DataFrame of trades with 'pnl' column
             win_loss: Filter trades ('all', 'win', or 'loss')
-            
+
         Returns:
             Average trade P&L
         """
         if len(trades) == 0:
             return 0.0
-            
-        if win_loss == 'win':
-            filtered_trades = trades[trades['pnl'] > 0]
-        elif win_loss == 'loss':
-            filtered_trades = trades[trades['pnl'] < 0]
+
+        if win_loss == "win":
+            filtered_trades = trades[trades["pnl"] > 0]
+        elif win_loss == "loss":
+            filtered_trades = trades[trades["pnl"] < 0]
         else:
             filtered_trades = trades
-            
+
         if len(filtered_trades) == 0:
             return 0.0
-            
-        return filtered_trades['pnl'].mean()
-    
+
+        return filtered_trades["pnl"].mean()
+
     def calculate_all_metrics(
-        self, 
-        returns: pd.Series, 
-        trades: pd.DataFrame = None
+        self, returns: pd.Series, trades: pd.DataFrame = None
     ) -> dict[str, float]:
         """
         Calculate all performance metrics.
-        
+
         Args:
             returns: Series of period returns
             trades: DataFrame of trades
-            
+
         Returns:
             Dictionary of performance metrics
         """
         metrics = {}
-        
+
         # Return-based metrics
-        metrics['annualized_return'] = self.calculate_annualized_return(returns) * 100  # As percentage
-        metrics['annualized_volatility'] = self.calculate_annualized_volatility(returns) * 100  # As percentage
-        metrics['sharpe_ratio'] = self.calculate_sharpe_ratio(returns)
-        metrics['sortino_ratio'] = self.calculate_sortino_ratio(returns)
-        metrics['max_drawdown'] = self.calculate_max_drawdown(returns)
-        metrics['calmar_ratio'] = self.calculate_calmar_ratio(returns)
-        
+        metrics["annualized_return"] = (
+            self.calculate_annualized_return(returns) * 100
+        )  # As percentage
+        metrics["annualized_volatility"] = (
+            self.calculate_annualized_volatility(returns) * 100
+        )  # As percentage
+        metrics["sharpe_ratio"] = self.calculate_sharpe_ratio(returns)
+        metrics["sortino_ratio"] = self.calculate_sortino_ratio(returns)
+        metrics["max_drawdown"] = self.calculate_max_drawdown(returns)
+        metrics["calmar_ratio"] = self.calculate_calmar_ratio(returns)
+
         # Trade-based metrics (if trades provided)
         if trades is not None and len(trades) > 0:
-            metrics['win_rate'] = self.calculate_win_rate(trades)
-            metrics['profit_factor'] = self.calculate_profit_factor(trades)
-            metrics['avg_win'] = self.calculate_average_trade(trades, 'win')
-            metrics['avg_loss'] = self.calculate_average_trade(trades, 'loss')
-            metrics['total_trades'] = len(trades)
+            metrics["win_rate"] = self.calculate_win_rate(trades)
+            metrics["profit_factor"] = self.calculate_profit_factor(trades)
+            metrics["avg_win"] = self.calculate_average_trade(trades, "win")
+            metrics["avg_loss"] = self.calculate_average_trade(trades, "loss")
+            metrics["total_trades"] = len(trades)
             # Add counts for winning and losing trades
-            metrics['winning_trades'] = len(trades[trades['pnl'] > 0])
-            metrics['losing_trades'] = len(trades[trades['pnl'] <= 0])
-        
+            metrics["winning_trades"] = len(trades[trades["pnl"] > 0])
+            metrics["losing_trades"] = len(trades[trades["pnl"] <= 0])
+
         return metrics
 
 

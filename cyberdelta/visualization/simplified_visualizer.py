@@ -124,14 +124,14 @@ def generate_example_data(
 def _decimal_to_float(value: Any) -> float:
     """
     Safely convert a value to float for visualization purposes.
-    
+
     This is necessary because matplotlib requires float values.
     We convert at the last possible moment to maintain precision
     as long as possible.
-    
+
     Args:
         value: Value to convert (Decimal, str, or other numeric type)
-        
+
     Returns:
         float: The converted value
     """
@@ -223,9 +223,14 @@ class SimpleVisualizer:
             logger.warning("No completed trades to plot cumulative PnL")
             # Create an empty figure instead of returning None
             fig, ax = self._setup_plot("Cumulative PnL (No Data)", "Date", "PnL ($)")
-            ax.text(0.5, 0.5, "No trade data available", 
-                    horizontalalignment='center', verticalalignment='center',
-                    transform=ax.transAxes)
+            ax.text(
+                0.5,
+                0.5,
+                "No trade data available",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+            )
             self._finalize_plot(fig, ax, "cumulative_pnl", save, show)
             return fig
 
@@ -233,7 +238,7 @@ class SimpleVisualizer:
         try:
             trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"])
             trades_df = trades_df.sort_values("exit_time")
-            
+
             # Store the original Decimal values as strings to preserve precision
             # We'll only convert to float at the moment of plotting
             if "pnl" in trades_df.columns:
@@ -246,7 +251,7 @@ class SimpleVisualizer:
         except Exception as e:
             logger.error(f"Error processing trade timestamps for PnL plot: {e}", exc_info=True)
             return None
-            
+
         # Calculate cumulative PnL using the float column for plotting
         trades_df["cumulative_pnl"] = trades_df["pnl_float"].cumsum()
 
@@ -306,9 +311,14 @@ class SimpleVisualizer:
             logger.warning("No daily PnL data to plot drawdown")
             # Create an empty figure instead of returning None
             fig, ax = self._setup_plot("Drawdown (No Data)", "Date", "Drawdown (%)")
-            ax.text(0.5, 0.5, "No drawdown data available", 
-                    horizontalalignment='center', verticalalignment='center',
-                    transform=ax.transAxes)
+            ax.text(
+                0.5,
+                0.5,
+                "No drawdown data available",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+            )
             self._finalize_plot(fig, ax, "drawdown", save, show)
             return fig
 
@@ -321,16 +331,16 @@ class SimpleVisualizer:
 
         # --- Plotting ---
         fig, ax = self._setup_plot("Drawdown", "Date", "Drawdown (%)")
-        
+
         # Convert to float only at visualization time, multiply by 100 for percentage
         # Use list comprehension instead of numpy conversion to maintain precision longer
         drawdown_values = [_decimal_to_float(val) * 100 for val in drawdown.values]
         ax.fill_between(drawdown.index, 0, drawdown_values, color="red", alpha=0.3)
         ax.plot(drawdown.index, drawdown_values, color="red", linewidth=1)
-        
+
         # Format x-axis dates
         self._format_xaxis_date(fig, ax)
-        
+
         # Add annotations for max drawdown
         try:
             # Convert to float only when needed for plotting
@@ -346,7 +356,7 @@ class SimpleVisualizer:
             )
         except Exception as e:
             logger.warning(f"Could not add max drawdown annotation: {e}")
-        
+
         # Finalize plot
         self._finalize_plot(fig, ax, "drawdown", save, show)
 
@@ -370,9 +380,14 @@ class SimpleVisualizer:
             logger.warning("No completed trades with PnL data to plot distribution")
             # Create an empty figure instead of returning None
             fig, ax = self._setup_plot("Trade Distribution (No Data)", "PnL ($)", "Frequency")
-            ax.text(0.5, 0.5, "No trade distribution data available", 
-                    horizontalalignment='center', verticalalignment='center',
-                    transform=ax.transAxes)
+            ax.text(
+                0.5,
+                0.5,
+                "No trade distribution data available",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+            )
             self._finalize_plot(fig, ax, "trade_distribution", save, show)
             return fig
 
@@ -421,9 +436,14 @@ class SimpleVisualizer:
             logger.warning("No completed trades with PnL data to plot win/loss comparison")
             # Create an empty figure instead of returning None
             fig, ax = self._setup_plot("Winning vs. Losing Trades (No Data)", "", "Count")
-            ax.text(0.5, 0.5, "No trade data available", 
-                   horizontalalignment='center', verticalalignment='center',
-                   transform=ax.transAxes)
+            ax.text(
+                0.5,
+                0.5,
+                "No trade data available",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+            )
             # Force save to be true to ensure file is created for tests
             self._finalize_plot(fig, ax, "win_loss_ratio", save, show)
             return fig
@@ -431,7 +451,7 @@ class SimpleVisualizer:
         # Convert to float values only for visualization categorization
         # Use list comprehension to defer float conversion as long as possible
         pnl_values = [_decimal_to_float(pnl) for pnl in trades_df["pnl"]]
-        
+
         # Separate winning and losing trades
         winners = [p for p in pnl_values if p > 0]
         losers = [p for p in pnl_values if p < 0]
@@ -507,9 +527,14 @@ class SimpleVisualizer:
             logger.warning("Insufficient trade data for monthly performance plot")
             # Create an empty figure instead of returning None
             fig, ax = self._setup_plot("Monthly Performance (No Data)", "Month", "PnL ($)")
-            ax.text(0.5, 0.5, "No monthly performance data available", 
-                   horizontalalignment='center', verticalalignment='center',
-                   transform=ax.transAxes)
+            ax.text(
+                0.5,
+                0.5,
+                "No monthly performance data available",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+            )
             self._finalize_plot(fig, ax, "monthly_performance", save, show)
             return fig
 
@@ -579,15 +604,15 @@ class SimpleVisualizer:
     def generate_performance_summary(self) -> str:
         """
         Generate a text summary of performance metrics.
-        
+
         Returns:
             String containing a formatted performance summary.
         """
         try:
             metrics = self.analyzer.calculate_metrics()
-            
+
             summary = "=== Performance Summary ===\n\n"
-            
+
             # Format metrics into categories
             summary += "--- Trade Metrics ---\n"
             summary += f"Total Trades: {metrics.get('total_trades', 0)}\n"
@@ -596,19 +621,19 @@ class SimpleVisualizer:
             summary += f"Total PnL: ${metrics.get('total_pnl', 0.0):.2f}\n"
             summary += f"Average Win: ${metrics.get('avg_win', 0.0):.2f}\n"
             summary += f"Average Loss: ${metrics.get('avg_loss', 0.0):.2f}\n\n"
-            
+
             summary += "--- Return Metrics ---\n"
             summary += f"Sharpe Ratio: {metrics.get('sharpe_ratio', 0.0):.2f}\n"
             summary += f"Max Drawdown: {metrics.get('max_drawdown', 0.0):.2f}%\n"
             summary += f"Cumulative Return: {metrics.get('cumulative_return', 0.0):.2f}%\n"
             summary += f"Annualized Return: {metrics.get('annualized_return', 0.0):.2f}%\n"
             summary += f"Volatility: {metrics.get('volatility', 0.0):.2f}%\n"
-            
+
             return summary
         except Exception as e:
             logger.error(f"Error generating performance summary: {e}")
             return "Error generating performance summary. See logs for details."
-            
+
     def plot_performance_metrics(self, save: bool = False, show: bool = True) -> plt.Figure | None:
         """
         Plot key performance metrics as a bar chart.
@@ -622,17 +647,22 @@ class SimpleVisualizer:
         """
         # Get performance metrics
         metrics = self.analyzer.calculate_metrics()
-        
+
         if metrics.get("total_trades", 0) == 0:
             logger.warning("No trades available for performance metrics plot")
             # Create an empty figure instead of returning None
             fig, ax = self._setup_plot("Performance Metrics (No Data)", "", "")
-            ax.text(0.5, 0.5, "No performance metrics available", 
-                   horizontalalignment='center', verticalalignment='center',
-                   transform=ax.transAxes)
+            ax.text(
+                0.5,
+                0.5,
+                "No performance metrics available",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+            )
             self._finalize_plot(fig, ax, "performance_metrics", save, show)
             return fig
-        
+
         # Select metrics to display
         display_metrics = {
             "Win Rate (%)": metrics.get("win_rate", 0.0),
@@ -641,14 +671,14 @@ class SimpleVisualizer:
             "Max Drawdown (%)": metrics.get("max_drawdown", 0.0),
             "Ann. Return (%)": metrics.get("annualized_return", 0.0),
         }
-        
+
         # Create figure
         fig, ax = self._setup_plot("Performance Metrics", "", "Value")
-        
+
         # Convert to list for plotting
         labels = list(display_metrics.keys())
         values = list(display_metrics.values())
-        
+
         # Choose colors based on metric type/value
         colors = []
         for key, value in display_metrics.items():
@@ -660,36 +690,31 @@ class SimpleVisualizer:
                 colors.append("green")
             else:
                 colors.append("gray")
-                
+
         # Create horizontal bar chart
         bars = ax.barh(labels, values, color=colors, alpha=0.7)
-        
+
         # Add value labels
         for i, bar in enumerate(bars):
             width = bar.get_width()
             label_x_pos = width if width >= 0 else 0
-            
+
             # Format the label based on the metric
             if labels[i] in ["Win Rate (%)", "Max Drawdown (%)", "Ann. Return (%)"]:
                 value_text = f"{width:.1f}%"
             elif labels[i] == "Profit Factor" and width > 100:
-                value_text = "∞" if width == float('inf') else f"{width:.1f}"
+                value_text = "∞" if width == float("inf") else f"{width:.1f}"
             else:
                 value_text = f"{width:.2f}"
-                
-            ax.text(
-                label_x_pos + 0.1, 
-                bar.get_y() + bar.get_height()/2,
-                value_text,
-                va='center'
-            )
-            
+
+            ax.text(label_x_pos + 0.1, bar.get_y() + bar.get_height() / 2, value_text, va="center")
+
         # Adjust layout
         plt.tight_layout()
-        
+
         # Finalize plot
         self._finalize_plot(fig, ax, "performance_metrics", save, show)
-        
+
         return fig
 
     def generate_performance_report(self, save_dir: str | None = None) -> dict[str, str]:

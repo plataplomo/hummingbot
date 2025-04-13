@@ -3,7 +3,7 @@ Module for calculating various financial performance metrics.
 """
 
 import logging
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 import numpy as np
 import pandas as pd
@@ -33,7 +33,7 @@ class PerformanceMetricsCalculator:
         """
         # Convert risk_free_rate to per-period rate (using Decimal for division)
         per_period_rfr = risk_free_rate / Decimal(str(periods_per_year))
-        
+
         # Calculate excess returns (Series operations will convert to float internally)
         excess_returns = returns - float(per_period_rfr)
         mean_excess_return = excess_returns.mean()
@@ -47,7 +47,7 @@ class PerformanceMetricsCalculator:
 
         # Calculate Sharpe ratio then convert back to Decimal for return
         sharpe_ratio = mean_excess_return / std_dev_excess_return
-        
+
         # Convert numpy result to Decimal for final calculation
         sqrt_periods = Decimal(str(np.sqrt(periods_per_year)))
         annualized_sharpe_ratio = Decimal(str(sharpe_ratio)) * sqrt_periods
@@ -70,7 +70,7 @@ class PerformanceMetricsCalculator:
         """
         # Convert risk_free_rate to per-period rate
         per_period_rfr = risk_free_rate / Decimal(str(periods_per_year))
-        
+
         # Calculate excess returns (Series operations will convert to float internally)
         excess_returns = returns - float(per_period_rfr)
         mean_excess_return = excess_returns.mean()
@@ -92,7 +92,7 @@ class PerformanceMetricsCalculator:
 
         # Calculate Sortino ratio then convert to Decimal
         sortino_ratio = mean_excess_return / downside_deviation
-        
+
         # Convert numpy result to Decimal
         sqrt_periods = Decimal(str(np.sqrt(periods_per_year)))
         annualized_sortino_ratio = Decimal(str(sortino_ratio)) * sqrt_periods
@@ -130,7 +130,7 @@ class PerformanceMetricsCalculator:
         # Calculate annualized return
         mean_return = returns.mean()
         mean_annual_return = Decimal(str(mean_return)) * Decimal(str(periods_per_year))
-        
+
         # Get max drawdown as Decimal
         max_drawdown = PerformanceMetricsCalculator.calculate_max_drawdown(returns)
 
@@ -158,13 +158,13 @@ class PerformanceMetricsCalculator:
         if trades is None or trades.empty or "pnl" not in trades.columns:
             logger.warning("Trade data is missing or invalid for win rate calculation.")
             return Decimal("NaN")
-            
+
         winning_trades = trades[trades["pnl"] > 0]
         total_trades = len(trades)
-        
+
         if total_trades == 0:
             return Decimal("0.0")
-            
+
         win_rate = (Decimal(str(len(winning_trades))) / Decimal(str(total_trades))) * Decimal("100")
         return win_rate
 

@@ -7,21 +7,20 @@ from unittest.mock import MagicMock, Mock
 
 import pytz
 
-from cyberdelta.core.models import MarketData, OrderSide, SignalType, TradeSignal
-
-# Define UTC timezone
-UTC = pytz.UTC
-
 from cyberdelta.core.execution_handler import ExecutionHandler
+from cyberdelta.core.models import MarketData, OrderSide, SignalType, TradeSignal
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
 
+# Define UTC timezone
+UTC = pytz.UTC
+
 
 class TestStrategyManager(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create mock strategies
         self.mock_strategy1 = Mock(spec=Strategy)
         self.mock_strategy1.name = "test_strategy1"
@@ -54,7 +53,7 @@ class TestStrategyManager(unittest.TestCase):
         self.strategy_manager.register_strategy(self.mock_strategy1)
         self.strategy_manager.register_strategy(self.mock_strategy2)
 
-    def test_register_strategy(self):
+    def test_register_strategy(self) -> None:
         # Register the first strategy
         self.strategy_manager.register_strategy(self.mock_strategy1)
 
@@ -73,7 +72,7 @@ class TestStrategyManager(unittest.TestCase):
         self.assertEqual(len(self.strategy_manager.strategies), 2)
         self.assertEqual(len(self.strategy_manager.active_symbols), 2)
 
-    def test_enable_disable_strategy(self):
+    def test_enable_disable_strategy(self) -> None:
         # Register both strategies
         self.strategy_manager.register_strategy(self.mock_strategy1)
         self.strategy_manager.register_strategy(self.mock_strategy2)
@@ -96,7 +95,7 @@ class TestStrategyManager(unittest.TestCase):
         self.assertIn(self.mock_strategy2.name, self.strategy_manager.enabled_strategies)
         self.mock_strategy1.disable.assert_called_once()
 
-    def test_process_market_data(self):
+    def test_process_market_data(self) -> None:
         # Register both strategies
         self.strategy_manager.register_strategy(self.mock_strategy1)
         self.strategy_manager.register_strategy(self.mock_strategy2)
@@ -109,11 +108,11 @@ class TestStrategyManager(unittest.TestCase):
         market_data = MarketData(
             symbol="BTC-USDT",
             timestamp=datetime.now(),
-            open=50000.0,
-            high=51000.0,
-            low=49000.0,
-            close=50500.0,
-            volume=100.0,
+            open=Decimal("50000.0"),
+            high=Decimal("51000.0"),
+            low=Decimal("49000.0"),
+            close=Decimal("50500.0"),
+            volume=Decimal("100.0"),
         )
 
         # Create mock signal (removed id)
@@ -134,7 +133,7 @@ class TestStrategyManager(unittest.TestCase):
 
         # Configure risk manager to return the sized signal
         sized_signal = signal
-        sized_signal.quantity = 0.5  # Half the original size
+        sized_signal.quantity = Decimal("0.5")  # Half the original size
         self.mock_risk_manager.size_signal.return_value = sized_signal
 
         # Process market data
@@ -154,7 +153,7 @@ class TestStrategyManager(unittest.TestCase):
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0], sized_signal)
 
-    def test_get_strategies_for_symbol(self):
+    def test_get_strategies_for_symbol(self) -> None:
         # Register both strategies
         self.strategy_manager.register_strategy(self.mock_strategy1)
         self.strategy_manager.register_strategy(self.mock_strategy2)
@@ -172,7 +171,7 @@ class TestStrategyManager(unittest.TestCase):
         # Verify we got no strategies
         self.assertEqual(len(non_existent), 0)
 
-    def test_unregister_strategy(self):
+    def test_unregister_strategy(self) -> None:
         # Register both strategies
         self.strategy_manager.register_strategy(self.mock_strategy1)
         self.strategy_manager.register_strategy(self.mock_strategy2)
@@ -191,7 +190,7 @@ class TestStrategyManager(unittest.TestCase):
         # Verify the other strategy is still there
         self.assertIn(self.mock_strategy2.name, self.strategy_manager.strategies)
 
-    def test_start_stop_all(self):
+    def test_start_stop_all(self) -> None:
         # Register both strategies
         self.strategy_manager.register_strategy(self.mock_strategy1)
         self.strategy_manager.register_strategy(self.mock_strategy2)
@@ -216,7 +215,7 @@ class TestStrategyManager(unittest.TestCase):
         # Verify all strategies were disabled
         self.assertEqual(len(self.strategy_manager.enabled_strategies), 0)
 
-    def test_strategy_error_handling(self):
+    def test_strategy_error_handling(self) -> None:
         # Register strategy that will raise an exception
         self.mock_strategy1.process_data.side_effect = Exception("Test exception")
         self.strategy_manager.register_strategy(self.mock_strategy1)
@@ -226,11 +225,11 @@ class TestStrategyManager(unittest.TestCase):
         market_data = MarketData(
             symbol="BTC-USDT",
             timestamp=datetime.now(),
-            open=50000.0,
-            high=51000.0,
-            low=49000.0,
-            close=50500.0,
-            volume=100.0,
+            open=Decimal("50000.0"),
+            high=Decimal("51000.0"),
+            low=Decimal("49000.0"),
+            close=Decimal("50500.0"),
+            volume=Decimal("100.0"),
         )
 
         # Process market data - this should not raise an exception

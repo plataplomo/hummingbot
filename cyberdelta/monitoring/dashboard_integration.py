@@ -7,9 +7,9 @@ with the performance tracker and other system components.
 
 import os
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
-from decimal import Decimal
 
 import structlog
 

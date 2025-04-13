@@ -1,12 +1,12 @@
 from __future__ import annotations  # Enable postponed evaluation
 
 import logging
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any
-import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ class MarketData:
         self.low = self._safe_decimal_convert(self.low, "low", self.symbol)
         self.close = self._safe_decimal_convert(self.close, "close", self.symbol)
         self.volume = self._safe_decimal_convert(self.volume, "volume", self.symbol)
-        
+
         # Initialize ticker_data as an empty dict if it's None
         if self.ticker_data is None:
             self.ticker_data = {}
@@ -804,10 +804,12 @@ class ArbitrageOpportunity:
         self.expected_profit = self._safe_decimal_convert(
             expected_profit, "expected_profit", symbol, allow_none=True
         )
-        
+
         # Use float for statistical/ranking metrics that don't require financial precision
         self.confidence = self._safe_float_convert(confidence, "confidence", symbol)
-        self.basis_volatility = self._safe_float_convert(basis_volatility, "basis_volatility", symbol)
+        self.basis_volatility = self._safe_float_convert(
+            basis_volatility, "basis_volatility", symbol
+        )
         self.utility_score = self._safe_float_convert(utility_score, "utility_score", symbol)
 
         # Validate required fields are not None after conversion
@@ -845,7 +847,7 @@ class ArbitrageOpportunity:
                 f"Invalid value '{value}' for ArbitrageOpportunity field '{field_name}' "
                 f"for symbol '{symbol}'. Cannot convert to Decimal."
             ) from err
-    
+
     @staticmethod
     def _safe_float_convert(
         value: str | int | float | Decimal | None,
@@ -862,7 +864,7 @@ class ArbitrageOpportunity:
                 # Convert via string to avoid float precision issues with direct float(Decimal)
                 return float(str(value))
             return float(value)
-        except (ValueError, TypeError) as err:
+        except (ValueError, TypeError):
             logger.warning(
                 f"Invalid value '{value}' for ArbitrageOpportunity field '{field_name}' "
                 f"for symbol '{symbol}'. Cannot convert to float. Using None."
@@ -897,18 +899,26 @@ class ArbitrageOpportunity:
             "short_exchange": self.short_exchange,
             "long_price": str(self.long_price) if self.long_price is not None else None,
             "short_price": str(self.short_price) if self.short_price is not None else None,
-            "long_funding_rate": str(self.long_funding_rate) if self.long_funding_rate is not None else None,
-            "short_funding_rate": str(self.short_funding_rate) if self.short_funding_rate is not None else None,
-            "net_funding_differential": str(self.net_funding_differential) if self.net_funding_differential is not None else None,
+            "long_funding_rate": str(self.long_funding_rate)
+            if self.long_funding_rate is not None
+            else None,
+            "short_funding_rate": str(self.short_funding_rate)
+            if self.short_funding_rate is not None
+            else None,
+            "net_funding_differential": str(self.net_funding_differential)
+            if self.net_funding_differential is not None
+            else None,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "optimal_size": str(self.optimal_size) if self.optimal_size is not None else None,
-            "expected_profit": str(self.expected_profit) if self.expected_profit is not None else None,
+            "expected_profit": str(self.expected_profit)
+            if self.expected_profit is not None
+            else None,
             # Float fields don't need str() conversion
             "confidence": self.confidence,
-            "basis_volatility": self.basis_volatility, 
+            "basis_volatility": self.basis_volatility,
             "utility_score": self.utility_score,
             "expiration_timestamp": self.expiration_timestamp,
-            "id": str(uuid.uuid4())
+            "id": str(uuid.uuid4()),
         }
 
     @property
@@ -947,7 +957,7 @@ class TradeSignal:
         self.take_profit = self._safe_decimal_convert_optional(
             self.take_profit, "take_profit", self.symbol
         )
-        
+
         # Convert confidence to float (statistical measure, not financial)
         if self.confidence is not None:
             try:
@@ -966,7 +976,7 @@ class TradeSignal:
             self.timestamp = self.timestamp.replace(tzinfo=UTC)
         if self.expiration and self.expiration.tzinfo is None:
             self.expiration = self.expiration.replace(tzinfo=UTC)
-            
+
         # Generate unique signal_id if not provided
         if self.signal_id is None:
             self.signal_id = str(uuid.uuid4())
@@ -1001,7 +1011,9 @@ class TradeSignal:
         """Convert TradeSignal to dictionary."""
         result = {
             "symbol": self.symbol,
-            "signal_type": self.signal_type.name if isinstance(self.signal_type, SignalType) else self.signal_type,
+            "signal_type": self.signal_type.name
+            if isinstance(self.signal_type, SignalType)
+            else self.signal_type,
             "side": self.side.name if isinstance(self.side, OrderSide) else self.side,
             "price": str(self.price) if self.price is not None else None,
             "quantity": str(self.quantity) if self.quantity is not None else None,

@@ -3,10 +3,6 @@ from __future__ import annotations  # Enable postponed evaluation
 from collections import deque
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation, getcontext  # Import Decimal and InvalidOperation
-from typing import (  # Added Callable, Coroutine, Dict, Optional, List
-    TYPE_CHECKING,
-    Any,
-)
 
 import numpy as np
 
@@ -85,7 +81,7 @@ class SignalGenerator:
         # Historical basis data for volatility calculation
         # internal_symbol -> deque[(timestamp, basis: Decimal)]
         self.historical_basis: dict[str, deque[tuple[datetime, Decimal]]] = {}
-        
+
         # Historical slippage data for estimation
         # exchange -> symbol -> list[Decimal]
         self.historical_slippage: dict[str, dict[str, list[Decimal]]] = {}
@@ -120,7 +116,7 @@ class SignalGenerator:
 
         # Track which symbols we're monitoring
         self.tracked_symbols = all_internal_symbols
-        
+
         # Initialize historical funding rate storage
         for exchange_id in enabled_exchanges:
             self.historical_funding_rates[exchange_id] = {}
@@ -132,7 +128,9 @@ class SignalGenerator:
                 )
                 if exchange_symbol:
                     self.historical_funding_rates[exchange_id][internal_symbol] = deque()
-                    self.historical_slippage[exchange_id][internal_symbol] = []  # Initialize empty list
+                    self.historical_slippage[exchange_id][
+                        internal_symbol
+                    ] = []  # Initialize empty list
                     logger.debug(
                         f"  Initialized funding deque for {exchange_id} / {internal_symbol} (maps to {exchange_symbol})"
                     )
@@ -248,16 +246,20 @@ class SignalGenerator:
                         exchange_id, exchange_symbol
                     )
                     # Ensure market data and price are valid
-                    if market_data and hasattr(market_data, 'close'):
+                    if market_data and hasattr(market_data, "close"):
                         # Attempt to convert price to Decimal immediately for validation
                         try:
-                            price_decimal = market_data.close  # Already Decimal from MarketData.__post_init__
+                            price_decimal = (
+                                market_data.close
+                            )  # Already Decimal from MarketData.__post_init__
                             valid_exchanges_for_symbol.append(exchange_id)
                             # Create a Ticker object from MarketData for consistency
                             ticker = Ticker(
                                 symbol=market_data.symbol,
                                 price=price_decimal,
-                                timestamp=int(market_data.timestamp.timestamp() * 1000) if market_data.timestamp else None
+                                timestamp=int(market_data.timestamp.timestamp() * 1000)
+                                if market_data.timestamp
+                                else None,
                             )
                             # Store the ticker
                             exchange_tickers[exchange_id] = ticker
@@ -308,7 +310,7 @@ class SignalGenerator:
 
         if internal_symbol not in self.historical_funding_rates[exchange]:
             # logger.debug(f"No funding data for {internal_symbol} on {exchange}. Returning default.")
-            return Decimal("0.0001")  # Default funding volatility 
+            return Decimal("0.0001")  # Default funding volatility
 
         history_deque = self.historical_funding_rates[exchange][internal_symbol]
         if len(history_deque) < 2:
@@ -322,17 +324,17 @@ class SignalGenerator:
             # Calculate standard deviation using Decimal arithmetic
             # Convert any non-Decimal values to Decimal
             decimal_rates = [r if isinstance(r, Decimal) else Decimal(str(r)) for r in rates]
-            
+
             # Calculate mean
             n = len(decimal_rates)
             mean = sum(decimal_rates) / Decimal(n)
-            
+
             # Calculate variance (sum of squared differences from mean, divided by n-1)
             variance = sum((r - mean) ** 2 for r in decimal_rates) / Decimal(n - 1)
-            
+
             # Take square root for standard deviation
             std_dev_decimal = variance.sqrt()
-            
+
             # Return a minimum non-zero volatility
             return max(Decimal("1e-8"), std_dev_decimal)  # Ensure non-zero return
         except (InvalidOperation, TypeError, ValueError) as e:
@@ -365,22 +367,22 @@ class SignalGenerator:
             return Decimal("0.01")  # Default volatility
 
         basis_values = [basis for _, basis in history_deque]
-        
+
         try:
             # Calculate standard deviation using Decimal arithmetic
             # Convert any non-Decimal values to Decimal
             decimal_basis = [b if isinstance(b, Decimal) else Decimal(str(b)) for b in basis_values]
-            
+
             # Calculate mean
             n = len(decimal_basis)
             mean = sum(decimal_basis) / Decimal(n)
-            
+
             # Calculate variance (sum of squared differences from mean, divided by n-1)
             variance = sum((b - mean) ** 2 for b in decimal_basis) / Decimal(n - 1)
-            
+
             # Take square root for standard deviation
             std_dev_decimal = variance.sqrt()
-            
+
             # Return a minimum non-zero volatility
             return max(Decimal("1e-8"), std_dev_decimal)  # Ensure non-zero return
         except (InvalidOperation, TypeError, ValueError) as e:
@@ -390,7 +392,9 @@ class SignalGenerator:
                 f"Falling back to numpy (with potential precision loss)."
             )
             try:
-                basis_float = [float(str(b)) for b in basis_values]  # Convert via string to minimize loss
+                basis_float = [
+                    float(str(b)) for b in basis_values
+                ]  # Convert via string to minimize loss
                 std_dev = np.std(basis_float)
                 std_dev_decimal = Decimal(str(std_dev))
                 return max(Decimal("1e-8"), std_dev_decimal)
@@ -488,8 +492,10 @@ class SignalGenerator:
         # Sort opportunities by net funding differential in descending order
         # Use a lambda that explicitly returns a float for sorting compatibility
         opportunities.sort(
-            key=lambda x: float(x.net_funding_differential) if x.net_funding_differential is not None else 0.0, 
-            reverse=True
+            key=lambda x: float(x.net_funding_differential)
+            if x.net_funding_differential is not None
+            else 0.0,
+            reverse=True,
         )
         return opportunities
 

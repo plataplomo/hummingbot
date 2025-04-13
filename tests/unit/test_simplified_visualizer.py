@@ -14,7 +14,7 @@ from cyberdelta.visualization.simplified_visualizer import SimpleVisualizer
 
 
 class TestSimpleVisualizer(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test environment before each test method."""
         # Create a temporary directory for output files
         self.test_dir = tempfile.mkdtemp()
@@ -31,7 +31,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         # Disable showing plots during tests
         plt.ioff()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up after each test method."""
         # Remove temporary directory
         shutil.rmtree(self.test_dir)
@@ -39,7 +39,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         # Close all plots
         plt.close("all")
 
-    def populate_sample_data(self):
+    def populate_sample_data(self) -> None:
         """Populate tracker with sample data for testing."""
         now = datetime.now()
         base_time = now - timedelta(days=60)
@@ -91,13 +91,13 @@ class TestSimpleVisualizer(unittest.TestCase):
             )
             self.tracker.track_trade_exit(trade_id, 51000.0, exit_time, pnl)
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test that visualizer initializes correctly."""
         self.assertEqual(self.visualizer.tracker, self.tracker)
         self.assertEqual(self.visualizer.output_dir, self.test_dir)
         self.assertTrue(os.path.exists(self.test_dir))
 
-    def test_plot_cumulative_pnl(self):
+    def test_plot_cumulative_pnl(self) -> None:
         """Test cumulative PnL plot generation."""
         # Test with show=False to avoid displaying during tests
         fig = self.visualizer.plot_cumulative_pnl(save=True, show=False)
@@ -112,7 +112,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         # Check file size to ensure it's not empty
         self.assertGreater(os.path.getsize(file_path), 0)
 
-    def test_plot_drawdown(self):
+    def test_plot_drawdown(self) -> None:
         """Test drawdown plot generation."""
         fig = self.visualizer.plot_drawdown(save=True, show=False)
 
@@ -126,7 +126,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         # Check file size to ensure it's not empty
         self.assertGreater(os.path.getsize(file_path), 0)
 
-    def test_plot_trade_distribution(self):
+    def test_plot_trade_distribution(self) -> None:
         """Test trade distribution plot generation."""
         fig = self.visualizer.plot_trade_distribution(save=True, show=False)
 
@@ -140,7 +140,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         # Check file size to ensure it's not empty
         self.assertGreater(os.path.getsize(file_path), 0)
 
-    def test_plot_winning_vs_losing_trades(self):
+    def test_plot_winning_vs_losing_trades(self) -> None:
         """Test winning vs losing trades plot generation."""
         fig = self.visualizer.plot_winning_vs_losing_trades(save=True, show=False)
 
@@ -154,7 +154,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         # Check file size to ensure it's not empty
         self.assertGreater(os.path.getsize(file_path), 0)
 
-    def test_plot_monthly_performance(self):
+    def test_plot_monthly_performance(self) -> None:
         """Test monthly performance plot generation."""
         fig = self.visualizer.plot_monthly_performance(save=True, show=False)
 
@@ -168,7 +168,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         # Check file size to ensure it's not empty
         self.assertGreater(os.path.getsize(file_path), 0)
 
-    def test_plot_performance_metrics(self):
+    def test_plot_performance_metrics(self) -> None:
         """Test performance metrics plot generation."""
         fig = self.visualizer.plot_performance_metrics(save=True, show=False)
 
@@ -182,7 +182,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         # Check file size to ensure it's not empty
         self.assertGreater(os.path.getsize(file_path), 0)
 
-    def test_generate_performance_report(self):
+    def test_generate_performance_report(self) -> None:
         """Test generation of performance report with all plots."""
         report_files = self.visualizer.generate_performance_report()
 
@@ -201,7 +201,7 @@ class TestSimpleVisualizer(unittest.TestCase):
             self.assertTrue(os.path.exists(report_files[plot_name]))
             self.assertGreater(os.path.getsize(report_files[plot_name]), 0)
 
-    def test_empty_data_handling(self):
+    def test_empty_data_handling(self) -> None:
         """Test handling of empty data."""
         # Create empty tracker
         empty_tracker = SimplePerformanceTracker("EmptyStrategy", output_dir=self.test_dir)

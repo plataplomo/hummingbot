@@ -820,28 +820,30 @@ class PortfolioTracker:
     def _split_symbol(self, symbol: str) -> tuple[str, str]:
         """
         Split a trading symbol into base and quote currencies.
-        
+
         Args:
             symbol: Symbol in format 'BASE/QUOTE' or 'BASEQUOTE'
-            
+
         Returns:
             Tuple of (base_currency, quote_currency)
         """
         if "/" in symbol:
             base, quote = symbol.split("/")
             return base, quote
-        
+
         # For symbols without separators, try common quote currencies
         common_quotes = ["USDT", "USDC", "USD", "BTC", "ETH", "BNB"]
         for quote in common_quotes:
             if symbol.endswith(quote):
-                base = symbol[:-len(quote)]
+                base = symbol[: -len(quote)]
                 return base, quote
-                
+
         # Fallback to default splitting (last 4 chars as quote)
-        logger.warning(f"Could not clearly identify base/quote for {symbol}, using default splitting")
+        logger.warning(
+            f"Could not clearly identify base/quote for {symbol}, using default splitting"
+        )
         return symbol[:-4], symbol[-4:]
-        
+
     def update_balance(self, exchange_id: str, asset: str, amount: Decimal | Balance) -> None:
         """
         Update local state with a new balance, accepting Decimal or Balance object.
@@ -957,8 +959,16 @@ class PortfolioTracker:
                 # Use mark_price for a more accurate exposure calculation
                 if position.mark_price is not None and position.size is not None:
                     # Ensure both values are Decimal before multiplication
-                    mark_price = position.mark_price if isinstance(position.mark_price, Decimal) else Decimal(str(position.mark_price))
-                    size = position.size if isinstance(position.size, Decimal) else Decimal(str(position.size))
+                    mark_price = (
+                        position.mark_price
+                        if isinstance(position.mark_price, Decimal)
+                        else Decimal(str(position.mark_price))
+                    )
+                    size = (
+                        position.size
+                        if isinstance(position.size, Decimal)
+                        else Decimal(str(position.size))
+                    )
                     exposure += mark_price * size
 
         return exposure

@@ -152,7 +152,7 @@ class BacktestEngine:
                 raise ValueError("commission must be a valid number.")
         else:
             self.commission = commission
-            
+
         if not isinstance(slippage, Decimal):
             try:
                 self.slippage = Decimal(str(slippage))
@@ -201,11 +201,11 @@ class BacktestEngine:
         # Initialize results handler
         try:
             from .results import BacktestResultsHandler  # Local import
-            
+
             results_handler = BacktestResultsHandler(
                 strategy_name=self.strategy.name,
                 initial_capital=self.initial_capital,
-                results_dir=self.results_dir
+                results_dir=self.results_dir,
             )
         except ImportError as e:
             logger.error(f"Could not import BacktestResultsHandler: {e}")
@@ -268,7 +268,7 @@ class BacktestEngine:
                                     continue
 
                             position_value = price * size
-                            
+
                             # Check if we have enough capital
                             if position_value > current_capital:
                                 logger.warning(
@@ -285,7 +285,7 @@ class BacktestEngine:
                                 "entry_time": idx,
                             }
                             positions[symbol] = position
-                            
+
                             # Track position
                             results_handler.add_position(position)
 
@@ -326,7 +326,7 @@ class BacktestEngine:
 
                             # Calculate exit value and P&L
                             exit_value = price * position_size
-                            
+
                             # Calculate P&L based on side
                             if position["side"].lower() == "buy":  # Long position
                                 pnl = (price - entry_price) * position_size
@@ -348,7 +348,7 @@ class BacktestEngine:
 
                             # Update capital
                             current_capital += exit_value
-                            
+
                             # Remove position
                             del positions[symbol]
 
@@ -358,31 +358,32 @@ class BacktestEngine:
         # Calculate final results
         # Get the final metrics and results
         return results_handler.format_results_for_output()
-        
+
     def save_results(self, filename: str = None) -> str:
         """
         Save backtest results to a file.
-        
+
         Args:
             filename: Optional custom filename
-            
+
         Returns:
             Path to saved file
         """
         # Run backtest if not already run
-        if not hasattr(self, 'results_handler') or not self.results_handler:
+        if not hasattr(self, "results_handler") or not self.results_handler:
             try:
                 from .results import BacktestResultsHandler
+
                 self.results_handler = BacktestResultsHandler(
                     strategy_name=self.strategy.name,
                     initial_capital=self.initial_capital,
-                    results_dir=self.results_dir
+                    results_dir=self.results_dir,
                 )
                 results = self.run()
             except ImportError as e:
                 logger.error(f"Could not import BacktestResultsHandler: {e}")
                 raise ImportError("Results handler not available") from e
-                
+
         # Save results
         return self.results_handler.save_results(filename)
 
@@ -679,7 +680,10 @@ class StrategyAdapter(BacktestStrategy):
 
 # --- Example Strategy (for demonstration) ---
 
-def generate_synthetic_data(days: int = 10, volatility: float = 0.02, symbols: list[str] = None) -> pd.DataFrame:
+
+def generate_synthetic_data(
+    days: int = 10, volatility: float = 0.02, symbols: list[str] = None
+) -> pd.DataFrame:
     """
     Generate synthetic market data for backtesting.
 
@@ -691,47 +695,47 @@ def generate_synthetic_data(days: int = 10, volatility: float = 0.02, symbols: l
     Returns:
         DataFrame with synthetic OHLCV data
     """
-    symbols = symbols or ['BTC', 'ETH', 'SOL']
-    
+    symbols = symbols or ["BTC", "ETH", "SOL"]
+
     # Generate date range
     dates = pd.date_range(start=datetime.now() - pd.Timedelta(days=days), periods=days)
-    
+
     # Initialize multi-level columns DataFrame
-    columns = pd.MultiIndex.from_product([symbols, ['open', 'high', 'low', 'close', 'volume']])
+    columns = pd.MultiIndex.from_product([symbols, ["open", "high", "low", "close", "volume"]])
     data = pd.DataFrame(index=dates, columns=columns)
-    
+
     # Generate price data for each symbol
     for symbol in symbols:
         # Generate random starting price in a reasonable range
-        if symbol == 'BTC':
+        if symbol == "BTC":
             starting_price = np.random.uniform(25000, 35000)
-        elif symbol == 'ETH':
+        elif symbol == "ETH":
             starting_price = np.random.uniform(1500, 2500)
         else:
             starting_price = np.random.uniform(50, 200)
-        
+
         # Generate log returns with specified volatility
         returns = np.random.normal(0, volatility, days)
-        
+
         # Generate price series
         prices = starting_price * np.exp(np.cumsum(returns))
-        
+
         # Generate OHLC data
         for i, date in enumerate(dates):
             price = prices[i]
             daily_volatility = price * volatility
-            
+
             # Generate OHLC
-            data.loc[date, (symbol, 'open')] = price 
-            data.loc[date, (symbol, 'high')] = price * (1 + np.random.uniform(0, volatility * 2))
-            data.loc[date, (symbol, 'low')] = price * (1 - np.random.uniform(0, volatility * 1.5))
-            data.loc[date, (symbol, 'close')] = price * (1 + np.random.normal(0, volatility))
-            
+            data.loc[date, (symbol, "open")] = price
+            data.loc[date, (symbol, "high")] = price * (1 + np.random.uniform(0, volatility * 2))
+            data.loc[date, (symbol, "low")] = price * (1 - np.random.uniform(0, volatility * 1.5))
+            data.loc[date, (symbol, "close")] = price * (1 + np.random.normal(0, volatility))
+
             # Generate volume (in units)
-            data.loc[date, (symbol, 'volume')] = np.random.uniform(100, 1000) * (price / 100)
-    
+            data.loc[date, (symbol, "volume")] = np.random.uniform(100, 1000) * (price / 100)
+
     # Add funding rate columns for perpetual contracts
     for symbol in symbols:
-        data[(symbol, 'funding_rate')] = np.random.normal(0, 0.001, days)  # small funding rates
-    
+        data[(symbol, "funding_rate")] = np.random.normal(0, 0.001, days)  # small funding rates
+
     return data

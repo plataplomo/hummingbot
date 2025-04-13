@@ -518,42 +518,44 @@ class SimplePerformanceAnalyzer:
 
         return drawdown
 
-    def calculate_sharpe_ratio(self, returns: pd.Series, risk_free_rate: Decimal = Decimal("0.0")) -> Decimal:
+    def calculate_sharpe_ratio(
+        self, returns: pd.Series, risk_free_rate: Decimal = Decimal("0.0")
+    ) -> Decimal:
         """
         Calculate the Sharpe ratio for a series of returns.
-        
+
         Args:
             returns: Series of returns
             risk_free_rate: Risk-free rate (annualized) as a Decimal
-            
+
         Returns:
             Sharpe ratio as a Decimal
         """
         if len(returns) < 2:
             return Decimal("0.0")
-            
+
         # Convert risk_free_rate to daily rate (assuming daily returns)
-        daily_rf = risk_free_rate / Decimal("252") 
-        
+        daily_rf = risk_free_rate / Decimal("252")
+
         # We need to work with NumPy/Pandas for calculations, so convert Decimal to string first
         daily_rf_float = float(str(daily_rf))
-        
+
         # Calculate excess returns
         excess_returns = returns - daily_rf_float
-        
+
         # Calculate mean and standard deviation
         mean_excess_return = excess_returns.mean()
         std_excess_return = excess_returns.std()
-        
+
         if std_excess_return == 0:
             return Decimal("0.0")
-            
+
         # Calculate Sharpe ratio
         sharpe = mean_excess_return / std_excess_return
-        
+
         # Annualize (assuming daily returns, multiply by sqrt(252))
         annualized_sharpe = sharpe * np.sqrt(252)
-        
+
         # Convert back to Decimal for return
         return Decimal(str(annualized_sharpe))
 
@@ -584,7 +586,7 @@ class SimplePerformanceAnalyzer:
         """
         # Get completed trades
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
-        
+
         if trades_df.empty:
             return pd.Series()
 
@@ -593,31 +595,31 @@ class SimplePerformanceAnalyzer:
             # Convert exit_time to datetime if it's not already
             if not pd.api.types.is_datetime64_any_dtype(trades_df["exit_time"]):
                 trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"])
-                
+
             # Group by date and sum P&L
             daily_pnl = trades_df.groupby(trades_df["exit_time"].dt.date)["pnl"].sum()
             return daily_pnl
         except Exception as e:
             logger.error(f"Error calculating daily PnL: {e}")
             return pd.Series()
-            
+
     def get_daily_returns(self) -> pd.Series:
         """
         Calculate daily returns from daily P&L.
-        
+
         Returns:
             Series with daily returns as percentage
         """
         # Get daily PnL
         daily_pnl = self.get_daily_pnl()
-        
+
         if daily_pnl.empty:
             return pd.Series()
-            
+
         # Assume a fixed starting capital (e.g., $10,000) or use actual capital if available
         # Use a simple approach - convert daily PnL to returns assuming a fixed starting capital
         starting_capital = Decimal("10000.0")  # Default value
-        
+
         # Convert to returns
         daily_returns = pd.Series()
         try:
@@ -631,49 +633,59 @@ class SimplePerformanceAnalyzer:
     def calculate_metrics(self) -> dict[str, float | int | str]:
         """
         Calculate performance metrics based on trades and returns.
-        
+
         Returns:
             Dictionary of performance metrics
         """
         metrics = {}
-        
+
         # Get trade data for metrics calculation
         trades_df = self.tracker.get_trades_dataframe(completed_only=True)
-        
+
         # Calculate basic trade metrics
         total_trades = len(trades_df)
         if total_trades > 0:
             winning_trades = len(trades_df[trades_df["pnl"] > 0])
-            metrics["win_rate"] = (winning_trades / total_trades) * 100 
+            metrics["win_rate"] = (winning_trades / total_trades) * 100
             metrics["total_trades"] = total_trades
             metrics["winning_trades"] = winning_trades
             metrics["losing_trades"] = total_trades - winning_trades
-            
+
             # PnL metrics
             total_pnl = trades_df["pnl"].sum()
-            metrics["total_pnl"] = float(str(total_pnl)) if isinstance(total_pnl, Decimal) else float(total_pnl)
-            
+            metrics["total_pnl"] = (
+                float(str(total_pnl)) if isinstance(total_pnl, Decimal) else float(total_pnl)
+            )
+
             if winning_trades > 0:
                 avg_win = trades_df[trades_df["pnl"] > 0]["pnl"].mean()
-                metrics["avg_win"] = float(str(avg_win)) if isinstance(avg_win, Decimal) else float(avg_win)
+                metrics["avg_win"] = (
+                    float(str(avg_win)) if isinstance(avg_win, Decimal) else float(avg_win)
+                )
             else:
                 metrics["avg_win"] = 0.0
-                
+
             if (total_trades - winning_trades) > 0:
                 avg_loss = trades_df[trades_df["pnl"] < 0]["pnl"].mean()
-                metrics["avg_loss"] = float(str(avg_loss)) if isinstance(avg_loss, Decimal) else float(avg_loss)
+                metrics["avg_loss"] = (
+                    float(str(avg_loss)) if isinstance(avg_loss, Decimal) else float(avg_loss)
+                )
             else:
                 metrics["avg_loss"] = 0.0
-                
+
             # Profit factor (gross profit / gross loss)
             gross_profit = trades_df[trades_df["pnl"] > 0]["pnl"].sum()
             gross_loss = abs(trades_df[trades_df["pnl"] < 0]["pnl"].sum())
-            
+
             if gross_loss > 0:
                 profit_factor = gross_profit / gross_loss
-                metrics["profit_factor"] = float(str(profit_factor)) if isinstance(profit_factor, Decimal) else float(profit_factor)
+                metrics["profit_factor"] = (
+                    float(str(profit_factor))
+                    if isinstance(profit_factor, Decimal)
+                    else float(profit_factor)
+                )
             else:
-                metrics["profit_factor"] = float('inf') if gross_profit > 0 else 0.0
+                metrics["profit_factor"] = float("inf") if gross_profit > 0 else 0.0
         else:
             # Default values if no trades
             metrics["win_rate"] = 0.0
@@ -684,7 +696,7 @@ class SimplePerformanceAnalyzer:
             metrics["avg_win"] = 0.0
             metrics["avg_loss"] = 0.0
             metrics["profit_factor"] = 0.0
-            
+
         # Calculate return-based metrics if we have returns
         daily_returns = self.get_daily_returns()
         if not daily_returns.empty:
@@ -692,23 +704,27 @@ class SimplePerformanceAnalyzer:
             sharpe_ratio = self.calculate_sharpe_ratio(daily_returns)
             # Convert to float for consistency in the metrics dictionary
             metrics["sharpe_ratio"] = float(str(sharpe_ratio))
-            
+
             # Calculate max drawdown
             drawdown = self.calculate_drawdown(daily_returns)
             if not drawdown.empty:
                 max_dd = drawdown.min() * 100  # Convert to percentage
-                metrics["max_drawdown"] = float(str(max_dd)) if isinstance(max_dd, Decimal) else float(max_dd)
+                metrics["max_drawdown"] = (
+                    float(str(max_dd)) if isinstance(max_dd, Decimal) else float(max_dd)
+                )
             else:
                 metrics["max_drawdown"] = 0.0
-                
+
             # Calculate return metrics
             cumulative_return = float((1 + daily_returns).prod() - 1) * 100  # Convert to percentage
             metrics["cumulative_return"] = cumulative_return
-            
+
             annualized_return = float(daily_returns.mean() * 252) * 100  # Convert to percentage
             metrics["annualized_return"] = annualized_return
-            
-            volatility = float(daily_returns.std() * np.sqrt(252)) * 100  # Annualized, as percentage
+
+            volatility = (
+                float(daily_returns.std() * np.sqrt(252)) * 100
+            )  # Annualized, as percentage
             metrics["volatility"] = volatility
         else:
             # Default values if no returns
@@ -717,7 +733,7 @@ class SimplePerformanceAnalyzer:
             metrics["cumulative_return"] = 0.0
             metrics["annualized_return"] = 0.0
             metrics["volatility"] = 0.0
-            
+
         return metrics
 
     def print_performance_summary(self) -> None:

@@ -10,12 +10,18 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
 from enum import Enum, auto
-from typing import Any, Union, Protocol
+from typing import Any, Protocol, Union
 
 from cyberdelta.apis.base import ExchangeAPI
-from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.core.models import (
+    ArbitrageOpportunity,
+    Order,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    TimeInForce,
+)
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
@@ -25,16 +31,18 @@ logger = logging.getLogger(__name__)
 # Define a type for opportunity that can be various types
 OpportunityType = Union[ArbitrageOpportunity, dict[str, Any]]
 
+
 # Define a Protocol for the position reconciliation system
 class PositionReconciliationSystem(Protocol):
     """Protocol defining the interface for position reconciliation systems."""
-    
+
     async def reconcile_positions(self, exchange: str, symbol: str) -> dict[str, Any]:
         """Reconcile positions for a given exchange and symbol."""
         ...
 
-    async def handle_position_discrepancy(self, exchange: str, symbol: str, 
-                                          expected: Any, actual: Any) -> dict[str, Any]:
+    async def handle_position_discrepancy(
+        self, exchange: str, symbol: str, expected: Any, actual: Any
+    ) -> dict[str, Any]:
         """Handle position discrepancies between expected and actual positions."""
         ...
 
@@ -669,21 +677,23 @@ class SynchronizedOrderSubmissionService:
         try:
             # First leg - prepare and place order
             first_order = self._prepare_order(opportunity, "long")
-            first_exchange = "hyperliquid"  # This would be determined from opportunity in real implementation
-            
+            first_exchange = (
+                "hyperliquid"  # This would be determined from opportunity in real implementation
+            )
+
             # Store order info in result
             result.first_exchange = first_exchange
-            
+
             # Checkpoint: first order preparation
             await self.execution_coordinator.add_checkpoint(
-                execution_context, 
-                "first_order_preparation", 
-                {"exchange": first_exchange, "order": first_order.to_dict()}
+                execution_context,
+                "first_order_preparation",
+                {"exchange": first_exchange, "order": first_order.to_dict()},
             )
-            
+
             # Place first order
             first_api = self.exchange_adapters[first_exchange]
-            
+
             # Place order with verify
             try:
                 placed_order = await first_api.place_order(
@@ -697,69 +707,71 @@ class SynchronizedOrderSubmissionService:
                     reduce_only=first_order.reduce_only,
                 )
                 result.first_order_id = placed_order.order_id
-                
+
                 # Checkpoint: first order placed
                 await self.execution_coordinator.add_checkpoint(
-                    execution_context, 
-                    "first_order_placed", 
-                    {"order_id": placed_order.order_id, "order": placed_order.to_dict()}
+                    execution_context,
+                    "first_order_placed",
+                    {"order_id": placed_order.order_id, "order": placed_order.to_dict()},
                 )
-                
+
                 # Verify first order
                 order_verifier = OrderVerifier(self.config, self.portfolio_tracker)
                 verification_result = await order_verifier.verify_order_placement(
-                    first_exchange, 
+                    first_exchange,
                     placed_order.order_id,
                     {
                         "symbol": first_order.symbol,
                         "side": first_order.side,
                         "order_type": first_order.order_type,
-                    }
+                    },
                 )
-                
+
                 # Only proceed if verification succeeds
                 if not verification_result.get("success", False):
                     result.status = ExecutionStatus.FAILED
-                    result.error = verification_result.get("error", "First order verification failed")
+                    result.error = verification_result.get(
+                        "error", "First order verification failed"
+                    )
                     return result
-                
+
                 # Wait for fill if needed
                 if self.config.get("execution.wait_for_first_fill", True):
                     # Monitor for fills - this would be implemented to check if order is filled
                     fill_result = {"filled": True}  # Placeholder for actual fill monitoring
-                    
+
                     # Check fill verification
                     if not fill_result.get("filled", False):
                         result.status = ExecutionStatus.FAILED
                         result.error = "First order did not fill within timeout"
                         return result
-                    
+
                     result.first_fill = fill_result
-                    
+
                     # Checkpoint: first order filled
                     await self.execution_coordinator.add_checkpoint(
-                        execution_context, 
-                        "first_order_filled", 
-                        fill_result
+                        execution_context, "first_order_filled", fill_result
                     )
-                
+
                 # Second leg
                 second_order = self._prepare_order(opportunity, "short")
-                second_exchange = "backpack"  # This would be determined from opportunity in real implementation
-                
+                second_exchange = (
+                    "backpack"  # This would be determined from opportunity in real implementation
+                )
+
                 # Store in result
                 result.second_exchange = second_exchange
-                
+
                 # Checkpoint: second order preparation
                 await self.execution_coordinator.add_checkpoint(
-                    execution_context, 
-                    "second_order_preparation", 
-                    {"exchange": second_exchange, "order": second_order.to_dict()}
+                    execution_context,
+                    "second_order_preparation",
+                    {"exchange": second_exchange, "order": second_order.to_dict()},
                 )
-                
+
                 # Place second order
                 second_api = self.exchange_adapters[second_exchange]
-                
+
                 # Place order with verification
                 try:
                     second_placed_order = await second_api.place_order(
@@ -773,72 +785,77 @@ class SynchronizedOrderSubmissionService:
                         reduce_only=second_order.reduce_only,
                     )
                     result.second_order_id = second_placed_order.order_id
-                    
+
                     # Checkpoint: second order placed
                     await self.execution_coordinator.add_checkpoint(
-                        execution_context, 
-                        "second_order_placed", 
-                        {"order_id": second_placed_order.order_id, "order": second_placed_order.to_dict()}
+                        execution_context,
+                        "second_order_placed",
+                        {
+                            "order_id": second_placed_order.order_id,
+                            "order": second_placed_order.to_dict(),
+                        },
                     )
-                    
+
                     # Verify second order
                     second_verification = await order_verifier.verify_order_placement(
-                        second_exchange, 
+                        second_exchange,
                         second_placed_order.order_id,
                         {
                             "symbol": second_order.symbol,
                             "side": second_order.side,
                             "order_type": second_order.order_type,
-                        }
+                        },
                     )
-                    
+
                     if not second_verification.get("success", False):
                         # Second order failed but first succeeded - partial completion
                         result.status = ExecutionStatus.PARTIALLY_COMPLETED
-                        result.error = second_verification.get("error", "Second order verification failed")
+                        result.error = second_verification.get(
+                            "error", "Second order verification failed"
+                        )
                     else:
                         # Both orders succeeded
                         result.status = ExecutionStatus.COMPLETED
-                        
+
                         # Wait for second fill if needed
                         if self.config.get("execution.wait_for_second_fill", True):
                             # Monitor for fills - this would be implemented to check if order is filled
-                            second_fill_result = {"filled": True}  # Placeholder for actual fill monitoring
-                            
+                            second_fill_result = {
+                                "filled": True
+                            }  # Placeholder for actual fill monitoring
+
                             if not second_fill_result.get("filled", False):
                                 result.status = ExecutionStatus.PARTIALLY_COMPLETED
                                 result.error = "Second order did not fill within timeout"
                             else:
                                 result.second_fill = second_fill_result
-                                
+
                                 # Checkpoint: second order filled
                                 await self.execution_coordinator.add_checkpoint(
-                                    execution_context, 
-                                    "second_order_filled", 
-                                    second_fill_result
+                                    execution_context, "second_order_filled", second_fill_result
                                 )
-                                
+
                                 # Complete execution
                                 result.status = ExecutionStatus.COMPLETED
-                    
+
                 except Exception as e:
                     # Second order failed
                     logger.error(f"Error placing second order: {e}")
                     result.status = ExecutionStatus.PARTIALLY_COMPLETED
                     result.error = f"Second order error: {str(e)}"
-            
+
             except Exception as e:
                 # First order failed
                 logger.error(f"Error placing first order: {e}")
                 result.status = ExecutionStatus.FAILED
                 result.error = f"First order error: {str(e)}"
-        
+
         except Exception as e:
             # General execution error
             logger.error(f"Error in sequential execution: {e}")
             result.status = ExecutionStatus.FAILED
             result.error = f"Execution error: {str(e)}"
-        
+
         return result
 
     def _prepare_order(self, opportunity: OpportunityType, leg_type: str) -> Order:

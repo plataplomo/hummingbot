@@ -893,7 +893,11 @@ class RiskManager:
                 self.logger.warning(
                     f"No validation metrics found for {exchange}/{symbol}. Assuming low confidence."
                 )
-                return self.min_validation_factor if isinstance(self.min_validation_factor, Decimal) else Decimal(str(self.min_validation_factor))
+                return (
+                    self.min_validation_factor
+                    if isinstance(self.min_validation_factor, Decimal)
+                    else Decimal(str(self.min_validation_factor))
+                )
 
             rmse = metrics.get("rmse")
             bias = metrics.get("bias")
@@ -903,21 +907,41 @@ class RiskManager:
                     f"Incomplete validation metrics for {exchange}/{symbol}. "
                     f"Assuming low confidence."
                 )
-                return self.min_validation_factor if isinstance(self.min_validation_factor, Decimal) else Decimal(str(self.min_validation_factor))
+                return (
+                    self.min_validation_factor
+                    if isinstance(self.min_validation_factor, Decimal)
+                    else Decimal(str(self.min_validation_factor))
+                )
 
             # Convert to Decimal for calculations
             rmse_dec = rmse if isinstance(rmse, Decimal) else Decimal(str(rmse))
             bias_dec = bias if isinstance(bias, Decimal) else Decimal(str(bias))
-            max_rmse_dec = self.max_acceptable_rmse if isinstance(self.max_acceptable_rmse, Decimal) else Decimal(str(self.max_acceptable_rmse))
-            max_bias_dec = self.max_acceptable_bias if isinstance(self.max_acceptable_bias, Decimal) else Decimal(str(self.max_acceptable_bias))
-            min_factor_dec = self.min_validation_factor if isinstance(self.min_validation_factor, Decimal) else Decimal(str(self.min_validation_factor))
+            max_rmse_dec = (
+                self.max_acceptable_rmse
+                if isinstance(self.max_acceptable_rmse, Decimal)
+                else Decimal(str(self.max_acceptable_rmse))
+            )
+            max_bias_dec = (
+                self.max_acceptable_bias
+                if isinstance(self.max_acceptable_bias, Decimal)
+                else Decimal(str(self.max_acceptable_bias))
+            )
+            min_factor_dec = (
+                self.min_validation_factor
+                if isinstance(self.min_validation_factor, Decimal)
+                else Decimal(str(self.min_validation_factor))
+            )
 
             # Higher error -> lower factor (using Decimal arithmetic)
             rmse_factor = (
-                max(Decimal("0.0"), Decimal("1.0") - (rmse_dec / max_rmse_dec)) if max_rmse_dec > Decimal("0") else Decimal("1.0")
+                max(Decimal("0.0"), Decimal("1.0") - (rmse_dec / max_rmse_dec))
+                if max_rmse_dec > Decimal("0")
+                else Decimal("1.0")
             )
             bias_factor = (
-                max(Decimal("0.0"), Decimal("1.0") - (abs(bias_dec) / max_bias_dec)) if max_bias_dec > Decimal("0") else Decimal("1.0")
+                max(Decimal("0.0"), Decimal("1.0") - (abs(bias_dec) / max_bias_dec))
+                if max_bias_dec > Decimal("0")
+                else Decimal("1.0")
             )
 
             # Combine factors (e.g., take the minimum to be conservative)
@@ -935,7 +959,11 @@ class RiskManager:
 
         except Exception as e:
             self.logger.error(f"Error getting validation metrics for {exchange}/{symbol}: {e}")
-            return self.min_validation_factor if isinstance(self.min_validation_factor, Decimal) else Decimal(str(self.min_validation_factor))
+            return (
+                self.min_validation_factor
+                if isinstance(self.min_validation_factor, Decimal)
+                else Decimal(str(self.min_validation_factor))
+            )
 
     def size_opportunity(self, opportunity: ArbitrageOpportunity) -> SizedOpportunity | None:
         """
