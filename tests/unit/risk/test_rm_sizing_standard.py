@@ -29,14 +29,14 @@ class TestRiskManagerSizingStandard:
         max_position_cap = risk_manager.max_position_size  # e.g., 1000.0
 
         # Mock the underlying calculation and control methods to isolate the path
-        risk_manager._calculate_kelly_size = MagicMock(return_value=Decimal("1500.0"))
-        risk_manager._apply_portfolio_exposure_management = MagicMock(
-            side_effect=lambda opp, size: size * Decimal("0.9")
+        risk_manager._calculate_kelly_size.return_value = Decimal("1500.0")
+        risk_manager._apply_portfolio_exposure_management.side_effect = (
+            lambda opp, size: size * Decimal("0.9")
         )  # Apply 10% reduction
-        risk_manager._apply_portfolio_level_controls = MagicMock(
-            side_effect=lambda size, opp: size * Decimal("0.95")
+        risk_manager._apply_portfolio_level_controls.side_effect = (
+            lambda size, opp: size * Decimal("0.95")
         )  # Apply 5% reduction
-        risk_manager._check_portfolio_constraints = MagicMock(return_value=True)
+        risk_manager._check_portfolio_constraints.return_value = True
 
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)

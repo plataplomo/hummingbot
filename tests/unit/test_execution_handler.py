@@ -2,6 +2,7 @@ import time
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any, Dict, Tuple, Optional
 
 import pytest
 
@@ -28,7 +29,7 @@ from cyberdelta.utils.config import Config
 
 
 @pytest.fixture
-def mock_arbitrage_opportunity():
+def mock_arbitrage_opportunity() -> ArbitrageOpportunity:
     """Provides a basic mock ArbitrageOpportunity."""
     return ArbitrageOpportunity(
         symbol="BTC",
@@ -50,24 +51,24 @@ class TestTradeExecution:
     """Test suite for TradeExecution component."""
 
     @pytest.fixture
-    def sized_opportunity(self, mock_arbitrage_opportunity):
+    def sized_opportunity(self, mock_arbitrage_opportunity: ArbitrageOpportunity) -> SizedOpportunity:
         """Create a SizedOpportunity for testing."""
         return SizedOpportunity(
             opportunity=mock_arbitrage_opportunity,
             long_size=Decimal("1000.0"),
             short_size=Decimal("1000.0"),
-            allocation_percentage=0.1,
+            allocation_percentage=Decimal("0.1"),
             expected_profit=Decimal("50.0"),
-            expected_return=0.02,
-            risk_adjusted_return=0.015,
+            expected_return=Decimal("0.02"),
+            risk_adjusted_return=Decimal("0.015"),
         )
 
     @pytest.fixture
-    def trade_execution(self, sized_opportunity):
+    def trade_execution(self, sized_opportunity: SizedOpportunity):
         """Create a TradeExecution instance for testing."""
         return TradeExecution(sized_opportunity)
 
-    def test_initial_state(self, trade_execution):
+    def test_initial_state(self, trade_execution: TradeExecution) -> None:
         """Test initial state of the trade execution."""
         assert trade_execution.status == ExecutionStatus.PENDING
         assert trade_execution.error_message is None
@@ -84,7 +85,7 @@ class TestTradeExecution:
         assert trade_execution.long_fill_quantity is None
         assert trade_execution.short_fill_quantity is None
 
-    def test_to_dict(self, trade_execution):
+    def test_to_dict(self, trade_execution: TradeExecution) -> None:
         """Test conversion to dictionary."""
         # Set some properties
         trade_execution.status = ExecutionStatus.EXECUTING
@@ -108,7 +109,7 @@ class TestTradeExecution:
         assert execution_dict["short_order_id"] == "order456"
         assert isinstance(execution_dict["start_time"], str)  # ISO format string
 
-    def test_str_representation(self, trade_execution):
+    def test_str_representation(self, trade_execution: TradeExecution) -> None:
         """Test string representation."""
         string_rep = str(trade_execution)
 
@@ -124,7 +125,7 @@ class TestExecutionHandler:
     """Test suite for ExecutionHandler component."""
 
     @pytest.fixture
-    def mock_config(self):
+    def mock_config(self) -> MagicMock:
         cfg = MagicMock(spec=Config)
         cfg.get.side_effect = lambda key, default=None: {
             "execution.max_retries": 3,
@@ -141,7 +142,7 @@ class TestExecutionHandler:
         return cfg
 
     @pytest.fixture
-    def mock_portfolio_tracker(self):
+    def mock_portfolio_tracker(self) -> MagicMock:
         tracker = MagicMock(spec=PortfolioTracker)
         tracker.update_order = MagicMock()
         tracker.update_position = MagicMock()
@@ -149,7 +150,7 @@ class TestExecutionHandler:
         return tracker
 
     @pytest.fixture
-    def mock_symbol_mapper(self):
+    def mock_symbol_mapper(self) -> MagicMock:
         """Provides a mock SymbolMapper."""
         mapper = MagicMock(spec=SymbolMapper)
         # Configure default successful mappings
@@ -167,7 +168,7 @@ class TestExecutionHandler:
         return mapper
 
     @pytest.fixture
-    def mock_circuit_breaker_system(self):
+    def mock_circuit_breaker_system(self) -> MagicMock:
         """Provides a mock CircuitBreakerSystem."""
         system = MagicMock(spec=CircuitBreakerSystem)
         system.can_execute = MagicMock(return_value=(True, None))
@@ -179,7 +180,7 @@ class TestExecutionHandler:
         return system
 
     @pytest.fixture
-    def mock_hl_api(self):
+    def mock_hl_api(self) -> MagicMock:
         """Provides a mock API client for Hyperliquid."""
         api = MagicMock(spec=ExchangeAPI)
         api.place_order = AsyncMock()
@@ -190,7 +191,7 @@ class TestExecutionHandler:
         return api
 
     @pytest.fixture
-    def mock_bp_api(self):
+    def mock_bp_api(self) -> MagicMock:
         """Provides a mock API client for Backpack."""
         api = MagicMock(spec=ExchangeAPI)
         api.place_order = AsyncMock()
@@ -203,13 +204,13 @@ class TestExecutionHandler:
     @pytest.fixture
     def execution_handler(
         self,
-        mock_config,
-        mock_portfolio_tracker,
-        mock_symbol_mapper,
-        mock_circuit_breaker_system,
-        mock_hl_api,
-        mock_bp_api,
-    ):
+        mock_config: MagicMock,
+        mock_portfolio_tracker: MagicMock,
+        mock_symbol_mapper: MagicMock,
+        mock_circuit_breaker_system: MagicMock,
+        mock_hl_api: MagicMock,
+        mock_bp_api: MagicMock,
+    ) -> ExecutionHandler:
         """Create an ExecutionHandler instance with correctly mocked dependencies."""
         handler = ExecutionHandler(
             config=mock_config,
@@ -222,7 +223,7 @@ class TestExecutionHandler:
         return handler
 
     @pytest.fixture
-    def sized_opportunity(self, mock_arbitrage_opportunity):
+    def sized_opportunity(self, mock_arbitrage_opportunity: ArbitrageOpportunity) -> SizedOpportunity:
         """Create a SizedOpportunity for testing."""
         return SizedOpportunity(
             opportunity=mock_arbitrage_opportunity,
@@ -234,7 +235,7 @@ class TestExecutionHandler:
             risk_adjusted_return=Decimal("0.008"),
         )
 
-    def test_register_api_client(self, execution_handler):
+    def test_register_api_client(self, execution_handler: ExecutionHandler) -> None:
         """Test that API clients can be registered."""
         # Register a new API client
         new_api = MagicMock(spec=ExchangeAPI)
@@ -246,7 +247,9 @@ class TestExecutionHandler:
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_open_rejection(
-        self, execution_handler, sized_opportunity, mock_circuit_breaker_system
+        self, execution_handler: ExecutionHandler,
+        sized_opportunity: SizedOpportunity,
+        mock_circuit_breaker_system: MagicMock
     ):
         """Test that executions are rejected when the relevant circuit breaker is open."""
         # Mock the system check to return False (blocked) for the long exchange
@@ -265,7 +268,9 @@ class TestExecutionHandler:
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_mapping_failure(
-        self, execution_handler, sized_opportunity, mock_symbol_mapper
+        self, execution_handler: ExecutionHandler,
+        sized_opportunity: SizedOpportunity,
+        mock_symbol_mapper: MagicMock
     ):
         """Test execution fails if symbol mapping returns None."""
         # Configure mock mapper to fail for the short symbol lookup
@@ -401,7 +406,7 @@ class TestExecutionHandler:
         # Mock ticker needed for limit price calculation
         mock_ticker = Ticker(
             symbol="BTC-PERP",
-            timestamp=time.time() * 1000,
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
             bid=Decimal("40000"),
             ask=Decimal("40010"),
             price=Decimal("40005"),
@@ -496,14 +501,14 @@ class TestExecutionHandler:
         # Mock Tickers
         hl_ticker = Ticker(
             symbol="BTC-PERP",
-            timestamp=time.time() * 1000,
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
             bid=Decimal("40000"),
             ask=Decimal("40010"),
             price=Decimal("40005"),
         )
         bp_ticker = Ticker(
             symbol="BTC_USDC",
-            timestamp=time.time() * 1000,
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
             bid=Decimal("40020"),
             ask=Decimal("40030"),
             price=Decimal("40025"),
@@ -628,14 +633,14 @@ class TestExecutionHandler:
         # Mock Tickers
         hl_ticker = Ticker(
             symbol="BTC-PERP",
-            timestamp=time.time() * 1000,
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
             bid=Decimal("40000"),
             ask=Decimal("40010"),
             price=Decimal("40005"),
         )
         bp_ticker = Ticker(
             symbol="BTC_USDC",
-            timestamp=time.time() * 1000,
+            timestamp=int(datetime.now(UTC).timestamp() * 1000),
             bid=Decimal("40020"),
             ask=Decimal("40030"),
             price=Decimal("40025"),

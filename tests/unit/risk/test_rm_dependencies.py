@@ -2,7 +2,7 @@
 """Integration Tests for RiskManager Dependency Failure Handling."""
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -25,6 +25,7 @@ class TestRiskManagerDependencyFailures:
         self,
         risk_manager: RiskManager,
         mock_portfolio_tracker: MagicMock,
+        mock_config: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
         bad_capital: Any,
     ) -> None:
@@ -32,10 +33,12 @@ class TestRiskManagerDependencyFailures:
         # --- Arrange ---
         mock_portfolio_tracker.get_total_capital.return_value = bad_capital
         # Ensure simple path is active for these tests
-        risk_manager.config.get.side_effect = (
+        # Store the original default values from the mock fixture
+        original_defaults = mock_config.default_values
+        mock_config.get.side_effect = (
             lambda key, default=None: True
             if key == "risk.use_simple_sizing_path"
-            else risk_manager.config.default_values.get(key, default)
+            else original_defaults.get(key, default)
         )
 
         # --- Act ---
@@ -49,15 +52,17 @@ class TestRiskManagerDependencyFailures:
         self,
         risk_manager: RiskManager,
         mock_portfolio_tracker: MagicMock,
+        mock_config: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size_opportunity returns None when _check_portfolio_constraints fails."""
         # --- Arrange ---
         # Ensure simple path is active
-        risk_manager.config.get.side_effect = (
+        original_defaults = mock_config.default_values
+        mock_config.get.side_effect = (
             lambda key, default=None: True
             if key == "risk.use_simple_sizing_path"
-            else risk_manager.config.default_values.get(key, default)
+            else original_defaults.get(key, default)
         )
 
         # Set up mocks so initial sizing passes, but constraints fail
@@ -65,12 +70,10 @@ class TestRiskManagerDependencyFailures:
         risk_manager.max_position_size = Decimal("5000.0")  # Example cap
 
         # Mock control methods to pass through the initial size
-        risk_manager._apply_portfolio_exposure_management = MagicMock(
-            side_effect=lambda opp, size: size
-        )
-        risk_manager._apply_portfolio_level_controls = MagicMock(side_effect=lambda size, opp: size)
+        risk_manager._apply_portfolio_exposure_management.side_effect = lambda opp, size: size
+        risk_manager._apply_portfolio_level_controls.side_effect = lambda size, opp: size
         # Explicitly mock _check_portfolio_constraints to return False
-        risk_manager._check_portfolio_constraints = MagicMock(return_value=False)
+        risk_manager._check_portfolio_constraints.return_value = False
 
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
@@ -83,15 +86,17 @@ class TestRiskManagerDependencyFailures:
         self,
         risk_manager: RiskManager,
         mock_portfolio_tracker: MagicMock,
+        mock_config: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size_opportunity handles generic exceptions from portfolio tracker methods."""
         # --- Arrange ---
         # Ensure simple path is active
-        risk_manager.config.get.side_effect = (
+        original_defaults = mock_config.default_values
+        mock_config.get.side_effect = (
             lambda key, default=None: True
             if key == "risk.use_simple_sizing_path"
-            else risk_manager.config.default_values.get(key, default)
+            else original_defaults.get(key, default)
         )
 
         # Make a dependency raise an exception
@@ -135,18 +140,16 @@ class TestRiskManagerDependencyFailures:
 
         # Set mocks for initial sizing and other controls
         risk_manager.max_position_size = Decimal("20000.0")  # High cap
-        risk_manager._apply_portfolio_exposure_management = MagicMock(
-            side_effect=lambda opp, size: size
-        )
+        risk_manager._apply_portfolio_exposure_management.side_effect = lambda opp, size: size
         # ** Ensure underlying FundingRateValidator returns metrics that yield factor=1.0 **
         mock_funding_validator.get_validation_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
         # Assign the updated validator mock back to the risk_manager instance
         risk_manager.funding_rate_validator = mock_funding_validator
 
-        risk_manager._check_portfolio_constraints = MagicMock(return_value=True)
+        risk_manager._check_portfolio_constraints.return_value = True
 
         # Mock can_execute to return False only for the specified scope
-        def can_execute_side_effect(scope, symbol=None):
+        def can_execute_side_effect(scope: str, symbol: Optional[str] = None) -> tuple[bool, Optional[str]]:
             if (
                 scope == scope_to_trip
                 or (scope == sample_opportunity.long_exchange and scope_to_trip == "long_exchange")
@@ -186,6 +189,7 @@ class TestRiskManagerDependencyFailures:
         risk_manager: RiskManager,
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker: MagicMock,
+        mock_config: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size_opportunity handles exception from circuit breaker check."""
@@ -196,8 +200,8 @@ class TestRiskManagerDependencyFailures:
             "risk.simple_sizing_method": "fixed_usd",
             "risk.simple_fixed_usd_size": "10000",  # Example initial size
         }
-        combined_config = {**risk_manager.config.default_values, **test_overrides}
-        risk_manager.config.get.side_effect = lambda key, default=None: combined_config.get(
+        combined_config = {**mock_config.default_values, **test_overrides}
+        mock_config.get.side_effect = lambda key, default=None: combined_config.get(
             key, default
         )
         mock_portfolio_tracker.get_total_capital.return_value = Decimal(
@@ -206,10 +210,8 @@ class TestRiskManagerDependencyFailures:
 
         # Set mocks for initial sizing etc.
         risk_manager.max_position_size = Decimal("20000.0")
-        risk_manager._apply_portfolio_exposure_management = MagicMock(
-            side_effect=lambda opp, size: size
-        )
-        risk_manager._check_portfolio_constraints = MagicMock(return_value=True)
+        risk_manager._apply_portfolio_exposure_management.side_effect = lambda opp, size: size
+        risk_manager._check_portfolio_constraints.return_value = True
         risk_manager.funding_rate_validator = None  # Disable FV for this test
 
         # Mock can_execute to raise an exception
@@ -257,10 +259,8 @@ class TestRiskManagerDependencyFailures:
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
 
         risk_manager.max_position_size = Decimal("20000.0")  # High cap
-        risk_manager._apply_portfolio_exposure_management = MagicMock(
-            side_effect=lambda opp, size: size
-        )
-        risk_manager._check_portfolio_constraints = MagicMock(return_value=True)
+        risk_manager._apply_portfolio_exposure_management.side_effect = lambda opp, size: size
+        risk_manager._check_portfolio_constraints.return_value = True
 
         # Mock CB to allow execution
         mock_circuit_breaker.can_execute.return_value = (True, None)
@@ -313,10 +313,8 @@ class TestRiskManagerDependencyFailures:
         risk_manager.max_position_size = Decimal("20000.0")
         # *** Directly set the min validation factor on the instance ***
         risk_manager.min_validation_factor = float(min_factor)
-        risk_manager._apply_portfolio_exposure_management = MagicMock(
-            side_effect=lambda opp, size: size
-        )
-        risk_manager._check_portfolio_constraints = MagicMock(return_value=True)
+        risk_manager._apply_portfolio_exposure_management.side_effect = lambda opp, size: size
+        risk_manager._check_portfolio_constraints.return_value = True
         mock_circuit_breaker.can_execute.return_value = (True, None)
         risk_manager.circuit_breaker_system = mock_circuit_breaker
 

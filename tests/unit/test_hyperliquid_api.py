@@ -1,6 +1,7 @@
 import time
 from decimal import Decimal
 from unittest.mock import AsyncMock
+from typing import Dict, List, Any
 
 import pytest
 
@@ -12,6 +13,7 @@ from cyberdelta.core.models import (
     OrderSide,
     OrderType,
     Position,
+    OrderStatus,
 )
 
 
@@ -19,9 +21,16 @@ class TestHyperliquidAPI:
     """Test suite for HyperliquidAPI client."""
 
     @pytest.fixture
-    def api_client(self, hyperliquid_config, hyperliquid_secrets):
+    def api_client(self, hyperliquid_config: Dict[str, Any], hyperliquid_secrets: Dict[str, str]) -> HyperliquidAPI:
         """Create a HyperliquidAPI client instance for testing."""
-        client = HyperliquidAPI(api_config=hyperliquid_config, secrets=hyperliquid_secrets)
+        # Cannot instantiate abstract class directly, create a concrete subclass for testing
+        class ConcreteHyperliquidAPI(HyperliquidAPI):
+            async def parse_account_update_message(self, message: Dict[str, Any]) -> None:
+                pass # Mock implementation
+            async def parse_l2_book_update_message(self, message: Dict[str, Any]) -> None:
+                pass # Mock implementation
+
+        client = ConcreteHyperliquidAPI(api_config=hyperliquid_config, secrets=hyperliquid_secrets)
         # Prevent actual network calls
         client._request = AsyncMock(side_effect=RuntimeError("Network call attempted!"))
         # Ensure wallet address is set if needed for method mocks
@@ -31,7 +40,7 @@ class TestHyperliquidAPI:
         return client
 
     @pytest.mark.asyncio
-    async def test_get_balances(self, api_client):
+    async def test_get_balances(self, api_client: HyperliquidAPI) -> None:
         """Test get_balances returns proper Balance objects."""
         # Mock the specific public method
         mock_balance_data = {
@@ -42,7 +51,7 @@ class TestHyperliquidAPI:
         api_client.get_balances = AsyncMock(return_value=mock_balance_data)
 
         # Get balances
-        balances = await api_client.get_balances()
+        balances: Dict[str, Balance] = await api_client.get_balances()
 
         # Verify expected data
         assert "USDC" in balances
@@ -56,7 +65,7 @@ class TestHyperliquidAPI:
         api_client.get_balances.assert_called_once_with()
 
     @pytest.mark.asyncio
-    async def test_get_positions(self, api_client):
+    async def test_get_positions(self, api_client: HyperliquidAPI) -> None:
         """Test get_positions returns proper Position objects."""
         # Mock the specific public method
         mock_position_data = [
@@ -82,7 +91,7 @@ class TestHyperliquidAPI:
         api_client.get_positions = AsyncMock(return_value=mock_position_data)
 
         # Get positions
-        positions = await api_client.get_positions()
+        positions: List[Position] = await api_client.get_positions()
 
         # Verify expected data (list of Position objects)
         assert isinstance(positions, list)
@@ -111,7 +120,7 @@ class TestHyperliquidAPI:
         api_client.get_positions.assert_called_once_with()
 
     @pytest.mark.asyncio
-    async def test_get_funding_rate(self, api_client):
+    async def test_get_funding_rate(self, api_client: HyperliquidAPI) -> None:
         """Test get_funding_rate returns proper FundingRate object."""
         # Mock the specific public method
         mock_time = int(time.time() * 1000) + 3600000
@@ -126,7 +135,7 @@ class TestHyperliquidAPI:
         api_client.get_funding_rate = AsyncMock(return_value=mock_funding_data)
 
         # Get funding rate for BTC
-        funding_rate = await api_client.get_funding_rate("BTC")
+        funding_rate: FundingRate = await api_client.get_funding_rate("BTC")
 
         # Verify expected data
         assert isinstance(funding_rate, FundingRate)
@@ -139,29 +148,30 @@ class TestHyperliquidAPI:
         api_client.get_funding_rate.assert_called_once_with("BTC")
 
     @pytest.mark.asyncio
-    async def test_place_order(self, api_client):
+    async def test_place_order(self, api_client: HyperliquidAPI) -> None:
         """Test place_order returns proper Order object."""
         # Mock the specific public method
         mock_order_response = Order(
-            id="123456789",  # HL doesn't return ID directly in success, needs separate query maybe?
+            # id="123456789", # ID not set directly
             symbol="BTC",
             side=OrderSide.BUY,
-            type=OrderType.LIMIT,
+            order_type=OrderType.LIMIT,
             price=Decimal("42000.0"),
             quantity=Decimal("0.1"),
             filled_quantity=Decimal("0.0"),  # Initial status
-            status="OPEN",  # Map from response
-            time=int(time.time() * 1000),
+            status=OrderStatus.OPEN,  # Use OrderStatus enum
+            timestamp=int(time.time() * 1000),
             client_order_id="test-order-123",
+            # exchange_order_id would likely be set later
         )
         # Mock the place_order method itself
         api_client.place_order = AsyncMock(return_value=mock_order_response)
 
         # Place order
-        order = await api_client.place_order(
+        order: Order = await api_client.place_order(
             symbol="BTC",
             side=OrderSide.BUY,
-            type=OrderType.LIMIT,
+            order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
             price=Decimal("42000.0"),
             client_order_id="test-order-123",
@@ -172,10 +182,10 @@ class TestHyperliquidAPI:
         # assert order.id is not None # ID might not be in immediate response
         assert order.symbol == "BTC"
         assert order.side == OrderSide.BUY
-        assert order.type == OrderType.LIMIT
+        assert order.order_type == OrderType.LIMIT
         assert order.price == Decimal("42000.0")
         assert order.quantity == Decimal("0.1")
-        assert order.status == "OPEN"  # Or mapped to OrderStatus.NEW
+        assert order.status == OrderStatus.OPEN  # Check against enum
         assert order.client_order_id == "test-order-123"
 
         # Verify the mocked method was called
@@ -186,13 +196,13 @@ class TestHyperliquidAPI:
         assert kwargs.get("quantity") == Decimal("0.1")
 
     @pytest.mark.asyncio
-    async def test_cancel_order(self, api_client):
+    async def test_cancel_order(self, api_client: HyperliquidAPI) -> None:
         """Test cancel_order returns success indication."""
         # Mock the specific public method - HL cancel might just return status
         api_client.cancel_order = AsyncMock(return_value=True)  # Assume True on success
 
         # Cancel order
-        result = await api_client.cancel_order(oid=12345, symbol="BTC")
+        result: bool = await api_client.cancel_order(oid=12345, symbol="BTC")
 
         # Verify result
         assert result is True
@@ -201,7 +211,7 @@ class TestHyperliquidAPI:
         api_client.cancel_order.assert_called_once_with(oid=12345, symbol="BTC")
 
     @pytest.mark.asyncio
-    async def test_authentication(self, api_client):
+    async def test_authentication(self, api_client: HyperliquidAPI) -> None:
         """Test the _authenticate method produces correct signature."""
         # The api_client fixture already provides a configured HyperliquidAPI instance
         # We can call the protected _authenticate method on it directly for testing.

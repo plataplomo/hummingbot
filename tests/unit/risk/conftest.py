@@ -125,7 +125,10 @@ def mock_circuit_breaker() -> MagicMock:
 @pytest.fixture
 def mock_funding_validator() -> MagicMock:
     """Create a mock FundingRateValidator."""
-    fv = MagicMock()  # Don't need spec if we mock _get_validation_metrics
+    # Import locally to avoid circular dependency issues at module level
+    from cyberdelta.validation.funding_rate_validator import FundingRateValidator
+
+    fv = MagicMock(spec=FundingRateValidator)
     # Default behavior for get_validation_metrics (called by RiskManager._get_validation_metrics)
     # Return a high confidence factor by default
     fv.get_validation_metrics.return_value = {"rmse": 0.001, "bias": 0.0005}
@@ -135,7 +138,10 @@ def mock_funding_validator() -> MagicMock:
 @pytest.fixture
 def mock_data_handler() -> MagicMock:
     """Create a mock data handler for testing."""
-    dh = MagicMock()
+    # Import locally
+    from cyberdelta.data.data_handler import DataHandler
+
+    dh = MagicMock(spec=DataHandler)
     # Setup default return values if needed for specific tests
     dh.get_recent_volatility.return_value = 0.02  # Example default
     dh.get_historical_volatility.return_value = 0.015  # Example default

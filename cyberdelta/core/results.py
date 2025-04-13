@@ -127,20 +127,26 @@ class BacktestResultsHandler:
             return self.metrics
 
         # Calculate basic metrics
+        num_trades = len(self.trades)
+        winning_trades = sum(1 for t in self.trades if t.get("pnl", Decimal("0")) > 0)
+        losing_trades = sum(1 for t in self.trades if t.get("pnl", Decimal("0")) <= 0)
+        # Ensure division by zero is handled
+        win_rate = (winning_trades / num_trades * 100) if num_trades > 0 else 0.0
+
         self.metrics = {
-            "total_trades": len(self.trades),
-            "winning_trades": sum(1 for t in self.trades if t.get("pnl", 0) > 0),
-            "losing_trades": sum(1 for t in self.trades if t.get("pnl", 0) <= 0),
-            "win_rate": (
-                sum(1 for t in self.trades if t.get("pnl", 0) > 0) / len(self.trades) * 100
-            )
-            if self.trades
-            else 0.0,
+            "total_trades": num_trades,
+            "winning_trades": winning_trades,
+            "losing_trades": losing_trades,
+            "win_rate": float(win_rate), # Convert to float for consistency/JSON
         }
 
         # Calculate returns metrics
         total_return = ((1 + self.returns_series).prod() - 1) * 100  # as percentage
-        annualized_return = ((1 + total_return / 100) ** (252 / len(self.returns_series)) - 1) * 100
+        # Check if returns_series length is zero before division
+        annualized_return = (
+            ((1 + total_return / 100) ** (252 / len(self.returns_series)) - 1) * 100
+            if len(self.returns_series) > 0 else 0.0
+        )
         volatility = self.returns_series.std() * np.sqrt(252) * 100  # annualized, as percentage
 
         # Calculate drawdown

@@ -171,7 +171,7 @@ class StrategyManager:
             return []  # No strategies for this symbol
 
         # Run strategy updates concurrently
-        tasks = [strategy.update(market_data) for strategy in strategies]
+        tasks = [strategy.process_data(market_data) for strategy in strategies]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for result in results:
@@ -183,16 +183,19 @@ class StrategyManager:
             elif isinstance(result, list):  # Strategy might return multiple signals
                 for signal in result:
                     # Corrected: Check for None before appending
-                    if isinstance(signal, TradeSignal) and signal is not None:
+                    if isinstance(signal, TradeSignal):
                         signals.append(signal)
             elif isinstance(result, Exception):
-                self.logger.error("Error updating strategy", error=result)
+                self.logger.error("Error processing data in strategy", error=result)
 
         # Send generated signals to the queue
-        for signal in signals:
-            # Assign priority based on strategy config or signal properties
-            priority = signal.confidence or 0.5  # Example priority
-            self.signal_queue.add_signal(signal, priority)
+        if hasattr(self, 'signal_queue') and self.signal_queue: # Check if signal_queue exists
+            for signal in signals:
+                # Assign priority based on strategy config or signal properties
+                priority = getattr(signal, 'confidence', 0.5) or 0.5  # Example priority, handle None confidence
+                self.signal_queue.add_signal(signal, priority)
+        else:
+            logger.warning("Signal queue not available in StrategyManager, cannot queue signals.")
 
         return signals
 

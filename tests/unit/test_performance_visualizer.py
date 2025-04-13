@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
+import plotly.graph_objects as go # type: ignore
 
 from cyberdelta.visualization.performance_visualizer import (
     PerformanceMetricsCalculator,
@@ -14,7 +14,7 @@ from cyberdelta.visualization.performance_visualizer import (
 class TestVisualizationConfig(unittest.TestCase):
     """Tests for the VisualizationConfig class"""
 
-    def test_default_initialization(self):
+    def test_default_initialization(self) -> None:
         """Test that default configuration initializes correctly"""
         config = VisualizationConfig()
         self.assertEqual(config.theme, "light")
@@ -24,7 +24,7 @@ class TestVisualizationConfig(unittest.TestCase):
         self.assertTrue(config.show_legend)
         self.assertIsNotNone(config.color_palette)
 
-    def test_custom_initialization(self):
+    def test_custom_initialization(self) -> None:
         """Test that custom configuration parameters are applied correctly"""
         config = VisualizationConfig(
             theme="dark",
@@ -44,7 +44,7 @@ class TestVisualizationConfig(unittest.TestCase):
 class TestPerformanceVisualizer(unittest.TestCase):
     """Tests for the PerformanceVisualizer class"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test environment with sample data"""
         self.config = VisualizationConfig()
         self.visualizer = PerformanceVisualizer(config=self.config)
@@ -85,11 +85,11 @@ class TestPerformanceVisualizer(unittest.TestCase):
         funding_data.set_index("date", inplace=True)
         self.funding_data = funding_data.pivot(columns="asset", values="funding_rate")
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test that visualizer initializes correctly"""
         self.assertEqual(self.visualizer.config, self.config)
 
-    def test_create_returns_chart(self):
+    def test_create_returns_chart(self) -> None:
         """Test returns chart generation"""
         fig = self.visualizer.create_returns_chart(self.returns_data)
         self.assertIsInstance(fig, go.Figure)
@@ -101,13 +101,13 @@ class TestPerformanceVisualizer(unittest.TestCase):
         )
         self.assertEqual(len(fig.data), 2)  # Should have 2 traces
 
-    def test_create_drawdown_chart(self):
+    def test_create_drawdown_chart(self) -> None:
         """Test drawdown chart generation"""
         fig = self.visualizer.create_drawdown_chart(self.returns_data)
         self.assertIsInstance(fig, go.Figure)
         self.assertEqual(len(fig.data), 3)  # Should have 3 traces for 3 strategies
 
-    def test_create_trade_analysis_chart(self):
+    def test_create_trade_analysis_chart(self) -> None:
         """Test trade analysis chart generation"""
         fig = self.visualizer.create_trade_analysis_chart(self.trade_data)
         self.assertIsInstance(fig, go.Figure)
@@ -115,13 +115,13 @@ class TestPerformanceVisualizer(unittest.TestCase):
         # Should have 2 traces: profitable and losing trades
         self.assertTrue(1 <= len(fig.data) <= 2)  # Could be 1 if all trades are profitable/losing
 
-    def test_create_funding_rate_heatmap(self):
+    def test_create_funding_rate_heatmap(self) -> None:
         """Test funding rate heatmap generation"""
         fig = self.visualizer.create_funding_rate_heatmap(self.funding_data)
         self.assertIsInstance(fig, go.Figure)
         self.assertEqual(len(fig.data), 1)  # Should have 1 heatmap trace
 
-    def test_create_performance_dashboard(self):
+    def test_create_performance_dashboard(self) -> None:
         """Test performance dashboard generation"""
         fig = self.visualizer.create_performance_dashboard(
             returns_data=self.returns_data,
@@ -136,7 +136,7 @@ class TestPerformanceVisualizer(unittest.TestCase):
 class TestPerformanceMetricsCalculator(unittest.TestCase):
     """Tests for the PerformanceMetricsCalculator class"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test environment with sample data"""
         self.calculator = PerformanceMetricsCalculator()
 
@@ -147,40 +147,40 @@ class TestPerformanceMetricsCalculator(unittest.TestCase):
         # Generate sample trade data
         self.trades = pd.DataFrame({"pnl": np.random.normal(50, 200, 100)})
 
-    def test_calculate_sharpe_ratio(self):
+    def test_calculate_sharpe_ratio(self) -> None:
         """Test Sharpe ratio calculation"""
         sharpe = self.calculator.calculate_sharpe_ratio(self.returns)
         self.assertIsInstance(sharpe, float)
 
-    def test_calculate_sortino_ratio(self):
+    def test_calculate_sortino_ratio(self) -> None:
         """Test Sortino ratio calculation"""
         sortino = self.calculator.calculate_sortino_ratio(self.returns)
         self.assertIsInstance(sortino, float)
 
-    def test_calculate_max_drawdown(self):
+    def test_calculate_max_drawdown(self) -> None:
         """Test maximum drawdown calculation"""
         max_dd = self.calculator.calculate_max_drawdown(self.returns)
         self.assertIsInstance(max_dd, float)
         self.assertTrue(0 <= max_dd <= 100)  # Drawdown should be a percentage between 0-100
 
-    def test_calculate_calmar_ratio(self):
+    def test_calculate_calmar_ratio(self) -> None:
         """Test Calmar ratio calculation"""
         calmar = self.calculator.calculate_calmar_ratio(self.returns)
         self.assertIsInstance(calmar, float)
 
-    def test_calculate_win_rate(self):
+    def test_calculate_win_rate(self) -> None:
         """Test win rate calculation"""
         win_rate = self.calculator.calculate_win_rate(self.trades)
         self.assertIsInstance(win_rate, float)
         self.assertTrue(0 <= win_rate <= 100)  # Win rate should be a percentage between 0-100
 
-    def test_calculate_profit_factor(self):
+    def test_calculate_profit_factor(self) -> None:
         """Test profit factor calculation"""
         profit_factor = self.calculator.calculate_profit_factor(self.trades)
         self.assertIsInstance(profit_factor, float)
         self.assertTrue(profit_factor >= 0)  # Profit factor should be non-negative
 
-    def test_calculate_all_metrics(self):
+    def test_calculate_all_metrics(self) -> None:
         """Test calculation of all metrics"""
         metrics = self.calculator.calculate_all_metrics(self.returns, self.trades)
         self.assertIsInstance(metrics, dict)

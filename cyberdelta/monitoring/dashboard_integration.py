@@ -14,7 +14,7 @@ from typing import Any
 import structlog
 
 # from cyberdelta.core.types import TradeOperation, TradeSignal # Remove old imports
-from cyberdelta.core.models import TradeSignal  # Import from models
+from cyberdelta.core.models import OrderSide, SignalType, TradeSignal  # Import from models
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
@@ -69,7 +69,7 @@ class DashboardIntegration:
         if auto_start:
             self.start_dashboard(update_interval=update_interval, port=port, debug=debug)
 
-    def register_portfolio_tracker(self, portfolio_tracker: PortfolioTracker):
+    def register_portfolio_tracker(self, portfolio_tracker: PortfolioTracker) -> None:
         """
         Register a portfolio tracker with the dashboard.
 
@@ -78,11 +78,12 @@ class DashboardIntegration:
         """
         self.portfolio_tracker = portfolio_tracker
 
-        # Update dashboard if it's already running
-        if self.dashboard:
-            self.dashboard.portfolio_tracker = portfolio_tracker
+        # TODO: Need a way to update the running dashboard instance with the new tracker.
+        # The current `launch_dashboard` creates a new instance.
+        # This might require a more robust dashboard management approach.
+        logger.info("Portfolio tracker registered. Restart dashboard for changes to take effect.")
 
-    def register_strategy(self, strategy: Strategy):
+    def register_strategy(self, strategy: Strategy) -> None:
         """
         Register a strategy with the dashboard.
 
@@ -98,7 +99,7 @@ class DashboardIntegration:
         port: int = 8050,
         debug: bool = False,
         in_thread: bool = True,
-    ):
+    ) -> None:
         """
         Start the real-time dashboard.
 
@@ -111,24 +112,28 @@ class DashboardIntegration:
         Returns:
             Dashboard instance
         """
-        if self.dashboard:
+        if self.dashboard_thread and self.dashboard_thread.is_alive():
             logger.warning("Dashboard already running")
-            return self.dashboard
+            return
+
+        if not self.portfolio_tracker:
+            logger.error("Portfolio tracker not registered. Cannot start dashboard.")
+            return
 
         # Launch dashboard
-        self.dashboard, self.dashboard_thread = launch_dashboard(
+        dashboard_instance = launch_dashboard(
             performance_tracker=self.performance_tracker,
             portfolio_tracker=self.portfolio_tracker,
             update_interval=update_interval,
             port=port,
             debug=debug,
-            in_thread=in_thread,
+            use_threading=in_thread,
         )
+        self.dashboard = dashboard_instance
 
         logger.info(f"Started dashboard on port {port}")
-        return self.dashboard
 
-    def stop_dashboard(self):
+    def stop_dashboard(self) -> None:
         """Stop the dashboard if it's running."""
         if self.dashboard_thread and self.dashboard_thread.is_alive():
             # For explicit termination, we would need to implement a shutdown mechanism
@@ -150,7 +155,7 @@ class DashboardIntegration:
             timestamp: Timestamp of the return
             return_value: Return value (Decimal)
         """
-        self.performance_tracker.track_return(strategy_name, timestamp, return_value)
+        self.performance_tracker.track_return(strategy_name, timestamp, float(return_value))
 
     def track_trade(
         self,
@@ -193,9 +198,9 @@ class DashboardIntegration:
             size=size,
             entry_price=entry_price,
             entry_time=entry_time,
-            exit_price=exit_price,
+            exit_price=float(exit_price) if exit_price is not None else None,
             exit_time=exit_time,
-            pnl=pnl,
+            pnl=float(pnl) if pnl is not None else None,
             metadata=metadata,
         )
 
@@ -219,88 +224,43 @@ class DashboardIntegration:
         """
         self.performance_tracker.track_trade_exit(
             trade_id=trade_id,
-            exit_price=exit_price,
+            exit_price=float(exit_price),
             exit_time=exit_time,
-            pnl=pnl,
+            pnl=float(pnl),
             metadata=metadata,
         )
 
-    def track_signal(self, signal: TradeSignal):
-        if not self.dashboard or not signal:
+    def track_signal(self, signal: TradeSignal) -> None:
+        """
+        Track a signal event.
+
+        Args:
+            signal: The TradeSignal object to track.
+        """
+        if not self.performance_tracker or not signal:
             return
 
         # Adapt to new TradeSignal definition
-        strategy_id = signal.source_strategy or "UnknownStrategy"
-        # trades_info = getattr(signal, 'trades', []) # 'trades' attribute doesn't exist
+        strategy_id = getattr(signal, 'source_strategy', "UnknownStrategy") or "UnknownStrategy"
+        symbol = getattr(signal, 'symbol', "UnknownSymbol")
+        signal_type_enum = getattr(signal, 'signal_type', None)
+        signal_type_name = signal_type_enum.name if signal_type_enum else "UNKNOWN"
+        side_enum = getattr(signal, 'side', None)
+        side_name = side_enum.name if side_enum else "UNKNOWN"
+        price = getattr(signal, 'price', None)
+        quantity = getattr(signal, 'quantity', None)
 
-        self.dashboard.add_log(
-            f"Signal Received: {strategy_id} - {signal.symbol} - "
-            f"{signal.signal_type.name} - Side: {signal.side.name}"
-            + (f" @ {signal.price}" if signal.price else "")
-            + (f" Qty: {signal.quantity}" if signal.quantity else "")
+        # Record the signal in the performance tracker
+        self.performance_tracker.record_signal(
+            timestamp=getattr(signal, 'timestamp', datetime.now(UTC)),
+            strategy_id=strategy_id,
+            symbol=symbol,
+            signal_type=signal_type_name,
+            side=side_name,
+            price=price,
+            quantity=quantity,
+            metadata=getattr(signal, 'metadata', None),
         )
-        # If performance tracking is needed based on signals:
-        if self.performance_tracker:
-            # Use available attributes
-            self.performance_tracker.record_signal(
-                timestamp=signal.timestamp or datetime.now(UTC),  # Use signal timestamp or now
-                strategy_id=strategy_id,
-                symbol=signal.symbol,
-                signal_type=signal.signal_type.name,
-                side=signal.side.name,
-                price=signal.price,
-                quantity=signal.quantity,
-                # Add other relevant fields if available/needed
-            )
-
-        # Update plots or tables if necessary
-
-    def track_signal_from_trade_signal(self, trade_signal: TradeSignal):
-        """
-        Track a signal from a TradeSignal object.
-
-        Args:
-            trade_signal: TradeSignal object
-        """
-        # Extract signal information
-        signal_id = getattr(trade_signal, "signal_id", f"signal-{id(trade_signal)}")
-        strategy_name = trade_signal.strategy_name
-
-        # Process all trades in the signal
-        for trade in trade_signal.trades:
-            symbol = trade.symbol
-
-            # Determine signal type based on operation
-            if trade.operation == TradeOperation.ENTER_LONG:
-                signal_type = "ENTER_LONG"
-            elif trade.operation == TradeOperation.ENTER_SHORT:
-                signal_type = "ENTER_SHORT"
-            elif trade.operation == TradeOperation.EXIT:
-                signal_type = "EXIT"
-            else:
-                signal_type = str(trade.operation)
-
-            # Extract metadata
-            metadata = {
-                "size": trade.size,
-                "exchange": trade.exchange,
-                "target_price": trade.target_price,
-            }
-
-            # Add any additional metadata from the signal
-            if hasattr(trade_signal, "metadata") and trade_signal.metadata:
-                metadata.update(trade_signal.metadata)
-
-            # Track the signal
-            self.track_signal(
-                signal_id=f"{signal_id}-{symbol}",
-                strategy_name=strategy_name,
-                symbol=symbol,
-                signal_type=signal_type,
-                timestamp=trade_signal.timestamp,
-                confidence=getattr(trade_signal, "confidence", None),
-                metadata=metadata,
-            )
 
     def track_funding_rate(
         self,
@@ -310,9 +270,9 @@ class DashboardIntegration:
         funding_rate: Decimal,
         predicted_rate: Decimal | None = None,
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
-        Track a funding rate.
+        Track funding rate data.
 
         Args:
             timestamp: Funding rate timestamp
@@ -326,8 +286,8 @@ class DashboardIntegration:
             timestamp=timestamp,
             exchange=exchange,
             symbol=symbol,
-            funding_rate=funding_rate,
-            predicted_rate=predicted_rate,
+            funding_rate=float(funding_rate),
+            predicted_rate=float(predicted_rate) if predicted_rate is not None else None,
             metadata=metadata,
         )
 

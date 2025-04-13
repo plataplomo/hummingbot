@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+from typing import Any, Dict, Optional, Callable, Union, List, Tuple, AsyncGenerator
 
 import aiohttp
 import pytest
@@ -9,23 +10,23 @@ from cyberdelta.utils.config import Config
 
 # Mock aiohttp ClientSession and Response for API testing
 class MockResponse:
-    def __init__(self, data, status=200, headers=None, content_type="application/json"):
+    def __init__(self, data: Any, status: int = 200, headers: Optional[Dict[str, str]] = None, content_type: str = "application/json") -> None:
         self._data = data
         self.status = status
         self.headers = headers or {}
         self.content_type = content_type
         self._raise_for_status_called = False
 
-    async def json(self):
+    async def json(self) -> Any:
         return self._data
 
-    async def text(self):
+    async def text(self) -> str:
         return str(self._data)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'MockResponse':
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[type], exc_val: Optional[BaseException], exc_tb: Optional[Any]) -> None:
         pass
 
     def raise_for_status(self):
@@ -37,25 +38,25 @@ class MockResponse:
 
 
 class MockClientSession:
-    def __init__(self, responses=None):
+    def __init__(self, responses: Optional[Dict[Tuple[str, str], MockResponse]] = None) -> None:
         self.responses = responses or {}
         self.requests = []
         self.closed = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'MockClientSession':
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Optional[type], exc_val: Optional[BaseException], exc_tb: Optional[Any]) -> None:
         pass
 
-    async def close(self):
+    async def close(self) -> None:
         self.closed = True
 
-    async def _request(self, method, url, **kwargs):
+    async def _request(self, method: str, url: str, **kwargs: Any) -> MockResponse:
         self.requests.append({"method": method, "url": url, "kwargs": kwargs})
 
         # Find match in responses
-        for pattern, response in self.responses.items():
+        for pattern, response in (self.responses or {}).items():
             if (
                 (method, url) == pattern
                 or (method, pattern[1]) == pattern
@@ -66,31 +67,31 @@ class MockClientSession:
         # Default response if no match
         return MockResponse({}, status=404)
 
-    async def get(self, url, **kwargs):
+    async def get(self, url: str, **kwargs: Any) -> MockResponse:
         return await self._request("GET", url, **kwargs)
 
-    async def post(self, url, **kwargs):
+    async def post(self, url: str, **kwargs: Any) -> MockResponse:
         return await self._request("POST", url, **kwargs)
 
-    async def put(self, url, **kwargs):
+    async def put(self, url: str, **kwargs: Any) -> MockResponse:
         return await self._request("PUT", url, **kwargs)
 
-    async def delete(self, url, **kwargs):
+    async def delete(self, url: str, **kwargs: Any) -> MockResponse:
         return await self._request("DELETE", url, **kwargs)
 
 
 @pytest.fixture
-def mock_client_session():
+def mock_client_session() -> Callable[..., MockClientSession]:
     """Fixture to provide a mock aiohttp ClientSession."""
 
-    def create_session(responses=None):
+    def create_session(responses: Optional[Dict[Tuple[str, str], MockResponse]] = None) -> MockClientSession:
         return MockClientSession(responses)
 
     return create_session
 
 
 @pytest.fixture
-def hyperliquid_config():
+def hyperliquid_config() -> Dict[str, Any]:
     """Fixture to provide Hyperliquid API configuration."""
     return {
         "rest_endpoint": "https://api.hyperliquid.xyz",
@@ -104,7 +105,7 @@ def hyperliquid_config():
 
 
 @pytest.fixture
-def backpack_config():
+def backpack_config() -> Dict[str, Any]:
     """Fixture to provide Backpack API configuration."""
     return {
         "rest_endpoint": "https://api.backpack.exchange",
@@ -118,7 +119,7 @@ def backpack_config():
 
 
 @pytest.fixture
-def hyperliquid_secrets():
+def hyperliquid_secrets() -> Dict[str, str]:
     """Fixture to provide Hyperliquid API secrets with a VALID derived address."""
     # Use a fixed dummy private key for reproducibility in tests
     dummy_private_key = "0x1111111111111111111111111111111111111111111111111111111111111111"
@@ -137,7 +138,7 @@ def hyperliquid_secrets():
 
 
 @pytest.fixture
-def backpack_secrets():
+def backpack_secrets() -> Dict[str, str]:
     """Fixture to provide Backpack API secrets."""
     return {
         "BACKPACK_API_KEY": "backpack-api-key-123456",
@@ -146,10 +147,10 @@ def backpack_secrets():
 
 
 @pytest.fixture
-def mock_config():
+def mock_config() -> Callable[..., Config]:
     """Fixture to create a Config object with the provided data dictionary."""
 
-    def _create_config(config_data=None):
+    def _create_config(config_data: Optional[Dict[str, Any]] = None) -> Config:
         if config_data is None:
             config_data = {
                 "general": {"log_level": "INFO", "safe_mode": True},

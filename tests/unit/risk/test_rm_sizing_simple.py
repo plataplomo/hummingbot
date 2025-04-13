@@ -35,12 +35,12 @@ class TestRiskManagerSizingSimple:
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         risk_manager.max_position_size = Decimal("10000.0")
 
-        risk_manager._apply_portfolio_exposure_management = MagicMock(
-            side_effect=lambda opp, size: size
+        risk_manager._apply_portfolio_exposure_management.side_effect = (
+            lambda opp, size: size
         )
-        risk_manager._apply_portfolio_level_controls = MagicMock(side_effect=lambda size, opp: size)
-        risk_manager._check_portfolio_constraints = MagicMock(return_value=True)
-        risk_manager._calculate_kelly_size = MagicMock(return_value=Decimal("99999"))
+        risk_manager._apply_portfolio_level_controls.side_effect = lambda size, opp: size
+        risk_manager._check_portfolio_constraints.return_value = True
+        risk_manager._calculate_kelly_size.return_value = Decimal("99999")
 
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
@@ -83,12 +83,12 @@ class TestRiskManagerSizingSimple:
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         risk_manager.max_position_size = max_cap
 
-        risk_manager._apply_portfolio_exposure_management = MagicMock(
-            side_effect=lambda opp, size: size
+        risk_manager._apply_portfolio_exposure_management.side_effect = (
+            lambda opp, size: size
         )
-        risk_manager._apply_portfolio_level_controls = MagicMock(side_effect=lambda size, opp: size)
-        risk_manager._check_portfolio_constraints = MagicMock(return_value=True)
-        risk_manager._calculate_kelly_size = MagicMock(return_value=Decimal("99999"))
+        risk_manager._apply_portfolio_level_controls.side_effect = lambda size, opp: size
+        risk_manager._check_portfolio_constraints.return_value = True
+        risk_manager._calculate_kelly_size.return_value = Decimal("99999")
 
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
@@ -131,12 +131,12 @@ class TestRiskManagerSizingSimple:
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         risk_manager.max_position_size = Decimal("10000.0")
 
-        risk_manager._apply_portfolio_exposure_management = MagicMock(
-            side_effect=lambda opp, size: size
+        risk_manager._apply_portfolio_exposure_management.side_effect = (
+            lambda opp, size: size
         )
-        risk_manager._apply_portfolio_level_controls = MagicMock(side_effect=lambda size, opp: size)
-        risk_manager._check_portfolio_constraints = MagicMock(return_value=True)
-        risk_manager._calculate_kelly_size = MagicMock(return_value=Decimal("99999"))
+        risk_manager._apply_portfolio_level_controls.side_effect = lambda size, opp: size
+        risk_manager._check_portfolio_constraints.return_value = True
+        risk_manager._calculate_kelly_size.return_value = Decimal("99999")
 
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
@@ -180,12 +180,12 @@ class TestRiskManagerSizingSimple:
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         risk_manager.max_position_size = max_cap
 
-        risk_manager._apply_portfolio_exposure_management = MagicMock(
-            side_effect=lambda opp, size: size
+        risk_manager._apply_portfolio_exposure_management.side_effect = (
+            lambda opp, size: size
         )
-        risk_manager._apply_portfolio_level_controls = MagicMock(side_effect=lambda size, opp: size)
-        risk_manager._check_portfolio_constraints = MagicMock(return_value=True)
-        risk_manager._calculate_kelly_size = MagicMock(return_value=Decimal("99999"))
+        risk_manager._apply_portfolio_level_controls.side_effect = lambda size, opp: size
+        risk_manager._check_portfolio_constraints.return_value = True
+        risk_manager._calculate_kelly_size.return_value = Decimal("99999")
 
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)

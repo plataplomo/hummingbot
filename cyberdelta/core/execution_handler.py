@@ -401,28 +401,10 @@ class ExecutionHandler:
             order_type_to_use = OrderType.MARKET if use_market_orders else OrderType.LIMIT
 
             # --- Prepare Order Parameters (Common) ---
-            # Note: Limit prices would need to be fetched/calculated just before placement if using LIMIT
-            # For MARKET orders, price is None.
-            long_order_params = {
-                "client": long_client,
-                "exchange_id": long_exchange,
-                "symbol": long_exchange_symbol,  # Use exchange symbol
-                "side": OrderSide.BUY,
-                "order_type": order_type_to_use,
-                "quantity": long_quantity,
-                "time_in_force": None,  # Default to None for MARKET orders
-                "price": None,  # Set if LIMIT order
-            }
-            short_order_params = {
-                "client": short_client,
-                "exchange_id": short_exchange,
-                "symbol": short_exchange_symbol,  # Use exchange symbol
-                "side": OrderSide.SELL,
-                "order_type": order_type_to_use,
-                "quantity": short_quantity,
-                "time_in_force": None,  # Default to None for MARKET orders
-                "price": None,  # Set if LIMIT order
-            }
+            # Note: Parameters for _place_order_with_retry are passed directly below.
+            # Limit prices would need separate calculation if using LIMIT orders.
+            # The parameter dictionaries `long_order_params` and `short_order_params`
+            # were previously defined here but were unused, so they have been removed.
 
             # Placeholder for placed order objects
             long_order_result: Order | None = None
@@ -471,6 +453,31 @@ class ExecutionHandler:
                         f"due to long order failure/rejection."
                     )
                     # Handle compensation/cleanup if long order partially filled or failed
+                    if (long_order_result and
+                        long_order_result.filled_quantity is not None and
+                        long_order_result.filled_quantity > Decimal(0)):
+                        logger.warning(
+                            f"Execution {execution.id}: Long order failed but partially "
+                            f"filled ({long_order_result.filled_quantity}). "
+                            f"Attempting compensation."
+                        )
+                        comp_success = await self._compensate_position(
+                            client=long_client,
+                            exchange_id=long_exchange,
+                            internal_symbol=internal_symbol,
+                            # Original failed side was BUY (long), compensation needs SELL
+                            original_failed_side=OrderSide.SELL,
+                            quantity=long_order_result.filled_quantity,
+                        )
+                        if comp_success:
+                            logger.info(
+                                f"Compensated for partially filled long order."
+                            )
+                        else:
+                            logger.error(
+                                f"FAILED to compensate for partially filled long order."
+                            )
+                            # Record critical failure?
 
             elif execution_type == "concurrent":
                 logger.info(f"Execution {execution.id}: Placing orders concurrently...")
@@ -572,7 +579,9 @@ class ExecutionHandler:
                     )
                     # Check short order status more accurately
                     # Assuming we need to close the short position placed by short_order_result
-                    if short_order_result and short_order_result.filled_quantity > Decimal(0):
+                    if (short_order_result and
+                        short_order_result.filled_quantity is not None and
+                        short_order_result.filled_quantity > Decimal(0)):
                         needs_compensation = True
                         compensation_tasks.append(
                             self._compensate_position(
@@ -591,7 +600,9 @@ class ExecutionHandler:
                         f"compensation for long position."
                     )
                     # Assuming we need to close the long position placed by long_order_result
-                    if long_order_result and long_order_result.filled_quantity > Decimal(0):
+                    if (long_order_result and
+                        long_order_result.filled_quantity is not None and
+                        long_order_result.filled_quantity > Decimal(0)):
                         needs_compensation = True
                         compensation_tasks.append(
                             self._compensate_position(
@@ -604,7 +615,8 @@ class ExecutionHandler:
                         )
 
                 # If both failed, no compensation usually needed unless one partially filled before failing
-                elif long_status == OrderStatus.FAILED and short_status == OrderStatus.FAILED:
+                elif (long_status == OrderStatus.FAILED and
+                      short_status == OrderStatus.FAILED):
                     logger.info(
                         f"Execution {execution.id}: Both order placements failed. "
                         f"No compensation needed."
@@ -622,7 +634,8 @@ class ExecutionHandler:
                         execution.error_message += " Compensation successful."
                     else:
                         logger.error(
-                            f"Execution {execution.id}: Compensation failed. Manual intervention likely required. Results: {compensation_results}"
+                            f"Execution {execution.id}: Compensation failed. "
+                            f"Manual intervention likely required. Results: {compensation_results}"
                         )
                         execution.error_message += " Compensation FAILED."
                         if self.circuit_breaker_system:
@@ -638,15 +651,26 @@ class ExecutionHandler:
             # Placeholder for success - real implementation needs fill monitoring
             elif long_status != OrderStatus.FAILED and short_status != OrderStatus.FAILED:
                 logger.info(
-                    f"Execution {execution.id}: Both orders submitted. Monitoring required for fills."
+                    f"Execution {execution.id}: Both orders submitted. "
+                    f"Monitoring required for fills."
                 )
                 # TODO: Implement monitoring loop or callback mechanism
-                # For now, assume immediate completion for testing/prototype
+                # For now, assume immediate completion if orders are not FAILED
+                # Update execution record with potential fill data (even if monitoring is needed)
                 execution.status = ExecutionStatus.COMPLETED  # Placeholder
-                execution.long_fill_quantity = long_quantity  # Placeholder
-                execution.short_fill_quantity = short_quantity  # Placeholder
-                execution.long_fill_price = long_price_dec  # Placeholder - use actual fill price
-                execution.short_fill_price = short_price_dec  # Placeholder - use actual fill price
+                execution.long_fill_quantity = long_order_result.filled_quantity if long_order_result else Decimal(0)
+                execution.short_fill_quantity = (
+                    short_order_result.filled_quantity if short_order_result else Decimal(0)
+                )
+                # Use average fill price if available, otherwise fall back
+                execution.long_fill_price = (
+                    (long_order_result.avg_fill_price or long_order_result.price)
+                    if long_order_result else None
+                )
+                execution.short_fill_price = (
+                    (short_order_result.avg_fill_price or short_order_result.price)
+                    if short_order_result else None
+                )
                 execution.end_time = datetime.now(UTC)
                 # Record successful execution for CBs
                 if self.circuit_breaker_system:
@@ -661,7 +685,7 @@ class ExecutionHandler:
             if len(self.executions) > self.max_execution_history:
                 self.executions.pop(0)
 
-            # Remove from active executions
+            # Remove from active executions regardless of final status
             if execution_id in self.active_executions:
                 del self.active_executions[execution_id]
 
@@ -684,8 +708,11 @@ class ExecutionHandler:
             )
             execution.status = ExecutionStatus.FAILED
             execution.error_message = str(e)
-            # Add to executions for historical tracking
+            execution.end_time = datetime.now(UTC)
+            # Add to executions for historical tracking and remove from active
             self.executions.append(execution)
+            if execution_id in self.active_executions:
+                del self.active_executions[execution_id]
             return execution  # Return early with failed status
 
         finally:
@@ -708,7 +735,7 @@ class ExecutionHandler:
         retry_delay: float = 0.5,
         max_retries: int = 3,
         reduce_only: bool = False,
-    ) -> Order:
+    ) -> Order | None:
         """
         Place an order with retry logic.
 
@@ -726,7 +753,7 @@ class ExecutionHandler:
             reduce_only: Whether the order should only reduce position
 
         Returns:
-            Order object
+            Order object if successful, None if all retries are exhausted
         """
         retries = 0
 
@@ -766,7 +793,8 @@ class ExecutionHandler:
                 )
 
                 self.logger.info(
-                    f"Order placed: {order.order_id} on {exchange_id} for {symbol}, {side.name}, {quantity}"
+                    f"Order placed: {order.order_id} on {exchange_id} for {symbol}, "
+                    f"{side.name}, {quantity}"
                 )
 
                 # Return the order object directly
@@ -775,7 +803,8 @@ class ExecutionHandler:
             except APIError as e:
                 retries += 1
                 self.logger.warning(
-                    f"API error placing order on {exchange_id} for {symbol}, {side.name}, {quantity}: {e}"
+                    f"API error placing order on {exchange_id} for {symbol}, "
+                    f"{side.name}, {quantity}: {e}"
                 )
 
                 if e.code in [APIErrorCode.INSUFFICIENT_FUNDS, APIErrorCode.QUANTITY_OUT_OF_RANGE]:
@@ -864,14 +893,11 @@ class ExecutionHandler:
         Returns:
             Order object if found, None otherwise.
         """
-        # Note: Retries might be better handled in the calling function (_verify_order_state)
-        # For now, keeping retry logic here is complex. Assume get_order handles its own transient errors.
+        # Note: Retries might be better handled in the calling function
+        # (_verify_order_state). Assume get_order handles transient errors.
         try:
             logger.debug(f"Getting order status for ID: {order_id} ({symbol}) on {exchange_id}")
-            order = await client.get_order(
-                order_id=order_id, symbol=symbol
-            )  # Pass symbol if required by API
-
+            order = await client.get_order_status(order_id=order_id)
             if order:
                 logger.debug(
                     f"Got order status for {order_id}: {order.status.name}, Filled: {order.filled_quantity}"
@@ -885,17 +911,22 @@ class ExecutionHandler:
                 ) and order.filled_quantity > Decimal("0"):
                     try:
                         # Construct Trade object (ensure necessary fields are present in Order)
+                        trade_id = (
+                            f"trade_{order.order_id}_{int(time.time() * 1000)}_status"
+                        )
                         trade = Trade(
-                            id=f"trade_{order.order_id}_{int(time.time() * 1000)}_status",  # Unique trade ID
+                            id=trade_id,
                             order_id=order.order_id,
                             exchange=exchange_id,
                             symbol=self.symbol_mapper.get_internal_symbol(symbol, exchange_id)
                             or symbol,  # Map back to internal symbol
                             side=order.side,
-                            quantity=order.filled_quantity,
-                            price=order.avg_fill_price
+                            quantity=order.filled_quantity if order.filled_quantity is not None else Decimal("0"),
+                            # Use avg_fill_price if available, otherwise order price,
+                            # falling back to 0 if neither exist (should not happen)
+                            price=(order.avg_fill_price
                             or order.price
-                            or Decimal("0"),  # Use avg_fill_price first
+                            or Decimal("0")),
                             # Fee calculation might need refinement depending on Order model details
                             fee=order.fee
                             if hasattr(order, "fee") and order.fee is not None
@@ -909,11 +940,13 @@ class ExecutionHandler:
                         )
                         self.portfolio_tracker.process_trade(exchange_id, trade)
                         logger.info(
-                            f"PortfolioTracker updated for trade from order status check {order.order_id} on {exchange_id}"
+                            f"PortfolioTracker updated for trade from order status check "
+                            f"{order.order_id} on {exchange_id}"
                         )
                     except Exception as trade_proc_err:
                         logger.error(
-                            f"Error processing trade from status check for order {order.order_id} in PortfolioTracker: {trade_proc_err}",
+                            f"Error processing trade from status check for order "
+                            f"{order.order_id} in PortfolioTracker: {trade_proc_err}",
                             exc_info=True,
                         )
                         # Decide if this error should propagate or just be logged
@@ -960,13 +993,14 @@ class ExecutionHandler:
         current_pos_size = current_position.size if current_position else Decimal("0")
         logger.debug(
             f"Compensation PRE-CHECK for {exchange_id}/{internal_symbol}: "
-            f"Current position size: {current_pos_size}. Intended compensation quantity: {quantity}."
-            f" (Original failed side: {original_failed_side.name})"
+            f"Current pos size: {current_pos_size}. "
+            f"(Original failed side: {original_failed_side.name})"
         )
         if current_position and abs(current_pos_size) < abs(quantity):
             logger.warning(
-                f"Compensation quantity ({quantity}) exceeds current position size ({current_pos_size}) "
-                f"for {exchange_id}/{internal_symbol}. Adjusting compensation quantity."
+                f"Compensation quantity ({quantity}) exceeds current position "
+                f"size ({current_pos_size}) for {exchange_id}/{internal_symbol}. "
+                f"Adjusting compensation quantity."
             )
             # Adjust quantity to avoid exceeding current position size when closing
             quantity = abs(current_pos_size)
@@ -979,7 +1013,8 @@ class ExecutionHandler:
         # Check if quantity is effectively zero after adjustment
         if quantity <= Decimal("1E-12"):  # Use a small threshold
             logger.info(
-                f"Compensation quantity for {exchange_id}/{internal_symbol} is negligible ({quantity}). Skipping compensation order."
+                f"Compensation quantity for {exchange_id}/{internal_symbol} "
+                f"is negligible ({quantity}). Skipping compensation order."
             )
             return True  # Consider it successful as no action needed
 
@@ -987,8 +1022,9 @@ class ExecutionHandler:
         exchange_symbol = self.symbol_mapper.get_exchange_symbol(internal_symbol, exchange_id)
         if not exchange_symbol:
             logger.error(
-                f"Symbol mapping failed during compensation: Cannot find exchange symbol for "
-                f"internal symbol '{internal_symbol}' on '{exchange_id}'. Compensation ABORTED."
+                f"Symbol mapping failed during compensation: Cannot find "
+                f"exchange symbol for internal '{internal_symbol}' on "
+                f"'{exchange_id}'. Compensation ABORTED."
             )
             # Record critical failure? Depends on policy.
             if self.circuit_breaker_system:
@@ -1043,22 +1079,26 @@ class ExecutionHandler:
                         order_type_to_use = OrderType.LIMIT
                         logger.info(
                             f"Calculated compensating limit price for '{exchange_symbol}': {limit_price:.4f} "
-                            f"(Comp Side: {compensating_side.name}, Offset: {price_offset_dec:.3f}%)"
+                            f"(Comp Side: {compensating_side.name}, Offset: "
+                            f"{price_offset_dec:.3f}%)"
                         )
                     else:
                         logger.warning(
-                            f"Calculated invalid limit price ({limit_price}) for '{exchange_symbol}' "
-                            f"compensation. Falling back to MARKET order."
+                            f"Calculated invalid limit price ({limit_price}) "
+                            f"for '{exchange_symbol}' compensation. "
+                            f"Falling back to MARKET order."
                         )
                 else:
                     logger.warning(
-                        f"Could not get valid ticker bid/ask for '{exchange_symbol}' on {exchange_id} to set limit price. "
+                        f"Could not get valid ticker bid/ask for '{exchange_symbol}' "
+                        f"on {exchange_id} to set limit price. "
                         f"Falling back to MARKET order."
                     )
             except Exception as ticker_err:
                 logger.error(
-                    f"Error getting ticker for limit price calculation on {exchange_id} for '{exchange_symbol}': "
-                    f"{ticker_err}. Falling back to MARKET order.",
+                    f"Error getting ticker for limit price calculation on "
+                    f"{exchange_id} for '{exchange_symbol}': {ticker_err}. "
+                    f"Falling back to MARKET order.",
                     exc_info=True,
                 )
         else:
@@ -1071,12 +1111,15 @@ class ExecutionHandler:
                 OrderSide.SELL if original_failed_side == OrderSide.SELL else OrderSide.BUY
             )
             logger.info(
-                f"Placing compensating order: {compensating_side.name} {quantity} {exchange_symbol}@{order_type_to_use.name} on {exchange_id}"
+                f"Placing compensating order: {compensating_side.name} "
+                f"{quantity} {exchange_symbol}@{order_type_to_use.name} "
+                f"on {exchange_id}"
             )
 
             # --- Add final check of quantity before placing ---
             logger.debug(
-                f"Final check before placing compensation order for {exchange_symbol}: Quantity={quantity}, ReduceOnly=True"
+                f"Final check before placing compensation order for "
+                f"{exchange_symbol}: Quantity={quantity}, ReduceOnly=True"
             )
 
             # Place the compensating order (MUST be reduce_only)
@@ -1093,7 +1136,8 @@ class ExecutionHandler:
 
             if compensating_order:
                 logger.info(
-                    f"Compensation order submitted successfully for {exchange_symbol}: ID {compensating_order.order_id}, Status: {compensating_order.status.name}"
+                    f"Compensation order submitted for {exchange_symbol}: ID "
+                    f"{compensating_order.order_id}, Status: {compensating_order.status.name}"
                 )
                 # TODO: Need to monitor the status of this compensating order
                 # For now, assume success if placed without error.
@@ -1104,17 +1148,21 @@ class ExecutionHandler:
                     OrderStatus.CANCELED,
                 ):
                     logger.info(
-                        f"Compensation order {compensating_order.order_id} placed successfully for {exchange_symbol}."
+                        f"Compensation order {compensating_order.order_id} placed "
+                        f"successfully for {exchange_symbol}."
                     )
                     return True
                 else:
                     logger.error(
-                        f"Compensation order {compensating_order.order_id} for {exchange_symbol} failed/rejected/cancelled. Status: {compensating_order.status.name}"
+                        f"Compensation order {compensating_order.order_id} for "
+                        f"{exchange_symbol} failed/rejected/cancelled. "
+                        f"Status: {compensating_order.status.name}"
                     )
                     return False
             else:
                 logger.error(
-                    f"Failed to place compensating order for {exchange_symbol} on {exchange_id} after retries."
+                    f"Failed to place compensating order for "
+                    f"{exchange_symbol} on {exchange_id} after retries."
                 )
                 return False
 
@@ -1200,7 +1248,7 @@ class ExecutionHandler:
 
         try:
             self.logger.debug(f"Checking order status for {order_id} on {exchange}")
-            order = await client.get_order(order_id=order_id, symbol=symbol)
+            order = await client.get_order_status(order_id=order_id)
             return order
         except Exception as e:
             self.logger.error(f"Error checking order status: {e}")
@@ -1221,7 +1269,8 @@ class ExecutionHandler:
             ExecutionStatus.PARTIALLY_COMPLETED,
         ):
             logger.debug(
-                f"Skipping PnL update for execution {execution.id} with status {execution.status.name}"
+                f"Skipping PnL update for execution {execution.id} with status "
+                f"{execution.status.name}"
             )
             return
 

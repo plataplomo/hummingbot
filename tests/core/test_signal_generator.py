@@ -7,6 +7,7 @@ from collections import deque
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
+from typing import Deque, Tuple, Optional, Any, Dict, List
 
 import numpy as np
 import pytest
@@ -29,7 +30,7 @@ class TestSignalGenerator:
     """Test suite for the SignalGenerator class."""
 
     @pytest.fixture
-    def config(self):
+    def config(self) -> MagicMock:
         """Create a mock config for testing."""
         mock_config = MagicMock(spec=Config)
 
@@ -52,12 +53,12 @@ class TestSignalGenerator:
         return mock_config
 
     @pytest.fixture
-    def data_handler(self):
+    def data_handler(self) -> MagicMock:
         """Fixture for mock DataHandler."""
         handler = MagicMock(spec=DataHandler)
 
         # Mock funding rates
-        funding_rates = {
+        funding_rates: Dict[str, Dict[str, FundingRate]] = {
             "hyperliquid": {
                 "BTC": FundingRate(
                     symbol="BTC",
@@ -93,7 +94,7 @@ class TestSignalGenerator:
         }
 
         # Mock tickers
-        tickers = {
+        tickers: Dict[str, Dict[str, Ticker]] = {
             "hyperliquid": {
                 "BTC": Ticker(
                     symbol="BTC",
@@ -138,7 +139,7 @@ class TestSignalGenerator:
             (Decimal("30001"), Decimal("1.5")),
             (Decimal("30002"), Decimal("3.0")),
         ]
-        orderbooks = {
+        orderbooks: Dict[str, Dict[str, MagicMock]] = {
             "hyperliquid": {
                 "BTC": mock_orderbook,
                 "ETH": mock_orderbook,  # Use same mock for simplicity
@@ -153,11 +154,11 @@ class TestSignalGenerator:
         return handler
 
     @pytest.fixture
-    def symbol_mapper(self, config):
+    def symbol_mapper(self, config: MagicMock) -> SymbolMapper:
         """Fixture for a SymbolMapper using the mock config."""
         # Correctly reconstruct the config structure needed by SymbolMapper
         # by fetching the specific nested keys from the mock config.
-        config_data = {
+        config_data: Dict[str, Any] = {
             "exchanges": {
                 "hyperliquid": {
                     "enabled": config.get("exchanges.hyperliquid.enabled", False),
@@ -172,11 +173,13 @@ class TestSignalGenerator:
         return SymbolMapper(config_data)
 
     @pytest.fixture
-    def signal_generator(self, config, data_handler, symbol_mapper):
+    def signal_generator(
+        self, config: MagicMock, data_handler: MagicMock, symbol_mapper: SymbolMapper
+    ) -> SignalGenerator:
         """Create a SignalGenerator instance for testing."""
         return SignalGenerator(config, data_handler, symbol_mapper)
 
-    def test_init(self, signal_generator, config, data_handler):
+    def test_init(self, signal_generator: SignalGenerator, config: MagicMock, data_handler: MagicMock) -> None:
         """Test initializing the signal generator."""
         # Verify configuration parameters were loaded
         assert signal_generator.min_funding_differential == Decimal("0.0002")
@@ -209,7 +212,9 @@ class TestSignalGenerator:
         assert signal_generator.symbol_mapper is not None
 
     @patch("cyberdelta.core.signal_generator.datetime")  # Patch datetime
-    def test_update_historical_data(self, mock_datetime, signal_generator, data_handler):
+    def test_update_historical_data(
+        self, mock_datetime: MagicMock, signal_generator: SignalGenerator, data_handler: MagicMock
+    ) -> None:
         """Test updating historical funding rate and basis data using deque."""
         # Set a fixed time for consistent testing
         fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -341,7 +346,7 @@ class TestSignalGenerator:
         # Allow for slight discrepancy due to update calls sequence
         assert oldest_funding_ts >= cutoff_time - timedelta(seconds=10)
 
-    def test_calculate_basis_volatility(self, signal_generator):
+    def test_calculate_basis_volatility(self, signal_generator: SignalGenerator) -> None:
         """Test calculating basis volatility."""
         internal_symbol = "BTC"
         # Empty data should return 0
@@ -349,7 +354,7 @@ class TestSignalGenerator:
 
         # Add historical basis data using deque
         now = datetime.now(UTC)
-        basis_deque = deque()
+        basis_deque: Deque[Tuple[datetime, Decimal]] = signal_generator.historical_basis[internal_symbol]
         basis_values = [Decimal("100"), Decimal("120"), Decimal("90"), Decimal("110")]
         timestamps = [
             now - timedelta(hours=3),
@@ -369,7 +374,7 @@ class TestSignalGenerator:
         expected_volatility_float = np.std([float(v) for v in basis_values])
         assert volatility == Decimal(str(expected_volatility_float))
 
-    def test_calculate_funding_rate_volatility(self, signal_generator):
+    def test_calculate_funding_rate_volatility(self, signal_generator: SignalGenerator) -> None:
         """Test calculating funding rate volatility."""
         exchange = "hyperliquid"
         internal_symbol = "BTC"
@@ -381,7 +386,7 @@ class TestSignalGenerator:
 
         # Test with insufficient data (1 point)
         now = datetime.now(UTC)
-        funding_deque = deque()
+        funding_deque: Deque[Tuple[datetime, Decimal]] = signal_generator.historical_funding_rates[exchange][internal_symbol]
         funding_deque.append((now, Decimal("0.01")))
         signal_generator.historical_funding_rates[exchange][internal_symbol] = funding_deque
         assert signal_generator.calculate_funding_rate_volatility(
@@ -409,7 +414,9 @@ class TestSignalGenerator:
         expected_volatility_float = np.std([float(r) for r in funding_rates])
         assert volatility == Decimal(str(expected_volatility_float))
 
-    def test_estimate_slippage(self, signal_generator, data_handler):
+    def test_estimate_slippage(
+        self, signal_generator: SignalGenerator, data_handler: MagicMock
+    ) -> None:
         """Test estimating slippage based on order size and liquidity."""
         # Test with default depth (mocked orderbook)
         slippage = signal_generator.estimate_slippage("BTC", Decimal("10000"), "hyperliquid")
@@ -423,7 +430,7 @@ class TestSignalGenerator:
         # Assert against the observed behavior (MIN_SLIPPAGE), though the reason requires investigation
         assert slippage == Decimal("1E-9")  # Changed from 0.001
 
-    def test_generate_opportunities(self, signal_generator, data_handler):
+    def test_generate_opportunities(self, signal_generator: SignalGenerator, data_handler: MagicMock) -> None:
         """Test generating arbitrage opportunities."""
         # Call the method
         opportunities = signal_generator.generate_opportunities()
@@ -441,12 +448,12 @@ class TestSignalGenerator:
         # Net funding differential should be 0.03%
         assert round(btc_opportunity.net_funding_differential, 4) == Decimal("0.03")
 
-    def test_generate_opportunities_no_eligible(self, signal_generator, data_handler):
+    def test_generate_opportunities_no_eligible(self, signal_generator: SignalGenerator, data_handler: MagicMock) -> None:
         """Test when no opportunities meet the eligibility criteria."""
 
         # Modify funding rates to be below threshold
         # Return FundingRate objects, not tuples
-        def mock_low_funding(exchange, symbol):
+        def mock_low_funding(exchange: str, symbol: str) -> Optional[FundingRate]:
             rates = {
                 "hyperliquid": {
                     "BTC": FundingRate(
@@ -489,7 +496,7 @@ class TestSignalGenerator:
         opportunities = signal_generator.generate_opportunities()
         assert len(opportunities) == 0
 
-    def test_generate_opportunities_single_exchange(self, signal_generator, config):
+    def test_generate_opportunities_single_exchange(self, signal_generator: SignalGenerator, config: MagicMock) -> None:
         """Test when only one exchange is enabled."""
         # Mock config to return only one enabled exchange
         config.get.side_effect = lambda key, default=None: {
@@ -506,7 +513,7 @@ class TestSignalGenerator:
         # Verify no opportunities were found (need at least two exchanges)
         assert len(opportunities) == 0
 
-    def test_arbitrage_opportunity_creation(self, signal_generator):
+    def test_arbitrage_opportunity_creation(self, signal_generator: SignalGenerator) -> None:
         # Minimal test to check ArbitrageOpportunity object creation logic
         # This assumes generate_opportunities works correctly based on other tests
         # Setup simple mock data directly if needed, or rely on existing fixtures

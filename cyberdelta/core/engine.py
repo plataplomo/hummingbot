@@ -167,7 +167,10 @@ class Engine:
                         if not self.signal_handler:
                             logger.error(f"Signal from {strategy.name} but no handler configured!")
                         else:
-                            self.signal_handler(signal)
+                            # Check the callable directly, not its truthiness
+                            # self.signal_handler(signal) # Original line caused truthy-function warning
+                            handler = self.signal_handler
+                            handler(signal) # Call the handler
 
                 except Exception as e:
                     # Log the error and potentially disable the faulty strategy

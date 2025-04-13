@@ -39,9 +39,9 @@ class TestRiskManagerControls:
         initial_size = Decimal("10000.0")
 
         # Mock the complex methods to assert they aren't called
-        risk_manager._apply_volatility_adjustment = MagicMock(side_effect=lambda s, *args: s)
-        risk_manager._apply_drawdown_protection = MagicMock(side_effect=lambda s, *args: s)
-        risk_manager._apply_correlation_limits = MagicMock(side_effect=lambda s, *args: s)
+        risk_manager._apply_volatility_adjustment.side_effect = lambda s, *args: s
+        risk_manager._apply_drawdown_protection.side_effect = lambda s, *args: s
+        risk_manager._apply_correlation_limits.side_effect = lambda s, *args: s
 
         # Mock safety systems: CB tripped globally, low validation factor
         mock_circuit_breaker.can_execute.return_value = (False, "Global CB Tripped Test")

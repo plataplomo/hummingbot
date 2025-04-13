@@ -14,11 +14,13 @@ import pathlib
 from abc import ABC, abstractmethod
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
 
+# Import necessary components at the top level
+from .results import BacktestResultsHandler
 from cyberdelta.core.models import MarketData, SignalType, TradeSignal
 from cyberdelta.core.strategy import Strategy
 
@@ -32,6 +34,7 @@ class BacktestStrategy(ABC):
     def __init__(self, name: str) -> None:
         """Initialize the strategy with a name"""
         self._name = name
+        self.initialized = False # Track initialization status
 
     @abstractmethod
     def initialize(self, data: pd.DataFrame) -> bool:
@@ -45,6 +48,7 @@ class BacktestStrategy(ABC):
             bool: True if initialization was successful
         """
         pass
+        self.initialized = True # Assume success if abstract method doesn't raise error
 
     @abstractmethod
     def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
@@ -134,11 +138,11 @@ class BacktestEngine:
         if not isinstance(initial_capital, Decimal):
             try:
                 self.initial_capital = Decimal(str(initial_capital))
-            except InvalidOperation:
+            except InvalidOperation as e:
                 logger.error(
-                    f"Invalid initial_capital value: {initial_capital}. Cannot convert to Decimal."
+                    f"Invalid initial_capital value: {initial_capital}. Cannot convert to Decimal. Error: {e}"
                 )
-                raise ValueError("initial_capital must be a valid number.")
+                raise ValueError("initial_capital must be a valid number.") from e
         else:
             self.initial_capital = initial_capital
         self.capital = self.initial_capital
@@ -147,18 +151,18 @@ class BacktestEngine:
         if not isinstance(commission, Decimal):
             try:
                 self.commission = Decimal(str(commission))
-            except InvalidOperation:
-                logger.error(f"Invalid commission value: {commission}")
-                raise ValueError("commission must be a valid number.")
+            except InvalidOperation as e:
+                logger.error(f"Invalid commission value: {commission}. Error: {e}")
+                raise ValueError("commission must be a valid number.") from e
         else:
             self.commission = commission
 
         if not isinstance(slippage, Decimal):
             try:
                 self.slippage = Decimal(str(slippage))
-            except InvalidOperation:
-                logger.error(f"Invalid slippage value: {slippage}")
-                raise ValueError("slippage must be a valid number.")
+            except InvalidOperation as e:
+                logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
+                raise ValueError("slippage must be a valid number.") from e
         else:
             self.slippage = slippage
 
@@ -174,6 +178,8 @@ class BacktestEngine:
 
         # Create results directory if it doesn't exist
         pathlib.Path(results_dir).mkdir(parents=True, exist_ok=True)
+
+        self.results_handler: Optional[BacktestResultsHandler] = None # Initialize as None
 
     def run(self, training_portion: Decimal = Decimal("0.3")) -> dict[str, Any]:
         """
@@ -194,19 +200,22 @@ class BacktestEngine:
         test_data = self.data.iloc[train_size:]
 
         # Initialize strategy
-        if not self.strategy.initialize(train_data):
+        try:
+            if not self.strategy.initialize(train_data):
+                logger.error("Strategy initialization method returned False")
+                return {"success": False, "error": "Strategy initialization failed"}
+        except Exception as e:
             logger.error("Strategy initialization failed")
-            return {"success": False, "error": "Strategy initialization failed"}
+            return {"success": False, "error": f"Strategy initialization failed: {e}"}
 
         # Initialize results handler
         try:
-            from .results import BacktestResultsHandler  # Local import
-
             results_handler = BacktestResultsHandler(
                 strategy_name=self.strategy.name,
                 initial_capital=self.initial_capital,
                 results_dir=self.results_dir,
             )
+            self.results_handler = results_handler # Assign to instance attribute
         except ImportError as e:
             logger.error(f"Could not import BacktestResultsHandler: {e}")
             return {"success": False, "error": "Failed to load results handler."}
@@ -216,11 +225,12 @@ class BacktestEngine:
         current_capital = self.initial_capital
 
         # Loop through test data
-        positions = {}  # symbol -> position
+        positions: Dict[str, Dict[str, Any]] = {}  # symbol -> position dict
 
         # Store initial equity point
         start_time = test_data.index[0] if not test_data.empty else datetime.now()
-        results_handler.add_equity_point(start_time, current_capital)
+        if self.results_handler:
+            self.results_handler.add_equity_point(start_time, current_capital)
 
         for idx, row in test_data.iterrows():
             # Update strategy with new data
@@ -353,13 +363,28 @@ class BacktestEngine:
                             del positions[symbol]
 
             # Record equity point at this timestamp
-            results_handler.add_equity_point(idx, current_capital)
+            if self.results_handler:
+                self.results_handler.add_equity_point(idx, current_capital)
 
         # Calculate final results
         # Get the final metrics and results
-        return results_handler.format_results_for_output()
+        if not self.results_handler:
+            logger.info("No results handler available, cannot calculate or save metrics.")
+            return {"success": True, "message": "Backtest completed, no results handler.", "final_equity": float(current_capital)}
 
-    def save_results(self, filename: str = None) -> str:
+        metrics = self.results_handler.calculate_metrics()
+
+        # Save results to file
+        try:
+            filename = f"{self.strategy.name}_backtest_results.json"
+            saved_path = self.save_results(filename=filename)
+            logger.info(f"Backtest completed. Results saved to {saved_path}")
+            return {"success": True, "metrics": metrics, "results_file": saved_path}
+        except Exception as e:
+            logger.error(f"Failed to save backtest results: {e}")
+            return {"success": False, "error": "Failed to save results", "metrics": metrics}
+
+    def save_results(self, filename: Optional[str] = None) -> str:
         """
         Save backtest results to a file.
 
@@ -369,22 +394,9 @@ class BacktestEngine:
         Returns:
             Path to saved file
         """
-        # Run backtest if not already run
-        if not hasattr(self, "results_handler") or not self.results_handler:
-            try:
-                from .results import BacktestResultsHandler
+        if not self.results_handler:
+            raise RuntimeError("Results handler not initialized. Cannot save results.")
 
-                self.results_handler = BacktestResultsHandler(
-                    strategy_name=self.strategy.name,
-                    initial_capital=self.initial_capital,
-                    results_dir=self.results_dir,
-                )
-                results = self.run()
-            except ImportError as e:
-                logger.error(f"Could not import BacktestResultsHandler: {e}")
-                raise ImportError("Results handler not available") from e
-
-        # Save results
         return self.results_handler.save_results(filename)
 
 
@@ -404,6 +416,7 @@ class StrategyAdapter(BacktestStrategy):
         self.strategy = strategy
         self.positions = {}
         self._logger: logging.Logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.initialized = False # Track initialization status
 
     def initialize(self, data: pd.DataFrame) -> bool:
         """
@@ -426,6 +439,8 @@ class StrategyAdapter(BacktestStrategy):
                 f"Error initializing core strategy '{self.strategy.name}' via adapter: {e}"
             )
             return False
+        self.initialized = True
+        return True
 
     def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
         """

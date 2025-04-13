@@ -213,9 +213,12 @@ class BacktestResultsHandler:
                     trades = trades.dropna(subset=["entry_time", "exit_time"])
                     if not trades.empty:
                         holding_periods = trades["exit_time"] - trades["entry_time"]
-                        self.metrics["avg_holding_period_hours"] = (
-                            holding_periods.mean().total_seconds() / 3600
-                        )
+                        # Ensure holding_periods.mean() is a timedelta before calling total_seconds()
+                        avg_period = holding_periods.mean()
+                        if isinstance(avg_period, pd.Timedelta):
+                            self.metrics["avg_holding_period_hours"] = avg_period.total_seconds() / 3600
+                        else:
+                            self.metrics["avg_holding_period_hours"] = np.nan # Handle case where mean is not timedelta
                     else:
                         self.metrics["avg_holding_period_hours"] = np.nan
                 else:
@@ -294,7 +297,7 @@ class BacktestResultsHandler:
             plt.xlabel("Date", fontsize=12)
             fig.autofmt_xdate()
 
-            plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to prevent title overlap
+            fig.tight_layout(rect=(0, 0.03, 1, 0.95))  # Use tuple for rect
 
             # Save plot
             plot_filename = os.path.join(
@@ -330,7 +333,7 @@ class BacktestResultsHandler:
 
         if not filename:
             timestamp_str = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-            filename = f"{self.strategy_name}_backtest_{timestamp_str}.json"
+            filename = f"{self.strategy_name}_{timestamp_str}_results.json"
 
         results_path = os.path.join(self.results_dir, filename)
 

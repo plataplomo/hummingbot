@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import unittest
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,6 +12,7 @@ from cyberdelta.monitoring.simplified_performance_tracker import (
     SimplePerformanceTracker,
 )
 from cyberdelta.visualization.simplified_visualizer import SimpleVisualizer
+from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 
 
 class TestSimpleVisualizer(unittest.TestCase):
@@ -45,33 +47,34 @@ class TestSimpleVisualizer(unittest.TestCase):
         base_time = now - timedelta(days=60)
 
         # Track some signals
-        signal1 = type(
-            "Signal",
-            (),
-            {
-                "signal_id": "1",
-                "signal_type": type("SignalType", (), {"name": "ENTER_LONG"}),
-                "symbol": "BTC-USDT",
-                "timestamp": now,
-                "metadata": {},
-            },
+        signal1 = TradeSignal(
+            symbol="BTC-USDT",
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=Decimal("50000.0"),
+            quantity=Decimal("1.0"),
+            timestamp=now,
+            source_strategy="TestStrategy",
+            confidence=0.9,
+            metadata={},
         )
-        signal2 = type(
-            "Signal",
-            (),
-            {
-                "signal_id": "2",
-                "signal_type": type("SignalType", (), {"name": "ENTER_SHORT"}),
-                "symbol": "ETH-USDT",
-                "timestamp": now,
-                "metadata": {},
-            },
+        signal2 = TradeSignal(
+            symbol="ETH-USDT",
+            signal_type=SignalType.ENTER_SHORT,
+            side=OrderSide.SELL,
+            price=Decimal("3000.0"),
+            quantity=Decimal("10.0"),
+            timestamp=now,
+            source_strategy="TestStrategy",
+            confidence=0.8,
+            metadata={},
         )
 
-        self.tracker.track_signal(signal1)
-        self.tracker.track_signal(signal2)
-        self.tracker.track_signal_execution("1", True)
-        self.tracker.track_signal_execution("2", False)
+        # Track signals and capture their generated IDs
+        signal1_metrics = self.tracker.track_signal(signal1)
+        signal2_metrics = self.tracker.track_signal(signal2)
+        self.tracker.track_signal_execution(signal1_metrics.signal_id, True)
+        self.tracker.track_signal_execution(signal2_metrics.signal_id, False)
 
         # Create sample trades data
         for i in range(30):

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Dict, Any
 
 import pytest
 
@@ -17,7 +18,7 @@ from cyberdelta.utils.config import Config
 
 
 @pytest.fixture
-def setup_dependencies():
+def setup_dependencies() -> Dict[str, MagicMock]:
     """Set up test dependencies"""
     data_handler = MagicMock()
     portfolio_tracker = MagicMock()
@@ -33,7 +34,9 @@ def setup_dependencies():
 
 
 @pytest.fixture
-def strategy_with_risk_manager(setup_dependencies):
+def strategy_with_risk_manager(
+    setup_dependencies: Dict[str, MagicMock]
+) -> FundingRateArbitrageStrategy:
     """Create strategy instance with risk manager"""
     return FundingRateArbitrageStrategy(
         name="test_funding_arb",
@@ -53,7 +56,9 @@ def strategy_with_risk_manager(setup_dependencies):
 
 
 @pytest.fixture
-def strategy_without_risk_manager(setup_dependencies):
+def strategy_without_risk_manager(
+    setup_dependencies: Dict[str, MagicMock]
+) -> FundingRateArbitrageStrategy:
     """Create strategy instance without risk manager"""
     return FundingRateArbitrageStrategy(
         name="test_no_rm",
@@ -73,7 +78,7 @@ def strategy_without_risk_manager(setup_dependencies):
 
 
 @pytest.fixture
-def mock_opportunity():
+def mock_opportunity() -> ArbitrageOpportunity:
     """Create a mock opportunity for testing"""
     return ArbitrageOpportunity(
         symbol="BTC/USDT",
@@ -91,7 +96,10 @@ def mock_opportunity():
     )
 
 
-def test_strategy_initialization_with_risk_manager(strategy_with_risk_manager, setup_dependencies):
+def test_strategy_initialization_with_risk_manager(
+    strategy_with_risk_manager: FundingRateArbitrageStrategy,
+    setup_dependencies: Dict[str, MagicMock]
+) -> None:
     """Test that strategy initializes properly with risk manager"""
     assert strategy_with_risk_manager.risk_manager == setup_dependencies["risk_manager"]
     assert strategy_with_risk_manager.sized_opportunities == {}
@@ -100,8 +108,11 @@ def test_strategy_initialization_with_risk_manager(strategy_with_risk_manager, s
 @pytest.mark.asyncio
 @patch("cyberdelta.strategies.funding_rate_arbitrage.logger")
 async def test_position_sizing_integration(
-    mock_logger, strategy_with_risk_manager, setup_dependencies, mock_opportunity
-):
+    mock_logger: MagicMock,
+    strategy_with_risk_manager: FundingRateArbitrageStrategy,
+    setup_dependencies: Dict[str, MagicMock],
+    mock_opportunity: ArbitrageOpportunity
+) -> None:
     """Test integration between strategy and risk manager"""
     # Setup mocks
     mock_logger.info = MagicMock()
@@ -142,9 +153,9 @@ async def test_position_sizing_integration(
         long_size=Decimal("15000.0"),
         short_size=Decimal("15000.0"),
         expected_profit=Decimal("50.0"),
-        allocation_percentage=0.1,  # Example: 10% allocation
-        expected_return=0.001,  # Example: 0.1% return
-        risk_adjusted_return=0.15,  # Example: risk-adjusted score
+        allocation_percentage=Decimal("0.1"),  # Example: 10% allocation
+        expected_return=Decimal("0.001"),  # Example: 0.1% return
+        risk_adjusted_return=Decimal("0.15"),  # Example: risk-adjusted score
     )
     setup_dependencies["risk_manager"].size_opportunity = MagicMock(
         return_value=mock_sized_opportunity
@@ -195,8 +206,11 @@ async def test_position_sizing_integration(
 @pytest.mark.asyncio
 @patch("cyberdelta.strategies.funding_rate_arbitrage.logger")
 async def test_risk_manager_rejection(
-    mock_logger, strategy_with_risk_manager, setup_dependencies, mock_opportunity
-):
+    mock_logger: MagicMock,
+    strategy_with_risk_manager: FundingRateArbitrageStrategy,
+    setup_dependencies: Dict[str, MagicMock],
+    mock_opportunity: ArbitrageOpportunity
+) -> None:
     """Test case where risk manager rejects an opportunity"""
     # Setup mocks
     mock_logger.info = MagicMock()
@@ -223,8 +237,10 @@ async def test_risk_manager_rejection(
 
 
 def test_fallback_without_risk_manager(
-    setup_dependencies, strategy_without_risk_manager, mock_opportunity
-):
+    setup_dependencies: Dict[str, MagicMock],
+    strategy_without_risk_manager: FundingRateArbitrageStrategy,
+    mock_opportunity: ArbitrageOpportunity
+) -> None:
     """Test fallback to default sizing when no risk manager is provided"""
     # Mock prices for quantity calculations
     setup_dependencies["data_handler"].get_latest_price = MagicMock(return_value=30000.0)

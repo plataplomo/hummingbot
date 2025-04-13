@@ -8,12 +8,14 @@ strategy performance using Dash and Plotly for visualization.
 import logging
 import threading
 from datetime import UTC, datetime, timedelta
+from typing import Dict, List, Optional, Tuple, Any
 
-import dash
-import dash_bootstrap_components as dbc
+# Ignore untyped library errors for dash/plotly until stubs are available/configured
+import dash # type: ignore
+import dash_bootstrap_components as dbc # type: ignore
 import pandas as pd
-import plotly.graph_objects as go
-from dash import Input, Output, dcc, html
+import plotly.graph_objects as go # type: ignore
+from dash import Input, Output, dcc, html # type: ignore
 
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
@@ -77,7 +79,7 @@ class RealTimeDashboard:
         self.setup_callbacks()
 
         # Cache for data to avoid repeated calculations
-        self.data_cache = {}
+        self.data_cache: Dict[str, Any] = {}
         self.last_update_time = datetime.now(UTC)
 
     def setup_layout(self) -> None:
@@ -295,9 +297,10 @@ class RealTimeDashboard:
             Output("strategy-selector", "value"),
             Input("interval-component", "n_intervals"),
         )
-        def update_strategy_options(n_intervals: int) -> tuple[list[dict], list[str]]:
-            strategies = self.performance_tracker.get_strategy_names()
-            options = [{"label": s, "value": s} for s in strategies]
+        def update_strategy_options(n_intervals: int) -> Tuple[List[Dict[str, str]], List[str]]:
+            """Update the strategy selector dropdown options."""
+            strategies = self.performance_tracker.get_tracked_strategies()
+            options = [{ "label": s, "value": s } for s in strategies]
             # Keep current selection if available
             current_selection = dash.callback_context.states.get("strategy-selector.value", [])
             valid_selection = [s for s in current_selection if s in strategies]
@@ -309,7 +312,9 @@ class RealTimeDashboard:
             Input("interval-component", "n_intervals"),
         )
         def update_time_display(n_intervals: int) -> str:
-            self.last_update_time = datetime.now(UTC)
+            """Update the last updated time display."""
+            now = datetime.now(UTC)
+            self.last_update_time = now
             return f"Last Updated: {self.last_update_time.strftime('%Y-%m-%d %H:%M:%S')}"
 
         # Update performance overview chart
@@ -320,7 +325,7 @@ class RealTimeDashboard:
             Input("interval-component", "n_intervals"),
         )
         def update_performance_overview(
-            selected_strategies: list[str] | None,
+            selected_strategies: Optional[List[str]],
             time_range: str,
             n_intervals: int,
         ) -> go.Figure:
@@ -351,7 +356,7 @@ class RealTimeDashboard:
             Input("interval-component", "n_intervals"),
         )
         def update_drawdown_chart(
-            selected_strategies: list[str] | None,
+            selected_strategies: Optional[List[str]],
             time_range: str,
             n_intervals: int,
         ) -> go.Figure:
@@ -382,7 +387,7 @@ class RealTimeDashboard:
             Input("interval-component", "n_intervals"),
         )
         def update_pnl_distribution(
-            selected_strategies: list[str] | None,
+            selected_strategies: Optional[List[str]],
             time_range: str,
             n_intervals: int,
         ) -> go.Figure:
@@ -431,7 +436,7 @@ class RealTimeDashboard:
             Input("interval-component", "n_intervals"),
         )
         def update_trade_analysis(
-            selected_strategies: list[str] | None,
+            selected_strategies: Optional[List[str]],
             time_range: str,
             n_intervals: int,
         ) -> go.Figure:
@@ -484,7 +489,7 @@ class RealTimeDashboard:
             Input("interval-component", "n_intervals"),
         )
         def update_performance_metrics(
-            selected_strategies: list[str] | None,
+            selected_strategies: Optional[List[str]],
             time_range: str,
             n_intervals: int,
         ) -> html.Table:
@@ -568,7 +573,7 @@ class RealTimeDashboard:
 
             return table
 
-    def _get_returns_data(self, strategies: list[str], time_range: str) -> pd.DataFrame:
+    def _get_returns_data(self, strategies: List[str], time_range: str) -> pd.DataFrame:
         """
         Get returns data for selected strategies and time range.
 
@@ -609,7 +614,7 @@ class RealTimeDashboard:
 
         return returns_data
 
-    def _get_trade_data(self, strategies: list[str], time_range: str) -> pd.DataFrame:
+    def _get_trade_data(self, strategies: List[str], time_range: str) -> pd.DataFrame:
         """
         Get trade data for selected strategies and time range.
 
@@ -690,18 +695,18 @@ class RealTimeDashboard:
 
         return funding_data
 
-    def start(self, use_threading: bool = True) -> None:
+    def start(self, use_threading: bool = True) -> Optional[threading.Thread]:
         """
         Start the dashboard server.
 
         Args:
             use_threading: Whether to run the server in a separate thread
         """
+        logger.info(f"Starting dashboard server on http://{self.host}:{self.port}")
         if use_threading:
-            thread = threading.Thread(target=self._run_server, daemon=True)
-            thread.start()
-            logger.info(f"Dashboard started in background thread at http://{self.host}:{self.port}")
-            return thread
+            self.server_thread = threading.Thread(target=self._run_server, daemon=True)
+            self.server_thread.start()
+            return self.server_thread
         else:
             self._run_server()
 
