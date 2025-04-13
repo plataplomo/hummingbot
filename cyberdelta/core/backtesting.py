@@ -115,7 +115,8 @@ class BacktestEngine:
         # Robust check and conversion for DatetimeIndex
         if not isinstance(self.data.index, pd.DatetimeIndex):
             logger.warning(
-                f"Data index type is {type(self.data.index)}, not DatetimeIndex. Attempting conversion."
+                f"Data index type is {type(self.data.index)}, not DatetimeIndex. "
+                "Attempting conversion."
             )
             try:
                 original_index_name = self.data.index.name
@@ -141,7 +142,8 @@ class BacktestEngine:
                 self.initial_capital = Decimal(str(initial_capital))
             except InvalidOperation as e:
                 logger.error(
-                    f"Invalid initial_capital value: {initial_capital}. Cannot convert to Decimal. Error: {e}"
+                    f"Invalid initial_capital value: {initial_capital}. "
+                    f"Cannot convert to Decimal. Error: {e}"
                 )
                 raise ValueError("initial_capital must be a valid number.") from e
         else:
@@ -283,7 +285,8 @@ class BacktestEngine:
                             # Check if we have enough capital
                             if position_value > current_capital:
                                 logger.warning(
-                                    f"Insufficient capital: {float(current_capital)} < {float(position_value)}"
+                                    f"Insufficient capital: {float(current_capital)} "
+                                    f"< {float(position_value)}"
                                 )
                                 continue
 
@@ -514,7 +517,7 @@ class StrategyAdapter(BacktestStrategy):
         if isinstance(data, pd.Series):
             # Handle single timestamp (Series)
             timestamp = data.name  # Typically the timestamp from the index
-            if not isinstance(timestamp, (datetime, pd.Timestamp)):
+            if not isinstance(timestamp, datetime | pd.Timestamp):
                 self._logger.warning(
                     f"Input Series name is not a valid timestamp: {timestamp}. Using default."
                 )

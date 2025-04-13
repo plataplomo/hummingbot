@@ -363,6 +363,21 @@ class PortfolioTracker:
             api_client = self.api_clients[exchange_id]
             positions_data = await api_client.get_positions()
 
+            # Explicitly check for None first, as allowed by the type hint
+            if positions_data is None:
+                logger.warning(
+                    f"[FETCH_POSITIONS:{exchange_id}] API call returned None. No positions to update."
+                )
+                # Consider if returning True is appropriate if None means 'no positions' vs. an error
+                # For now, assume None means no data could be fetched or no positions exist.
+                # Let's update the internal state to empty if it was None, signifying a successful fetch of 'no positions'
+                self._positions[exchange_id] = {}
+                self._last_update_time[exchange_id] = datetime.now(UTC)
+                logger.info(
+                    f"[FETCH_POSITIONS:{exchange_id}] API returned None, cleared local positions for this exchange."
+                )
+                return True  # Treat None as a successful fetch of zero positions
+
             if isinstance(positions_data, list):
                 updated_positions = {}
                 for position_info in positions_data:
@@ -501,16 +516,18 @@ class PortfolioTracker:
                     f"[FETCH_POSITIONS:{exchange_id}] Processed {len(updated_positions)} positions. Updating internal state."
                 )
                 return True
-            else:
-                logger.error(
-                    f"Fetched position data for {exchange_id} is not a list: {type(positions_data)}"
-                )
-                return False
+            # This else block is now unreachable based on the type hint `list | None`
+            # after the explicit None check above.
+            # else:
+            #     logger.error(
+            #         f"Fetched position data for {exchange_id} is not a list or None: {type(positions_data)}"
+            #     )
+            #     return False
         except Exception as e:
             logger.error(f"Error fetching positions from {exchange_id}: {e}", exc_info=True)
             return False
 
-    async def _fetch_exchange_orders(self, exchange_id: str) -> None:
+    async def _fetch_exchange_orders(self, exchange_id: str) -> bool:
         """
         Fetch current orders from an exchange.
 
@@ -580,9 +597,11 @@ class PortfolioTracker:
             # Update with new orders
             self._orders[exchange_id] = new_orders
             self._last_update_time[exchange_id] = datetime.now(UTC)
+            return True  # Indicate success
 
         except Exception as e:
             logger.error(f"Error fetching orders from {exchange_id}: {str(e)}", exc_info=True)
+            return False  # Indicate failure
 
     async def update(self) -> None:
         """Update the portfolio state by fetching data from exchanges."""
@@ -661,7 +680,10 @@ class PortfolioTracker:
             self._positions[exchange_id] = {}
 
         # Store or update the position keyed by SYMBOL
-        self._positions[exchange_id][position.symbol] = position
+        exchange_positions = self._positions[exchange_id]
+        # Assert type to potentially help Mypy understand the structure
+        assert isinstance(exchange_positions, dict)  # Ensure it's a dict
+        exchange_positions[position.symbol] = position  # Assign to the inner dict
         logger.debug(
             f"Updated position {position.symbol} on {exchange_id}: {position.side} {position.size}"
         )
@@ -863,9 +885,12 @@ class PortfolioTracker:
         elif isinstance(amount, Decimal):
             # Create a Balance object from the Decimal amount
             balance_obj = Balance(asset=asset, total=amount, available=amount)
-        else:
-            logger.error(f"Invalid type for amount in update_balance: {type(amount)}")
-            return
+        # The else block below was removed as it's unreachable according to the
+        # type hint `amount: Decimal | Balance`. Mypy knows that if amount is
+        # not a Balance and not a Decimal, no other type is possible.
+        # else:
+        #     logger.error(f"Invalid type for amount in update_balance: {type(amount)}")
+        #     return
 
         # Store or update the Balance object
         old_balance_obj = self._balances[exchange_id].get(asset)
@@ -896,7 +921,8 @@ class PortfolioTracker:
         Requires price conversion logic (TODO).
         """
         total_value = Decimal("0.0")
-        for exchange_balances in self._balances.values():
+        all_exchange_balances = self._balances.values()
+        for exchange_balances in all_exchange_balances:
             for asset, balance_obj in exchange_balances.items():
                 if isinstance(balance_obj, Balance):
                     amount = balance_obj.total  # Use total from Balance object

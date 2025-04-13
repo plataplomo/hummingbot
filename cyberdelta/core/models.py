@@ -958,18 +958,18 @@ class TradeSignal:
             self.take_profit, "take_profit", self.symbol
         )
 
-        # Convert confidence to float (statistical measure, not financial)
-        if self.confidence is not None:
-            try:
-                # Handle if confidence is a Decimal
-                if isinstance(self.confidence, Decimal):
-                    self.confidence = float(str(self.confidence))
-                # Otherwise, try direct conversion
-                elif not isinstance(self.confidence, float):
-                    self.confidence = float(self.confidence)
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Could not convert confidence to float: {e}. Using None.")
-                self.confidence = None
+        # Convert confidence to float | None (statistical measure, not financial)
+        confidence_val = self.confidence
+        final_confidence: float | None = None  # Explicitly type the target variable
+
+        if isinstance(confidence_val, float):
+            final_confidence = confidence_val
+        # The following elif blocks were removed as they were deemed unreachable by Mypy
+        # due to the type hint `confidence: float | None`.
+        # The float case is handled above, and the None case is handled by the default value.
+
+        # Assign the final processed value back
+        self.confidence = final_confidence
 
         # Ensure timestamp and expiration are timezone-aware (UTC) if provided
         if self.timestamp and self.timestamp.tzinfo is None:

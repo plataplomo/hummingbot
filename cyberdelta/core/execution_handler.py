@@ -651,7 +651,9 @@ class ExecutionHandler:
 
             # If orders placed (or partially filled), need monitoring
             # Placeholder for success - real implementation needs fill monitoring
-            elif long_status not in [OrderStatus.FAILED] and short_status not in [OrderStatus.FAILED]:
+            elif long_status not in [OrderStatus.FAILED] and short_status not in [
+                OrderStatus.FAILED
+            ]:
                 logger.info(
                     f"Execution {execution.id}: Both orders submitted. "
                     f"Monitoring required for fills."
@@ -667,15 +669,9 @@ class ExecutionHandler:
                     short_order_result.filled_quantity if short_order_result else Decimal(0)
                 )
                 # Use price field instead of avg_fill_price which doesn't exist
-                execution.long_fill_price = (
-                    long_order_result.price
-                    if long_order_result
-                    else None
-                )
+                execution.long_fill_price = long_order_result.price if long_order_result else None
                 execution.short_fill_price = (
-                    short_order_result.price
-                    if short_order_result
-                    else None
+                    short_order_result.price if short_order_result else None
                 )
                 execution.end_time = datetime.now(UTC)
                 # Record successful execution for CBs
@@ -784,7 +780,7 @@ class ExecutionHandler:
             time_in_force = TimeInForce.GTC
 
         # Try to place the order, with retries
-        retry = 0 
+        retry = 0
         while True:  # We'll control the exit conditions inside the loop
             try:
                 order = await client.place_order(
@@ -840,9 +836,9 @@ class ExecutionHandler:
                         timestamp=datetime.now(UTC),
                         client_order_id="",
                     )
-                
+
                 # Wait with exponential backoff before retrying
-                backoff_time = retry_delay * (2 ** retry)
+                backoff_time = retry_delay * (2**retry)
                 await asyncio.sleep(backoff_time)
                 retry += 1  # Increment retry counter
                 continue  # Continue the loop for retry
@@ -852,7 +848,7 @@ class ExecutionHandler:
                 self.logger.error(f"Unexpected error placing order: {e}")
                 return Order(
                     order_id=str(uuid.uuid4()),
-                    symbol=symbol, 
+                    symbol=symbol,
                     side=side,
                     order_type=order_type,
                     quantity=quantity,
@@ -887,7 +883,7 @@ class ExecutionHandler:
             # First try getting the order from open orders
             open_orders = await client.get_open_orders(symbol=symbol)
             order = next((o for o in open_orders if o.order_id == order_id), None)
-            
+
             # If we don't find it among open orders, try order history if available
             if order is None:
                 try:
@@ -897,7 +893,7 @@ class ExecutionHandler:
                 except (NotImplementedError, AttributeError):
                     # Method doesn't exist, handle gracefully
                     self.logger.debug(f"get_order_history not implemented for {exchange_id}")
-                    
+
             # If we have the order, process it
             if order:
                 logger.debug(

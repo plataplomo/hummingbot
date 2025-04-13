@@ -9,7 +9,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Mapping, cast
+from aiohttp import ClientTimeout, ClientWSTimeout
 
 import aiohttp
 
@@ -164,10 +165,9 @@ class RateLimiter:
         """
         self.rate = rate  # tokens per second
         self.bucket_size = bucket_size  # maximum bucket capacity
-        self.tokens = bucket_size  # current token count, start with full bucket
-        self.last_refill = time.monotonic()  # timestamp of last token refill
+        self.tokens: float = float(bucket_size)  # current token count, start with full bucket
+        self.last_refill: float = time.monotonic()  # timestamp of last token refill
         self.lock = asyncio.Lock()  # thread safety for token management
-        self.tokens = float(self.tokens)  # Ensure tokens is float for calculations
 
     async def acquire(self) -> float:
         """
@@ -320,7 +320,7 @@ class ExchangeAPI(ABC):
     @property
     def is_connected(self) -> bool:
         """Returns whether the WebSocket connection is active."""
-        return self._is_connected and self._ws_connection and not self._ws_connection.closed
+        return self._is_connected and self._ws_connection is not None and not self._ws_connection.closed
 
     async def _request(
         self,
@@ -401,7 +401,7 @@ class ExchangeAPI(ABC):
                     params=params,
                     json=data,
                     headers=headers,
-                    timeout=timeout,
+                    timeout=ClientTimeout(total=timeout),
                 ) as response:
                     # Calculate request duration
                     duration = time.monotonic() - start_time
@@ -456,7 +456,9 @@ class ExchangeAPI(ABC):
                     # Try to parse as JSON
                     if resp_text:
                         try:
-                            return json.loads(resp_text)
+                            # Cast the result to inform Mypy it matches the expected types
+                            parsed_json = json.loads(resp_text)
+                            return cast(dict[str, Any] | list[Any], parsed_json)
                         except json.JSONDecodeError:
                             # Return raw text if not JSON
                             return resp_text
@@ -505,7 +507,7 @@ class ExchangeAPI(ABC):
             code=APIErrorCode.UNKNOWN,
         )
 
-    def _update_rate_limit_from_headers(self, headers: dict[str, str], method: str, path: str):
+    def _update_rate_limit_from_headers(self, headers: Mapping[str, str], method: str, path: str) -> None:
         """
         Update rate limit information based on response headers.
         This allows dynamic adaptation to exchange-reported limits.
@@ -650,7 +652,7 @@ class ExchangeAPI(ABC):
             retry_after=retry_after,
         )
 
-    async def connect(self):
+    async def connect(self) -> None:
         """
         Establish connections to the exchange API (REST and WebSocket).
         Must be called before making any API requests.
@@ -667,7 +669,7 @@ class ExchangeAPI(ABC):
         if self.ws_endpoint and (self._ws_connection is None or self._ws_connection.closed):
             await self._connect_ws()
 
-    async def _connect_ws(self):
+    async def _connect_ws(self) -> None:
         """
         Establish WebSocket connection with the exchange.
         Implements automatic reconnection and subscription recovery.
@@ -685,7 +687,7 @@ class ExchangeAPI(ABC):
 
             self._ws_connection = await self._session.ws_connect(
                 self.ws_endpoint,
-                timeout=30.0,
+                timeout=ClientWSTimeout(30.0), # Use ClientWSTimeout object
                 heartbeat=30.0,  # Enable heartbeat to detect disconnects
             )
 
@@ -709,7 +711,7 @@ class ExchangeAPI(ABC):
             # Schedule reconnection attempt
             asyncio.create_task(self._reconnect_ws())
 
-    async def _reconnect_ws(self, delay: float = 5.0, max_attempts: int = 10):
+    async def _reconnect_ws(self, delay: float = 5.0, max_attempts: int = 10) -> None:
         """
         Attempt to reconnect WebSocket with exponential backoff.
 
@@ -745,7 +747,7 @@ class ExchangeAPI(ABC):
             f"[{self.exchange_name}] WebSocket reconnection failed after {max_attempts} attempts"
         )
 
-    async def _ws_listener(self):
+    async def _ws_listener(self) -> None:
         """
         Main WebSocket message handling loop.
         Processes incoming messages and routes them to appropriate handlers.
@@ -813,12 +815,12 @@ class ExchangeAPI(ABC):
 
             # Schedule reconnection if not during shutdown
             try:
-                if not self._session.closed:
+                if self._session is not None and not self._session.closed:
                     asyncio.create_task(self._reconnect_ws())
             except Exception:
                 pass
 
-    async def close(self):
+    async def close(self) -> None:
         """
         Close all connections to the exchange.
         Should be called during application shutdown.
@@ -898,12 +900,12 @@ class ExchangeAPI(ABC):
     # --- Account Information --- #
 
     @abstractmethod
-    async def get_balances(self) -> dict[str, Balance]:
+    async def get_balances(self) -> dict[str, Balance] | list[Balance | dict[str, Any]] | None:
         """Fetch account balances for all assets."""
         raise NotImplementedError
 
     @abstractmethod
-    async def get_positions(self, symbol: str | None = None) -> list[Position]:
+    async def get_positions(self, symbol: str | None = None) -> list[Position | dict[str, Any]] | None:
         """Fetch current open positions, optionally filtered by symbol."""
         raise NotImplementedError
 
@@ -936,7 +938,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_open_orders(self, symbol: str | None = None) -> list[Order | dict[str, Any]] | dict[str, Order | dict[str, Any]] | None:
         """Fetch all currently open orders, optionally filtered by symbol."""
         raise NotImplementedError
 
@@ -1030,7 +1032,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None:
+    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | tuple[str, Ticker] | None:
         """Parse a WebSocket message containing ticker information."""
         raise NotImplementedError
 

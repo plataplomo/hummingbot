@@ -483,7 +483,11 @@ class TestPortfolioTracker:
         assert not any(o.id == "hl-order-2" for o in open_orders)
 
     def test_to_dict_and_from_dict(
-        self, portfolio_tracker, sample_balances, sample_positions, sample_orders
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_balances: dict[str, dict[str, Decimal]],
+        sample_positions: dict[str, dict[str, Position]],
+        sample_orders: list[Order],
     ):
         """Test serialization and deserialization of the portfolio tracker state."""
         # Set up some test data

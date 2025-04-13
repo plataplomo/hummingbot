@@ -418,15 +418,17 @@ class PrioritySignalQueue:
         logger.debug(f"Trimmed signal queue to {self.max_queue_size} items")
         return True
 
-    def _calculate_expiration(self, signal: TradeSignal) -> datetime:
+    def _calculate_expiration(self, signal: TradeSignal) -> TradeSignal:
         """
-        Calculate signal expiration time.
+        Calculate and set the signal expiration time if not already set.
+
+        Modifies the signal object in place.
 
         Args:
-            signal: Trade signal
+            signal: Trade signal to potentially modify.
 
         Returns:
-            Expiration datetime
+            The modified (or original) TradeSignal object.
         """
         # Base expiration time
         base_expiration_seconds = self.default_expiration_seconds
@@ -453,8 +455,20 @@ class PrioritySignalQueue:
         else:
             expiration_seconds = base_expiration_seconds
 
-        # Create expiration time using timezone-aware datetime
-        return datetime.now(UTC) + timedelta(seconds=expiration_seconds)
+        # Only set expiration if it's not already set
+        if signal.expiration is None:
+            # Create expiration time using timezone-aware datetime
+            expiration_time = datetime.now(UTC) + timedelta(seconds=expiration_seconds)
+            signal.expiration = expiration_time
+            self.logger.debug(
+                f"Calculated expiration for signal {signal.signal_id}: {expiration_time}"
+            )
+        else:
+            self.logger.debug(
+                f"Expiration already set for signal {signal.signal_id}: {signal.expiration}"
+            )
+
+        return signal  # Return the modified (or original) signal
 
     def _check_circuit_breakers_pre_add(self, signal: TradeSignal) -> bool:
         """Check circuit breakers before adding a signal to the queue."""

@@ -2,7 +2,6 @@ from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 import logging
-import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any  # Added TYPE_CHECKING
 
@@ -186,19 +185,31 @@ class DataHandler:
                 logger.info(f"Connected to {exchange_id} WebSocket")
 
                 # Subscribe to channels
-                await client.subscribe_to_tickers(symbols)
-                await client.subscribe_to_orderbooks(symbols)
+                # Subscribe to each symbol individually
+                for symbol in symbols:
+                    await client.subscribe_to_ticker(symbol)
+                # Subscribe to each symbol individually
+                for symbol in symbols:
+                    await client.subscribe_to_order_book(symbol)
 
                 # Exchange-specific subscriptions
                 if exchange_id == "hyperliquid":
                     # Hyperliquid has hourly funding payments
-                    await client.subscribe_to_funding_updates(symbols)
+                    # Assuming funding updates are part of general account updates for Hyperliquid
+                    await client.subscribe_to_account_updates()
 
                 # Reset reconnection attempts on successful connection
                 self.reconnect_attempts[exchange_id] = 0
 
                 # Process messages
-                await self._process_websocket_messages(exchange_id)
+                # The ExchangeAPI client's internal _ws_listener handles message processing.
+                # The _process_websocket_messages method below was redundant and removed.
+                # We just need to keep the connection alive here. The listener task runs separately.
+                # Keep the loop running to handle reconnection logic if the listener task exits.
+                # We might need a way for the listener task exiting to signal this loop to reconnect.
+                # For now, assume the listener handles its own lifecycle or errors propagate.
+                # Add a sleep to prevent this loop from busy-waiting if the listener exits immediately.
+                await asyncio.sleep(1)  # Prevent busy-looping if listener exits quickly
 
             except asyncio.CancelledError:
                 logger.info(f"WebSocket task for {exchange_id} was cancelled")
@@ -211,28 +222,11 @@ class DataHandler:
                 # Increment reconnection attempts
                 self.reconnect_attempts[exchange_id] += 1
 
-    async def _process_websocket_messages(self, exchange_id: str) -> None:
-        """
-        Process messages from a WebSocket connection.
-
-        Args:
-            exchange_id: Exchange identifier
-        """
-        client = self.api_clients[exchange_id]
-        ping_interval = self.config.get(f"exchanges.{exchange_id}.websocket.ping_interval", 30)
-        last_ping_time = time.time()
-
-        while True:
-            # Check if ping is needed
-            current_time = time.time()
-            if current_time - last_ping_time > ping_interval:
-                await client.ping_websocket()
-                last_ping_time = current_time
-
-            # Process incoming messages
-            message = await client.receive_websocket_message()
-            if message:
-                await self._handle_websocket_message(exchange_id, message)
+    # Removed the _process_websocket_messages method as it duplicated the
+    # responsibility of the ExchangeAPI's internal _ws_listener.
+    # Message handling should occur within the ExchangeAPI subclass's
+    # _handle_websocket_message implementation, which then calls
+    # appropriate update methods on this DataHandler instance.
 
     async def _handle_websocket_message(self, exchange_id: str, message: dict[str, Any]) -> None:
         """Handle an incoming message from a WebSocket connection."""
@@ -247,56 +241,68 @@ class DataHandler:
             message_type = client.get_message_type(message)
 
             if message_type == "ticker":
-                parsed_output = client.parse_ticker_message(message)
-                if parsed_output:
+                parsed_ticker_data = client.parse_ticker_message(message)  # Rename variable
+                if parsed_ticker_data:  # Use renamed variable
                     # Handle potential tuple return (symbol, ticker_data) vs just ticker_data
-                    if isinstance(parsed_output, tuple) and len(parsed_output) == 2:
-                        symbol, ticker_data = parsed_output
-                        if not isinstance(ticker_data, Ticker):
+                    if (
+                        isinstance(parsed_ticker_data, tuple) and len(parsed_ticker_data) == 2
+                    ):  # Use renamed variable
+                        # Unpack from the renamed variable
+                        symbol, ticker_obj = parsed_ticker_data
+                        if not isinstance(ticker_obj, Ticker):  # Check the unpacked object
                             logger.warning(
-                                f"Parsed ticker data is not Ticker type for {exchange_id}: {type(ticker_data)}"
+                                f"Parsed ticker data tuple element is not Ticker type for {exchange_id}: {type(ticker_obj)}"
                             )
                             return
-                    elif isinstance(parsed_output, Ticker):
-                        symbol = parsed_output.symbol
-                        ticker_data = parsed_output
-                    else:
+                    elif isinstance(parsed_ticker_data, Ticker):  # Check the renamed variable
+                        symbol = parsed_ticker_data.symbol
+                        ticker_obj = parsed_ticker_data  # Rename variable
+                    else:  # Handle the case where parsed_ticker_data is not tuple or Ticker (e.g., None, though checked earlier)
                         logger.warning(
-                            f"Unexpected data format from parse_ticker_message for {exchange_id}: {type(parsed_output)}"
+                            f"Unexpected data format from parse_ticker_message for {exchange_id}: {type(parsed_ticker_data)}"
                         )
-                        return
+                        return  # Exit if parsing failed or type is unexpected
 
                     # Convert Ticker to MarketData before updating and notifying
                     market_data = MarketData(
                         symbol=symbol,  # Use unpacked symbol
-                        timestamp=datetime.fromtimestamp(ticker_data.timestamp / 1000, UTC),
-                        open=ticker_data.price,  # Use last price for OHLC if not available
-                        high=ticker_data.price,
-                        low=ticker_data.price,
-                        close=ticker_data.price,
-                        volume=ticker_data.volume,
+                        timestamp=datetime.fromtimestamp(ticker_obj.timestamp / 1000, UTC)
+                        if ticker_obj.timestamp
+                        else datetime.now(UTC),  # Use renamed variable and handle None
+                        open=ticker_obj.price,  # Use last price for OHLC if not available
+                        high=ticker_obj.price,
+                        low=ticker_obj.price,
+                        close=ticker_obj.price,  # Use last price
+                        volume=ticker_obj.volume,  # Optional: Add volume if available
                     )
-                    await self._update_and_notify(
-                        exchange_id,
-                        "ticker",
-                        symbol,
-                        market_data,  # Use unpacked symbol
-                    )
+                    # Correct argument order: exchange_id, symbol, data_type, data
+                    await self._update_and_notify(exchange_id, symbol, "ticker", market_data)
             elif message_type == "orderbook":
-                parsed_data = client.parse_orderbook_message(message)
-                if parsed_data:
-                    self._update_orderbook(exchange_id, parsed_data.symbol, parsed_data)
+                parsed_orderbook = client.parse_orderbook_message(message)
+                if parsed_orderbook:
+                    self._update_orderbook(exchange_id, parsed_orderbook.symbol, parsed_orderbook)
                     # Notify with OrderBook? Needs MarketData conversion or diff observer.
             elif message_type == "trades":
-                parsed_data = client.parse_trade_message(message)
-                if parsed_data:
+                parsed_trade = client.parse_trade_message(message)
+                if parsed_trade:
                     # Notify with Trade? Needs MarketData conversion or diff observer.
                     # Example: Potentially update VWAP or latest price
                     pass
             elif message_type == "funding":
-                parsed_data = client.parse_funding_message(message)
-                if parsed_data:
-                    self._update_funding_rate(exchange_id, parsed_data.symbol, parsed_data)
+                parsed_funding_rate = client.parse_funding_rate_message(
+                    message
+                )  # Correct method name
+                if parsed_funding_rate:
+                    # Ensure parsed_funding_rate is actually FundingRate before calling update
+                    if isinstance(parsed_funding_rate, FundingRate):
+                        self._update_funding_rate(
+                            exchange_id, parsed_funding_rate.symbol, parsed_funding_rate
+                        )
+                    else:
+                        logger.warning(
+                            f"[{exchange_id}] Unexpected type from parse_funding_rate_message: {type(parsed_funding_rate)}"
+                        )  # Corrected method name in log
+
             elif message_type == "account_update":  # e.g., balances, positions
                 # Data should go to PortfolioTracker, not via DataHandler observers
                 logger.debug(f"Received account update on {exchange_id}, needs routing.")

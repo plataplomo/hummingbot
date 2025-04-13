@@ -328,10 +328,13 @@ class TestSignalGenerator:
             len(signal_generator.historical_funding_rates["hyperliquid"][hyperliquid_btc_internal])
             == expected_length_after_calls
         )  # Changed from sample_count
-        # Check basis deque length - Basis calculation might fail on some iterations if only one ticker is updated
+        # Check basis deque length - Basis calculation might fail on some iterations
+        # if only one ticker is updated
         # Let's refine the assertion for basis based on actual additions
-        # Basis is only added if len(valid_exchanges_for_symbol) >= 2. In the loop, we modify mock returns.
-        # The mock lambda for get_ticker always returns a Ticker if the key exists, so basis should always be calculated.
+        # Basis is only added if len(valid_exchanges_for_symbol) >= 2.
+        # In the loop, we modify mock returns.
+        # The mock lambda for get_ticker always returns a Ticker if the key exists,
+        # so basis should always be calculated.
         assert (
             len(signal_generator.historical_basis[btc_internal_basis])
             == expected_length_after_calls
@@ -433,7 +436,8 @@ class TestSignalGenerator:
         # Test with zero/missing depth (should use default slippage)
         data_handler.get_orderbook.return_value = None
         slippage = signal_generator.estimate_slippage("BTC", Decimal("10000"), "hyperliquid")
-        # Assert against the observed behavior (MIN_SLIPPAGE), though the reason requires investigation
+        # Assert against the observed behavior (MIN_SLIPPAGE),
+        # though the reason requires investigation
         assert slippage == Decimal("1E-9")  # Changed from 0.001
 
     def test_generate_opportunities(
