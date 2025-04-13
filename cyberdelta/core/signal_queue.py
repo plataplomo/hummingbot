@@ -96,7 +96,7 @@ class PrioritySignalQueue:
         if "utility_score" not in signal.metadata:
             logger.warning(f"Signal for {signal.symbol} has no utility score, using default 0.0")
             signal.metadata["utility_score"] = 0.0
-        
+
         # Ensure utility_score is a float
         try:
             signal.metadata["utility_score"] = float(signal.metadata["utility_score"])
@@ -262,7 +262,7 @@ class PrioritySignalQueue:
 
             # If loop finishes, queue is empty
             return None
-            
+
         except Exception as e:
             # Log error and return None to prevent system crash
             logger.error(f"Error in get_next_signal: {e}")
@@ -362,9 +362,7 @@ class PrioritySignalQueue:
                 if signal.is_valid():
                     valid_signals.append((score, count, signal))
                 else:
-                    self.logger.debug(
-                        f"Removed expired signal for {signal.symbol} during cleanup"
-                    )
+                    self.logger.debug(f"Removed expired signal for {signal.symbol} during cleanup")
             except Exception as e:
                 # If there's an error checking validity, log it and keep the signal
                 # This is safer than potentially dropping valid signals
@@ -403,11 +401,11 @@ class PrioritySignalQueue:
 
             # Get the signal to log information
             lowest_signal = self.signal_queue[lowest_priority_idx][2]
-            lowest_score = -self.signal_queue[lowest_priority_idx][0]  # Convert back to positive 
-            
+            lowest_score = -self.signal_queue[lowest_priority_idx][0]  # Convert back to positive
+
             # Remove the item
             self.signal_queue.pop(lowest_priority_idx)
-            
+
             # Log the removal
             logger.debug(
                 f"Trimmed signal for {lowest_signal.symbol} with score {lowest_score} "
@@ -560,58 +558,66 @@ class PrioritySignalQueue:
     def _infer_exchange_from_symbol(self, symbol: str) -> str | None:
         """
         Attempt to infer the exchange based on the symbol format.
-        
+
         This method tries to extract exchange information from the symbol formatting.
         Different exchanges use different symbol formats.
-        
+
         Args:
             symbol: The trading symbol to analyze
-            
+
         Returns:
             Inferred exchange name or None if inference fails
         """
         if not symbol:
             return None
-        
+
         # Try different exchange-specific symbol formats
         symbol = symbol.strip().upper()
-        
+
         # Format: EXCHANGE-SYMBOL-PERP (e.g., HYPERLIQUID-BTC-PERP)
         if "-PERP" in symbol:
             parts = symbol.split("-")
             if len(parts) == 3 and parts[0]:
                 return parts[0].lower()
             return "hyperliquid"  # Default assumption for perp contracts
-            
+
         # Format: EXCHANGE-SYMBOL (e.g., BINANCE-BTCUSDT)
         if "-" in symbol:
             parts = symbol.split("-", 1)
             if len(parts) == 2 and parts[0]:
                 return parts[0].lower()
-                
+
         # Format: SYMBOL_EXCHANGE (e.g., BTC_BACKPACK)
         if "_" in symbol:
             parts = symbol.split("_")
             if len(parts) == 2 and parts[1]:
                 return parts[1].lower()
             return "backpack"  # Example assumption
-            
+
         # Format: SYMBOL:EXCHANGE (e.g., BTC:DYDX)
         if ":" in symbol:
             parts = symbol.split(":")
             if len(parts) == 2 and parts[1]:
                 return parts[1].lower()
-        
+
         # Try to extract common exchange names from the symbol
         common_exchanges = [
-            "binance", "coinbase", "bybit", "okx", "kucoin", 
-            "dydx", "hyperliquid", "backpack", "kraken", "huobi"
+            "binance",
+            "coinbase",
+            "bybit",
+            "okx",
+            "kucoin",
+            "dydx",
+            "hyperliquid",
+            "backpack",
+            "kraken",
+            "huobi",
         ]
-        
+
         for exchange in common_exchanges:
             if exchange.lower() in symbol.lower():
                 return exchange.lower()
-                
+
         # If no exchange could be inferred
         self.logger.debug(f"Could not infer exchange from symbol: {symbol}")
         return None

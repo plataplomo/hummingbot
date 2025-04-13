@@ -4,7 +4,6 @@ Tests for the Priority Signal Queue functionality.
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,11 +17,13 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 @pytest.fixture
 def mock_config() -> Config:
     """Mock configuration for testing."""
-    return Config({
-        "default_signal_expiration_seconds": 60,
-        "max_signal_queue_size": 100,
-        "queue_cleanup_interval": 5,
-    })
+    return Config(
+        {
+            "default_signal_expiration_seconds": 60,
+            "max_signal_queue_size": 100,
+            "queue_cleanup_interval": 5,
+        }
+    )
 
 
 @pytest.fixture
@@ -131,7 +132,9 @@ def test_add_signal_with_circuit_breaker(
     assert len(queue.signal_queue) == 1
 
 
-def test_add_from_opportunity(mock_config: Config, sample_opportunity: ArbitrageOpportunity) -> None:
+def test_add_from_opportunity(
+    mock_config: Config, sample_opportunity: ArbitrageOpportunity
+) -> None:
     """Test creating and adding a signal from an arbitrage opportunity."""
     queue = PrioritySignalQueue(mock_config)
 
@@ -240,7 +243,7 @@ def test_clean_expired_signals(mock_config: Config) -> None:
 
     # Create signals with different expiration times
     now = datetime.now(UTC)
-    
+
     # Expired signal
     expired = TradeSignal(
         symbol="BTC/USDT",
@@ -249,10 +252,10 @@ def test_clean_expired_signals(mock_config: Config) -> None:
         price=Decimal("50000"),
         expiration=now - timedelta(seconds=10),  # Already expired
     )
-    
+
     # Valid signal
     valid = TradeSignal(
-        symbol="ETH/USDT", 
+        symbol="ETH/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("3000"),
@@ -261,12 +264,12 @@ def test_clean_expired_signals(mock_config: Config) -> None:
 
     queue.add_signal(expired)
     queue.add_signal(valid)
-    
+
     assert queue.count() == 2
-    
+
     # Clean expired signals
     queue._clean_expired_signals()
-    
+
     assert queue.count() == 1
     signals = queue.get_signals()
     assert signals[0].symbol == "ETH/USDT"
@@ -275,11 +278,13 @@ def test_clean_expired_signals(mock_config: Config) -> None:
 def test_trim_queue(mock_config: Config) -> None:
     """Test trimming the queue when it exceeds max size."""
     # Override max queue size for this test
-    config = Config({
-        "default_signal_expiration_seconds": 60,
-        "max_signal_queue_size": 2,
-        "queue_cleanup_interval": 5,
-    })
+    config = Config(
+        {
+            "default_signal_expiration_seconds": 60,
+            "max_signal_queue_size": 2,
+            "queue_cleanup_interval": 5,
+        }
+    )
     queue = PrioritySignalQueue(config)
 
     # Add signals with different priorities
@@ -290,7 +295,7 @@ def test_trim_queue(mock_config: Config) -> None:
         price=Decimal("50000"),
         metadata={"utility_score": 0.9},  # Higher priority
     )
-    
+
     signal2 = TradeSignal(
         symbol="ETH/USDT",
         signal_type=SignalType.ENTER_LONG,
@@ -298,7 +303,7 @@ def test_trim_queue(mock_config: Config) -> None:
         price=Decimal("3000"),
         metadata={"utility_score": 0.8},  # Medium priority
     )
-    
+
     signal3 = TradeSignal(
         symbol="SOL/USDT",
         signal_type=SignalType.ENTER_LONG,
@@ -310,10 +315,10 @@ def test_trim_queue(mock_config: Config) -> None:
     queue.add_signal(signal1)
     queue.add_signal(signal2)
     queue.add_signal(signal3)
-    
+
     # Queue should automatically trim to max size of 2
     assert queue.count() == 2
-    
+
     # Check which signals remain (should be the highest priority ones)
     signals = queue.get_signals()
     symbols = [s.symbol for s in signals]
@@ -325,7 +330,7 @@ def test_trim_queue(mock_config: Config) -> None:
 def test_calculate_expiration(mock_config: Config, sample_signal: TradeSignal) -> None:
     """Test expiration calculation for signals."""
     queue = PrioritySignalQueue(mock_config)
-    
+
     # Signal without expiration
     now = datetime.now(UTC)
     no_expiration = TradeSignal(
@@ -335,20 +340,20 @@ def test_calculate_expiration(mock_config: Config, sample_signal: TradeSignal) -
         price=Decimal("50000"),
         expiration=None,  # No expiration set
     )
-    
+
     # Calculate expiration
     signal_with_expiration = queue._calculate_expiration(no_expiration)
-    
+
     # Should set default expiration (60 seconds)
     assert signal_with_expiration.expiration is not None
-    
+
     # Now that we've verified it's not None, we can use it
     expiration = signal_with_expiration.expiration
     expected_expiration_time = now + timedelta(seconds=60)
-    
+
     # Allow small difference due to test execution time
     assert abs((expiration - expected_expiration_time).total_seconds()) < 5
-    
+
     # Signal with expiration already set should not be modified
     preset_expiration_time = now + timedelta(minutes=5)
     with_expiration = TradeSignal(
@@ -358,7 +363,7 @@ def test_calculate_expiration(mock_config: Config, sample_signal: TradeSignal) -
         price=Decimal("3000"),
         expiration=preset_expiration_time,
     )
-    
+
     result = queue._calculate_expiration(with_expiration)
     assert result.expiration is not None
     assert result.expiration == preset_expiration_time
@@ -367,7 +372,7 @@ def test_calculate_expiration(mock_config: Config, sample_signal: TradeSignal) -
 def test_check_circuit_breakers(mock_config: Config, mock_circuit_breaker: MagicMock) -> None:
     """Test circuit breaker checks."""
     queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
-    
+
     signal = TradeSignal(
         symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
@@ -378,37 +383,37 @@ def test_check_circuit_breakers(mock_config: Config, mock_circuit_breaker: Magic
             "short_exchange": "exchange_b",
         },
     )
-    
+
     # Set up circuit breaker to check for different cases
-    
+
     # Case 1: All checks pass
     mock_circuit_breaker.check_symbol.return_value = True
     mock_circuit_breaker.check_exchange.return_value = True
-    
+
     assert queue._check_circuit_breakers(signal) is True
-    
+
     # Case 2: Symbol check fails
     mock_circuit_breaker.check_symbol.return_value = False
     mock_circuit_breaker.check_exchange.return_value = True
-    
+
     assert queue._check_circuit_breakers(signal) is False
-    
+
     # Case 3: Exchange check fails
     mock_circuit_breaker.check_symbol.return_value = True
     mock_circuit_breaker.check_exchange.return_value = False
-    
+
     assert queue._check_circuit_breakers(signal) is False
-    
+
     # Case 4: Both checks fail
     mock_circuit_breaker.check_symbol.return_value = False
     mock_circuit_breaker.check_exchange.return_value = False
-    
+
     assert queue._check_circuit_breakers(signal) is False
-    
+
     # Case 5: No circuit breaker configured
     queue_no_cb = PrioritySignalQueue(mock_config, None)
     assert queue_no_cb._check_circuit_breakers(signal) is True
-    
+
     # Case 6: Signal with no metadata
     signal_no_metadata = TradeSignal(
         symbol="BTC/USDT",
@@ -416,7 +421,7 @@ def test_check_circuit_breakers(mock_config: Config, mock_circuit_breaker: Magic
         side=OrderSide.BUY,
         price=Decimal("50000"),
     )
-    
+
     mock_circuit_breaker.check_symbol.return_value = True
     assert queue._check_circuit_breakers(signal_no_metadata) is True
 
@@ -431,7 +436,9 @@ def test_add_basic_signal(signal_queue: PrioritySignalQueue, sample_signal: Trad
     assert signal_queue.add_signal(sample_signal) is True
 
 
-def test_add_from_opportunity_fixture(signal_queue: PrioritySignalQueue, sample_opportunity: ArbitrageOpportunity) -> None:
+def test_add_from_opportunity_fixture(
+    signal_queue: PrioritySignalQueue, sample_opportunity: ArbitrageOpportunity
+) -> None:
     """Test add from opportunity with fixture."""
     signal = signal_queue.add_from_opportunity(
         opportunity=sample_opportunity,
@@ -440,7 +447,9 @@ def test_add_from_opportunity_fixture(signal_queue: PrioritySignalQueue, sample_
     assert signal is not None
 
 
-def test_get_next_signal_fixture(signal_queue: PrioritySignalQueue, sample_signal: TradeSignal) -> None:
+def test_get_next_signal_fixture(
+    signal_queue: PrioritySignalQueue, sample_signal: TradeSignal
+) -> None:
     """Test get next signal with fixture."""
     signal_queue.add_signal(sample_signal)
     assert signal_queue.get_next_signal() is not None
