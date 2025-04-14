@@ -414,7 +414,7 @@ class Order:
     metadata: dict[str, Any] = field(default_factory=dict)  # Additional exchange-specific data
 
     def __post_init__(self) -> None:
-        """Ensure numeric fields are Decimal and validate fields."""
+        """Ensure numeric fields are Decimal, validate fields, and convert time."""
         # Convert numeric fields to Decimal
         self.price = self._safe_decimal_convert(self.price, "price", self.symbol, allow_none=True)
 
@@ -428,7 +428,7 @@ class Order:
         ):  # This is for type checking; should never be None with allow_none=False
             self.quantity = quantity_decimal
         else:
-            # This should never happen as _safe_decimal_convert should raise an error when allow_none=False
+            # This should not happen as _safe_decimal_convert raises error when allow_none=False
             raise ValueError(f"Failed to convert quantity to Decimal for symbol '{self.symbol}'")
 
         self.filled_quantity = self._safe_decimal_convert(
@@ -448,9 +448,8 @@ class Order:
         if self.type in (OrderType.LIMIT, OrderType.STOP_LIMIT) and self.price is None:
             raise ValueError(f"Price is required for {self.type} orders")
 
-        # Ensure time is timezone-aware (using renamed 'time' field)
-        if self.time is not None and self.time.tzinfo is None:
-            self.time = self.time.replace(tzinfo=UTC)
+        # Convert and ensure time is timezone-aware (using renamed 'time' field)
+        self.time = self._safe_datetime_convert(self.time, "time", self.id)
 
     def _safe_decimal_convert(
         self,
@@ -474,6 +473,42 @@ class Order:
             raise ValueError(
                 f"Failed to convert {field_name} value '{value}' to Decimal for {symbol}: {str(e)}"
             ) from e  # B904 Fix: Keep 'from e' for context, just fix comment spacing
+
+    @staticmethod
+    def _safe_datetime_convert(
+        value: datetime | int | float | str | None, field_name: str, order_id: str | None
+    ) -> datetime | None:
+        """Safely convert various types to timezone-aware datetime objects."""
+        if isinstance(value, datetime):
+            # Ensure timezone awareness (assume UTC if naive)
+            return value if value.tzinfo else value.replace(tzinfo=UTC)
+        if isinstance(value, int | float):  # UP038 Fix
+            try:
+                # Assume POSIX timestamp (seconds since epoch)
+                return datetime.fromtimestamp(value, tz=UTC)
+            except (OSError, ValueError) as e:
+                logger.warning(
+                    f"Could not convert timestamp '{value}' for field '{field_name}' "
+                    f"(order: {order_id}): {e}"
+                )
+                return None
+        if isinstance(value, str):
+            try:
+                # Attempt ISO 8601 format parsing
+                dt = datetime.fromisoformat(value)
+                return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+            except ValueError as e:
+                logger.warning(
+                    f"Could not parse datetime string '{value}' for field '{field_name}' "
+                    f"(order: {order_id}): {e}"
+                )
+                return None
+        if value is None:
+            return None
+
+        # According to the type hint, execution should not reach here.
+        # If it does, it indicates a type violation upstream.
+        # Mypy flags the following line as unreachable, so we remove it.
 
     def to_dict(self) -> dict[str, Any]:
         """Convert order to dictionary, with proper formatting for serialization."""
@@ -853,7 +888,8 @@ class ArbitrageOpportunity:
                 return None
             else:
                 raise ValueError(
-                    f"ArbitrageOpportunity field '{field_name}' for symbol '{symbol}' cannot be None"
+                    f"ArbitrageOpportunity field '{field_name}' for symbol '{symbol}'"
+                    " cannot be None"
                 )
         try:
             return Decimal(str(value))
