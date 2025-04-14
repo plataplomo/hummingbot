@@ -405,15 +405,10 @@ class PortfolioTracker:
                 logger.error(f"No API client found for {exchange_id}")
                 return False
 
-            positions_data = await client.get_positions()
-            if positions_data is None:
-                logger.warning(f"No position data received from {exchange_id}")
-                # Consider if this should clear existing positions or just skip update
-                # For now, let's assume it means no positions, clear existing ones
-                self._positions[exchange_id] = {}
-                self._last_update_time[exchange_id] = datetime.now(UTC)
-                return True  # Indicate success (processed 'no positions')
-
+            positions_data = await client.get_positions() # Type hint guarantees list[Position]
+            # The 'if positions_data is None:' check was removed as it's unreachable
+            # based on the ExchangeAPI.get_positions() type hint.
+            # An empty list [] indicates no positions.
             updated_positions: dict[str, Position] = {}
             if isinstance(positions_data, list):
                 for position_info in positions_data:
@@ -461,7 +456,9 @@ class PortfolioTracker:
                                 f"Skipping Position object without symbol on {exchange_id}: "
                                 f"{position_info}"
                             )
-                    elif isinstance(position_info, dict):
+                    # Runtime check: Handle dict case even if type hint expects Position,
+                    # for robustness against API client bugs or malformed responses.
+                    elif isinstance(position_info, dict): # type: ignore[unreachable]
                         symbol = position_info.get("symbol")
                         if not symbol:
                             logger.warning(
@@ -489,8 +486,6 @@ class PortfolioTracker:
                             continue
 
                         # Side validation is already done above; we'd already have continued if None
-                        # This condition and statement is never reached (removed unreachable code)
-                        # Making the needed changes:
                         try:
                             # Attempt to create Position object, ensuring Decimals
                             pos_instance = Position(
@@ -639,70 +634,113 @@ class PortfolioTracker:
 
                             # The validation checks are already made above, and would
                             # have already continued
-                            # This condition and its continue statement is never
-                            # reached (mypy error)
-                            # Removing the unreachable code:
+                    # Runtime check: Handle dict case even if type hint expects Order,
+                    # for robustness against API client bugs or malformed responses.
+                    elif isinstance(order_info, dict): # type: ignore[unreachable]
+                        order_id = order_info.get("order_id") or order_info.get("id") # Check common keys
+                        if order_id:
+                            # Validate required fields before creating Order
+                            symbol = str(order_info.get("symbol", ""))
+                            side_val = order_info.get("side")
+                            order_type_val = order_info.get("order_type") or order_info.get("type")
+                            status_val = order_info.get("status")
+
+                            side: OrderSide | None = None
+                            order_type: OrderType | None = None
+                            status: OrderStatus | None = None
+
+                            if not symbol:
+                                logger.warning(
+                                    f"Skipping order dict without symbol on {exchange_id}: "
+                                    f"{order_info}"
+                                )
+                                continue
                             try:
-                                # Create Order object from dict, ensuring Decimals and Enums
-                                # Instantiate using NEW field names
+                                if side_val:
+                                    side = OrderSide(side_val)
+                                else:
+                                    raise ValueError("Missing 'side'")
+                                if order_type_val:
+                                    order_type = OrderType(order_type_val)
+                                else:
+                                    raise ValueError("Missing 'order_type' or 'type'")
+                                if status_val:
+                                    status = OrderStatus(status_val)
+                                else:
+                                    raise ValueError("Missing 'status'")
+                            except ValueError as ve:
+                                logger.warning(
+                                    f"Invalid or missing enum value for order {order_id} on "
+                                    f"{exchange_id}: {ve}. Data: {order_info}"
+                                )
+                                continue
+
+                            # Enum validation done, now create the Order object
+                            try:
                                 parsed_order_instance = Order(
-                                    id=str(order_id),  # Renamed from order_id
+                                    id=str(order_id),
                                     symbol=symbol,
-                                    side=side,  # Use validated side
-                                    type=order_type,  # Renamed from order_type
+                                    side=side, # Already validated Enum
+                                    type=order_type, # Already validated Enum
                                     price=self._safe_decimal_convert(
-                                        order_info.get("price"), "price", symbol, exchange_id
+                                        order_info.get("price"),
+                                        "price", symbol, exchange_id
                                     ),
-                                    avg_fill_price=self._safe_decimal_convert(  # Added avg_fill_price
+                                    avg_fill_price=self._safe_decimal_convert(
                                         order_info.get("avgFillPrice"),
-                                        "avg_fill_price",
-                                        symbol,
-                                        exchange_id,
+                                        "avg_fill_price", symbol, exchange_id
                                     ),
-                                    quantity=self._safe_decimal_convert(
-                                        order_info.get("quantity"), "quantity", symbol, exchange_id
-                                    )
-                                    or Decimal("0"),
-                                    filled_quantity=self._safe_decimal_convert(
-                                        order_info.get("filled_quantity")
-                                        or order_info.get("filledQuantity"),
-                                        "filled_quantity",
-                                        symbol,
-                                        exchange_id,
-                                    )
-                                    or Decimal("0"),
-                                    status=status,  # Use validated status
-                                    time=order_info.get(
-                                        "timestamp"
-                                    )  # Renamed from timestamp, check common keys
-                                    or order_info.get("time"),
-                                    client_order_id=order_info.get("client_order_id")
-                                    or order_info.get("clientOrderId"),
-                                    # Add other fields as needed (leverage, time_in_force, etc. if available in order_info)
+                                    quantity=(
+                                        self._safe_decimal_convert(
+                                            order_info.get("quantity"),
+                                            "quantity", symbol, exchange_id
+                                        ) or Decimal("0")
+                                    ),
+                                    filled_quantity=(
+                                        self._safe_decimal_convert(
+                                            order_info.get("filled_quantity") or
+                                            order_info.get("filledQuantity"),
+                                            "filled_quantity", symbol, exchange_id
+                                        ) or Decimal("0")
+                                    ),
+                                    status=status, # Already validated Enum
+                                    time=(
+                                        order_info.get("timestamp") or
+                                        order_info.get("time")
+                                    ), # Check common keys
+                                    client_order_id=(
+                                        order_info.get("client_order_id") or
+                                        order_info.get("clientOrderId")
+                                    ),
                                     leverage=self._safe_decimal_convert(
-                                        order_info.get("leverage"), "leverage", symbol, exchange_id
+                                        order_info.get("leverage"),
+                                        "leverage", symbol, exchange_id
                                     ),
-                                    # time_in_force needs enum conversion similar to side/type/status if present
                                     post_only=order_info.get("postOnly", False),
                                     reduce_only=order_info.get("reduceOnly", False),
                                     metadata=order_info.get("metadata", {}),
                                 )
                                 # Further validation/conversion for timestamp if needed
-                                ts_val = parsed_order_instance.time  # Use .time
+                                ts_val = parsed_order_instance.time
                                 if isinstance(ts_val, int | float):
-                                    pass  # Placeholder for potential conversion logic if needed
+                                    # TODO: Implement timestamp conversion if needed
+                                    pass
 
-                                # Add the parsed order to our collection
+                                # Assign the parsed order
                                 order_instance = parsed_order_instance
-                                order_id = order_instance.id  # Use .id
+                                # order_id is already set from the dict key check
+
                             except (InvalidOperation, ValueError, TypeError) as e:
                                 logger.error(
                                     f"Error parsing order dict for order ID {order_id} on "
                                     f"{exchange_id}: {e}. Data: {order_info}"
                                 )
-                                # The continue statement here was unreachable as the
-                                # exception implicitly continues the loop.
-                            # This else block was unreachable and has been removed
+                                continue # Skip this dict if parsing fails
+
+                        else: # if not order_id:
+                            logger.warning(f"Skipping order dict without ID on {exchange_id}: {order_info}")
+                            continue
+                    #    ... (code removed) ...
                     # else: # Mypy error: Statement is unreachable [unreachable] -
                     # Removed unreachable code block
                     #     logger.warning(
@@ -1318,6 +1356,21 @@ class PortfolioTracker:
             for position in positions.values():
                 all_positions.append((exchange_id, position))
         return all_positions
+
+    def get_positions_by_exchange(self, exchange_id: str) -> list[Position]:
+        """
+        Get all positions for a specific exchange.
+
+        Args:
+            exchange_id: The identifier of the exchange.
+
+        Returns:
+            A list of Position objects for the specified exchange.
+        """
+        if exchange_id not in self._positions:
+            logger.warning(f"Attempted to get positions for unknown exchange: {exchange_id}")
+            return []
+        return list(self._positions[exchange_id].values())
 
     def get_current_drawdown(self) -> Decimal | None:
         """

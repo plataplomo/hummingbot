@@ -48,6 +48,7 @@ if TYPE_CHECKING:
         Ticker,
         TimeInForce,  # Moved back
         Trade,
+        Fill, # Added Fill
     )
 
 logger = logging.getLogger(__name__)
@@ -960,8 +961,21 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_order_status(self, order_id: str, symbol: str | None = None) -> Order:
-        """Fetch the current status of a specific order by its ID."""
+    async def get_order_status(
+        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
+    ) -> Order:
+        """
+        Fetch the current status of a specific order by its ID or client_order_id.
+        At least one of order_id or client_order_id should be provided by implementations.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
+        """
+        Fetch a single order by its ID, potentially specific to a symbol.
+        Returns None if the order is not found.
+        """
         raise NotImplementedError
 
     # --- WebSocket Management & Subscriptions --- #
@@ -974,6 +988,15 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def _handle_websocket_message(self, message: Any) -> None:
         """Internal handler to process raw WebSocket messages."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_recent_fills(
+        self, symbol: str | None = None, limit: int | None = None
+    ) -> list[Fill]:
+        """
+        Fetch recent fills/trades for the account, optionally filtered by symbol.
+        """
         raise NotImplementedError
 
     @abstractmethod

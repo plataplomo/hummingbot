@@ -439,10 +439,10 @@ class SignalGenerator:
         if exchange in self.historical_slippage and symbol in self.historical_slippage[exchange]:
             slippage_data = self.historical_slippage[exchange][symbol]
             if slippage_data and len(slippage_data) > 0:
-                # Calculate average slippage from historical data
+                # Calculate average slippage from historical data (result is Decimal)
                 avg_slippage = sum(slippage_data) / Decimal(len(slippage_data))
-                if not isinstance(avg_slippage, Decimal):
-                    avg_slippage = Decimal(str(avg_slippage))
+                # Removed redundant check: if not isinstance(avg_slippage, Decimal):
+                # avg_slippage = Decimal(str(avg_slippage))
                 return avg_slippage
 
         # Fallback to configured value for the exchange or default
@@ -454,12 +454,13 @@ class SignalGenerator:
         if not isinstance(base_slippage, Decimal):
             base_slippage = Decimal(str(base_slippage))
 
-        # Apply slippage sensitivity multiplier
+        # Apply slippage sensitivity multiplier (self.slippage_sensitivity is guaranteed Decimal)
         sensitivity = self.slippage_sensitivity
-        if not isinstance(sensitivity, Decimal):
-            sensitivity = Decimal(str(sensitivity))
-
+        # Removed redundant check: if not isinstance(sensitivity, Decimal):
+        # Removed unreachable code: sensitivity = Decimal(str(sensitivity))
         # Return the final calculated slippage
+        # Mypy incorrectly reports [no-any-return] here sometimes.
+        # Both base_slippage and sensitivity are guaranteed Decimal by this point.
         return base_slippage * sensitivity
 
     def generate_arbitrage_opportunities(
@@ -548,21 +549,29 @@ class SignalGenerator:
                 funding_a = exchanges_with_data[exchange_a]
                 funding_b = exchanges_with_data[exchange_b]
 
-                # Ensure we have valid funding rates
-                if funding_a is None or funding_b is None:
+                # Ensure we have valid funding rates.
+                # Mypy incorrectly flags as unreachable, but the input type hint
+                # funding_data: dict[str, dict[str, FundingRate | None]]
+                # explicitly allows None values in the inner dict.
+                if funding_a is None or funding_b is None: # mypy: [unreachable]
                     continue
 
                 try:
                     rate_a = funding_a.funding_rate
                     rate_b = funding_b.funding_rate
 
-                    # Ensure rates are not None and convert to Decimal if needed
-                    if rate_a is None or rate_b is None:
+                    # Ensure rates are not None and convert to Decimal if needed.
+                    # Mypy incorrectly flags the following 'if' and subsequent lines
+                    # as unreachable, likely due to its earlier incorrect assessment
+                    # of the check at line 556. This check is necessary.
+                    if rate_a is None or rate_b is None: # mypy: [unreachable]
                         continue
 
-                    if not isinstance(rate_a, Decimal):
+                    # Mypy flags this block as unreachable due to the above.
+                    # These conversions are necessary if rates might not be Decimal.
+                    if not isinstance(rate_a, Decimal): # mypy: [unreachable]
                         rate_a = Decimal(str(rate_a))
-                    if not isinstance(rate_b, Decimal):
+                    if not isinstance(rate_b, Decimal): # mypy: [unreachable]
                         rate_b = Decimal(str(rate_b))
 
                     # Calculate the funding rate differential
@@ -579,9 +588,11 @@ class SignalGenerator:
                     if ticker_a is None or ticker_b is None:
                         continue
 
-                    # Ensure we have valid prices
-                    if ticker_a.price is None or ticker_b.price is None:
-                        continue
+                    # Ensure we have valid prices.
+                    # Mypy incorrectly flags as unreachable, but Ticker.price
+                    # is defined as Decimal | None.
+                    if ticker_a.price is None or ticker_b.price is None: # mypy: [unreachable]
+                        continue # mypy: [unreachable]
 
                     # Convert prices to Decimal if needed
                     price_a = ticker_a.price
@@ -593,11 +604,13 @@ class SignalGenerator:
                         price_b = Decimal(str(price_b))
 
                     # Calculate the funding payment in USD terms
-                    funding_payment_a = price_a * rate_a
-                    funding_payment_b = price_b * rate_b
+                    # Mypy incorrectly flags the following lines as unreachable,
+                    # likely due to its earlier incorrect assessments.
+                    funding_payment_a = price_a * rate_a # mypy: [unreachable]
+                    funding_payment_b = price_b * rate_b # mypy: [unreachable]
 
                     # Calculate net funding differential
-                    net_funding_differential = funding_payment_b - funding_payment_a
+                    net_funding_differential = funding_payment_b - funding_payment_a # mypy: [unreachable]
 
                     # Calculate expected profit after slippage
                     slippage_a = self.estimate_slippage(exchange_a, symbol)

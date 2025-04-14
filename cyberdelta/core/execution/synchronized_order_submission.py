@@ -47,8 +47,9 @@ class PositionReconciliationSystem(Protocol):
         self,
         exchange: str,
         symbol: str,
-        expected: Any,
-        actual: Any,  # Keeping Any for now, needs refinement
+        # TODO: Refine Any with specific Position/Order types if possible
+        expected: dict[str, Any],
+        actual: dict[str, Any],
     ) -> dict[str, Any]:
         """Handle position discrepancies between expected and actual positions."""
         ...
@@ -245,8 +246,10 @@ class OrderVerifier:
                     if api_value != expected_details[key]:
                         verification_success = False
                         verification_error = (
-                            (verification_error or "")
-                            + f" API order {key} mismatch: expected {expected_details[key]}, got {api_value}"
+                            (verification_error or "") + (
+                                " API order {key} mismatch:"
+                                f" expected {expected_details[key]}, got {api_value}"
+                            )
                         )
                         break
 
@@ -870,8 +873,11 @@ class SynchronizedOrderSubmissionService:
                         result.status = ExecutionStatus.COMPLETED
 
                         # Wait for second fill if needed
-                        if self.config.get("execution.wait_for_second_fill", True):
-                            # Monitor for fills - this would be implemented to check if order is filled
+                        if self.config.get(
+                            "execution.wait_for_second_fill", True
+                        ):
+                            # Monitor for fills - this would be implemented
+                            # to check if order is filled
                             second_fill_result = {
                                 "filled": True
                             }  # Placeholder for actual fill monitoring
@@ -925,14 +931,16 @@ class SynchronizedOrderSubmissionService:
             price_val = opportunity.long_price if leg_type == "long" else opportunity.short_price
         elif isinstance(opportunity, dict):
             # Handle dict case - assuming keys match ArbitrageOpportunity attributes
-            symbol_val = opportunity.get("symbol")
-            # Use optimal_size and direct price keys for dict case
-            quantity_val = opportunity.get("optimal_size")
-            price_val = (
+            # Mypy incorrectly flags the following lines as unreachable, but the
+            # opportunity parameter is typed as OpportunityType = ArbitrageOpportunity | dict[str, Any],
+            # making this block reachable.
+            symbol_val = opportunity.get("symbol") # mypy: [unreachable]
+            quantity_val = opportunity.get("optimal_size") # mypy: [unreachable]
+            price_val = ( # mypy: [unreachable]
                 opportunity.get("long_price")
                 if leg_type == "long"
                 else opportunity.get("short_price")
-            )
+            ) # mypy: [unreachable]
         else:
             logger.error(
                 f"Cannot prepare order from unsupported opportunity type: {type(opportunity)}"
@@ -1019,7 +1027,11 @@ class SynchronizedOrderSubmissionService:
         else:
             # If execution failed, skip detailed post-verification
             all_success = False
-            error_msg = f"Execution did not complete successfully ({execution_result.status.name}). Skipping post-verification."
+            error_msg = (
+                f"Execution did not complete successfully "
+                f"({execution_result.status.name}). "
+                f"Skipping post-verification."
+            )
 
         return {
             "timestamp": int(time.time() * 1000),

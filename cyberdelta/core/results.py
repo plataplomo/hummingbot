@@ -92,7 +92,7 @@ class BacktestResultsHandler:
             Series of period returns
         """
         if not self.equity_curve:
-            return pd.Series()
+            return pd.Series(dtype=float) # Ensure float dtype for empty series
 
         # Convert equity curve to DataFrame
         df = pd.DataFrame(self.equity_curve)
@@ -111,23 +111,36 @@ class BacktestResultsHandler:
         Returns:
             Dictionary of performance metrics
         """
-        if not self.returns_series:
+        if self.returns_series is None: # Check if None before calling calculate_returns
             self.calculate_returns()
 
-        if self.returns_series is None or len(self.returns_series) == 0:
+        # Mypy incorrectly flags the 'or' as unreachable, assuming len > 0 if not None.
+        # However, calculate_returns() can return an empty Series. This check is necessary.
+        # Correct indentation for this block
+        if self.returns_series is None or len(self.returns_series) == 0: # mypy: [unreachable]
             logger.warning("No returns data available to calculate metrics")
             self.metrics = {
                 "total_trades": len(self.trades),
-                "winning_trades": sum(1 for t in self.trades if t.get("pnl", 0) > 0),
+                "winning_trades": sum(1 for t in self.trades if t.get("pnl", Decimal("0")) > 0), # Use Decimal
                 "total_return": 0.0,
                 "annualized_return": 0.0,
                 "sharpe_ratio": 0.0,
                 "max_drawdown": 0.0,
+                # Add other metrics with default 0.0 values for consistency
+                "losing_trades": sum(1 for t in self.trades if t.get("pnl", Decimal("0")) <= 0), # Use Decimal
+                "win_rate": 0.0,
+                "annualized_volatility": 0.0,
+                "avg_win": 0.0,
+                "avg_loss": 0.0,
+                "profit_factor": 0.0,
+                "total_profit": 0.0,
+                "total_loss": 0.0,
             }
-            return self.metrics
+            return self.metrics # Return default metrics
 
         # Calculate basic metrics
-        num_trades = len(self.trades)
+        # Mypy flags this block as unreachable due to its incorrect assessment of the check at line 119.
+        num_trades = len(self.trades) # mypy: [unreachable]
         winning_trades = sum(1 for t in self.trades if t.get("pnl", Decimal("0")) > 0)
         losing_trades = sum(1 for t in self.trades if t.get("pnl", Decimal("0")) <= 0)
         # Ensure division by zero is handled
@@ -167,24 +180,24 @@ class BacktestResultsHandler:
                 "annualized_volatility": float(volatility),
                 "sharpe_ratio": float(sharpe_ratio),
                 "max_drawdown": float(max_drawdown),
-                "num_trades": len(self.trades),
+                "num_trades": len(self.trades), # Redundant? Already set above. Consider removing.
             }
         )
 
         # Calculate additional trade metrics if we have trades
         if self.trades:
-            pnl_values = [t.get("pnl", 0) for t in self.trades]
+            pnl_values = [t.get("pnl", Decimal("0")) for t in self.trades] # Use Decimal default
             winning_pnl = [p for p in pnl_values if p > 0]
             losing_pnl = [p for p in pnl_values if p <= 0]
 
             # Calculate averages
-            avg_win = np.mean(winning_pnl) if winning_pnl else 0.0
-            avg_loss = np.mean(losing_pnl) if losing_pnl else 0.0
+            avg_win = np.mean([float(p) for p in winning_pnl]) if winning_pnl else 0.0 # np.mean needs float
+            avg_loss = np.mean([float(p) for p in losing_pnl]) if losing_pnl else 0.0 # np.mean needs float
 
             # Calculate profit factor
             total_profit = sum(winning_pnl)
             total_loss = abs(sum(losing_pnl))
-            profit_factor = total_profit / total_loss if total_loss > 0 else float("inf")
+            profit_factor = float(total_profit / total_loss) if total_loss > 0 else float("inf") # Ensure float
 
             self.metrics.update(
                 {
@@ -206,64 +219,59 @@ class BacktestResultsHandler:
             filename: Optional custom filename
 
         Returns:
-            Path to saved file
+            Path to the saved results file
         """
-        # Calculate metrics if not already calculated
+        if filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{self.strategy_name}_results_{timestamp}.json"
+
+        filepath = os.path.join(self.results_dir, filename)
+
+        # Ensure metrics are calculated
         if not self.metrics:
             self.calculate_metrics()
 
-        # Create results object
         results = {
             "strategy_name": self.strategy_name,
-            "initial_capital": float(self.initial_capital),
+            "initial_capital": str(self.initial_capital), # Save Decimal as string
             "timestamp": datetime.now().isoformat(),
             "metrics": self.metrics,
-            "trades": self.trades,
-            "positions": self.positions,
             "equity_curve": self.equity_curve,
+            "trades": self.trades,
+            # 'positions': self.positions # Positions might be too verbose, optional
         }
 
-        # Generate filename if not provided
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{self.strategy_name}_{timestamp}.json"
-
-        # Ensure path is within results directory
-        filepath = os.path.join(self.results_dir, filename)
-
-        # Save to file
         try:
-            with open(filepath, "w") as f:
-                json.dump(results, f, indent=2)
-            logger.info(f"Saved backtest results to {filepath}")
+            with open(filepath, "w", encoding="utf-8") as f:
+                # Use custom encoder if needed for Decimal or other types
+                # For now, assuming metrics/equity curve are float/serializable
+                json.dump(results, f, indent=4)
+            logger.info(f"Backtest results saved to {filepath}")
             return filepath
-        except Exception as e:
-            logger.error(f"Failed to save results: {e}")
+        except IOError as e:
+            logger.error(f"Error saving results to {filepath}: {e}")
             raise
 
     def format_results_for_output(self) -> dict[str, Any]:
         """
-        Format results for output.
+        Format key results for display or logging.
 
         Returns:
-            Dictionary with formatted results
+            Dictionary with formatted key metrics
         """
-        # Calculate metrics if not already calculated
         if not self.metrics:
             self.calculate_metrics()
 
-        # Format final equity
-        final_equity = (
-            self.equity_curve[-1]["equity"] if self.equity_curve else float(self.initial_capital)
-        )
-
-        # Create summary dictionary
-        return {
-            "success": True,
-            "strategy_name": self.strategy_name,
-            "initial_capital": float(self.initial_capital),
-            "final_equity": final_equity,
-            "total_return_pct": ((final_equity / float(self.initial_capital)) - 1) * 100,
-            "metrics": self.metrics,
-            "num_trades": len(self.trades),
+        formatted = {
+            "Strategy": self.strategy_name,
+            "Total Trades": self.metrics.get("total_trades", 0),
+            "Win Rate (%)": f"{self.metrics.get('win_rate', 0.0):.2f}",
+            "Total Return (%)": f"{self.metrics.get('total_return', 0.0):.2f}",
+            "Annualized Return (%)": f"{self.metrics.get('annualized_return', 0.0):.2f}",
+            "Max Drawdown (%)": f"{self.metrics.get('max_drawdown', 0.0):.2f}",
+            "Sharpe Ratio": f"{self.metrics.get('sharpe_ratio', 0.0):.2f}",
+            "Profit Factor": f"{self.metrics.get('profit_factor', 0.0):.2f}",
+            "Avg Win ($)": f"{self.metrics.get('avg_win', 0.0):.2f}",
+            "Avg Loss ($)": f"{self.metrics.get('avg_loss', 0.0):.2f}",
         }
+        return formatted

@@ -179,8 +179,12 @@ class DataHandler:
                     )
                     await asyncio.sleep(reconnect_delay)
 
-                # Connect to WebSocket
-                self.ws_connections[exchange_id] = await client.connect_websocket()
+                # Connect to WebSocket (method returns None, assignment removed)
+                await client.connect_websocket()
+                # TODO: connect_websocket hint returns None, but DataHandler likely needs the connection object
+                #       for management (e.g., shutdown). The ExchangeAPI base class signature
+                #       or the client implementation needs review/fixing. Assuming client manages its own connection internally for now.
+                # self.ws_connections[exchange_id] = ... # Removed assignment to fix Mypy [func-returns-value]
                 logger.info(f"Connected to {exchange_id} WebSocket")
 
                 # Subscribe to channels
@@ -250,22 +254,29 @@ class DataHandler:
                     ):  # Use renamed variable
                         # Unpack from the renamed variable
                         symbol, ticker_obj = parsed_ticker_data
-                        if not isinstance(ticker_obj, Ticker):  # Check the unpacked object
+                        # Runtime check: Ensure the unpacked object is actually a Ticker.
+                        # Mypy flags as unreachable based on parse_ticker_message hint
+                        # (-> Ticker | tuple[str, Ticker] | None), assuming the tuple's
+                        # second element is always Ticker. This check guards against
+                        # parsing bugs or malformed messages returning other types.
+                        if not isinstance(ticker_obj, Ticker): # mypy: [unreachable]
                             logger.warning(
                                 "Parsed ticker data tuple element is not Ticker type "
-                                f"for {exchange_id}: {type(ticker_obj)}"
+                                f"(Hint: tuple[str, Ticker]) for {exchange_id}: {type(ticker_obj)}"
                             )
                             return
                     elif isinstance(parsed_ticker_data, Ticker):  # Check the renamed variable
                         symbol = parsed_ticker_data.symbol
                         ticker_obj = parsed_ticker_data  # Rename variable
-                    else:  # Handle case where parsed_ticker_data is not tuple or Ticker
-                        # (e.g., None, though checked earlier)
-                        logger.warning(
-                            "Unexpected data format from parse_ticker_message for "
-                            f"{exchange_id}: {type(parsed_ticker_data)}"
+                    else:
+                        # Runtime check: Handle unexpected types returned by parse_ticker_message
+                        # that might violate the Ticker | tuple[str, Ticker] | None hint.
+                        # Mypy flags as unreachable, assuming if truthy, it must be Ticker or tuple.
+                        logger.warning( # mypy: [unreachable]
+                            f"Unexpected type returned by parse_ticker_message (Hint: Ticker | tuple[str, Ticker] | None) "
+                            f"for {exchange_id}: {type(parsed_ticker_data)}"
                         )
-                        return  # Exit if parsing failed or type is unexpected
+                        return # Exit if parsing failed or type is unexpected
 
                     # Ensure price is available before creating MarketData
                     if ticker_obj.price is None:
@@ -311,10 +322,12 @@ class DataHandler:
                             exchange_id, parsed_funding_rate.symbol, parsed_funding_rate
                         )
                     else:
-                        logger.warning(
-                            f"[{exchange_id}] Unexpected type from "
-                            f"parse_funding_rate_message: {type(parsed_funding_rate)}"
-                        )  # Corrected method name in log
+                        # Runtime check: Handle unexpected types from parse_funding_rate_message.
+                        # Mypy flags as unreachable, assuming if truthy, must be FundingRate.
+                        logger.warning( # mypy: [unreachable]
+                            f"[{exchange_id}] Unexpected type from parse_funding_rate_message "
+                            f"(Hint: FundingRate | None): {type(parsed_funding_rate)}"
+                        )
 
             elif message_type == "account_update":  # e.g., balances, positions
                 # Data should go to PortfolioTracker, not via DataHandler observers

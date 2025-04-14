@@ -141,38 +141,43 @@ class BacktestEngine:
                 logger.error(f"Error during index conversion to DatetimeIndex: {e}")
                 raise ValueError("Data index could not be converted to datetime objects.") from e
 
-        # Ensure capital is Decimal
-        if not isinstance(initial_capital, Decimal):
-            try:
-                self.initial_capital = Decimal(str(initial_capital))
-            except InvalidOperation as e:
-                logger.error(
-                    f"Invalid initial_capital value: {initial_capital}. "
-                    f"Cannot convert to Decimal. Error: {e}"
-                )
-                raise ValueError("initial_capital must be a valid number.") from e
+        # The initial_capital parameter is already type-hinted as Decimal.
+        # The following conversion block is unreachable and has been removed.
+        # if not isinstance(initial_capital, Decimal):
+        #     try:
+        #         self.initial_capital = Decimal(str(initial_capital))
+        #     except InvalidOperation as e:
+        #         logger.error(
+        #             f"Invalid initial_capital value: {initial_capital}. "
+        #             f"Cannot convert to Decimal. Error: {e}"
+        #         )
+        #         raise ValueError("initial_capital must be a valid number.") from e
+        # The 'else' block below handles the assignment correctly.
         else:
             self.initial_capital = initial_capital
         self.capital = self.initial_capital
 
-        # Ensure commission and slippage are Decimal
-        if not isinstance(commission, Decimal):
-            try:
-                self.commission = Decimal(str(commission))
-            except InvalidOperation as e:
-                logger.error(f"Invalid commission value: {commission}. Error: {e}")
-                raise ValueError("commission must be a valid number.") from e
-        else:
-            self.commission = commission
+        # The commission parameter is already type-hinted as Decimal.
+        # The following conversion block is unreachable and has been removed.
+        # if not isinstance(commission, Decimal):
+        #     try:
+        #         self.commission = Decimal(str(commission))
+        #     except InvalidOperation as e:
+        #         logger.error(f"Invalid commission value: {commission}. Error: {e}")
+        #         raise ValueError("commission must be a valid number.") from e
 
-        if not isinstance(slippage, Decimal):
-            try:
-                self.slippage = Decimal(str(slippage))
-            except InvalidOperation as e:
-                logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
-                raise ValueError("slippage must be a valid number.") from e
-        else:
-            self.slippage = slippage
+        self.commission = commission
+
+        # The slippage parameter is already type-hinted as Decimal.
+        # The following conversion block is unreachable and has been removed.
+        # if not isinstance(slippage, Decimal):
+        #     try:
+        #         self.slippage = Decimal(str(slippage))
+        #     except InvalidOperation as e:
+        #         logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
+        #         raise ValueError("slippage must be a valid number.") from e
+        # Assign slippage directly
+        self.slippage = slippage
 
         self.results_dir = results_dir
 

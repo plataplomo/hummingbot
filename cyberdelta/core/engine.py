@@ -164,8 +164,9 @@ class Engine:
                         )
                         # Forward signal IMMEDIATELY to the configured handler
                         # Ensure handler exists (checked at start, but belt-and-suspenders)
-                        if not self.signal_handler:
-                            logger.error(f"Signal from {strategy.name} but no handler configured!")
+                        if self.signal_handler is None: # Correct check for None
+                            # Mypy incorrectly flags this as unreachable sometimes.
+                            logger.error(f"Signal from {strategy.name} but no handler configured!") # mypy: [unreachable]
                         else:
                             # Check the callable directly, not its truthiness
                             # self.signal_handler(signal) # Original line caused truthy warn

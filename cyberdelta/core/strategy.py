@@ -3,13 +3,14 @@ from __future__ import annotations  # Enable postponed evaluation
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import TYPE_CHECKING, Any  # Added TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypeVar # Added TypeVar
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import MarketData, TradeSignal
 
 logger = logging.getLogger(__name__)
 
+_T = TypeVar("_T") # Define a TypeVar for generic parameter types
 
 class Strategy(ABC):
     """
@@ -85,9 +86,10 @@ class Strategy(ABC):
         """Called when the strategy is stopped"""
         logger.info(f"Strategy '{self.name}' stopped")
 
-    def get_param(self, name: str, default: Any = None) -> Any:
+    # Ensure correct indentation for methods within the class
+    def get_param(self, name: str, default: _T | None = None) -> _T | None:
         """
-        Get a strategy parameter
+        Get a strategy parameter.
 
         Args:
             name: Parameter name
@@ -98,9 +100,9 @@ class Strategy(ABC):
         """
         return self.params.get(name, default)
 
-    def set_param(self, name: str, value: Any) -> None:
+    def set_param(self, name: str, value: _T) -> None:
         """
-        Set a strategy parameter
+        Set a strategy parameter.
 
         Args:
             name: Parameter name

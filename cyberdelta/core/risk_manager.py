@@ -3,7 +3,7 @@ from __future__ import annotations  # Enable postponed evaluation
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, getcontext
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable # Added Callable
 
 from cyberdelta.core.models import Position  # Needed for runtime isinstance check
 
@@ -93,7 +93,8 @@ class RiskManager:
         portfolio_tracker: PortfolioTracker,
         circuit_breaker_system: CircuitBreakerSystem | None = None,
         # TODO: Replace Any with a more specific validator type if possible
-        funding_rate_validator: Any | None = None,  # ANN401: Leaving Any as per constraints
+        # Define a more specific signature if the validator's expected input/output is known
+        funding_rate_validator: Callable[[Any], bool | None] | None = None, # Type hint using Callable
     ) -> None:
         """
         Initialize the risk manager.
@@ -350,7 +351,8 @@ class RiskManager:
         # Assuming error was spurious or related to other issues.
         long_ex = opportunity.long_exchange
         short_ex = opportunity.short_exchange
-        # TODO: Reinstate exchange exposure check when PortfolioTracker.get_total_exposure_by_exchange exists
+        # TODO: Reinstate exchange exposure check when PortfolioTracker
+        #       .get_total_exposure_by_exchange exists
         # long_ex_exposure = self.portfolio_tracker.get_total_exposure_by_exchange(long_ex)
         # short_ex_exposure = self.portfolio_tracker.get_total_exposure_by_exchange(short_ex)
         #
@@ -1093,8 +1095,9 @@ class RiskManager:
                             logger.error(
                                 f"Error calculating exposure for {symbol} on {exchange_id}: {e}"
                             )
-                            # If calculation fails for any leg, we might not have total exposure
-                            # Consider returning None or logging more severely depending on requirements
+                            # If calculation fails for any leg, we might not have
+                            # total exposure. Consider returning None or logging
+                            # more severely depending on requirements.
                     else:
                         logger.warning(
                             f"Missing size, entry_price, or mark_price for position {symbol} on "
