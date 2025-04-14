@@ -318,7 +318,7 @@ class Position:
 
     @staticmethod
     def _safe_decimal_convert(
-        value: str | int | float | Decimal | None, # ANN401 Fix
+        value: str | int | float | Decimal | None,  # ANN401 Fix
         field_name: str,
         symbol: str,
         allow_none: bool = False,
@@ -425,9 +425,10 @@ class Order:
         ):  # This is for type checking; should never be None with allow_none=False
             self.quantity = quantity_decimal
         else:
-            # This should never happen as _safe_decimal_convert should raise an error
-            # when allow_none=False # E501 Fix
-            raise ValueError(f"Failed to convert quantity to Decimal for symbol '{self.symbol}'")
+            # This should never happen as _safe_decimal_convert should raise an error when allow_none=False
+            raise ValueError(
+                f"Failed to convert quantity to Decimal for symbol '{self.symbol}'"
+            )
 
         self.filled_quantity = self._safe_decimal_convert(
             self.filled_quantity, "filled_quantity", self.symbol, allow_none=True
@@ -447,7 +448,7 @@ class Order:
         if self.timestamp is not None and self.timestamp.tzinfo is None:
             self.timestamp = self.timestamp.replace(tzinfo=UTC)
 
-    def _safe_decimal_convert( # E501 Fix: Reformat signature
+    def _safe_decimal_convert(
         self,
         value: str | int | float | Decimal | None,
         field_name: str,
@@ -468,7 +469,7 @@ class Order:
         except (ValueError, TypeError, InvalidOperation) as e:
             raise ValueError(
                 f"Failed to convert {field_name} value '{value}' to Decimal for {symbol}: {str(e)}"
-            ) from e # B904 Fix
+            ) from e  # B904 Fix: Keep 'from e' for context, just fix comment spacing
 
     def to_dict(self) -> dict[str, Any]:
         """Convert order to dictionary, with proper formatting for serialization."""
@@ -557,7 +558,7 @@ class Trade:
 
     @staticmethod
     def _safe_decimal_convert(
-        value: str | int | float | Decimal | None, # ANN401 Fix
+        value: str | int | float | Decimal | None,  # ANN401 Fix
         field_name: str,
         symbol: str,
     ) -> Decimal:
@@ -576,7 +577,7 @@ class Trade:
 
     @staticmethod
     def _safe_decimal_convert_optional(
-        value: str | int | float | Decimal | None, # ANN401 Fix
+        value: str | int | float | Decimal | None,  # ANN401 Fix
         field_name: str,
         symbol: str,
     ) -> Decimal | None:
@@ -616,7 +617,7 @@ class Ticker:
 
     @staticmethod
     def _safe_decimal_convert(
-        value: str | int | float | Decimal | None, # ANN401 Fix
+        value: str | int | float | Decimal | None,  # ANN401 Fix
         field_name: str,
         symbol: str,
         allow_none: bool = False,
@@ -727,7 +728,7 @@ class FundingRate:
 
     @staticmethod
     def _safe_decimal_convert(
-        value: str | int | float | Decimal | None, # ANN401 Fix
+        value: str | int | float | Decimal | None,  # ANN401 Fix
         field_name: str,
         symbol: str,
         allow_none: bool = False,
@@ -843,8 +844,7 @@ class ArbitrageOpportunity:
                 return None
             else:
                 raise ValueError(
-                    f"ArbitrageOpportunity field '{field_name}' for symbol '{symbol}' "
-                    "cannot be None" # E501 Fix
+                    f"ArbitrageOpportunity field '{field_name}' for symbol '{symbol}' cannot be None"
                 )
         try:
             return Decimal(str(value))
@@ -989,7 +989,7 @@ class TradeSignal:
 
     @staticmethod
     def _safe_decimal_convert_optional(
-        value: str | int | float | Decimal | None, # ANN401 Fix
+        value: str | int | float | Decimal | None,  # ANN401 Fix
         field_name: str,
         symbol: str,
     ) -> Decimal | None:
