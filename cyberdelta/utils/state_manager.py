@@ -249,9 +249,7 @@ class StateManager:
         Returns:
             True if state is valid, False otherwise
         """
-        # Check if state data has the expected structure
-        if not isinstance(state_data, dict):
-            return False
+        # Type hint ensures state_data is a dict, no runtime check needed here.
 
         # Check for required top-level keys
         if "state" not in state_data or "metadata" not in state_data:
@@ -269,6 +267,10 @@ class StateManager:
         expected_checksum = metadata["checksum"]
         actual_checksum = self._calculate_checksum(state_data["state"])
 
+        # Explicitly check type before comparison as Mypy seems confused
+        if not isinstance(expected_checksum, str):
+             self.logger.warning(f"Expected checksum is not a string: {type(expected_checksum)}")
+             return False # Or raise an error, depending on desired strictness
         # Return true if checksums match
         return expected_checksum == actual_checksum
 

@@ -15,7 +15,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import yaml
 
@@ -186,7 +186,7 @@ exchanges:
         self.home_dir.cleanup()
 
     @patch("pathlib.Path.home")
-    def test_fallback_to_home_dir(self, mock_home) -> None:
+    def test_fallback_to_home_dir(self, mock_home: MagicMock) -> None:
         """Test fallback to ~/.cyberdelta/secrets.yaml when env var not set"""
         # Mock the home directory to point to our temp directory
         mock_home.return_value = Path(self.home_dir.name)

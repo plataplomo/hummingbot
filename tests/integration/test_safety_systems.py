@@ -14,44 +14,55 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from cyberdelta.core.data_handler import DataHandler  # Added DataHandler
 from cyberdelta.core.execution_handler import (
     ExecutionHandler,
     ExecutionStatus,
     TradeExecution,
-)  # Added TradeExecution
+)
 from cyberdelta.core.models import (
     ArbitrageOpportunity,
     Balance,
     OrderSide,
-    Position,
+    Position,  # Added Position
+    # RiskParameters, # Removed - Not defined in models.py
+    # SignalStatus, # Removed - Not defined in models.py
 )
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.core.portfolio_tracker import PortfolioTracker  # Added PortfolioTracker
+from cyberdelta.core.risk_manager import (  # Added RiskManager, SizedOpportunity
+    RiskManager,
+    SizedOpportunity,
+)
+from cyberdelta.core.signal_generator import SignalGenerator  # Added SignalGenerator
+from cyberdelta.utils.config import Config  # Added Config
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem  # Added CircuitBreakerSystem
+from cyberdelta.validation.position_reconciliation import (
+    PositionReconciliationSystem,  # Added PositionReconciliationSystem
+)
 from tests.integration.conftest import create_mock_ticker
-from tests.integration.mocks.mock_exchange import MockExchangeAPI
+from tests.integration.mocks.mock_exchange import MockExchangeAPI  # Added MockExchangeAPI
 
 # Fixtures will be reused from tests/integration/conftest.py
 
 
 @pytest.mark.asyncio
 async def test_circuit_breaker_global_halts_execution(
-    mock_config,
+    mock_config: Config, # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
-    data_handler,
-    signal_generator,
-    risk_manager,
+    data_handler: DataHandler, # Added type
+    signal_generator: SignalGenerator, # Added type
+    risk_manager: RiskManager, # Added type
     execution_handler: ExecutionHandler,
     circuit_breaker_system: CircuitBreakerSystem,
     basic_opportunity: ArbitrageOpportunity,
-):
+) -> None: # Added return type
     """Tests that a globally open circuit breaker prevents new executions."""
     # 1. Setup - Basic state, no initial errors
     mock_bp_api.reset()
     mock_hl_api.reset()
-    real_portfolio_tracker.reset()
+    # real_portfolio_tracker.reset() # Method does not exist, rely on fixture for fresh state
     # Explicitly reset breakers associated with the system
     circuit_breaker_system.reset_breaker("global_api_error")  # Reset global
     circuit_breaker_system.reset_exchange_breakers("mock_bp")  # Reset exchange specific
@@ -79,7 +90,8 @@ async def test_circuit_breaker_global_halts_execution(
     # Verify the global state is OPEN via can_execute
     can_exec, reason = circuit_breaker_system.can_execute(exchange="global")
     assert can_exec is False, f"Global breaker should be open, reason: {reason}"
-    assert trip_reason in reason
+    assert reason is not None, "Reason should not be None when breaker is tripped"
+    assert trip_reason in reason, f"Expected '{trip_reason}' in reason '{reason}'"
 
     # 3. Attempt Execution via execute_opportunity (Corrected method name)
     logger.info("Attempting execution with globally tripped breaker...")
@@ -88,10 +100,10 @@ async def test_circuit_breaker_global_halts_execution(
         opportunity=basic_opportunity,
         long_size=Decimal("100"),  # Placeholder size
         short_size=Decimal("100"),  # Placeholder size
-        allocation_percentage=0.1,  # Placeholder float (10%)
+        allocation_percentage=Decimal("0.1"),  # Placeholder float (10%)
         expected_profit=Decimal("1"),  # Placeholder profit
-        expected_return=0.01,  # Placeholder float (1%)
-        risk_adjusted_return=0.01,  # Placeholder float
+        expected_return=Decimal("0.01"),  # Placeholder float (1%)
+        risk_adjusted_return=Decimal("0.01"),  # Placeholder float
     )
     execution_result = await execution_handler.execute_opportunity(
         sized_opportunity_for_test
@@ -119,22 +131,22 @@ async def test_circuit_breaker_global_halts_execution(
 
 @pytest.mark.asyncio
 async def test_circuit_breaker_exchange_halts_execution(
-    mock_config,
+    mock_config: Config, # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
-    data_handler,
-    signal_generator,
-    risk_manager,
+    data_handler: DataHandler, # Added type
+    signal_generator: SignalGenerator, # Added type
+    risk_manager: RiskManager, # Added type
     execution_handler: ExecutionHandler,
     circuit_breaker_system: CircuitBreakerSystem,
     basic_opportunity: ArbitrageOpportunity,
-):
+) -> None: # Added return type and colon
     """Tests that an open exchange circuit breaker prevents executions involving that exchange."""
     # 1. Setup - Basic state, no initial errors
     mock_bp_api.reset()
     mock_hl_api.reset()
-    real_portfolio_tracker.reset()
+    # real_portfolio_tracker.reset() # Method does not exist
     # Explicitly reset breakers associated with the system
     circuit_breaker_system.reset_breaker("global_api_error")  # Reset global
     circuit_breaker_system.reset_exchange_breakers("mock_bp")  # Reset exchange specific
@@ -168,7 +180,8 @@ async def test_circuit_breaker_exchange_halts_execution(
     assert can_exec_target is False, (
         f"{target_exchange} breaker should be open, reason: {reason_target}"
     )
-    assert trip_reason in reason_target
+    assert reason_target is not None, "Reason target should not be None when breaker is tripped"
+    assert trip_reason in reason_target, f"Expected '{trip_reason}' in reason '{reason_target}'"
 
     # Verify global is still closed
     can_exec_global, reason_global = circuit_breaker_system.can_execute(exchange="global")
@@ -181,10 +194,10 @@ async def test_circuit_breaker_exchange_halts_execution(
         opportunity=basic_opportunity,
         long_size=Decimal("100"),  # Placeholder size
         short_size=Decimal("100"),  # Placeholder size
-        allocation_percentage=0.1,  # Placeholder float (10%)
+        allocation_percentage=Decimal("0.1"),  # Placeholder float (10%)
         expected_profit=Decimal("1"),  # Placeholder profit
-        expected_return=0.01,  # Placeholder float (1%)
-        risk_adjusted_return=0.01,  # Placeholder float
+        expected_return=Decimal("0.01"),  # Placeholder float (1%)
+        risk_adjusted_return=Decimal("0.01"),  # Placeholder float
     )
     execution_result = await execution_handler.execute_opportunity(
         sized_opportunity_for_test
@@ -215,15 +228,15 @@ async def test_circuit_breaker_exchange_halts_execution(
 
 @pytest.mark.asyncio
 async def test_funding_rate_validator_reduces_size(
-    mock_config,
+    mock_config: Config, # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
-    data_handler,
+    data_handler: DataHandler, # Added type
     risk_manager: RiskManager,
-    funding_rate_validator: MagicMock,  # Inject the mock validator fixture
-    basic_opportunity: ArbitrageOpportunity,  # Use the basic opportunity fixture
-):
+    funding_rate_validator: MagicMock,
+    basic_opportunity: ArbitrageOpportunity,
+) -> None: # Added return type
     """Tests that poor validation metrics reduce the calculated position size."""
     # === ADDED Setup ===
     # Ensure APIs are registered on the tracker
@@ -312,12 +325,12 @@ async def test_funding_rate_validator_reduces_size(
 
 @pytest.mark.asyncio
 async def test_position_reconciler_detects_discrepancy(
-    mock_config,
+    mock_config: Config, # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
-    position_reconciler,
-):
+    position_reconciler: PositionReconciliationSystem, # Added type
+) -> None: # Added return type
     """Tests that the PositionReconciliationSystem identifies discrepancies."""
     # === ADDED: Modify config for this test ===
     # Ensure reconciler only checks the mock exchanges used in this test
@@ -352,7 +365,7 @@ async def test_position_reconciler_detects_discrepancy(
 
     # 1. Setup - Place a known position via mock API update, tracker should be empty initially
     mock_bp_api.reset()
-    real_portfolio_tracker.reset()
+    # real_portfolio_tracker.reset() # Method does not exist
 
     exchange_id = "mock_bp"
     symbol = "BTC-PERP"
@@ -403,7 +416,7 @@ async def test_position_reconciler_detects_discrepancy(
     assert found_missing_in_tracker, "Did not find the expected 'missing_in_tracker' discrepancy"
 
     # 4. Setup Reverse Scenario - Position in tracker, not on exchange
-    real_portfolio_tracker.reset()
+    # real_portfolio_tracker.reset() # Method does not exist
     mock_bp_api.reset()  # Clear position from mock API
     real_portfolio_tracker.update_position(exchange_id, mock_position)  # Add to real tracker
 
@@ -417,7 +430,11 @@ async def test_position_reconciler_detects_discrepancy(
     logger.info("--- Reverse Scenario State Check ---")
     bp_positions_after_reset = await mock_bp_api.get_positions()
     logger.info(f"Mock BP positions after reset: {bp_positions_after_reset}")
-    local_positions_after_update = real_portfolio_tracker.get_positions_by_exchange(exchange_id)
+    # Get all positions and filter by the target exchange
+    all_local_positions = real_portfolio_tracker.get_all_positions()
+    local_positions_after_update = {
+        pos.symbol: pos for ex_id, pos in all_local_positions if ex_id == exchange_id
+    }
     logger.info(f"Local positions after update: {local_positions_after_update}")
     logger.info("--- End Reverse Scenario State Check ---")
     # === END State Check Logging ===

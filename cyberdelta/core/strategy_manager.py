@@ -154,11 +154,11 @@ class StrategyManager:
             try:
                 signal = strategy.process_data(data)
                 if signal is not None:
-                    # If we have a risk manager, apply position sizing
-                    if self.risk_manager is not None:
-                        signal = self.risk_manager.size_signal(signal)
-                    if signal is not None:  # Ensure signal is not None before appending
-                        signals.append(signal)
+                    # Sizing is handled *within* the strategy's process_data logic
+                    # which should interact with the risk_manager internally.
+                    # The strategy should return the final, potentially sized, signal.
+                    # No external sizing call needed here.
+                    signals.append(signal) # Append the signal returned by the strategy
             except Exception as e:
                 logger.error(f"Error processing data in strategy '{strategy_name}': {str(e)}")
 

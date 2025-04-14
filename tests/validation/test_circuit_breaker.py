@@ -543,7 +543,7 @@ def mock_config() -> Config:
                 current_data = value
             return (
                 current_data
-                if isinstance(current_data, (str, int, float, bool, dict, list))
+                if isinstance(current_data, str | int | float | bool | dict | list)
                 else None
             )
         except (KeyError, TypeError):

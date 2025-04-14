@@ -1,6 +1,8 @@
 import logging
+from typing import Any  # Added Dict and Any
 
 import pytest
+from _pytest.logging import LogCaptureFixture
 
 from cyberdelta.core.symbol_mapper import SymbolMapper, SymbolMappingError
 
@@ -37,7 +39,7 @@ VALID_CONFIG = {
 # --- Test Initialization ---
 
 
-def test_symbol_mapper_init_success():
+def test_symbol_mapper_init_success() -> None:
     """Test successful initialization with a valid config."""
     mapper = SymbolMapper(VALID_CONFIG)
     assert mapper is not None
@@ -49,23 +51,23 @@ def test_symbol_mapper_init_success():
     assert "invalid_symbols_exchange" not in mapper._exchange_to_internal  # Skipped
 
 
-def test_symbol_mapper_init_missing_exchanges_key():
+def test_symbol_mapper_init_missing_exchanges_key() -> None:
     """Test initialization fails if 'exchanges' key is missing."""
-    invalid_config = {"some_other_key": {}}
+    invalid_config: dict[str, Any] = {"some_other_key": {}}
     with pytest.raises(SymbolMappingError, match="'exchanges' key missing"):
         SymbolMapper(invalid_config)
 
 
-def test_symbol_mapper_init_exchanges_not_dict():
+def test_symbol_mapper_init_exchanges_not_dict() -> None:
     """Test initialization fails if 'exchanges' value is not a dict."""
-    invalid_config = {"exchanges": ["list", "not", "dict"]}
+    invalid_config: dict[str, Any] = {"exchanges": ["list", "not", "dict"]}
     with pytest.raises(SymbolMappingError, match="'exchanges' must be a dictionary"):
         SymbolMapper(invalid_config)
 
 
-def test_symbol_mapper_init_skips_invalid_entries(caplog):
+def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> None:
     """Test that invalid entries within the config are skipped with warnings."""
-    config_with_invalid = {
+    config_with_invalid: dict[str, Any] = {
         "exchanges": {
             "valid_exchange": {"symbols": {"BTC": "BTC-OK"}},
             "missing_symbols": {"enabled": True},  # Missing 'symbols' key
@@ -108,7 +110,7 @@ def mapper() -> SymbolMapper:
     return SymbolMapper(VALID_CONFIG)
 
 
-def test_get_exchange_symbol_success(mapper: SymbolMapper):
+def test_get_exchange_symbol_success(mapper: SymbolMapper) -> None:
     """Test successful lookup of exchange-specific symbols."""
     assert mapper.get_exchange_symbol("BTC", "hyperliquid") == "BTC-PERP"
     assert mapper.get_exchange_symbol("ETH", "hyperliquid") == "ETH-PERP"
@@ -118,7 +120,7 @@ def test_get_exchange_symbol_success(mapper: SymbolMapper):
     assert mapper.get_exchange_symbol("ETH", "kraken") == "ETH/USD"
 
 
-def test_get_exchange_symbol_not_found(mapper: SymbolMapper):
+def test_get_exchange_symbol_not_found(mapper: SymbolMapper) -> None:
     """Test lookups return None for missing mappings or exchanges."""
     assert mapper.get_exchange_symbol("SOL", "hyperliquid") is None  # SOL not on hyperliquid
     assert mapper.get_exchange_symbol("ETH", "backpack") is None  # ETH not on backpack
@@ -129,7 +131,7 @@ def test_get_exchange_symbol_not_found(mapper: SymbolMapper):
     assert mapper.get_exchange_symbol("BTC", "disabled_exchange") is None  # Exchange skipped
 
 
-def test_get_internal_symbol_success(mapper: SymbolMapper):
+def test_get_internal_symbol_success(mapper: SymbolMapper) -> None:
     """Test successful lookup of internal symbols."""
     assert mapper.get_internal_symbol("BTC-PERP", "hyperliquid") == "BTC"
     assert mapper.get_internal_symbol("ETH-PERP", "hyperliquid") == "ETH"
@@ -139,7 +141,7 @@ def test_get_internal_symbol_success(mapper: SymbolMapper):
     assert mapper.get_internal_symbol("ETH/USD", "kraken") == "ETH"
 
 
-def test_get_internal_symbol_not_found(mapper: SymbolMapper):
+def test_get_internal_symbol_not_found(mapper: SymbolMapper) -> None:
     """Test internal symbol lookups return None for missing mappings or exchanges."""
     assert (
         mapper.get_internal_symbol("SOL-PERP", "hyperliquid") is None
@@ -152,14 +154,14 @@ def test_get_internal_symbol_not_found(mapper: SymbolMapper):
     assert mapper.get_internal_symbol("BTC-PERP", "disabled_exchange") is None  # Exchange skipped
 
 
-def test_get_all_internal_symbols(mapper: SymbolMapper):
+def test_get_all_internal_symbols(mapper: SymbolMapper) -> None:
     """Test retrieval of all unique internal symbols."""
     internal_symbols = mapper.get_all_internal_symbols()
     assert isinstance(internal_symbols, list)
     assert sorted(internal_symbols) == ["BTC", "ETH", "SOL"]
 
 
-def test_get_exchange_symbols_for_internal(mapper: SymbolMapper):
+def test_get_exchange_symbols_for_internal(mapper: SymbolMapper) -> None:
     """Test getting all exchange symbols mapped to an internal symbol."""
     btc_map = mapper.get_exchange_symbols_for_internal("BTC")
     assert btc_map == {"hyperliquid": "BTC-PERP", "backpack": "BTC_PERP", "kraken": "BTC/USD"}
@@ -174,7 +176,7 @@ def test_get_exchange_symbols_for_internal(mapper: SymbolMapper):
     assert doge_map == {}
 
 
-def test_get_internal_symbols_for_exchange(mapper: SymbolMapper):
+def test_get_internal_symbols_for_exchange(mapper: SymbolMapper) -> None:
     """Test getting the map of exchange -> internal symbols for a specific exchange."""
     hyperliquid_map = mapper.get_internal_symbols_for_exchange("hyperliquid")
     assert hyperliquid_map == {"BTC-PERP": "BTC", "ETH-PERP": "ETH"}
@@ -197,7 +199,7 @@ def test_get_internal_symbols_for_exchange(mapper: SymbolMapper):
 # --- Test Edge Cases ---
 
 
-def test_empty_config():
+def test_empty_config() -> None:
     """Test initialization with an empty but valid structure."""
     mapper = SymbolMapper({"exchanges": {}})
     assert mapper.get_all_internal_symbols() == []
@@ -205,9 +207,9 @@ def test_empty_config():
     assert mapper.get_internal_symbol("BTC-PERP", "any") is None
 
 
-def test_config_with_only_empty_symbols():
+def test_config_with_only_empty_symbols() -> None:
     """Test initialization where exchanges have empty symbol dicts."""
-    config = {"exchanges": {"ex1": {"symbols": {}}, "ex2": {"symbols": {}}}}
+    config: dict[str, Any] = {"exchanges": {"ex1": {"symbols": {}}, "ex2": {"symbols": {}}}}
     mapper = SymbolMapper(config)
     assert mapper.get_all_internal_symbols() == []
     assert "ex1" in mapper._exchange_to_internal

@@ -1,7 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any  # Import Any
+from typing import Any  # Import Any and Union
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -117,7 +117,7 @@ class TestDataHandler:
         """Test initial data collection."""
 
         # Patch config get method to enable exchanges and provide symbols
-        def mock_config_get(path: str, default: Any = None) -> Any:
+        def mock_config_get(path: str, default: Any = None) -> bool | list[str] | None:
             if path.endswith(".enabled"):
                 return True
             if path.endswith(".symbols"):
@@ -233,7 +233,7 @@ class TestDataHandler:
         """Test updating all data from exchanges."""
 
         # Patch config get method to enable exchanges and provide symbols
-        def mock_config_get(path: str, default: Any = None) -> Any:
+        def mock_config_get(path: str, default: Any = None) -> bool | list[str] | None:
             if path.endswith(".enabled"):
                 return True
             if path.endswith(".symbols"):
@@ -528,7 +528,7 @@ class TestDataHandler:
         """Test processing WebSocket messages."""
 
         # Mock config get method for ping interval
-        def mock_config_get(path: str, default: Any = None) -> Any:
+        def mock_config_get(path: str, default: Any = None) -> float | None: # Specific to this mock's usage
             if path.endswith(".websocket.ping_interval"):
                 return 0.5  # Short interval for testing
             return default

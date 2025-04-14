@@ -385,7 +385,9 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.assertEqual(integrated.symbol, "BTC-PERP")
         self.assertAlmostEqual(integrated.rate, 0.00148, places=5)
         self.assertEqual(integrated.sources_count, 3)
-        self.assertAlmostEqual(integrated.dispersion, np.std([0.0015, 0.0014, 0.0016]), places=6)
+        self.assertIsNotNone(integrated.dispersion, "Dispersion should not be None")
+        # Convert both to float for assertAlmostEqual
+        self.assertAlmostEqual(float(integrated.dispersion), float(np.std([0.0015, 0.0014, 0.0016])), places=6)
 
         # Check source data
         self.assertEqual(len(integrated.source_data), 3)

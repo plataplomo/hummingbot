@@ -1158,7 +1158,7 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
         raise NotImplementedError("get_trade_history not implemented for HyperliquidAPI")
 
-    async def get_funding_rates(self, symbol: str | None = None) -> list[FundingRate]:
+    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]: # type: ignore[override] # Adjust implementation later
         """
         Get current funding rates, optionally filtering by symbol.
 
@@ -1182,7 +1182,8 @@ class HyperliquidAPI(ExchangeAPI):
 
                 for market in universe_data:
                     market_symbol = market.get("name")
-                    if symbol is not None and market_symbol != symbol:
+                    # If symbols list is provided, only include markets from that list
+                    if symbols is not None and market_symbol not in symbols:
                         continue
 
                     funding_info = market.get("funding")

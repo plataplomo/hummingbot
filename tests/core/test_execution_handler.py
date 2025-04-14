@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from decimal import Decimal
 
 from cyberdelta.core.models import (
@@ -7,7 +6,7 @@ from cyberdelta.core.models import (
     Order,
     OrderSide,
     OrderStatus,
-    OrderType,
+    OrderType,  # Added import
 )
 
 
@@ -30,14 +29,14 @@ def create_mock_order(
 ) -> Order:
     return Order(
         symbol="BTC-PERP",
-        # order_id="order123", # Assuming ID is set internally or not needed for mock init
+        id="mock_order_id",  # Added default ID
+        type=OrderType.LIMIT if price else OrderType.MARKET, # Added type based on price
         side=side,
-        # order_type=OrderType.LIMIT if price else OrderType.MARKET, # Assuming type is set internally
         price=price,
         quantity=quantity,
         filled_quantity=filled,
         status=status,
-        # timestamp=datetime.now(UTC), # Assuming timestamp is set internally
+        # timestamp=datetime.now(UTC), # Assuming timestamp is set internally or handled by Order
     )
 
 

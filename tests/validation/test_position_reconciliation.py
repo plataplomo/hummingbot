@@ -4,7 +4,7 @@ Tests for the PositionReconciliationSystem class.
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any  # Added Union
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -32,7 +32,7 @@ class TestPositionReconciliationSystem:
             "validation.position_reconciliation.use_fill_history": False,
         }
 
-        def config_get_side_effect(key: str, default: Any = None) -> Any:
+        def config_get_side_effect(key: str, default: Any = None) -> bool | int | None:
             if key in config_data:
                 return config_data[key]
             parts = key.split(".")

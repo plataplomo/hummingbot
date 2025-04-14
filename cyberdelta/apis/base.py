@@ -495,7 +495,7 @@ class ExchangeAPI(ABC):
                     continue
 
                 # Max retries exceeded
-                raise error
+                raise error from last_error # Chain the original connection/timeout error
 
         # This should typically not be reached due to the raise in the loop,
         # but as a fallback in case of unexpected flow:
@@ -511,6 +511,7 @@ class ExchangeAPI(ABC):
             code=APIErrorCode.UNKNOWN,
         )
 
+    @abstractmethod
     def _update_rate_limit_from_headers(
         self, headers: Mapping[str, str], method: str, path: str
     ) -> None:
@@ -892,8 +893,8 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_funding_rates(self, symbol: str | None = None) -> list[FundingRate]:
-        """Fetch historical funding rates for a symbol or all symbols."""
+    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+        """Fetch historical funding rates for specific symbols or all symbols if None."""
         raise NotImplementedError
 
     @abstractmethod
@@ -960,6 +961,11 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
         """Fetch historical trade data (account fills)."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_order_status(self, order_id: str, symbol: str | None = None) -> Order:
+        """Fetch the current status of a specific order by its ID."""
         raise NotImplementedError
 
     # --- WebSocket Management & Subscriptions --- #
