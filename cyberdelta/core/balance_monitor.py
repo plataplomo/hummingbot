@@ -49,7 +49,9 @@ class BalanceAlert:
         #     try:
         #         self.threshold_value = Decimal(str(self.threshold_value))
         #     except (ValueError, TypeError):
-        #         logger.error(f"Invalid threshold value: {self.threshold_value}. Defaulting to 0.0")
+        #         logger.error(
+        #             f"Invalid threshold value: {self.threshold_value}. Defaulting to 0.0"
+        #         )
         #         self.threshold_value = Decimal("0.0")
 
         # The current_balance is already type-hinted as Decimal in the dataclass definition.
@@ -58,7 +60,9 @@ class BalanceAlert:
         #     try:
         #         self.current_balance = Decimal(str(self.current_balance))
         #     except (ValueError, TypeError):
-        #         logger.error(f"Invalid current balance: {self.current_balance}. Defaulting to 0.0")
+        #         logger.error(
+        #             f"Invalid current balance: {self.current_balance}. Defaulting to 0.0"
+        #         )
         #         self.current_balance = Decimal("0.0")
 
         # The required_balance is already type-hinted as Decimal in the dataclass definition.

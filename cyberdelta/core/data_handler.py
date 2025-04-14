@@ -181,10 +181,13 @@ class DataHandler:
 
                 # Connect to WebSocket (method returns None, assignment removed)
                 await client.connect_websocket()
-                # TODO: connect_websocket hint returns None, but DataHandler likely needs the connection object
-                #       for management (e.g., shutdown). The ExchangeAPI base class signature
-                #       or the client implementation needs review/fixing. Assuming client manages its own connection internally for now.
-                # self.ws_connections[exchange_id] = ... # Removed assignment to fix Mypy [func-returns-value]
+                # TODO: connect_websocket hint returns None, but DataHandler likely needs
+                #       the connection object for management (e.g., shutdown). The
+                #       ExchangeAPI base class signature or the client implementation needs
+                #       review/fixing. Assuming client manages its own connection
+                #       internally for now.
+                # self.ws_connections[exchange_id] = ... # Removed assignment to fix Mypy
+                #                                        # [func-returns-value]
                 logger.info(f"Connected to {exchange_id} WebSocket")
 
                 # Subscribe to channels
@@ -246,60 +249,65 @@ class DataHandler:
             message_type = client.get_message_type(message)
 
             if message_type == "ticker":
-                parsed_ticker_data = client.parse_ticker_message(message)  # Rename variable
-                if parsed_ticker_data:  # Use renamed variable
-                    # Handle potential tuple return (symbol, ticker_data) vs just ticker_data
-                    if (
-                        isinstance(parsed_ticker_data, tuple) and len(parsed_ticker_data) == 2
-                    ):  # Use renamed variable
-                        # Unpack from the renamed variable
-                        symbol, ticker_obj = parsed_ticker_data
-                        # Runtime check: Ensure the unpacked object is actually a Ticker.
-                        # Mypy flags as unreachable based on parse_ticker_message hint
-                        # (-> Ticker | tuple[str, Ticker] | None), assuming the tuple's
-                        # second element is always Ticker. This check guards against
-                        # parsing bugs or malformed messages returning other types.
-                        if not isinstance(ticker_obj, Ticker): # mypy: [unreachable]
-                            logger.warning(
-                                "Parsed ticker data tuple element is not Ticker type "
-                                f"(Hint: tuple[str, Ticker]) for {exchange_id}: {type(ticker_obj)}"
-                            )
-                            return
-                    elif isinstance(parsed_ticker_data, Ticker):  # Check the renamed variable
-                        symbol = parsed_ticker_data.symbol
-                        ticker_obj = parsed_ticker_data  # Rename variable
-                    else:
-                        # Runtime check: Handle unexpected types returned by parse_ticker_message
-                        # that might violate the Ticker | tuple[str, Ticker] | None hint.
-                        # Mypy flags as unreachable, assuming if truthy, it must be Ticker or tuple.
-                        logger.warning( # mypy: [unreachable]
-                            f"Unexpected type returned by parse_ticker_message (Hint: Ticker | tuple[str, Ticker] | None) "
-                            f"for {exchange_id}: {type(parsed_ticker_data)}"
-                        )
-                        return # Exit if parsing failed or type is unexpected
+                parsed_data = client.parse_ticker_message(message)
+                if not parsed_data:
+                    return  # Handle None case explicitly
 
-                    # Ensure price is available before creating MarketData
-                    if ticker_obj.price is None:
+                ticker_obj: Ticker | None = None
+                symbol: str | None = None
+
+                # Explicitly check types based on hint Ticker | tuple[str, Ticker] | None
+                if isinstance(parsed_data, Ticker):
+                    symbol = parsed_data.symbol
+                    ticker_obj = parsed_data
+                elif isinstance(parsed_data, tuple) and len(parsed_data) == 2:
+                    # Check element types *after* confirming it's a tuple
+                    potential_symbol, potential_ticker = parsed_data
+                    if isinstance(potential_symbol, str) and isinstance(
+                        potential_ticker, Ticker
+                    ):
+                        symbol = potential_symbol
+                        ticker_obj = potential_ticker
+                    else:
+                        # Log the malformed tuple case (violates hint structure)
                         logger.warning(
-                            f"Ticker price is None for {symbol} on {exchange_id}. "
-                            "Cannot create MarketData."
+                            f"Malformed ticker tuple received for {exchange_id}: "
+                            f"({type(potential_symbol)}, {type(potential_ticker)}), "
+                            f"Expected: (str, Ticker)"
                         )
                         return
-
-                    # Convert Ticker to MarketData before updating and notifying
-                    market_data = MarketData(
-                        symbol=symbol,  # Use unpacked symbol
-                        timestamp=datetime.fromtimestamp(ticker_obj.timestamp / 1000, UTC)
-                        if ticker_obj.timestamp
-                        else datetime.now(UTC),  # Use renamed variable and handle None
-                        open=ticker_obj.price,  # Use last price for OHLC if not available
-                        high=ticker_obj.price,
-                        low=ticker_obj.price,
-                        close=ticker_obj.price,  # Use last price
-                        volume=ticker_obj.volume or Decimal("0"),  # Use 0 if volume is None
+                else:
+                    # Log the unexpected type case (violates hint type)
+                    logger.warning(
+                        f"Unexpected type from parse_ticker_message for {exchange_id}: "
+                        f"{type(parsed_data)}, Expected: Ticker or tuple[str, Ticker]"
                     )
-                    # Correct argument order: exchange_id, symbol, data_type, data
-                    await self._update_and_notify(exchange_id, symbol, "ticker", market_data)
+                    return
+
+                # If we reach here, symbol and ticker_obj MUST be correctly assigned and typed.
+                # Ensure price is available before creating MarketData
+                # Note: ticker_obj cannot be None here due to the checks above.
+                if ticker_obj.price is None:
+                    logger.warning(
+                        f"Ticker price is None for {symbol} on {exchange_id}. "
+                        "Cannot create MarketData."
+                    )
+                    return
+
+                # Convert Ticker to MarketData before updating and notifying
+                market_data = MarketData(
+                    symbol=symbol,  # symbol is guaranteed to be str here
+                    timestamp=datetime.fromtimestamp(ticker_obj.timestamp / 1000, UTC)
+                    if ticker_obj.timestamp
+                    else datetime.now(UTC),
+                    open=ticker_obj.price,  # Use last price for OHLC if not available
+                    high=ticker_obj.price,
+                    low=ticker_obj.price,
+                    close=ticker_obj.price,  # Use last price
+                    volume=ticker_obj.volume or Decimal("0"),  # Use 0 if volume is None
+                )
+                # Correct argument order: exchange_id, symbol, data_type, data
+                await self._update_and_notify(exchange_id, symbol, "ticker", market_data)
             elif message_type == "orderbook":
                 parsed_orderbook = client.parse_orderbook_message(message)
                 if parsed_orderbook:
@@ -312,22 +320,24 @@ class DataHandler:
                     # Example: Potentially update VWAP or latest price
                     pass
             elif message_type == "funding":
-                parsed_funding_rate = client.parse_funding_rate_message(
+                parsed_funding_data = client.parse_funding_rate_message(
                     message
                 )  # Correct method name
-                if parsed_funding_rate:
-                    # Ensure parsed_funding_rate is actually FundingRate before calling update
-                    if isinstance(parsed_funding_rate, FundingRate):
-                        self._update_funding_rate(
-                            exchange_id, parsed_funding_rate.symbol, parsed_funding_rate
-                        )
-                    else:
-                        # Runtime check: Handle unexpected types from parse_funding_rate_message.
-                        # Mypy flags as unreachable, assuming if truthy, must be FundingRate.
-                        logger.warning( # mypy: [unreachable]
-                            f"[{exchange_id}] Unexpected type from parse_funding_rate_message "
-                            f"(Hint: FundingRate | None): {type(parsed_funding_rate)}"
-                        )
+                if not parsed_funding_data:
+                    return # Handle None case explicitly
+
+                # Explicitly check type based on hint FundingRate | None
+                if isinstance(parsed_funding_data, FundingRate):
+                    self._update_funding_rate(
+                        exchange_id, parsed_funding_data.symbol, parsed_funding_data
+                    )
+                else:
+                    # Log the unexpected type case (violates hint type)
+                    logger.warning(
+                        f"[{exchange_id}] Unexpected type from parse_funding_rate_message "
+                        f"(Hint: FundingRate | None): {type(parsed_funding_data)}"
+                    )
+                    # No return here, just log the unexpected type
 
             elif message_type == "account_update":  # e.g., balances, positions
                 # Data should go to PortfolioTracker, not via DataHandler observers

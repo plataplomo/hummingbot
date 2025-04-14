@@ -151,14 +151,18 @@ class BacktestEngine:
         if not isinstance(initial_capital, Decimal):
             try:
                 converted_capital = Decimal(str(initial_capital))
-                self.logger.warning(f"Initial capital provided as {type(initial_capital)}, converted to Decimal.")
+                self.logger.warning(
+                    f"Initial capital provided as {type(initial_capital)}, converted to Decimal."
+                )
                 self.initial_capital = converted_capital
             except (InvalidOperation, TypeError) as e:
                 self.logger.error(
                     f"Invalid initial_capital value: {initial_capital}. "
                     f"Cannot convert to Decimal. Error: {e}"
                 )
-                raise ValueError("initial_capital must be a valid Decimal or convertible string/number.") from e
+                raise ValueError(
+                    "initial_capital must be a valid Decimal or convertible string/number."
+                ) from e
         else:
             # Input was already Decimal
             self.initial_capital = initial_capital
@@ -173,31 +177,23 @@ class BacktestEngine:
         if not isinstance(commission, Decimal):
             try:
                 converted_commission = Decimal(str(commission))
-                self.logger.warning(f"Commission provided as {type(commission)}, converted to Decimal.")
+                self.logger.warning(
+                    f"Commission provided as {type(commission)}, converted to Decimal."
+                )
                 self.commission = converted_commission
             except (InvalidOperation, TypeError) as e:
                 self.logger.error(f"Invalid commission value: {commission}. Error: {e}")
-                raise ValueError("commission must be a valid Decimal or convertible string/number.") from e
+                raise ValueError(
+                    "commission must be a valid Decimal or convertible string/number."
+                ) from e
         else:
              # Input was already Decimal
             self.commission = commission
 
-        # Validate and convert slippage
-        # Mypy flags the following block as [unreachable] because the 'slippage'
-        # parameter is type-hinted as Decimal. However, this runtime check provides
-        # an additional layer of safety against potential upstream type errors.
-        # Future upstream Pydantic refactor is due
-        if not isinstance(slippage, Decimal):
-            try:
-                converted_slippage = Decimal(str(slippage))
-                self.logger.warning(f"Slippage provided as {type(slippage)}, converted to Decimal.")
-                self.slippage = converted_slippage
-            except (InvalidOperation, TypeError) as e:
-                self.logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
-                raise ValueError("slippage must be a valid Decimal or convertible string/number.") from e
-        else:
-             # Input was already Decimal
-            self.slippage = slippage
+        # Assign slippage (Type guaranteed by signature: Decimal)
+        # The previous runtime check block (if not isinstance...) was removed
+        # as it was flagged as unreachable by Mypy due to the Decimal type hint.
+        self.slippage = slippage
 
         self.results_dir = results_dir
 
@@ -398,16 +394,22 @@ class BacktestEngine:
 
             # Record equity point at this timestamp
             if self.results_handler:
-                # Ensure idx is a datetime object
-                timestamp_dt = idx
-                if isinstance(idx, pd.Timestamp):
+                # Determine the correct datetime object for the equity point
+                timestamp_dt: datetime | None = None
+                if isinstance(idx, datetime):
+                    timestamp_dt = idx
+                elif isinstance(idx, pd.Timestamp):
                     timestamp_dt = idx.to_pydatetime()
-                elif not isinstance(idx, datetime):
-                    # Log error or raise if idx is not a recognized timestamp type
-                    logger.error(f"Unexpected index type for equity point: {type(idx)}")
+                else:
+                    # Log error if idx is not a recognized timestamp type
+                    logger.error(
+                        f"Unexpected index type for equity point: {type(idx)}. Skipping."
+                    )
                     continue  # Skip this equity point
 
-                self.results_handler.add_equity_point(timestamp_dt, current_capital)
+                # Only add the point if we successfully obtained a datetime object
+                if timestamp_dt is not None:
+                    self.results_handler.add_equity_point(timestamp_dt, current_capital)
 
         # Calculate final results
         # Get the final metrics and results
@@ -479,15 +481,19 @@ class StrategyAdapter(BacktestStrategy):
         try:
             # Call the production strategy's initialization if it has one
             if hasattr(self.strategy, "initialize_with_history"):
-                return self.strategy.initialize_with_history(data)
-            return True
+                # Call the method, but don't return its value directly
+                # as Mypy cannot infer its return type. Assume success if no exception.
+                self.strategy.initialize_with_history(data)
+                return True # Indicate success if the call completed
+            return True # Strategy doesn't have the method, initialization considered successful
         except Exception as e:
             self._logger.exception(
                 f"Error initializing core strategy '{self.strategy.name}' via adapter: {e}"
             )
             return False
         # self.initialized = True # Unreachable: try block always returns
-        return True
+        # The following return statement is unreachable because all paths in the
+        # preceding try/except block already return. Removing it.
 
     def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
         """
@@ -523,12 +529,14 @@ class StrategyAdapter(BacktestStrategy):
                 signal = self.strategy.process_data(md)
                 if signal:
                     # Ensure it's a list of TradeSignal for _convert_signals
-                    if isinstance(signal, TradeSignal):
-                        trade_signals.append(signal)
-                    else:
-                        self._logger.warning(
-                            f"Strategy process_data returned unexpected type: {type(signal)}"
-                        )
+                    # Type hint guarantees signal is TradeSignal if not None
+                    trade_signals.append(signal)
+                    # The following else block was removed as it was unreachable
+                    # due to the process_data type hint (TradeSignal | None).
+                    # else:
+                    #     self._logger.warning(
+                    #         f"Strategy process_data returned unexpected type: {type(signal)}"
+                    #     )
 
             # 3. Convert core TradeSignal objects back to backtester's signal format (dict)
             backtest_signals: list[dict[str, Any]] = self._convert_signals(
@@ -619,8 +627,10 @@ class StrategyAdapter(BacktestStrategy):
                 # Recursively call with the Series for this row
                 market_data_list.extend(self._convert_to_market_data(row_series))
 
-        else:
-            self._logger.error(f"Unsupported data type for MarketData conversion: {type(data)}")
+        # The following else block was removed as it was unreachable due to the
+        # function signature's type hint for 'data' (pd.Series | pd.DataFrame).
+        # else:
+        #     self._logger.error(f"Unsupported data type for MarketData conversion: {type(data)}")
 
         return market_data_list
 

@@ -932,7 +932,8 @@ class SynchronizedOrderSubmissionService:
         elif isinstance(opportunity, dict):
             # Handle dict case - assuming keys match ArbitrageOpportunity attributes
             # Mypy incorrectly flags the following lines as unreachable, but the
-            # opportunity parameter is typed as OpportunityType = ArbitrageOpportunity | dict[str, Any],
+            # opportunity parameter is typed as
+            # OpportunityType = ArbitrageOpportunity | dict[str, Any],
             # making this block reachable.
             symbol_val = opportunity.get("symbol") # mypy: [unreachable]
             quantity_val = opportunity.get("optimal_size") # mypy: [unreachable]

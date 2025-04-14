@@ -3,7 +3,7 @@ from __future__ import annotations  # Enable postponed evaluation
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, TypeVar # Added TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar  # Added TypeVar
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import MarketData, TradeSignal

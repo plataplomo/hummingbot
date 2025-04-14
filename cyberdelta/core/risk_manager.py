@@ -1,9 +1,10 @@
 from __future__ import annotations  # Enable postponed evaluation
 
 import logging
+from collections.abc import Callable  # Added Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, getcontext
-from typing import TYPE_CHECKING, Any, Callable # Added Callable
+from typing import TYPE_CHECKING, Any
 
 from cyberdelta.core.models import Position  # Needed for runtime isinstance check
 
@@ -94,7 +95,8 @@ class RiskManager:
         circuit_breaker_system: CircuitBreakerSystem | None = None,
         # TODO: Replace Any with a more specific validator type if possible
         # Define a more specific signature if the validator's expected input/output is known
-        funding_rate_validator: Callable[[Any], bool | None] | None = None, # Type hint using Callable
+        funding_rate_validator: Callable[[Any], bool | None] | None = None,
+        # Type hint using Callable
     ) -> None:
         """
         Initialize the risk manager.

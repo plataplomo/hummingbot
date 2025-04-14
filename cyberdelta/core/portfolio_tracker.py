@@ -636,8 +636,10 @@ class PortfolioTracker:
                             # have already continued
                     # Runtime check: Handle dict case even if type hint expects Order,
                     # for robustness against API client bugs or malformed responses.
-                    elif isinstance(order_info, dict): # type: ignore[unreachable]
-                        order_id = order_info.get("order_id") or order_info.get("id") # Check common keys
+                    elif isinstance(order_info, dict):
+                        order_id = order_info.get("order_id") or order_info.get(
+                            "id"
+                        ) # Check common keys
                         if order_id:
                             # Validate required fields before creating Order
                             symbol = str(order_info.get("symbol", ""))
@@ -738,7 +740,9 @@ class PortfolioTracker:
                                 continue # Skip this dict if parsing fails
 
                         else: # if not order_id:
-                            logger.warning(f"Skipping order dict without ID on {exchange_id}: {order_info}")
+                            logger.warning(
+                                f"Skipping order dict without ID on {exchange_id}: {order_info}"
+                            )
                             continue
                     #    ... (code removed) ...
                     # else: # Mypy error: Statement is unreachable [unreachable] -

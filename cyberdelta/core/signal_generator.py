@@ -610,7 +610,9 @@ class SignalGenerator:
                     funding_payment_b = price_b * rate_b # mypy: [unreachable]
 
                     # Calculate net funding differential
-                    net_funding_differential = funding_payment_b - funding_payment_a # mypy: [unreachable]
+                    net_funding_differential = (
+                        funding_payment_b - funding_payment_a
+                    ) # mypy: [unreachable]
 
                     # Calculate expected profit after slippage
                     slippage_a = self.estimate_slippage(exchange_a, symbol)

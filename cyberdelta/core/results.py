@@ -49,7 +49,7 @@ class BacktestResultsHandler:
         self.metrics: dict[str, Any] = {}
 
         # Performance metrics
-        self.returns_series: pd.Series | None = None
+        self.returns_series: pd.Series[float] | None = None
 
     def add_trade(self, trade: dict[str, Any]) -> None:
         """
@@ -100,7 +100,9 @@ class BacktestResultsHandler:
         df.set_index("timestamp", inplace=True)
         df.sort_index(inplace=True)
 
-        # Calculate returns
+        # Ensure equity column is numeric before calculating returns
+        df["equity"] = pd.to_numeric(df["equity"], errors="coerce")
+        # Calculate returns, dropping any NaNs resulting from coercion or pct_change
         self.returns_series = df["equity"].pct_change().dropna()
         return self.returns_series
 
@@ -121,13 +123,17 @@ class BacktestResultsHandler:
             logger.warning("No returns data available to calculate metrics")
             self.metrics = {
                 "total_trades": len(self.trades),
-                "winning_trades": sum(1 for t in self.trades if t.get("pnl", Decimal("0")) > 0), # Use Decimal
+                "winning_trades": sum(
+                    1 for t in self.trades if t.get("pnl", Decimal("0")) > 0
+                ), # Use Decimal
                 "total_return": 0.0,
                 "annualized_return": 0.0,
                 "sharpe_ratio": 0.0,
                 "max_drawdown": 0.0,
                 # Add other metrics with default 0.0 values for consistency
-                "losing_trades": sum(1 for t in self.trades if t.get("pnl", Decimal("0")) <= 0), # Use Decimal
+                "losing_trades": sum(
+                    1 for t in self.trades if t.get("pnl", Decimal("0")) <= 0
+                ), # Use Decimal
                 "win_rate": 0.0,
                 "annualized_volatility": 0.0,
                 "avg_win": 0.0,
@@ -139,7 +145,8 @@ class BacktestResultsHandler:
             return self.metrics # Return default metrics
 
         # Calculate basic metrics
-        # Mypy flags this block as unreachable due to its incorrect assessment of the check at line 119.
+        # Mypy flags this block as unreachable due to its incorrect assessment
+        # of the check at line 119.
         num_trades = len(self.trades) # mypy: [unreachable]
         winning_trades = sum(1 for t in self.trades if t.get("pnl", Decimal("0")) > 0)
         losing_trades = sum(1 for t in self.trades if t.get("pnl", Decimal("0")) <= 0)
@@ -191,13 +198,19 @@ class BacktestResultsHandler:
             losing_pnl = [p for p in pnl_values if p <= 0]
 
             # Calculate averages
-            avg_win = np.mean([float(p) for p in winning_pnl]) if winning_pnl else 0.0 # np.mean needs float
-            avg_loss = np.mean([float(p) for p in losing_pnl]) if losing_pnl else 0.0 # np.mean needs float
+            avg_win = (
+                np.mean([float(p) for p in winning_pnl]) if winning_pnl else 0.0
+            ) # np.mean needs float
+            avg_loss = (
+                np.mean([float(p) for p in losing_pnl]) if losing_pnl else 0.0
+            ) # np.mean needs float
 
             # Calculate profit factor
             total_profit = sum(winning_pnl)
             total_loss = abs(sum(losing_pnl))
-            profit_factor = float(total_profit / total_loss) if total_loss > 0 else float("inf") # Ensure float
+            profit_factor = (
+                float(total_profit / total_loss) if total_loss > 0 else float("inf")
+            ) # Ensure float
 
             self.metrics.update(
                 {
@@ -248,7 +261,7 @@ class BacktestResultsHandler:
                 json.dump(results, f, indent=4)
             logger.info(f"Backtest results saved to {filepath}")
             return filepath
-        except IOError as e:
+        except OSError as e:
             logger.error(f"Error saving results to {filepath}: {e}")
             raise
 
