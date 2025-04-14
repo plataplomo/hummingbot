@@ -44,7 +44,7 @@ class SymbolMapper:
             config: The application configuration dictionary.
 
         Raises:
-            SymbolMappingError: If the configuration structure is invalid or missing essential parts.
+            SymbolMappingError: If config structure is invalid or missing essential parts. # E501
         """
         self._internal_to_exchange: dict[
             str, dict[str, str]
@@ -98,7 +98,8 @@ class SymbolMapper:
                 if exchange_symbol in self._exchange_to_internal[exchange_id]:
                     logger.warning(
                         f"Duplicate exchange symbol '{exchange_symbol}' mapped for "
-                        f"exchange '{exchange_id}'. Overwriting mapping to internal '{internal_symbol}'."
+                        f"exchange '{exchange_id}'. Overwriting mapping to internal "
+                        f"'{internal_symbol}'." # E501
                     )
                 self._exchange_to_internal[exchange_id][exchange_symbol] = internal_symbol
 
@@ -107,8 +108,9 @@ class SymbolMapper:
 
         self._validate_config()  # Perform post-load validation if needed
         logger.info(
-            f"SymbolMapper initialized. Loaded mappings for {len(self._exchange_to_internal)} exchanges. "
-            f"Found {len(self._all_internal_symbols)} unique internal symbols."
+            f"SymbolMapper initialized. Loaded mappings for "
+            f"{len(self._exchange_to_internal)} exchanges. Found "
+            f"{len(self._all_internal_symbols)} unique internal symbols." # E501
         )
 
     def _validate_config(self) -> None:

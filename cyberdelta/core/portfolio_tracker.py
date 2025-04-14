@@ -370,13 +370,6 @@ class PortfolioTracker:
                 )
                 return None
                 
-        # Handle any other type (unexpected)
-        else:
-            logger.error(
-                f"Unsupported balance_info type for {asset} on {exchange_id}: "
-                f"{type(balance_info)}"
-            )
-            return None
 
     @staticmethod
     def _safe_decimal_convert(
@@ -685,13 +678,6 @@ class PortfolioTracker:
                                 ts_val = parsed_order_instance.timestamp
                                 if isinstance(ts_val, int | float):
                                     pass  # Placeholder for potential conversion logic if needed
-                                elif ts_val is not None:
-                                    # Convert to float if needed, but don't return it
-                                    # This is just for validation/conversion
-                                    try:
-                                        float(ts_val)  # Just to validate it can be converted
-                                    except (ValueError, TypeError):
-                                        logger.warning(f"Invalid timestamp value: {ts_val}")
                                 
                                 # Add the parsed order to our collection
                                 order_instance = parsed_order_instance
@@ -1171,12 +1157,6 @@ class PortfolioTracker:
                 logger.debug(
                     f"Created new balance for {asset} on {exchange_id}. Total: {safe_amount}"
                 )
-        else: 
-            logger.error(
-                f"Invalid amount type provided for {asset} on {exchange_id}: "
-                f"{type(amount)}"
-            )
-            return
 
         self._last_update_time[exchange_id] = datetime.now(UTC)
 

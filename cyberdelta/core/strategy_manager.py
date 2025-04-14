@@ -157,7 +157,8 @@ class StrategyManager:
                     # If we have a risk manager, apply position sizing
                     if self.risk_manager is not None:
                         signal = self.risk_manager.size_signal(signal)
-                    signals.append(signal)
+                    if signal is not None: # Ensure signal is not None before appending
+                        signals.append(signal)
             except Exception as e:
                 logger.error(f"Error processing data in strategy '{strategy_name}': {str(e)}")
 
@@ -186,7 +187,7 @@ class StrategyManager:
                     if isinstance(signal, TradeSignal):
                         signals.append(signal)
             elif isinstance(result, Exception):
-                self.logger.error("Error processing data in strategy", error=result)
+                self.logger.error("Error processing data in strategy", exc_info=result)
 
         # Send generated signals to the queue
         if hasattr(self, "signal_queue") and self.signal_queue:  # Check if signal_queue exists

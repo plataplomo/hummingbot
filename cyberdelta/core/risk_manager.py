@@ -224,23 +224,29 @@ class RiskManager:
             except InvalidOperation:
                 self.logger.error(f"Invalid NFD value: {nfd_dec}. Cannot calculate Kelly size.")
                 return ZERO
-        if not isinstance(basis_volatility_dec, Decimal):
-            try:
-                basis_volatility_dec = Decimal(str(basis_volatility_dec))
-            except InvalidOperation:
-                self.logger.error(
-                    f"Invalid basis volatility value: {basis_volatility_dec}. Cannot calculate Kelly size."
-                )
-                return ZERO
+        # Check if basis_volatility is None (it's already float | None from model)
+        if basis_volatility_dec is None:
+             self.logger.warning(
+                 f"Basis volatility is None for {opportunity.symbol}, cannot calculate Kelly size."
+             )
+             return ZERO
 
         # Avoid division by zero or negative volatility
         if basis_volatility_dec <= ZERO:
             self.logger.warning(
-                f"Basis volatility is non-positive ({basis_volatility_dec}) for {opportunity.symbol}. Using small default for Kelly calc."
+                f"Basis volatility is non-positive ({basis_volatility_dec}) for {opportunity.symbol}. "
+                "Using small default float for Kelly calc."
             )
-            basis_volatility_dec = Decimal("0.001")  # Default minimal volatility
+            basis_volatility_dec = 0.001  # Default minimal volatility as float
 
-        variance_risk_dec = basis_volatility_dec**2
+        # Convert float volatility to Decimal for calculation
+        try:
+            variance_risk_dec = Decimal(str(basis_volatility_dec)) ** 2
+        except (InvalidOperation, TypeError):
+             self.logger.error(
+                 f"Could not convert basis volatility {basis_volatility_dec} to Decimal for variance calculation."
+             )
+             return ZERO
 
         # Get average price for Kelly calculation
         # Ensure prices are Decimal and not None
@@ -407,11 +413,20 @@ class RiskManager:
 
         # 4. Circuit Breaker Check
         if self.circuit_breaker_system:
-            if self.circuit_breaker_system.is_tripped(
-                long_exchange
-            ) or self.circuit_breaker_system.is_tripped(short_exchange):
+            symbol = opportunity.symbol # Extract symbol for clarity
+            # Check if circuit breaker allows execution on either exchange
+            can_exec_long, reason_long = self.circuit_breaker_system.can_execute(
+                exchange=long_exchange, symbol=symbol
+            )
+            can_exec_short, reason_short = self.circuit_breaker_system.can_execute(
+                exchange=short_exchange, symbol=symbol
+            )
+
+            if not can_exec_long or not can_exec_short:
+                reason = reason_long or reason_short # Get the reason if one exists
                 self.logger.warning(
-                    f"Trade involves a tripped circuit breaker on {long_exchange} or {short_exchange}. Blocking trade."
+                    f"Trade blocked by circuit breaker. Long Ex ({long_exchange}): {can_exec_long}, "
+                    f"Short Ex ({short_exchange}): {can_exec_short}. Reason: {reason}"
                 )
                 return False
 
@@ -1192,18 +1207,18 @@ class RiskManager:
             # Mypy fix [operator]: Check position attributes
             if (
                 position.symbol
-                and position.position_size is not None
+                and position.size is not None
                 and position.entry_price is not None
             ):
                 # Simple exposure: abs(size) * price. Refine if needed.
                 try:
-                    exposure = abs(position.position_size * position.entry_price)  # Approximation
+                    exposure = abs(position.size * position.entry_price)  # Approximation
                     asset_exposure_agg[position.symbol] = (
                         asset_exposure_agg.get(position.symbol, ZERO) + exposure
                     )
                 except (TypeError, InvalidOperation):
                     self.logger.warning(
-                        f"Could not calculate exposure for position: {position.symbol} - size: {position.position_size}, price: {position.entry_price}"
+                        f"Could not calculate exposure for position: {position.symbol} - size: {position.size}, price: {position.entry_price}"
                     )
 
         for asset, exposure in asset_exposure_agg.items():
@@ -1215,11 +1230,11 @@ class RiskManager:
             # Mypy fix [operator]: Check attributes again for safety
             if (
                 position.symbol
-                and position.position_size is not None
+                and position.size is not None
                 and position.entry_price is not None
             ):
                 try:
-                    position_value = abs(position.position_size * position.entry_price)
+                    position_value = abs(position.size * position.entry_price)
                     position_values.append(
                         (position.symbol, position_value, position.exchange)
                     )  # Include exchange
@@ -1285,7 +1300,7 @@ class RiskManager:
             if position.symbol == symbol:
                 found_position = True
                 # Mypy fix [operator]: Check size and price are not None
-                if position.position_size is not None and position.mark_price is not None:
+                if position.size is not None and position.mark_price is not None:
                     try:
                         # Use mark price for current value if available, else entry price
                         price_to_use = (
@@ -1299,7 +1314,7 @@ class RiskManager:
                             )
                             continue
 
-                        exposure = abs(position.position_size * price_to_use)
+                        exposure = abs(position.size * price_to_use)
                         total_exposure += exposure
                     except (TypeError, InvalidOperation) as e:
                         self.logger.error(
@@ -1356,7 +1371,8 @@ class RiskManager:
         """Evaluate liquidation risk for a symbol (e.g., distance to liq price)."""
         total_risk_factor = Decimal("0.0")
         position_count = 0
-        for exchange_id in self.portfolio_tracker.get_active_exchanges():
+        # Get exchanges known to the tracker
+        for exchange_id in self.portfolio_tracker._balances.keys():
             position = self.portfolio_tracker.get_position(exchange_id, symbol)  # Correct call
             if (
                 position

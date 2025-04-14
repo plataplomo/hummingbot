@@ -6,6 +6,7 @@ Unit tests for the Backtesting Framework
 
 import unittest
 from datetime import datetime, timedelta
+from typing import Any
 
 import numpy as np
 
@@ -15,28 +16,37 @@ import numpy as np
 class TradingStrategy:
     """Base class for trading strategies"""
 
-    def __init__(self, name=""):
+    def __init__(self, name: str = "") -> None:
         self.name = name
 
-    def analyze_market(self, market_data):
+    def analyze_market(self, market_data: dict[str, Any]) -> dict[str, int]:
         raise NotImplementedError
 
-    def execute_trades(self, signals, market_data, current_positions):
+    def execute_trades( # E501 Fix: Reformat signature
+        self,
+        signals: dict[str, int],
+        market_data: dict[str, Any],
+        current_positions: dict[str, float]
+    ) -> dict[str, dict[str, Any]]:
         raise NotImplementedError
 
-    def calculate_metrics(self, trades, market_data):
+    def calculate_metrics( # E501 Fix: Reformat signature
+        self,
+        trades: dict[str, dict[str, Any]],
+        market_data: dict[str, Any]
+    ) -> dict[str, Any]:
         raise NotImplementedError
 
 
 class BacktestEngine:
     """Mock implementation of BacktestEngine"""
 
-    def __init__(self, strategy):
+    def __init__(self, strategy: TradingStrategy) -> None:
         self.strategy = strategy
-        self.current_positions = {}
-        self.trade_history = []
+        self.current_positions: dict[str, float] = {}
+        self.trade_history: list[dict[str, Any]] = []
 
-    def run_backtest(self, market_data):
+    def run_backtest(self, market_data: dict[str, Any]) -> dict[str, Any]:
         signals = self.strategy.analyze_market(market_data)
         trades = self.strategy.execute_trades(signals, market_data, self.current_positions)
         metrics = self.strategy.calculate_metrics(trades, market_data)
@@ -46,7 +56,7 @@ class BacktestEngine:
             "positions": self.current_positions,
         }
 
-    def calculate_performance_metrics(self):
+    def calculate_performance_metrics(self) -> dict[str, Any]:
         # Simplified calculation for testing
         profit_loss = 0
         # Sum the actual transaction values, not just the product
@@ -59,7 +69,7 @@ class BacktestEngine:
         # For short: entry_price - exit_price
 
         # Group trades by asset and calculate P&L
-        trades_by_asset = {}
+        trades_by_asset: dict[str, list[dict[str, Any]]] = {}
         for trade in self.trade_history:
             asset = trade["asset"]
             if asset not in trades_by_asset:
@@ -67,7 +77,7 @@ class BacktestEngine:
             trades_by_asset[asset].append(trade)
 
         # Calculate P&L for each asset
-        for asset, trades in trades_by_asset.items():
+        for _asset, trades in trades_by_asset.items(): # B007: Rename unused asset
             if len(trades) >= 2:
                 # Assuming first trade is entry, second is exit for simplicity
                 entry = trades[0]
@@ -84,7 +94,7 @@ class BacktestEngine:
             "win_rate": 0.65,
         }
 
-    def update_positions(self, trades):
+    def update_positions(self, trades: dict[str, dict[str, Any]]) -> None:
         for asset, trade in trades.items():
             if asset in self.current_positions:
                 self.current_positions[asset] += trade["size"]
@@ -98,13 +108,13 @@ class BacktestEngine:
 class MockTradingStrategy(TradingStrategy):
     """Mock implementation of TradingStrategy for testing"""
 
-    def __init__(self, name="MockStrategy"):
+    def __init__(self, name: str = "MockStrategy") -> None:
         super().__init__(name)
         self.analyze_market_called = False
         self.execute_trades_called = False
         self.calculate_metrics_called = False
 
-    def analyze_market(self, market_data):
+    def analyze_market(self, market_data: dict[str, Any]) -> dict[str, int]:
         self.analyze_market_called = True
         # Simple mock implementation that returns buy signals for specific assets
         signals = {}
@@ -114,7 +124,12 @@ class MockTradingStrategy(TradingStrategy):
                 signals[asset] = 1 if np.random.random() > 0.5 else -1
         return signals
 
-    def execute_trades(self, signals, market_data, current_positions):
+    def execute_trades( # E501 Fix: Reformat signature
+        self,
+        signals: dict[str, int],
+        market_data: dict[str, Any],
+        current_positions: dict[str, float]
+    ) -> dict[str, dict[str, Any]]:
         self.execute_trades_called = True
         # Mock implementation that simulates trade execution
         trades = {}
@@ -127,7 +142,11 @@ class MockTradingStrategy(TradingStrategy):
                 }
         return trades
 
-    def calculate_metrics(self, trades, market_data):
+    def calculate_metrics( # E501 Fix: Reformat signature
+        self,
+        trades: dict[str, dict[str, Any]],
+        market_data: dict[str, Any]
+    ) -> dict[str, Any]:
         self.calculate_metrics_called = True
         # Mock implementation that returns basic metrics
         return {
@@ -141,7 +160,7 @@ class MockTradingStrategy(TradingStrategy):
 class TestBacktestEngine(unittest.TestCase):
     """Test cases for the BacktestEngine class"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures"""
         self.strategy = MockTradingStrategy()
         self.engine = BacktestEngine(self.strategy)
@@ -172,13 +191,13 @@ class TestBacktestEngine(unittest.TestCase):
             },
         }
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test initialization of BacktestEngine"""
         self.assertEqual(self.engine.strategy.name, "MockStrategy")
         self.assertEqual(self.engine.current_positions, {})
         self.assertEqual(self.engine.trade_history, [])
 
-    def test_run_backtest(self):
+    def test_run_backtest(self) -> None:
         """Test running a backtest"""
         results = self.engine.run_backtest(self.market_data)
 
@@ -192,7 +211,7 @@ class TestBacktestEngine(unittest.TestCase):
         self.assertIn("trades", results)
         self.assertIn("positions", results)
 
-    def test_calculate_performance_metrics(self):
+    def test_calculate_performance_metrics(self) -> None:
         """Test calculation of performance metrics"""
         # Set up trade history
         self.engine.trade_history = [
@@ -236,7 +255,7 @@ class TestBacktestEngine(unittest.TestCase):
         self.assertEqual(metrics["profit_loss"], 250)
         self.assertEqual(metrics["total_trades"], 4)
 
-    def test_update_positions(self):
+    def test_update_positions(self) -> None:
         """Test updating positions based on trades"""
         trades = {
             "BTC-USD": {"size": 1.5, "price": 10200, "timestamp": datetime.now()},
@@ -252,7 +271,7 @@ class TestBacktestEngine(unittest.TestCase):
         # Verify trade history was updated
         self.assertEqual(len(self.engine.trade_history), 2)
 
-    def test_update_positions_existing(self):
+    def test_update_positions_existing(self) -> None:
         """Test updating existing positions"""
         # Set initial positions
         self.engine.current_positions = {"BTC-USD": 1.0, "ETH-USD": -1.0}

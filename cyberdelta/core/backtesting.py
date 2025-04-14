@@ -71,6 +71,10 @@ class BacktestStrategy(ABC):
 
 
 class BacktestEngine:
+    # Class-level annotations for mypy
+    initial_capital: Decimal
+    commission: Decimal
+    slippage: Decimal
     """Unified backtesting engine for multiple strategy types"""
 
     def __init__(
@@ -368,7 +372,16 @@ class BacktestEngine:
 
             # Record equity point at this timestamp
             if self.results_handler:
-                self.results_handler.add_equity_point(idx, current_capital)
+                # Ensure idx is a datetime object
+                timestamp_dt = idx
+                if isinstance(idx, pd.Timestamp):
+                    timestamp_dt = idx.to_pydatetime()
+                elif not isinstance(idx, datetime):
+                     # Log error or raise if idx is not a recognized timestamp type
+                     logger.error(f"Unexpected index type for equity point: {type(idx)}")
+                     continue # Skip this equity point
+
+                self.results_handler.add_equity_point(timestamp_dt, current_capital)
 
         # Calculate final results
         # Get the final metrics and results
@@ -422,7 +435,7 @@ class StrategyAdapter(BacktestStrategy):
         """
         super().__init__(strategy.name)
         self.strategy = strategy
-        self.positions = {}
+        self.positions: dict[str, Decimal] = {} # Symbol -> Size
         self._logger: logging.Logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.initialized = False  # Track initialization status
 
@@ -523,7 +536,9 @@ class StrategyAdapter(BacktestStrategy):
                 )
                 timestamp = default_ts
             else:
-                timestamp = timestamp.to_pydatetime()  # Convert pd.Timestamp
+                if isinstance(timestamp, pd.Timestamp):
+                    timestamp = timestamp.to_pydatetime()  # Convert pd.Timestamp
+                # If it's already datetime, no conversion needed
 
             if isinstance(data.index, pd.MultiIndex):
                 # Assuming MultiIndex levels are (symbol, field)
@@ -544,7 +559,8 @@ class StrategyAdapter(BacktestStrategy):
                         market_data_list.append(md)
                     except Exception as e:
                         self._logger.error(
-                            f"Error converting row to MarketData for symbol {symbol} at {timestamp}: {e} - Row data: {row.to_dict()}"
+                            f"Error converting row to MarketData for symbol {symbol} "
+                            f"at {timestamp}: {e} - Row data: {row.to_dict()}"
                         )
 
             else:
@@ -564,15 +580,16 @@ class StrategyAdapter(BacktestStrategy):
                     market_data_list.append(md)
                 except Exception as e:
                     self._logger.error(
-                        f"Error converting Series to MarketData for symbol {symbol} at {timestamp}: {e} - Series data: {data.to_dict()}"
+                        f"Error converting Series to MarketData for symbol {symbol} "
+                        f"at {timestamp}: {e} - Series data: {data.to_dict()}"
                     )
 
         elif isinstance(data, pd.DataFrame):
-            # Handle DataFrame (potentially multiple rows/timestamps) - less common for single update step
+            # Handle DataFrame - less common for single updates
             self._logger.warning(
                 "Received DataFrame in _convert_to_market_data, processing row by row."
             )
-            for timestamp, row_series in data.iterrows():
+            for _timestamp, row_series in data.iterrows(): # B007: Rename unused timestamp
                 # Recursively call with the Series for this row
                 market_data_list.extend(self._convert_to_market_data(row_series))
 
@@ -606,11 +623,13 @@ class StrategyAdapter(BacktestStrategy):
                 if isinstance(data, pd.Series):
                     if isinstance(data.index, pd.MultiIndex):
                         # Assumes (symbol, field) multi-index
-                        price_val = data.loc[symbol].get("close")
+                        symbol_data = data.loc[symbol]
+                        price_val = (symbol_data.get("close")
+                                     if hasattr(symbol_data, 'get') else symbol_data)
                     else:
                         # Assumes single series, check if name matches or just get close
                         if data.index.name == symbol or symbol == "UNKNOWN_SYMBOL":  # Crude check
-                            price_val = data.get("close")
+                            price_val = data.get("close") if hasattr(data, 'get') else data
                         else:  # Check if the series itself contains the symbol? Unlikely.
                             self._logger.warning(
                                 f"Cannot reliably get price for {symbol} from simple Series."
@@ -629,7 +648,8 @@ class StrategyAdapter(BacktestStrategy):
                         price_val = data["close"].iloc[-1]
                     else:
                         self._logger.warning(
-                            f"Cannot determine price for {symbol} in DataFrame structure: {data.head(1)}"
+                            f"Cannot determine price for {symbol} in DataFrame structure: "
+                            f"{data.head(1)}"
                         )
 
                 if price_val is not None and not np.isnan(price_val):
@@ -659,42 +679,21 @@ class StrategyAdapter(BacktestStrategy):
             if current_price is not None:
                 # Use the fetched current price for PnL calc if exit signal
                 if signal.signal_type in [SignalType.EXIT_LONG, SignalType.EXIT_SHORT]:
-                    entry_price: Decimal | None = (
-                        signal.entry_price
-                    )  # Assumes TradeSignal carries this
-                    if entry_price is not None:
-                        pnl_per_unit: Decimal
-                        if signal.signal_type == SignalType.EXIT_LONG:
-                            pnl_per_unit = current_price - entry_price
-                        else:  # EXIT_SHORT
-                            pnl_per_unit = entry_price - current_price
-                        # Store PnL per unit; BacktestEngine will scale by trade size
-                        signal_dict["pnl"] = float(
-                            pnl_per_unit
-                        )  # Convert Decimal to float for dict
-                        # Use strategy's suggested price if current lookup failed
-                        signal_dict["price"] = (
-                            signal.price if signal.price is not None else float(current_price)
-                        )
-
-                    else:
-                        self._logger.warning(
-                            f"PnL calculation skipped for {signal.symbol}: Missing entry_price in TradeSignal."
-                        )
-                        signal_dict["price"] = float(
-                            current_price
-                        )  # Still use current price for exit if possible
+                    # PnL calculation based on signal alone is removed.
+                    # Backtester should simulate fills and track PnL based on position changes.
+                    pass # PnL calculation removed
+                # This else belongs to the inner if (signal_type check)
                 else:
-                    # Use strategy's suggested price if current lookup failed (maybe market closed?)
-                    signal_dict["price"] = (
-                        signal.price if signal.price is not None else 0.0
-                    )  # Fallback price
+                     signal_dict["price"] = (
+                         signal.price if signal.price is not None else float(current_price)
+                     )
+            # This elif belongs to the outer if (current_price is not None check)
             elif signal.price is not None:
-                # Use strategy price if current price lookup failed
-                signal_dict["price"] = float(signal.price)
+                 signal_dict["price"] = float(signal.price)
+            # This else belongs to the outer if
             else:
-                self._logger.warning(f"Could not determine execution price for signal: {signal}")
-                signal_dict["price"] = 0.0  # Fallback price
+                 self._logger.warning(f"Could not determine execution price for signal: {signal}")
+                 signal_dict["price"] = 0.0 # Fallback price
 
             signals_out.append(signal_dict)
 
@@ -705,7 +704,7 @@ class StrategyAdapter(BacktestStrategy):
 
 
 def generate_synthetic_data(
-    days: int = 10, volatility: float = 0.02, symbols: list[str] = None
+    days: int = 10, volatility: float = 0.02, symbols: list[str] | None = None
 ) -> pd.DataFrame:
     """
     Generate synthetic market data for backtesting.
@@ -746,7 +745,7 @@ def generate_synthetic_data(
         # Generate OHLC data
         for i, date in enumerate(dates):
             price = prices[i]
-            daily_volatility = price * volatility
+            # daily_volatility = price * volatility # F841: Unused variable
 
             # Generate OHLC
             data.loc[date, (symbol, "open")] = price

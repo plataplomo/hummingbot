@@ -3,11 +3,10 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any  # Added TYPE_CHECKING
 
 from cyberdelta.apis.base import ExchangeAPI
-
-# from cyberdelta.core.models import MarketData # Moved under TYPE_CHECKING
 from cyberdelta.core.models import FundingRate, MarketData, OrderBook, Ticker
 from cyberdelta.utils.config import Config
 
@@ -48,9 +47,9 @@ class DataHandler:
         # Market data storage
         self.tickers: dict[str, dict[str, MarketData]] = {}  # Changed hint
         self.funding_rates: dict[
-            str, dict[str, tuple[float, datetime]]
+            str, dict[str, tuple[Decimal | None, int | None]]
         ] = {}  # exchange -> symbol -> (rate, timestamp)
-        self.orderbooks: dict[str, dict[str, Any]] = {}  # exchange -> symbol -> orderbook
+        self.orderbooks: dict[str, dict[str, OrderBook]] = {}  # exchange -> symbol -> orderbook
 
         # Data freshness tracking
         self.last_update_time: dict[
@@ -206,9 +205,11 @@ class DataHandler:
                 # The _process_websocket_messages method below was redundant and removed.
                 # We just need to keep the connection alive here. The listener task runs separately.
                 # Keep the loop running to handle reconnection logic if the listener task exits.
-                # We might need a way for the listener task exiting to signal this loop to reconnect.
+                # We might need a way for the listener task exiting to signal this
+                # loop to reconnect.
                 # For now, assume the listener handles its own lifecycle or errors propagate.
-                # Add a sleep to prevent this loop from busy-waiting if the listener exits immediately.
+                # Add a sleep to prevent this loop from busy-waiting if the listener
+                # exits immediately.
                 await asyncio.sleep(1)  # Prevent busy-looping if listener exits quickly
 
             except asyncio.CancelledError:
@@ -251,17 +252,28 @@ class DataHandler:
                         symbol, ticker_obj = parsed_ticker_data
                         if not isinstance(ticker_obj, Ticker):  # Check the unpacked object
                             logger.warning(
-                                f"Parsed ticker data tuple element is not Ticker type for {exchange_id}: {type(ticker_obj)}"
+                                "Parsed ticker data tuple element is not Ticker type "
+                                f"for {exchange_id}: {type(ticker_obj)}"
                             )
                             return
                     elif isinstance(parsed_ticker_data, Ticker):  # Check the renamed variable
                         symbol = parsed_ticker_data.symbol
                         ticker_obj = parsed_ticker_data  # Rename variable
-                    else:  # Handle the case where parsed_ticker_data is not tuple or Ticker (e.g., None, though checked earlier)
+                    else:  # Handle case where parsed_ticker_data is not tuple or Ticker
+                           # (e.g., None, though checked earlier)
                         logger.warning(
-                            f"Unexpected data format from parse_ticker_message for {exchange_id}: {type(parsed_ticker_data)}"
+                            "Unexpected data format from parse_ticker_message for "
+                            f"{exchange_id}: {type(parsed_ticker_data)}"
                         )
                         return  # Exit if parsing failed or type is unexpected
+
+                    # Ensure price is available before creating MarketData
+                    if ticker_obj.price is None:
+                        logger.warning(
+                            f"Ticker price is None for {symbol} on {exchange_id}. "
+                            "Cannot create MarketData."
+                        )
+                        return
 
                     # Convert Ticker to MarketData before updating and notifying
                     market_data = MarketData(
@@ -273,7 +285,7 @@ class DataHandler:
                         high=ticker_obj.price,
                         low=ticker_obj.price,
                         close=ticker_obj.price,  # Use last price
-                        volume=ticker_obj.volume,  # Optional: Add volume if available
+                        volume=ticker_obj.volume or Decimal("0"),  # Use 0 if volume is None
                     )
                     # Correct argument order: exchange_id, symbol, data_type, data
                     await self._update_and_notify(exchange_id, symbol, "ticker", market_data)
@@ -300,7 +312,8 @@ class DataHandler:
                         )
                     else:
                         logger.warning(
-                            f"[{exchange_id}] Unexpected type from parse_funding_rate_message: {type(parsed_funding_rate)}"
+                            f"[{exchange_id}] Unexpected type from "
+                            f"parse_funding_rate_message: {type(parsed_funding_rate)}"
                         )  # Corrected method name in log
 
             elif message_type == "account_update":  # e.g., balances, positions
@@ -405,7 +418,8 @@ class DataHandler:
             self.last_update_time[exchange_id]["funding_rate"][symbol] = now
 
             logger.debug(
-                f"Updated funding rate for {symbol} on {exchange_id}: Rate={funding_data.funding_rate}"
+                f"Updated funding rate for {symbol} on {exchange_id}: "
+                f"Rate={funding_data.funding_rate}"
             )
         except KeyError as e:
             logger.error(f"KeyError updating funding rate for {symbol} on {exchange_id}: {e}")
@@ -434,7 +448,26 @@ class DataHandler:
 
                     # Update the ticker data
                     if ticker:
-                        await self._update_and_notify(exchange_id, "ticker", symbol, ticker)
+                        # Convert Ticker to MarketData before notifying
+                        if ticker.price is None:
+                            logger.warning(
+                                f"Initial ticker price is None for {symbol} on {exchange_id}. "
+                                "Cannot create MarketData."
+                            )
+                            continue  # Skip this symbol if price is None
+
+                        market_data = MarketData(
+                            symbol=symbol,
+                            timestamp=datetime.fromtimestamp(ticker.timestamp / 1000, UTC)
+                            if ticker.timestamp
+                            else datetime.now(UTC),
+                            open=ticker.price,
+                            high=ticker.price,
+                            low=ticker.price,
+                            close=ticker.price,
+                            volume=ticker.volume or Decimal("0"),
+                        )
+                        await self._update_and_notify(exchange_id, "ticker", symbol, market_data)
                 except Exception as e:
                     logger.error(
                         f"Error collecting ticker for {symbol} from {exchange_id}: {str(e)}",
@@ -524,7 +557,8 @@ class DataHandler:
         staleness_threshold = self.staleness_thresholds["ticker"]
         if time_since_update > staleness_threshold:
             logger.warning(
-                f"Stale ticker: {exchange_id}/{symbol} {time_since_update:.1f}s > {staleness_threshold}s"
+                f"Stale ticker: {exchange_id}/{symbol} "
+                f"{time_since_update:.1f}s > {staleness_threshold}s"
             )
             # For now, return None if stale, matching previous behavior but could be configurable
             # TODO: Add robust handling requirement
@@ -590,7 +624,7 @@ class DataHandler:
             )
             return None
 
-    def get_orderbook(self, exchange_id: str, symbol: str) -> dict[str, Any] | None:
+    def get_orderbook(self, exchange_id: str, symbol: str) -> OrderBook | None:
         """
         Get the most recent orderbook for a symbol.
 
@@ -629,7 +663,7 @@ class DataHandler:
         for exchange_id, _ in self.ws_connections.items():
             try:
                 client = self.api_clients[exchange_id]
-                await client.close_websocket()
+                await client.close()  # Use the standard close method
             except Exception as e:
                 logger.error(f"Error closing WebSocket for {exchange_id}: {str(e)}")
 
@@ -644,7 +678,9 @@ class DataHandler:
             tasks = [asyncio.create_task(observer(market_data)) for observer in self.observers]
             logger.debug(f"Scheduled {len(tasks)} observer notifications for {market_data.symbol}")
 
-    def register_observer(self, observer: Callable[[MarketData], None]) -> None:
+    def register_observer(
+        self, observer: Callable[[MarketData], Coroutine[Any, Any, None]]
+    ) -> None:
         """Register an observer (async callable) to receive MarketData updates."""
 
         async def register() -> None:
@@ -663,7 +699,9 @@ class DataHandler:
         except RuntimeError:
             asyncio.run(register())
 
-    def unregister_observer(self, observer: Callable[[MarketData], None]) -> None:
+    def unregister_observer(
+        self, observer: Callable[[MarketData], Coroutine[Any, Any, None]]
+    ) -> None:
         """Unregister an observer."""
 
         async def unregister() -> None:

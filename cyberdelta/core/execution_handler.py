@@ -617,7 +617,8 @@ class ExecutionHandler:
                             )
                         )
 
-                # If both failed, no compensation usually needed unless one partially filled before failing
+                # If both failed, no compensation usually needed unless one partially
+                # filled before failing
                 elif long_status == OrderStatus.FAILED and short_status == OrderStatus.FAILED:
                     logger.info(
                         f"Execution {execution.id}: Both order placements failed. "
@@ -882,66 +883,86 @@ class ExecutionHandler:
         try:
             # First try getting the order from open orders
             open_orders = await client.get_open_orders(symbol=symbol)
-            order = next((o for o in open_orders if o.order_id == order_id), None)
+            order = None # Initialize order
+            if open_orders is not None:
+                # Assuming open_orders contains Order objects or compatible dicts
+                order = next((o for o in open_orders
+                              if getattr(o, 'order_id', None) == order_id), None)
 
             # If we don't find it among open orders, try order history if available
             if order is None:
                 try:
                     # Try order history method if it exists
                     order_history = await client.get_order_history(symbol=symbol)
-                    order = next((o for o in order_history if o.order_id == order_id), None)
+                    if order_history is not None:
+                         # Assuming order_history contains Order objects or compatible dicts
+                        order = next((o for o in order_history
+                                      if getattr(o, 'order_id', None) == order_id), None)
                 except (NotImplementedError, AttributeError):
                     # Method doesn't exist, handle gracefully
                     self.logger.debug(f"get_order_history not implemented for {exchange_id}")
 
             # If we have the order, process it
             if order:
-                logger.debug(
-                    f"Got order status for {order_id}: {order.status.name}, Filled: {order.filled_quantity}"
-                )
-                # Update portfolio tracker order state
-                self.portfolio_tracker.update_order(exchange_id, order)
-                # --- ADDED: Update position based on fill from status check ---
-                if (
-                    order.status
-                    in (
-                        OrderStatus.FILLED,
-                        OrderStatus.PARTIALLY_FILLED,
+                # Ensure we actually have an Order object before proceeding
+                if isinstance(order, Order):
+                    logger.debug(
+                        f"Got order status for {order_id}: {order.status.name}, "
+                        f"Filled: {order.filled_quantity}"
                     )
-                    and order.filled_quantity is not None
-                    and order.filled_quantity > Decimal("0")
-                ):
-                    try:
-                        # Construct Trade object with correct timestamp type (int)
-                        trade_id = f"trade_{order.order_id}_{int(time.time() * 1000)}_status"
-                        # Convert datetime to int timestamp for Trade
-                        timestamp_int = int(time.time() * 1000)
-                        trade = Trade(
-                            id=trade_id,
-                            order_id=order.order_id,
-                            exchange=exchange_id,
-                            symbol=self.symbol_mapper.get_internal_symbol(symbol, exchange_id)
-                            or symbol,  # Map back to internal symbol
-                            side=order.side,
-                            price=order.price if order.price is not None else Decimal("0"),
-                            quantity=order.filled_quantity,
-                            timestamp=timestamp_int,
-                            fee=order.metadata.get("fee", Decimal("0"))
-                            if isinstance(order.metadata, dict)
-                            else Decimal("0"),
-                            fee_asset=order.metadata.get("fee_asset")
-                            if isinstance(order.metadata, dict)
-                            else None,
+                    # Update portfolio tracker order state
+                    self.portfolio_tracker.update_order(exchange_id, order)
+                    # --- ADDED: Update position based on fill from status check ---
+                    if (
+                        order.status
+                        in (
+                            OrderStatus.FILLED,
+                            OrderStatus.PARTIALLY_FILLED,
                         )
-                        # Process the trade through portfolio tracker
-                        self.portfolio_tracker.process_trade(exchange_id, trade)
-                        logger.info(
-                            f"Created and processed trade from order status update for {order_id}"
-                        )
-                    except Exception as e:
-                        logger.error(f"Error creating trade from order status: {e}", exc_info=True)
+                        and order.filled_quantity is not None
+                        and order.filled_quantity > Decimal("0")
+                    ):
+                        try:
+                            # Construct Trade object with correct timestamp type (int)
+                            trade_id = f"trade_{order.order_id}_{int(time.time() * 1000)}_status"
+                            # Convert datetime to int timestamp for Trade
+                            timestamp_int = int(time.time() * 1000)
+                            trade = Trade(
+                                id=trade_id,
+                                order_id=order.order_id,
+                                exchange=exchange_id,
+                                symbol=self.symbol_mapper.get_internal_symbol(symbol, exchange_id)
+                                or symbol,  # Map back to internal symbol
+                                side=order.side,
+                                price=order.price if order.price is not None else Decimal("0"),
+                                quantity=order.filled_quantity,
+                                timestamp=timestamp_int,
+                                fee=order.metadata.get("fee", Decimal("0"))
+                                if isinstance(order.metadata, dict)
+                                else Decimal("0"),
+                                fee_asset=order.metadata.get("fee_asset")
+                                if isinstance(order.metadata, dict)
+                                else None,
+                            )
+                            # Process the trade through portfolio tracker
+                            self.portfolio_tracker.process_trade(exchange_id, trade)
+                            logger.info(
+                                "Created and processed trade from order status update "
+                                f"for {order_id}"
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Error creating trade from order status: {e}", exc_info=True
+                            )
 
-                return order
+                    return order
+                else:
+                    # Log if 'order' is not an Order object (e.g., if API returned unexpected dict)
+                    logger.error(
+                        f"Retrieved data for order {order_id} on {exchange_id} "
+                        f"is not a valid Order object: {type(order)}"
+                    )
+                    return None # Return None as we couldn't process it
             else:
                 logger.warning(f"get_order_status returned None for ID {order_id} on {exchange_id}")
                 return None
@@ -959,7 +980,8 @@ class ExecutionHandler:
             return None
         except Exception as e:
             logger.error(
-                f"Unexpected error getting order status for {order_id} ({symbol}) on {exchange_id}: {e}",
+                f"Unexpected error getting order status for {order_id} ({symbol}) "
+                f"on {exchange_id}: {e}",
                 exc_info=True,
             )
             # Record generic error with circuit breaker
@@ -1069,7 +1091,8 @@ class ExecutionHandler:
                     if limit_price > 0:
                         order_type_to_use = OrderType.LIMIT
                         logger.info(
-                            f"Calculated compensating limit price for '{exchange_symbol}': {limit_price:.4f} "
+                            f"Calculated compensating limit price for '{exchange_symbol}': "
+                            f"{limit_price:.4f} "
                             f"(Comp Side: {compensating_side.name}, Offset: "
                             f"{price_offset_dec:.3f}%)"
                         )
@@ -1159,7 +1182,8 @@ class ExecutionHandler:
 
         except Exception as comp_err:
             logger.exception(
-                f"Unexpected error during compensation order placement for {exchange_symbol} on {exchange_id}: {comp_err}"
+                f"Unexpected error during compensation order placement for "
+                f"{exchange_symbol} on {exchange_id}: {comp_err}"
             )
             # Record critical failure
             if self.circuit_breaker_system:
@@ -1239,7 +1263,8 @@ class ExecutionHandler:
             ExecutionStatus.PARTIALLY_COMPLETED,
         ):
             logger.debug(
-                f"Skipping PnL update for execution {execution.id} with status {execution.status.name}"
+                f"Skipping PnL update for execution {execution.id} "
+                f"with status {execution.status.name}"
             )
             return
 
@@ -1280,12 +1305,13 @@ class ExecutionHandler:
                 net_pnl = gross_pnl - estimated_fees
 
                 # Get internal symbol
-                symbol = execution.opportunity.opportunity.symbol
+                # symbol = execution.opportunity.opportunity.symbol # F841: Unused variable
 
                 # Correctly update portfolio tracker with the PnL
                 # Fix: Update with correct method that actually exists
-                # If record_pnl is unavailable, you would use a different approach like _update_realized_pnl
-                # This is a placeholder - you need to adjust based on what methods are actually available
+                # If record_pnl is unavailable, use a different approach like
+                # _update_realized_pnl # E501 fix
+                # This is a placeholder - adjust based on available methods # E501 fix
 
                 # Option 1: If record_pnl is available (uncomment)
                 """
@@ -1401,7 +1427,8 @@ class ExecutionHandler:
         client = self.api_clients.get(exchange_id)
         if not client:
             logger.error(
-                f"Execution {execution_id}: Cannot monitor order {order_id} on {exchange_id} - no API client found."
+                f"Execution {execution_id}: Cannot monitor order {order_id} "
+                f"on {exchange_id} - no API client found."
             )
             return False, None
 
@@ -1440,7 +1467,8 @@ class ExecutionHandler:
 
                 if not order:
                     logger.warning(
-                        f"Execution {execution_id}: No order found for ID {order_id} on {exchange_id}."
+                        f"Execution {execution_id}: No order found for ID {order_id} on "
+                        f"{exchange_id}."
                     )
                     await asyncio.sleep(2.0)  # Wait before retrying
                     check_count += 1
@@ -1452,14 +1480,16 @@ class ExecutionHandler:
                 # Check if we've reached a terminal state
                 if order.status in terminal_states or order.status in [OrderStatus.FAILED]:
                     logger.info(
-                        f"Execution {execution_id}: Order {order_id} on {exchange_id} reached terminal state {order.status.name}."
+                        f"Execution {execution_id}: Order {order_id} on {exchange_id} "
+                        f"reached terminal state {order.status.name}."
                     )
                     break
 
                 # If partially filled, update order in portfolio tracker
                 if order.status == OrderStatus.PARTIALLY_FILLED and order.filled_quantity:
                     logger.info(
-                        f"Execution {execution_id}: Order {order_id} on {exchange_id} partially filled: {order.filled_quantity} of {order.quantity}."
+                        f"Execution {execution_id}: Order {order_id} on {exchange_id} "
+                        f"partially filled: {order.filled_quantity} of {order.quantity}."
                     )
 
                     # Handle partial fill as needed
@@ -1488,7 +1518,8 @@ class ExecutionHandler:
 
             except APIError as e:
                 logger.error(
-                    f"Execution {execution_id}: API error monitoring order {order_id} on {exchange_id}: {e}"
+                    f"Execution {execution_id}: API error monitoring order {order_id} on "
+                    f"{exchange_id}: {e}"
                 )
                 if self.circuit_breaker_system:
                     self.circuit_breaker_system.record_api_error(
@@ -1499,7 +1530,8 @@ class ExecutionHandler:
 
             except Exception as e:
                 logger.error(
-                    f"Execution {execution_id}: Unexpected error monitoring order {order_id} on {exchange_id}: {e}",
+                    f"Execution {execution_id}: Unexpected error monitoring order "
+                    f"{order_id} on {exchange_id}: {e}",
                     exc_info=True,
                 )
                 await asyncio.sleep(2.0)
@@ -1513,7 +1545,9 @@ class ExecutionHandler:
             and order.status not in [OrderStatus.FAILED]
         ):
             logger.warning(
-                f"Execution {execution_id}: Reached maximum status checks for order {order_id} on {exchange_id}. Last status: {order.status.name if order else 'Unknown'}"
+                f"Execution {execution_id}: Reached maximum status checks for order "
+                f"{order_id} on {exchange_id}. "
+                f"Last status: {order.status.name if order else 'Unknown'}"
             )
 
         # Final order state (or None if we couldn't get it)
