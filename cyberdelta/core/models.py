@@ -393,16 +393,19 @@ class Order:
     """Represents an order on an exchange."""
 
     symbol: str  # Trading pair symbol (e.g., "BTC-USDT")
-    order_id: str  # Exchange-assigned order ID
+    id: str  # Renamed from order_id (Exchange-assigned order ID)
     side: OrderSide  # Buy or sell
-    order_type: OrderType  # Limit, market, etc.
+    type: OrderType  # Renamed from order_type (Limit, market, etc.)
     quantity: Decimal  # Original order quantity
     status: OrderStatus  # Status of the order (open, filled, canceled, etc.)
     client_order_id: str | None = None  # Client-assigned order ID (optional)
     price: Decimal | None = None  # Limit price (None for market orders)
+    avg_fill_price: Decimal | None = None  # Added: Average price at which the order was filled
     filled_quantity: Decimal | None = None  # Amount of the order that has been filled
     remaining_quantity: Decimal | None = None  # Amount of the order that remains to be filled
-    timestamp: datetime | None = None  # When the order was created or last updated
+    time: datetime | None = (
+        None  # Renamed from timestamp (When the order was created or last updated)
+    )
     leverage: Decimal | None = None  # Leverage used for the order (if applicable)
     time_in_force: TimeInForce | None = None  # Time in force for the order
     post_only: bool = False  # Whether the order is post-only (maker-only)
@@ -437,14 +440,17 @@ class Order:
         self.leverage = self._safe_decimal_convert(
             self.leverage, "leverage", self.symbol, allow_none=True
         )
+        self.avg_fill_price = self._safe_decimal_convert(  # Added conversion for new field
+            self.avg_fill_price, "avg_fill_price", self.symbol, allow_none=True
+        )
 
-        # Validate required fields based on order type
-        if self.order_type in (OrderType.LIMIT, OrderType.STOP_LIMIT) and self.price is None:
-            raise ValueError(f"Price is required for {self.order_type} orders")
+        # Validate required fields based on order type (using renamed 'type' field)
+        if self.type in (OrderType.LIMIT, OrderType.STOP_LIMIT) and self.price is None:
+            raise ValueError(f"Price is required for {self.type} orders")
 
-        # Ensure timestamp is timezone-aware
-        if self.timestamp is not None and self.timestamp.tzinfo is None:
-            self.timestamp = self.timestamp.replace(tzinfo=UTC)
+        # Ensure time is timezone-aware (using renamed 'time' field)
+        if self.time is not None and self.time.tzinfo is None:
+            self.time = self.time.replace(tzinfo=UTC)
 
     def _safe_decimal_convert(
         self,
@@ -473,13 +479,16 @@ class Order:
         """Convert order to dictionary, with proper formatting for serialization."""
         result = {
             "symbol": self.symbol,
-            "order_id": self.order_id,
+            "id": self.id,  # Renamed from order_id
             "client_order_id": self.client_order_id,
             "side": self.side.value if isinstance(self.side, OrderSide) else self.side,
-            "order_type": self.order_type.value
-            if isinstance(self.order_type, OrderType)
-            else self.order_type,
+            "type": self.type.value  # Renamed from order_type
+            if isinstance(self.type, OrderType)
+            else self.type,
             "price": str(self.price) if self.price is not None else None,
+            "avg_fill_price": str(self.avg_fill_price)
+            if self.avg_fill_price is not None
+            else None,  # Added
             "quantity": str(self.quantity),
             "filled_quantity": str(self.filled_quantity)
             if self.filled_quantity is not None
@@ -488,7 +497,9 @@ class Order:
             if self.remaining_quantity is not None
             else None,
             "status": self.status.value if isinstance(self.status, OrderStatus) else self.status,
-            "timestamp": self.timestamp.isoformat() if self.timestamp is not None else None,
+            "time": self.time.isoformat()
+            if self.time is not None
+            else None,  # Renamed from timestamp
             "leverage": str(self.leverage) if self.leverage is not None else None,
             "time_in_force": self.time_in_force.value if self.time_in_force is not None else None,
             "post_only": self.post_only,

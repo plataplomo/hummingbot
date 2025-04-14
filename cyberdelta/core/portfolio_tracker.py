@@ -595,7 +595,7 @@ class PortfolioTracker:
                     order_id = None
                     if isinstance(order_info, Order):
                         order_instance = order_info
-                        order_id = order_instance.order_id  # Use the object's ID
+                        order_id = order_instance.id  # Use the object's ID (renamed from order_id)
                     elif isinstance(order_info, dict):
                         order_id = order_info.get("order_id") or order_info.get(
                             "id"
@@ -644,13 +644,20 @@ class PortfolioTracker:
                             # Removing the unreachable code:
                             try:
                                 # Create Order object from dict, ensuring Decimals and Enums
+                                # Instantiate using NEW field names
                                 parsed_order_instance = Order(
-                                    order_id=str(order_id),
+                                    id=str(order_id),  # Renamed from order_id
                                     symbol=symbol,
                                     side=side,  # Use validated side
-                                    order_type=order_type,  # Use validated order_type
+                                    type=order_type,  # Renamed from order_type
                                     price=self._safe_decimal_convert(
                                         order_info.get("price"), "price", symbol, exchange_id
+                                    ),
+                                    avg_fill_price=self._safe_decimal_convert(  # Added avg_fill_price
+                                        order_info.get("avgFillPrice"),
+                                        "avg_fill_price",
+                                        symbol,
+                                        exchange_id,
                                     ),
                                     quantity=self._safe_decimal_convert(
                                         order_info.get("quantity"), "quantity", symbol, exchange_id
@@ -665,22 +672,29 @@ class PortfolioTracker:
                                     )
                                     or Decimal("0"),
                                     status=status,  # Use validated status
-                                    timestamp=order_info.get("timestamp")
-                                    or order_info.get(
-                                        "time"
-                                    ),  # Check common keys, handle type later
+                                    time=order_info.get(
+                                        "timestamp"
+                                    )  # Renamed from timestamp, check common keys
+                                    or order_info.get("time"),
                                     client_order_id=order_info.get("client_order_id")
                                     or order_info.get("clientOrderId"),
-                                    # Add other fields as needed
+                                    # Add other fields as needed (leverage, time_in_force, etc. if available in order_info)
+                                    leverage=self._safe_decimal_convert(
+                                        order_info.get("leverage"), "leverage", symbol, exchange_id
+                                    ),
+                                    # time_in_force needs enum conversion similar to side/type/status if present
+                                    post_only=order_info.get("postOnly", False),
+                                    reduce_only=order_info.get("reduceOnly", False),
+                                    metadata=order_info.get("metadata", {}),
                                 )
                                 # Further validation/conversion for timestamp if needed
-                                ts_val = parsed_order_instance.timestamp
+                                ts_val = parsed_order_instance.time  # Use .time
                                 if isinstance(ts_val, int | float):
                                     pass  # Placeholder for potential conversion logic if needed
 
                                 # Add the parsed order to our collection
                                 order_instance = parsed_order_instance
-                                order_id = order_instance.order_id
+                                order_id = order_instance.id  # Use .id
                             except (InvalidOperation, ValueError, TypeError) as e:
                                 logger.error(
                                     f"Error parsing order dict for order ID {order_id} on "
@@ -849,11 +863,11 @@ class PortfolioTracker:
             self._orders[exchange_id] = {}
             logger.warning(f"Initialized order tracking for {exchange_id} during update_order.")
 
-        if not order.order_id:
+        if not order.id:  # Use .id
             logger.error(f"Received order update without order_id on {exchange_id}: {order}")
             return
 
-        order_id_str = str(order.order_id)  # Ensure key is string
+        order_id_str = str(order.id)  # Use .id, ensure key is string
 
         # Log previous state if exists
         # previous_order = self._orders[exchange_id].get(order_id_str)

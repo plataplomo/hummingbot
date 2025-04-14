@@ -10,8 +10,9 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation  # Add this import
 from enum import Enum, auto
-from typing import Any, Protocol, Union
+from typing import Any, Protocol
 
 from cyberdelta.apis.base import ExchangeAPI
 from cyberdelta.core.models import (
@@ -29,7 +30,7 @@ from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 logger = logging.getLogger(__name__)
 
 # Define a type for opportunity that can be various types
-OpportunityType = Union[ArbitrageOpportunity, dict[str, Any]]
+OpportunityType = ArbitrageOpportunity | dict[str, Any]  # Use | syntax
 
 
 # Define a Protocol for the position reconciliation system
@@ -41,7 +42,12 @@ class PositionReconciliationSystem(Protocol):
         ...
 
     async def handle_position_discrepancy(
-        self, exchange: str, symbol: str, expected: Any, actual: Any
+        # TODO: Define more specific types for expected/actual if possible
+        self,
+        exchange: str,
+        symbol: str,
+        expected: Any,
+        actual: Any,  # Keeping Any for now, needs refinement
     ) -> dict[str, Any]:
         """Handle position discrepancies between expected and actual positions."""
         ...
@@ -118,7 +124,7 @@ class ExecutionResult:
 class ExecutionContext:
     """Context for an execution with tracking of checkpoints."""
 
-    def __init__(
+    def __init__(  # Add return type hint -> None
         self,
         execution_id: str,
         opportunity: OpportunityType,
@@ -126,7 +132,7 @@ class ExecutionContext:
         start_time: datetime,
         status: ExecutionStatus,
         checkpoints: list[dict[str, Any]],
-    ):
+    ) -> None:
         """Initialize the execution context."""
         self.execution_id = execution_id
         self.opportunity = opportunity
@@ -144,7 +150,9 @@ class OrderVerifier:
     Component for verifying order placement, execution, and fills.
     """
 
-    def __init__(self, config: dict[str, Any], portfolio_tracker: PortfolioTracker):
+    def __init__(
+        self, config: dict[str, Any], portfolio_tracker: PortfolioTracker
+    ) -> None:  # Add -> None
         """Initialize the order verifier."""
         self.config = config
         self.portfolio_tracker = portfolio_tracker
@@ -168,11 +176,33 @@ class OrderVerifier:
         verification_error = None
 
         # Get order from portfolio tracker (local state)
-        local_order = self.portfolio_tracker.get_order(exchange, order_id)
+        # Assuming get_order exists and returns Order | None
+        local_order: Order | None = self.portfolio_tracker._orders.get(exchange, {}).get(
+            order_id
+        )  # Access internal dict
 
         # Get order from exchange API
-        api_client = self.portfolio_tracker.get_api_client(exchange)
-        api_order = await api_client.get_order(order_id, expected_details.get("symbol"))
+        api_client = self.portfolio_tracker.api_clients.get(
+            exchange
+        )  # Access api_clients dict directly
+        api_order: Order | None = None  # Initialize api_order
+        if not api_client:
+            verification_success = False
+            verification_error = f"API client not found for exchange {exchange}"
+            # api_order remains None
+        else:
+            # Assuming get_order exists on the concrete API client
+            try:
+                # Assuming get_order exists on the concrete API client
+                api_order = await api_client.get_order(order_id, expected_details.get("symbol"))  # type: ignore[attr-defined] # Ignore potential missing attr on base API
+            except AttributeError:
+                logger.error(f"API client for {exchange} missing get_order method.")
+                verification_success = False
+                verification_error = f"API client for {exchange} missing get_order method."
+            except Exception as e:
+                logger.error(f"Error calling get_order for {exchange}: {e}", exc_info=True)
+                verification_success = False
+                verification_error = f"API error fetching order {order_id} from {exchange}"
 
         # Compare order details
         if not local_order:
@@ -237,7 +267,9 @@ class OrderVerifier:
         verification_error = None
 
         # Get order from portfolio tracker
-        local_order = self.portfolio_tracker.get_order(exchange, order_id)
+        local_order: Order | None = self.portfolio_tracker._orders.get(exchange, {}).get(
+            order_id
+        )  # Access internal dict
 
         # Get order from exchange API
         api_client = self.portfolio_tracker.get_api_client(exchange)
@@ -305,7 +337,7 @@ class ExecutionCoordinator:
     Coordinates synchronized execution with verification checkpoints.
     """
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(self, config: dict[str, Any]) -> None:  # Add -> None
         """Initialize the execution coordinator."""
         self.config = config
         self.executions = {}
@@ -383,8 +415,8 @@ class ExecutionCoordinator:
             result: Execution result
         """
         context.status = result.status
-        context.end_time = datetime.now(UTC)
-        context.result = result
+        context.end_time = datetime.now(UTC)  # Ensure assignment is valid
+        context.result = result  # Ensure assignment is valid
 
         # Add final checkpoint
         await self.add_checkpoint(
@@ -417,8 +449,8 @@ class ExecutionCoordinator:
             Abort details
         """
         context.status = ExecutionStatus.FAILED
-        context.end_time = datetime.now(UTC)
-        context.abort_reason = reason
+        context.end_time = datetime.now(UTC)  # Ensure assignment is valid
+        context.abort_reason = reason  # Ensure assignment is valid
 
         # Add abort checkpoint
         await self.add_checkpoint(
@@ -706,7 +738,7 @@ class SynchronizedOrderSubmissionService:
                     post_only=first_order.post_only,
                     reduce_only=first_order.reduce_only,
                 )
-                result.first_order_id = placed_order.order_id
+                result.first_order_id = placed_order.id  # Use .id
 
                 # Checkpoint: first order placed
                 await self.execution_coordinator.add_checkpoint(
@@ -784,7 +816,7 @@ class SynchronizedOrderSubmissionService:
                         post_only=second_order.post_only,
                         reduce_only=second_order.reduce_only,
                     )
-                    result.second_order_id = second_placed_order.order_id
+                    result.second_order_id = second_placed_order.id  # Use .id
 
                     # Checkpoint: second order placed
                     await self.execution_coordinator.add_checkpoint(
@@ -860,28 +892,66 @@ class SynchronizedOrderSubmissionService:
 
     def _prepare_order(self, opportunity: OpportunityType, leg_type: str) -> Order:
         """Prepare an Order object for a specific leg of the opportunity."""
-        # Placeholder - Needs actual implementation based on opportunity structure
-        # Should return an Order object with symbol, side, type, quantity, price etc.
-        if leg_type == "long":
-            return Order(
-                id=None,  # Will be assigned by exchange
-                symbol=opportunity.symbol,  # Assuming opportunity has symbol
-                side=OrderSide.BUY,
-                type=OrderType.LIMIT,  # Or MARKET depending on strategy
-                quantity=opportunity.long_size_base,  # Assuming size in base asset
-                price=opportunity.long_price,
+        # Ensure opportunity is the correct type before accessing attributes
+        symbol_val: str | None = None
+        quantity_val: Any = None  # Can be Decimal or None initially
+        price_val: Any = None  # Can be Decimal or None initially
+
+        if isinstance(opportunity, ArbitrageOpportunity):
+            symbol_val = opportunity.symbol
+            # Assuming size_base and price attributes exist on ArbitrageOpportunity
+            quantity_val = (
+                opportunity.long_size_base if leg_type == "long" else opportunity.short_size_base
             )
-        elif leg_type == "short":
-            return Order(
-                id=None,
-                symbol=opportunity.symbol,
-                side=OrderSide.SELL,
-                type=OrderType.LIMIT,
-                quantity=opportunity.short_size_base,
-                price=opportunity.short_price,
+            price_val = opportunity.long_price if leg_type == "long" else opportunity.short_price
+        elif isinstance(opportunity, dict):
+            # Handle dict case - assuming keys match ArbitrageOpportunity attributes
+            symbol_val = opportunity.get("symbol")
+            quantity_val = (
+                opportunity.get("long_size_base")
+                if leg_type == "long"
+                else opportunity.get("short_size_base")
+            )
+            price_val = (
+                opportunity.get("long_price")
+                if leg_type == "long"
+                else opportunity.get("short_price")
             )
         else:
-            raise ValueError(f"Invalid leg type: {leg_type}")
+            logger.error(
+                f"Cannot prepare order from unsupported opportunity type: {type(opportunity)}"
+            )
+            raise TypeError("Invalid opportunity type for order preparation")
+
+        # Validate extracted values
+        if symbol_val is None or quantity_val is None:  # Price can be None for MARKET
+            logger.error(f"Missing required fields (symbol/quantity) in opportunity: {opportunity}")
+            raise ValueError("Invalid opportunity data for order preparation")
+
+        # Convert quantity and price to Decimal if they are not None
+        try:
+            quantity_dec = Decimal(str(quantity_val)) if quantity_val is not None else None
+            price_dec = Decimal(str(price_val)) if price_val is not None else None
+        except (InvalidOperation, TypeError) as e:
+            logger.error(f"Error converting quantity/price to Decimal: {e}")
+            raise ValueError("Invalid numeric data in opportunity for order preparation") from e
+
+        if quantity_dec is None:  # Should have been caught earlier, but double-check
+            raise ValueError("Quantity cannot be None for order preparation")
+
+        # Determine order type (assuming MARKET for now, could be configurable)
+        order_type = OrderType.MARKET
+
+        return Order(
+            symbol=symbol_val,
+            side=OrderSide.BUY if leg_type == "long" else OrderSide.SELL,
+            type=order_type,
+            quantity=quantity_dec,
+            price=price_dec,  # Pass Decimal or None
+            status=OrderStatus.NEW,  # Provide required status
+            # id and time generated by default factory
+            avg_fill_price=None,  # Default added field
+        )
 
     async def _execute_simultaneous_with_verification(
         self, opportunity: OpportunityType, execution_context: ExecutionContext
