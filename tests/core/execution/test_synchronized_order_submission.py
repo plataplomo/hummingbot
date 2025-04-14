@@ -70,17 +70,17 @@ class TestOrderVerifier:
         """Create a mock portfolio tracker."""
         mock_tracker = MagicMock()
         # Define a sample filled order for mocking
+        # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         sample_filled_order = Order(
-            order_id="test-order-1",
+            id="test-order-1",
+            type=OrderType.LIMIT, # Added positional 'type'
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
             price=Decimal("50000.0"),
             quantity=Decimal("1.0"),
             client_order_id="client-order-1",
             status=OrderStatus.FILLED,
             filled_quantity=Decimal("1.0"),
-            timestamp=datetime.now(UTC),  # Timestamp is optional in __init__
         )
         # Set attributes after creation that are not in __init__
         # Mypy fix: Order does not have avg_fill_price directly
@@ -91,17 +91,17 @@ class TestOrderVerifier:
         mock_api_client = AsyncMock(spec=ExchangeAPI)
         # Mock the return value of the API client's get_order_status
         # (Assuming get_order_status returns an Order object)
+        # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         mock_api_order = Order(
-            order_id="exchange-order-id-1",  # Use the actual exchange ID
+            id="exchange-order-id-1",
+            type=OrderType.LIMIT, # Added positional 'type'
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
             quantity=Decimal("1.0"),
             price=Decimal("50000"),
             status=OrderStatus.FILLED,
             client_order_id="client-order-1",
             filled_quantity=Decimal("1.0"),
-            timestamp=datetime.now(UTC),
         )
         # Mypy fix: Order does not have exchange_order_id directly
         # mock_api_order.exchange_order_id="exchange-order-id-1" # Remove, order_id holds this
@@ -146,16 +146,16 @@ class TestOrderVerifier:
         }
 
         # Ensure the mock returns the Order object defined in fixture
+        # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         mock_local_order = Order(
-            order_id="test-order-1",
+            id="test-order-1",
+            type=OrderType.LIMIT, # Added positional 'type'
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
             status=OrderStatus.OPEN,
             price=Decimal("50000.0"),
             quantity=Decimal("1.0"),
             client_order_id="client-order-1",
-            timestamp=datetime.now(UTC),
         )
         portfolio_tracker.get_order.return_value = mock_local_order
 
@@ -185,35 +185,35 @@ class TestOrderVerifier:
         verifier = OrderVerifier(config, portfolio_tracker)
 
         # Test successful verification
+        # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         local_order_mock = Order(
-            order_id="exchange-order-id-1",
+            id="exchange-order-id-1",
+            type=OrderType.LIMIT, # Added positional 'type'
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
             status=OrderStatus.FILLED,
             price=Decimal("50000.0"),
             quantity=Decimal("1.0"),
             client_order_id="test-order-1",
             filled_quantity=Decimal("1.0"),
-            # Mypy fix: avg_fill_price is not a direct attribute - remove or handle assertion differently
+            # Mypy fix: avg_fill_price is not direct attribute - handle assertion differently
             # No avg_fill_price here - fixes [call-arg] error 180
-            timestamp=datetime.now(UTC),
         )
         portfolio_tracker.get_order.return_value = local_order_mock
 
         # Mock the API call within verify_order_execution
         mock_api = portfolio_tracker.get_api_client()
         api_order_response = Order(
-            order_id="exchange-order-id-1",  # Corrected ID
+            id="exchange-order-id-1",  # Use 'id'
+            type=OrderType.LIMIT, # Add 'type'
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
             quantity=Decimal("1.0"),
             price=Decimal("50000"),
             status=OrderStatus.FILLED,
-            client_order_id="test-order-1",  # Should match local_order_mock client_id if relevant
+            client_order_id="test-order-1",
             filled_quantity=Decimal("1.0"),
-            timestamp=datetime.now(UTC),
+            # timestamp removed
         )
         # Mypy fix: avg_fill_price is not a direct attribute
         # api_order_response.avg_fill_price=Decimal("50000")
@@ -234,17 +234,17 @@ class TestOrderVerifier:
 
         # Test failed verification (e.g., order not filled on exchange)
         api_order_response_open = (
-            Order(  # Create a new object to avoid modifying the previous mock state
-                order_id="exchange-order-id-1",
+            Order(
+                id="exchange-order-id-1", # Use 'id'
+                type=OrderType.LIMIT, # Add 'type'
                 symbol="BTC-PERP",
                 side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
                 price=Decimal("50000"),
                 status=OrderStatus.OPEN,  # Changed status
                 client_order_id="test-order-1",
                 filled_quantity=Decimal("0"),
-                timestamp=datetime.now(UTC),
+                # timestamp removed
             )
         )
         mock_api.get_order_status.return_value = api_order_response_open  # Update return value
@@ -563,7 +563,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_start_execution.return_value = mock_context
 
         # Mypy fix [no-untyped-def] error 471: Add type annotation
-        async def mock_complete(ctx: Any, res: ExecutionResult) -> None:
+        async def mock_complete(ctx: object, res: ExecutionResult) -> None:
             assert isinstance(res, ExecutionResult)
             assert res.status == ExecutionStatus.REJECTED
 
@@ -705,7 +705,7 @@ class TestSynchronizedOrderSubmissionService:
         """Test the internal _verify_pre_execution method logic."""
         service_instance, config, _, _ = service  # Use service_instance
         mock_opportunity = MockOpportunity()
-        # execution_id = service_instance._generate_execution_id(mock_opportunity.to_dict()) # ID generated internally
+        # execution_id = service_instance._generate_execution_id(...) # ID generated internally
 
         # Instantiate the coordinator mock for interaction (though the class is patched)
         mock_coordinator_instance = MockExecutionCoordinator.return_value
@@ -832,7 +832,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_coordinator_instance = MockExecutionCoordinator.return_value
         service_instance.execution_coordinator = mock_coordinator_instance  # Assign instance
 
-        # mock_context = MagicMock() # Mock context passed to the method - Not needed as it's not used
+        # mock_context = MagicMock() # Mock context passed - Not needed as it's not used
         mock_opportunity = MockOpportunity()
         mock_execution_result = ExecutionResult(
             execution_id="test-execution",

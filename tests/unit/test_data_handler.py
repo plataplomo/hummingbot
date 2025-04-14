@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any  # Import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,7 +14,7 @@ class TestDataHandler:
     """Test suite for DataHandler component."""
 
     @pytest.fixture
-    def data_handler(self, mock_config, mock_exchange_api):
+    def data_handler(self, mock_config: MagicMock, mock_exchange_api: AsyncMock) -> DataHandler:
         """Create a DataHandler instance with mocked dependencies."""
         # Create a proper config object with the mock_config function
         config_obj = mock_config(
@@ -55,7 +56,7 @@ class TestDataHandler:
         handler.register_api_client("backpack", mock_exchange_api)
 
         # Mock the API client's WebSocket methods
-        for exchange_id, client in handler.api_clients.items():
+        for _exchange_id, client in handler.api_clients.items(): # B007: Use _ for unused var
             client.connect_websocket = AsyncMock(return_value=MagicMock())
             client.subscribe_to_tickers = AsyncMock()
             client.subscribe_to_orderbooks = AsyncMock()
@@ -80,7 +81,9 @@ class TestDataHandler:
         return handler
 
     @pytest.mark.asyncio
-    async def test_register_api_client(self, data_handler, mock_exchange_api):
+    async def test_register_api_client(
+        self, data_handler: DataHandler, mock_exchange_api: AsyncMock
+    ) -> None:
         """Test that API clients can be registered."""
         # Register a new API client
         data_handler.register_api_client("test_exchange", mock_exchange_api)
@@ -90,7 +93,7 @@ class TestDataHandler:
         assert data_handler.api_clients["test_exchange"] == mock_exchange_api
 
     @pytest.mark.asyncio
-    async def test_initialize(self, data_handler):
+    async def test_initialize(self, data_handler: DataHandler) -> None:
         """Test initialization of the DataHandler."""
         # Patch mock_config to treat exchanges as enabled
         data_handler.config.get = MagicMock(return_value=True)
@@ -98,9 +101,8 @@ class TestDataHandler:
         # Patch the _collect_initial_data and _maintain_websocket_connection methods
         with (
             patch.object(data_handler, "_collect_initial_data", AsyncMock()) as mock_collect,
-            patch.object(
-                data_handler, "_maintain_websocket_connection", AsyncMock()
-            ) as mock_maintain,
+            patch.object(data_handler, "_maintain_websocket_connection", AsyncMock()),
+            # Removed 'as mock_maintain' as it's unused (F841)
         ):
             # Initialize the DataHandler
             await data_handler.initialize()
@@ -111,11 +113,11 @@ class TestDataHandler:
             assert "hyperliquid" in data_handler.ws_tasks
 
     @pytest.mark.asyncio
-    async def test_collect_initial_data(self, data_handler):
+    async def test_collect_initial_data(self, data_handler: DataHandler) -> None:
         """Test initial data collection."""
 
         # Patch config get method to enable exchanges and provide symbols
-        def mock_config_get(path, default=None):
+        def mock_config_get(path: str, default: Any = None) -> Any:
             if path.endswith(".enabled"):
                 return True
             if path.endswith(".symbols"):
@@ -150,7 +152,9 @@ class TestDataHandler:
             mock_collect_funding.assert_any_call("backpack", ["BTCUSDC", "ETHUSDC"])
 
     @pytest.mark.asyncio
-    async def test_collect_tickers(self, data_handler, mock_exchange_api):
+    async def test_collect_tickers(
+        self, data_handler: DataHandler, mock_exchange_api: AsyncMock
+    ) -> None:
         """Test collecting ticker data."""
         # Set up a test ticker with UTC timestamp
         test_ticker = MarketData(
@@ -186,7 +190,9 @@ class TestDataHandler:
         assert data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"].tzinfo is not None
 
     @pytest.mark.asyncio
-    async def test_collect_funding_rates(self, data_handler, mock_exchange_api):
+    async def test_collect_funding_rates(
+        self, data_handler: DataHandler, mock_exchange_api: AsyncMock
+    ) -> None:
         """Test collecting funding rate data."""
         # Set up a test funding rate
         rate = 0.0001
@@ -223,11 +229,11 @@ class TestDataHandler:
         assert last_update_ts.tzinfo is not None
 
     @pytest.mark.asyncio
-    async def test_update_all_data(self, data_handler):
+    async def test_update_all_data(self, data_handler: DataHandler) -> None:
         """Test updating all data from exchanges."""
 
         # Patch config get method to enable exchanges and provide symbols
-        def mock_config_get(path, default=None):
+        def mock_config_get(path: str, default: Any = None) -> Any:
             if path.endswith(".enabled"):
                 return True
             if path.endswith(".symbols"):
@@ -253,7 +259,7 @@ class TestDataHandler:
             assert mock_collect_tickers.call_count == 2  # Called for both exchanges
             assert mock_collect_funding.call_count == 2  # Called for both exchanges
 
-    def test_get_ticker(self, data_handler):
+    def test_get_ticker(self, data_handler: DataHandler) -> None:
         """Test retrieving ticker data."""
         # Set up a test ticker with UTC timestamp
         test_ticker = MarketData(
@@ -289,7 +295,7 @@ class TestDataHandler:
         result = data_handler.get_ticker("hyperliquid", "NONEXISTENT")
         assert result is None
 
-    def test_get_funding_rate(self, data_handler):
+    def test_get_funding_rate(self, data_handler: DataHandler) -> None:
         """Test retrieving funding rate data."""
         # Set up a test funding rate object
         test_funding_rate = FundingRate(
@@ -334,7 +340,7 @@ class TestDataHandler:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_shutdown(self, data_handler):
+    async def test_shutdown(self, data_handler: DataHandler) -> None:
         """Test graceful shutdown of the DataHandler."""
         # Create mock tasks
         mock_task1 = AsyncMock()
@@ -343,12 +349,12 @@ class TestDataHandler:
         # --- Configure mocks to raise CancelledError after cancel() ---
         cancelled_tasks = set()
 
-        def cancel_side_effect(task_mock):
+        def cancel_side_effect(task_mock: MagicMock) -> None:
             cancelled_tasks.add(task_mock)
 
             # Standard cancel behavior raises CancelledError on next await
             # We simulate this by setting a side effect for __await__
-            async def await_raises_cancelled(*args, **kwargs):
+            async def await_raises_cancelled(*args: Any, **kwargs: Any) -> None:
                 if task_mock in cancelled_tasks:
                     raise asyncio.CancelledError
                 # If not cancelled (shouldn't happen here), return default
@@ -383,7 +389,9 @@ class TestDataHandler:
         assert mock_task2.cancel.called
 
     @pytest.mark.asyncio
-    async def test_handle_websocket_message(self, data_handler, mock_exchange_api):
+    async def test_handle_websocket_message(
+        self, data_handler: DataHandler, mock_exchange_api: AsyncMock
+    ) -> None:
         """Test handling of WebSocket messages."""
         # Set up a test message
         test_message = {"type": "ticker", "data": {"symbol": "BTC", "price": 42000.0}}
@@ -417,7 +425,7 @@ class TestDataHandler:
             mock_exchange_api.get_message_type.assert_called_once_with(test_message)
             mock_exchange_api.parse_ticker_message.assert_called_once_with(test_message)
             # Verify _update_and_notify was called with correct args, matching the unpacked data
-            # The data passed should be the MarketData object created inside _handle_websocket_message
+            # Data passed should be MarketData obj created inside _handle_websocket_message
             assert mock_update_notify.call_count == 1
             call_args, call_kwargs = mock_update_notify.call_args
             assert call_kwargs == {}
@@ -441,11 +449,13 @@ class TestDataHandler:
             )
 
     @pytest.mark.asyncio
-    async def test_maintain_websocket_connection(self, data_handler, mock_exchange_api):
+    async def test_maintain_websocket_connection(
+        self, data_handler: DataHandler, mock_exchange_api: AsyncMock
+    ) -> None:
         """Test the WebSocket connection maintenance logic."""
         # Mock the config.get method to return test-friendly values
         data_handler.config.get = MagicMock(
-            side_effect=lambda key, default=None: {
+            side_effect=lambda key, default=None: { # type: ignore[misc] # Keep ignore for lambda
                 "exchanges.hyperliquid.enabled": True,
                 "exchanges.hyperliquid.symbols": ["BTC", "ETH"],
                 "exchanges.hyperliquid.websocket.reconnect_delay": 0.1,  # Short delay for testing
@@ -459,7 +469,7 @@ class TestDataHandler:
         reconnection_attempted = asyncio.Event()
 
         # Mock the connect_websocket method
-        async def mock_connect():
+        async def mock_connect() -> MagicMock:
             nonlocal connection_attempts
             connection_attempts += 1
 
@@ -476,7 +486,7 @@ class TestDataHandler:
         mock_exchange_api.connect_websocket = mock_connect
 
         # Mock the message processing to simulate an error after first connection
-        async def mock_process_messages(exchange_id):
+        async def mock_process_messages(exchange_id: str) -> None:
             # Wait a moment
             await asyncio.sleep(0.1)
             # If this is the first connection, raise an exception
@@ -512,11 +522,13 @@ class TestDataHandler:
                     pass
 
     @pytest.mark.asyncio
-    async def test_process_websocket_messages(self, data_handler, mock_exchange_api):
+    async def test_process_websocket_messages(
+        self, data_handler: DataHandler, mock_exchange_api: AsyncMock
+    ) -> None:
         """Test processing WebSocket messages."""
 
         # Mock config get method for ping interval
-        def mock_config_get(path, default=None):
+        def mock_config_get(path: str, default: Any = None) -> Any:
             if path.endswith(".websocket.ping_interval"):
                 return 0.5  # Short interval for testing
             return default
@@ -531,7 +543,7 @@ class TestDataHandler:
         # Mock the message reception - return a test message once, then no message
         messages_received = 0
 
-        async def mock_receive_message():
+        async def mock_receive_message() -> dict[str, Any] | None: # Assuming dict or None return
             nonlocal messages_received
             if messages_received == 0:
                 messages_received += 1
@@ -543,7 +555,7 @@ class TestDataHandler:
             return None
 
         # Mock ping to signal when it's called
-        async def mock_ping():
+        async def mock_ping() -> None:
             ping_sent.set()
             return None
 

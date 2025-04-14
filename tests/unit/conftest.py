@@ -1,3 +1,4 @@
+import types
 from collections.abc import Callable
 from typing import Any
 from unittest.mock import MagicMock
@@ -13,7 +14,7 @@ from cyberdelta.utils.config import Config
 class MockResponse:
     def __init__(
         self,
-        data: Any,
+        data: dict[str, Any] | list[Any] | str, # More specific than Any
         status: int = 200,
         headers: dict[str, str] | None = None,
         content_type: str = "application/json",
@@ -24,7 +25,7 @@ class MockResponse:
         self.content_type = content_type
         self._raise_for_status_called = False
 
-    async def json(self) -> Any:
+    async def json(self) -> dict[str, Any] | list[Any] | str: # Match data type hint
         return self._data
 
     async def text(self) -> str:
@@ -34,11 +35,12 @@ class MockResponse:
         return self
 
     async def __aexit__(
-        self, exc_type: type | None, exc_val: BaseException | None, exc_tb: Any | None
+        self, exc_type: type | None, exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None
     ) -> None:
         pass
 
-    def raise_for_status(self):
+    def raise_for_status(self) -> None: # Add return type hint
         self._raise_for_status_called = True
         if self.status >= 400:
             raise aiohttp.ClientResponseError(
@@ -49,21 +51,22 @@ class MockResponse:
 class MockClientSession:
     def __init__(self, responses: dict[tuple[str, str], MockResponse] | None = None) -> None:
         self.responses = responses or {}
-        self.requests = []
+        self.requests: list[dict[str, Any]] = []
         self.closed = False
 
     async def __aenter__(self) -> "MockClientSession":
         return self
 
     async def __aexit__(
-        self, exc_type: type | None, exc_val: BaseException | None, exc_tb: Any | None
+        self, exc_type: type | None, exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None
     ) -> None:
         pass
 
     async def close(self) -> None:
         self.closed = True
 
-    async def _request(self, method: str, url: str, **kwargs: Any) -> MockResponse:
+    async def _request(self, method: str, url: str, **kwargs: dict[str, Any]) -> MockResponse:
         self.requests.append({"method": method, "url": url, "kwargs": kwargs})
 
         # Find match in responses
@@ -78,16 +81,16 @@ class MockClientSession:
         # Default response if no match
         return MockResponse({}, status=404)
 
-    async def get(self, url: str, **kwargs: Any) -> MockResponse:
+    async def get(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
         return await self._request("GET", url, **kwargs)
 
-    async def post(self, url: str, **kwargs: Any) -> MockResponse:
+    async def post(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
         return await self._request("POST", url, **kwargs)
 
-    async def put(self, url: str, **kwargs: Any) -> MockResponse:
+    async def put(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
         return await self._request("PUT", url, **kwargs)
 
-    async def delete(self, url: str, **kwargs: Any) -> MockResponse:
+    async def delete(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
         return await self._request("DELETE", url, **kwargs)
 
 

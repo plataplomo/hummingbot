@@ -111,7 +111,8 @@ class SignalGenerator:
         ]
 
         logger.debug(
-            f"Initializing data structures for enabled exchanges: {enabled_exchanges} and internal symbols: {all_internal_symbols}"
+            f"Initializing data structures for enabled exchanges: {enabled_exchanges} "
+            f"and internal symbols: {all_internal_symbols}"
         )
 
         # Track which symbols we're monitoring
@@ -132,10 +133,14 @@ class SignalGenerator:
                         internal_symbol
                     ] = []  # Initialize empty list
                     logger.debug(
-                        f"  Initialized funding deque for {exchange_id} / {internal_symbol} (maps to {exchange_symbol})"
+                        f"  Initialized funding deque for {exchange_id} / {internal_symbol} "
+                        f"(maps to {exchange_symbol})"
                     )
                 # else: # No need to log missing mappings, it's expected
-                #    logger.debug(f"  No mapping found for {internal_symbol} on {exchange_id}, skipping funding deque.")
+                #    logger.debug(
+                #        f"  No mapping found for {internal_symbol} on {exchange_id}, "
+                #        f"skipping funding deque."
+                #    )
 
         # Initialize basis history using all known internal symbols
         for internal_symbol in all_internal_symbols:
@@ -147,7 +152,8 @@ class SignalGenerator:
         # logger.debug(f"Final historical_basis structure: {self.historical_basis}")
 
         logger.info(
-            f"Initialized historical data structures for {len(enabled_exchanges)} enabled exchanges and {len(all_internal_symbols)} internal symbols."
+            f"Initialized historical data structures for {len(enabled_exchanges)} enabled "
+            f"exchanges and {len(all_internal_symbols)} internal symbols."
         )
 
     def update_historical_data(self) -> None:
@@ -169,7 +175,7 @@ class SignalGenerator:
 
         # --- Update funding rate history ---
         for exchange_id in enabled_exchanges:
-            # Iterate through the internal symbols expected for this exchange based on initialization
+            # Iterate through internal symbols expected for this exchange based on init
             expected_internal_symbols = self.historical_funding_rates.get(exchange_id, {}).keys()
 
             for internal_symbol in expected_internal_symbols:
@@ -225,7 +231,8 @@ class SignalGenerator:
                             history_deque.popleft()
                     else:
                         logger.error(
-                            f"Historical funding rate deque not found for {exchange_id}/{internal_symbol} during update."
+                            f"Historical funding rate deque not found for "
+                            f"{exchange_id}/{internal_symbol} during update."
                         )
 
         # --- Update basis history (price difference between exchanges) ---
@@ -266,10 +273,11 @@ class SignalGenerator:
                         except (InvalidOperation, TypeError, AttributeError) as conversion_error:
                             logger.warning(
                                 f"Could not process market data for "
-                                f"{exchange_id}/{exchange_symbol} (Internal: {internal_symbol}): {conversion_error}"
+                                f"{exchange_id}/{exchange_symbol} "
+                                f"(Internal: {internal_symbol}): {conversion_error}"
                             )
                             # Do not add this exchange/ticker if price is invalid
-                # No else needed, if no exchange_symbol, we skip this exchange for this internal_symbol
+                # No else needed, if no exchange_symbol, we skip this exchange
 
             # Compute basis if enough valid tickers were found
             if len(valid_exchanges_for_symbol) >= 2:
@@ -299,8 +307,12 @@ class SignalGenerator:
                         logger.error(
                             f"Historical basis deque not found for {internal_symbol} during update."
                         )
-                # else: logger.debug(f"Skipping basis calculation for {internal_symbol}: Not enough valid ticker prices.")
-            # else: logger.debug(f"Skipping basis calculation for {internal_symbol}: Need at least 2 exchanges with valid tickers.")
+                # else: logger.debug(
+                #    f"Skipping basis calc for {internal_symbol}: Not enough valid tickers."
+                # )
+            # else: logger.debug(
+            #    f"Skipping basis calc for {internal_symbol}: Need >= 2 valid tickers."
+            # )
 
     def calculate_funding_rate_volatility(self, exchange: str, internal_symbol: str) -> Decimal:
         """Calculate the volatility (std dev) of the historical funding rates."""
@@ -309,7 +321,9 @@ class SignalGenerator:
             return Decimal("0.0001")  # Default funding volatility
 
         if internal_symbol not in self.historical_funding_rates[exchange]:
-            # logger.debug(f"No funding data for {internal_symbol} on {exchange}. Returning default.")
+            # logger.debug(
+            #    f"No funding data for {internal_symbol} on {exchange}. Returning default."
+            # )
             return Decimal("0.0001")  # Default funding volatility
 
         history_deque = self.historical_funding_rates[exchange][internal_symbol]
@@ -351,7 +365,8 @@ class SignalGenerator:
                 return max(Decimal("1e-8"), std_dev_decimal)
             except Exception as e2:
                 logger.error(
-                    f"Error calculating funding rate volatility for {exchange}/{internal_symbol}: {e2}"
+                    f"Error calculating funding rate volatility for "
+                    f"{exchange}/{internal_symbol}: {e2}"
                 )
                 return Decimal("0.0001")  # Default on calculation error
 
@@ -363,7 +378,10 @@ class SignalGenerator:
 
         history_deque = self.historical_basis[symbol]
         if len(history_deque) < 2:
-            # logger.debug(f"Insufficient historical basis data for {symbol} (need >= 2). Returning default.")
+            # logger.debug(
+            #    f"Insufficient historical basis data for {symbol} (need >= 2). "
+            #    f"Returning default."
+            # )
             return Decimal("0.01")  # Default volatility
 
         basis_values = [basis for _, basis in history_deque]
@@ -402,17 +420,21 @@ class SignalGenerator:
                 logger.error(f"Error calculating basis volatility for {symbol}: {e2}")
                 return Decimal("0.01")  # Default on calculation error
 
-    def estimate_slippage(self, exchange: str, symbol: str) -> Decimal:
+    def estimate_slippage(self, exchange: str, symbol: str, size: Decimal | None = None) -> Decimal:
         """
-        Estimate the slippage cost for trading on a given exchange and symbol.
+        Estimate the slippage cost for trading on a given exchange and symbol,
+        potentially considering the trade size.
 
         Args:
             exchange: Exchange name
             symbol: Trading symbol
+            size: Optional trade size (Decimal) to potentially adjust slippage estimate.
 
         Returns:
             Estimated slippage as a Decimal
         """
+        # TODO: Implement logic to use 'size' and potentially order book depth
+        # from data_handler to provide a more accurate slippage estimate.
         # Use historical data if available, otherwise use default
         if exchange in self.historical_slippage and symbol in self.historical_slippage[exchange]:
             slippage_data = self.historical_slippage[exchange][symbol]
@@ -447,7 +469,8 @@ class SignalGenerator:
         Generate arbitrage opportunities based on funding rate differentials and market data.
 
         Args:
-            funding_data: Dictionary mapping symbols to dictionaries mapping exchange names to FundingRate objects
+            funding_data: Dict mapping symbols to dicts mapping exchange names
+                          to FundingRate objects
             market_data: MarketData object with current ticker information
 
         Returns:
@@ -627,7 +650,8 @@ class SignalGenerator:
 
                 except (InvalidOperation, TypeError, ValueError) as e:
                     logger.warning(
-                        f"Error calculating funding arbitrage for {symbol} between {exchange_a} and {exchange_b}: {e}"
+                        f"Error calculating funding arbitrage for {symbol} between "
+                        f"{exchange_a} and {exchange_b}: {e}"
                     )
                     continue
 

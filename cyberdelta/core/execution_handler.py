@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, cast # Added cast for timestamp if needed
+from typing import TYPE_CHECKING, Any  # Added cast for timestamp if needed
 
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
@@ -15,9 +15,9 @@ from cyberdelta.core.models import (
     OrderSide,
     OrderStatus,
     OrderType,
+    Ticker,
     TimeInForce,
     Trade,
-    Ticker,
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
@@ -470,15 +470,21 @@ class ExecutionHandler:
                 )
                 # gather returns list of results or exceptions
                 # Rename variable to avoid clash with ticker_results
-                order_results: list[Order | BaseException | None] = await asyncio.gather(
+                order_results: tuple[Order | BaseException | None, Order | BaseException | None] = await asyncio.gather(
                     long_task, short_task, return_exceptions=True
                 )
 
-                long_order_result = order_results[0] if isinstance(order_results[0], Order) else None
-                short_order_result = order_results[1] if isinstance(order_results[1], Order) else None
+                long_order_result = (
+                    order_results[0] if isinstance(order_results[0], Order) else None
+                )
+                short_order_result = (
+                    order_results[1] if isinstance(order_results[1], Order) else None
+                )
 
                 long_filled = long_order_result and long_order_result.status == OrderStatus.FILLED
-                short_filled = short_order_result and short_order_result.status == OrderStatus.FILLED
+                short_filled = (
+                    short_order_result and short_order_result.status == OrderStatus.FILLED
+                )
 
                 if long_filled:
                     logger.info(
@@ -490,7 +496,9 @@ class ExecutionHandler:
                         "(concurrent)."
                     )
                     if isinstance(order_results[0], BaseException):
-                         logger.error(f"Execution {execution.id}: Long leg error: {order_results[0]}")
+                         logger.error(
+                             f"Execution {execution.id}: Long leg error: {order_results[0]}"
+                         )
 
 
                 if short_filled:
@@ -503,7 +511,9 @@ class ExecutionHandler:
                         "(concurrent)."
                     )
                     if isinstance(order_results[1], BaseException):
-                         logger.error(f"Execution {execution.id}: Short leg error: {order_results[1]}")
+                         logger.error(
+                             f"Execution {execution.id}: Short leg error: {order_results[1]}"
+                         )
 
 
                 # Determine final status and compensation needs
@@ -556,13 +566,21 @@ class ExecutionHandler:
                     execution.status = ExecutionStatus.FAILED
                 # These should not happen if gather worked correctly
                 elif long_order_result is None and isinstance(order_results[0], BaseException):
-                    op_error_msg = f"Execution {execution.id}: Long leg failed with exception: {order_results[0]}"
+                    op_error_msg = (
+                        f"Execution {execution.id}: Long leg failed with exception: "
+                        f"{order_results[0]}"
+                    )
                     execution.status = ExecutionStatus.FAILED
                 elif short_order_result is None and isinstance(order_results[1], BaseException):
-                    op_error_msg = f"Execution {execution.id}: Short leg failed with exception: {order_results[1]}"
+                    op_error_msg = (
+                        f"Execution {execution.id}: Short leg failed with exception: "
+                        f"{order_results[1]}"
+                    )
                     execution.status = ExecutionStatus.FAILED
                 else: # Should be unreachable
-                     op_error_msg = f"Execution {execution.id}: Unknown concurrent execution outcome."
+                     op_error_msg = (
+                         f"Execution {execution.id}: Unknown concurrent execution outcome."
+                     )
                      execution.status = ExecutionStatus.FAILED
 
             else:
@@ -632,7 +650,9 @@ class ExecutionHandler:
                             # Mark as failed if compensation fails
                             execution.status = ExecutionStatus.FAILED
                         else:
-                             logger.info(f"Execution {execution.id}: Compensation attempt finished.")
+                             logger.info(
+                                 f"Execution {execution.id}: Compensation attempt finished."
+                             )
                              # Status remains COMPENSATING until verified?
                              # Or move to PARTIALLY_COMPLETED/FAILED?
                              # For now, assume _compensate_position handles logging success/failure
@@ -650,7 +670,9 @@ class ExecutionHandler:
                     )
                     execution.status = ExecutionStatus.FAILED # Cannot compensate
             else:
-                 logger.error(f"Execution {execution.id}: Missing details required for compensation.")
+                 logger.error(
+                     f"Execution {execution.id}: Missing details required for compensation."
+                 )
                  execution.status = ExecutionStatus.FAILED
 
 
@@ -785,7 +807,9 @@ class ExecutionHandler:
                     return order
                 else:
                     # Should not happen if place_order doesn't return None on success
-                    logger.error(f"Execution {execution.id}: place_order returned None unexpectedly.")
+                    logger.error(
+                        f"Execution {execution.id}: place_order returned None unexpectedly."
+                    )
                     # Consider retry?
 
             except CircuitBreakerTrippedError as e:
@@ -880,7 +904,7 @@ class ExecutionHandler:
                 # Assume client.get_order_status exists and returns Order | None
                 # Add type check for client if necessary, though structure implies it exists
                 if not hasattr(client, 'get_order_status'):
-                     # This error cannot be fixed here as it requires changing ExchangeAPI base class
+                     # Cannot fix here: requires changing ExchangeAPI base class
                      logger.error(
                          f"Client for {exchange_id} lacks get_order_status method. "
                          "Cannot check order status."
@@ -995,7 +1019,9 @@ class ExecutionHandler:
             f"{side.name} order for {quantity} {symbol} on {exchange_id}"
         )
         if quantity <= Decimal(0):
-             logger.error(f"Execution {execution.id}: Invalid quantity {quantity} for compensation.")
+             logger.error(
+                 f"Execution {execution.id}: Invalid quantity {quantity} for compensation."
+             )
              return False
 
         client = self.api_clients.get(exchange_id)
@@ -1013,7 +1039,9 @@ class ExecutionHandler:
                  comp_client_order_id = (
                      f"COMP_{execution.id[:8]}_{exchange_id[:3]}_{attempt}"
                  )
-                 logger.debug(f"Placing compensation order (Attempt {attempt+1}): {comp_client_order_id}")
+                 logger.debug(
+                     f"Placing compensation order (Attempt {attempt+1}): {comp_client_order_id}"
+                 )
 
                  # --- Circuit Breaker Check (Per Attempt) ---
                  if self.circuit_breaker_system:
@@ -1051,7 +1079,7 @@ class ExecutionHandler:
                          f"{compensating_order.id} placed but status is "
                          f"{compensating_order.status.name}. Needs monitoring."
                      )
-                     # TODO: Implement monitoring for compensation orders or handle failure explicitly
+                     # TODO: Implement monitoring for compensation orders or handle failure
                      # Treat as failed for now if not immediately filled
                      return False
                  else:
@@ -1221,7 +1249,8 @@ class ExecutionHandler:
                 logger.warning(
                     f"Execution {execution.id}: Missing required data for PnL calculation. "
                     f"IDs: ({long_id}, {short_id}), Long Fill: ({long_filled_qty_raw} @ "
-                    f"{long_avg_price_raw}), Short Fill: ({short_filled_qty_raw} @ {short_avg_price_raw})"
+                    f"{long_avg_price_raw}), Short Fill: ({short_filled_qty_raw} @ "
+                    f"{short_avg_price_raw})"
                 )
                 return
 
@@ -1342,7 +1371,9 @@ class ExecutionHandler:
                 timestamp=order_timestamp_ms, # Pass integer timestamp
             )
             # self.portfolio_tracker.record_trade(trade) # Assuming this method exists
-            logger.debug(f"Execution {execution.id}: Recorded trade {trade.id} for order {order_id}")
+            logger.debug(
+                f"Execution {execution.id}: Recorded trade {trade.id} for order {order_id}"
+            )
         except Exception as e:
             logger.exception(
                 f"Execution {execution.id}: Failed to create or record Trade object "
@@ -1393,7 +1424,9 @@ class ExecutionHandler:
                     continue
 
                 current_status = order.status
-                logger.debug(f"Execution {execution.id}: Order {order_id} status: {current_status.name}")
+                logger.debug(
+                    f"Execution {execution.id}: Order {order_id} status: {current_status.name}"
+                )
                 # Corrected: Pass exchange_id to update_order
                 self.portfolio_tracker.update_order(exchange_id, order)
 

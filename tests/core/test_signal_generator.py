@@ -221,7 +221,8 @@ class TestSignalGenerator:
         # Set a fixed time for consistent testing
         fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_datetime.now.return_value = fixed_now
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw, tzinfo=UTC)
+        # Only add tzinfo if not already present in kwargs
+        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **{**kw, 'tzinfo': UTC} if 'tzinfo' not in kw else kw)
 
         # --- Initial Update --- Find internal symbols used
         hyperliquid_btc_internal = "BTC"  # Assumes internal symbol is BTC for hyperliquid
@@ -428,14 +429,16 @@ class TestSignalGenerator:
     ) -> None:
         """Test estimating slippage based on order size and liquidity."""
         # Test with default depth (mocked orderbook)
-        slippage = signal_generator.estimate_slippage("BTC", Decimal("10000"), "hyperliquid")
+        # Correct argument order: exchange, symbol, size
+        slippage = signal_generator.estimate_slippage("hyperliquid", "BTC", Decimal("10000"))
         # The actual calculation with mock orderbook might differ, adjust assertion if needed
         # For now, let's assume the logic yields a non-default value
         assert slippage > Decimal("0")
 
         # Test with zero/missing depth (should use default slippage)
         data_handler.get_orderbook.return_value = None
-        slippage = signal_generator.estimate_slippage("BTC", Decimal("10000"), "hyperliquid")
+        # Correct argument order: exchange, symbol, size
+        slippage = signal_generator.estimate_slippage("hyperliquid", "BTC", Decimal("10000"))
         # Assert against the observed behavior (MIN_SLIPPAGE),
         # though the reason requires investigation
         assert slippage == Decimal("1E-9")  # Changed from 0.001
@@ -444,8 +447,11 @@ class TestSignalGenerator:
         self, signal_generator: SignalGenerator, data_handler: MagicMock
     ) -> None:
         """Test generating arbitrage opportunities."""
-        # Call the method
-        opportunities = signal_generator.generate_opportunities()
+        # Mock necessary data for the call
+        mock_funding_data: dict[str, Any] = {} # Add mock data if needed for assertions
+        mock_market_data = MagicMock() # Use MagicMock or specific MarketData mock
+        # Call the method with correct name and args
+        opportunities = signal_generator.generate_arbitrage_opportunities(mock_funding_data, mock_market_data)
 
         # Verify opportunities were found
         assert len(opportunities) > 0
@@ -458,6 +464,7 @@ class TestSignalGenerator:
 
         # BTC has -0.01% on hyperliquid and 0.02% on backpack
         # Net funding differential should be 0.03%
+        assert btc_opportunity.net_funding_differential is not None
         assert round(btc_opportunity.net_funding_differential, 4) == Decimal("0.03")
 
     def test_generate_opportunities_no_eligible(
@@ -507,7 +514,10 @@ class TestSignalGenerator:
         data_handler.get_funding_rate.side_effect = mock_low_funding
 
         # Call the method
-        opportunities = signal_generator.generate_opportunities()
+        # Mock necessary data for the call
+        mock_funding_data: dict[str, Any] = {} # Add mock data if needed for assertions
+        mock_market_data = MagicMock() # Use MagicMock or specific MarketData mock
+        opportunities = signal_generator.generate_arbitrage_opportunities(mock_funding_data, mock_market_data)
         assert len(opportunities) == 0
 
     def test_generate_opportunities_single_exchange(
@@ -524,7 +534,10 @@ class TestSignalGenerator:
         }.get(key, default)
 
         # Call the method
-        opportunities = signal_generator.generate_opportunities()
+        # Mock necessary data for the call
+        mock_funding_data: dict[str, Any] = {} # Add mock data if needed for assertions
+        mock_market_data = MagicMock() # Use MagicMock or specific MarketData mock
+        opportunities = signal_generator.generate_arbitrage_opportunities(mock_funding_data, mock_market_data)
 
         # Verify no opportunities were found (need at least two exchanges)
         assert len(opportunities) == 0
