@@ -100,7 +100,7 @@ class TestPortfolioTracker:
                     filled_quantity=Decimal("0.0"),
                     status=OrderStatus.NEW,
                     client_order_id="client-order-1",
-                    time=datetime.now(UTC) # Add time
+                    time=datetime.now(UTC),  # Add time
                 )
             ],
             "backpack": [
@@ -114,7 +114,7 @@ class TestPortfolioTracker:
                     filled_quantity=Decimal("5.0"),
                     status=OrderStatus.FILLED,
                     client_order_id="client-order-2",
-                    time=datetime.now(UTC) # Add time
+                    time=datetime.now(UTC),  # Add time
                 )
             ],
         }
@@ -170,7 +170,7 @@ class TestPortfolioTracker:
         # Verify orders were stored properly
         for exchange_id, orders in sample_orders.items():
             for order in orders:
-                stored_order = portfolio_tracker._orders[exchange_id].get(order.id) # Use 'id'
+                stored_order = portfolio_tracker._orders[exchange_id].get(order.id)  # Use 'id'
                 assert stored_order is not None
 
     @pytest.mark.asyncio
@@ -235,15 +235,15 @@ class TestPortfolioTracker:
         # Create a new order
         # Create a new order using correct field names
         order = Order(
-            id="test-order-1", # Use 'id'
+            id="test-order-1",  # Use 'id'
             symbol="BTC",
             side=OrderSide.BUY,
-            type=OrderType.LIMIT, # Use 'type'
+            type=OrderType.LIMIT,  # Use 'type'
             price=Decimal("50000.0"),
             quantity=Decimal("1.0"),
             filled_quantity=Decimal("0.0"),
             status=OrderStatus.NEW,
-            time=datetime.now(UTC), # Use 'time'
+            time=datetime.now(UTC),  # Use 'time'
             client_order_id="client-order-3",
         )
 
@@ -255,7 +255,7 @@ class TestPortfolioTracker:
         history = portfolio_tracker.get_order_history("hyperliquid")
         stored_order = next((o for o in history if o.id == "test-order-1"), None)
         assert stored_order is not None
-        assert stored_order.id == "test-order-1" # Use 'id'
+        assert stored_order.id == "test-order-1"  # Use 'id'
         assert stored_order.symbol == "BTC"
         assert stored_order.side == OrderSide.BUY
 
@@ -487,7 +487,7 @@ class TestPortfolioTracker:
         # Applying fix based on actual content and inferred signature
         cancelled_order = Order(
             id="hl-order-2",  # Use 'id'
-            type=OrderType.LIMIT, # Add 'type'
+            type=OrderType.LIMIT,  # Add 'type'
             symbol="BTC",
             side=OrderSide.SELL,
             price=Decimal("53000.0"),
@@ -573,12 +573,14 @@ class TestPortfolioTracker:
                 # Verify orders were restored by checking history
                 history = new_tracker.get_order_history(exchange_id)
                 restored_order = next((o for o in history if o.id == order.id), None)
-                assert restored_order is not None, f"Order {order.id} not found in history for {exchange_id}"
+                assert restored_order is not None, (
+                    f"Order {order.id} not found in history for {exchange_id}"
+                )
                 # Compare relevant fields (adjust as needed based on Order definition)
                 assert restored_order.symbol == order.symbol
                 assert restored_order.side == order.side
                 assert restored_order.type == order.type
                 assert restored_order.quantity == order.quantity
-                assert restored_order.price == order.price # Price might differ if market order
+                assert restored_order.price == order.price  # Price might differ if market order
                 assert restored_order.status == order.status
                 # assert restored_order.filled_quantity == order.filled_quantity # May change

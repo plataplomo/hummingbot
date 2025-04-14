@@ -158,7 +158,7 @@ class StrategyManager:
                     # which should interact with the risk_manager internally.
                     # The strategy should return the final, potentially sized, signal.
                     # No external sizing call needed here.
-                    signals.append(signal) # Append the signal returned by the strategy
+                    signals.append(signal)  # Append the signal returned by the strategy
             except Exception as e:
                 logger.error(f"Error processing data in strategy '{strategy_name}': {str(e)}")
 

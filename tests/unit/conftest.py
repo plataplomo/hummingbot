@@ -14,7 +14,7 @@ from cyberdelta.utils.config import Config
 class MockResponse:
     def __init__(
         self,
-        data: dict[str, Any] | list[Any] | str, # More specific than Any
+        data: dict[str, Any] | list[Any] | str,  # More specific than Any
         status: int = 200,
         headers: dict[str, str] | None = None,
         content_type: str = "application/json",
@@ -25,7 +25,7 @@ class MockResponse:
         self.content_type = content_type
         self._raise_for_status_called = False
 
-    async def json(self) -> dict[str, Any] | list[Any] | str: # Match data type hint
+    async def json(self) -> dict[str, Any] | list[Any] | str:  # Match data type hint
         return self._data
 
     async def text(self) -> str:
@@ -35,12 +35,14 @@ class MockResponse:
         return self
 
     async def __aexit__(
-        self, exc_type: type | None, exc_val: BaseException | None,
-        exc_tb: types.TracebackType | None
+        self,
+        exc_type: type | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
     ) -> None:
         pass
 
-    def raise_for_status(self) -> None: # Add return type hint
+    def raise_for_status(self) -> None:  # Add return type hint
         self._raise_for_status_called = True
         if self.status >= 400:
             raise aiohttp.ClientResponseError(
@@ -58,8 +60,10 @@ class MockClientSession:
         return self
 
     async def __aexit__(
-        self, exc_type: type | None, exc_val: BaseException | None,
-        exc_tb: types.TracebackType | None
+        self,
+        exc_type: type | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
     ) -> None:
         pass
 

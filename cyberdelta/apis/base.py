@@ -495,7 +495,7 @@ class ExchangeAPI(ABC):
                     continue
 
                 # Max retries exceeded
-                raise error from last_error # Chain the original connection/timeout error
+                raise error from last_error  # Chain the original connection/timeout error
 
         # This should typically not be reached due to the raise in the loop,
         # but as a fallback in case of unexpected flow:

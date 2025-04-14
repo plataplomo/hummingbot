@@ -143,7 +143,7 @@ class ExecutionContext:
         self.checkpoints = checkpoints
         self.end_time: datetime | None = None
         self.result: ExecutionResult | None = None
-        self.abort_reason: str | None = None # Add Optional hint
+        self.abort_reason: str | None = None  # Add Optional hint
 
 
 class OrderVerifier:
@@ -273,24 +273,24 @@ class OrderVerifier:
         )  # Access internal dict
 
         # Get order from exchange API
-        api_client = self.portfolio_tracker.api_clients.get(exchange) # Access dict directly
-        api_order: Order | None = None # Initialize
+        api_client = self.portfolio_tracker.api_clients.get(exchange)  # Access dict directly
+        api_order: Order | None = None  # Initialize
         if api_client:
             try:
                 api_order = await api_client.get_order(
                     order_id, local_order.symbol if local_order else None
                 )
             except AttributeError:
-                 logger.error(f"API client for {exchange} missing get_order method.")
-                 verification_success = False # Mark verification as failed
-                 verification_error = f"API client for {exchange} missing get_order method."
+                logger.error(f"API client for {exchange} missing get_order method.")
+                verification_success = False  # Mark verification as failed
+                verification_error = f"API client for {exchange} missing get_order method."
             except Exception as e:
-                 logger.error(f"Error fetching order {order_id} from {exchange} API: {e}")
-                 verification_success = False # Mark verification as failed
-                 verification_error = f"API error fetching order {order_id} from {exchange}: {e}"
+                logger.error(f"Error fetching order {order_id} from {exchange} API: {e}")
+                verification_success = False  # Mark verification as failed
+                verification_error = f"API error fetching order {order_id} from {exchange}: {e}"
         else:
             logger.error(f"API client not found for exchange {exchange}")
-            verification_success = False # Mark verification as failed
+            verification_success = False  # Mark verification as failed
             verification_error = f"API client not found for {exchange}"
 
         # Get recent fills
@@ -356,7 +356,7 @@ class ExecutionCoordinator:
     def __init__(self, config: dict[str, Any]) -> None:  # Add -> None
         """Initialize the execution coordinator."""
         self.config = config
-        self.executions: dict[str, ExecutionContext] = {} # Add type hint
+        self.executions: dict[str, ExecutionContext] = {}  # Add type hint
 
     async def start_execution(
         self, execution_id: str, opportunity: OpportunityType, strategy: str
@@ -477,7 +477,7 @@ class ExecutionCoordinator:
                 "duration_ms": (
                     (context.end_time - context.start_time).total_seconds() * 1000
                     if context.end_time is not None and context.start_time is not None
-                    else -1.0 # Indicate error or unknown duration
+                    else -1.0  # Indicate error or unknown duration
                 ),
             },
         )
@@ -751,7 +751,7 @@ class SynchronizedOrderSubmissionService:
                 placed_order = await first_api.place_order(
                     symbol=first_order.symbol,
                     side=first_order.side,
-                    order_type=first_order.type, # Use 'type'
+                    order_type=first_order.type,  # Use 'type'
                     quantity=first_order.quantity,
                     price=first_order.price,
                     time_in_force=first_order.time_in_force or TimeInForce.GTC,
@@ -764,18 +764,18 @@ class SynchronizedOrderSubmissionService:
                 await self.execution_coordinator.add_checkpoint(
                     execution_context,
                     "first_order_placed",
-                    {"order_id": placed_order.id, "order": placed_order.to_dict()}, # Use 'id'
+                    {"order_id": placed_order.id, "order": placed_order.to_dict()},  # Use 'id'
                 )
 
                 # Verify first order
                 order_verifier = OrderVerifier(self.config, self.portfolio_tracker)
                 verification_result = await order_verifier.verify_order_placement(
                     first_exchange,
-                    placed_order.id, # Use 'id'
+                    placed_order.id,  # Use 'id'
                     {
                         "symbol": first_order.symbol,
                         "side": first_order.side,
-                        "type": first_order.type, # Use 'type'
+                        "type": first_order.type,  # Use 'type'
                     },
                 )
 
@@ -829,7 +829,7 @@ class SynchronizedOrderSubmissionService:
                     second_placed_order = await second_api.place_order(
                         symbol=second_order.symbol,
                         side=second_order.side,
-                        order_type=second_order.type, # Use 'type'
+                        order_type=second_order.type,  # Use 'type'
                         quantity=second_order.quantity,
                         price=second_order.price,
                         time_in_force=second_order.time_in_force or TimeInForce.GTC,
@@ -843,7 +843,7 @@ class SynchronizedOrderSubmissionService:
                         execution_context,
                         "second_order_placed",
                         {
-                            "order_id": second_placed_order.id, # Use 'id'
+                            "order_id": second_placed_order.id,  # Use 'id'
                             "order": second_placed_order.to_dict(),
                         },
                     )
@@ -851,11 +851,11 @@ class SynchronizedOrderSubmissionService:
                     # Verify second order
                     second_verification = await order_verifier.verify_order_placement(
                         second_exchange,
-                        second_placed_order.id, # Use 'id'
+                        second_placed_order.id,  # Use 'id'
                         {
                             "symbol": second_order.symbol,
                             "side": second_order.side,
-                            "type": second_order.type, # Use 'type'
+                            "type": second_order.type,  # Use 'type'
                         },
                     )
 
@@ -921,7 +921,7 @@ class SynchronizedOrderSubmissionService:
             symbol_val = opportunity.symbol
             # Use optimal_size (assuming it represents the size for both legs)
             # and the direct price attributes
-            quantity_val = opportunity.optimal_size # Use optimal_size
+            quantity_val = opportunity.optimal_size  # Use optimal_size
             price_val = opportunity.long_price if leg_type == "long" else opportunity.short_price
         elif isinstance(opportunity, dict):
             # Handle dict case - assuming keys match ArbitrageOpportunity attributes
@@ -929,7 +929,9 @@ class SynchronizedOrderSubmissionService:
             # Use optimal_size and direct price keys for dict case
             quantity_val = opportunity.get("optimal_size")
             price_val = (
-                opportunity.get("long_price") if leg_type == "long" else opportunity.get("short_price")
+                opportunity.get("long_price")
+                if leg_type == "long"
+                else opportunity.get("short_price")
             )
         else:
             logger.error(
@@ -957,18 +959,18 @@ class SynchronizedOrderSubmissionService:
         order_type = OrderType.MARKET
 
         # Create the Order object - Add a placeholder or generated ID
-        order_id = str(uuid.uuid4()) # Generate a unique ID
+        order_id = str(uuid.uuid4())  # Generate a unique ID
 
         return Order(
-            id=order_id, # Provide the required 'id'
+            id=order_id,  # Provide the required 'id'
             symbol=symbol_val,
             side=OrderSide.BUY if leg_type == "long" else OrderSide.SELL,
             type=order_type,
             quantity=quantity_dec,
             price=price_dec,  # Pass Decimal or None
             status=OrderStatus.NEW,  # Provide required status
-            time=datetime.now(UTC), # Set creation time
-            avg_fill_price=None # Ensure all required fields are present
+            time=datetime.now(UTC),  # Set creation time
+            avg_fill_price=None,  # Ensure all required fields are present
         )
 
     async def _execute_simultaneous_with_verification(

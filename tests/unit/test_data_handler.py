@@ -56,7 +56,7 @@ class TestDataHandler:
         handler.register_api_client("backpack", mock_exchange_api)
 
         # Mock the API client's WebSocket methods
-        for _exchange_id, client in handler.api_clients.items(): # B007: Use _ for unused var
+        for _exchange_id, client in handler.api_clients.items():  # B007: Use _ for unused var
             client.connect_websocket = AsyncMock(return_value=MagicMock())
             client.subscribe_to_tickers = AsyncMock()
             client.subscribe_to_orderbooks = AsyncMock()
@@ -455,7 +455,7 @@ class TestDataHandler:
         """Test the WebSocket connection maintenance logic."""
         # Mock the config.get method to return test-friendly values
         data_handler.config.get = MagicMock(
-            side_effect=lambda key, default=None: { # type: ignore[misc] # Keep ignore for lambda
+            side_effect=lambda key, default=None: {  # type: ignore[misc] # Keep ignore for lambda
                 "exchanges.hyperliquid.enabled": True,
                 "exchanges.hyperliquid.symbols": ["BTC", "ETH"],
                 "exchanges.hyperliquid.websocket.reconnect_delay": 0.1,  # Short delay for testing
@@ -528,7 +528,9 @@ class TestDataHandler:
         """Test processing WebSocket messages."""
 
         # Mock config get method for ping interval
-        def mock_config_get(path: str, default: Any = None) -> float | None: # Specific to this mock's usage
+        def mock_config_get(
+            path: str, default: Any = None
+        ) -> float | None:  # Specific to this mock's usage
             if path.endswith(".websocket.ping_interval"):
                 return 0.5  # Short interval for testing
             return default
@@ -543,7 +545,7 @@ class TestDataHandler:
         # Mock the message reception - return a test message once, then no message
         messages_received = 0
 
-        async def mock_receive_message() -> dict[str, Any] | None: # Assuming dict or None return
+        async def mock_receive_message() -> dict[str, Any] | None:  # Assuming dict or None return
             nonlocal messages_received
             if messages_received == 0:
                 messages_received += 1

@@ -499,7 +499,7 @@ class DataHandler:
                         # Expecting only one rate when called with one symbol
                         if len(rates_list) == 1:
                             rate_data = rates_list[0]
-                            if rate_data: # Check if the rate object itself is valid
+                            if rate_data:  # Check if the rate object itself is valid
                                 all_rates_data.append(rate_data)
                                 self._update_funding_rate(exchange_id, symbol, rate_data)
                             else:
@@ -508,16 +508,18 @@ class DataHandler:
                                     f"on {exchange_id}"
                                 )
                         else:
-                             logger.warning(
-                                 f"Expected 1 funding rate for {symbol} on {exchange_id}, "
-                                 f"got {len(rates_list)}"
-                             )
+                            logger.warning(
+                                f"Expected 1 funding rate for {symbol} on {exchange_id}, "
+                                f"got {len(rates_list)}"
+                            )
                     else:
                         logger.warning(
                             f"No funding rate data returned for {symbol} on {exchange_id}"
                         )
                 except Exception as sym_e:
-                    logger.error(f"Failed to fetch funding rate for {symbol} on {exchange_id}: {sym_e}")
+                    logger.error(
+                        f"Failed to fetch funding rate for {symbol} on {exchange_id}: {sym_e}"
+                    )
             # Optional: Log summary after loop if needed
             # logger.debug(f"Processed {len(all_rates_data)} funding rates for {exchange_id}")
 

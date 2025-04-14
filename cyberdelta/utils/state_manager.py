@@ -269,8 +269,8 @@ class StateManager:
 
         # Explicitly check type before comparison as Mypy seems confused
         if not isinstance(expected_checksum, str):
-             self.logger.warning(f"Expected checksum is not a string: {type(expected_checksum)}")
-             return False # Or raise an error, depending on desired strictness
+            self.logger.warning(f"Expected checksum is not a string: {type(expected_checksum)}")
+            return False  # Or raise an error, depending on desired strictness
         # Return true if checksums match
         return expected_checksum == actual_checksum
 

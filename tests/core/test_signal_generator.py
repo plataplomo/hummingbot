@@ -222,7 +222,9 @@ class TestSignalGenerator:
         fixed_now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
         mock_datetime.now.return_value = fixed_now
         # Only add tzinfo if not already present in kwargs
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **{**kw, 'tzinfo': UTC} if 'tzinfo' not in kw else kw)
+        mock_datetime.side_effect = lambda *args, **kw: datetime(
+            *args, **{**kw, "tzinfo": UTC} if "tzinfo" not in kw else kw
+        )
 
         # --- Initial Update --- Find internal symbols used
         hyperliquid_btc_internal = "BTC"  # Assumes internal symbol is BTC for hyperliquid
@@ -448,10 +450,12 @@ class TestSignalGenerator:
     ) -> None:
         """Test generating arbitrage opportunities."""
         # Mock necessary data for the call
-        mock_funding_data: dict[str, Any] = {} # Add mock data if needed for assertions
-        mock_market_data = MagicMock() # Use MagicMock or specific MarketData mock
+        mock_funding_data: dict[str, Any] = {}  # Add mock data if needed for assertions
+        mock_market_data = MagicMock()  # Use MagicMock or specific MarketData mock
         # Call the method with correct name and args
-        opportunities = signal_generator.generate_arbitrage_opportunities(mock_funding_data, mock_market_data)
+        opportunities = signal_generator.generate_arbitrage_opportunities(
+            mock_funding_data, mock_market_data
+        )
 
         # Verify opportunities were found
         assert len(opportunities) > 0
@@ -515,9 +519,11 @@ class TestSignalGenerator:
 
         # Call the method
         # Mock necessary data for the call
-        mock_funding_data: dict[str, Any] = {} # Add mock data if needed for assertions
-        mock_market_data = MagicMock() # Use MagicMock or specific MarketData mock
-        opportunities = signal_generator.generate_arbitrage_opportunities(mock_funding_data, mock_market_data)
+        mock_funding_data: dict[str, Any] = {}  # Add mock data if needed for assertions
+        mock_market_data = MagicMock()  # Use MagicMock or specific MarketData mock
+        opportunities = signal_generator.generate_arbitrage_opportunities(
+            mock_funding_data, mock_market_data
+        )
         assert len(opportunities) == 0
 
     def test_generate_opportunities_single_exchange(
@@ -535,9 +541,11 @@ class TestSignalGenerator:
 
         # Call the method
         # Mock necessary data for the call
-        mock_funding_data: dict[str, Any] = {} # Add mock data if needed for assertions
-        mock_market_data = MagicMock() # Use MagicMock or specific MarketData mock
-        opportunities = signal_generator.generate_arbitrage_opportunities(mock_funding_data, mock_market_data)
+        mock_funding_data: dict[str, Any] = {}  # Add mock data if needed for assertions
+        mock_market_data = MagicMock()  # Use MagicMock or specific MarketData mock
+        opportunities = signal_generator.generate_arbitrage_opportunities(
+            mock_funding_data, mock_market_data
+        )
 
         # Verify no opportunities were found (need at least two exchanges)
         assert len(opportunities) == 0

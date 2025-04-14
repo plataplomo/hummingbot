@@ -30,7 +30,7 @@ def create_mock_order(
     return Order(
         symbol="BTC-PERP",
         id="mock_order_id",  # Added default ID
-        type=OrderType.LIMIT if price else OrderType.MARKET, # Added type based on price
+        type=OrderType.LIMIT if price else OrderType.MARKET,  # Added type based on price
         side=side,
         price=price,
         quantity=quantity,

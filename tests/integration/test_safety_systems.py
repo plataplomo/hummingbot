@@ -47,17 +47,17 @@ from tests.integration.mocks.mock_exchange import MockExchangeAPI  # Added MockE
 
 @pytest.mark.asyncio
 async def test_circuit_breaker_global_halts_execution(
-    mock_config: Config, # Added type
+    mock_config: Config,  # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
-    data_handler: DataHandler, # Added type
-    signal_generator: SignalGenerator, # Added type
-    risk_manager: RiskManager, # Added type
+    data_handler: DataHandler,  # Added type
+    signal_generator: SignalGenerator,  # Added type
+    risk_manager: RiskManager,  # Added type
     execution_handler: ExecutionHandler,
     circuit_breaker_system: CircuitBreakerSystem,
     basic_opportunity: ArbitrageOpportunity,
-) -> None: # Added return type
+) -> None:  # Added return type
     """Tests that a globally open circuit breaker prevents new executions."""
     # 1. Setup - Basic state, no initial errors
     mock_bp_api.reset()
@@ -131,17 +131,17 @@ async def test_circuit_breaker_global_halts_execution(
 
 @pytest.mark.asyncio
 async def test_circuit_breaker_exchange_halts_execution(
-    mock_config: Config, # Added type
+    mock_config: Config,  # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
-    data_handler: DataHandler, # Added type
-    signal_generator: SignalGenerator, # Added type
-    risk_manager: RiskManager, # Added type
+    data_handler: DataHandler,  # Added type
+    signal_generator: SignalGenerator,  # Added type
+    risk_manager: RiskManager,  # Added type
     execution_handler: ExecutionHandler,
     circuit_breaker_system: CircuitBreakerSystem,
     basic_opportunity: ArbitrageOpportunity,
-) -> None: # Added return type and colon
+) -> None:  # Added return type and colon
     """Tests that an open exchange circuit breaker prevents executions involving that exchange."""
     # 1. Setup - Basic state, no initial errors
     mock_bp_api.reset()
@@ -228,15 +228,15 @@ async def test_circuit_breaker_exchange_halts_execution(
 
 @pytest.mark.asyncio
 async def test_funding_rate_validator_reduces_size(
-    mock_config: Config, # Added type
+    mock_config: Config,  # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
-    data_handler: DataHandler, # Added type
+    data_handler: DataHandler,  # Added type
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
     basic_opportunity: ArbitrageOpportunity,
-) -> None: # Added return type
+) -> None:  # Added return type
     """Tests that poor validation metrics reduce the calculated position size."""
     # === ADDED Setup ===
     # Ensure APIs are registered on the tracker
@@ -325,12 +325,12 @@ async def test_funding_rate_validator_reduces_size(
 
 @pytest.mark.asyncio
 async def test_position_reconciler_detects_discrepancy(
-    mock_config: Config, # Added type
+    mock_config: Config,  # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     real_portfolio_tracker: PortfolioTracker,
-    position_reconciler: PositionReconciliationSystem, # Added type
-) -> None: # Added return type
+    position_reconciler: PositionReconciliationSystem,  # Added type
+) -> None:  # Added return type
     """Tests that the PositionReconciliationSystem identifies discrepancies."""
     # === ADDED: Modify config for this test ===
     # Ensure reconciler only checks the mock exchanges used in this test

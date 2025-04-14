@@ -50,7 +50,7 @@ class BacktestStrategy(ABC):
         """
         # pass # Removed pass
         self.initialized = True
-        return True # Add placeholder return for ABC
+        return True  # Add placeholder return for ABC
 
     @abstractmethod
     def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:

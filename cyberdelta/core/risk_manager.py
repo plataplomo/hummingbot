@@ -93,7 +93,7 @@ class RiskManager:
         portfolio_tracker: PortfolioTracker,
         circuit_breaker_system: CircuitBreakerSystem | None = None,
         # TODO: Replace Any with a more specific validator type if possible
-        funding_rate_validator: Any | None = None, # ANN401: Leaving Any as per constraints
+        funding_rate_validator: Any | None = None,  # ANN401: Leaving Any as per constraints
     ) -> None:
         """
         Initialize the risk manager.
@@ -112,17 +112,13 @@ class RiskManager:
 
         # Load GLOBAL risk parameters from config (ensure Decimal where appropriate)
         # Use the specific keys expected by tests and intended logic
-        self.max_position_size = Decimal(
-            str(config.get("risk.global.max_position_usd", "1000.0"))
-        )
+        self.max_position_size = Decimal(str(config.get("risk.global.max_position_usd", "1000.0")))
         self.max_total_exposure = Decimal(
             str(config.get("risk.global.max_total_exposure_usd", "5000.0"))
         )
         # Kelly fraction is used in calculations with Decimal, convert upfront?
         # Convert kelly_fraction to Decimal for consistency in calculations
-        self.kelly_fraction: Decimal = Decimal(
-            str(config.get("risk.kelly_fraction", 0.5))
-        )
+        self.kelly_fraction: Decimal = Decimal(str(config.get("risk.kelly_fraction", 0.5)))
         self.max_collateral_per_exchange: Decimal = Decimal(
             str(config.get("risk.max_collateral_per_exchange", 0.8))
         )
@@ -155,15 +151,9 @@ class RiskManager:
         )
 
         # Validation metric thresholds - ensure Decimal
-        self.max_acceptable_rmse = Decimal(
-            str(config.get("risk.max_acceptable_rmse", 0.05))
-        )
-        self.max_acceptable_bias = Decimal(
-            str(config.get("risk.max_acceptable_bias", 0.02))
-        )
-        self.min_validation_factor = Decimal(
-            str(config.get("risk.min_validation_factor", 0.2))
-        )
+        self.max_acceptable_rmse = Decimal(str(config.get("risk.max_acceptable_rmse", 0.05)))
+        self.max_acceptable_bias = Decimal(str(config.get("risk.max_acceptable_bias", 0.02)))
+        self.min_validation_factor = Decimal(str(config.get("risk.min_validation_factor", 0.2)))
 
         # Exchange-specific risk modifiers (used to be more conservative on certain exchanges)
         self.exchange_risk_modifiers: dict[str, float] = {}
@@ -217,8 +207,8 @@ class RiskManager:
 
         # Ensure required fields are present and valid
         if (
-            getattr(opportunity, 'expected_return', None) is None
-            or getattr(opportunity, 'basis_volatility', None) is None
+            getattr(opportunity, "expected_return", None) is None
+            or getattr(opportunity, "basis_volatility", None) is None
             or opportunity.long_exchange is None
             or opportunity.short_exchange is None
         ):
@@ -232,8 +222,8 @@ class RiskManager:
         try:
             # Convert expected return (percentage) and volatility to Decimal
             # Use getattr with default ZERO for safe conversion
-            expected_return_raw = getattr(opportunity, 'expected_return', ZERO)
-            basis_volatility_raw = getattr(opportunity, 'basis_volatility', ZERO)
+            expected_return_raw = getattr(opportunity, "expected_return", ZERO)
+            basis_volatility_raw = getattr(opportunity, "basis_volatility", ZERO)
             expected_return_dec = Decimal(str(expected_return_raw))
             basis_volatility_dec = Decimal(str(basis_volatility_raw))
 
@@ -262,21 +252,19 @@ class RiskManager:
 
             # Kelly formula: f* = edge / odds = expected_return / variance
             # We use a fraction of Kelly (self.kelly_fraction)
-            if variance <= ZERO: # Avoid division by zero
-                 self.logger.warning(
+            if variance <= ZERO:  # Avoid division by zero
+                self.logger.warning(
                     f"Variance is zero or negative ({variance}) for {opportunity.symbol}. "
                     "Cannot calculate Kelly fraction."
-                 )
-                 return ZERO
+                )
+                return ZERO
 
             kelly_fraction = expected_return_dec / variance
             optimal_fraction = kelly_fraction * self.kelly_fraction
 
             # Clamp fraction between 0 and 1 (or a max allocation limit)
             # Using max_single_position_exposure as the upper limit per trade
-            clamped_fraction = max(
-                ZERO, min(optimal_fraction, self.max_single_position_exposure)
-            )
+            clamped_fraction = max(ZERO, min(optimal_fraction, self.max_single_position_exposure))
 
             # Calculate position size in USD
             position_size = clamped_fraction * total_capital
@@ -348,7 +336,7 @@ class RiskManager:
 
         # 4. Max Portfolio Leverage
         # Leverage = Total Exposure / Total Capital
-        if total_capital > ZERO: # Avoid division by zero
+        if total_capital > ZERO:  # Avoid division by zero
             projected_leverage = (current_exposure + proposed_size) / total_capital
             if projected_leverage > self.max_leverage:
                 return (
@@ -404,24 +392,23 @@ class RiskManager:
             or long_balance.available is None
             or long_balance.available < self.min_exchange_balance
         ):
-             return (
-                 False,
-                 f"Insufficient available balance on {long_ex} "
-                 f"(Have: ${long_balance.available if long_balance else 'N/A'}, "
-                 f"Min: ${self.min_exchange_balance})",
-             )
+            return (
+                False,
+                f"Insufficient available balance on {long_ex} "
+                f"(Have: ${long_balance.available if long_balance else 'N/A'}, "
+                f"Min: ${self.min_exchange_balance})",
+            )
         if (
             short_balance is None
             or short_balance.available is None
             or short_balance.available < self.min_exchange_balance
         ):
-             return (
-                 False,
-                 f"Insufficient available balance on {short_ex} "
-                 f"(Have: ${short_balance.available if short_balance else 'N/A'}, "
-                 f"Min: ${self.min_exchange_balance})",
-             )
-
+            return (
+                False,
+                f"Insufficient available balance on {short_ex} "
+                f"(Have: ${short_balance.available if short_balance else 'N/A'}, "
+                f"Min: ${self.min_exchange_balance})",
+            )
 
         # TODO: Add checks for collateral requirements, liquidation buffers if possible
 
@@ -576,7 +563,6 @@ class RiskManager:
                 f"Short ${sized_opportunity.short_size:.2f}",
             )
 
-
         # Potentially add other portfolio-level adjustments here
 
         return sized_opportunity
@@ -603,8 +589,7 @@ class RiskManager:
             metrics = self.funding_rate_validator.get_symbol_metrics(exchange, symbol)
             if not metrics:
                 self.logger.warning(
-                    f"No validation metrics found for {exchange}/{symbol}. "
-                    f"Using factor 1.0.",
+                    f"No validation metrics found for {exchange}/{symbol}. Using factor 1.0.",
                 )
                 return ONE
                 # Mypy L755: Unreachable code removed (was after return)
@@ -620,8 +605,8 @@ class RiskManager:
                 # Example penalty
                 factor -= (rmse - self.max_acceptable_rmse) * Decimal("5.0")
             if abs(bias) > self.max_acceptable_bias:
-                 # Penalize more heavily the further bias is above threshold
-                 # Example penalty
+                # Penalize more heavily the further bias is above threshold
+                # Example penalty
                 factor -= (abs(bias) - self.max_acceptable_bias) * Decimal("10.0")
 
             # Ensure factor is within [min_validation_factor, 1.0]
@@ -638,7 +623,7 @@ class RiskManager:
                 f"Error retrieving validation metrics for {exchange}/{symbol}: {e}. "
                 f"Using factor {self.min_validation_factor}.",
             )
-            return self.min_validation_factor # Return minimum factor on error
+            return self.min_validation_factor  # Return minimum factor on error
 
     def size_opportunity(self, opportunity: ArbitrageOpportunity) -> SizedOpportunity | None:
         """
@@ -660,9 +645,7 @@ class RiskManager:
         # 2. Get Total Capital
         total_capital = self.portfolio_tracker.get_total_capital()
         if total_capital is None or total_capital <= ZERO:
-            self.logger.warning(
-                "Cannot size opportunity: Total capital unavailable or zero."
-            )
+            self.logger.warning("Cannot size opportunity: Total capital unavailable or zero.")
             return None
 
         # 3. Calculate Initial Kelly Size
@@ -670,9 +653,7 @@ class RiskManager:
         if initial_size_usd <= ZERO:
             # Logging is done within _calculate_kelly_size
             return None
-        self.logger.debug(
-            f"Initial Kelly size for {opportunity.symbol}: ${initial_size_usd:.2f}"
-        )
+        self.logger.debug(f"Initial Kelly size for {opportunity.symbol}: ${initial_size_usd:.2f}")
 
         # 4. Apply Validation Metrics Modifier (if validator exists)
         long_validation_factor = self._get_validation_metrics(
@@ -697,18 +678,15 @@ class RiskManager:
                 )
                 return None
             self.logger.debug(
-                f"Size after validation factor for {opportunity.symbol}: "
-                f"${initial_size_usd:.2f}"
+                f"Size after validation factor for {opportunity.symbol}: ${initial_size_usd:.2f}"
             )
-
 
         # 5. Check Portfolio Constraints
         # Use the initial_size_usd (potentially reduced by validation) for checks
         is_valid, reason = self._check_portfolio_constraints(initial_size_usd, opportunity)
         if not is_valid:
             self.logger.info(
-                f"Opportunity {opportunity.symbol} rejected due to portfolio constraints: "
-                f"{reason}",
+                f"Opportunity {opportunity.symbol} rejected due to portfolio constraints: {reason}",
             )
             return None
 
@@ -733,24 +711,23 @@ class RiskManager:
         #         f"Cannot check per-trade leverage for {opportunity.symbol}: Missing prices."
         #     )
 
-
         # 8. Calculate Expected Profit & Return (Based on Final Size)
         # Assuming profit scales linearly with size (simplification)
         # Need original expected return percentage
         # Mypy L221/L228/L234/L294: Accessing expected_return which might not exist
         # Need to handle potential AttributeError if ArbitrageOpportunity changes
-        original_expected_return = getattr(opportunity, 'expected_return', ZERO)
+        original_expected_return = getattr(opportunity, "expected_return", ZERO)
         if not isinstance(original_expected_return, Decimal):
-             original_expected_return = Decimal(str(original_expected_return))
+            original_expected_return = Decimal(str(original_expected_return))
 
-        expected_profit = final_long_size * original_expected_return # Approx profit in USD
-        expected_return_pct = original_expected_return # Percentage return remains same
+        expected_profit = final_long_size * original_expected_return  # Approx profit in USD
+        expected_return_pct = original_expected_return  # Percentage return remains same
 
         # 9. Calculate Risk-Adjusted Return (Placeholder)
         # Requires a risk measure (e.g., volatility, VaR) associated with the opportunity
         # risk_measure = Decimal(str(opportunity.basis_volatility)) # Example using volatility
         # risk_adjusted_return = expected_return_pct / risk_measure if risk_measure > ZERO else ZERO
-        risk_adjusted_return = expected_return_pct # Placeholder: Use simple return for now
+        risk_adjusted_return = expected_return_pct  # Placeholder: Use simple return for now
 
         # 10. Create SizedOpportunity object
         sized_opportunity = SizedOpportunity(
@@ -769,15 +746,12 @@ class RiskManager:
         final_sized_opportunity = self._apply_portfolio_level_controls(sized_opportunity)
 
         if final_sized_opportunity:
-            self.logger.info(
-                f"Successfully sized opportunity: {final_sized_opportunity}"
-            )
+            self.logger.info(f"Successfully sized opportunity: {final_sized_opportunity}")
         else:
-             # Logging done within _apply_portfolio_level_controls
-             pass
+            # Logging done within _apply_portfolio_level_controls
+            pass
 
         return final_sized_opportunity
-
 
     def validate_opportunity(self, opportunity: ArbitrageOpportunity) -> bool:
         """
@@ -795,9 +769,7 @@ class RiskManager:
         try:
             opportunity.validate_required_fields()
         except ValueError as e:
-            self.logger.warning(
-                f"Opportunity validation failed for {opportunity.symbol}: {e}"
-            )
+            self.logger.warning(f"Opportunity validation failed for {opportunity.symbol}: {e}")
             return False
 
         # 2. Check Profitability (Net Funding Differential vs Threshold)
@@ -831,33 +803,31 @@ class RiskManager:
         try:
             # Ensure prices are Decimal before comparison
             long_price = (
-                Decimal(str(opportunity.long_price))
-                if opportunity.long_price is not None else None
+                Decimal(str(opportunity.long_price)) if opportunity.long_price is not None else None
             )
             short_price = (
                 Decimal(str(opportunity.short_price))
-                if opportunity.short_price is not None else None
+                if opportunity.short_price is not None
+                else None
             )
             if long_price is None or long_price <= ZERO:
                 self.logger.warning(
-                    f"Invalid long entry price ({long_price}) for "
-                    f"{opportunity.symbol}"
+                    f"Invalid long entry price ({long_price}) for {opportunity.symbol}"
                 )
                 return False
             if short_price is None or short_price <= ZERO:
                 self.logger.warning(
-                    f"Invalid short entry price ({short_price}) for "
-                    f"{opportunity.symbol}"
+                    f"Invalid short entry price ({short_price}) for {opportunity.symbol}"
                 )
                 return False
         except (InvalidOperation, TypeError) as e:
-             self.logger.error(f"Error converting prices for {opportunity.symbol}: {e}")
-             return False
-
+            self.logger.error(f"Error converting prices for {opportunity.symbol}: {e}")
+            return False
 
         # 5. Check Exchange Balances (Minimum required)
         long_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
-            opportunity.long_exchange, "USD" # Assuming check against USD balance
+            opportunity.long_exchange,
+            "USD",  # Assuming check against USD balance
         )
         short_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
             opportunity.short_exchange, "USD"
@@ -875,7 +845,7 @@ class RiskManager:
                 else ZERO
             )
             min_balance_dec = (
-                self.min_exchange_balance # Already Decimal
+                self.min_exchange_balance  # Already Decimal
             )
 
             if long_balance_dec < min_balance_dec:
@@ -886,32 +856,31 @@ class RiskManager:
                 )
                 return False
             if short_balance_dec < min_balance_dec:
-                 self.logger.warning(
+                self.logger.warning(
                     f"Insufficient balance on {opportunity.short_exchange} "
                     f"(${short_balance_dec:.2f}) for opportunity {opportunity.symbol}. "
                     f"Min required: ${min_balance_dec:.2f}",
                 )
-                 return False
+                return False
         except (InvalidOperation, TypeError) as e:
-             self.logger.error(f"Error converting balances for {opportunity.symbol}: {e}")
-             return False
-
+            self.logger.error(f"Error converting balances for {opportunity.symbol}: {e}")
+            return False
 
         # 6. Check Total Exposure vs Capital (Leverage Sanity)
         total_capital = self.portfolio_tracker.get_total_capital()
         if total_capital is None or total_capital <= ZERO:
-             self.logger.warning(
-                 f"Cannot validate leverage for {opportunity.symbol}: Capital unavailable."
-             )
-             # Allow opportunity if capital is unavailable? Or reject? Reject for safety.
-             return False
+            self.logger.warning(
+                f"Cannot validate leverage for {opportunity.symbol}: Capital unavailable."
+            )
+            # Allow opportunity if capital is unavailable? Or reject? Reject for safety.
+            return False
 
         try:
             total_exposure_dec = (
-                self.calculate_total_exposure() # Already Decimal
+                self.calculate_total_exposure()  # Already Decimal
             )
             max_exposure_dec = (
-                total_capital * self.max_leverage # Already Decimal
+                total_capital * self.max_leverage  # Already Decimal
             )
             if total_exposure_dec > max_exposure_dec:
                 self.logger.warning(
@@ -922,9 +891,8 @@ class RiskManager:
                 )
                 return False
         except (InvalidOperation, TypeError) as e:
-             self.logger.error(f"Error checking leverage for {opportunity.symbol}: {e}")
-             return False
-
+            self.logger.error(f"Error checking leverage for {opportunity.symbol}: {e}")
+            return False
 
         # TODO: Add more validation steps as needed
         # - Liquidity checks?
@@ -1014,7 +982,7 @@ class RiskManager:
         for exchange in summary["active_exchanges"]:
             # TODO: Reinstate when PortfolioTracker.get_total_exposure_by_exchange exists
             # exp = self.portfolio_tracker.get_total_exposure_by_exchange(exchange)
-            exp = ZERO # Placeholder
+            exp = ZERO  # Placeholder
             # summary["exposure_by_exchange"] is already initialized as dict
             summary["exposure_by_exchange"][exchange] = f"{exp:.2f}"
 
@@ -1022,45 +990,43 @@ class RiskManager:
         all_positions = self.portfolio_tracker.get_all_positions()
         asset_exposures: dict[str, Decimal] = {}
         # Iterate over the list of (exchange_id, position) tuples
-        if all_positions: # Check if the list is not empty
+        if all_positions:  # Check if the list is not empty
             for exchange_id, position in all_positions:
                 # Ensure position is a valid Position object with necessary attributes
                 if (
-                    isinstance(position, Position) # Explicit type check recommended
-                    and hasattr(position, 'symbol')
-                    and hasattr(position, 'size')
-                    and hasattr(position, 'entry_price')
-                    and position.symbol is not None # Check attributes are not None
+                    isinstance(position, Position)  # Explicit type check recommended
+                    and hasattr(position, "symbol")
+                    and hasattr(position, "size")
+                    and hasattr(position, "entry_price")
+                    and position.symbol is not None  # Check attributes are not None
                     and position.size is not None
                     and position.entry_price is not None
                 ):
                     try:
-                        base_asset = position.symbol.split("-")[0] # Simple split
+                        base_asset = position.symbol.split("-")[0]  # Simple split
                         position_value = abs(
-                            Decimal(str(position.size))
-                            * Decimal(str(position.entry_price))
-                        ) # Use abs for total exposure
+                            Decimal(str(position.size)) * Decimal(str(position.entry_price))
+                        )  # Use abs for total exposure
                         # asset_exposures is already initialized as dict
                         asset_exposures[base_asset] = (
                             asset_exposures.get(base_asset, ZERO) + position_value
                         )
                     except (InvalidOperation, TypeError, IndexError) as e:
-                         logger.warning(
+                        logger.warning(
                             f"Could not calculate exposure for position on {exchange_id} "
                             f"(Symbol: {getattr(position, 'symbol', 'N/A')}, "
                             f"Size: {getattr(position, 'size', 'N/A')}, "
                             f"Price: {getattr(position, 'entry_price', 'N/A')}). Error: {e}"
-                         )
+                        )
                 else:
                     logger.warning(
                         f"Skipping malformed or incomplete position data from {exchange_id} "
                         f"for exposure calculation: {position}"
                     )
 
-
         for asset, exp in asset_exposures.items():
-             # summary["exposure_by_asset"] is already initialized as dict
-                summary["exposure_by_asset"][asset] = f"{exp:.2f}"
+            # summary["exposure_by_asset"] is already initialized as dict
+            summary["exposure_by_asset"][asset] = f"{exp:.2f}"
 
         # Mypy fix [attr-defined]: Remove volatility references
         # summary["asset_volatility"] = "N/A" # self.portfolio_tracker.get_asset_volatility(...)
@@ -1099,15 +1065,17 @@ class RiskManager:
         found_position = False
         all_positions = self.portfolio_tracker.get_all_positions()
 
-        if all_positions: # Check if the list is not empty
+        if all_positions:  # Check if the list is not empty
             for exchange_id, position in all_positions:
                 # Check if this position matches the requested symbol
                 if isinstance(position, Position) and position.symbol == symbol:
                     found_position = True
                     # Ensure position object has expected attributes for calculation
                     if (
-                        hasattr(position, 'size') and position.size is not None and
-                        hasattr(position, 'entry_price') and position.entry_price is not None
+                        hasattr(position, "size")
+                        and position.size is not None
+                        and hasattr(position, "entry_price")
+                        and position.entry_price is not None
                         # Mark price is optional but preferred
                     ):
                         try:
@@ -1133,20 +1101,21 @@ class RiskManager:
                             f"{exchange_id}. Cannot calculate exposure for this leg."
                         )
 
-
-        return total_exposure if found_position else ZERO # Return 0 if no position found
+        return total_exposure if found_position else ZERO  # Return 0 if no position found
 
     def calculate_total_exposure(self) -> Decimal:
         """Calculate the total USD exposure across all positions."""
         total_exposure = ZERO
         all_positions = self.portfolio_tracker.get_all_positions()
-        if all_positions: # Check if the list is not empty
+        if all_positions:  # Check if the list is not empty
             for exchange_id, position in all_positions:
                 # Ensure position is valid and has necessary attributes
                 if (
                     isinstance(position, Position)
-                    and hasattr(position, 'size') and position.size is not None
-                    and hasattr(position, 'entry_price') and position.entry_price is not None
+                    and hasattr(position, "size")
+                    and position.size is not None
+                    and hasattr(position, "entry_price")
+                    and position.entry_price is not None
                     # Mark price is optional but preferred
                 ):
                     try:
@@ -1172,18 +1141,17 @@ class RiskManager:
                         f"Skipping malformed or incomplete position data from {exchange_id} "
                         f"in total exposure calculation: {position}"
                     )
-                        #     )
+                    #     )
 
         return total_exposure
         # Mypy L1360: Unreachable code removed (was after return)
-
 
     def calculate_required_margin(
         self, symbol: str, size: Decimal, price: Decimal, leverage: Decimal
     ) -> Decimal:
         """Calculate the required margin for a position."""
         if leverage <= ZERO:
-            return size * price # 1x leverage requires full notional value
+            return size * price  # 1x leverage requires full notional value
         return (size * price) / leverage
 
     def evaluate_liquidation_risk(self, symbol: str) -> Decimal | None:
@@ -1200,26 +1168,22 @@ class RiskManager:
         # Find the position for the given symbol across all exchanges
         position = None
         all_positions = self.portfolio_tracker.get_all_positions()
-        if all_positions: # Check if the list is not empty
-            for _exchange_id, pos in all_positions: # Iterate through (exchange, position) tuples
+        if all_positions:  # Check if the list is not empty
+            for _exchange_id, pos in all_positions:  # Iterate through (exchange, position) tuples
                 if isinstance(pos, Position) and pos.symbol == symbol:
                     # Found the first position matching the symbol
                     position = pos
-                    break # Found the position, stop searching
+                    break  # Found the position, stop searching
 
         # Check if position was found and has necessary attributes
         # Check if position was found and has necessary attributes
         # Check if position was found and has necessary price attributes
-        if (
-            position is None or
-            position.liquidation_price is None or
-            position.mark_price is None
-        ):
-             self.logger.debug(
-                 f"Liquidation risk check skipped for {symbol}: "
-                 "Position or required prices not found."
-             )
-             return None
+        if position is None or position.liquidation_price is None or position.mark_price is None:
+            self.logger.debug(
+                f"Liquidation risk check skipped for {symbol}: "
+                "Position or required prices not found."
+            )
+            return None
 
         try:
             # Ensure prices are Decimal
@@ -1227,22 +1191,19 @@ class RiskManager:
             mark_price = Decimal(str(position.mark_price))
 
             if mark_price <= ZERO:
-                return None # Avoid division by zero
+                return None  # Avoid division by zero
 
             # Calculate distance to liquidation as a percentage of mark price
             distance_pct = abs(mark_price - liq_price) / mark_price
 
             # Lower distance_pct means higher risk. Invert to make higher value = higher risk?
             # Example: Risk Factor = 1 / distance_pct (handle distance_pct = 0)
-            risk_factor = (
-                ONE / distance_pct if distance_pct > ZERO else Decimal('inf')
-            )
+            risk_factor = ONE / distance_pct if distance_pct > ZERO else Decimal("inf")
             return risk_factor
 
         except (InvalidOperation, TypeError, AttributeError) as e:
             logger.error(f"Error evaluating liquidation risk for {symbol}: {e}")
             return None
-
 
     def is_opportunity_profitable(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check if the net funding differential meets the minimum threshold."""
@@ -1266,11 +1227,10 @@ class RiskManager:
             )
             return False
 
-
     def adjust_order_size(self, symbol: str, requested_size: Decimal) -> Decimal:
         """Placeholder for adjusting order size based on liquidity, order book depth, etc."""
         # TODO: Implement logic based on order book, recent volume, etc.
-        return requested_size # No adjustment for now
+        return requested_size  # No adjustment for now
 
     def perform_sanity_checks(self) -> bool:
         """
@@ -1285,7 +1245,7 @@ class RiskManager:
         # Check 1: Leverage
         total_capital = self.portfolio_tracker.get_total_capital()
         total_exposure = self.calculate_total_exposure()
-        sanity_leverage_limit = self.max_leverage * Decimal("1.5") # Example: 50% buffer
+        sanity_leverage_limit = self.max_leverage * Decimal("1.5")  # Example: 50% buffer
 
         if total_capital is not None and total_capital > ZERO:
             leverage = total_exposure / total_capital
@@ -1303,11 +1263,11 @@ class RiskManager:
 
         # Check 2: Drawdown (if available)
         current_drawdown = self.portfolio_tracker.get_current_drawdown()
-        sanity_drawdown_limit = self.max_drawdown_limit * Decimal("1.5") # Example: 50% buffer
+        sanity_drawdown_limit = self.max_drawdown_limit * Decimal("1.5")  # Example: 50% buffer
 
         if current_drawdown is not None:
-             self.logger.info(f"Sanity Check: Current Drawdown = {current_drawdown:.2%}")
-             if current_drawdown > sanity_drawdown_limit:
+            self.logger.info(f"Sanity Check: Current Drawdown = {current_drawdown:.2%}")
+            if current_drawdown > sanity_drawdown_limit:
                 self.logger.error(
                     f"Sanity Check FAIL: Portfolio drawdown {current_drawdown:.2%} exceeds "
                     f"sanity limit {sanity_drawdown_limit:.2%}!",

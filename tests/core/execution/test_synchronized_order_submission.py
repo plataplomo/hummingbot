@@ -73,7 +73,7 @@ class TestOrderVerifier:
         # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         sample_filled_order = Order(
             id="test-order-1",
-            type=OrderType.LIMIT, # Added positional 'type'
+            type=OrderType.LIMIT,  # Added positional 'type'
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
@@ -94,7 +94,7 @@ class TestOrderVerifier:
         # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         mock_api_order = Order(
             id="exchange-order-id-1",
-            type=OrderType.LIMIT, # Added positional 'type'
+            type=OrderType.LIMIT,  # Added positional 'type'
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             quantity=Decimal("1.0"),
@@ -149,7 +149,7 @@ class TestOrderVerifier:
         # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         mock_local_order = Order(
             id="test-order-1",
-            type=OrderType.LIMIT, # Added positional 'type'
+            type=OrderType.LIMIT,  # Added positional 'type'
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             status=OrderStatus.OPEN,
@@ -188,7 +188,7 @@ class TestOrderVerifier:
         # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         local_order_mock = Order(
             id="exchange-order-id-1",
-            type=OrderType.LIMIT, # Added positional 'type'
+            type=OrderType.LIMIT,  # Added positional 'type'
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
@@ -205,7 +205,7 @@ class TestOrderVerifier:
         mock_api = portfolio_tracker.get_api_client()
         api_order_response = Order(
             id="exchange-order-id-1",  # Use 'id'
-            type=OrderType.LIMIT, # Add 'type'
+            type=OrderType.LIMIT,  # Add 'type'
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             quantity=Decimal("1.0"),
@@ -233,19 +233,17 @@ class TestOrderVerifier:
             assert "api_order" in result_dict["details"]
 
         # Test failed verification (e.g., order not filled on exchange)
-        api_order_response_open = (
-            Order(
-                id="exchange-order-id-1", # Use 'id'
-                type=OrderType.LIMIT, # Add 'type'
-                symbol="BTC-PERP",
-                side=OrderSide.BUY,
-                quantity=Decimal("1.0"),
-                price=Decimal("50000"),
-                status=OrderStatus.OPEN,  # Changed status
-                client_order_id="test-order-1",
-                filled_quantity=Decimal("0"),
-                # timestamp removed
-            )
+        api_order_response_open = Order(
+            id="exchange-order-id-1",  # Use 'id'
+            type=OrderType.LIMIT,  # Add 'type'
+            symbol="BTC-PERP",
+            side=OrderSide.BUY,
+            quantity=Decimal("1.0"),
+            price=Decimal("50000"),
+            status=OrderStatus.OPEN,  # Changed status
+            client_order_id="test-order-1",
+            filled_quantity=Decimal("0"),
+            # timestamp removed
         )
         mock_api.get_order_status.return_value = api_order_response_open  # Update return value
         result_fail = await verifier.verify_order_execution("hyperliquid", "exchange-order-id-1")

@@ -29,15 +29,17 @@ class TestHyperliquidAPI:
         # Cannot instantiate abstract class directly, create a concrete subclass for testing
         class ConcreteHyperliquidAPI(HyperliquidAPI):
             # Correct return type for override
-            def parse_account_update_message(self, message: dict[str, Any]) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]:
-                return None, None # Mock implementation
+            def parse_account_update_message(
+                self, message: dict[str, Any]
+            ) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]:
+                return None, None  # Mock implementation
 
             async def parse_l2_book_update_message(self, message: dict[str, Any]) -> None:
                 pass  # Mock implementation
 
             # Add dummy implementation for the new abstract method from base
             async def get_order_status(self, order_id: str, symbol: str | None = None) -> Order:
-                 raise NotImplementedError("Mock implementation not needed for this test")
+                raise NotImplementedError("Mock implementation not needed for this test")
 
         client = ConcreteHyperliquidAPI(api_config=hyperliquid_config, secrets=hyperliquid_secrets)
         # Prevent actual network calls

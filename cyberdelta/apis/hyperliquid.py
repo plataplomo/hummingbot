@@ -1158,7 +1158,7 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
         raise NotImplementedError("get_trade_history not implemented for HyperliquidAPI")
 
-    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]: # type: ignore[override] # Adjust implementation later
+    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:  # type: ignore[override] # Adjust implementation later
         """
         Get current funding rates, optionally filtering by symbol.
 
