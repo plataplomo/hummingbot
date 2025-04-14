@@ -5,16 +5,16 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, getcontext
 from typing import TYPE_CHECKING, Any
 
+from cyberdelta.core.models import Position  # Needed for runtime isinstance check
+
 # from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderType, TradeSignal
 # REMOVING this runtime import
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
 
-if TYPE_CHECKING:  # This block should contain the only import from models
-    from cyberdelta.core.models import (
-        ArbitrageOpportunity,  # Added Position for type hinting
-    )
+if TYPE_CHECKING:  # Keep ArbitrageOpportunity here for type hinting only
+    from cyberdelta.core.models import ArbitrageOpportunity
 
 logger = logging.getLogger(__name__)
 
@@ -385,8 +385,8 @@ class RiskManager:
 
         # 6. Max Exposure Per Asset (Base asset of the symbol)
         # Assuming symbol format like "BTC-PERP" -> base asset "BTC"
-        base_asset = opportunity.symbol.split("-")[0] # Simple split, might need refinement
-        # TODO: Reinstate asset exposure check when PortfolioTracker.get_total_exposure_by_asset exists
+        # TODO: Reinstate asset exposure check when
+        # PortfolioTracker.get_total_exposure_by_asset exists
         # asset_exposure = self.portfolio_tracker.get_total_exposure_by_asset(base_asset)
         # if (asset_exposure + proposed_size) > (total_capital * self.max_exposure_per_asset):
         #      return (
@@ -399,14 +399,22 @@ class RiskManager:
         # Assuming USD balance check
         long_balance = self.portfolio_tracker.get_exchange_balance(long_ex, "USD")
         short_balance = self.portfolio_tracker.get_exchange_balance(short_ex, "USD")
-        if long_balance is None or long_balance.available is None or long_balance.available < self.min_exchange_balance:
+        if (
+            long_balance is None
+            or long_balance.available is None
+            or long_balance.available < self.min_exchange_balance
+        ):
              return (
                  False,
                  f"Insufficient available balance on {long_ex} "
                  f"(Have: ${long_balance.available if long_balance else 'N/A'}, "
                  f"Min: ${self.min_exchange_balance})",
              )
-        if short_balance is None or short_balance.available is None or short_balance.available < self.min_exchange_balance:
+        if (
+            short_balance is None
+            or short_balance.available is None
+            or short_balance.available < self.min_exchange_balance
+        ):
              return (
                  False,
                  f"Insufficient available balance on {short_ex} "
@@ -1007,57 +1015,51 @@ class RiskManager:
             # TODO: Reinstate when PortfolioTracker.get_total_exposure_by_exchange exists
             # exp = self.portfolio_tracker.get_total_exposure_by_exchange(exchange)
             exp = ZERO # Placeholder
-            # Mypy L1211: Ensure summary["exposure_by_exchange"] is dict before assignment
-            if isinstance(summary["exposure_by_exchange"], dict):
-                summary["exposure_by_exchange"][exchange] = f"{exp:.2f}"
+            # summary["exposure_by_exchange"] is already initialized as dict
+            summary["exposure_by_exchange"][exchange] = f"{exp:.2f}"
 
         # Calculate exposure per asset
         all_positions = self.portfolio_tracker.get_all_positions()
         asset_exposures: dict[str, Decimal] = {}
-        # Mypy L1208: Check if all_positions is iterable and not None
-        if all_positions and isinstance(all_positions, dict):
-            for _exchange, positions in all_positions.items():
-                # Check if positions is iterable
-                if positions and isinstance(positions, dict):
-                    for symbol, position in positions.items():
-                        # Mypy L1247: Position has no 'exchange'. Use _exchange from outer loop.
-                        # Ensure position is Position type before accessing attributes
-                        # This assumes get_all_positions returns dict[str, dict[str, Position]]
-                        # Need to verify PortfolioTracker method signature if this fails
-                        if (hasattr(position, 'symbol') and hasattr(position, 'size') and
-                            hasattr(position, 'entry_price')):
-                            base_asset = position.symbol.split("-")[0] # Simple split
-                            # Ensure entry_price is not None before calculation
-                            if position.entry_price is not None and position.size is not None:
-                                try:
-                                    position_value = abs(
-                                        Decimal(str(position.size))
-                                        * Decimal(str(position.entry_price))
-                                    ) # Use abs for total exposure
-                                    # Mypy L1237: Ensure asset_exposures is dict
-                                    if isinstance(asset_exposures, dict):
-                                        asset_exposures[base_asset] = (
-                                            asset_exposures.get(base_asset, ZERO) + position_value
-                                        )
-                                except (InvalidOperation, TypeError):
-                                     logger.warning(
-                                        f"Could not convert size/price for {symbol} on "
-                                        f"{_exchange} to Decimal."
-                                     )
-                            else:
-                                logger.warning(
-                                    f"Skipping exposure calc for {symbol} on {_exchange}: "
-                                    f"Missing entry price or size."
-                                )
-                        else:
-                            logger.warning(
-                                f"Skipping malformed position data for exposure calc: {position}"
-                            )
+        # Iterate over the list of (exchange_id, position) tuples
+        if all_positions: # Check if the list is not empty
+            for exchange_id, position in all_positions:
+                # Ensure position is a valid Position object with necessary attributes
+                if (
+                    isinstance(position, Position) # Explicit type check recommended
+                    and hasattr(position, 'symbol')
+                    and hasattr(position, 'size')
+                    and hasattr(position, 'entry_price')
+                    and position.symbol is not None # Check attributes are not None
+                    and position.size is not None
+                    and position.entry_price is not None
+                ):
+                    try:
+                        base_asset = position.symbol.split("-")[0] # Simple split
+                        position_value = abs(
+                            Decimal(str(position.size))
+                            * Decimal(str(position.entry_price))
+                        ) # Use abs for total exposure
+                        # asset_exposures is already initialized as dict
+                        asset_exposures[base_asset] = (
+                            asset_exposures.get(base_asset, ZERO) + position_value
+                        )
+                    except (InvalidOperation, TypeError, IndexError) as e:
+                         logger.warning(
+                            f"Could not calculate exposure for position on {exchange_id} "
+                            f"(Symbol: {getattr(position, 'symbol', 'N/A')}, "
+                            f"Size: {getattr(position, 'size', 'N/A')}, "
+                            f"Price: {getattr(position, 'entry_price', 'N/A')}). Error: {e}"
+                         )
+                else:
+                    logger.warning(
+                        f"Skipping malformed or incomplete position data from {exchange_id} "
+                        f"for exposure calculation: {position}"
+                    )
 
 
         for asset, exp in asset_exposures.items():
-             # Mypy L1258: Ensure summary["exposure_by_asset"] is dict
-             if isinstance(summary["exposure_by_asset"], dict):
+             # summary["exposure_by_asset"] is already initialized as dict
                 summary["exposure_by_asset"][asset] = f"{exp:.2f}"
 
         # Mypy fix [attr-defined]: Remove volatility references
@@ -1097,37 +1099,39 @@ class RiskManager:
         found_position = False
         all_positions = self.portfolio_tracker.get_all_positions()
 
-        if all_positions and isinstance(all_positions, dict): # Check if iterable
-            for _exchange, positions in all_positions.items():
-                 if positions and isinstance(positions, dict): # Check if iterable
-                    if symbol in positions:
-                        position = positions[symbol]
-                        found_position = True
-                        # Ensure position object has expected attributes
-                        if (hasattr(position, 'size') and position.size is not None and
-                            hasattr(position, 'entry_price') and position.entry_price is not None):
-                            try:
-                                # Use mark price if available, otherwise entry price
-                                price_to_use = (
-                                    Decimal(str(position.mark_price))
-                                    if hasattr(position, "mark_price")
-                                    and position.mark_price is not None
-                                    else Decimal(str(position.entry_price))
-                                )
-                                position_value = abs(Decimal(str(position.size)) * price_to_use)
-                                total_exposure += position_value
-                            except (InvalidOperation, TypeError, AttributeError) as e:
-                                logger.error(
-                                    f"Error calculating exposure for {symbol} on {_exchange}: {e}"
-                                )
-                                # Return None for failure? Or skip leg? Skip for now.
-                                # Skip for now.
+        if all_positions: # Check if the list is not empty
+            for exchange_id, position in all_positions:
+                # Check if this position matches the requested symbol
+                if isinstance(position, Position) and position.symbol == symbol:
+                    found_position = True
+                    # Ensure position object has expected attributes for calculation
+                    if (
+                        hasattr(position, 'size') and position.size is not None and
+                        hasattr(position, 'entry_price') and position.entry_price is not None
+                        # Mark price is optional but preferred
+                    ):
+                        try:
+                            # Use mark price if available and valid, otherwise entry price
+                            price_str = None
+                            if hasattr(position, "mark_price") and position.mark_price is not None:
+                                price_str = str(position.mark_price)
+                            else:
+                                price_str = str(position.entry_price)
 
-                        # else: # Log if size or price is missing
-                        #     logger.warning(
-                        #         f"Missing size or entry_price for position {symbol} on "
-                        #         f"{_exchange}. Cannot calculate exposure for this leg."
-                        #     )
+                            price_to_use = Decimal(price_str)
+                            position_value = abs(Decimal(str(position.size)) * price_to_use)
+                            total_exposure += position_value
+                        except (InvalidOperation, TypeError, AttributeError) as e:
+                            logger.error(
+                                f"Error calculating exposure for {symbol} on {exchange_id}: {e}"
+                            )
+                            # If calculation fails for any leg, we might not have total exposure
+                            # Consider returning None or logging more severely depending on requirements
+                    else:
+                        logger.warning(
+                            f"Missing size, entry_price, or mark_price for position {symbol} on "
+                            f"{exchange_id}. Cannot calculate exposure for this leg."
+                        )
 
 
         return total_exposure if found_position else ZERO # Return 0 if no position found
@@ -1136,17 +1140,38 @@ class RiskManager:
         """Calculate the total USD exposure across all positions."""
         total_exposure = ZERO
         all_positions = self.portfolio_tracker.get_all_positions()
-        if all_positions and isinstance(all_positions, dict): # Check if iterable
-            for _exchange, positions in all_positions.items():
-                 if positions and isinstance(positions, dict): # Check if iterable
-                    for symbol, _position in positions.items():
-                        # Use calculate_position_exposure (handles errors/missing data)
-                        exposure = self.calculate_position_exposure(symbol)
-                        if exposure is not None:
-                            total_exposure += exposure
-                        # else: # Log if exposure calculation failed for a symbol
-                        #     logger.warning(
-                        #         f"Could not calculate exposure for {symbol} on {_exchange}"
+        if all_positions: # Check if the list is not empty
+            for exchange_id, position in all_positions:
+                # Ensure position is valid and has necessary attributes
+                if (
+                    isinstance(position, Position)
+                    and hasattr(position, 'size') and position.size is not None
+                    and hasattr(position, 'entry_price') and position.entry_price is not None
+                    # Mark price is optional but preferred
+                ):
+                    try:
+                        # Use mark price if available and valid, otherwise entry price
+                        price_str = None
+                        if hasattr(position, "mark_price") and position.mark_price is not None:
+                            price_str = str(position.mark_price)
+                        else:
+                            price_str = str(position.entry_price)
+
+                        price_to_use = Decimal(price_str)
+                        position_value = abs(Decimal(str(position.size)) * price_to_use)
+                        total_exposure += position_value
+                    except (InvalidOperation, TypeError, AttributeError) as e:
+                        logger.error(
+                            f"Error calculating exposure for position on {exchange_id} "
+                            f"(Symbol: {getattr(position, 'symbol', 'N/A')}): {e}"
+                        )
+                        # Decide how to handle partial failure - continue or return error?
+                        # Continuing for now, total exposure might be underestimated.
+                else:
+                    logger.warning(
+                        f"Skipping malformed or incomplete position data from {exchange_id} "
+                        f"in total exposure calculation: {position}"
+                    )
                         #     )
 
         return total_exposure
@@ -1175,23 +1200,25 @@ class RiskManager:
         # Find the position for the given symbol across all exchanges
         position = None
         all_positions = self.portfolio_tracker.get_all_positions()
-        if all_positions and isinstance(all_positions, dict):
-            for _exchange, positions_on_exchange in all_positions.items():
-                 if positions_on_exchange and isinstance(positions_on_exchange, dict):
-                    if symbol in positions_on_exchange:
-                        # TODO: Handle cases where a symbol might exist on multiple exchanges.
-                        # For now, use the first one found.
-                        position = positions_on_exchange[symbol]
-                        break # Found the position, stop searching
+        if all_positions: # Check if the list is not empty
+            for _exchange_id, pos in all_positions: # Iterate through (exchange, position) tuples
+                if isinstance(pos, Position) and pos.symbol == symbol:
+                    # Found the first position matching the symbol
+                    position = pos
+                    break # Found the position, stop searching
 
         # Check if position was found and has necessary attributes
         # Check if position was found and has necessary attributes
+        # Check if position was found and has necessary price attributes
         if (
             position is None or
-            not hasattr(position, 'liquidation_price') or position.liquidation_price is None or
-            not hasattr(position, 'mark_price') or position.mark_price is None
+            position.liquidation_price is None or
+            position.mark_price is None
         ):
-             self.logger.debug(f"Liquidation risk check skipped for {symbol}: Position or required prices not found.")
+             self.logger.debug(
+                 f"Liquidation risk check skipped for {symbol}: "
+                 "Position or required prices not found."
+             )
              return None
 
         try:

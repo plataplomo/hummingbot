@@ -7,7 +7,7 @@ import os
 import pathlib
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -124,7 +124,8 @@ class BacktestResultsHandler:
 
         if returns.empty:
             logger.warning(
-                "No returns calculated (equity curve might be flat or too short). Returning basic metrics."
+                "No returns calculated (equity curve might be flat or too short). "
+                "Returning basic metrics."
             )
             total_return = (
                 (float(self.final_capital) / float(self.initial_capital)) - 1
@@ -213,7 +214,7 @@ class BacktestResultsHandler:
                     trades = trades.dropna(subset=["entry_time", "exit_time"])
                     if not trades.empty:
                         holding_periods = trades["exit_time"] - trades["entry_time"]
-                        # Ensure holding_periods.mean() is a timedelta before calling total_seconds()
+                        # Ensure holding_periods.mean() is timedelta before total_seconds()
                         avg_period = holding_periods.mean()
                         if isinstance(avg_period, pd.Timedelta):
                             self.metrics["avg_holding_period_hours"] = (
@@ -247,13 +248,14 @@ class BacktestResultsHandler:
                         self.metrics[key] = 0.0
         else:
             logger.warning(
-                "Trade DataFrame is missing, empty, or lacks 'pnl' column. Skipping trade-based metrics."
+                "Trade DataFrame is missing, empty, or lacks 'pnl' column. "
+                "Skipping trade-based metrics."
             )
             self.metrics["total_trades"] = 0
 
         # Final log of calculated metrics
         formatted_metrics = {
-            k: f"{v:.4f}" if isinstance(v, (float, np.number)) else v
+            k: f"{v:.4f}" if isinstance(v, float | np.number) else v
             for k, v in self.metrics.items()
         }
         logger.info(f"Calculated metrics: {formatted_metrics}")
@@ -347,7 +349,11 @@ class BacktestResultsHandler:
             try:
                 # Convert index back to string and capital to float
                 equity_list = [
-                    {"timestamp": idx.isoformat(), "capital": float(row["capital"])}
+                    # Cast idx to pd.Timestamp to satisfy Mypy before conversion
+                    {
+                        "timestamp": cast(pd.Timestamp, idx).to_pydatetime().isoformat(),
+                        "capital": float(row["capital"]),
+                    }
                     for idx, row in self.equity_df.iterrows()
                 ]
             except Exception as e:

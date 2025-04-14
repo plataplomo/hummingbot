@@ -48,8 +48,9 @@ class BacktestStrategy(ABC):
         Returns:
             bool: True if initialization was successful
         """
-        pass
-        self.initialized = True  # Assume success if abstract method doesn't raise error
+        # pass # Removed pass
+        self.initialized = True
+        return True # Add placeholder return for ABC
 
     @abstractmethod
     def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
@@ -460,7 +461,7 @@ class StrategyAdapter(BacktestStrategy):
                 f"Error initializing core strategy '{self.strategy.name}' via adapter: {e}"
             )
             return False
-        self.initialized = True
+        # self.initialized = True # Unreachable: try block always returns
         return True
 
     def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:

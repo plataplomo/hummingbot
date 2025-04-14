@@ -470,9 +470,9 @@ class ExecutionHandler:
                 )
                 # gather returns list of results or exceptions
                 # Rename variable to avoid clash with ticker_results
-                order_results: tuple[Order | BaseException | None, Order | BaseException | None] = await asyncio.gather(
-                    long_task, short_task, return_exceptions=True
-                )
+                order_results: tuple[
+                    Order | BaseException | None, Order | BaseException | None
+                ] = await asyncio.gather(long_task, short_task, return_exceptions=True)
 
                 long_order_result = (
                     order_results[0] if isinstance(order_results[0], Order) else None
@@ -1180,10 +1180,10 @@ class ExecutionHandler:
                  )
                  return False # Cannot verify
 
+            # Call get_order_status without client_order_id
             order: Order | None = await client.get_order_status(
                 order_id=order_id,
                 symbol=symbol,  # Pass symbol if required
-                client_order_id=client_order_id,  # Pass if available
             )
             if not order:
                 logger.warning(

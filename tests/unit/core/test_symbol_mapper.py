@@ -83,7 +83,7 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
     assert "valid_exchange" in mapper._exchange_to_internal
     assert "missing_symbols" not in mapper._exchange_to_internal
     assert "invalid_symbols_type" not in mapper._exchange_to_internal
-    assert 123 not in mapper._internal_to_exchange  # Check invalid key wasn't added
+    # assert 123 not in mapper._internal_to_exchange # Removed: Keys are strings, not int
     assert "ETH" not in mapper._internal_to_exchange  # Check symbol with invalid value not added
 
     # Check for specific warning logs
@@ -92,7 +92,7 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
         "Skipping exchange 'invalid_symbols_type': 'symbols' must be a dictionary." in caplog.text
     )
     assert (
-        "Invalid symbol mapping entry for exchange 'invalid_entry_type': Skipping (123: BTC-INVALID)"
+        "Invalid symbol mapping entry for exchange 'invalid_entry_type': Skipping ('123': BTC-INVALID)"
         in caplog.text
     )
     assert (

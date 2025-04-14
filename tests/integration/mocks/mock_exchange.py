@@ -2,13 +2,12 @@ import asyncio
 import copy
 import logging
 import time
+from abc import abstractmethod  # Added import
 from collections import defaultdict
 from collections.abc import Callable, Coroutine
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from abc import abstractmethod # Added import
-from abc import abstractmethod # Added import
 
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
@@ -21,8 +20,8 @@ from cyberdelta.core.models import (
     OrderType,
     Position,
     Ticker,
+    TimeInForce,  # Added import
     Trade,
-    TimeInForce, # Added import
 )
 
 # Correct the import to use the new typing module

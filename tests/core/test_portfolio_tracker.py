@@ -91,8 +91,8 @@ class TestPortfolioTracker:
         return {
             "hyperliquid": [
                 Order(
-                    id="hl-order-1", # Use 'id'
-                    type=OrderType.LIMIT, # Add 'type'
+                    id="hl-order-1",
+                    type=OrderType.LIMIT,
                     symbol="BTC",
                     side=OrderSide.BUY,
                     price=Decimal("49000.0"),
@@ -100,13 +100,13 @@ class TestPortfolioTracker:
                     filled_quantity=Decimal("0.0"),
                     status=OrderStatus.NEW,
                     client_order_id="client-order-1",
-                    # timestamp removed
+                    time=datetime.now(UTC) # Add time
                 )
             ],
             "backpack": [
                 Order(
-                    id="bp-order-1", # Use 'id'
-                    type=OrderType.MARKET, # Add 'type'
+                    id="bp-order-1",
+                    type=OrderType.MARKET,
                     symbol="ETH",
                     side=OrderSide.SELL,
                     price=None,
@@ -114,7 +114,7 @@ class TestPortfolioTracker:
                     filled_quantity=Decimal("5.0"),
                     status=OrderStatus.FILLED,
                     client_order_id="client-order-2",
-                    # timestamp removed
+                    time=datetime.now(UTC) # Add time
                 )
             ],
         }
@@ -233,16 +233,17 @@ class TestPortfolioTracker:
     def test_update_order(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test updating an order in the portfolio tracker."""
         # Create a new order
+        # Create a new order using correct field names
         order = Order(
-            order_id="test-order-1",  # Correct parameter name
+            id="test-order-1", # Use 'id'
             symbol="BTC",
             side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,  # Correct parameter name
+            type=OrderType.LIMIT, # Use 'type'
             price=Decimal("50000.0"),
             quantity=Decimal("1.0"),
             filled_quantity=Decimal("0.0"),
-            status=OrderStatus.NEW,  # Use Enum member
-            timestamp=datetime.now(UTC),  # Use datetime object
+            status=OrderStatus.NEW,
+            time=datetime.now(UTC), # Use 'time'
             client_order_id="client-order-3",
         )
 
@@ -250,9 +251,11 @@ class TestPortfolioTracker:
         portfolio_tracker.update_order("hyperliquid", order)
 
         # Verify the order was stored
-        stored_order = portfolio_tracker.get_order("hyperliquid", "test-order-1")
+        # Retrieve the order from history/open orders
+        history = portfolio_tracker.get_order_history("hyperliquid")
+        stored_order = next((o for o in history if o.id == "test-order-1"), None)
         assert stored_order is not None
-        assert stored_order.order_id == "test-order-1"  # Correct attribute
+        assert stored_order.id == "test-order-1" # Use 'id'
         assert stored_order.symbol == "BTC"
         assert stored_order.side == OrderSide.BUY
 
@@ -262,7 +265,9 @@ class TestPortfolioTracker:
         portfolio_tracker.update_order("hyperliquid", order)
 
         # Verify the order was updated
-        stored_order = portfolio_tracker.get_order("hyperliquid", "test-order-1")
+        # Retrieve the order from history/open orders
+        history = portfolio_tracker.get_order_history("hyperliquid")
+        stored_order = next((o for o in history if o.id == "test-order-1"), None)
         assert stored_order is not None  # Check for None before accessing attributes
         assert stored_order.status == OrderStatus.FILLED  # Compare Enum member directly
         assert stored_order.filled_quantity == Decimal("1.0")
@@ -543,7 +548,9 @@ class TestPortfolioTracker:
         # but if it's a classmethod constructor, the call would be different:
         # new_tracker = PortfolioTracker.from_dict(portfolio_tracker.config, state_dict)
         # For now, assuming instance method and modifying call - this might be wrong.
-        new_tracker.from_dict(state_dict) # Reverting - from_dict likely doesn't need config if it's an instance method loading state. Mypy error might be wrong.
+        # Call from_dict as a class method, passing config
+        # Call from_dict as a class method, passing config
+        new_tracker = PortfolioTracker.from_dict(state_dict, portfolio_tracker.config)
 
         # Verify balances were restored
         for exchange_id, balances in sample_balances.items():
@@ -563,12 +570,15 @@ class TestPortfolioTracker:
         # Verify orders were restored
         for exchange_id, orders in sample_orders.items():
             for order in orders:
-                # TODO: Fix access if get_order method changed/removed
-                # restored_order = new_tracker.get_order(exchange_id, order.id)
-                # assert restored_order is not None
-                # assert restored_order.id == order.id
-                # assert restored_order.symbol == order.symbol
-                # assert restored_order.price == order.price
-                # assert restored_order.quantity == order.quantity
-                # assert restored_order.filled_quantity == order.filled_quantity
-                pass # Add pass to avoid empty loop body
+                # Verify orders were restored by checking history
+                history = new_tracker.get_order_history(exchange_id)
+                restored_order = next((o for o in history if o.id == order.id), None)
+                assert restored_order is not None, f"Order {order.id} not found in history for {exchange_id}"
+                # Compare relevant fields (adjust as needed based on Order definition)
+                assert restored_order.symbol == order.symbol
+                assert restored_order.side == order.side
+                assert restored_order.type == order.type
+                assert restored_order.quantity == order.quantity
+                assert restored_order.price == order.price # Price might differ if market order
+                assert restored_order.status == order.status
+                # assert restored_order.filled_quantity == order.filled_quantity # May change

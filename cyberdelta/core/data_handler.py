@@ -494,7 +494,7 @@ class DataHandler:
             for symbol in symbols:
                 try:
                     # Assuming get_funding_rates returns list[FundingRate] based on mypy error
-                    rates_list: list[FundingRate] = await client.get_funding_rates(symbol)
+                    rates_list: list[FundingRate] = await client.get_funding_rates([symbol])
                     if rates_list:
                         # Expecting only one rate when called with one symbol
                         if len(rates_list) == 1:
@@ -503,11 +503,19 @@ class DataHandler:
                                 all_rates_data.append(rate_data)
                                 self._update_funding_rate(exchange_id, symbol, rate_data)
                             else:
-                                logger.warning(f"Invalid funding rate object received for {symbol} on {exchange_id}")
+                                logger.warning(
+                                    f"Invalid funding rate object received for {symbol} "
+                                    f"on {exchange_id}"
+                                )
                         else:
-                             logger.warning(f"Expected 1 funding rate for {symbol} on {exchange_id}, got {len(rates_list)}")
+                             logger.warning(
+                                 f"Expected 1 funding rate for {symbol} on {exchange_id}, "
+                                 f"got {len(rates_list)}"
+                             )
                     else:
-                        logger.warning(f"No funding rate data returned for {symbol} on {exchange_id}")
+                        logger.warning(
+                            f"No funding rate data returned for {symbol} on {exchange_id}"
+                        )
                 except Exception as sym_e:
                     logger.error(f"Failed to fetch funding rate for {symbol} on {exchange_id}: {sym_e}")
             # Optional: Log summary after loop if needed
