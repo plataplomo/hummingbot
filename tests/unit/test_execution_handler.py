@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from typing import Any, Coroutine
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -135,7 +135,7 @@ class TestExecutionHandler:
             "exchanges.hyperliquid.collateral_asset": "USD",
             "exchanges.backpack.collateral_asset": "USDC",
             "execution.compensation.use_limit_orders": True,
-            "execution.compensation.limit_price_offset_pct": "0.05", # Use string for Decimal init
+            "execution.compensation.limit_price_offset_pct": "0.05",  # Use string for Decimal init
             "execution.order_placement_type": "concurrent",  # Default for most tests
             "execution.use_market_orders": True,  # Default for most tests
             "execution.max_history": 100,
@@ -149,7 +149,7 @@ class TestExecutionHandler:
         tracker.update_order = MagicMock()
         tracker.update_position = MagicMock()
         tracker.update_realized_pnl = MagicMock()
-        tracker.get_position = MagicMock(return_value=None) # Default mock for get_position
+        tracker.get_position = MagicMock(return_value=None)  # Default mock for get_position
         return tracker
 
     @pytest.fixture
@@ -272,8 +272,11 @@ class TestExecutionHandler:
             "hyperliquid"
         )  # Check if it checked the long exchange
         assert execution is not None
-        assert execution.status == ExecutionStatus.REJECTED # Use REJECTED status
-        assert execution.error_message is not None and "Circuit breaker open" in execution.error_message
+        assert execution.status == ExecutionStatus.REJECTED  # Use REJECTED status
+        assert (
+            execution.error_message is not None
+            and "Circuit breaker open" in execution.error_message
+        )
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_mapping_failure(
@@ -297,7 +300,10 @@ class TestExecutionHandler:
         # Assertions
         assert execution is not None
         assert execution.status == ExecutionStatus.FAILED
-        assert execution.error_message is not None and "Failed to map symbol" in execution.error_message
+        assert (
+            execution.error_message is not None
+            and "Failed to map symbol" in execution.error_message
+        )
         # Ensure no API calls were made if mapping failed early
         mock_hl_api.get_ticker.assert_not_called()
         mock_bp_api.get_ticker.assert_not_called()
@@ -322,7 +328,7 @@ class TestExecutionHandler:
 
         # Correct call signature for _place_order_with_retry
         result_order = await execution_handler._place_order_with_retry(
-            client=mock_hl_api, # Use 'client' kwarg
+            client=mock_hl_api,  # Use 'client' kwarg
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
@@ -341,15 +347,15 @@ class TestExecutionHandler:
         """Test order placement failure after retries via retry helper."""
         # Correct APIError instantiation and ErrorCode
         mock_hl_api.place_order.side_effect = APIError(
-            code=APIErrorCode.RATE_LIMITED, # Correct enum member
+            code=APIErrorCode.RATE_LIMITED,  # Correct enum member
             message="Rate limited",
-            exchange_code="RL01" # Example exchange code
+            exchange_code="RL01",  # Example exchange code
         )
 
         with pytest.raises(APIError):
             # Correct call signature for _place_order_with_retry
             await execution_handler._place_order_with_retry(
-                client=mock_hl_api, # Use 'client' kwarg
+                client=mock_hl_api,  # Use 'client' kwarg
                 symbol="BTC-PERP",
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
@@ -378,9 +384,9 @@ class TestExecutionHandler:
 
         # Correct method name and signature
         result_status = await execution_handler._get_order_status(
-            client=mock_hl_api, # Use 'client' kwarg
+            client=mock_hl_api,  # Use 'client' kwarg
             order_id="order1",
-            symbol="BTC-PERP", # Symbol is optional but good to provide
+            symbol="BTC-PERP",  # Symbol is optional but good to provide
             # execution_id is not a parameter
         )
 
@@ -394,25 +400,28 @@ class TestExecutionHandler:
         """Test failure during order status retrieval."""
         # Correct APIError instantiation and ErrorCode
         mock_hl_api.get_order_status.side_effect = APIError(
-            code=APIErrorCode.UNKNOWN, # Correct enum member
+            code=APIErrorCode.UNKNOWN,  # Correct enum member
             message="Server error",
-            exchange_code="E500" # Example exchange code
+            exchange_code="E500",  # Example exchange code
         )
 
         with pytest.raises(APIError):
-             # Correct method name and signature
+            # Correct method name and signature
             await execution_handler._get_order_status(
-                client=mock_hl_api, # Use 'client' kwarg
+                client=mock_hl_api,  # Use 'client' kwarg
                 order_id="order1",
                 symbol="BTC-PERP",
-                 # execution_id is not a parameter
+                # execution_id is not a parameter
             )
 
-        assert mock_hl_api.get_order_status.call_count == 4 # Initial call + 3 retries
+        assert mock_hl_api.get_order_status.call_count == 4  # Initial call + 3 retries
 
     @pytest.mark.asyncio
     async def test_compensate_position_success(
-        self, execution_handler: ExecutionHandler, mock_hl_api: MagicMock, sized_opportunity: SizedOpportunity
+        self,
+        execution_handler: ExecutionHandler,
+        mock_hl_api: MagicMock,
+        sized_opportunity: SizedOpportunity,
     ) -> None:
         """Test successful compensation placement."""
         # Mock necessary methods
@@ -427,55 +436,66 @@ class TestExecutionHandler:
 
         # Create a mock TradeExecution object to pass to _compensate_position
         mock_execution = TradeExecution(sized_opportunity)
-        mock_execution.status = ExecutionStatus.PARTIALLY_COMPLETED # Example status before compensation
+        mock_execution.status = (
+            ExecutionStatus.PARTIALLY_COMPLETED
+        )  # Example status before compensation
 
         mock_comp_order = Order(
             symbol="BTC-PERP",
             order_id="comp1",
-            side=OrderSide.SELL, # Compensating a BUY
+            side=OrderSide.SELL,  # Compensating a BUY
             order_type=OrderType.LIMIT,
-            quantity=Decimal("1.0"), # Quantity from sized_opportunity
-            price=Decimal("40040.0") * (Decimal("1") - Decimal("0.05")), # Bid - offset
-            status=OrderStatus.FILLED, # Simulate filled compensation
+            quantity=Decimal("1.0"),  # Quantity from sized_opportunity
+            price=Decimal("40040.0") * (Decimal("1") - Decimal("0.05")),  # Bid - offset
+            status=OrderStatus.FILLED,  # Simulate filled compensation
             timestamp=datetime.now(UTC),
         )
         # Patch the retry helper directly for compensation
-        with patch.object(execution_handler, '_place_order_with_retry', return_value=mock_comp_order) as mock_place_retry:
+        with patch.object(
+            execution_handler, "_place_order_with_retry", return_value=mock_comp_order
+        ) as mock_place_retry:
             # Correct call signature for _compensate_position
             result = await execution_handler._compensate_position(
-                failed_leg_exchange="backpack", # Example failed exchange
-                failed_leg_symbol="BTC", # Internal symbol
-                filled_leg_exchange="hyperliquid", # The exchange to compensate on
-                filled_leg_symbol="BTC", # Internal symbol
-                filled_leg_side=OrderSide.BUY, # The side that was filled and needs closing
-                filled_leg_quantity=sized_opportunity.long_size, # Quantity to close
-                execution=mock_execution, # Pass the execution object
+                failed_leg_exchange="backpack",  # Example failed exchange
+                failed_leg_symbol="BTC",  # Internal symbol
+                filled_leg_exchange="hyperliquid",  # The exchange to compensate on
+                filled_leg_symbol="BTC",  # Internal symbol
+                filled_leg_side=OrderSide.BUY,  # The side that was filled and needs closing
+                filled_leg_quantity=sized_opportunity.long_size,  # Quantity to close
+                execution=mock_execution,  # Pass the execution object
             )
 
             # Check the result type and value
             assert isinstance(result, Order)
             assert result == mock_comp_order
-            mock_hl_api.get_ticker.assert_called_once_with("BTC-PERP") # Called to get price for limit order
+            mock_hl_api.get_ticker.assert_called_once_with(
+                "BTC-PERP"
+            )  # Called to get price for limit order
             mock_place_retry.assert_called_once()
             # Check args passed to place_order_with_retry
-            call_args = mock_place_retry.call_args[1] # kwargs
-            assert call_args['client'] == mock_hl_api
-            assert call_args['symbol'] == "BTC-PERP" # Exchange symbol
-            assert call_args['side'] == OrderSide.SELL # Opposite of filled leg
-            assert call_args['order_type'] == OrderType.LIMIT # Because use_limit_orders is True in config
-            assert call_args['quantity'] == sized_opportunity.long_size
-            assert call_args['price'] is not None # Limit order needs price
-            assert call_args['reduce_only'] is True
+            call_args = mock_place_retry.call_args[1]  # kwargs
+            assert call_args["client"] == mock_hl_api
+            assert call_args["symbol"] == "BTC-PERP"  # Exchange symbol
+            assert call_args["side"] == OrderSide.SELL  # Opposite of filled leg
+            assert (
+                call_args["order_type"] == OrderType.LIMIT
+            )  # Because use_limit_orders is True in config
+            assert call_args["quantity"] == sized_opportunity.long_size
+            assert call_args["price"] is not None  # Limit order needs price
+            assert call_args["reduce_only"] is True
 
     @pytest.mark.asyncio
     async def test_compensate_position_mapping_failure(
-        self, execution_handler: ExecutionHandler, mock_symbol_mapper: MagicMock, sized_opportunity: SizedOpportunity
+        self,
+        execution_handler: ExecutionHandler,
+        mock_symbol_mapper: MagicMock,
+        sized_opportunity: SizedOpportunity,
     ) -> None:
         """Test compensation failure due to symbol mapping error."""
         # Mock API client needed for the call
         mock_api = MagicMock(spec=ExchangeAPI)
         mock_api.exchange_id = "failing_exchange"
-        execution_handler.register_api_client("failing_exchange", mock_api) # Register the mock
+        execution_handler.register_api_client("failing_exchange", mock_api)  # Register the mock
 
         # Configure mapper to fail
         mock_symbol_mapper.get_exchange_symbol.return_value = None
@@ -484,18 +504,17 @@ class TestExecutionHandler:
         mock_execution = TradeExecution(sized_opportunity)
 
         with pytest.raises(ValueError, match="Failed to map internal symbol"):
-             # Correct call signature for _compensate_position
+            # Correct call signature for _compensate_position
             await execution_handler._compensate_position(
                 failed_leg_exchange="backpack",
                 failed_leg_symbol="BTC",
-                filled_leg_exchange="failing_exchange", # Use the exchange that will fail mapping
-                filled_leg_symbol="BTC", # Internal symbol that will fail mapping
+                filled_leg_exchange="failing_exchange",  # Use the exchange that will fail mapping
+                filled_leg_symbol="BTC",  # Internal symbol that will fail mapping
                 filled_leg_side=OrderSide.BUY,
                 filled_leg_quantity=sized_opportunity.long_size,
                 execution=mock_execution,
             )
         mock_symbol_mapper.get_exchange_symbol.assert_called_once_with("BTC", "failing_exchange")
-
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_success_concurrent(
@@ -509,10 +528,18 @@ class TestExecutionHandler:
         """Test successful concurrent execution of an opportunity."""
         # Mock tickers
         hl_ticker = Ticker(
-            symbol="BTC-PERP", price=Decimal("41000"), bid=Decimal("40990"), ask=Decimal("41010"), timestamp=1
+            symbol="BTC-PERP",
+            price=Decimal("41000"),
+            bid=Decimal("40990"),
+            ask=Decimal("41010"),
+            timestamp=1,
         )
         bp_ticker = Ticker(
-            symbol="BTC_USDC", price=Decimal("41100"), bid=Decimal("41090"), ask=Decimal("41110"), timestamp=1
+            symbol="BTC_USDC",
+            price=Decimal("41100"),
+            bid=Decimal("41090"),
+            ask=Decimal("41110"),
+            timestamp=1,
         )
         mock_hl_api.get_ticker.return_value = hl_ticker
         mock_bp_api.get_ticker.return_value = bp_ticker
@@ -541,28 +568,35 @@ class TestExecutionHandler:
 
         # Side effect for place_order mocks
         async def place_retry_side_effect(*args: Any, **kwargs: Any) -> Order:
-            client_arg: ExchangeAPI = kwargs['client']
+            client_arg: ExchangeAPI = kwargs["client"]
             if client_arg.exchange_id == "hyperliquid":
                 return long_order
             elif client_arg.exchange_id == "backpack":
                 return short_order
             else:
-                raise ValueError(f"Unexpected exchange_id in place_side_effect: {client_arg.exchange_id}")
+                raise ValueError(
+                    f"Unexpected exchange_id in place_side_effect: {client_arg.exchange_id}"
+                )
 
         # Side effect for get_order_status mocks
         async def get_status_side_effect(*args: Any, **kwargs: Any) -> Order | None:
-             client_arg: ExchangeAPI = kwargs['client']
-             order_id_arg: str = kwargs['order_id']
-             if client_arg.exchange_id == "hyperliquid" and order_id_arg == "hl_order_1":
-                 return long_order
-             elif client_arg.exchange_id == "backpack" and order_id_arg == "bp_order_1":
-                 return short_order
-             return None
+            client_arg: ExchangeAPI = kwargs["client"]
+            order_id_arg: str = kwargs["order_id"]
+            if client_arg.exchange_id == "hyperliquid" and order_id_arg == "hl_order_1":
+                return long_order
+            elif client_arg.exchange_id == "backpack" and order_id_arg == "bp_order_1":
+                return short_order
+            return None
 
         # Use patch to mock the internal retry helper directly
-        with patch.object(execution_handler, '_place_order_with_retry', side_effect=place_retry_side_effect) as mock_place_retry, \
-             patch.object(execution_handler, '_get_order_status', side_effect=get_status_side_effect) as mock_get_status:
-
+        with (
+            patch.object(
+                execution_handler, "_place_order_with_retry", side_effect=place_retry_side_effect
+            ) as mock_place_retry,
+            patch.object(
+                execution_handler, "_get_order_status", side_effect=get_status_side_effect
+            ) as mock_get_status,
+        ):
             # Execute
             execution = await execution_handler.execute_opportunity(sized_opportunity)
 
@@ -578,21 +612,36 @@ class TestExecutionHandler:
             assert execution.short_order_response is not None
             assert execution.short_order_response["order_id"] == "bp_order_1"
 
-
             # Verify API calls (via the patched methods)
             assert mock_place_retry.call_count == 2
-            mock_place_retry.assert_any_call(client=mock_hl_api, symbol='BTC-PERP', side=OrderSide.BUY, order_type=OrderType.MARKET, quantity=sized_opportunity.long_size, time_in_force=TimeInForce.IOC)
-            mock_place_retry.assert_any_call(client=mock_bp_api, symbol='BTC_USDC', side=OrderSide.SELL, order_type=OrderType.MARKET, quantity=sized_opportunity.short_size, time_in_force=TimeInForce.IOC)
+            mock_place_retry.assert_any_call(
+                client=mock_hl_api,
+                symbol="BTC-PERP",
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=sized_opportunity.long_size,
+                time_in_force=TimeInForce.IOC,
+            )
+            mock_place_retry.assert_any_call(
+                client=mock_bp_api,
+                symbol="BTC_USDC",
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=sized_opportunity.short_size,
+                time_in_force=TimeInForce.IOC,
+            )
 
             assert mock_get_status.call_count == 2
-            mock_get_status.assert_any_call(client=mock_hl_api, order_id="hl_order_1", symbol="BTC-PERP")
-            mock_get_status.assert_any_call(client=mock_bp_api, order_id="bp_order_1", symbol="BTC_USDC")
-
+            mock_get_status.assert_any_call(
+                client=mock_hl_api, order_id="hl_order_1", symbol="BTC-PERP"
+            )
+            mock_get_status.assert_any_call(
+                client=mock_bp_api, order_id="bp_order_1", symbol="BTC_USDC"
+            )
 
             # Verify portfolio tracker updates
             mock_portfolio_tracker.update_order.assert_any_call(long_order)
             mock_portfolio_tracker.update_order.assert_any_call(short_order)
-
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_compensation_needed(
@@ -605,27 +654,36 @@ class TestExecutionHandler:
         mock_circuit_breaker_system: MagicMock,
     ) -> None:
         """Test execution flow when one leg fails and compensation is triggered."""
+
         # Mock get_position for portfolio tracker
         def mock_get_position(exchange_id: str, internal_symbol: str) -> Position | None:
             # Simulate the long position exists after the first leg filled
             if exchange_id == "hyperliquid" and internal_symbol == "BTC":
                 return Position(
-                    symbol="BTC", # Internal symbol
+                    symbol="BTC",  # Internal symbol
                     side=OrderSide.BUY,
                     size=sized_opportunity.long_size,
-                    entry_price=Decimal("41000"), # Example entry price
-                    timestamp=int(datetime.now(UTC).timestamp() * 1000)
+                    entry_price=Decimal("41000"),  # Example entry price
+                    timestamp=int(datetime.now(UTC).timestamp() * 1000),
                 )
             return None
-        mock_portfolio_tracker.get_position = MagicMock(side_effect=mock_get_position)
 
+        mock_portfolio_tracker.get_position = MagicMock(side_effect=mock_get_position)
 
         # Mock tickers
         hl_ticker = Ticker(
-            symbol="BTC-PERP", price=Decimal("41000"), bid=Decimal("40990"), ask=Decimal("41010"), timestamp=1
+            symbol="BTC-PERP",
+            price=Decimal("41000"),
+            bid=Decimal("40990"),
+            ask=Decimal("41010"),
+            timestamp=1,
         )
         bp_ticker = Ticker(
-            symbol="BTC_USDC", price=Decimal("41100"), bid=Decimal("41090"), ask=Decimal("41110"), timestamp=1
+            symbol="BTC_USDC",
+            price=Decimal("41100"),
+            bid=Decimal("41090"),
+            ask=Decimal("41110"),
+            timestamp=1,
         )
         mock_hl_api.get_ticker.return_value = hl_ticker
         mock_bp_api.get_ticker.return_value = bp_ticker
@@ -642,9 +700,9 @@ class TestExecutionHandler:
             timestamp=datetime.now(UTC),
         )
         short_order_failure = APIError(
-            code=APIErrorCode.ORDER_REJECTED, # Correct enum
+            code=APIErrorCode.ORDER_REJECTED,  # Correct enum
             message="Insufficient funds",
-            exchange_code="BPX-1001" # Example code
+            exchange_code="BPX-1001",  # Example code
         )
         comp_order = Order(
             symbol="BTC-PERP",
@@ -652,7 +710,7 @@ class TestExecutionHandler:
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity=sized_opportunity.long_size,
-            price=Decimal("40990") * (Decimal('1') - Decimal('0.05')), # Bid - offset for selling
+            price=Decimal("40990") * (Decimal("1") - Decimal("0.05")),  # Bid - offset for selling
             status=OrderStatus.FILLED,
             filled_quantity=sized_opportunity.long_size,
             timestamp=datetime.now(UTC),
@@ -665,66 +723,78 @@ class TestExecutionHandler:
         async def place_retry_side_effect(*args: Any, **kwargs: Any) -> Order:
             nonlocal call_count, compensation_triggered
             call_count += 1
-            client_arg: ExchangeAPI = kwargs['client']
-            side_arg: OrderSide = kwargs['side']
+            client_arg: ExchangeAPI = kwargs["client"]
+            side_arg: OrderSide = kwargs["side"]
 
-            if call_count == 1: # First call (initial placement)
+            if call_count == 1:  # First call (initial placement)
                 if client_arg.exchange_id == "hyperliquid":
                     return long_order
                 elif client_arg.exchange_id == "backpack":
-                    raise short_order_failure # Raise error for failure
+                    raise short_order_failure  # Raise error for failure
                 else:
-                     raise ValueError("Unexpected exchange in place_retry_side_effect call 1")
-            elif call_count == 2: # Second call (compensation)
-                 if client_arg.exchange_id == "hyperliquid" and side_arg == OrderSide.SELL:
-                     compensation_triggered = True
-                     return comp_order
-                 else:
-                     raise ValueError("Unexpected call during compensation")
+                    raise ValueError("Unexpected exchange in place_retry_side_effect call 1")
+            elif call_count == 2:  # Second call (compensation)
+                if client_arg.exchange_id == "hyperliquid" and side_arg == OrderSide.SELL:
+                    compensation_triggered = True
+                    return comp_order
+                else:
+                    raise ValueError("Unexpected call during compensation")
             else:
                 raise RuntimeError("Should not be called more than twice")
 
         # Side effect for _get_order_status mock
         async def get_status_side_effect(*args: Any, **kwargs: Any) -> Order | None:
-             client_arg: ExchangeAPI = kwargs['client']
-             order_id_arg: str = kwargs['order_id']
+            client_arg: ExchangeAPI = kwargs["client"]
+            order_id_arg: str = kwargs["order_id"]
 
-             if client_arg.exchange_id == "hyperliquid":
-                 if order_id_arg == "hl_order_filled":
-                     return long_order
-                 elif order_id_arg == "hl_comp_1":
-                     return comp_order # Return compensation order status if checked
-             # Backpack order status won't be checked as placement failed
-             return None # Default
+            if client_arg.exchange_id == "hyperliquid":
+                if order_id_arg == "hl_order_filled":
+                    return long_order
+                elif order_id_arg == "hl_comp_1":
+                    return comp_order  # Return compensation order status if checked
+            # Backpack order status won't be checked as placement failed
+            return None  # Default
 
         # Patch the internal helper methods
-        with patch.object(execution_handler, '_place_order_with_retry', side_effect=place_retry_side_effect) as mock_place_retry, \
-             patch.object(execution_handler, '_get_order_status', side_effect=get_status_side_effect) as mock_get_status, \
-             patch.object(execution_handler, '_compensate_position', wraps=execution_handler._compensate_position) as mock_compensate: # Wrap to call real logic but allow assertion
-
+        with (
+            patch.object(
+                execution_handler, "_place_order_with_retry", side_effect=place_retry_side_effect
+            ) as mock_place_retry,
+            patch.object(
+                execution_handler, "_get_order_status", side_effect=get_status_side_effect
+            ) as mock_get_status,
+            patch.object(
+                execution_handler,
+                "_compensate_position",
+                wraps=execution_handler._compensate_position,
+            ) as mock_compensate,
+        ):  # Wrap to call real logic but allow assertion
             # Execute
             execution = await execution_handler.execute_opportunity(sized_opportunity)
 
             # Assertions
             assert execution is not None
             # If compensation is successful, the final status should be COMPLETED,
-            assert execution.status == ExecutionStatus.COMPLETED # Expect COMPLETED if compensation worked
-            assert execution.error_message is None # No error if compensation succeeded
+            assert (
+                execution.status == ExecutionStatus.COMPLETED
+            )  # Expect COMPLETED if compensation worked
+            assert execution.error_message is None  # No error if compensation succeeded
             assert execution.long_order_id == "hl_order_filled"
-            assert execution.short_order_id is None # Short leg failed
+            assert execution.short_order_id is None  # Short leg failed
             # Check if compensation details were recorded (e.g., in metadata or a dedicated field if added)
             # assert execution.compensation_order_id == "hl_comp_1" # This attribute doesn't exist
-            assert compensation_triggered is True # Ensure compensation logic was hit in mock
+            assert compensation_triggered is True  # Ensure compensation logic was hit in mock
 
             # Verify API calls (via patched methods)
-            assert mock_place_retry.call_count == 2 # Initial (HL success, BP fail) + Compensation (HL success)
-            assert mock_get_status.call_count >= 1 # Status check for long order is expected
-            mock_compensate.assert_called_once() # Verify _compensate_position was called
+            assert (
+                mock_place_retry.call_count == 2
+            )  # Initial (HL success, BP fail) + Compensation (HL success)
+            assert mock_get_status.call_count >= 1  # Status check for long order is expected
+            mock_compensate.assert_called_once()  # Verify _compensate_position was called
 
             # Verify portfolio tracker updates
-            mock_portfolio_tracker.update_order.assert_any_call(long_order) # Initial order
-            mock_portfolio_tracker.update_order.assert_any_call(comp_order) # Compensation order
-
+            mock_portfolio_tracker.update_order.assert_any_call(long_order)  # Initial order
+            mock_portfolio_tracker.update_order.assert_any_call(comp_order)  # Compensation order
 
     def test_get_execution_history(self, execution_handler: ExecutionHandler) -> None:
         """Test retrieving execution history."""

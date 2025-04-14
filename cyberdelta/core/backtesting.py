@@ -377,9 +377,9 @@ class BacktestEngine:
                 if isinstance(idx, pd.Timestamp):
                     timestamp_dt = idx.to_pydatetime()
                 elif not isinstance(idx, datetime):
-                     # Log error or raise if idx is not a recognized timestamp type
-                     logger.error(f"Unexpected index type for equity point: {type(idx)}")
-                     continue # Skip this equity point
+                    # Log error or raise if idx is not a recognized timestamp type
+                    logger.error(f"Unexpected index type for equity point: {type(idx)}")
+                    continue  # Skip this equity point
 
                 self.results_handler.add_equity_point(timestamp_dt, current_capital)
 
@@ -435,7 +435,7 @@ class StrategyAdapter(BacktestStrategy):
         """
         super().__init__(strategy.name)
         self.strategy = strategy
-        self.positions: dict[str, Decimal] = {} # Symbol -> Size
+        self.positions: dict[str, Decimal] = {}  # Symbol -> Size
         self._logger: logging.Logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.initialized = False  # Track initialization status
 
@@ -589,7 +589,7 @@ class StrategyAdapter(BacktestStrategy):
             self._logger.warning(
                 "Received DataFrame in _convert_to_market_data, processing row by row."
             )
-            for _timestamp, row_series in data.iterrows(): # B007: Rename unused timestamp
+            for _timestamp, row_series in data.iterrows():  # B007: Rename unused timestamp
                 # Recursively call with the Series for this row
                 market_data_list.extend(self._convert_to_market_data(row_series))
 
@@ -624,12 +624,13 @@ class StrategyAdapter(BacktestStrategy):
                     if isinstance(data.index, pd.MultiIndex):
                         # Assumes (symbol, field) multi-index
                         symbol_data = data.loc[symbol]
-                        price_val = (symbol_data.get("close")
-                                     if hasattr(symbol_data, 'get') else symbol_data)
+                        price_val = (
+                            symbol_data.get("close") if hasattr(symbol_data, "get") else symbol_data
+                        )
                     else:
                         # Assumes single series, check if name matches or just get close
                         if data.index.name == symbol or symbol == "UNKNOWN_SYMBOL":  # Crude check
-                            price_val = data.get("close") if hasattr(data, 'get') else data
+                            price_val = data.get("close") if hasattr(data, "get") else data
                         else:  # Check if the series itself contains the symbol? Unlikely.
                             self._logger.warning(
                                 f"Cannot reliably get price for {symbol} from simple Series."
@@ -681,19 +682,19 @@ class StrategyAdapter(BacktestStrategy):
                 if signal.signal_type in [SignalType.EXIT_LONG, SignalType.EXIT_SHORT]:
                     # PnL calculation based on signal alone is removed.
                     # Backtester should simulate fills and track PnL based on position changes.
-                    pass # PnL calculation removed
+                    pass  # PnL calculation removed
                 # This else belongs to the inner if (signal_type check)
                 else:
-                     signal_dict["price"] = (
-                         signal.price if signal.price is not None else float(current_price)
-                     )
+                    signal_dict["price"] = (
+                        signal.price if signal.price is not None else float(current_price)
+                    )
             # This elif belongs to the outer if (current_price is not None check)
             elif signal.price is not None:
-                 signal_dict["price"] = float(signal.price)
+                signal_dict["price"] = float(signal.price)
             # This else belongs to the outer if
             else:
-                 self._logger.warning(f"Could not determine execution price for signal: {signal}")
-                 signal_dict["price"] = 0.0 # Fallback price
+                self._logger.warning(f"Could not determine execution price for signal: {signal}")
+                signal_dict["price"] = 0.0  # Fallback price
 
             signals_out.append(signal_dict)
 

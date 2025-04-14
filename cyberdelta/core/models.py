@@ -426,9 +426,7 @@ class Order:
             self.quantity = quantity_decimal
         else:
             # This should never happen as _safe_decimal_convert should raise an error when allow_none=False
-            raise ValueError(
-                f"Failed to convert quantity to Decimal for symbol '{self.symbol}'"
-            )
+            raise ValueError(f"Failed to convert quantity to Decimal for symbol '{self.symbol}'")
 
         self.filled_quantity = self._safe_decimal_convert(
             self.filled_quantity, "filled_quantity", self.symbol, allow_none=True

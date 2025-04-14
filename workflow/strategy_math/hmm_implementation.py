@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 Hidden Markov Model Statistical Arbitrage Implementation
@@ -9,12 +8,12 @@ This module implements statistical arbitrage strategies using Hidden Markov Mode
 for cryptocurrency pairs trading.
 """
 
+import logging
+from datetime import datetime
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple
-import logging
-import matplotlib.pyplot as plt
-from datetime import datetime
 from hmmlearn import hmm
 from statsmodels.tsa.vector_ar.vecm import coint_johansen
 
@@ -39,9 +38,7 @@ class CointegrationAnalyzer:
         """
         self.sig_level = sig_level
 
-    def test_pair_cointegration(
-        self, price_data: pd.DataFrame
-    ) -> Tuple[bool, float, np.ndarray]:
+    def test_pair_cointegration(self, price_data: pd.DataFrame) -> tuple[bool, float, np.ndarray]:
         """
         Test if a pair of price series is cointegrated
 
@@ -56,9 +53,7 @@ class CointegrationAnalyzer:
         """
         # Check that we have exactly 2 price series
         if price_data.shape[1] != 2:
-            raise ValueError(
-                "Price data must contain exactly 2 columns for pair cointegration"
-            )
+            raise ValueError("Price data must contain exactly 2 columns for pair cointegration")
 
         # Apply Johansen test
         result = coint_johansen(price_data, det_order=0, k_ar_diff=1)
@@ -75,9 +70,7 @@ class CointegrationAnalyzer:
         # Get p-value (approximate)
         # Note: This is an approximation based on the trace statistic
         p_value = (
-            1.0 - (trace_stat / crit_value)
-            if trace_stat < crit_value
-            else self.sig_level / 2.0
+            1.0 - (trace_stat / crit_value) if trace_stat < crit_value else self.sig_level / 2.0
         )
 
         # Get cointegration vector if cointegrated
@@ -87,7 +80,7 @@ class CointegrationAnalyzer:
 
     def find_cointegrated_pairs(
         self, price_data: pd.DataFrame
-    ) -> List[Tuple[str, str, np.ndarray]]:
+    ) -> list[tuple[str, str, np.ndarray]]:
         """
         Find all cointegrated pairs in a set of price series
 
@@ -120,9 +113,7 @@ class CointegrationAnalyzer:
 
         return pairs
 
-    def calculate_spread(
-        self, price_data: pd.DataFrame, coint_vector: np.ndarray
-    ) -> pd.Series:
+    def calculate_spread(self, price_data: pd.DataFrame, coint_vector: np.ndarray) -> pd.Series:
         """
         Calculate the spread between two assets using the cointegration vector
 
@@ -205,9 +196,7 @@ class HMMSpreadModel:
 
         for state in range(self.n_states):
             state_data = X[self.hidden_states == state]
-            self.state_means.append(
-                state_data.mean() * self.spread_std + self.spread_mean
-            )
+            self.state_means.append(state_data.mean() * self.spread_std + self.spread_mean)
             self.state_stds.append(state_data.std()[0] * self.spread_std)
             self.state_counts.append(len(state_data))
 
@@ -244,7 +233,7 @@ class HMMSpreadModel:
 
         return state
 
-    def get_state_parameters(self, state: int) -> Tuple[float, float]:
+    def get_state_parameters(self, state: int) -> tuple[float, float]:
         """
         Get mean and std for a given state
 
@@ -259,9 +248,7 @@ class HMMSpreadModel:
 
         return self.state_means[state], self.state_stds[state]
 
-    def get_trading_thresholds(
-        self, state: int, multiplier: float = 1.5
-    ) -> Tuple[float, float]:
+    def get_trading_thresholds(self, state: int, multiplier: float = 1.5) -> tuple[float, float]:
         """
         Get trading thresholds for a given state
 
@@ -282,9 +269,7 @@ class HMMSpreadModel:
 
         return lower_threshold, upper_threshold
 
-    def plot_spread_with_states(
-        self, spread: pd.Series, figsize: Tuple[int, int] = (12, 6)
-    ):
+    def plot_spread_with_states(self, spread: pd.Series, figsize: tuple[int, int] = (12, 6)):
         """
         Plot the spread with colored regimes
 
@@ -322,12 +307,8 @@ class HMMSpreadModel:
         # Plot thresholds
         for i in range(self.n_states):
             lower, upper = self.get_trading_thresholds(i)
-            plt.axhline(
-                y=lower, color=colors[i % len(colors)], linestyle="--", alpha=0.5
-            )
-            plt.axhline(
-                y=upper, color=colors[i % len(colors)], linestyle="--", alpha=0.5
-            )
+            plt.axhline(y=lower, color=colors[i % len(colors)], linestyle="--", alpha=0.5)
+            plt.axhline(y=upper, color=colors[i % len(colors)], linestyle="--", alpha=0.5)
 
         plt.legend()
         plt.title("Spread with HMM Regimes")
@@ -398,14 +379,10 @@ class StatisticalArbitrageStrategy:
         self.asset2 = price_data.columns[1]
 
         # Test for cointegration
-        is_coint, p_value, self.coint_vector = self.analyzer.test_pair_cointegration(
-            price_data
-        )
+        is_coint, p_value, self.coint_vector = self.analyzer.test_pair_cointegration(price_data)
 
         if not is_coint:
-            logger.warning(
-                f"Assets {self.asset1} and {self.asset2} are not cointegrated"
-            )
+            logger.warning(f"Assets {self.asset1} and {self.asset2} are not cointegrated")
             return False
 
         logger.info(
@@ -420,7 +397,7 @@ class StatisticalArbitrageStrategy:
 
         return True
 
-    def update(self, current_prices: pd.Series) -> Dict:
+    def update(self, current_prices: pd.Series) -> dict:
         """
         Update the strategy with current prices
 
@@ -581,9 +558,7 @@ class Backtest:
 
         # Start with initial equity
         equity = 100.0
-        self.results["equity_curve"].append(
-            (self.price_data.index[training_period], equity)
-        )
+        self.results["equity_curve"].append((self.price_data.index[training_period], equity))
 
         # Backtest on the remaining data
         for i in range(training_period, len(self.price_data)):
@@ -651,15 +626,11 @@ class Backtest:
         equity_curve["returns"] = equity_curve["equity"].pct_change()
 
         # Calculate metrics
-        total_return = (
-            equity_curve["equity"].iloc[-1] / equity_curve["equity"].iloc[0]
-        ) - 1
+        total_return = (equity_curve["equity"].iloc[-1] / equity_curve["equity"].iloc[0]) - 1
         annualized_return = (1 + total_return) ** (252 / len(equity_curve)) - 1
         annualized_volatility = equity_curve["returns"].std() * np.sqrt(252)
         sharpe_ratio = (
-            annualized_return / annualized_volatility
-            if annualized_volatility != 0
-            else 0
+            annualized_return / annualized_volatility if annualized_volatility != 0 else 0
         )
 
         # Calculate drawdowns
@@ -689,7 +660,7 @@ class Backtest:
         logger.info(f"Max drawdown: {max_drawdown:.2%}")
         logger.info(f"Win rate: {win_rate:.2%}")
 
-    def plot_results(self, figsize: Tuple[int, int] = (15, 10)):
+    def plot_results(self, figsize: tuple[int, int] = (15, 10)):
         """
         Plot backtest results
 
@@ -701,9 +672,9 @@ class Backtest:
             self.results["equity_curve"], columns=["date", "equity"]
         ).set_index("date")
 
-        positions = pd.DataFrame(
-            self.results["positions"], columns=["date", "position"]
-        ).set_index("date")
+        positions = pd.DataFrame(self.results["positions"], columns=["date", "position"]).set_index(
+            "date"
+        )
 
         spreads = pd.DataFrame(
             self.results["spreads"],
@@ -734,21 +705,13 @@ class Backtest:
         # Mark trades on spread plot
         for trade in self.results["trades"]:
             if trade["action"] == "ENTER_LONG":
-                axes[2].plot(
-                    trade["date"], trade["spread"], "^", color="green", markersize=10
-                )
+                axes[2].plot(trade["date"], trade["spread"], "^", color="green", markersize=10)
             elif trade["action"] == "ENTER_SHORT":
-                axes[2].plot(
-                    trade["date"], trade["spread"], "v", color="red", markersize=10
-                )
+                axes[2].plot(trade["date"], trade["spread"], "v", color="red", markersize=10)
             elif trade["action"] == "EXIT_LONG":
-                axes[2].plot(
-                    trade["date"], trade["spread"], "o", color="green", markersize=8
-                )
+                axes[2].plot(trade["date"], trade["spread"], "o", color="green", markersize=8)
             elif trade["action"] == "EXIT_SHORT":
-                axes[2].plot(
-                    trade["date"], trade["spread"], "o", color="red", markersize=8
-                )
+                axes[2].plot(trade["date"], trade["spread"], "o", color="red", markersize=8)
 
         plt.tight_layout()
         plt.savefig("backtest_results.png")

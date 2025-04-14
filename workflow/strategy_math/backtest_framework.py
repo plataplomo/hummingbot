@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 Backtesting Framework for CyberDeltaEngine
@@ -7,15 +6,15 @@ This module provides a unified backtesting framework for both funding rate
 arbitrage and statistical arbitrage strategies.
 """
 
+import json
+import logging
+import os
+from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Union
-import logging
-from datetime import datetime, timedelta
-import matplotlib.pyplot as plt
-from abc import ABC, abstractmethod
-import json
-import os
 
 # Configure logging
 logging.basicConfig(
@@ -33,7 +32,7 @@ class Strategy(ABC):
         pass
 
     @abstractmethod
-    def update(self, current_data: Union[pd.Series, pd.DataFrame]) -> Dict:
+    def update(self, current_data: pd.Series | pd.DataFrame) -> dict:
         """Update the strategy with new data and return trade signals"""
         pass
 
@@ -97,9 +96,7 @@ class BacktestEngine:
             logger.error("Strategy initialization failed")
             return
 
-        logger.info(
-            f"Strategy initialized. Backtesting on {len(test_data)} data points"
-        )
+        logger.info(f"Strategy initialized. Backtesting on {len(test_data)} data points")
 
         # Initialize backtest state
         self.capital = self.initial_capital
@@ -131,7 +128,7 @@ class BacktestEngine:
         logger.info(f"Total return: {self.metrics['total_return']:.2%}")
         logger.info(f"Sharpe ratio: {self.metrics['sharpe_ratio']:.2f}")
 
-    def _process_signals(self, update_result: Dict, timestamp: datetime):
+    def _process_signals(self, update_result: dict, timestamp: datetime):
         """
         Process trade signals from strategy update
 
@@ -211,9 +208,9 @@ class BacktestEngine:
     def _calculate_metrics(self):
         """Calculate performance metrics"""
         # Convert equity curve to DataFrame
-        equity_df = pd.DataFrame(
-            self.equity_curve, columns=["timestamp", "equity"]
-        ).set_index("timestamp")
+        equity_df = pd.DataFrame(self.equity_curve, columns=["timestamp", "equity"]).set_index(
+            "timestamp"
+        )
 
         # Calculate returns
         equity_df["returns"] = equity_df["equity"].pct_change()
@@ -248,7 +245,7 @@ class BacktestEngine:
         # Store equity curve for plotting
         self.equity_df = equity_df
 
-    def plot_results(self, figsize: Tuple[int, int] = (12, 8)):
+    def plot_results(self, figsize: tuple[int, int] = (12, 8)):
         """
         Plot backtest results
 
@@ -262,9 +259,7 @@ class BacktestEngine:
         fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=True)
 
         # Plot equity curve
-        self.equity_df["equity"].plot(
-            ax=axes[0], title=f"{self.strategy.name} Equity Curve"
-        )
+        self.equity_df["equity"].plot(ax=axes[0], title=f"{self.strategy.name} Equity Curve")
         axes[0].set_ylabel("Equity")
         axes[0].grid(True)
 
@@ -347,7 +342,7 @@ class FundingRateStrategy(Strategy):
 
         return True
 
-    def update(self, current_data: pd.DataFrame) -> Dict:
+    def update(self, current_data: pd.DataFrame) -> dict:
         """
         Update the strategy with new funding rate data
 
@@ -378,9 +373,7 @@ class FundingRateStrategy(Strategy):
                     # Calculate PnL
                     entry_price = position["entry_price"]
                     entry_time = position["entry_time"]
-                    time_held = (
-                        current_data.index[0] - entry_time
-                    ).total_seconds() / 3600  # hours
+                    time_held = (current_data.index[0] - entry_time).total_seconds() / 3600  # hours
 
                     # Price P&L
                     price_pnl = (
@@ -502,22 +495,16 @@ class StatisticalArbitrageStrategy(Strategy):
         self.spread_std = self.spread.std()
 
         # Calculate trading thresholds
-        self.upper_threshold = (
-            self.spread_mean + self.threshold_multiplier * self.spread_std
-        )
-        self.lower_threshold = (
-            self.spread_mean - self.threshold_multiplier * self.spread_std
-        )
+        self.upper_threshold = self.spread_mean + self.threshold_multiplier * self.spread_std
+        self.lower_threshold = self.spread_mean - self.threshold_multiplier * self.spread_std
 
         logger.info(f"Initialized with assets {self.asset1} and {self.asset2}")
         logger.info(f"Spread mean: {self.spread_mean:.2f}, std: {self.spread_std:.2f}")
-        logger.info(
-            f"Thresholds: [{self.lower_threshold:.2f}, {self.upper_threshold:.2f}]"
-        )
+        logger.info(f"Thresholds: [{self.lower_threshold:.2f}, {self.upper_threshold:.2f}]")
 
         return True
 
-    def update(self, current_data: pd.Series) -> Dict:
+    def update(self, current_data: pd.Series) -> dict:
         """
         Update the strategy with new price data
 
@@ -555,9 +542,7 @@ class StatisticalArbitrageStrategy(Strategy):
                 self.entry_price_2 = price2
 
                 # Set stop loss
-                self.stop_loss = (
-                    current_spread - self.stop_loss_multiplier * self.spread_std
-                )
+                self.stop_loss = current_spread - self.stop_loss_multiplier * self.spread_std
 
             elif current_spread > self.upper_threshold:
                 # Spread is high, go short on the spread (sell asset1, buy asset2)
@@ -577,9 +562,7 @@ class StatisticalArbitrageStrategy(Strategy):
                 self.entry_price_2 = price2
 
                 # Set stop loss
-                self.stop_loss = (
-                    current_spread + self.stop_loss_multiplier * self.spread_std
-                )
+                self.stop_loss = current_spread + self.stop_loss_multiplier * self.spread_std
 
         elif self.position == 1:  # Long spread position
             if current_spread >= self.spread_mean or current_spread <= self.stop_loss:
@@ -629,9 +612,7 @@ class StatisticalArbitrageStrategy(Strategy):
         return "StatisticalArbitrage"
 
 
-def generate_funding_rate_data(
-    days: int = 60, symbols: List[str] = None
-) -> pd.DataFrame:
+def generate_funding_rate_data(days: int = 60, symbols: list[str] = None) -> pd.DataFrame:
     """
     Generate mock funding rate data for backtesting
 

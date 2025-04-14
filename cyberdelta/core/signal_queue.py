@@ -102,16 +102,16 @@ class PrioritySignalQueue:
             signal.metadata["utility_score"] = float(signal.metadata["utility_score"])
         except (ValueError, TypeError):
             # Shorten f-string for line length
-            score_val = signal.metadata.get('utility_score', 'N/A') # Use get for safety
+            score_val = signal.metadata.get("utility_score", "N/A")  # Use get for safety
             logger.warning(
                 f"Invalid utility_score '{score_val}' for signal {signal.symbol}. "
-                f"Using default 0.0" # Ruff E501 fix: Split long f-string
+                f"Using default 0.0"  # Ruff E501 fix: Split long f-string
             )
             signal.metadata["utility_score"] = 0.0
 
         # Set expiration time if not already set
         if signal.expiration is None:
-            signal = self._calculate_expiration(signal) # Assign the modified signal back
+            signal = self._calculate_expiration(signal)  # Assign the modified signal back
 
         # Check circuit breakers before adding
         if self.circuit_breaker_system and not self._check_circuit_breakers_pre_add(signal):
@@ -132,11 +132,11 @@ class PrioritySignalQueue:
                 min_score = max(self.signal_queue, key=lambda x: x[0])[0]
                 # Mypy fix: Check metadata is not None before indexing
                 if signal.metadata is None:
-                     logger.error(
-                         f"Signal metadata is None for {signal.symbol} during trim check. "
-                         f"Cannot proceed."
-                     )
-                     return False # Or handle appropriately
+                    logger.error(
+                        f"Signal metadata is None for {signal.symbol} during trim check. "
+                        f"Cannot proceed."
+                    )
+                    return False  # Or handle appropriately
                 # Use .get() for safety, although metadata should exist here
                 new_score = -float(signal.metadata.get("utility_score", 0.0))
 
@@ -157,11 +157,10 @@ class PrioritySignalQueue:
         self.counter += 1
         # Mypy fix: Check metadata is not None before indexing
         if signal.metadata is None:
-             logger.error(
-                 f"Signal metadata is None for {signal.symbol} before push. "
-                 f"Cannot proceed."
-             )
-             return False # Or handle appropriately
+            logger.error(
+                f"Signal metadata is None for {signal.symbol} before push. Cannot proceed."
+            )
+            return False  # Or handle appropriately
         # Use .get() for safety
         utility_score = float(signal.metadata.get("utility_score", 0.0))
         heapq.heappush(self.signal_queue, (-utility_score, self.counter, signal))
@@ -276,8 +275,7 @@ class PrioritySignalQueue:
                     # Shorten f-string for line length
                     # Shorten f-string for line length
                     logger.warning(
-                        f"CB active for {potential_signal.symbol}, "
-                        f"skipping signal {uid}"
+                        f"CB active for {potential_signal.symbol}, skipping signal {uid}"
                     )
                     continue  # Try the next item
 

@@ -883,11 +883,12 @@ class ExecutionHandler:
         try:
             # First try getting the order from open orders
             open_orders = await client.get_open_orders(symbol=symbol)
-            order = None # Initialize order
+            order = None  # Initialize order
             if open_orders is not None:
                 # Assuming open_orders contains Order objects or compatible dicts
-                order = next((o for o in open_orders
-                              if getattr(o, 'order_id', None) == order_id), None)
+                order = next(
+                    (o for o in open_orders if getattr(o, "order_id", None) == order_id), None
+                )
 
             # If we don't find it among open orders, try order history if available
             if order is None:
@@ -895,9 +896,11 @@ class ExecutionHandler:
                     # Try order history method if it exists
                     order_history = await client.get_order_history(symbol=symbol)
                     if order_history is not None:
-                         # Assuming order_history contains Order objects or compatible dicts
-                        order = next((o for o in order_history
-                                      if getattr(o, 'order_id', None) == order_id), None)
+                        # Assuming order_history contains Order objects or compatible dicts
+                        order = next(
+                            (o for o in order_history if getattr(o, "order_id", None) == order_id),
+                            None,
+                        )
                 except (NotImplementedError, AttributeError):
                     # Method doesn't exist, handle gracefully
                     self.logger.debug(f"get_order_history not implemented for {exchange_id}")
@@ -962,7 +965,7 @@ class ExecutionHandler:
                         f"Retrieved data for order {order_id} on {exchange_id} "
                         f"is not a valid Order object: {type(order)}"
                     )
-                    return None # Return None as we couldn't process it
+                    return None  # Return None as we couldn't process it
             else:
                 logger.warning(f"get_order_status returned None for ID {order_id} on {exchange_id}")
                 return None

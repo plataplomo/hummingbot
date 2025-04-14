@@ -260,7 +260,7 @@ class DataHandler:
                         symbol = parsed_ticker_data.symbol
                         ticker_obj = parsed_ticker_data  # Rename variable
                     else:  # Handle case where parsed_ticker_data is not tuple or Ticker
-                           # (e.g., None, though checked earlier)
+                        # (e.g., None, though checked earlier)
                         logger.warning(
                             "Unexpected data format from parse_ticker_message for "
                             f"{exchange_id}: {type(parsed_ticker_data)}"

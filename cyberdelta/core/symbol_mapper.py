@@ -99,7 +99,7 @@ class SymbolMapper:
                     logger.warning(
                         f"Duplicate exchange symbol '{exchange_symbol}' mapped for "
                         f"exchange '{exchange_id}'. Overwriting mapping to internal "
-                        f"'{internal_symbol}'." # E501
+                        f"'{internal_symbol}'."  # E501
                     )
                 self._exchange_to_internal[exchange_id][exchange_symbol] = internal_symbol
 
@@ -110,7 +110,7 @@ class SymbolMapper:
         logger.info(
             f"SymbolMapper initialized. Loaded mappings for "
             f"{len(self._exchange_to_internal)} exchanges. Found "
-            f"{len(self._all_internal_symbols)} unique internal symbols." # E501
+            f"{len(self._all_internal_symbols)} unique internal symbols."  # E501
         )
 
     def _validate_config(self) -> None:

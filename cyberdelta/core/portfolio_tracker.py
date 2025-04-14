@@ -369,7 +369,6 @@ class PortfolioTracker:
                     f"{e}. Data: {balance_info}"
                 )
                 return None
-                
 
     @staticmethod
     def _safe_decimal_convert(
@@ -541,13 +540,13 @@ class PortfolioTracker:
                                 f"Data: {position_info}"
                             )
                             # Exception already continues the loop - no need for explicit continue
-                    # else: # Mypy error: Statement is unreachable [unreachable] - 
+                    # else: # Mypy error: Statement is unreachable [unreachable] -
                     # Removed unreachable code block
                     #      logger.warning(
                     #          f"Unsupported position item type in list for {exchange_id}: "
                     #          f"{type(position_info)}"
                     #      )
-            # else: # Mypy error: Statement is unreachable [unreachable] - 
+            # else: # Mypy error: Statement is unreachable [unreachable] -
             # Removed unreachable code block
             #      logger.error(
             #          f"Received unexpected data type for positions from {exchange_id}: "
@@ -638,9 +637,9 @@ class PortfolioTracker:
                                 )
                                 continue
 
-                            # The validation checks are already made above, and would 
+                            # The validation checks are already made above, and would
                             # have already continued
-                            # This condition and its continue statement is never 
+                            # This condition and its continue statement is never
                             # reached (mypy error)
                             # Removing the unreachable code:
                             try:
@@ -678,7 +677,7 @@ class PortfolioTracker:
                                 ts_val = parsed_order_instance.timestamp
                                 if isinstance(ts_val, int | float):
                                     pass  # Placeholder for potential conversion logic if needed
-                                
+
                                 # Add the parsed order to our collection
                                 order_instance = parsed_order_instance
                                 order_id = order_instance.order_id
@@ -687,10 +686,10 @@ class PortfolioTracker:
                                     f"Error parsing order dict for order ID {order_id} on "
                                     f"{exchange_id}: {e}. Data: {order_info}"
                                 )
-                                # The continue statement here was unreachable as the 
+                                # The continue statement here was unreachable as the
                                 # exception implicitly continues the loop.
                             # This else block was unreachable and has been removed
-                    # else: # Mypy error: Statement is unreachable [unreachable] - 
+                    # else: # Mypy error: Statement is unreachable [unreachable] -
                     # Removed unreachable code block
                     #     logger.warning(
                     #         f"Unsupported order item type in list for {exchange_id}: "
@@ -747,7 +746,7 @@ class PortfolioTracker:
                     f"implementation pending."
                 )
 
-            # else: # Mypy error: Statement is unreachable [unreachable] - 
+            # else: # Mypy error: Statement is unreachable [unreachable] -
             # Removed unreachable code block
             #      logger.error(
             #          f"Received unexpected data type for orders from {exchange_id}: "
@@ -774,7 +773,7 @@ class PortfolioTracker:
                     f"Count: {len(updated_orders)}"
                 )
                 return True
-            # else: # Mypy error: Missing return statement [return] - Added explicit return 
+            # else: # Mypy error: Missing return statement [return] - Added explicit return
             # Mypy unreachable
             #      logger.error(
             #          f"Failed to process orders data for {exchange_id} "
@@ -879,7 +878,7 @@ class PortfolioTracker:
             and order.filled_quantity is not None
             and order.filled_quantity > Decimal("0")
         ):
-            # This might need more info than just the order (e.g., execution price 
+            # This might need more info than just the order (e.g., execution price
             # if different from order price)
             # For now, let's assume a simple Trade object can be created from the Order
             # This logic might belong in ExecutionHandler which then calls PortfolioTracker
@@ -953,7 +952,7 @@ class PortfolioTracker:
 
             # Calculate realized PNL for the closed position
             # Simplified PNL calc: (exit_price - entry_price) * quantity_closed * direction
-            # This assumes the trade closes the entire position. 
+            # This assumes the trade closes the entire position.
             # Partial closes need more work.
             # Following lines were unreachable (mypy) and are rewritten for clarity:
             # Calculation assumes entry_price is valid Decimal - confirmed by type checking
@@ -974,9 +973,9 @@ class PortfolioTracker:
 
             # Recalculate average entry price (Weighted average)
             # This assumes the trade adds to or reduces the existing position.
-            # If the trade flips the position (long -> short or vice-versa), 
+            # If the trade flips the position (long -> short or vice-versa),
             # this logic is insufficient.
-            # if current_position.entry_price is None or 
+            # if current_position.entry_price is None or
             # not isinstance(current_position.entry_price, Decimal): # Mypy unreachable
             #      # logger.warning(
             #      #    f"Cannot update average entry price for {trade.symbol}: "
@@ -997,16 +996,14 @@ class PortfolioTracker:
                 ) / new_size
 
                 current_position.entry_price = new_entry_price
-                logger.debug(
-                    f"Position {trade.symbol} updated. New avg entry: {new_entry_price}"
-                )
-            # else: # Mypy error: Statement is unreachable [unreachable] - 
+                logger.debug(f"Position {trade.symbol} updated. New avg entry: {new_entry_price}")
+            # else: # Mypy error: Statement is unreachable [unreachable] -
             # Removed unreachable code block
             #      logger.warning(
             #          f"Position {trade.symbol} flipped side due to trade. "
             #          f"Resetting entry price to trade price."
             #      )
-            #      # Resetting entry price might be too simple. 
+            #      # Resetting entry price might be too simple.
             #      # Need proper cost basis tracking.
             #      # For now, treat it like opening a new position at the trade price.
             #      current_position.entry_price = trade.price
@@ -1085,7 +1082,7 @@ class PortfolioTracker:
 
     def _split_symbol(self, symbol: str) -> tuple[str, str]:
         """Basic symbol splitting (e.g., BTC/USDC -> BTC, USDC).
-        
+
         Needs refinement for complex symbols.
         """
         # This is a placeholder. Implement robust symbol parsing based on expected formats.

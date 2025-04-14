@@ -226,10 +226,10 @@ class RiskManager:
                 return ZERO
         # Check if basis_volatility is None (it's already float | None from model)
         if basis_volatility_dec is None:
-             self.logger.warning(
-                 f"Basis volatility is None for {opportunity.symbol}, cannot calculate Kelly size."
-             )
-             return ZERO
+            self.logger.warning(
+                f"Basis volatility is None for {opportunity.symbol}, cannot calculate Kelly size."
+            )
+            return ZERO
 
         # Avoid division by zero or negative volatility
         if basis_volatility_dec <= ZERO:
@@ -243,10 +243,10 @@ class RiskManager:
         try:
             variance_risk_dec = Decimal(str(basis_volatility_dec)) ** 2
         except (InvalidOperation, TypeError):
-             self.logger.error(
-                 f"Could not convert basis volatility {basis_volatility_dec} to Decimal for variance calculation."
-             )
-             return ZERO
+            self.logger.error(
+                f"Could not convert basis volatility {basis_volatility_dec} to Decimal for variance calculation."
+            )
+            return ZERO
 
         # Get average price for Kelly calculation
         # Ensure prices are Decimal and not None
@@ -413,7 +413,7 @@ class RiskManager:
 
         # 4. Circuit Breaker Check
         if self.circuit_breaker_system:
-            symbol = opportunity.symbol # Extract symbol for clarity
+            symbol = opportunity.symbol  # Extract symbol for clarity
             # Check if circuit breaker allows execution on either exchange
             can_exec_long, reason_long = self.circuit_breaker_system.can_execute(
                 exchange=long_exchange, symbol=symbol
@@ -423,7 +423,7 @@ class RiskManager:
             )
 
             if not can_exec_long or not can_exec_short:
-                reason = reason_long or reason_short # Get the reason if one exists
+                reason = reason_long or reason_short  # Get the reason if one exists
                 self.logger.warning(
                     f"Trade blocked by circuit breaker. Long Ex ({long_exchange}): {can_exec_long}, "
                     f"Short Ex ({short_exchange}): {can_exec_short}. Reason: {reason}"
@@ -1205,11 +1205,7 @@ class RiskManager:
         asset_exposure_agg: dict[str, Decimal] = {}
         for position in all_positions_data:
             # Mypy fix [operator]: Check position attributes
-            if (
-                position.symbol
-                and position.size is not None
-                and position.entry_price is not None
-            ):
+            if position.symbol and position.size is not None and position.entry_price is not None:
                 # Simple exposure: abs(size) * price. Refine if needed.
                 try:
                     exposure = abs(position.size * position.entry_price)  # Approximation
@@ -1228,11 +1224,7 @@ class RiskManager:
         position_values = []
         for position in all_positions_data:
             # Mypy fix [operator]: Check attributes again for safety
-            if (
-                position.symbol
-                and position.size is not None
-                and position.entry_price is not None
-            ):
+            if position.symbol and position.size is not None and position.entry_price is not None:
                 try:
                     position_value = abs(position.size * position.entry_price)
                     position_values.append(

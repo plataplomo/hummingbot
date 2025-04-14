@@ -22,18 +22,16 @@ class TradingStrategy:
     def analyze_market(self, market_data: dict[str, Any]) -> dict[str, int]:
         raise NotImplementedError
 
-    def execute_trades( # E501 Fix: Reformat signature
+    def execute_trades(  # E501 Fix: Reformat signature
         self,
         signals: dict[str, int],
         market_data: dict[str, Any],
-        current_positions: dict[str, float]
+        current_positions: dict[str, float],
     ) -> dict[str, dict[str, Any]]:
         raise NotImplementedError
 
-    def calculate_metrics( # E501 Fix: Reformat signature
-        self,
-        trades: dict[str, dict[str, Any]],
-        market_data: dict[str, Any]
+    def calculate_metrics(  # E501 Fix: Reformat signature
+        self, trades: dict[str, dict[str, Any]], market_data: dict[str, Any]
     ) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -77,7 +75,7 @@ class BacktestEngine:
             trades_by_asset[asset].append(trade)
 
         # Calculate P&L for each asset
-        for _asset, trades in trades_by_asset.items(): # B007: Rename unused asset
+        for _asset, trades in trades_by_asset.items():  # B007: Rename unused asset
             if len(trades) >= 2:
                 # Assuming first trade is entry, second is exit for simplicity
                 entry = trades[0]
@@ -124,11 +122,11 @@ class MockTradingStrategy(TradingStrategy):
                 signals[asset] = 1 if np.random.random() > 0.5 else -1
         return signals
 
-    def execute_trades( # E501 Fix: Reformat signature
+    def execute_trades(  # E501 Fix: Reformat signature
         self,
         signals: dict[str, int],
         market_data: dict[str, Any],
-        current_positions: dict[str, float]
+        current_positions: dict[str, float],
     ) -> dict[str, dict[str, Any]]:
         self.execute_trades_called = True
         # Mock implementation that simulates trade execution
@@ -142,10 +140,8 @@ class MockTradingStrategy(TradingStrategy):
                 }
         return trades
 
-    def calculate_metrics( # E501 Fix: Reformat signature
-        self,
-        trades: dict[str, dict[str, Any]],
-        market_data: dict[str, Any]
+    def calculate_metrics(  # E501 Fix: Reformat signature
+        self, trades: dict[str, dict[str, Any]], market_data: dict[str, Any]
     ) -> dict[str, Any]:
         self.calculate_metrics_called = True
         # Mock implementation that returns basic metrics
