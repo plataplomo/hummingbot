@@ -1,0 +1,28 @@
+# Rule: Runtime Safety Over Static Purity
+
+**Mandate:** Prioritize runtime robustness and explicit type/value validation, especially at component boundaries or after data transformations, even if static analysis (`mypy`) flags these checks as redundant or unreachable based on type hints. Document, do not suppress, valid static analysis warnings arising from necessary runtime checks.
+
+**Guidelines:**
+
+1.  **Strict `Decimal`:** All financial quantities MUST use `Decimal`, initialized from strings (`Decimal('...')`). NO `float` for finance.
+2.  **Paranoid `None` Checks:** Before *any* arithmetic operation (`+`, `-`, `*`, `/`) or comparison (`<`, `>`, `==`, etc.) involving a variable typed as `Decimal | None` (or `Optional[Decimal]`), **MUST** include an `if variable is not None:` check immediately preceding the operation. Provide a safe fallback or raise an error if `None` is encountered unexpectedly.
+3.  **Function Argument `None` Checks:** When passing a `Decimal | None` variable to a function/method expecting a non-optional `Decimal` argument, the `is not None` check **MUST** occur *before* the call.
+4.  **Keep Necessary Runtime `isinstance` Checks:** Retain `isinstance(var, ExpectedType)` checks even if `var` is already type-hinted as `ExpectedType` *if* the check provides meaningful runtime validation against:
+    *   Data received from external sources (APIs, files, config) *after* initial parsing.
+    *   Values passed across significant component boundaries.
+    *   Potential bugs or inconsistencies in upstream data generation or transformation logic.
+    *   Ambiguities where Python's dynamic nature could allow unexpected types despite hints.
+5.  **Document `mypy [unreachable]` Conflicts:** If `mypy` flags a necessary runtime check (per Guideline #4) or the code immediately following it as `[unreachable]` because it conflicts with a type hint, **DO NOT** remove the check and **DO NOT** use `# type: ignore`. Instead, **ADD A COMMENT** explaining:
+    *   That `mypy` flags it as unreachable due to the type hint.
+    *   Why the runtime check is being kept (e.g., "Guards against upstream parsing errors", "Ensures runtime type safety at component boundary").
+    *   Acknowledge the `mypy` error will persist. Example:
+        ```python
+        # Mypy flags the following 'isinstance' as [unreachable] because the
+        # 'commission' parameter is type-hinted as Decimal. Keeping this runtime
+        # check for safety against potential upstream type errors (e.g., config load).
+        if not isinstance(commission, Decimal): # mypy: [unreachable]
+            # ... handle error or attempt conversion ...
+        ```
+6.  **No Suppressions:** Strict adherence to the "NO New Ignores/Silencing" constraint. Mypy/Ruff errors must be fixed or documented as per Guideline #5, never silenced.
+
+**Rationale:** This rule establishes that while static type hints define the *intended contract*, runtime validation provides essential defense against real-world imperfections (bugs, external data issues, dynamic behavior). It mandates keeping necessary safety checks and clearly documenting conflicts with static analysis, prioritizing a robust system over a superficially "clean" static analysis report achieved by removing valid runtime safeguards or using ignores.

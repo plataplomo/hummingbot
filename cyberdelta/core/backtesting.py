@@ -190,10 +190,22 @@ class BacktestEngine:
              # Input was already Decimal
             self.commission = commission
 
-        # Assign slippage (Type guaranteed by signature: Decimal)
-        # The previous runtime check block (if not isinstance...) was removed
-        # as it was flagged as unreachable by Mypy due to the Decimal type hint.
-        self.slippage = slippage
+        # Validate and convert slippage
+        # Mypy flags the following block as [unreachable] because the 'slippage'
+        # parameter is type-hinted as Decimal. However, this runtime check provides
+        # an additional layer of safety against potential upstream type errors.
+        # Future upstream Pydantic refactor is due
+        if not isinstance(slippage, Decimal):
+            try:
+                converted_slippage = Decimal(str(slippage))
+                self.logger.warning(f"Slippage provided as {type(slippage)}, converted to Decimal.")
+                self.slippage = converted_slippage
+            except (InvalidOperation, TypeError) as e:
+                self.logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
+                raise ValueError("slippage must be a valid Decimal or convertible string/number.") from e
+        else:
+             # Input was already Decimal
+            self.slippage = slippage
 
         self.results_dir = results_dir
 
