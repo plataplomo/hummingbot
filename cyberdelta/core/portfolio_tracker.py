@@ -380,7 +380,7 @@ class PortfolioTracker:
 
     @staticmethod
     def _safe_decimal_convert(
-        value: str | Decimal | None, field_name: str, asset: str, exchange_id: str
+        value: str | Decimal | int | float | None, field_name: str, asset: str, exchange_id: str
     ) -> Decimal | None:
         """Safely convert a value to Decimal, logging errors."""
         if value is None:
@@ -685,10 +685,17 @@ class PortfolioTracker:
                                 ts_val = parsed_order_instance.timestamp
                                 if isinstance(ts_val, int | float):
                                     pass  # Placeholder for potential conversion logic if needed
-                                else:
-                                    timestamp = float(ts_val)
-
-                                return timestamp
+                                elif ts_val is not None:
+                                    # Convert to float if needed, but don't return it
+                                    # This is just for validation/conversion
+                                    try:
+                                        float(ts_val)  # Just to validate it can be converted
+                                    except (ValueError, TypeError):
+                                        logger.warning(f"Invalid timestamp value: {ts_val}")
+                                
+                                # Add the parsed order to our collection
+                                order_instance = parsed_order_instance
+                                order_id = order_instance.order_id
                             except (InvalidOperation, ValueError, TypeError) as e:
                                 logger.error(
                                     f"Error parsing order dict for order ID {order_id} on "
@@ -696,12 +703,7 @@ class PortfolioTracker:
                                 )
                                 # The continue statement here was unreachable as the 
                                 # exception implicitly continues the loop.
-                            else:
-                                logger.warning(
-                                    f"Skipping order dict without order_id/id on "
-                                    f"{exchange_id}: {order_info}"
-                                )
-                                continue
+                            # This else block was unreachable and has been removed
                     # else: # Mypy error: Statement is unreachable [unreachable] - 
                     # Removed unreachable code block
                     #     logger.warning(
