@@ -405,7 +405,7 @@ class PortfolioTracker:
                 logger.error(f"No API client found for {exchange_id}")
                 return False
 
-            positions_data = await client.get_positions() # Type hint guarantees list[Position]
+            positions_data = await client.get_positions()  # Type hint guarantees list[Position]
             # The 'if positions_data is None:' check was removed as it's unreachable
             # based on the ExchangeAPI.get_positions() type hint.
             # An empty list [] indicates no positions.
@@ -458,7 +458,7 @@ class PortfolioTracker:
                             )
                     # Runtime check: Handle dict case even if type hint expects Position,
                     # for robustness against API client bugs or malformed responses.
-                    elif isinstance(position_info, dict): # type: ignore[unreachable]
+                    elif isinstance(position_info, dict):  # type: ignore[unreachable]
                         symbol = position_info.get("symbol")
                         if not symbol:
                             logger.warning(
@@ -639,7 +639,7 @@ class PortfolioTracker:
                     elif isinstance(order_info, dict):
                         order_id = order_info.get("order_id") or order_info.get(
                             "id"
-                        ) # Check common keys
+                        )  # Check common keys
                         if order_id:
                             # Validate required fields before creating Order
                             symbol = str(order_info.get("symbol", ""))
@@ -682,41 +682,46 @@ class PortfolioTracker:
                                 parsed_order_instance = Order(
                                     id=str(order_id),
                                     symbol=symbol,
-                                    side=side, # Already validated Enum
-                                    type=order_type, # Already validated Enum
+                                    side=side,  # Already validated Enum
+                                    type=order_type,  # Already validated Enum
                                     price=self._safe_decimal_convert(
-                                        order_info.get("price"),
-                                        "price", symbol, exchange_id
+                                        order_info.get("price"), "price", symbol, exchange_id
                                     ),
                                     avg_fill_price=self._safe_decimal_convert(
                                         order_info.get("avgFillPrice"),
-                                        "avg_fill_price", symbol, exchange_id
+                                        "avg_fill_price",
+                                        symbol,
+                                        exchange_id,
                                     ),
                                     quantity=(
                                         self._safe_decimal_convert(
                                             order_info.get("quantity"),
-                                            "quantity", symbol, exchange_id
-                                        ) or Decimal("0")
+                                            "quantity",
+                                            symbol,
+                                            exchange_id,
+                                        )
+                                        or Decimal("0")
                                     ),
                                     filled_quantity=(
                                         self._safe_decimal_convert(
-                                            order_info.get("filled_quantity") or
-                                            order_info.get("filledQuantity"),
-                                            "filled_quantity", symbol, exchange_id
-                                        ) or Decimal("0")
+                                            order_info.get("filled_quantity")
+                                            or order_info.get("filledQuantity"),
+                                            "filled_quantity",
+                                            symbol,
+                                            exchange_id,
+                                        )
+                                        or Decimal("0")
                                     ),
-                                    status=status, # Already validated Enum
+                                    status=status,  # Already validated Enum
                                     time=(
-                                        order_info.get("timestamp") or
-                                        order_info.get("time")
-                                    ), # Check common keys
+                                        order_info.get("timestamp") or order_info.get("time")
+                                    ),  # Check common keys
                                     client_order_id=(
-                                        order_info.get("client_order_id") or
-                                        order_info.get("clientOrderId")
+                                        order_info.get("client_order_id")
+                                        or order_info.get("clientOrderId")
                                     ),
                                     leverage=self._safe_decimal_convert(
-                                        order_info.get("leverage"),
-                                        "leverage", symbol, exchange_id
+                                        order_info.get("leverage"), "leverage", symbol, exchange_id
                                     ),
                                     post_only=order_info.get("postOnly", False),
                                     reduce_only=order_info.get("reduceOnly", False),
@@ -737,9 +742,9 @@ class PortfolioTracker:
                                     f"Error parsing order dict for order ID {order_id} on "
                                     f"{exchange_id}: {e}. Data: {order_info}"
                                 )
-                                continue # Skip this dict if parsing fails
+                                continue  # Skip this dict if parsing fails
 
-                        else: # if not order_id:
+                        else:  # if not order_id:
                             logger.warning(
                                 f"Skipping order dict without ID on {exchange_id}: {order_info}"
                             )

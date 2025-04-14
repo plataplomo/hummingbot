@@ -92,7 +92,7 @@ class BacktestResultsHandler:
             Series of period returns
         """
         if not self.equity_curve:
-            return pd.Series(dtype=float) # Ensure float dtype for empty series
+            return pd.Series(dtype=float)  # Ensure float dtype for empty series
 
         # Convert equity curve to DataFrame
         df = pd.DataFrame(self.equity_curve)
@@ -113,19 +113,19 @@ class BacktestResultsHandler:
         Returns:
             Dictionary of performance metrics
         """
-        if self.returns_series is None: # Check if None before calling calculate_returns
+        if self.returns_series is None:  # Check if None before calling calculate_returns
             self.calculate_returns()
 
         # Mypy incorrectly flags the 'or' as unreachable, assuming len > 0 if not None.
         # However, calculate_returns() can return an empty Series. This check is necessary.
         # Correct indentation for this block
-        if self.returns_series is None or len(self.returns_series) == 0: # mypy: [unreachable]
+        if self.returns_series is None or len(self.returns_series) == 0:  # mypy: [unreachable]
             logger.warning("No returns data available to calculate metrics")
             self.metrics = {
                 "total_trades": len(self.trades),
                 "winning_trades": sum(
                     1 for t in self.trades if t.get("pnl", Decimal("0")) > 0
-                ), # Use Decimal
+                ),  # Use Decimal
                 "total_return": 0.0,
                 "annualized_return": 0.0,
                 "sharpe_ratio": 0.0,
@@ -133,7 +133,7 @@ class BacktestResultsHandler:
                 # Add other metrics with default 0.0 values for consistency
                 "losing_trades": sum(
                     1 for t in self.trades if t.get("pnl", Decimal("0")) <= 0
-                ), # Use Decimal
+                ),  # Use Decimal
                 "win_rate": 0.0,
                 "annualized_volatility": 0.0,
                 "avg_win": 0.0,
@@ -142,12 +142,12 @@ class BacktestResultsHandler:
                 "total_profit": 0.0,
                 "total_loss": 0.0,
             }
-            return self.metrics # Return default metrics
+            return self.metrics  # Return default metrics
 
         # Calculate basic metrics
         # Mypy flags this block as unreachable due to its incorrect assessment
         # of the check at line 119.
-        num_trades = len(self.trades) # mypy: [unreachable]
+        num_trades = len(self.trades)  # mypy: [unreachable]
         winning_trades = sum(1 for t in self.trades if t.get("pnl", Decimal("0")) > 0)
         losing_trades = sum(1 for t in self.trades if t.get("pnl", Decimal("0")) <= 0)
         # Ensure division by zero is handled
@@ -187,30 +187,30 @@ class BacktestResultsHandler:
                 "annualized_volatility": float(volatility),
                 "sharpe_ratio": float(sharpe_ratio),
                 "max_drawdown": float(max_drawdown),
-                "num_trades": len(self.trades), # Redundant? Already set above. Consider removing.
+                "num_trades": len(self.trades),  # Redundant? Already set above. Consider removing.
             }
         )
 
         # Calculate additional trade metrics if we have trades
         if self.trades:
-            pnl_values = [t.get("pnl", Decimal("0")) for t in self.trades] # Use Decimal default
+            pnl_values = [t.get("pnl", Decimal("0")) for t in self.trades]  # Use Decimal default
             winning_pnl = [p for p in pnl_values if p > 0]
             losing_pnl = [p for p in pnl_values if p <= 0]
 
             # Calculate averages
             avg_win = (
                 np.mean([float(p) for p in winning_pnl]) if winning_pnl else 0.0
-            ) # np.mean needs float
+            )  # np.mean needs float
             avg_loss = (
                 np.mean([float(p) for p in losing_pnl]) if losing_pnl else 0.0
-            ) # np.mean needs float
+            )  # np.mean needs float
 
             # Calculate profit factor
             total_profit = sum(winning_pnl)
             total_loss = abs(sum(losing_pnl))
             profit_factor = (
                 float(total_profit / total_loss) if total_loss > 0 else float("inf")
-            ) # Ensure float
+            )  # Ensure float
 
             self.metrics.update(
                 {
@@ -246,7 +246,7 @@ class BacktestResultsHandler:
 
         results = {
             "strategy_name": self.strategy_name,
-            "initial_capital": str(self.initial_capital), # Save Decimal as string
+            "initial_capital": str(self.initial_capital),  # Save Decimal as string
             "timestamp": datetime.now().isoformat(),
             "metrics": self.metrics,
             "equity_curve": self.equity_curve,

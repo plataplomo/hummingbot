@@ -553,7 +553,7 @@ class SignalGenerator:
                 # Mypy incorrectly flags as unreachable, but the input type hint
                 # funding_data: dict[str, dict[str, FundingRate | None]]
                 # explicitly allows None values in the inner dict.
-                if funding_a is None or funding_b is None: # mypy: [unreachable]
+                if funding_a is None or funding_b is None:  # mypy: [unreachable]
                     continue
 
                 try:
@@ -564,14 +564,14 @@ class SignalGenerator:
                     # Mypy incorrectly flags the following 'if' and subsequent lines
                     # as unreachable, likely due to its earlier incorrect assessment
                     # of the check at line 556. This check is necessary.
-                    if rate_a is None or rate_b is None: # mypy: [unreachable]
+                    if rate_a is None or rate_b is None:  # mypy: [unreachable]
                         continue
 
                     # Mypy flags this block as unreachable due to the above.
                     # These conversions are necessary if rates might not be Decimal.
-                    if not isinstance(rate_a, Decimal): # mypy: [unreachable]
+                    if not isinstance(rate_a, Decimal):  # mypy: [unreachable]
                         rate_a = Decimal(str(rate_a))
-                    if not isinstance(rate_b, Decimal): # mypy: [unreachable]
+                    if not isinstance(rate_b, Decimal):  # mypy: [unreachable]
                         rate_b = Decimal(str(rate_b))
 
                     # Calculate the funding rate differential
@@ -591,8 +591,8 @@ class SignalGenerator:
                     # Ensure we have valid prices.
                     # Mypy incorrectly flags as unreachable, but Ticker.price
                     # is defined as Decimal | None.
-                    if ticker_a.price is None or ticker_b.price is None: # mypy: [unreachable]
-                        continue # mypy: [unreachable]
+                    if ticker_a.price is None or ticker_b.price is None:  # mypy: [unreachable]
+                        continue  # mypy: [unreachable]
 
                     # Convert prices to Decimal if needed
                     price_a = ticker_a.price
@@ -606,13 +606,13 @@ class SignalGenerator:
                     # Calculate the funding payment in USD terms
                     # Mypy incorrectly flags the following lines as unreachable,
                     # likely due to its earlier incorrect assessments.
-                    funding_payment_a = price_a * rate_a # mypy: [unreachable]
-                    funding_payment_b = price_b * rate_b # mypy: [unreachable]
+                    funding_payment_a = price_a * rate_a  # mypy: [unreachable]
+                    funding_payment_b = price_b * rate_b  # mypy: [unreachable]
 
                     # Calculate net funding differential
                     net_funding_differential = (
                         funding_payment_b - funding_payment_a
-                    ) # mypy: [unreachable]
+                    )  # mypy: [unreachable]
 
                     # Calculate expected profit after slippage
                     slippage_a = self.estimate_slippage(exchange_a, symbol)

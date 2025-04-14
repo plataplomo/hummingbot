@@ -263,9 +263,7 @@ class DataHandler:
                 elif isinstance(parsed_data, tuple) and len(parsed_data) == 2:
                     # Check element types *after* confirming it's a tuple
                     potential_symbol, potential_ticker = parsed_data
-                    if isinstance(potential_symbol, str) and isinstance(
-                        potential_ticker, Ticker
-                    ):
+                    if isinstance(potential_symbol, str) and isinstance(potential_ticker, Ticker):
                         symbol = potential_symbol
                         ticker_obj = potential_ticker
                     else:
@@ -324,7 +322,7 @@ class DataHandler:
                     message
                 )  # Correct method name
                 if not parsed_funding_data:
-                    return # Handle None case explicitly
+                    return  # Handle None case explicitly
 
                 # Explicitly check type based on hint FundingRate | None
                 if isinstance(parsed_funding_data, FundingRate):

@@ -245,11 +245,9 @@ class OrderVerifier:
                     )
                     if api_value != expected_details[key]:
                         verification_success = False
-                        verification_error = (
-                            (verification_error or "") + (
-                                " API order {key} mismatch:"
-                                f" expected {expected_details[key]}, got {api_value}"
-                            )
+                        verification_error = (verification_error or "") + (
+                            " API order {key} mismatch:"
+                            f" expected {expected_details[key]}, got {api_value}"
                         )
                         break
 
@@ -873,9 +871,7 @@ class SynchronizedOrderSubmissionService:
                         result.status = ExecutionStatus.COMPLETED
 
                         # Wait for second fill if needed
-                        if self.config.get(
-                            "execution.wait_for_second_fill", True
-                        ):
+                        if self.config.get("execution.wait_for_second_fill", True):
                             # Monitor for fills - this would be implemented
                             # to check if order is filled
                             second_fill_result = {
@@ -935,13 +931,13 @@ class SynchronizedOrderSubmissionService:
             # opportunity parameter is typed as
             # OpportunityType = ArbitrageOpportunity | dict[str, Any],
             # making this block reachable.
-            symbol_val = opportunity.get("symbol") # mypy: [unreachable]
-            quantity_val = opportunity.get("optimal_size") # mypy: [unreachable]
-            price_val = ( # mypy: [unreachable]
+            symbol_val = opportunity.get("symbol")  # mypy: [unreachable]
+            quantity_val = opportunity.get("optimal_size")  # mypy: [unreachable]
+            price_val = (  # mypy: [unreachable]
                 opportunity.get("long_price")
                 if leg_type == "long"
                 else opportunity.get("short_price")
-            ) # mypy: [unreachable]
+            )  # mypy: [unreachable]
         else:
             logger.error(
                 f"Cannot prepare order from unsupported opportunity type: {type(opportunity)}"

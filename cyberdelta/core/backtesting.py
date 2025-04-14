@@ -187,7 +187,7 @@ class BacktestEngine:
                     "commission must be a valid Decimal or convertible string/number."
                 ) from e
         else:
-             # Input was already Decimal
+            # Input was already Decimal
             self.commission = commission
 
         # Validate and convert slippage
@@ -202,9 +202,11 @@ class BacktestEngine:
                 self.slippage = converted_slippage
             except (InvalidOperation, TypeError) as e:
                 self.logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
-                raise ValueError("slippage must be a valid Decimal or convertible string/number.") from e
+                raise ValueError(
+                    "slippage must be a valid Decimal or convertible string/number."
+                ) from e
         else:
-             # Input was already Decimal
+            # Input was already Decimal
             self.slippage = slippage
 
         self.results_dir = results_dir
@@ -414,9 +416,7 @@ class BacktestEngine:
                     timestamp_dt = idx.to_pydatetime()
                 else:
                     # Log error if idx is not a recognized timestamp type
-                    logger.error(
-                        f"Unexpected index type for equity point: {type(idx)}. Skipping."
-                    )
+                    logger.error(f"Unexpected index type for equity point: {type(idx)}. Skipping.")
                     continue  # Skip this equity point
 
                 # Only add the point if we successfully obtained a datetime object
@@ -496,8 +496,8 @@ class StrategyAdapter(BacktestStrategy):
                 # Call the method, but don't return its value directly
                 # as Mypy cannot infer its return type. Assume success if no exception.
                 self.strategy.initialize_with_history(data)
-                return True # Indicate success if the call completed
-            return True # Strategy doesn't have the method, initialization considered successful
+                return True  # Indicate success if the call completed
+            return True  # Strategy doesn't have the method, initialization considered successful
         except Exception as e:
             self._logger.exception(
                 f"Error initializing core strategy '{self.strategy.name}' via adapter: {e}"

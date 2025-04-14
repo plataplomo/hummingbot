@@ -355,4 +355,4 @@ class BalanceMonitor:
         else:
             # Mypy incorrectly flags this 'else' block as unreachable.
             # It's necessary to handle cases where an alert with the same ID already exists.
-            logger.warning(f"Alert with ID {alert.id} already exists") # mypy: [unreachable]
+            logger.warning(f"Alert with ID {alert.id} already exists")  # mypy: [unreachable]

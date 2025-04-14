@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     # Import other models only needed for type hints here
     from ..core.models import (
         Balance,
+        Fill,  # Added Fill
         FundingRate,
         MarketData,
         Order,
@@ -48,7 +49,6 @@ if TYPE_CHECKING:
         Ticker,
         TimeInForce,  # Moved back
         Trade,
-        Fill, # Added Fill
     )
 
 logger = logging.getLogger(__name__)

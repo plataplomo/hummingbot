@@ -10,7 +10,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_T = TypeVar("_T") # Define a TypeVar for generic parameter types
+_T = TypeVar("_T")  # Define a TypeVar for generic parameter types
+
 
 class Strategy(ABC):
     """
