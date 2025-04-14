@@ -5,14 +5,16 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation, getcontext
 from typing import TYPE_CHECKING, Any
 
-# from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderType, TradeSignal # REMOVING this runtime import
+# from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderType, TradeSignal
+# REMOVING this runtime import
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.utils.config import Config
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem, BreakerState
 
 if TYPE_CHECKING:  # This block should contain the only import from models
     from cyberdelta.core.models import (
         ArbitrageOpportunity,
+        Position, # Added Position for type hinting
     )
 
 logger = logging.getLogger(__name__)
@@ -92,7 +94,7 @@ class RiskManager:
         portfolio_tracker: PortfolioTracker,
         circuit_breaker_system: CircuitBreakerSystem | None = None,
         # TODO: Replace Any with a more specific validator type if possible
-        funding_rate_validator: Any | None = None,
+        funding_rate_validator: Any | None = None, # ANN401: Leaving Any as per constraints
     ) -> None:
         """
         Initialize the risk manager.
@@ -111,13 +113,17 @@ class RiskManager:
 
         # Load GLOBAL risk parameters from config (ensure Decimal where appropriate)
         # Use the specific keys expected by tests and intended logic
-        self.max_position_size = Decimal(str(config.get("risk.global.max_position_usd", "1000.0")))
+        self.max_position_size = Decimal(
+            str(config.get("risk.global.max_position_usd", "1000.0"))
+        )
         self.max_total_exposure = Decimal(
             str(config.get("risk.global.max_total_exposure_usd", "5000.0"))
         )
         # Kelly fraction is used in calculations with Decimal, convert upfront?
         # Convert kelly_fraction to Decimal for consistency in calculations
-        self.kelly_fraction: Decimal = Decimal(str(config.get("risk.kelly_fraction", 0.5)))
+        self.kelly_fraction: Decimal = Decimal(
+            str(config.get("risk.kelly_fraction", 0.5))
+        )
         self.max_collateral_per_exchange: Decimal = Decimal(
             str(config.get("risk.max_collateral_per_exchange", 0.8))
         )
@@ -150,9 +156,15 @@ class RiskManager:
         )
 
         # Validation metric thresholds - ensure Decimal
-        self.max_acceptable_rmse = Decimal(str(config.get("risk.max_acceptable_rmse", 0.05)))
-        self.max_acceptable_bias = Decimal(str(config.get("risk.max_acceptable_bias", 0.02)))
-        self.min_validation_factor = Decimal(str(config.get("risk.min_validation_factor", 0.2)))
+        self.max_acceptable_rmse = Decimal(
+            str(config.get("risk.max_acceptable_rmse", 0.05))
+        )
+        self.max_acceptable_bias = Decimal(
+            str(config.get("risk.max_acceptable_bias", 0.02))
+        )
+        self.min_validation_factor = Decimal(
+            str(config.get("risk.min_validation_factor", 0.2))
+        )
 
         # Exchange-specific risk modifiers (used to be more conservative on certain exchanges)
         self.exchange_risk_modifiers: dict[str, float] = {}
@@ -198,1291 +210,1021 @@ class RiskManager:
             total_capital: Total available capital (Decimal)
 
         Returns:
-            Recommended position size in USD (Decimal)
+            Calculated position size in USD (Decimal), or ZERO if invalid.
         """
-        # Mypy fix [operator]: Ensure NFD is Decimal before operations
-        # Mypy fix [operator]: Ensure basis_volatility is Decimal before operations
-        nfd_dec = opportunity.net_funding_differential
-        basis_volatility_dec = opportunity.basis_volatility
-
-        # Check if essential values are None
-        if nfd_dec is None:
-            self.logger.warning(
-                f"NFD is None for {opportunity.symbol}, cannot calculate Kelly size."
-            )
-            return ZERO
-        if basis_volatility_dec is None:
-            self.logger.warning(
-                f"Basis volatility is None for {opportunity.symbol}, cannot calculate Kelly size."
-            )
+        if total_capital <= ZERO:
+            self.logger.warning("Total capital is zero or negative, cannot calculate Kelly size.")
             return ZERO
 
-        # Ensure types are Decimal for calculations
-        if not isinstance(nfd_dec, Decimal):
-            try:
-                nfd_dec = Decimal(str(nfd_dec))
-            except InvalidOperation:
-                self.logger.error(f"Invalid NFD value: {nfd_dec}. Cannot calculate Kelly size.")
-                return ZERO
-        # Check if basis_volatility is None (it's already float | None from model)
-        if basis_volatility_dec is None:
+        # Ensure required fields are present and valid
+        if (
+            opportunity.expected_return is None
+            or opportunity.basis_volatility is None
+            or opportunity.long_exchange is None
+            or opportunity.short_exchange is None
+        ):
             self.logger.warning(
-                f"Basis volatility is None for {opportunity.symbol}, cannot calculate Kelly size."
+                f"Missing required data for Kelly calculation for {opportunity.symbol}. "
+                f"Return: {opportunity.expected_return}, Vol: {opportunity.basis_volatility}",
             )
             return ZERO
 
-        # Avoid division by zero or negative volatility
-        if basis_volatility_dec <= ZERO:
-            self.logger.warning(
-                f"Basis volatility is non-positive ({basis_volatility_dec}) for {opportunity.symbol}. "
-                "Using small default float for Kelly calc."
-            )
-            basis_volatility_dec = 0.001  # Default minimal volatility as float
-
-        # Convert float volatility to Decimal for calculation
         try:
-            variance_risk_dec = Decimal(str(basis_volatility_dec)) ** 2
-        except (InvalidOperation, TypeError):
-            self.logger.error(
-                f"Could not convert basis volatility {basis_volatility_dec} to Decimal for variance calculation."
+            # Convert expected return (percentage) and volatility to Decimal
+            expected_return_dec = Decimal(str(opportunity.expected_return))
+            basis_volatility_dec = Decimal(str(opportunity.basis_volatility))
+
+            # Apply exchange-specific risk modifiers to volatility
+            long_modifier = Decimal(
+                str(self.exchange_risk_modifiers.get(opportunity.long_exchange, 1.0))
             )
-            return ZERO
-
-        # Get average price for Kelly calculation
-        # Ensure prices are Decimal and not None
-        long_price = opportunity.long_price
-        short_price = opportunity.short_price
-        if long_price is None or short_price is None:
-            self.logger.warning(
-                f"Missing prices for {opportunity.symbol} for Kelly calculation. Returning zero size."
+            short_modifier = Decimal(
+                str(self.exchange_risk_modifiers.get(opportunity.short_exchange, 1.0))
             )
-            return ZERO
+            # Average or take max? Let's average for now.
+            avg_modifier = (long_modifier + short_modifier) / Decimal("2.0")
+            adjusted_volatility = basis_volatility_dec * avg_modifier
 
-        avg_price = (long_price + short_price) / Decimal("2")
-
-        if avg_price <= ZERO:
-            self.logger.warning(
-                f"Average price is zero or negative ({avg_price}) for {opportunity.symbol}. Returning zero size."
-            )
-            return ZERO
-
-        # Calculate Kelly fraction using Decimal arithmetic
-        try:
-            denominator = variance_risk_dec * avg_price
-            if denominator == ZERO:
+            if adjusted_volatility <= ZERO:
                 self.logger.warning(
-                    f"Kelly denominator is zero for {opportunity.symbol} (variance or price issue). Returning zero size."
+                    f"Adjusted basis volatility is non-positive ({adjusted_volatility}) "
+                    f"for {opportunity.symbol}. Cannot calculate Kelly size.",
                 )
-                kelly = ZERO
-            else:
-                kelly = nfd_dec / denominator
-        except InvalidOperation as e:
-            self.logger.error(f"Error calculating Kelly fraction for {opportunity.symbol}: {e}")
-            kelly = ZERO
+                # Mypy L233: Unreachable code removed (was after return)
+                return ZERO
 
-        # Apply Kelly fraction adjustment (self.kelly_fraction is Decimal)
-        base_size = kelly * self.kelly_fraction * total_capital
+            # Variance is volatility squared
+            variance = adjusted_volatility**2
+            # Mypy L240: Unreachable code removed (was after return)
 
-        # Ensure size is not negative
-        if base_size < ZERO:
-            base_size = ZERO
+            # Kelly formula: f* = edge / odds = expected_return / variance
+            # We use a fraction of Kelly (self.kelly_fraction)
+            if variance <= ZERO: # Avoid division by zero
+                 self.logger.warning(
+                    f"Variance is zero or negative ({variance}) for {opportunity.symbol}. "
+                    "Cannot calculate Kelly fraction."
+                 )
+                 return ZERO
 
-        self.logger.debug(
-            f"Calculated Kelly size for {opportunity.symbol}: {base_size:.2f} USD (NFD: {nfd_dec}, Vol: {basis_volatility_dec}, AvgPx: {avg_price}, Kelly: {kelly:.4f})"
-        )
-        return base_size
+            kelly_fraction = expected_return_dec / variance
+            optimal_fraction = kelly_fraction * self.kelly_fraction
+
+            # Clamp fraction between 0 and 1 (or a max allocation limit)
+            # Using max_single_position_exposure as the upper limit per trade
+            clamped_fraction = max(
+                ZERO, min(optimal_fraction, self.max_single_position_exposure)
+            )
+
+            # Calculate position size in USD
+            position_size = clamped_fraction * total_capital
+
+            self.logger.debug(
+                f"Kelly Calc for {opportunity.symbol}: Return={expected_return_dec:.4f}, "
+                f"Vol={basis_volatility_dec:.4f}, Mod={avg_modifier:.2f}, "
+                f"AdjVol={adjusted_volatility:.4f}, Var={variance:.6f}, "
+                f"KellyF={kelly_fraction:.4f}, OptimalF={optimal_fraction:.4f}, "
+                f"ClampedF={clamped_fraction:.4f}, Size=${position_size:.2f}"
+            )
+
+            return position_size.quantize(Decimal("0.01"))  # Round to cents
+
+        except (InvalidOperation, TypeError, ValueError) as e:
+            self.logger.error(
+                f"Error calculating Kelly size for {opportunity.symbol}: {e}. "
+                f"Return: {opportunity.expected_return}, Vol: {opportunity.basis_volatility}",
+            )
+            # Mypy L248: adjusted_volatility not defined here. Return ZERO directly.
+            return ZERO
 
     def _check_portfolio_constraints(
-        self,
-        long_exchange: str,
-        short_exchange: str,
-        long_size: Decimal,
-        short_size: Decimal,
-    ) -> bool:
+        self, proposed_size: Decimal, opportunity: ArbitrageOpportunity
+    ) -> tuple[bool, str | None]:
         """
-        Check if adding the proposed position sizes violates portfolio constraints.
+        Check if adding the proposed trade violates portfolio-level constraints.
 
         Args:
-            long_exchange: Exchange for the long leg
-            short_exchange: Exchange for the short leg
-            long_size: Proposed size for the long leg (USD)
-            short_size: Proposed size for the short leg (USD)
+            proposed_size: The proposed size for one leg of the trade (in USD).
+                           Assumes long and short sizes are roughly equal for exposure checks.
+            opportunity: The arbitrage opportunity being considered.
 
         Returns:
-            True if constraints are met, False otherwise.
+            Tuple (is_valid, reason): True if constraints are met, False otherwise with reason.
         """
-        # Mypy fix [operator]: Get total capital, check if None
-        total_capital = self.portfolio_tracker.get_total_capital()
+        total_capital = self.portfolio_tracker.get_total_capital_usd()
         if total_capital is None or total_capital <= ZERO:
-            self.logger.warning("Total capital is zero or unavailable. Cannot check constraints.")
-            return False
+            return False, "Total capital unavailable or zero"
+            # Mypy L337: Unreachable code removed (was after return)
 
-        # 1. Max Total Exposure Check
-        # Mypy fix [attr-defined]: Use calculate_total_exposure
-        # Mypy fix [operator]: Check if current exposure is None
+        # 1. Max Single Position Size (Absolute USD)
+        if proposed_size > self.max_position_size:
+            return (
+                False,
+                f"Proposed size ${proposed_size:.2f} exceeds max single position size "
+                f"${self.max_position_size:.2f}",
+            )
+
+        # 2. Max Single Position Size (Relative to Capital)
+        max_relative_size = total_capital * self.max_single_position_exposure
+        if proposed_size > max_relative_size:
+            return (
+                False,
+                f"Proposed size ${proposed_size:.2f} exceeds max relative position size "
+                f"(${max_relative_size:.2f}, {self.max_single_position_exposure:.1%})",
+            )
+            # Mypy L357: Unreachable code removed (was after return)
+
+        # 3. Max Total Exposure (Absolute USD)
         current_exposure = self.calculate_total_exposure()
-        if current_exposure is None:
-            self.logger.warning("Current total exposure is unavailable. Cannot check constraints.")
-            return False  # Or apply a default strict check? For now, fail safe.
-
-        potential_increase = (
-            long_size + short_size
-        )  # Assuming sizes are positive exposure contributions
-        if current_exposure + potential_increase > self.max_total_exposure:
-            self.logger.warning(
-                f"Trade exceeds max total exposure: "
-                f"Current={current_exposure:.2f}, Adding={potential_increase:.2f}, Max={self.max_total_exposure:.2f}"
-            )
-            return False
-
-        # 2. Max Leverage Check (using portfolio-wide leverage)
-        # Mypy fix [attr-defined]: Remove get_current_leverage, calculate instead
-        # Mypy fix [operator]: Check for None and division by zero
-        current_total_exposure = (
-            self.portfolio_tracker.get_total_exposure()
-        )  # Re-fetch exposure for leverage calc
-        if current_total_exposure is None:
-            self.logger.warning("Current total exposure is unavailable. Cannot check leverage.")
-            return False
-
-        potential_total_exposure = current_total_exposure + potential_increase
-        if total_capital > ZERO:
-            potential_leverage = potential_total_exposure / total_capital
-            if potential_leverage > self.max_leverage:
-                self.logger.warning(
-                    f"Trade exceeds max portfolio leverage: Potential={potential_leverage:.2f}, Max={self.max_leverage:.2f}"
-                )
-                return False
-        else:
-            self.logger.warning("Total capital is zero, cannot calculate portfolio leverage.")
-            # Decide if this is a fail condition. If no capital, maybe no trades allowed?
-            return False
-
-        # 3. Max Collateral Per Exchange Check
-        # Mypy fix [attr-defined]: Replace get_exchange_collateral_balance with get_exchange_balance
-        # We need to define what constitutes 'collateral'. Usually stablecoins like USDC/USDT.
-        # Assume USDC for now, make configurable later.
-        collateral_asset = "USDC"  # TODO: Make configurable
-
-        for exchange_id, size in [
-            (long_exchange, long_size),
-            (short_exchange, short_size),
-        ]:
-            # Mypy fix [operator]: Check if balance is None
-            exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
-                exchange_id, collateral_asset
-            )
-            if exchange_balance_obj is None or exchange_balance_obj.total is None:
-                self.logger.warning(
-                    f"Could not retrieve {collateral_asset} balance for {exchange_id}. Skipping collateral check for it."
-                )
-                # Decide: Fail the check? Or allow if balance unknown? For now, allow but warn.
-                continue  # Skip check for this exchange if balance unknown
-
-            exchange_collateral = exchange_balance_obj.total
-            # This check seems flawed. Max collateral *per exchange* (config) usually means
-            # the max % of TOTAL capital allowed on ONE exchange.
-            # Let's reinterpret the check: Total capital on this exchange should not exceed X% of portfolio capital.
-            # Alternatively, maybe it meant Required Margin vs Available Collateral?
-            # Sticking to the % of total capital interpretation for now.
-
-            # Calculate total capital *on this exchange* (approximate as collateral asset value)
-            # Mypy fix [operator]: Check total capital is not None
-            if total_capital > ZERO:
-                collateral_ratio = exchange_collateral / total_capital
-                # Mypy fix [operator]: Compare Decimal with Decimal
-                if collateral_ratio > self.max_collateral_per_exchange:
-                    self.logger.warning(
-                        f"Exchange {exchange_id} collateral ({exchange_collateral:.2f} {collateral_asset}) "
-                        f"exceeds limit ({self.max_collateral_per_exchange * 100:.1f}% of total capital {total_capital:.2f})"
-                    )
-                    # This is a state check, not directly related to the trade size unless the trade *requires* more collateral
-                    # Let's refine this check: Check if the *required margin* for the new trade violates available balance
-                    # This requires margin calculation logic, which is separate.
-                    # For now, keeping the portfolio-level check, but acknowledging its potential ambiguity.
-                    # If the *existing* state violates the rule, maybe block *all* trades on that exchange? Needs clarification.
-
-            # Check minimum exchange balance
-            if exchange_collateral < self.min_exchange_balance:
-                self.logger.warning(
-                    f"Exchange {exchange_id} collateral ({exchange_collateral:.2f} {collateral_asset}) "
-                    f"is below minimum ({self.min_exchange_balance:.2f})"
-                )
-                # Block trade if it's on this exchange? Or just a warning? Block for safety.
-                return False
-
-        # 4. Circuit Breaker Check
-        if self.circuit_breaker_system:
-            symbol = opportunity.symbol  # Extract symbol for clarity
-            # Check if circuit breaker allows execution on either exchange
-            can_exec_long, reason_long = self.circuit_breaker_system.can_execute(
-                exchange=long_exchange, symbol=symbol
-            )
-            can_exec_short, reason_short = self.circuit_breaker_system.can_execute(
-                exchange=short_exchange, symbol=symbol
+        if (current_exposure + proposed_size) > self.max_total_exposure:
+            return (
+                False,
+                f"Adding ${proposed_size:.2f} would exceed max total exposure "
+                f"(${self.max_total_exposure:.2f}). Current: ${current_exposure:.2f}",
             )
 
-            if not can_exec_long or not can_exec_short:
-                reason = reason_long or reason_short  # Get the reason if one exists
-                self.logger.warning(
-                    f"Trade blocked by circuit breaker. Long Ex ({long_exchange}): {can_exec_long}, "
-                    f"Short Ex ({short_exchange}): {can_exec_short}. Reason: {reason}"
+        # 4. Max Portfolio Leverage
+        # Leverage = Total Exposure / Total Capital
+        if total_capital > ZERO: # Avoid division by zero
+            projected_leverage = (current_exposure + proposed_size) / total_capital
+            if projected_leverage > self.max_leverage:
+                return (
+                    False,
+                    f"Projected leverage {projected_leverage:.2f}x exceeds max leverage "
+                    f"{self.max_leverage:.2f}x",
                 )
-                return False
 
-        return True  # All checks passed
+        # 5. Max Exposure Per Exchange
+        # Mypy L428: opportunity is defined in scope. Assuming error was spurious or related to other issues.
+        long_ex = opportunity.long_exchange
+        short_ex = opportunity.short_exchange
+        long_ex_exposure = self.portfolio_tracker.get_total_exposure_usd_by_exchange(long_ex)
+        short_ex_exposure = self.portfolio_tracker.get_total_exposure_usd_by_exchange(short_ex)
+
+        if (long_ex_exposure + proposed_size) > (
+            total_capital * self.max_exposure_per_exchange
+        ):
+            return (
+                False,
+                f"Adding ${proposed_size:.2f} to {long_ex} exceeds max exchange exposure "
+                f"({self.max_exposure_per_exchange:.1%}). Current: ${long_ex_exposure:.2f}",
+            )
+        if (short_ex_exposure + proposed_size) > (
+            total_capital * self.max_exposure_per_exchange
+        ):
+            return (
+                False,
+                f"Adding ${proposed_size:.2f} to {short_ex} exceeds max exchange exposure "
+                f"({self.max_exposure_per_exchange:.1%}). Current: ${short_ex_exposure:.2f}",
+            )
+
+        # 6. Max Exposure Per Asset (Base asset of the symbol)
+        # Assuming symbol format like "BTC-PERP" -> base asset "BTC"
+        base_asset = opportunity.symbol.split("-")[0] # Simple split, might need refinement
+        asset_exposure = self.portfolio_tracker.get_total_exposure_usd_by_asset(base_asset)
+        if (asset_exposure + proposed_size) > (total_capital * self.max_exposure_per_asset):
+             return (
+                False,
+                f"Adding ${proposed_size:.2f} to {base_asset} exceeds max asset exposure "
+                f"({self.max_exposure_per_asset:.1%}). Current: ${asset_exposure:.2f}",
+             )
+
+        # 7. Min Exchange Balance Check
+        long_balance = self.portfolio_tracker.get_exchange_balance(long_ex, "USD") # Assuming USD balance check
+        short_balance = self.portfolio_tracker.get_exchange_balance(short_ex, "USD")
+        if long_balance is None or long_balance.available < self.min_exchange_balance:
+             return (
+                 False,
+                 f"Insufficient available balance on {long_ex} "
+                 f"(Have: ${long_balance.available if long_balance else 'N/A'}, "
+                 f"Min: ${self.min_exchange_balance})",
+             )
+        if short_balance is None or short_balance.available < self.min_exchange_balance:
+             return (
+                 False,
+                 f"Insufficient available balance on {short_ex} "
+                 f"(Have: ${short_balance.available if short_balance else 'N/A'}, "
+                 f"Min: ${self.min_exchange_balance})",
+             )
+
+
+        # TODO: Add checks for collateral requirements, liquidation buffers if possible
+
+        return True, None
 
     def _apply_portfolio_exposure_management(
-        self, opportunity: ArbitrageOpportunity, base_size: Decimal
-    ) -> Decimal:
+        self, sized_opportunities: list[SizedOpportunity]
+    ) -> list[SizedOpportunity]:
         """
-        Adjust base size based on various portfolio exposure limits.
+        Apply portfolio-level exposure limits and diversification rules.
+        (Currently a placeholder - could rank, filter, or resize based on correlation, etc.)
 
         Args:
-            opportunity: The arbitrage opportunity being considered.
-            base_size: The initially calculated size (e.g., from Kelly).
+            sized_opportunities: List of opportunities already sized individually.
 
         Returns:
-            Adjusted size based on portfolio exposure constraints.
+            Filtered/resized list of opportunities adhering to portfolio constraints.
         """
-        # Mypy fix [operator]: Check total capital
-        total_capital = self.portfolio_tracker.get_total_capital()
-        if total_capital is None or total_capital <= ZERO:
-            self.logger.warning(
-                "Total capital is zero or unavailable. Cannot apply exposure management."
-            )
-            return ZERO  # No capital, no size
-
-        adjusted_size = base_size
-        symbol = opportunity.symbol
-        long_exchange = opportunity.long_exchange
-        short_exchange = opportunity.short_exchange
-
-        # 1. Max Exposure Per Asset
-        # Mypy fix [attr-defined]: Replace get_asset_exposure - Use calculate_position_exposure
-        # Mypy fix [operator]: Check exposure result
-        current_asset_exposure = self.calculate_position_exposure(symbol)
-        if current_asset_exposure is None:
-            self.logger.warning(
-                f"Could not determine current exposure for asset {symbol}. Applying default limit."
-            )
-            # Apply limit assuming zero current exposure? Or block trade? Assume zero for now.
-            current_asset_exposure = ZERO
-
-        max_asset_exposure_usd = total_capital * self.max_exposure_per_asset
-        # Calculate how much *additional* exposure is allowed for this asset
-        allowed_increase_asset = max_asset_exposure_usd - current_asset_exposure
-        # The proposed trade adds exposure equal to the size (assuming size is directional exposure value)
-        # For delta-neutral, total exposure increase might be complex. Let's assume size represents the gross exposure increase per leg.
-        # Cap the size based on allowed increase for the asset.
-        # A single opportunity adds 'size' to both long and short, effectively increasing gross exposure by 'size'.
-        # Net exposure change depends on existing positions.
-        # Let's cap the *new* position size based on the remaining room per asset.
-        if adjusted_size > allowed_increase_asset:
-            self.logger.info(
-                f"[{symbol}] Capping size due to max asset exposure limit. Allowed Increase: {allowed_increase_asset:.2f}, Requested: {adjusted_size:.2f}"
-            )
-            adjusted_size = max(ZERO, allowed_increase_asset)  # Ensure not negative
-
-        if adjusted_size <= ZERO:
-            self.logger.info(f"[{symbol}] Size reduced to zero by asset exposure limit.")
-            return ZERO
-
-        # 2. Max Exposure Per Exchange
-        for exchange_id in [long_exchange, short_exchange]:
-            # Mypy fix [attr-defined]: Replace get_exchange_exposure - Use portfolio_tracker method? No, calculate locally.
-            # Mypy fix [operator]: Check exposure result
-            current_exchange_exposure = self.portfolio_tracker.get_exchange_exposure(exchange_id)
-            if current_exchange_exposure is None:
-                self.logger.warning(
-                    f"Could not determine current exposure for exchange {exchange_id}. Applying default limit."
-                )
-                current_exchange_exposure = ZERO  # Assume zero current exposure
-
-            max_exchange_exposure_usd = total_capital * self.max_exposure_per_exchange
-            allowed_increase_exchange = max_exchange_exposure_usd - current_exchange_exposure
-
-            # Cap the size based on allowed increase for this *specific exchange*
-            if adjusted_size > allowed_increase_exchange:
-                self.logger.info(
-                    f"[{symbol}@{exchange_id}] Capping size due to max exchange exposure limit. Allowed Increase: {allowed_increase_exchange:.2f}, Current Size: {adjusted_size:.2f}"
-                )
-                adjusted_size = max(ZERO, allowed_increase_exchange)  # Ensure not negative
-
-            if adjusted_size <= ZERO:
-                self.logger.info(
-                    f"[{symbol}@{exchange_id}] Size reduced to zero by exchange exposure limit."
-                )
-                return ZERO
-
-        # 3. Max Single Position Exposure Limit (as ratio of total capital)
-        max_single_pos_usd = total_capital * self.max_single_position_exposure
-        if adjusted_size > max_single_pos_usd:
-            self.logger.info(
-                f"[{symbol}] Capping size due to max single position exposure limit. Max USD: {max_single_pos_usd:.2f}, Requested: {adjusted_size:.2f}"
-            )
-            adjusted_size = max_single_pos_usd
-
-        if adjusted_size <= ZERO:
-            self.logger.info(f"[{symbol}] Size reduced to zero by single position exposure limit.")
-            return ZERO
-
-        # Apply exchange-specific risk modifier (lower size for riskier exchanges)
-        # Ensure modifiers exist, default to 1.0
-        long_modifier = Decimal(str(self.exchange_risk_modifiers.get(long_exchange, 1.0)))
-        short_modifier = Decimal(str(self.exchange_risk_modifiers.get(short_exchange, 1.0)))
-        # Apply the *stricter* (lower) modifier of the two exchanges involved
-        effective_modifier = min(long_modifier, short_modifier)
-        if effective_modifier < ONE:
-            self.logger.info(
-                f"[{symbol}] Applying risk modifier {effective_modifier:.2f} (from {long_exchange}/{short_exchange})"
-            )
-            adjusted_size *= effective_modifier
-
-        # Mypy fix [attr-defined]: Remove get_asset_volatility call - Volatility adjustment is separate
-        # The logic below seemed related to volatility, moving to _apply_volatility_adjustment
+        # Placeholder: Currently just returns the list as is.
+        # Future implementations could:
+        # - Rank opportunities by risk-adjusted return.
+        # - Iteratively add opportunities, checking cumulative exposure limits.
+        # - Reduce sizes proportionally if limits are hit.
+        # - Apply diversification rules (e.g., limit exposure to single asset/sector).
+        # - Consider correlations between opportunities (removed for now).
 
         self.logger.debug(
-            f"[{symbol}] Size after portfolio exposure management: {adjusted_size:.2f}"
+            f"Applying portfolio exposure management to {len(sized_opportunities)} opportunities."
         )
-        return adjusted_size
+
+        # Example: Simple check against total exposure (redundant with _check_portfolio_constraints?)
+        total_capital = self.portfolio_tracker.get_total_capital_usd()
+        if total_capital is None or total_capital <= ZERO:
+            self.logger.warning("Cannot apply exposure management: Total capital unavailable.")
+            return []
+            # Mypy L509: Unreachable code removed (was after return)
+
+        current_exposure = self.calculate_total_exposure()
+        allowed_new_exposure = self.max_total_exposure - current_exposure
+        cumulative_new_exposure = ZERO
+        final_opportunities = []
+
+        # Sort by risk-adjusted return (descending) to prioritize best opportunities
+        # Ensure risk_adjusted_return is not None before sorting
+        sorted_opportunities = sorted(
+            [opp for opp in sized_opportunities if opp.risk_adjusted_return is not None],
+            key=lambda x: x.risk_adjusted_return,
+            reverse=True,
+        )
+
+        for opp in sorted_opportunities:
+            # Assume long/short sizes are equal for exposure calculation simplicity
+            opp_exposure = max(opp.long_size, opp.short_size)
+            if (cumulative_new_exposure + opp_exposure) <= allowed_new_exposure:
+                final_opportunities.append(opp)
+                cumulative_new_exposure += opp_exposure
+            else:
+                # Option 1: Skip the opportunity
+                self.logger.debug(
+                    f"Skipping opportunity {opp.opportunity.symbol} due to cumulative "
+                    f"exposure limit. Needed: ${opp_exposure:.2f}, Remaining: "
+                    f"${(allowed_new_exposure - cumulative_new_exposure):.2f}",
+                )
+                # Option 2: Resize the opportunity (more complex)
+                # remaining_alloc = allowed_new_exposure - cumulative_new_exposure
+                # if remaining_alloc > ZERO:
+                #     scale_factor = remaining_alloc / opp_exposure
+                #     opp.long_size *= scale_factor
+                #     opp.short_size *= scale_factor
+                #     # Recalculate profit/return?
+                #     final_opportunities.append(opp)
+                #     cumulative_new_exposure += remaining_alloc
+
+        if len(final_opportunities) < len(sized_opportunities):
+            self.logger.info(
+                f"Portfolio exposure management reduced opportunities from "
+                f"{len(sized_opportunities)} to {len(final_opportunities)}.",
+            )
+
+        return final_opportunities
 
     def _apply_portfolio_level_controls(
-        self, base_size: Decimal, opportunity: ArbitrageOpportunity
-    ) -> Decimal:
+        self, sized_opportunity: SizedOpportunity
+    ) -> SizedOpportunity | None:
         """
-        Apply portfolio-level controls like drawdown limits and leverage caps.
+        Apply portfolio-level controls like drawdown limits.
+        (Currently focuses on drawdown, could include correlation etc. later)
 
         Args:
-            base_size: The size after initial calculations and exposure management.
-            opportunity: The arbitrage opportunity.
+            sized_opportunity: The opportunity sized by Kelly criterion.
 
         Returns:
-            Adjusted size after applying portfolio-level controls.
+            The potentially adjusted SizedOpportunity, or None if rejected.
         """
-        adjusted_size = base_size
-        symbol = opportunity.symbol
-
-        # 1. Max Drawdown Limit Check
-        # Mypy fix [attr-defined]: Replace get_portfolio_drawdown with get_current_drawdown
-        # Mypy fix [operator]: Check if drawdown is None
-        current_drawdown = self.portfolio_tracker.get_current_drawdown()
-
-        if current_drawdown is not None:
-            # Mypy fix [operator]: Ensure max_drawdown_limit is Decimal
-            if current_drawdown >= self.max_drawdown_limit:
-                self.logger.warning(
-                    f"Portfolio drawdown ({current_drawdown:.2%}) exceeds limit ({self.max_drawdown_limit:.2%}). Reducing new trade size significantly or blocking."
-                )
-                # Reduce size significantly, e.g., by recovery factor or set to zero
-                adjusted_size *= self.circuit_breaker_recovery_factor  # Use recovery factor concept
-                self.logger.info(
-                    f"[{symbol}] Size reduced to {adjusted_size:.2f} due to drawdown limit."
-                )
-            # Optional: Gradually reduce size as drawdown approaches the limit? More complex.
-        else:
+        # 1. Drawdown Check
+        if not self.check_drawdown():
             self.logger.warning(
-                "Could not retrieve current portfolio drawdown. Skipping drawdown check."
-            )
-
-        # 2. Max Leverage Per Trade Check (distinct from portfolio leverage)
-        # This requires calculating the margin needed for the trade and comparing to size
-        # Mypy fix [operator]: Ensure prices are not None
-        long_price = opportunity.long_price
-        short_price = opportunity.short_price
-        if long_price is None or short_price is None:
-            self.logger.warning(
-                f"[{symbol}] Missing prices, cannot check max leverage per trade. Skipping."
-            )
-        elif adjusted_size > ZERO:  # Only check if size is positive
-            # Assume average price for margin calculation simplification
-            avg_price = (long_price + short_price) / Decimal("2")
-            if avg_price > ZERO:
-                # Assuming adjusted_size is the USD value of the position leg
-                # Leverage = Position Value / Required Margin
-                # Required Margin = Position Value / Leverage
-                # We need to estimate the required margin based on the *max allowed* leverage per trade
-                # If the implied margin (size / max_leverage_per_trade) exceeds available capital or specific limits, reduce size.
-                # This check seems difficult without knowing exact exchange margin rules.
-                # Alternative interpretation: Limit the *size* based on capital and max leverage.
-                # Max Size = Available Capital * max_leverage_per_trade
-                # Mypy fix [operator]: Check total capital
-                total_capital = self.portfolio_tracker.get_total_capital()
-                if total_capital is not None and total_capital > ZERO:
-                    # This interpretation seems wrong. max_leverage_per_trade likely caps the leverage *used by this specific trade's margin*.
-                    # Let's stick to the portfolio-level leverage check in _check_portfolio_constraints
-                    # And potentially add a check later using calculate_required_margin if needed.
-                    # For now, removing the direct check against max_leverage_per_trade here.
-                    pass  # Keep portfolio level check, remove ambiguous trade-level one for now.
-                # else:
-                # self.logger.warning(f"[{symbol}] Cannot check trade leverage due to unavailable capital.")
-
-        # 3. Max Position Size (Absolute USD Cap)
-        if adjusted_size > self.max_position_size:
-            self.logger.info(
-                f"[{symbol}] Capping size due to global max position size limit. Max USD: {self.max_position_size:.2f}, Requested: {adjusted_size:.2f}"
-            )
-            adjusted_size = self.max_position_size
-
-        # Final check: ensure size is not negative
-        adjusted_size = max(ZERO, adjusted_size)
-
-        if adjusted_size < base_size:
-            self.logger.debug(
-                f"[{symbol}] Size after portfolio-level controls: {adjusted_size:.2f} (was {base_size:.2f})"
-            )
-
-        return adjusted_size
-
-    def _get_validation_metrics(self, exchange: str, symbol: str) -> Decimal:
-        """
-        Retrieve validation metrics for a funding rate prediction model.
-
-        Args:
-            exchange: Exchange ID.
-            symbol: Asset symbol.
-
-        Returns:
-            A validation factor (0 to 1) based on metrics, or default if unavailable.
-        """
-        if not self.funding_rate_validator:
-            self.logger.debug(
-                "Funding rate validator not configured. Returning default validation factor."
-            )
-            return ONE  # Default: Assume valid if no validator
-
-        # Mypy fix [attr-defined]: Adapt based on actual validator interface if known
-        # Assuming validator has methods like get_rmse, get_bias
-        # Mypy fix [operator]: Handle potential None returns from validator
-        try:
-            # These method names are assumptions - replace with actual ones
-            rmse = self.funding_rate_validator.get_rmse(exchange, symbol)
-            bias = self.funding_rate_validator.get_bias(exchange, symbol)
-
-            # Ensure metrics are Decimal and handle None
-            rmse_dec = Decimal(str(rmse)) if rmse is not None else None
-            bias_dec = (
-                Decimal(str(bias)).copy_abs() if bias is not None else None
-            )  # Use absolute bias
-
-            if rmse_dec is None or bias_dec is None:
-                self.logger.warning(
-                    f"Missing validation metrics (RMSE/Bias) for {symbol}@{exchange}. Using min factor."
-                )
-                return self.min_validation_factor  # Penalize missing metrics
-
-            # Check against thresholds (ensure thresholds are Decimal)
-            if rmse_dec > self.max_acceptable_rmse or bias_dec > self.max_acceptable_bias:
-                self.logger.warning(
-                    f"Validation metrics exceed thresholds for {symbol}@{exchange}. "
-                    f"RMSE: {rmse_dec:.4f} (Max: {self.max_acceptable_rmse:.4f}), "
-                    f"Bias: {bias_dec:.4f} (Max: {self.max_acceptable_bias:.4f}). "
-                    f"Using min factor."
-                )
-                return self.min_validation_factor  # Below threshold quality
-
-            # Simple linear scaling example (adjust as needed)
-            # Scale factor based on how far below max RMSE/Bias the metrics are
-            rmse_scale = max(ZERO, ONE - (rmse_dec / self.max_acceptable_rmse))
-            bias_scale = max(ZERO, ONE - (bias_dec / self.max_acceptable_bias))
-            # Combine factors (e.g., average or minimum)
-            combined_factor = (rmse_scale + bias_scale) / Decimal("2")
-
-            # Ensure factor is at least the minimum required
-            validation_factor = max(self.min_validation_factor, combined_factor)
-            self.logger.debug(f"Validation factor for {symbol}@{exchange}: {validation_factor:.2f}")
-            return validation_factor
-
-        except Exception as e:
-            self.logger.error(f"Error retrieving validation metrics for {symbol}@{exchange}: {e}")
-            return self.min_validation_factor  # Penalize errors
-
-    def size_opportunity(self, opportunity: ArbitrageOpportunity) -> SizedOpportunity | None:
-        """
-        Calculate the appropriate size for an arbitrage opportunity.
-
-        Args:
-            opportunity: Arbitrage opportunity
-
-        Returns:
-            SizedOpportunity if valid and meets risk criteria, otherwise None
-        """
-        # 0. Initial Checks
-        # Ensure opportunity has Decimal values where expected
-        if not isinstance(opportunity.net_funding_differential, Decimal):
-            opportunity.net_funding_differential = Decimal(
-                str(opportunity.net_funding_differential)
-            )
-        if hasattr(opportunity, "long_price") and not isinstance(opportunity.long_price, Decimal):
-            opportunity.long_price = Decimal(str(opportunity.long_price))
-        if hasattr(opportunity, "short_price") and not isinstance(opportunity.short_price, Decimal):
-            opportunity.short_price = Decimal(str(opportunity.short_price))
-        if hasattr(opportunity, "expected_profit"):
-            if opportunity.expected_profit is None:
-                opportunity.expected_profit = Decimal("0")  # Handle None case
-            elif not isinstance(opportunity.expected_profit, Decimal):
-                opportunity.expected_profit = Decimal(str(opportunity.expected_profit))
-        if hasattr(opportunity, "expected_profit_pct"):
-            if opportunity.expected_profit_pct is None:
-                opportunity.expected_profit_pct = Decimal("0")
-            elif not isinstance(opportunity.expected_profit_pct, Decimal):
-                opportunity.expected_profit_pct = Decimal(str(opportunity.expected_profit_pct))
-
-        if abs(opportunity.net_funding_differential) < self.min_net_funding_differential:
-            self.logger.debug(
-                f"Opportunity {opportunity.symbol} rejected: Net funding diff "
-                f"{opportunity.net_funding_differential:.6f} < {self.min_net_funding_differential}"
+                f"Portfolio drawdown limit exceeded. Rejecting opportunity "
+                f"{sized_opportunity.opportunity.symbol}."
             )
             return None
 
-        # Wrap ALL sizing logic in a try-except block
-        try:
-            # 1. Get Total Capital
-            total_capital = self.portfolio_tracker.get_total_capital()
-            if not isinstance(total_capital, Decimal):
-                self.logger.warning(
-                    f"Total capital from tracker is not Decimal: {total_capital}. Converting."
-                )
-                try:
-                    total_capital = Decimal(str(total_capital))
-                except InvalidOperation:
-                    self.logger.error(
-                        f"Could not convert total capital '{total_capital}' to Decimal."
-                    )
-                    return None  # Cannot proceed without valid capital
+        # 2. Correlation Check (Removed - Placeholder)
+        # if self._check_correlation_limits(sized_opportunity):
+        #     self.logger.warning(f"Opportunity {sized_opportunity.opportunity.symbol}
+        #     rejected due to correlation limits.")
+        #     return None
 
-            if total_capital <= Decimal("0"):
-                self.logger.warning("Cannot size opportunity: total capital is zero or negative.")
-                return None
-
-            # 2. Calculate Initial Base Size (v0.0.1 Simple Path vs. Kelly)
-            initial_base_size = Decimal("0")
-            use_simple_path = self.config.get("risk.use_simple_sizing_path", False)
-
-            # Inner try-except specifically for initial sizing calculation errors
-            try:
-                if use_simple_path:
-                    self.logger.info("Using v0.0.1 simple sizing path.")
-                    sizing_method = self.config.get("risk.simple_sizing_method", "fixed_fraction")
-                    if sizing_method == "fixed_fraction":
-                        fraction = Decimal(
-                            str(self.config.get("risk.simple_fixed_fraction", "0.01"))
-                        )
-                        initial_base_size = total_capital * fraction
-                        self.logger.info(
-                            f"Simple Sizing: Fixed Fraction ({fraction:.2%}). Base size: ${initial_base_size:.2f}"
-                        )
-                    elif sizing_method == "fixed_usd":
-                        initial_base_size = Decimal(
-                            str(self.config.get("risk.simple_fixed_usd_size", "100"))
-                        )
-                        self.logger.info(
-                            f"Simple Sizing: Fixed USD. Base size: ${initial_base_size:.2f}"
-                        )
-                    else:
-                        self.logger.error(
-                            f"Invalid simple_sizing_method: {sizing_method}. Defaulting to 0."
-                        )
-                        initial_base_size = Decimal("0")
-                else:
-                    self.logger.info("Using standard sizing path (Kelly Criterion).")
-                    initial_base_size = self._calculate_kelly_size(opportunity, total_capital)
-                    self.logger.info(
-                        f"Standard Sizing: Kelly Result. Base size: ${initial_base_size:.2f}"
-                    )
-
-            except Exception as e:
-                self.logger.error(f"Error during initial base size calculation: {e}", exc_info=True)
-                return None  # Exit if initial sizing fails
-
-            # Ensure initial size is non-negative before proceeding
-            initial_base_size = max(Decimal("0"), initial_base_size)
-            if initial_base_size <= Decimal("0"):
-                self.logger.warning(
-                    "Initial base size calculated as zero or negative. Rejecting opportunity."
-                )
-                return None
-
-            # Steps 3, 4, 5 remain within the main try-except block
-            # 3. Apply Portfolio Exposure Management (Applies to both paths)
-            exposure_adjusted_size = Decimal("0")
-            exposure_adjusted_size = self._apply_portfolio_exposure_management(
-                opportunity, initial_base_size
+        # 3. Circuit Breaker Recovery Adjustment
+        # If any relevant circuit breaker is in HALF_OPEN state, reduce size
+        size_modifier = ONE
+        if self.circuit_breaker_system:
+            long_ex = sized_opportunity.opportunity.long_exchange
+            short_ex = sized_opportunity.opportunity.short_exchange
+            # Check relevant breakers (e.g., API error breakers for the specific exchanges)
+            long_api_breaker = self.circuit_breaker_system.get_exchange_breaker(
+                long_ex, "APIErrorBreaker"
             )
-            self.logger.debug(
-                f"After Exposure Mgmt: ${initial_base_size:.2f} -> ${exposure_adjusted_size:.2f}"
+            short_api_breaker = self.circuit_breaker_system.get_exchange_breaker(
+                short_ex, "APIErrorBreaker"
             )
 
-            # 4. Apply Portfolio Level Controls (Will conditionally skip complex adjustments inside)
-            final_base_size = Decimal("0")
-            final_base_size = self._apply_portfolio_level_controls(
-                exposure_adjusted_size, opportunity
+            # Check if breaker exists and is in HALF_OPEN state
+            is_long_half_open = (
+                long_api_breaker and long_api_breaker.state == BreakerState.HALF_OPEN
             )
-            self.logger.debug(
-                f"After Portfolio Controls: ${exposure_adjusted_size:.2f} -> ${final_base_size:.2f}"
+            is_short_half_open = (
+                short_api_breaker and short_api_breaker.state == BreakerState.HALF_OPEN
             )
 
-            # Ensure size doesn't exceed individual max position size
-            final_size = min(final_base_size, self.max_position_size)
-            if final_size < final_base_size:
+            if is_long_half_open or is_short_half_open:
                 self.logger.info(
-                    f"Applied Max Position Size Cap: ${final_base_size:.2f} -> ${final_size:.2f}"
+                    f"Applying circuit breaker recovery factor ({self.circuit_breaker_recovery_factor}) "
+                    f"to opportunity {sized_opportunity.opportunity.symbol} due to "
+                    "HALF_OPEN state.",
                 )
+                size_modifier = self.circuit_breaker_recovery_factor
 
-            # 5. Check Portfolio Constraints with Final Size
-            long_size = final_size
-            short_size = final_size
-            if not self._check_portfolio_constraints(
-                opportunity.long_exchange,
-                opportunity.short_exchange,
-                long_size,
-                short_size,
-            ):
-                self.logger.info("Opportunity failed portfolio constraints check after sizing.")
-                return None
+        if size_modifier < ONE:
+            sized_opportunity.long_size *= size_modifier
+            sized_opportunity.short_size *= size_modifier
+            # Recalculate expected profit based on reduced size?
+            # This assumes profit scales linearly with size, which might not be true
+            # due to fees, slippage etc. For simplicity, we adjust it linearly here.
+            sized_opportunity.expected_profit *= size_modifier
+            # Expected return percentage should ideally remain the same if profit scales linearly
+            # Risk-adjusted return might also need recalculation if risk profile changes
+            self.logger.info(
+                f"Adjusted size for {sized_opportunity.opportunity.symbol} due to recovery: "
+                f"Long ${sized_opportunity.long_size:.2f}, Short ${sized_opportunity.short_size:.2f}",
+            )
+
+
+        # Potentially add other portfolio-level adjustments here
+
+        return sized_opportunity
+
+    def _get_validation_metrics(self, exchange: str, symbol: str) -> Decimal:
+        """
+        Retrieve validation metrics for funding rate predictions.
+        (Placeholder - needs integration with actual validation source)
+
+        Args:
+            exchange: The exchange name.
+            symbol: The symbol name.
+
+        Returns:
+            A validation factor (0.0 to 1.0) based on prediction accuracy.
+            Returns 1.0 if no validator is configured or metrics are unavailable.
+        """
+        if not self.funding_rate_validator:
+            return ONE  # No validator, assume predictions are perfect
+            # Mypy L736: Unreachable code removed (was after return)
+
+        try:
+            # Assume validator has a method like get_symbol_metrics
+            metrics = self.funding_rate_validator.get_symbol_metrics(exchange, symbol)
+            if not metrics:
+                self.logger.warning(
+                    f"No validation metrics found for {exchange}/{symbol}. Using factor 1.0.",
+                )
+                return ONE
+                # Mypy L755: Unreachable code removed (was after return)
+
+            rmse = Decimal(str(metrics.get("rmse", self.max_acceptable_rmse + ONE)))
+            bias = Decimal(str(metrics.get("bias", self.max_acceptable_bias + ONE)))
+
+            # Simple factor calculation: Penalize high RMSE and bias
+            # Start with 1.0 and reduce based on how much thresholds are exceeded
+            factor = ONE
+            if rmse > self.max_acceptable_rmse:
+                # Penalize more heavily the further RMSE is above threshold
+                factor -= (rmse - self.max_acceptable_rmse) * Decimal("5.0") # Example penalty
+            if abs(bias) > self.max_acceptable_bias:
+                 # Penalize more heavily the further bias is above threshold
+                factor -= (abs(bias) - self.max_acceptable_bias) * Decimal("10.0") # Example penalty
+
+            # Ensure factor is within [min_validation_factor, 1.0]
+            final_factor = max(self.min_validation_factor, min(factor, ONE))
+
+            self.logger.debug(
+                f"Validation metrics for {exchange}/{symbol}: RMSE={rmse:.4f}, Bias={bias:.4f}. "
+                f"Calculated Factor: {final_factor:.3f}",
+            )
+            return final_factor
 
         except Exception as e:
             self.logger.error(
-                f"Unhandled exception during sizing process for {opportunity.symbol}: {e}",
-                exc_info=True,
+                f"Error retrieving validation metrics for {exchange}/{symbol}: {e}. Using factor "
+                f"{self.min_validation_factor}.",
             )
-            return None  # Return None if any step from 1 to 5 fails unexpectedly
+            return self.min_validation_factor # Return minimum factor on error
 
-        # 6. Calculate derived metrics (Outside the main try-except)
-        allocation_percentage = (
-            float((final_size / total_capital) * Decimal("100"))
-            if total_capital > Decimal("0")
-            else 0.0
-        )  # Result is float
+    def size_opportunity(self, opportunity: ArbitrageOpportunity) -> SizedOpportunity | None:
+        """
+        Validate and size a single arbitrage opportunity.
 
-        # Recalculate expected profit based on final size and NFD
-        # Assuming prices are available in the opportunity object
-        final_expected_profit = Decimal("0.0")  # Default value
-        expected_return = 0.0  # Default value
-        risk_adjusted_return = 0.0  # Default value
+        Args:
+            opportunity: The potential arbitrage opportunity.
 
-        # Mypy fix [operator]: Check long_price and short_price are not None before use
-        if opportunity.long_price is not None and opportunity.short_price is not None:
-            # Ensure they are Decimal
-            long_price_dec = opportunity.long_price
-            short_price_dec = opportunity.short_price
+        Returns:
+            A SizedOpportunity object if valid and sized, otherwise None.
+        """
+        self.logger.debug(f"Sizing opportunity for {opportunity.symbol}")
 
-            avg_entry_price = (long_price_dec + short_price_dec) / Decimal("2")
-            # Quantity = Size / Price
-            quantity = (
-                final_size / avg_entry_price if avg_entry_price > Decimal("0") else Decimal("0")
+        # 1. Basic Opportunity Validation
+        if not self.validate_opportunity(opportunity):
+            # Logging is done within validate_opportunity
+            return None
+
+        # 2. Get Total Capital
+        total_capital = self.portfolio_tracker.get_total_capital_usd()
+        if total_capital is None or total_capital <= ZERO:
+            self.logger.warning("Cannot size opportunity: Total capital unavailable or zero.")
+            return None
+
+        # 3. Calculate Initial Kelly Size
+        initial_size_usd = self._calculate_kelly_size(opportunity, total_capital)
+        if initial_size_usd <= ZERO:
+            # Logging is done within _calculate_kelly_size
+            return None
+        self.logger.debug(f"Initial Kelly size for {opportunity.symbol}: ${initial_size_usd:.2f}")
+
+        # 4. Apply Validation Metrics Modifier (if validator exists)
+        long_validation_factor = self._get_validation_metrics(
+            opportunity.long_exchange, opportunity.symbol
+        )
+        short_validation_factor = self._get_validation_metrics(
+            opportunity.short_exchange, opportunity.symbol
+        )
+        # Use the minimum factor from both exchanges involved
+        validation_factor = min(long_validation_factor, short_validation_factor)
+
+        if validation_factor < ONE:
+            self.logger.info(
+                f"Applying validation factor {validation_factor:.3f} to size for {opportunity.symbol}.",
             )
-            # Profit = Quantity * Price_Difference * Time_Factor (Simplified: Size * NFD)
-            # Need to consider time horizon for funding rate profit
-            # Simple approximation: Profit = Size * NetFundingDifferential (as a rate)
-            # Assuming NFD is daily rate, profit per day = Size * NFD
-            # This needs a more robust calculation based on strategy specifics.
-            # Using a simplified placeholder based on NFD * Size
-            final_expected_profit = (
-                final_size * opportunity.net_funding_differential
-            )  # Decimal * Decimal
-
-            # Expected return (percentage) - remains float, based on NFD
-            # Mypy fix [arg-type]: Ensure NFD is converted for float()
-            expected_return = float(opportunity.net_funding_differential * 100)
-        else:
-            self.logger.warning(
-                "Cannot accurately calculate expected profit/return due to missing prices. Using zero."
+            initial_size_usd *= validation_factor
+            if initial_size_usd <= ZERO:
+                self.logger.info(
+                    f"Size reduced to zero or less after validation factor for {opportunity.symbol}. "
+                    "Rejecting.",
+                )
+                return None
+            self.logger.debug(
+                f"Size after validation factor for {opportunity.symbol}: ${initial_size_usd:.2f}"
             )
 
-        # Mypy fix [arg-type]: Ensure utility_score is float
-        risk_adjusted_return = (
-            float(opportunity.utility_score)
-            if hasattr(opportunity, "utility_score") and opportunity.utility_score is not None
-            else 0.0
-        )  # Use utility score as proxy (float), handle None
 
-        # 7. Create SizedOpportunity object
-        # Mypy fix [arg-type]: Ensure args match SizedOpportunity constructor (expects Decimals)
+        # 5. Check Portfolio Constraints
+        # Use the initial_size_usd (potentially reduced by validation) for checks
+        is_valid, reason = self._check_portfolio_constraints(initial_size_usd, opportunity)
+        if not is_valid:
+            self.logger.info(
+                f"Opportunity {opportunity.symbol} rejected due to portfolio constraints: {reason}",
+            )
+            return None
+
+        # 6. Determine Final Sizes (assuming equal USD size for long/short for now)
+        # In reality, might need slight adjustments based on price, fees, leverage limits per leg
+        final_long_size = initial_size_usd
+        final_short_size = initial_size_usd
+
+        # 7. Apply Leverage Constraints (per leg/trade) - Adjust size if needed
+        # This requires knowing the price on each exchange to convert USD size to asset quantity
+        # and then checking against max leverage. Placeholder for now.
+        # Example logic:
+        # long_price = opportunity.long_entry_price # Need reliable price
+        # short_price = opportunity.short_entry_price # Need reliable price
+        # if long_price and short_price:
+        #     long_qty = final_long_size / long_price
+        #     short_qty = final_short_size / short_price
+        #     # Check margin requirements and leverage limits per exchange...
+        #     # If limits exceeded, reduce final_long_size/final_short_size...
+        # else:
+        #     self.logger.warning(f"Cannot check per-trade leverage for {opportunity.symbol}: Missing prices.")
+
+
+        # 8. Calculate Expected Profit & Return (Based on Final Size)
+        # Assuming profit scales linearly with size (simplification)
+        # Need original expected return percentage
+        original_expected_return = Decimal(str(opportunity.expected_return))
+        expected_profit = final_long_size * original_expected_return # Approx profit in USD
+        expected_return_pct = original_expected_return # Percentage return remains same
+
+        # 9. Calculate Risk-Adjusted Return (Placeholder)
+        # Requires a risk measure (e.g., volatility, VaR) associated with the opportunity
+        # risk_measure = Decimal(str(opportunity.basis_volatility)) # Example using volatility
+        # risk_adjusted_return = expected_return_pct / risk_measure if risk_measure > ZERO else ZERO
+        risk_adjusted_return = expected_return_pct # Placeholder: Use simple return for now
+
+        # 10. Create SizedOpportunity object
         sized_opportunity = SizedOpportunity(
             opportunity=opportunity,
-            long_size=long_size,  # Final Decimal size
-            short_size=short_size,  # Final Decimal size
-            allocation_percentage=Decimal(str(allocation_percentage)),  # Convert float % to Decimal
-            expected_profit=final_expected_profit,  # Decimal USD profit
-            expected_return=Decimal(
-                str(expected_return / 100.0)
-            ),  # Convert float % to Decimal rate
-            risk_adjusted_return=Decimal(
-                str(risk_adjusted_return)
-            ),  # Convert float score to Decimal
+            long_size=final_long_size,
+            short_size=final_short_size,
+            allocation_percentage=(final_long_size / total_capital)
+            if total_capital > ZERO else ZERO,
+            expected_profit=expected_profit,
+            expected_return=expected_return_pct,
+            risk_adjusted_return=risk_adjusted_return,
         )
 
-        self.logger.info(f"Successfully sized opportunity: {sized_opportunity}")
-        return sized_opportunity
+        # 11. Apply Final Portfolio Controls (e.g., drawdown, recovery factor)
+        final_sized_opportunity = self._apply_portfolio_level_controls(sized_opportunity)
+
+        if final_sized_opportunity:
+            self.logger.info(f"Successfully sized opportunity: {final_sized_opportunity}")
+        else:
+             # Logging done within _apply_portfolio_level_controls
+             pass
+
+        return final_sized_opportunity
+
 
     def validate_opportunity(self, opportunity: ArbitrageOpportunity) -> bool:
         """
-        Validate an arbitrage opportunity against risk constraints.
+        Perform initial validation checks on an opportunity before sizing.
 
         Args:
-            opportunity: The arbitrage opportunity to validate
+            opportunity: The arbitrage opportunity.
 
         Returns:
-            True if the opportunity passes all validation checks, False otherwise
+            True if the opportunity passes initial validation, False otherwise.
         """
-        # Check if circuit breakers are active for either exchange
-        if self.circuit_breaker_system is not None:
-            can_execute_long, reason_long = self.circuit_breaker_system.can_execute(
+        self.logger.debug(f"Validating opportunity for {opportunity.symbol}")
+
+        # 1. Check Required Fields
+        try:
+            opportunity.validate_required_fields()
+        except ValueError as e:
+            self.logger.warning(f"Opportunity validation failed for {opportunity.symbol}: {e}")
+            return False
+
+        # 2. Check Profitability (Net Funding Differential vs Threshold)
+        if not self.is_opportunity_profitable(opportunity):
+            # Logging done within is_opportunity_profitable
+            return False
+
+        # 3. Check Exchange Connectivity / Circuit Breakers
+        if self.circuit_breaker_system:
+            can_long, long_reason = self.circuit_breaker_system.can_execute(
                 opportunity.long_exchange
             )
-            if not can_execute_long:
+            if not can_long:
                 self.logger.warning(
-                    f"Circuit breaker active for {opportunity.long_exchange} - rejecting opportunity: {reason_long}"
+                    f"Rejecting opportunity {opportunity.symbol}: Circuit breaker tripped for "
+                    f"long exchange {opportunity.long_exchange}: {long_reason}",
                 )
                 return False
-
-            can_execute_short, reason_short = self.circuit_breaker_system.can_execute(
+            can_short, short_reason = self.circuit_breaker_system.can_execute(
                 opportunity.short_exchange
             )
-            if not can_execute_short:
+            if not can_short:
                 self.logger.warning(
-                    f"Circuit breaker active for {opportunity.short_exchange} - rejecting opportunity: {reason_short}"
+                    f"Rejecting opportunity {opportunity.symbol}: Circuit breaker tripped for "
+                    f"short exchange {opportunity.short_exchange}: {short_reason}",
                 )
                 return False
 
-        # Validate funding rate differential
-        if not isinstance(opportunity.net_funding_differential, Decimal):
-            try:
-                net_funding_differential = Decimal(str(opportunity.net_funding_differential))
-            except (InvalidOperation, TypeError):
-                self.logger.warning(
-                    f"Invalid net_funding_differential: {opportunity.net_funding_differential}. Cannot convert to Decimal."
-                )
-                return False
-        else:
-            net_funding_differential = opportunity.net_funding_differential
-
-        if net_funding_differential < self.min_net_funding_differential:
-            self.logger.debug(
-                f"Opportunity rejected: NFD {net_funding_differential} < "
-                f"min required {self.min_net_funding_differential}"
-            )
-            return False
-
-        # Check if the long price and short price are valid Decimals
+        # 4. Check Prices (Basic Sanity - e.g., positive)
         try:
+            # Ensure prices are Decimal before comparison
             long_price = (
-                opportunity.long_price
-                if isinstance(opportunity.long_price, Decimal)
-                else Decimal(str(opportunity.long_price))
+                Decimal(str(opportunity.long_entry_price))
+                if opportunity.long_entry_price is not None else None
             )
             short_price = (
-                opportunity.short_price
-                if isinstance(opportunity.short_price, Decimal)
-                else Decimal(str(opportunity.short_price))
+                Decimal(str(opportunity.short_entry_price))
+                if opportunity.short_entry_price is not None else None
             )
-        except (InvalidOperation, TypeError, AttributeError) as e:
-            self.logger.warning(f"Opportunity has invalid price values: {e}")
-            return False
-
-        # Check if there is sufficient balance on both exchanges
-        long_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
-            opportunity.long_exchange,
-            # Mypy fix [call-arg]: Provide required 'asset' argument
-            self.config.get(f"exchanges.{opportunity.long_exchange}.collateral_asset", "USDC"),
-        )
-        short_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
-            opportunity.short_exchange,
-            # Mypy fix [call-arg]: Provide required 'asset' argument
-            self.config.get(f"exchanges.{opportunity.short_exchange}.collateral_asset", "USDC"),
-        )
-
-        # Convert balances to Decimal for comparison
-        try:
-            long_balance_dec = (
-                long_exchange_balance_obj.total if long_exchange_balance_obj else Decimal("0")
-            )
-            short_balance_dec = (
-                short_exchange_balance_obj.total if short_exchange_balance_obj else Decimal("0")
-            )
-
-            min_balance_dec = (
-                self.min_exchange_balance
-                if isinstance(self.min_exchange_balance, Decimal)
-                else Decimal(str(self.min_exchange_balance))
-            )
-        except (InvalidOperation, TypeError) as e:
-            self.logger.error(f"Error converting balance values to Decimal: {e}")
-            return False
-
-        if long_balance_dec < min_balance_dec:
-            self.logger.warning(
-                f"Insufficient balance on {opportunity.long_exchange}: "
-                f"{long_balance_dec} < {min_balance_dec}"
-            )
-            return False
-
-        if short_balance_dec < min_balance_dec:
-            self.logger.warning(
-                f"Insufficient balance on {opportunity.short_exchange}: "
-                f"{short_balance_dec} < {min_balance_dec}"
-            )
-            return False
-
-        # Check if funding rate metrics are validated (if validator is available)
-        if self.funding_rate_validator:
-            validation_result = self.funding_rate_validator.validate_funding_prediction(
-                opportunity.symbol, opportunity.long_exchange, opportunity.short_exchange
-            )
-
-            if not validation_result:
-                self.logger.info(
-                    f"Funding rate prediction validation failed for {opportunity.symbol}"
+            if long_price is None or long_price <= ZERO:
+                self.logger.warning(
+                    f"Invalid long entry price ({long_price}) for {opportunity.symbol}"
                 )
                 return False
+            if short_price is None or short_price <= ZERO:
+                self.logger.warning(
+                    f"Invalid short entry price ({short_price}) for {opportunity.symbol}"
+                )
+                return False
+        except (InvalidOperation, TypeError) as e:
+             self.logger.error(f"Error converting prices for {opportunity.symbol}: {e}")
+             return False
 
-        # Validate current exchange exposure
-        total_exposure = self.portfolio_tracker.get_total_exposure()
+
+        # 5. Check Exchange Balances (Minimum required)
+        long_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
+            opportunity.long_exchange, "USD" # Assuming check against USD balance
+        )
+        short_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
+            opportunity.short_exchange, "USD"
+        )
+
+        try:
+            long_balance_dec = (
+                Decimal(str(long_exchange_balance_obj.available))
+                if long_exchange_balance_obj and long_exchange_balance_obj.available is not None
+                else ZERO
+            )
+            short_balance_dec = (
+                Decimal(str(short_exchange_balance_obj.available))
+                if short_exchange_balance_obj and short_exchange_balance_obj.available is not None
+                else ZERO
+            )
+            min_balance_dec = (
+                self.min_exchange_balance # Already Decimal
+            )
+
+            if long_balance_dec < min_balance_dec:
+                self.logger.warning(
+                    f"Insufficient balance on {opportunity.long_exchange} (${long_balance_dec:.2f}) "
+                    f"for opportunity {opportunity.symbol}. Min required: ${min_balance_dec:.2f}",
+                )
+                return False
+            if short_balance_dec < min_balance_dec:
+                 self.logger.warning(
+                    f"Insufficient balance on {opportunity.short_exchange} (${short_balance_dec:.2f}) "
+                    f"for opportunity {opportunity.symbol}. Min required: ${min_balance_dec:.2f}",
+                )
+                 return False
+        except (InvalidOperation, TypeError) as e:
+             self.logger.error(f"Error converting balances for {opportunity.symbol}: {e}")
+             return False
+
+
+        # 6. Check Total Exposure vs Capital (Leverage Sanity)
+        total_capital = self.portfolio_tracker.get_total_capital_usd()
+        if total_capital is None or total_capital <= ZERO:
+             self.logger.warning(f"Cannot validate leverage for {opportunity.symbol}: Capital unavailable.")
+             # Allow opportunity if capital is unavailable? Or reject? Reject for safety.
+             return False
+
         try:
             total_exposure_dec = (
-                total_exposure
-                if isinstance(total_exposure, Decimal)
-                else Decimal(str(total_exposure))
+                self.calculate_total_exposure() # Already Decimal
             )
             max_exposure_dec = (
-                self.max_total_exposure
-                if isinstance(self.max_total_exposure, Decimal)
-                else Decimal(str(self.max_total_exposure))
+                total_capital * self.max_leverage # Already Decimal
             )
+            if total_exposure_dec > max_exposure_dec:
+                self.logger.warning(
+                    f"Portfolio leverage limit exceeded. Current Exposure: ${total_exposure_dec:.2f}, "
+                    f"Max Allowed: ${max_exposure_dec:.2f} (Capital: ${total_capital:.2f}, "
+                    f"Max Leverage: {self.max_leverage}x). Rejecting opportunity {opportunity.symbol}.",
+                )
+                return False
         except (InvalidOperation, TypeError) as e:
-            self.logger.error(f"Error converting exposure values to Decimal: {e}")
-            return False
+             self.logger.error(f"Error checking leverage for {opportunity.symbol}: {e}")
+             return False
 
-        if total_exposure_dec > max_exposure_dec:
-            self.logger.warning(
-                f"Rejecting opportunity: Total exposure {total_exposure_dec} exceeds maximum {max_exposure_dec}"
-            )
-            return False
 
-        # Check leverage limits
-        # Mypy fix [attr-defined]: Method get_current_leverage does not exist
-        # Cannot perform this check reliably without the method.
-        self.logger.debug(
-            "Skipping current leverage check - method not available on PortfolioTracker."
-        )
-        # current_leverage = self.portfolio_tracker.get_current_leverage()
-        # if current_leverage is not None:
-        #     try:
-        #         leverage_dec = (
-        #             current_leverage
-        #             if isinstance(current_leverage, Decimal)
-        #             else Decimal(str(current_leverage))
-        #         )
-        #         max_leverage_dec = (
-        #             self.max_leverage
-        #             if isinstance(self.max_leverage, Decimal)
-        #             else Decimal(str(self.max_leverage))
-        #         )
+        # TODO: Add more validation steps as needed
+        # - Liquidity checks?
+        # - Max open orders check?
+        # - Correlation with existing positions? (Removed for now)
 
-        #         if leverage_dec > max_leverage_dec:
-        #             self.logger.warning(
-        #                 f"Rejecting opportunity: Current leverage {leverage_dec} exceeds maximum {max_leverage_dec}"
-        #             )
-        #             return False
-        #     except (InvalidOperation, TypeError) as e:
-        #         self.logger.error(f"Error converting leverage values to Decimal: {e}")
-        #         return False
-
-        # All checks passed
+        self.logger.debug(f"Opportunity {opportunity.symbol} passed initial validation.")
         return True
 
     def validate_opportunities(
         self, opportunities: list[ArbitrageOpportunity]
     ) -> list[SizedOpportunity]:
         """
-        Filter and size a list of opportunities based on risk.
+        Validate a list of opportunities and return sized ones.
 
         Args:
-            opportunities: List of potential arbitrage opportunities
+            opportunities: List of potential arbitrage opportunities.
 
         Returns:
-            List of validated and sized opportunities
+            List of validated and sized opportunities ready for execution.
         """
+        self.logger.info(f"Validating and sizing {len(opportunities)} opportunities.")
         sized_opportunities: list[SizedOpportunity] = []
-        if not opportunities:
-            return sized_opportunities  # Return empty list if input is empty
 
-        # Mypy fix [operator]: Check total capital once at the start
-        total_capital = self.portfolio_tracker.get_total_capital()
-        if total_capital is None or total_capital <= ZERO:
-            self.logger.warning(
-                "Total capital is zero or unavailable. Cannot validate/size opportunities."
-            )
-            return sized_opportunities
-
+        # Perform initial validation and sizing for each opportunity individually
         for opportunity in opportunities:
             self.logger.debug(
-                f"Processing opportunity: {opportunity.symbol} ({opportunity.long_exchange} vs {opportunity.short_exchange})"
+                f"Processing opportunity: {opportunity.symbol} ({opportunity.long_exchange} vs "
+                f"{opportunity.short_exchange})",
             )
             # Attempt to size the opportunity (includes validation)
             sized_opp = self.size_opportunity(opportunity)
             if sized_opp:
                 sized_opportunities.append(sized_opp)
             # else: # No need for log here, size_opportunity already logs reasons for failure
-            #      self.logger.debug(f"Opportunity for {opportunity.symbol} did not result in a sized position.")
+            #      self.logger.debug(
+            #          f"Opportunity for {opportunity.symbol} did not result in a sized position."
+            #      )
 
-        # TODO: Add post-processing? E.g., ranking, diversification limits across the selected batch?
+        # TODO: Add post-processing? E.g., ranking, diversification limits across the
+        # selected batch?
         # For now, return all successfully sized opportunities.
         self.logger.info(
-            f"Validated and sized {len(sized_opportunities)} opportunities out of {len(opportunities)}."
+            f"Validated and sized {len(sized_opportunities)} opportunities out of {len(opportunities)}.",
         )
         return sized_opportunities
 
     def get_portfolio_exposure_summary(self) -> dict[str, Any]:
         """
-        Generate a summary of current portfolio exposures.
+        Calculate and return a summary of current portfolio exposure.
 
         Returns:
-            Dictionary containing exposure metrics (using Decimal for values).
+            Dictionary containing exposure metrics.
         """
-        total_capital = self.portfolio_tracker.get_total_capital()
-        total_exposure = self.calculate_total_exposure()  # Use RM's calculation
-        # Ensure values from tracker are Decimal
-        if not isinstance(total_capital, Decimal):
-            total_capital = Decimal(str(total_capital))
-        if not isinstance(total_exposure, Decimal):
-            total_exposure = Decimal(str(total_exposure))
+        summary: dict[str, Any] = {}
+        total_capital = self.portfolio_tracker.get_total_capital_usd()
+        total_exposure = self.calculate_total_exposure()
 
-        summary = {
-            "timestamp": datetime.now().isoformat(),
-            "total_capital_usd": float(total_capital),
-            "total_exposure_usd": float(total_exposure),
-            "portfolio_leverage": None,
-            "realized_pnl": None,  # Add realized PNL tracking if available
-            "unrealized_pnl": None,
-            "portfolio_drawdown_pct": None,
-            "exchange_exposure": {},  # Mypy fix [assignment]: Initialize dict
-            "asset_exposure": {},
-            "top_positions": {},  # Mypy fix [assignment]: Initialize dict
-            "active_exchanges": [],
-        }
+        summary["timestamp"] = datetime.now(UTC).isoformat()
+        summary["total_capital_usd"] = f"{total_capital:.2f}" if total_capital is not None else "N/A"
+        summary["total_exposure_usd"] = f"{total_exposure:.2f}"
+        summary["max_total_exposure_limit_usd"] = f"{self.max_total_exposure:.2f}"
 
-        # Mypy fix [operator]: Check return values are not None before using
-        if total_capital is not None and total_exposure is not None and total_capital > ZERO:
+        if total_capital and total_capital > ZERO:
             leverage = total_exposure / total_capital
             summary["portfolio_leverage"] = f"{leverage:.2f}x"
+            summary["max_portfolio_leverage_limit"] = f"{self.max_leverage:.2f}x"
         else:
             summary["portfolio_leverage"] = "N/A"
+            summary["max_portfolio_leverage_limit"] = f"{self.max_leverage:.2f}x"
 
-        # Mypy fix [attr-defined]: Get PNL from portfolio tracker
-        unrealized_pnl, realized_pnl = self.portfolio_tracker.get_pnl()
-        summary["unrealized_pnl"] = f"{unrealized_pnl:.2f}"
-        summary["realized_pnl"] = f"{realized_pnl:.2f}"  # Assumes get_pnl returns realized
-
-        # Mypy fix [attr-defined]: Use get_current_drawdown
+        # Drawdown (assuming PortfolioTracker provides this)
         drawdown = self.portfolio_tracker.get_current_drawdown()
         summary["portfolio_drawdown_pct"] = f"{drawdown:.2%}" if drawdown is not None else "N/A"
 
-        # Mypy fix [attr-defined]: Get active exchanges from PortfolioTracker internal state (or config)
+        # Mypy fix [attr-defined]: Get active exchanges from PortfolioTracker internal state
+        # (or config)
         # Using balances keys as proxy for active exchanges with capital
         summary["active_exchanges"] = list(self.portfolio_tracker._balances.keys())
+        summary["exposure_by_exchange"] = {}
+        summary["exposure_by_asset"] = {}
 
-        all_positions_data = []  # Collect position data for asset/top pos summary
-        # Mypy fix [attr-defined]: Use get_all_positions and filter/aggregate
-        all_positions = (
-            self.portfolio_tracker.get_all_positions()
-        )  # Returns list[tuple[str, Position]]
+        # Calculate exposure per exchange
+        for exchange in summary["active_exchanges"]:
+            exp = self.portfolio_tracker.get_total_exposure_usd_by_exchange(exchange)
+            # Mypy L1211: Ensure summary["exposure_by_exchange"] is dict before assignment
+            if isinstance(summary["exposure_by_exchange"], dict):
+                summary["exposure_by_exchange"][exchange] = f"{exp:.2f}"
 
-        for exchange_id in summary["active_exchanges"]:
-            # Mypy fix [attr-defined]: Use get_exchange_exposure
-            exchange_exposure = self.portfolio_tracker.get_exchange_exposure(exchange_id)
-            summary["exchange_exposure"][exchange_id] = (
-                f"{exchange_exposure:.2f}" if exchange_exposure is not None else "N/A"
-            )  # Corrected assignment
+        # Calculate exposure per asset
+        all_positions = self.portfolio_tracker.get_all_positions()
+        asset_exposures: dict[str, Decimal] = {}
+        # Mypy L1208: Check if all_positions is iterable and not None
+        if all_positions and isinstance(all_positions, dict):
+            for _exchange, positions in all_positions.items():
+                # Check if positions is iterable
+                if positions and isinstance(positions, dict):
+                    for symbol, position in positions.items():
+                        # Mypy L1247: Position has no 'exchange'. Use _exchange from outer loop.
+                        # Ensure position is Position type before accessing attributes
+                        # This assumes get_all_positions returns dict[str, dict[str, Position]]
+                        # Need to verify PortfolioTracker method signature if this fails
+                        if (hasattr(position, 'symbol') and hasattr(position, 'size') and
+                            hasattr(position, 'entry_price')):
+                            base_asset = position.symbol.split("-")[0] # Simple split
+                            # Ensure entry_price is not None before calculation
+                            if position.entry_price is not None and position.size is not None:
+                                try:
+                                    position_value = abs(
+                                        Decimal(str(position.size)) * Decimal(str(position.entry_price))
+                                    ) # Use abs for total exposure
+                                    # Mypy L1237: Ensure asset_exposures is dict
+                                    if isinstance(asset_exposures, dict):
+                                        asset_exposures[base_asset] = (
+                                            asset_exposures.get(base_asset, ZERO) + position_value
+                                        )
+                                except (InvalidOperation, TypeError):
+                                     logger.warning(
+                                        f"Could not convert size/price for {symbol} on {_exchange} to Decimal."
+                                     )
+                            else:
+                                logger.warning(
+                                    f"Skipping exposure calc for {symbol} on {_exchange}: Missing entry price or size."
+                                )
+                        else:
+                            logger.warning(f"Skipping malformed position data for exposure calc: {position}")
 
-            # Aggregate positions for this exchange
-            exchange_positions = [pos for ex, pos in all_positions if ex == exchange_id]
-            for position in exchange_positions:
-                all_positions_data.append(position)  # Add to combined list
 
-        # Calculate Asset Exposure Summary
-        asset_exposure_agg: dict[str, Decimal] = {}
-        for position in all_positions_data:
-            # Mypy fix [operator]: Check position attributes
-            if position.symbol and position.size is not None and position.entry_price is not None:
-                # Simple exposure: abs(size) * price. Refine if needed.
-                try:
-                    exposure = abs(position.size * position.entry_price)  # Approximation
-                    asset_exposure_agg[position.symbol] = (
-                        asset_exposure_agg.get(position.symbol, ZERO) + exposure
-                    )
-                except (TypeError, InvalidOperation):
-                    self.logger.warning(
-                        f"Could not calculate exposure for position: {position.symbol} - size: {position.size}, price: {position.entry_price}"
-                    )
-
-        for asset, exposure in asset_exposure_agg.items():
-            summary["asset_exposure"][asset] = f"{exposure:.2f}"
-
-        # Top Positions (by absolute exposure value)
-        position_values = []
-        for position in all_positions_data:
-            # Mypy fix [operator]: Check attributes again for safety
-            if position.symbol and position.size is not None and position.entry_price is not None:
-                try:
-                    position_value = abs(position.size * position.entry_price)
-                    position_values.append(
-                        (position.symbol, position_value, position.exchange)
-                    )  # Include exchange
-                except (TypeError, InvalidOperation):
-                    continue  # Skip if calculation fails
-
-        # Sort by value, descending
-        position_values.sort(key=lambda x: x[1], reverse=True)
-
-        # Take top N (e.g., top 5)
-        top_n = 5
-        for symbol, value, exchange in position_values[:top_n]:
-            summary["top_positions"][f"{symbol}@{exchange}"] = (
-                f"{value:.2f}"  # Corrected assignment
-            )
+        for asset, exp in asset_exposures.items():
+             # Mypy L1258: Ensure summary["exposure_by_asset"] is dict
+             if isinstance(summary["exposure_by_asset"], dict):
+                summary["exposure_by_asset"][asset] = f"{exp:.2f}"
 
         # Mypy fix [attr-defined]: Remove volatility references
         # summary["asset_volatility"] = "N/A" # self.portfolio_tracker.get_asset_volatility(...)
-        # summary["historical_volatility"] = "N/A" # self.portfolio_tracker.get_historical_volatility(...)
+        # summary["historical_volatility"] = "N/A"
+        # self.portfolio_tracker.get_historical_volatility(...)
 
         return summary
 
     def check_drawdown(self) -> bool:
-        """
-        Check if the current portfolio drawdown exceeds the defined limit.
-
-        Returns:
-            True if drawdown is within limits or cannot be determined, False otherwise.
-        """
-        # Mypy fix [attr-defined]: Use get_current_drawdown
-        # Mypy fix [operator]: Check if drawdown is None
+        """Check if the current portfolio drawdown exceeds the limit."""
         current_drawdown = self.portfolio_tracker.get_current_drawdown()
-
         if current_drawdown is None:
-            self.logger.warning("Could not determine current drawdown. Assuming OK.")
-            return True  # Fail open? Or closed? Fail open for now.
+            self.logger.warning("Drawdown information unavailable, cannot check limit.")
+            return True  # Fail open or closed? Fail open for now.
+            # Mypy L1321: Unreachable code removed (was after return)
 
-        # Mypy fix [operator]: Compare Decimal with Decimal
         if current_drawdown >= self.max_drawdown_limit:
             self.logger.warning(
-                f"Drawdown check failed: Current {current_drawdown:.2%} >= Limit {self.max_drawdown_limit:.2%}"
+                f"Drawdown check failed: Current {current_drawdown:.2%} >= Limit "
+                f"{self.max_drawdown_limit:.2%}",
             )
             return False
-
-        return True  # Drawdown is within limits
+        return True
 
     def calculate_position_exposure(self, symbol: str) -> Decimal | None:
         """
         Calculate the total USD exposure for a specific symbol across all exchanges.
 
         Args:
-            symbol: The asset symbol (e.g., "BTC-PERP").
+            symbol: The trading symbol (e.g., "BTC-PERP").
 
         Returns:
-            Total exposure in USD (absolute value) for the asset, or None if error.
+            Total USD exposure as a Decimal, or None if price is unavailable.
         """
         total_exposure = ZERO
         found_position = False
-        # Mypy fix [attr-defined]: Use get_all_positions
         all_positions = self.portfolio_tracker.get_all_positions()
 
-        for _exchange, position in all_positions:
-            if position.symbol == symbol:
-                found_position = True
-                # Mypy fix [operator]: Check size and price are not None
-                if position.size is not None and position.mark_price is not None:
-                    try:
-                        # Use mark price for current value if available, else entry price
-                        price_to_use = (
-                            position.mark_price
-                            if position.mark_price is not None
-                            else position.entry_price
-                        )
-                        if price_to_use is None:
-                            self.logger.warning(
-                                f"Missing price for position {symbol} on {_exchange}. Skipping exposure calculation for this leg."
-                            )
-                            continue
+        if all_positions and isinstance(all_positions, dict): # Check if iterable
+            for _exchange, positions in all_positions.items():
+                 if positions and isinstance(positions, dict): # Check if iterable
+                    if symbol in positions:
+                        position = positions[symbol]
+                        found_position = True
+                        # Ensure position object has expected attributes
+                        if (hasattr(position, 'size') and position.size is not None and
+                            hasattr(position, 'entry_price') and position.entry_price is not None):
+                            try:
+                                # Use mark price if available, otherwise entry price
+                                price_to_use = (
+                                    Decimal(str(position.mark_price))
+                                    if hasattr(position, 'mark_price') and position.mark_price is not None
+                                    else Decimal(str(position.entry_price))
+                                )
+                                position_value = abs(Decimal(str(position.size)) * price_to_use)
+                                total_exposure += position_value
+                            except (InvalidOperation, TypeError, AttributeError) as e:
+                                logger.error(
+                                    f"Error calculating exposure for {symbol} on {_exchange}: {e}"
+                                )
+                                # Return None to indicate calculation failure? Or just skip this leg?
+                                # Skip for now.
 
-                        exposure = abs(position.size * price_to_use)
-                        total_exposure += exposure
-                    except (TypeError, InvalidOperation) as e:
-                        self.logger.error(
-                            f"Error calculating exposure for {symbol} on {_exchange}: {e}"
-                        )
-                        # Return None to indicate calculation failure? Or just skip this leg? Skip for now.
+                        # else: # Log if size or price is missing
+                        #     logger.warning(
+                        #         f"Missing size or entry_price for position {symbol} on {_exchange}. "
+                        #         "Cannot calculate exposure for this leg."
+                        #     )
 
-                # else: # Log if size or price is missing
-                # self.logger.warning(f"Missing size or mark_price for position {symbol} on {_exchange}. Cannot calculate exposure for this leg.")
 
-        if not found_position:
-            # self.logger.debug(f"No positions found for asset {symbol}. Exposure is zero.")
-            return ZERO  # Return zero if no positions exist
-
-        return total_exposure
+        return total_exposure if found_position else ZERO # Return 0 if no position found
 
     def calculate_total_exposure(self) -> Decimal:
-        """
-        Calculate the total portfolio exposure across all assets and exchanges.
-
-        Returns:
-            Total portfolio exposure in USD (Decimal), or ZERO if unavailable.
-        """
-        # Mypy fix [attr-defined]: Use portfolio_tracker's method if it sums correctly.
-        # Let's use the portfolio_tracker's get_total_exposure method directly.
-        # Mypy fix [operator]: Handle None return
-        total_exposure = (
-            self.portfolio_tracker.get_total_exposure()
-        )  # Assumes valuation asset matches default
-
-        if total_exposure is None:
-            self.logger.warning(
-                "PortfolioTracker returned None for total exposure. Returning ZERO."
-            )
-            return ZERO
+        """Calculate the total USD exposure across all positions."""
+        total_exposure = ZERO
+        all_positions = self.portfolio_tracker.get_all_positions()
+        if all_positions and isinstance(all_positions, dict): # Check if iterable
+            for _exchange, positions in all_positions.items():
+                 if positions and isinstance(positions, dict): # Check if iterable
+                    for symbol, position in positions.items():
+                        # Use calculate_position_exposure which handles potential errors/missing data
+                        exposure = self.calculate_position_exposure(symbol)
+                        if exposure is not None:
+                            total_exposure += exposure
+                        # else: # Log if exposure calculation failed for a symbol
+                        #     logger.warning(f"Could not calculate exposure for {symbol} on {_exchange}")
 
         return total_exposure
+        # Mypy L1360: Unreachable code removed (was after return)
+
 
     def calculate_required_margin(
         self, symbol: str, size: Decimal, price: Decimal, leverage: Decimal
     ) -> Decimal:
-        """Calculates the required margin for a position."""
-        # Ensure all inputs are Decimal
-        size_dec = Decimal(str(size))
-        price_dec = Decimal(str(price))
-        leverage_dec = Decimal(str(leverage))
-        if leverage_dec <= 0:
-            # Avoid division by zero and handle invalid leverage
-            self.logger.error(f"Invalid leverage provided for margin calculation: {leverage_dec}")
-            return Decimal("Infinity")  # Or raise an error
-        return abs(size_dec * price_dec) / leverage_dec
+        """Calculate the required margin for a position."""
+        if leverage <= ZERO:
+            return size * price # 1x leverage requires full notional value
+        return (size * price) / leverage
 
     def evaluate_liquidation_risk(self, symbol: str) -> Decimal | None:
-        """Evaluate liquidation risk for a symbol (e.g., distance to liq price)."""
-        total_risk_factor = Decimal("0.0")
-        position_count = 0
-        # Get exchanges known to the tracker
-        for exchange_id in self.portfolio_tracker._balances.keys():
-            position = self.portfolio_tracker.get_position(exchange_id, symbol)  # Correct call
-            if (
-                position
-                and position.is_active()
-                and position.liquidation_price
-                and position.mark_price
-            ):
-                liq_price = Decimal(str(position.liquidation_price))
-                mark_price = Decimal(str(position.mark_price))
-                if mark_price <= 0:
-                    continue  # Avoid division by zero
+        """
+        Evaluate the liquidation risk for a symbol based on current price and liquidation price.
 
-                distance = abs(mark_price - liq_price) / mark_price
-                # Lower distance = higher risk factor (inverse relationship, capped)
-                risk_factor = (
-                    max(Decimal("0.0"), min(Decimal("1.0"), Decimal("0.1") / distance))
-                    if distance > 0
-                    else Decimal("1.0")
-                )
-                total_risk_factor += risk_factor
-                position_count += 1
+        Args:
+            symbol: The trading symbol.
 
-        if position_count == 0:
-            return Decimal("0.0")  # No position, no risk
+        Returns:
+            A risk factor (e.g., distance to liquidation as a percentage), or None if unavailable.
+            Higher value might indicate higher risk (closer to liquidation).
+        """
+        position = self.portfolio_tracker.get_position(symbol) # Assumes combined position view
+        if not position or position.liquidation_price is None or position.mark_price is None:
+            return None
 
-        avg_risk_factor = total_risk_factor / Decimal(position_count)
-        self.logger.debug(f"Average liquidation risk factor for {symbol}: {avg_risk_factor:.4f}")
-        return avg_risk_factor
+        try:
+            # Ensure prices are Decimal
+            liq_price = Decimal(str(position.liquidation_price))
+            mark_price = Decimal(str(position.mark_price))
+
+            if mark_price <= ZERO: return None # Avoid division by zero
+
+            # Calculate distance to liquidation as a percentage of mark price
+            distance_pct = abs(mark_price - liq_price) / mark_price
+
+            # Lower distance_pct means higher risk. Invert to make higher value = higher risk?
+            # Example: Risk Factor = 1 / distance_pct (handle distance_pct = 0)
+            risk_factor = (
+                ONE / distance_pct if distance_pct > ZERO else Decimal('inf')
+            )
+            return risk_factor
+
+        except (InvalidOperation, TypeError, AttributeError) as e:
+            logger.error(f"Error evaluating liquidation risk for {symbol}: {e}")
+            return None
+
 
     def is_opportunity_profitable(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check if an opportunity meets minimum profitability criteria."""
-        # Ensure net_funding_differential is Decimal
-        nfd = opportunity.net_funding_differential
-        if not isinstance(nfd, Decimal):
-            try:
-                nfd = Decimal(str(nfd))
-            except InvalidOperation:
-                self.logger.error(
-                    f"Invalid net_funding_differential for {opportunity.symbol}: {opportunity.net_funding_differential}"
+        """Check if the net funding differential meets the minimum threshold."""
+        if opportunity.net_funding_differential is None:
+            self.logger.debug(f"Opportunity {opportunity.symbol} has no NFD. Skipping.")
+            return False
+        try:
+            nfd = Decimal(str(opportunity.net_funding_differential))
+            if nfd >= self.min_net_funding_differential:
+                return True
+            else:
+                self.logger.debug(
+                    f"Opportunity {opportunity.symbol} NFD {nfd:.6f} not above threshold "
+                    f"{self.min_net_funding_differential:.6f}",
                 )
                 return False
-        # Check against minimum threshold
-        # Mypy fix [operator]: Compare Decimals
-        if nfd > self.min_net_funding_differential:
-            # TODO: Add consideration for estimated fees/slippage here?
-            # For now, basic NFD check.
-            return True
-        else:
-            self.logger.debug(
-                f"Opportunity {opportunity.symbol} NFD {nfd:.6f} not above threshold {self.min_net_funding_differential:.6f}"
+        except InvalidOperation:
+            self.logger.error(
+                f"Invalid net_funding_differential for {opportunity.symbol}: "
+                f"{opportunity.net_funding_differential}",
             )
             return False
 
+
     def adjust_order_size(self, symbol: str, requested_size: Decimal) -> Decimal:
-        # Placeholder: Add logic if specific adjustments are needed beyond initial sizing
-        self.logger.warning("adjust_order_size is not fully implemented.")
-        return requested_size
+        """Placeholder for adjusting order size based on liquidity, order book depth, etc."""
+        # TODO: Implement logic based on order book, recent volume, etc.
+        return requested_size # No adjustment for now
 
     def perform_sanity_checks(self) -> bool:
         """
-        Perform sanity checks on the overall portfolio state. (e.g., consistency checks)
+        Perform high-level sanity checks on the overall portfolio state.
+        Designed to catch potentially catastrophic conditions.
 
         Returns:
-            True if sanity checks pass, False otherwise.
+            True if checks pass, False if a critical condition is detected.
         """
-        # Example checks:
-        # 1. Total exposure vs sum of position values?
-        # 2. Balances consistent with positions/trades? (Hard to check without full trade log)
-        # 3. Leverage within reasonable bounds?
+        self.logger.debug("Performing portfolio sanity checks...")
 
         # Check 1: Leverage
-        total_capital = self.portfolio_tracker.get_total_capital()
-        total_exposure = self.calculate_total_exposure()  # Use RM's calculation
+        total_capital = self.portfolio_tracker.get_total_capital_usd()
+        total_exposure = self.calculate_total_exposure()
+        sanity_leverage_limit = self.max_leverage * Decimal("1.5") # Example: 50% buffer
 
-        # Mypy fix [operator]: Handle None values
-        if total_capital is not None and total_exposure is not None:
-            if total_capital <= ZERO and total_exposure > ZERO:
+        if total_capital is not None and total_capital > ZERO:
+            leverage = total_exposure / total_capital
+            self.logger.info(f"Sanity Check: Current Leverage = {leverage:.2f}x")
+            if leverage > sanity_leverage_limit:
                 self.logger.error(
-                    "Sanity Check FAIL: Positive exposure with zero or negative capital!"
+                    f"Sanity Check FAIL: Portfolio leverage {leverage:.2f} exceeds sanity "
+                    f"limit {sanity_leverage_limit:.2f}!",
                 )
                 return False
-            if total_capital > ZERO:
-                leverage = total_exposure / total_capital
-                # Mypy fix [operator]: Compare Decimals
-                # Use a slightly higher sanity check limit than the trading limit
-                sanity_leverage_limit = self.max_leverage * Decimal("1.2")
-                if leverage > sanity_leverage_limit:
-                    self.logger.error(
-                        f"Sanity Check FAIL: Portfolio leverage {leverage:.2f} exceeds sanity limit {sanity_leverage_limit:.2f}!"
-                    )
-                    return False
         # else: # Log if values are None
-        # self.logger.warning("Sanity Check: Could not check leverage due to unavailable capital or exposure.")
+        #     self.logger.warning(
+        #         "Sanity Check: Could not check leverage due to unavailable capital or exposure."
+        #     )
 
         # Check 2: Drawdown (if available)
-        # Mypy fix [attr-defined, operator]: Use get_current_drawdown and check None
         current_drawdown = self.portfolio_tracker.get_current_drawdown()
+        sanity_drawdown_limit = self.max_drawdown_limit * Decimal("1.5") # Example: 50% buffer
+
         if current_drawdown is not None:
-            # Mypy fix [operator]: Compare Decimals
-            sanity_drawdown_limit = self.max_drawdown_limit * Decimal("1.5")  # Higher sanity limit
-            if current_drawdown > sanity_drawdown_limit:
+             self.logger.info(f"Sanity Check: Current Drawdown = {current_drawdown:.2%}")
+             if current_drawdown > sanity_drawdown_limit:
                 self.logger.error(
-                    f"Sanity Check FAIL: Portfolio drawdown {current_drawdown:.2%} exceeds sanity limit {sanity_drawdown_limit:.2%}!"
+                    f"Sanity Check FAIL: Portfolio drawdown {current_drawdown:.2%} exceeds "
+                    f"sanity limit {sanity_drawdown_limit:.2%}!",
                 )
                 return False
 
-        # Add more checks as needed...
+        # Add more checks as needed (e.g., large single position loss, API error rates)
 
         self.logger.info("Portfolio sanity checks passed.")
         return True
 
     def update(self, data: dict[str, Any]) -> None:
-        """
-        Update RiskManager internal state if necessary (e.g., based on external events).
-        Currently, RiskManager primarily reads from PortfolioTracker, so this might be minimal.
-        """
-        self.logger.debug(f"RiskManager update called with data: {data}")
-        # Example: Update drawdown metrics if provided externally
-        # if "drawdown_metrics" in data:
-        #     self.current_drawdown_metrics = data["drawdown_metrics"]
-        pass  # No internal state updates needed for now
+        """Update risk manager state based on new data (e.g., market data, portfolio updates)."""
+        # Placeholder for potential future state updates
+        if "drawdown_metrics" in data:
+            self.current_drawdown_metrics = data["drawdown_metrics"]
+            self.logger.debug(f"RiskManager updated with drawdown metrics: {data['drawdown_metrics']}")
+        # Potentially update volatility estimates, correlations, etc.
+        pass
