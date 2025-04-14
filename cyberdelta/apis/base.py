@@ -912,9 +912,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_positions(
-        self, symbol: str | None = None
-    ) -> list[Position | dict[str, Any]] | None:
+    async def get_positions(self, symbol: str | None = None) -> list[Position]:
         """Fetch current open positions, optionally filtered by symbol."""
         raise NotImplementedError
 
@@ -947,9 +945,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_open_orders(
-        self, symbol: str | None = None
-    ) -> list[Order | dict[str, Any]] | dict[str, Order | dict[str, Any]] | None:
+    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Fetch all currently open orders, optionally filtered by symbol."""
         raise NotImplementedError
 
