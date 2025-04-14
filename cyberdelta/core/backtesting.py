@@ -141,43 +141,63 @@ class BacktestEngine:
                 logger.error(f"Error during index conversion to DatetimeIndex: {e}")
                 raise ValueError("Data index could not be converted to datetime objects.") from e
 
-        # The initial_capital parameter is already type-hinted as Decimal.
-        # The following conversion block is unreachable and has been removed.
-        # if not isinstance(initial_capital, Decimal):
-        #     try:
-        #         self.initial_capital = Decimal(str(initial_capital))
-        #     except InvalidOperation as e:
-        #         logger.error(
-        #             f"Invalid initial_capital value: {initial_capital}. "
-        #             f"Cannot convert to Decimal. Error: {e}"
-        #         )
-        #         raise ValueError("initial_capital must be a valid number.") from e
-        # The 'else' block below handles the assignment correctly.
+        # Validate and convert initial_capital
+        # Mypy flags the following block as [unreachable] because the 'initial_capital'
+        # parameter is type-hinted as Decimal. However, this runtime check provides
+        # an additional layer of safety against potential upstream type errors (e.g.,
+        # from config loading, manual instantiation) ensuring the instance attribute
+        # is always a Decimal or raises a clear error during initialization.
+        # Future upstream Pydantic refactor is due
+        if not isinstance(initial_capital, Decimal):
+            try:
+                converted_capital = Decimal(str(initial_capital))
+                self.logger.warning(f"Initial capital provided as {type(initial_capital)}, converted to Decimal.")
+                self.initial_capital = converted_capital
+            except (InvalidOperation, TypeError) as e:
+                self.logger.error(
+                    f"Invalid initial_capital value: {initial_capital}. "
+                    f"Cannot convert to Decimal. Error: {e}"
+                )
+                raise ValueError("initial_capital must be a valid Decimal or convertible string/number.") from e
         else:
+            # Input was already Decimal
             self.initial_capital = initial_capital
+        # Initialize current capital with the validated Decimal value
         self.capital = self.initial_capital
 
-        # The commission parameter is already type-hinted as Decimal.
-        # The following conversion block is unreachable and has been removed.
-        # if not isinstance(commission, Decimal):
-        #     try:
-        #         self.commission = Decimal(str(commission))
-        #     except InvalidOperation as e:
-        #         logger.error(f"Invalid commission value: {commission}. Error: {e}")
-        #         raise ValueError("commission must be a valid number.") from e
+        # Validate and convert commission
+        # Mypy flags the following block as [unreachable] because the 'commission'
+        # parameter is type-hinted as Decimal. However, this runtime check provides
+        # an additional layer of safety against potential upstream type errors.
+        # Future upstream Pydantic refactor is due
+        if not isinstance(commission, Decimal):
+            try:
+                converted_commission = Decimal(str(commission))
+                self.logger.warning(f"Commission provided as {type(commission)}, converted to Decimal.")
+                self.commission = converted_commission
+            except (InvalidOperation, TypeError) as e:
+                self.logger.error(f"Invalid commission value: {commission}. Error: {e}")
+                raise ValueError("commission must be a valid Decimal or convertible string/number.") from e
+        else:
+             # Input was already Decimal
+            self.commission = commission
 
-        self.commission = commission
-
-        # The slippage parameter is already type-hinted as Decimal.
-        # The following conversion block is unreachable and has been removed.
-        # if not isinstance(slippage, Decimal):
-        #     try:
-        #         self.slippage = Decimal(str(slippage))
-        #     except InvalidOperation as e:
-        #         logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
-        #         raise ValueError("slippage must be a valid number.") from e
-        # Assign slippage directly
-        self.slippage = slippage
+        # Validate and convert slippage
+        # Mypy flags the following block as [unreachable] because the 'slippage'
+        # parameter is type-hinted as Decimal. However, this runtime check provides
+        # an additional layer of safety against potential upstream type errors.
+        # Future upstream Pydantic refactor is due
+        if not isinstance(slippage, Decimal):
+            try:
+                converted_slippage = Decimal(str(slippage))
+                self.logger.warning(f"Slippage provided as {type(slippage)}, converted to Decimal.")
+                self.slippage = converted_slippage
+            except (InvalidOperation, TypeError) as e:
+                self.logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
+                raise ValueError("slippage must be a valid Decimal or convertible string/number.") from e
+        else:
+             # Input was already Decimal
+            self.slippage = slippage
 
         self.results_dir = results_dir
 
