@@ -436,28 +436,34 @@ class TestPortfolioTracker:
         assert "BTC" in symbols
         assert "ETH" in symbols
 
-    def test_get_order(
+    def test_get_order_by_id(  # Renamed test
         self, portfolio_tracker: PortfolioTracker, sample_orders: dict[str, list[Order]]
     ) -> None:
         """Test getting an order by ID."""
-        # Set up some orders
+        # Set up some orders using update_order which adds them to _orders
         for exchange_id, orders in sample_orders.items():
             for order in orders:
                 portfolio_tracker.update_order(exchange_id, order)
 
-        # Test getting orders
-        hl_order = portfolio_tracker.get_order("hyperliquid", "hl-order-1")
+        # Test getting orders using the correct method and attribute
+        hl_order = portfolio_tracker.get_order_by_id(
+            "hyperliquid", "hl-order-1"
+        )  # Use get_order_by_id
         assert hl_order is not None
-        assert hl_order.order_id == "hl-order-1"  # Correct attribute name
+        assert hl_order.id == "hl-order-1"  # Use correct attribute 'id'
         assert hl_order.symbol == "BTC"
 
-        bp_order = portfolio_tracker.get_order("backpack", "bp-order-1")
+        bp_order = portfolio_tracker.get_order_by_id(
+            "backpack", "bp-order-1"
+        )  # Use get_order_by_id
         assert bp_order is not None
-        assert bp_order.order_id == "bp-order-1"  # Correct attribute name
+        assert bp_order.id == "bp-order-1"  # Use correct attribute 'id'
         assert bp_order.symbol == "ETH"
 
-        # Test getting a non-existent order
-        assert portfolio_tracker.get_order("hyperliquid", "non-existent") is None
+        # Test getting a non-existent order using the correct method
+        assert (
+            portfolio_tracker.get_order_by_id("hyperliquid", "non-existent") is None
+        )  # Use get_order_by_id
 
     def test_get_open_orders(
         self, portfolio_tracker: PortfolioTracker, sample_orders: dict[str, list[Order]]
@@ -470,16 +476,19 @@ class TestPortfolioTracker:
 
         # Add an order that should be considered open
         open_order = Order(
-            order_id="hl-order-open",  # Correct parameter name
+            id="hl-order-open",  # Use 'id'
             symbol="BTC",
             side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,  # Correct parameter name
+            type=OrderType.LIMIT,  # Use 'type'
             price=Decimal("51000.0"),
             quantity=Decimal("0.5"),
             filled_quantity=Decimal("0.1"),  # Partially filled
             status=OrderStatus.PARTIALLY_FILLED,  # Use Enum member
-            timestamp=datetime.now(UTC),  # Use datetime object
+            # timestamp removed as it's not an init parameter
             client_order_id="client-order-open",
+            # Add required 'time' if missing (assuming it might be needed)
+            # If Order model requires 'time' in __init__, add it here:
+            time=datetime.now(UTC),  # Check Order model definition if 'time' is required
         )
         portfolio_tracker.update_order("hyperliquid", open_order)
 

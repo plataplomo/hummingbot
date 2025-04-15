@@ -156,12 +156,18 @@ class TestOrderVerifier:
             price=Decimal("50000.0"),
             quantity=Decimal("1.0"),
             client_order_id="client-order-1",
+            # Add 'time' if required by Order model
+            time=datetime.now(UTC),
         )
-        portfolio_tracker.get_order.return_value = mock_local_order
+        # Directly populate the internal dict instead of mocking get_order
+        exchange_id = "hyperliquid"
+        order_id = "test-order-1"
+        if exchange_id not in portfolio_tracker._orders:
+            portfolio_tracker._orders[exchange_id] = {}
+        portfolio_tracker._orders[exchange_id][order_id] = mock_local_order
+        # portfolio_tracker.get_order.return_value = mock_local_order # Remove ineffective mock
 
-        result_dict = await verifier.verify_order_placement(
-            "hyperliquid", "test-order-1", expected_details
-        )
+        result_dict = await verifier.verify_order_placement(exchange_id, order_id, expected_details)
 
         assert result_dict["success"] is True
 
@@ -221,6 +227,10 @@ class TestOrderVerifier:
         # Ensure get_order_status method is mocked correctly on the mock_api instance
         # Fix [method-assign]: Assign to method attribute
         mock_api.get_order_status = AsyncMock(return_value=api_order_response)
+        # >>> ADD MOCK FOR get_order <<<
+        mock_api.get_order = AsyncMock(
+            return_value=api_order_response
+        )  # Assuming get_order returns similar obj
 
         result_dict = await verifier.verify_order_execution(
             "hyperliquid", "exchange-order-id-1"

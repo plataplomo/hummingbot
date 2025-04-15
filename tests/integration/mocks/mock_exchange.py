@@ -6,9 +6,11 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+# Import Fill type
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
     Balance,
+    Fill,  # Added Fill
     FundingRate,
     MarketData,
     Order,
@@ -226,7 +228,7 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
         logger.info(f"Mock {self.exchange_name}: Resubscribed to topics (simulated).")
 
-    async def get_ticker(self, symbol: str) -> Ticker | None:  # type: ignore[override] # Mock allows None return
+    async def get_ticker(self, symbol: str) -> Ticker | None:
         """Return mock ticker data."""
         self._check_error("get_ticker")
         await self._simulate_latency()
@@ -467,7 +469,7 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
         return self._orders.get(order_id)
 
-    async def get_order_status(self, order_id: str, **kwargs: Any) -> Order | None:  # type: ignore[override] # Mock allows None return
+    async def get_order_status(self, order_id: str, **kwargs: Any) -> Order | None:
         """Get the status of a specific order."""
         self._check_error("get_order_status")
         await self._simulate_latency()
@@ -493,6 +495,37 @@ class MockExchangeAPI(ExchangeAPI):
         return open_orders
 
     # --- Mock Data Setup ---
+
+    # --- ADD MISSING ABSTRACT METHOD IMPLEMENTATION ---
+    async def get_recent_fills(
+        self,
+        symbol: str | None = None,
+        limit: int | None = None,
+        order_id: str | None = None,
+        start_time: int | None = None,
+        # Ensure Fill type is available from TYPE_CHECKING import in base class or models
+        # from ..core.models import Fill # <-- Might need explicit import if not via TYPE_CHECKING
+    ) -> list["Fill"]:  # Use forward reference if Fill not imported directly
+        """Return mock recent fills (empty list for basic mock)."""
+        self._check_error("get_recent_fills")
+        await self._simulate_latency()
+        # TODO: Optionally implement filtering based on args if needed for specific tests
+        # For now, return empty list. Needs 'Fill' type defined/imported.
+        return []
+
+    # ------------------------------------------------
+
+    # --- ADD MISSING ABSTRACT METHOD IMPLEMENTATION ---
+    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
+        """Handle incoming websocket messages (mock implementation)."""
+        self._check_error("_handle_websocket_message")
+        await self._simulate_latency()
+        # In a real mock, you might parse and route based on message type
+        logger.debug(f"Mock {self.exchange_name} received WS message: {message}")
+        # Placeholder: Does nothing with the message
+        pass
+
+    # ------------------------------------------------
 
     def set_mock_ticker(self, ticker: Ticker) -> None:
         """Set a predefined ticker for a symbol."""

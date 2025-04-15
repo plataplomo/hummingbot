@@ -37,9 +37,144 @@ class TestHyperliquidAPI:
             async def parse_l2_book_update_message(self, message: dict[str, Any]) -> None:
                 pass  # Mock implementation
 
-            # Add dummy implementation for the new abstract method from base
-            async def get_order_status(self, order_id: str, symbol: str | None = None) -> Order:
-                raise NotImplementedError("Mock implementation not needed for this test")
+            # --- ADD MISSING ABSTRACT METHODS ---
+            async def _authenticate(
+                self, method: str, path: str, params: dict | None = None, data: dict | None = None
+            ) -> dict:
+                return {}
+
+            def _update_rate_limit_from_headers(self, headers: Any, method: str, path: str) -> None:
+                pass
+
+            async def get_ticker(self, symbol: str) -> Ticker:
+                raise NotImplementedError
+
+            async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
+                raise NotImplementedError
+
+            async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
+                return []
+
+            async def get_balances(self) -> dict[str, Balance]:
+                raise NotImplementedError  # Implemented in base, but maybe needed here?
+
+            async def get_positions(self, symbol: str | None = None) -> list[Position]:
+                raise NotImplementedError  # Implemented in base?
+
+            async def place_order(
+                self,
+                symbol: str,
+                side: OrderSide,
+                order_type: OrderType,
+                quantity: Decimal,
+                time_in_force: TimeInForce | None = None,
+                price: Decimal | None = None,
+                client_order_id: str | None = None,
+                reduce_only: bool = False,
+                post_only: bool = False,
+            ) -> Order:
+                raise NotImplementedError
+
+            async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict:
+                raise NotImplementedError
+
+            # get_order_status is already implemented below
+            async def get_order_status(
+                self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
+            ) -> Order:
+                raise NotImplementedError
+
+            async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
+                raise NotImplementedError
+
+            async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+                return []
+
+            async def get_recent_fills(
+                self,
+                symbol: str | None = None,
+                limit: int | None = None,
+                order_id: str | None = None,
+                start_time: int | None = None,
+            ) -> list["Fill"]:
+                return []  # Use forward ref
+
+            async def get_funding_rates(
+                self, symbols: list[str] | None = None
+            ) -> list[FundingRate]:
+                return []
+
+            async def get_market_data(
+                self, symbol: str, timeframe: str, limit: int = 100
+            ) -> list[MarketData]:
+                return []
+
+            def get_message_type(self, message: dict[str, Any]) -> str:
+                return "unknown"
+
+            async def get_order_history(
+                self, symbol: str | None = None, limit: int = 100
+            ) -> list[Order]:
+                return []
+
+            async def get_trade_history(
+                self, symbol: str | None = None, limit: int = 100
+            ) -> list[Trade]:
+                return []
+
+            def parse_balance(self, data: dict[str, Any]) -> Balance:
+                raise NotImplementedError
+
+            def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate:
+                raise NotImplementedError
+
+            def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
+                return None
+
+            def parse_order(self, data: Any) -> Order:
+                raise NotImplementedError  # Changed arg name
+
+            def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
+                raise NotImplementedError
+
+            def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
+                return None
+
+            def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
+                return None
+
+            def parse_position(self, data: dict[str, Any]) -> Position:
+                raise NotImplementedError
+
+            def parse_ticker(self, data: dict[str, Any], symbol: str) -> Ticker:
+                raise NotImplementedError
+
+            def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None:
+                return None
+
+            def parse_trade(self, data: dict[str, Any], symbol: str) -> Trade:
+                raise NotImplementedError
+
+            def parse_trade_message(self, message: dict[str, Any]) -> Trade | None:
+                return None
+
+            async def ping_websocket(self) -> None:
+                pass
+
+            async def subscribe_to_account_updates(self) -> None:
+                pass
+
+            async def subscribe_to_order_book(self, symbol: str, handler: MessageHandler) -> None:
+                pass
+
+            async def subscribe_to_ticker(self, symbol: str, handler: MessageHandler) -> None:
+                pass
+
+            async def subscribe_to_trades(self, symbol: str, handler: MessageHandler) -> None:
+                pass
+
+            async def connect_websocket(self) -> None:
+                pass  # Added connect_websocket
 
         client = ConcreteHyperliquidAPI(api_config=hyperliquid_config, secrets=hyperliquid_secrets)
         # Prevent actual network calls

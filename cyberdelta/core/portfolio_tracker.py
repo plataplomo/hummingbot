@@ -118,7 +118,9 @@ class PortfolioTracker:
             initialization_tasks.append(self._fetch_exchange_balances(exchange_id))
             initialization_tasks.append(self._fetch_exchange_positions(exchange_id))
             # Consider fetching open orders too? Maybe not essential for pure init.
-            # initialization_tasks.append(self._fetch_exchange_orders(exchange_id))
+            initialization_tasks.append(
+                self._fetch_exchange_orders(exchange_id)
+            )  # Fetch initial open orders
 
         logger.info(
             f"PortfolioTracker {id(self)}: About to gather init tasks. "
@@ -458,7 +460,7 @@ class PortfolioTracker:
                             )
                     # Runtime check: Handle dict case even if type hint expects Position,
                     # for robustness against API client bugs or malformed responses.
-                    elif isinstance(position_info, dict):  # type: ignore[unreachable]
+                    elif isinstance(position_info, dict):
                         symbol = position_info.get("symbol")
                         if not symbol:
                             logger.warning(
@@ -1416,6 +1418,19 @@ class PortfolioTracker:
             if symbol is None or order.symbol == symbol:
                 history.append(order)
         return history
+
+    def get_order_by_id(self, exchange_id: str, order_id: str) -> Order | None:
+        """
+        Retrieve a specific order by its ID from the internal tracking.
+
+        Args:
+            exchange_id: The exchange the order belongs to.
+            order_id: The unique identifier of the order.
+
+        Returns:
+            The Order object if found, otherwise None.
+        """
+        return self._orders.get(exchange_id, {}).get(order_id)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the portfolio state to a dictionary."""

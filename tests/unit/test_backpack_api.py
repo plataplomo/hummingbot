@@ -10,6 +10,7 @@ from cyberdelta.apis.base import MessageHandler
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.core.models import (
     Balance,
+    Fill,  # Already added
     FundingRate,
     MarketData,
     Order,
@@ -19,6 +20,7 @@ from cyberdelta.core.models import (
     OrderType,
     Position,
     Ticker,
+    TimeInForce,  # Already added
     Trade,
 )
 from cyberdelta.utils.config import Config
@@ -110,6 +112,74 @@ class ConcreteBackpackAPI(BackpackAPI):
 
     async def subscribe_to_trades(self, symbol: str, handler: MessageHandler) -> None:
         pass
+
+    # --- ADD MISSING ABSTRACT METHODS ---
+    async def _authenticate(
+        self, method: str, path: str, params: dict | None = None, data: dict | None = None
+    ) -> dict:
+        return {}  # Placeholder
+
+    def _update_rate_limit_from_headers(self, headers: Any, method: str, path: str) -> None:
+        pass  # Placeholder
+
+    async def get_ticker(self, symbol: str) -> Ticker:
+        raise NotImplementedError  # Placeholder
+
+    async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
+        raise NotImplementedError  # Placeholder
+
+    async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
+        return []  # Placeholder
+
+    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
+        return None  # Placeholder
+
+    async def get_balances(self) -> dict[str, Balance]:
+        return {}  # Placeholder
+
+    async def get_positions(self, symbol: str | None = None) -> list[Position]:
+        return []  # Placeholder
+
+    # Corrected signature: time_in_force is Optional[TimeInForce] in base
+    async def place_order(
+        self,
+        symbol: str,
+        side: OrderSide,
+        order_type: OrderType,
+        quantity: Decimal,
+        time_in_force: TimeInForce | None = None,  # Made Optional
+        price: Decimal | None = None,
+        client_order_id: str | None = None,
+        reduce_only: bool = False,
+        post_only: bool = False,
+    ) -> Order:
+        raise NotImplementedError  # Placeholder
+
+    async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict:
+        return {}  # Placeholder
+
+    # Corrected signature: Matches base ExchangeAPI parameter order and return type
+    async def get_order_status(
+        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
+    ) -> Order:  # Return type is Order, not Order | None
+        raise NotImplementedError  # Placeholder
+
+    async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
+        return None  # Placeholder
+
+    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+        return []  # Placeholder
+
+    async def get_recent_fills(
+        self,
+        symbol: str | None = None,
+        limit: int | None = None,
+        order_id: str | None = None,
+        start_time: int | None = None,
+    ) -> list[Fill]:  # Use imported Fill type
+        return []  # Placeholder
+
+    # --- End Added Methods ---
 
 
 # --- End Minimal Subclass --- #

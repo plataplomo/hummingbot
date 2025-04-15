@@ -222,6 +222,9 @@ class BacktestEngine:
         # Create results directory if it doesn't exist
         pathlib.Path(results_dir).mkdir(parents=True, exist_ok=True)
 
+        # Explicitly add instance logger, referencing the module logger
+        self.logger = logger  # Add this line
+
         self.results_handler: BacktestResultsHandler | None = None  # Initialize as None
 
     def run(self, training_portion: Decimal = Decimal("0.3")) -> dict[str, Any]:
