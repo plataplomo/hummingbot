@@ -11,6 +11,9 @@ import pytest
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.utils.config import Config
+
+# Import BreakerState for mocking states
+from cyberdelta.validation.circuit_breaker import BreakerState
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -113,22 +116,32 @@ def test_add_signal_with_circuit_breaker(
     """Test adding a signal with circuit breaker integration."""
     queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
 
-    # Set up circuit breaker to block
-    mock_circuit_breaker.check_symbol.return_value = False
+    # Simulate the relevant breaker being OPEN
+    mock_breaker_instance = MagicMock()
+    mock_breaker_instance.state = BreakerState.OPEN
+    mock_breaker_instance.trip_reason = "Test trip"
+    # Mock get_exchange_breaker to return this OPEN breaker for the relevant exchange
+    # Infer exchange from signal symbol (e.g., assuming BTC/USDT implies 'binance' if not in metadata)
+    # We need a symbol mapper or assume metadata for a robust test, let's add metadata
+    sample_signal.metadata = {"long_exchange": "test_exchange"}  # Add metadata
+    mock_circuit_breaker.get_exchange_breaker.return_value = mock_breaker_instance
 
     # Add signal (should be rejected)
     result = queue.add_signal(sample_signal)
 
-    assert result is False
+    assert result is False, "Signal should be rejected when relevant breaker is OPEN"
     assert len(queue.signal_queue) == 0
+    mock_circuit_breaker.get_exchange_breaker.assert_called()  # Check that the breaker was checked
 
-    # Allow signal
-    mock_circuit_breaker.check_symbol.return_value = True
+    # Simulate the breaker being CLOSED (or non-existent)
+    mock_breaker_instance.state = BreakerState.CLOSED
+    # Or mock get_exchange_breaker to return None or a CLOSED breaker
+    mock_circuit_breaker.get_exchange_breaker.return_value = mock_breaker_instance
 
     # Add signal (should succeed)
     result = queue.add_signal(sample_signal)
 
-    assert result is True
+    assert result is True, "Signal should be added when relevant breaker is CLOSED"
     assert len(queue.signal_queue) == 1
 
 
