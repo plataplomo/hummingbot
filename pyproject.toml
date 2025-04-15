@@ -1,3 +1,31 @@
+# Start of Selection
+# Build system configuration specifying the requirements for building the package
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]  # Required packages for building the project
+build-backend = "setuptools.build_meta"    # Backend used for building the package
+
+# Project metadata including name, version, description, and other details
+[project]
+name = "CyberDeltaEngine"  # Name of the project
+version = "0.0.1"   # Current version of the project
+description = ""  # Brief description of the project
+readme = { file = "README.md", content-type = "text/markdown" }  # Readme file and its content type
+requires-python = ">=3.13"  # Minimum required Python version
+license = { text = "MIT" }  # License information for the project
+authors = [  # List of authors with their names and emails
+    {name = "plataplomo", email = "bizonum@gmail.com"},
+]
+classifiers = [  # Classifiers for the project to help users find it
+    "Development Status :: 2 - Pre-Alpha",  # Current development status
+    "Intended Audience :: Developers",    # Intended audience for the project
+    "License :: OSI Approved :: MIT License",  # License type
+    "Programming Language :: Python",      # Programming language used
+    "Programming Language :: Python :: 3",  # Specific Python version
+    "Programming Language :: Python :: 3.13",  # Specific Python version
+    "Topic :: Software Development :: Libraries",  # Topic classification
+    "Topic :: Text Processing :: Linguistic"  # Topic classification
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
 
@@ -50,21 +78,21 @@ extra_checks = true  # Enable extra checks
 scripts_are_modules = true  # Treat scripts as modules
 
 
-#[tool.pyright]
-#include = ["scripts", "cyberdelta", "tests", "examples"]
-#extraPaths = ["."]
-#exclude = ["**/current_workflow/**", "**/.venv/**", "**/venv/**"]
-#typeCheckingMode = "strict"  # Match Pylance
-#pythonVersion = "3.13"
-#reportMissingTypeStubs = "error"  # Enforce stubs
-#reportUnknownMemberType = "error"
-#reportUnknownArgumentType = "error"
-#reportUnknownVariableType = "error"
-#reportUnknownLambdaType = "error"
-#reportMissingImports = true
-#reportMissingModuleSource = true
-#reportAttributeAccessIssue = "error"
-#reportReturnType = "error"
-#reportOptionalSubscript = "error"
-#reportGeneralTypeIssues = "error"
-#reportAssignmentType = "error"
+[tool.pyright]
+include = ["scripts", "cyberdelta", "tests", "examples"]
+extraPaths = ["."]
+exclude = ["**/current_workflow/**", "**/.venv/**", "**/venv/**"]
+typeCheckingMode = "strict"  # Match Pylance
+pythonVersion = "3.13"
+reportMissingTypeStubs = "error"  # Enforce stubs
+reportUnknownMemberType = "error"
+reportUnknownArgumentType = "error"
+reportUnknownVariableType = "error"
+reportUnknownLambdaType = "error"
+reportMissingImports = true
+reportMissingModuleSource = true
+reportAttributeAccessIssue = "error"
+reportReturnType = "error"
+reportOptionalSubscript = "error"
+reportGeneralTypeIssues = "error"
+reportAssignmentType = "error"
