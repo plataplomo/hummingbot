@@ -1,3 +1,4 @@
+
 # Rule: Mermaid Relationship Mapping
 
 **Mandate:** Create Mermaid diagrams (`graph TD`, `sequenceDiagram`) that accurately represent the primary structural relationships and interactions within the analyzed scope.
