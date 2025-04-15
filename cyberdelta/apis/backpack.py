@@ -3,10 +3,17 @@ import hashlib
 import hmac
 import logging
 import time
+from datetime import UTC, datetime  # Added datetime, UTC
 from decimal import Decimal
 from typing import Any
 
-from ..core.models import (
+from cyberdelta.apis.base import (  # Use absolute import
+    APIError,
+    APIErrorCode,
+    ExchangeAPI,
+    MessageHandler,
+)
+from cyberdelta.core.models import (  # Use absolute import
     Balance,
     FundingRate,
     Order,
@@ -19,7 +26,6 @@ from ..core.models import (
     TimeInForce,
     Trade,
 )
-from .base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 
 logger = logging.getLogger(__name__)
 
@@ -823,3 +829,116 @@ class BackpackAPI(ExchangeAPI):
             exchange_message=error_data.get("msg") if error_data else None,
             original_exception=None,  # Can pass original exception if caught earlier
         )
+
+    # --- Data Parsing (Implementation for Base Class Abstract Method) --- #
+
+    def parse_order(self, data: dict[str, Any]) -> Order:
+        """Parse raw order data from Backpack into an Order object."""
+        # TODO: Implement actual Backpack order parsing logic based on API V1 docs
+        # Example structure (needs verification with actual API response)
+        try:
+            status_str = data.get("status", "").upper()
+            order_status = (
+                OrderStatus[status_str]
+                if status_str in OrderStatus.__members__
+                else OrderStatus.UNKNOWN
+            )
+
+            # Handle potential None or invalid Decimal values safely
+            price = data.get("price")
+            quantity = data.get("quantity")
+            filled_quantity = data.get("filledQuantity")
+            avg_fill_price = data.get("avgFillPrice")
+            # Backpack uses integer ms timestamps
+            order_time_ms = data.get("time") or data.get("createdAt")
+
+            return Order(
+                symbol=data["symbol"],
+                id=str(data["id"]),
+                side=OrderSide(data["side"]),
+                type=OrderType(data["orderType"]),
+                quantity=Decimal(str(quantity)) if quantity is not None else Decimal("0"),
+                status=order_status,
+                client_order_id=data.get("clientId"),
+                price=Decimal(str(price)) if price is not None else None,
+                avg_fill_price=Decimal(str(avg_fill_price)) if avg_fill_price is not None else None,
+                filled_quantity=Decimal(str(filled_quantity))
+                if filled_quantity is not None
+                else Decimal("0"),
+                # remaining_quantity calculation might be needed
+                # Assuming order_time_ms is already an int representing milliseconds
+                time=datetime.fromtimestamp(order_time_ms / 1000, UTC) if order_time_ms else None,
+                time_in_force=TimeInForce(data["timeInForce"]) if "timeInForce" in data else None,
+                post_only=data.get("postOnly", False),
+                reduce_only=data.get("reduceOnly", False),
+                # Add other fields like leverage, metadata if available
+            )
+        except KeyError as e:
+            logger.error(f"[{self.exchange_name}] Missing key {e} in order data: {data}")
+            raise APIError(
+                f"Missing key {e} in order data", code=APIErrorCode.INVALID_PARAMS
+            ) from e
+        except Exception as e:
+            logger.error(f"[{self.exchange_name}] Error parsing order data: {e}", exc_info=True)
+            raise APIError(
+                f"Error parsing order data: {e}", code=APIErrorCode.INVALID_PARAMS
+            ) from e
+
+    # --- WebSocket Subscriptions (Implementations for Base Class Abstract Methods) ---
+
+    async def subscribe_to_order_book(self, symbol: str) -> None:
+        """Subscribe to order book updates for a symbol."""
+        # Backpack topic format might be different, e.g., "depth.BTC_USDC"
+        topic = f"depth.{symbol}"
+        # The handler is now managed internally by the base class or needs a different approach
+        # This method just needs to send the subscription command.
+        if self._ws_connection and self.is_connected:
+            subscription_message = {"method": "SUBSCRIBE", "params": [topic]}
+            try:
+                await self._ws_connection.send_json(subscription_message)
+                logger.info(f"[{self.exchange_name}] Sent subscription request for topic: {topic}")
+            except Exception as e:
+                logger.error(
+                    f"[{self.exchange_name}] Failed to send subscription for topic {topic}: {e}"
+                )
+        else:
+            logger.warning(
+                f"[{self.exchange_name}] Cannot subscribe to {topic}, WebSocket not connected."
+            )
+
+    async def subscribe_to_ticker(self, symbol: str) -> None:
+        """Subscribe to ticker updates for a symbol."""
+        topic = f"ticker.{symbol}"
+        if self._ws_connection and self.is_connected:
+            subscription_message = {"method": "SUBSCRIBE", "params": [topic]}
+            try:
+                await self._ws_connection.send_json(subscription_message)
+                logger.info(f"[{self.exchange_name}] Sent subscription request for topic: {topic}")
+            except Exception as e:
+                logger.error(
+                    f"[{self.exchange_name}] Failed to send subscription for topic {topic}: {e}"
+                )
+        else:
+            logger.warning(
+                f"[{self.exchange_name}] Cannot subscribe to {topic}, WebSocket not connected."
+            )
+
+    async def subscribe_to_trades(self, symbol: str) -> None:
+        """Subscribe to public trade updates for a symbol."""
+        topic = f"trades.{symbol}"
+        if self._ws_connection and self.is_connected:
+            subscription_message = {"method": "SUBSCRIBE", "params": [topic]}
+            try:
+                await self._ws_connection.send_json(subscription_message)
+                logger.info(f"[{self.exchange_name}] Sent subscription request for topic: {topic}")
+            except Exception as e:
+                logger.error(
+                    f"[{self.exchange_name}] Failed to send subscription for topic {topic}: {e}"
+                )
+        else:
+            logger.warning(
+                f"[{self.exchange_name}] Cannot subscribe to {topic}, WebSocket not connected."
+            )
+
+    # TODO: Implement remaining abstract methods from ExchangeAPI
+    #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)

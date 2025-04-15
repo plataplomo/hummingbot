@@ -10,7 +10,6 @@ from typing import Any
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
     Balance,
-    Fill,  # Added Fill
     FundingRate,
     MarketData,
     Order,
@@ -228,11 +227,14 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
         logger.info(f"Mock {self.exchange_name}: Resubscribed to topics (simulated).")
 
-    async def get_ticker(self, symbol: str) -> Ticker | None:
-        """Return mock ticker data."""
+    async def get_ticker(self, symbol: str) -> Ticker:
+        """Return mock ticker data or raise KeyError if not found."""
         self._check_error("get_ticker")
         await self._simulate_latency()
-        return self._mock_tickers.get(symbol)
+        ticker = self._mock_tickers.get(symbol)
+        if ticker is None:
+            raise KeyError(f"Mock ticker not found for symbol: {symbol}")
+        return ticker
 
     # Corrected override signature and implementation
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
@@ -463,17 +465,31 @@ class MockExchangeAPI(ExchangeAPI):
         # Return the cancelled order details, common practice
         return {"status": "success", "order": order.to_dict()}
 
-    async def get_order(self, order_id: str) -> Order | None:
-        """Get a specific order by ID."""
+    async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
+        """Get a specific order by ID (symbol param ignored in mock)."""
+        # Mark symbol as unused if necessary for linters
+        _ = symbol
         self._check_error("get_order")
         await self._simulate_latency()
         return self._orders.get(order_id)
 
-    async def get_order_status(self, order_id: str, **kwargs: Any) -> Order | None:
-        """Get the status of a specific order."""
+    async def get_order_status(
+        self,
+        order_id: str,
+        symbol: str | None = None,
+        client_order_id: str | None = None,
+    ) -> Order:
+        """Get a specific order by ID or raise KeyError if not found (params ignored)."""
+        # Mark params as unused if necessary for linters
+        _ = symbol
+        _ = client_order_id
         self._check_error("get_order_status")
         await self._simulate_latency()
-        return self._orders.get(order_id)
+        order = self._orders.get(order_id)
+        if order is None:
+            raise KeyError(f"Mock order not found for order_id: {order_id}")
+        # Note: Base class expects Order, not Order | None. Mock now raises if not found.
+        return order
 
     # Corrected override signature
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
@@ -505,7 +521,7 @@ class MockExchangeAPI(ExchangeAPI):
         start_time: int | None = None,
         # Ensure Fill type is available from TYPE_CHECKING import in base class or models
         # from ..core.models import Fill # <-- Might need explicit import if not via TYPE_CHECKING
-    ) -> list["Fill"]:  # Use forward reference if Fill not imported directly
+    ) -> list["Trade"]:  # Use forward reference for Trade (was Fill)
         """Return mock recent fills (empty list for basic mock)."""
         self._check_error("get_recent_fills")
         await self._simulate_latency()
@@ -1244,8 +1260,11 @@ class MockExchangeAPI(ExchangeAPI):
         logger.info(f"Mock {self.exchange_name}: Subscribed to trades for {symbol} (simulated).")
 
     # Corrected signature to match base class
-    def _update_rate_limit_from_headers(self, headers: Any) -> None:
-        """Mock implementation - does nothing."""
+    def _update_rate_limit_from_headers(self, headers: Any, method: str, path: str) -> None:
+        """Mock implementation - does nothing (ignores method/path)."""
+        # Mark params as unused if necessary for linters
+        _ = method
+        _ = path
         logger.debug(
             f"Mock {self.exchange_name}: _update_rate_limit_from_headers called (no-op) with headers: {headers}"
         )

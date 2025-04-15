@@ -23,12 +23,13 @@ from cyberdelta.core.execution_handler import (  # Added TradeExecution
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
-    Order,  # Added Order import
-    OrderBook,  # Ensure OrderBook is imported
+    MarketData,  # Added MarketData import
+    Order,
+    OrderBook,
     OrderSide,
     OrderStatus,
-    OrderType,  # Added OrderType import
-    Ticker,  # Added Trade import
+    OrderType,
+    Ticker,
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager
@@ -129,7 +130,22 @@ def populate_data_handler(
 
     # Populate data using exchange-specific symbol
     if ticker:
-        dh.tickers[exchange_name][exchange_symbol] = ticker
+        # Create MarketData from Ticker before storing
+        market_data = MarketData(
+            symbol=exchange_symbol,
+            timestamp=datetime.fromtimestamp(ticker.timestamp / 1000, UTC)
+            if ticker.timestamp
+            else timestamp,
+            open=ticker.price or Decimal("0"),  # Assuming price is open/high/low/close for mock
+            high=ticker.price or Decimal("0"),
+            low=ticker.price or Decimal("0"),
+            close=ticker.price or Decimal("0"),
+            # volume=Decimal("0"), # Default in MarketData
+            ticker_data={
+                exchange_name: {exchange_symbol: ticker}
+            },  # Store original ticker if needed
+        )
+        dh.tickers[exchange_name][exchange_symbol] = market_data
         dh.last_update_time[exchange_name]["ticker"][exchange_symbol] = timestamp
     if funding_rate:
         # Store funding rate and NEXT_FUNDING_TIME in DH
@@ -537,7 +553,42 @@ async def test_happy_path_full_cycle(
 
     # 3. Generate Opportunities
     logger.info("Generating opportunities...")
-    opportunities = signal_generator.generate_opportunities()
+    # Construct data structures expected by SignalGenerator
+    # Construct FundingRate data structure (symbol -> exchange -> FundingRate | None)
+    sg_funding_data: dict[str, dict[str, FundingRate | None]] = {}
+    for ex, sym_data in data_handler.funding_rates.items():
+        for sym, rate_data in sym_data.items():
+            # Assuming 'sym' is the exchange symbol. Need internal symbol.
+            # For this test, assume 'symbol_base' is the relevant internal symbol.
+            internal_sym = symbol_base  # Use the internal symbol defined in the test
+            rate, time_int = rate_data  # Unpack the tuple
+            funding_rate_obj = FundingRate(
+                symbol=sym, funding_rate=rate, next_funding_time=time_int
+            )
+            sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
+
+    sg_market_data: dict[str, dict[str, Ticker]] = {}
+    for ex, sym_data in data_handler.tickers.items():
+        sg_market_data[ex] = {}
+        for sym, mkt_data in sym_data.items():
+            # Extract Ticker from MarketData if stored (or recreate)
+            # Assuming ticker_data was stored as planned in _add_mock_data fix
+            ticker_info = (
+                mkt_data.ticker_data.get(ex, {}).get(sym) if mkt_data.ticker_data else None
+            )
+            if ticker_info:
+                sg_market_data[ex][sym] = ticker_info
+            else:
+                # Fallback: Recreate Ticker from MarketData close price
+                sg_market_data[ex][sym] = Ticker(
+                    symbol=sym,
+                    price=mkt_data.close,
+                    timestamp=int(mkt_data.timestamp.timestamp() * 1000),
+                )
+
+    opportunities = signal_generator.generate_arbitrage_opportunities(
+        funding_data=sg_funding_data, market_data=sg_market_data
+    )
     logger.info(f"Generated opportunities: {opportunities}")
     assert len(opportunities) >= 1, "No opportunities generated"
     opportunity = opportunities[0]
@@ -551,7 +602,12 @@ async def test_happy_path_full_cycle(
     assert opportunity.short_price == mock_hl_ticker.bid  # Price to sell on short exchange
     assert opportunity.long_funding_rate == mock_bp_funding.funding_rate
     assert opportunity.short_funding_rate == mock_hl_funding.funding_rate
-    expected_nfd = mock_bp_funding.funding_rate - mock_hl_funding.funding_rate
+    # Ensure funding rates are not None before calculating differential (Runtime Safety)
+    bp_rate = mock_bp_funding.funding_rate
+    hl_rate = mock_hl_funding.funding_rate
+    assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
+    assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
+    expected_nfd = bp_rate - hl_rate
     assert opportunity.net_funding_differential == pytest.approx(expected_nfd)
     assert opportunity.expected_profit is not None
     assert opportunity.expected_profit > 0
@@ -625,8 +681,8 @@ async def test_happy_path_full_cycle(
     logger.info("Verifying portfolio state post-execution...")
 
     # Get final balances (should be updated by ExecutionHandler via PortfolioTracker.record_trade)
-    hl_balance = portfolio_tracker.get_asset_balance("mock_hl", "USD")
-    bp_balance = portfolio_tracker.get_asset_balance("mock_bp", "USDC")
+    hl_balance = portfolio_tracker.get_exchange_balance("mock_hl", "USD")
+    bp_balance = portfolio_tracker.get_exchange_balance("mock_bp", "USDC")
     assert hl_balance is not None
     assert bp_balance is not None
     logger.debug(f"Final HL Balance: {hl_balance.total} (Available: {hl_balance.available})")
@@ -728,7 +784,9 @@ async def test_partial_fill(
     bp_symbol = mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}")
     mock_hl_api.reset()
     mock_bp_api.reset()
-    portfolio_tracker.reset()
+    # TODO: Review reset logic - PortfolioTracker has no public reset method.
+    # Re-initialize or clear internal state?
+    # portfolio_tracker.reset()
 
     # Tickers
     mock_hl_ticker = create_mock_ticker(hl_symbol, 40000.0, 40002.0, 40001.0, now)
@@ -808,7 +866,7 @@ async def test_partial_fill(
         side=OrderSide.BUY,
         type=OrderType.MARKET,
         quantity=target_qty,
-        time=int(now.timestamp() * 1000),
+        time=now,  # Use datetime object directly
     )
     # Compensation BP Order (Sell) - Should succeed
     bp_compensation_order = Order(
@@ -820,7 +878,8 @@ async def test_partial_fill(
         side=OrderSide.SELL,
         type=OrderType.MARKET,
         quantity=partial_fill_qty,
-        time=int(now.timestamp() * 1000 + 1000),  # Slightly later time
+        # time=now + timedelta(seconds=1), # Use datetime object directly, adjust if needed
+        time=now,  # Keep it simple for now, use same datetime
     )
 
     async def place_order_side_effect_bp(*args: Any, **kwargs: Any) -> Order:
@@ -876,7 +935,7 @@ async def test_partial_fill(
         side=OrderSide.SELL,
         type=OrderType.MARKET,
         quantity=target_qty,
-        time=int(now.timestamp() * 1000),
+        time=now,  # Use datetime object directly
     )
     # Compensation HL Order (Buy) - Should succeed
     hl_compensation_order = Order(
@@ -888,7 +947,8 @@ async def test_partial_fill(
         side=OrderSide.BUY,
         type=OrderType.MARKET,
         quantity=target_qty,
-        time=int(now.timestamp() * 1000 + 1000),  # Slightly later time
+        # time=now + timedelta(seconds=1), # Use datetime object directly, adjust if needed
+        time=now,  # Keep it simple for now, use same datetime
     )
 
     async def place_order_side_effect_hl(*args: Any, **kwargs: Any) -> Order:
@@ -929,7 +989,36 @@ async def test_partial_fill(
 
     # --- Execute Test ---
     # 1. Generate Signal
-    opportunities = signal_generator.generate_opportunities()
+    # Construct FundingRate data structure (symbol -> exchange -> FundingRate | None)
+    sg_funding_data: dict[str, dict[str, FundingRate | None]] = {}
+    for ex, sym_data in data_handler.funding_rates.items():
+        for sym, rate_data in sym_data.items():
+            internal_sym = symbol_key  # Use the internal symbol defined in the test
+            rate, time_int = rate_data  # Unpack the tuple
+            funding_rate_obj = FundingRate(
+                symbol=sym, funding_rate=rate, next_funding_time=time_int
+            )
+            sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
+
+    sg_market_data: dict[str, dict[str, Ticker]] = {}
+    for ex, sym_data in data_handler.tickers.items():
+        sg_market_data[ex] = {}
+        for sym, mkt_data in sym_data.items():
+            ticker_info = (
+                mkt_data.ticker_data.get(ex, {}).get(sym) if mkt_data.ticker_data else None
+            )
+            if ticker_info:
+                sg_market_data[ex][sym] = ticker_info
+            else:
+                sg_market_data[ex][sym] = Ticker(
+                    symbol=sym,
+                    price=mkt_data.close,
+                    timestamp=int(mkt_data.timestamp.timestamp() * 1000),
+                )
+
+    opportunities = signal_generator.generate_arbitrage_opportunities(
+        funding_data=sg_funding_data, market_data=sg_market_data
+    )
     assert len(opportunities) >= 1
     opportunity = opportunities[0]
     assert opportunity.symbol == symbol_key  # Use internal symbol key for comparison
@@ -937,10 +1026,16 @@ async def test_partial_fill(
     assert opportunity.short_exchange == "mock_hl"
     assert opportunity.long_funding_rate == mock_bp_funding.funding_rate
     assert opportunity.short_funding_rate == mock_hl_funding.funding_rate
-    expected_nfd = mock_bp_funding.funding_rate - mock_hl_funding.funding_rate
+    # Ensure funding rates are not None before calculating differential (Runtime Safety)
+    bp_rate = mock_bp_funding.funding_rate
+    hl_rate = mock_hl_funding.funding_rate
+    assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
+    assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
+    expected_nfd = bp_rate - hl_rate
     assert opportunity.net_funding_differential == pytest.approx(expected_nfd)
 
     # --- Add Debug Logging ---
+    # TODO: Replace protected access with public method if available
     logger.debug(f"PT Balances before RM validation: {portfolio_tracker._balances}")
     total_cap_debug = portfolio_tracker.get_total_capital()
     logger.debug(f"PT get_total_capital() before RM validation: {total_cap_debug}")
@@ -1023,7 +1118,9 @@ async def test_execution_failure_compensation(
     bp_symbol = mock_config.get(f"exchanges.mock_bp.symbols.{symbol_key}")
     mock_hl_api.reset()
     mock_bp_api.reset()
-    portfolio_tracker.reset()
+    # TODO: Review reset logic - PortfolioTracker has no public reset method.
+    # Re-initialize or clear internal state?
+    # portfolio_tracker.reset()
 
     # Tickers
     mock_hl_ticker = create_mock_ticker(hl_symbol, 2000.0, 2000.5, 2000.25, now)
@@ -1084,7 +1181,7 @@ async def test_execution_failure_compensation(
     # --- Configure Mock Behavior for Execution Failure ---
     target_qty = Decimal("1.0")
     long_order_id_bp = "bp_long_success"
-    short_order_id_hl = "hl_short_fails"
+    # short_order_id_hl = "hl_short_fails" # Unused variable removed
     compensating_order_id_bp = "bp_compensate_sell"
 
     # BP (Long) - Succeeds initially
@@ -1098,7 +1195,7 @@ async def test_execution_failure_compensation(
         side=OrderSide.BUY,
         type=OrderType.MARKET,
         quantity=target_qty,
-        time=int(now.timestamp() * 1000),
+        time=now,  # Use datetime object directly
     )
 
     # HL (Short) - Fails
@@ -1115,7 +1212,7 @@ async def test_execution_failure_compensation(
         side=OrderSide.SELL,
         type=OrderType.MARKET,
         quantity=target_qty,
-        time=int(now.timestamp() * 1000),
+        time=now,  # Use datetime object directly
     )
 
     # --- Setup Mock `place_order` Side Effects ---
@@ -1180,7 +1277,36 @@ async def test_execution_failure_compensation(
 
     # --- Execute Test ---
     # 1. Generate Signal
-    opportunities = signal_generator.generate_opportunities()
+    # Construct FundingRate data structure (symbol -> exchange -> FundingRate | None)
+    sg_funding_data: dict[str, dict[str, FundingRate | None]] = {}
+    for ex, sym_data in data_handler.funding_rates.items():
+        for sym, rate_data in sym_data.items():
+            internal_sym = symbol_key  # Use the internal symbol defined in the test
+            rate, time_int = rate_data  # Unpack the tuple
+            funding_rate_obj = FundingRate(
+                symbol=sym, funding_rate=rate, next_funding_time=time_int
+            )
+            sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
+
+    sg_market_data: dict[str, dict[str, Ticker]] = {}
+    for ex, sym_data in data_handler.tickers.items():
+        sg_market_data[ex] = {}
+        for sym, mkt_data in sym_data.items():
+            ticker_info = (
+                mkt_data.ticker_data.get(ex, {}).get(sym) if mkt_data.ticker_data else None
+            )
+            if ticker_info:
+                sg_market_data[ex][sym] = ticker_info
+            else:
+                sg_market_data[ex][sym] = Ticker(
+                    symbol=sym,
+                    price=mkt_data.close,
+                    timestamp=int(mkt_data.timestamp.timestamp() * 1000),
+                )
+
+    opportunities = signal_generator.generate_arbitrage_opportunities(
+        funding_data=sg_funding_data, market_data=sg_market_data
+    )
     assert len(opportunities) >= 1
     opportunity = opportunities[0]
     assert opportunity.symbol == symbol_key  # Use internal symbol key for comparison
@@ -1188,6 +1314,7 @@ async def test_execution_failure_compensation(
     assert opportunity.short_exchange == "mock_hl"
 
     # --- Add Debug Logging ---
+    # TODO: Replace protected access with public method if available
     logger.debug(f"PT Balances before RM validation: {portfolio_tracker._balances}")
     total_cap_debug = portfolio_tracker.get_total_capital()
     logger.debug(f"PT get_total_capital() before RM validation: {total_cap_debug}")
@@ -1233,6 +1360,7 @@ async def test_execution_failure_compensation(
 
     logger.info(f"Final BP Position: {final_bp_pos}")
     logger.info(f"Final HL Position: {final_hl_pos}")
+    # TODO: Replace protected access with public method if available
     logger.info(f"Final Balances: {portfolio_tracker._balances}")
 
     # Check logs for confirmation

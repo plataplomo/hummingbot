@@ -10,7 +10,6 @@ from cyberdelta.apis.base import MessageHandler
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.core.models import (
     Balance,
-    Fill,  # Already added
     FundingRate,
     MarketData,
     Order,
@@ -115,8 +114,12 @@ class ConcreteBackpackAPI(BackpackAPI):
 
     # --- ADD MISSING ABSTRACT METHODS ---
     async def _authenticate(
-        self, method: str, path: str, params: dict | None = None, data: dict | None = None
-    ) -> dict:
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         return {}  # Placeholder
 
     def _update_rate_limit_from_headers(self, headers: Any, method: str, path: str) -> None:
@@ -155,7 +158,7 @@ class ConcreteBackpackAPI(BackpackAPI):
     ) -> Order:
         raise NotImplementedError  # Placeholder
 
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict:
+    async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
         return {}  # Placeholder
 
     # Corrected signature: Matches base ExchangeAPI parameter order and return type
@@ -176,7 +179,7 @@ class ConcreteBackpackAPI(BackpackAPI):
         limit: int | None = None,
         order_id: str | None = None,
         start_time: int | None = None,
-    ) -> list[Fill]:  # Use imported Fill type
+    ) -> list[Trade]:  # Use imported Trade type (was Fill)
         return []  # Placeholder
 
     # --- End Added Methods ---
@@ -189,7 +192,7 @@ class TestBackpackAPI:
     """Test suite for BackpackAPI client."""
 
     @pytest.fixture
-    def api_client(self, backpack_config, backpack_secrets):
+    def api_client(self, backpack_config: Config, backpack_secrets: dict[str, str]):
         """Create a BackpackAPI client instance for testing (using AsyncMock)."""
         # Use AsyncMock with spec to avoid abstract class instantiation errors
         client = AsyncMock(spec=BackpackAPI)
@@ -198,7 +201,7 @@ class TestBackpackAPI:
         return client
 
     @pytest.mark.asyncio
-    async def test_get_ticker(self, api_client):
+    async def test_get_ticker(self, api_client: BackpackAPI):
         """Test get_ticker returns proper Ticker object."""
         # Mock the specific method being tested
         mock_ticker_data = Ticker(
@@ -226,7 +229,7 @@ class TestBackpackAPI:
         api_client.get_ticker.assert_called_once_with("BTCUSDC")
 
     @pytest.mark.asyncio
-    async def test_get_order_book(self, api_client):
+    async def test_get_order_book(self, api_client: BackpackAPI):
         """Test get_order_book returns proper OrderBook object."""
         mock_time = int(time.time() * 1000)
         mock_order_book_data = OrderBook(
@@ -268,7 +271,7 @@ class TestBackpackAPI:
         api_client.get_order_book.assert_called_once_with("BTCUSDC", depth=5)
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades(self, api_client):
+    async def test_get_recent_trades(self, api_client: BackpackAPI):
         """Test get_recent_trades returns list of Trade objects."""
         mock_trade_data = [
             Trade(
@@ -308,7 +311,7 @@ class TestBackpackAPI:
         api_client.get_recent_trades.assert_called_once_with("BTCUSDC", limit=2)
 
     @pytest.mark.asyncio
-    async def test_get_funding_rate(self, api_client):
+    async def test_get_funding_rate(self, api_client: BackpackAPI):
         """Test get_funding_rate returns proper FundingRate object."""
         mock_time = int(time.time() * 1000) + 3600000
         mock_funding_data = FundingRate(
@@ -335,7 +338,7 @@ class TestBackpackAPI:
         api_client.get_funding_rate.assert_called_once_with("BTCUSDC")
 
     @pytest.mark.asyncio
-    async def test_get_balances(self, api_client):
+    async def test_get_balances(self, api_client: BackpackAPI):
         """Test get_balances returns dictionary of Balance objects."""
         mock_balance_data = {
             "BTC": Balance(
@@ -367,7 +370,7 @@ class TestBackpackAPI:
         api_client.get_balances.assert_called_once_with()
 
     @pytest.mark.asyncio
-    async def test_get_positions(self, api_client):
+    async def test_get_positions(self, api_client: BackpackAPI):
         """Test get_positions returns list of Position objects."""
         mock_position_data = [
             Position(
@@ -421,7 +424,7 @@ class TestBackpackAPI:
         api_client.get_positions.assert_called_once_with()
 
     @pytest.mark.asyncio
-    async def test_place_order(self, api_client):
+    async def test_place_order(self, api_client: BackpackAPI):
         """Test place_order returns proper Order object."""
         mock_order_data = Order(
             id="123456789",
@@ -468,7 +471,7 @@ class TestBackpackAPI:
         assert kwargs.get("quantity") == Decimal("0.1")
 
     @pytest.mark.asyncio
-    async def test_cancel_order(self, api_client):
+    async def test_cancel_order(self, api_client: BackpackAPI):
         """Test cancel_order returns success indication (e.g., Order object)."""
         # Backpack returns the cancelled order details
         mock_cancelled_order_data = Order(
@@ -497,7 +500,7 @@ class TestBackpackAPI:
         api_client.cancel_order.assert_called_once_with("123456789", "BTCUSDC")
 
     @pytest.mark.asyncio
-    async def test_sign_request(self, backpack_config, backpack_secrets):
+    async def test_sign_request(self, backpack_config: Config, backpack_secrets: dict[str, str]):
         """Test the _sign_request method produces correct signature."""
         # Instantiate the CONCRETE subclass for testing
         # We need to provide actual mock objects for config and secrets managers if
