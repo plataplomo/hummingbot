@@ -1,9 +1,4 @@
 ---
-description: 
-globs: 
-alwaysApply: true
----
----
 description: Establishes the core identity and high-level context of the project for all AI interactions.
 globs: ["*"] # Apply globally
 alwaysApply: true

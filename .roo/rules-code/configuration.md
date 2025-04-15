@@ -1,9 +1,4 @@
 ---
-description: 
-globs: pyproject.toml,mypy.ini
-alwaysApply: false
----
----
 description: Mandates the preservation of static analysis tool configurations (Ruff, Mypy).
 globs: ["pyproject.toml", "mypy.ini"] # Primarily relevant when these files might be considered for changes
 alwaysApply: true # This constraint should always be active

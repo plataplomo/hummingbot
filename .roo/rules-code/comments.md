@@ -1,10 +1,5 @@
 ---
 description: Mandates comprehensive documentation within the Python source code itself.
-globs: *.py,*.pyi
-alwaysApply: false
----
----
-description: Mandates comprehensive documentation within the Python source code itself.
 globs: ["*.py", "*.pyi"] # Apply to all Python source and stub files
 alwaysApply: true # This is a fundamental requirement
 ---

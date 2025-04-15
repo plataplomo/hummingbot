@@ -1,9 +1,4 @@
 ---
-description: 
-globs: *.py,*.pyi,*.md
-alwaysApply: false
----
----
 description: Enforces consistent code style, formatting, naming, and structural conventions.
 globs: ["*.py", "*.pyi", "*.md"] # Apply primarily to Python, but principles extend to Markdown
 alwaysApply: true # These are foundational style guidelines

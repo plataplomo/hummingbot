@@ -1,7 +1,7 @@
 ---
 description: 
-globs: *.py,*.pyi
-alwaysApply: false
+globs: ["*.py,*.pyi"]
+alwaysApply: true
 ---
 # Rule: Assume Hostile Input - Rigorous Validation
 

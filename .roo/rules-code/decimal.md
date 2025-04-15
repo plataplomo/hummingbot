@@ -1,9 +1,4 @@
 ---
-description: 
-globs: *.py,*.pyi
-alwaysApply: false
----
----
 description: Enforces the consistent use of Python's Decimal type for all financial calculations and representations.
 globs: ["*.py", "*.pyi"] # Apply to all Python source and stub files
 alwaysApply: true # This is a fundamental requirement for financial software

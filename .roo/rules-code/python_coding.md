@@ -1,9 +1,4 @@
 ---
-description: 
-globs: *.py,*.pyi
-alwaysApply: false
----
----
 description: Defines Python language version, core static analysis tools, and development workflow requirements.
 globs: ["*.py", "*.pyi"] # Apply when Python/stub files are involved
 alwaysApply: true # These standards should always be considered for Python code

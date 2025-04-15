@@ -1,9 +1,4 @@
 ---
-description: 
-globs: 
-alwaysApply: true
----
----
 description: Mandates execution of Python tools and scripts using explicit paths within the virtual environment.
 globs: ["*"] # Applies globally to any task involving tool/script execution
 alwaysApply: true # This is fundamental for environment consistency

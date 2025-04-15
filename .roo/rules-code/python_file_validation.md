@@ -1,9 +1,4 @@
 ---
-description: 
-globs: *.py,*.pyi
-alwaysApply: false
----
----
 description: Mandates immediate static analysis checks after modifying Python files.
 globs: ["*.py", "*.pyi"] # Apply when Python/stub files are involved
 alwaysApply: true # Check should always happen after relevant modifications
