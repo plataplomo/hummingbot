@@ -194,51 +194,36 @@ class SignalGenerator:
                     continue
 
                 # Fetch data using the exchange-specific symbol
-                funding_data: FundingRate | None = self.data_handler.get_funding_rate(
-                    exchange_id, exchange_symbol
-                )
-
-                if funding_data:
-                    rate = funding_data.funding_rate
-                    timestamp = now  # Use current time as timestamp
-
-                    # Ensure rate is Decimal
-                    if not isinstance(rate, Decimal):
-                        try:
-                            rate = Decimal(str(rate))
-                        except Exception as e:
-                            logger.warning(
-                                f"Could not convert funding rate '{rate}' to Decimal for "
-                                f"{exchange_id}/{exchange_symbol} (Internal: {internal_symbol}). "
-                                f"Error: {e}"
-                            )
-                            continue  # Skip this data point
-
-                    # Add to history using internal_symbol key
-                    # Ensure the structure exists (might be overly cautious if init is correct)
-                    if (
-                        exchange_id in self.historical_funding_rates
-                        and internal_symbol in self.historical_funding_rates[exchange_id]
-                    ):
-                        history_deque = self.historical_funding_rates[exchange_id][internal_symbol]
-                        history_deque.append((timestamp, rate))
-
-                        # Trim history using deque's efficient popleft
-                        cutoff_time = now - timedelta(
-                            seconds=self.funding_sample_period * self.funding_sample_count
-                        )
-                        while history_deque and history_deque[0][0] < cutoff_time:
-                            history_deque.popleft()
-                    else:
-                        logger.error(
-                            f"Historical funding rate deque not found for "
-                            f"{exchange_id}/{internal_symbol} during update."
-                        )
+                funding_data = self.data_handler.get_funding_rate(exchange_id, exchange_symbol)
+                if not isinstance(funding_data, FundingRate):
+                    continue
+                rate = funding_data.funding_rate
+                timestamp = now  # Use current time as timestamp
+                if rate is None:
+                    continue  # Skip this data point
+                # Add to history using internal_symbol key
+                if (
+                    exchange_id in self.historical_funding_rates
+                    and internal_symbol in self.historical_funding_rates[exchange_id]
+                ):
+                    history_deque = self.historical_funding_rates[exchange_id][internal_symbol]
+                    history_deque.append((timestamp, rate))
+                    # Trim history using deque's efficient popleft
+                    cutoff_time = now - timedelta(
+                        seconds=self.funding_sample_period * self.funding_sample_count
+                    )
+                    while history_deque and history_deque[0][0] < cutoff_time:
+                        history_deque.popleft()
+                else:
+                    logger.error(
+                        f"Historical funding rate deque not found for "
+                        f"{exchange_id}/{internal_symbol} during update."
+                    )
 
         # --- Update basis history (price difference between exchanges) ---
         for internal_symbol in all_internal_symbols:
             # Find exchanges that map this internal symbol
-            valid_exchanges_for_symbol = []
+            valid_exchanges_for_symbol: list[str] = []
             exchange_tickers: dict[str, Ticker] = {}  # Store valid tickers
 
             # Check all enabled exchanges
@@ -253,7 +238,7 @@ class SignalGenerator:
                         exchange_id, exchange_symbol
                     )
                     # Ensure market data and price are valid
-                    if market_data and hasattr(market_data, "close"):
+                    if market_data is not None and hasattr(market_data, "close"):
                         # Attempt to convert price to Decimal immediately for validation
                         try:
                             price_decimal = (
@@ -281,11 +266,10 @@ class SignalGenerator:
 
             # Compute basis if enough valid tickers were found
             if len(valid_exchanges_for_symbol) >= 2:
-                # Example: Basis between first two valid exchanges
-                ex1 = valid_exchanges_for_symbol[0]
-                ex2 = valid_exchanges_for_symbol[1]
-                ticker1 = exchange_tickers.get(ex1)
-                ticker2 = exchange_tickers.get(ex2)
+                ex1: str = valid_exchanges_for_symbol[0]
+                ex2: str = valid_exchanges_for_symbol[1]
+                ticker1: Ticker | None = exchange_tickers.get(ex1)
+                ticker2: Ticker | None = exchange_tickers.get(ex2)
 
                 # Check if tickers and their prices (already validated as Decimal) exist
                 if ticker1 and ticker1.price is not None and ticker2 and ticker2.price is not None:
@@ -332,12 +316,12 @@ class SignalGenerator:
             return Decimal("0.0001")  # Default volatility
 
         # Extract just the rates
-        rates = [rate for _, rate in history_deque]
+        rates: list[Decimal] = [rate for _, rate in history_deque]
 
         try:
             # Calculate standard deviation using Decimal arithmetic
             # Convert any non-Decimal values to Decimal
-            decimal_rates = [r if isinstance(r, Decimal) else Decimal(str(r)) for r in rates]
+            decimal_rates = [r for r in rates]  # All rates are Decimal by construction
 
             # Calculate mean
             n = len(decimal_rates)
@@ -389,7 +373,9 @@ class SignalGenerator:
         try:
             # Calculate standard deviation using Decimal arithmetic
             # Convert any non-Decimal values to Decimal
-            decimal_basis = [b if isinstance(b, Decimal) else Decimal(str(b)) for b in basis_values]
+            decimal_basis = [
+                b for b in basis_values
+            ]  # All basis values are Decimal by construction
 
             # Calculate mean
             n = len(decimal_basis)
@@ -484,7 +470,7 @@ class SignalGenerator:
             )
             return []
 
-        opportunities = []
+        opportunities: list[ArbitrageOpportunity] = []
 
         for symbol in self.tracked_symbols:
             # Ensure we have funding data for this symbol
@@ -519,7 +505,7 @@ class SignalGenerator:
         opportunities.sort(
             key=lambda x: float(x.net_funding_differential)
             if x.net_funding_differential is not None
-            else 0.0,
+            else 0.0,  # type: ignore
             reverse=True,
         )
         return opportunities
@@ -538,10 +524,10 @@ class SignalGenerator:
         Returns:
             List of arbitrage opportunities
         """
-        opportunities = []
+        opportunities: list[ArbitrageOpportunity] = []
 
         # Check each pair of exchanges
-        exchanges = list(exchanges_with_data.keys())
+        exchanges: list[str] = list(exchanges_with_data.keys())
         for i in range(len(exchanges)):
             for j in range(i + 1, len(exchanges)):
                 exchange_a = exchanges[i]
@@ -554,6 +540,7 @@ class SignalGenerator:
                 # Mypy incorrectly flags as unreachable, but the input type hint
                 # funding_data: dict[str, dict[str, FundingRate | None]]
                 # explicitly allows None values in the inner dict.
+                # funding_a and funding_b are always FundingRate (not None) by type
                 if funding_a is None or funding_b is None:  # mypy: [unreachable]
                     continue
 
@@ -599,11 +586,6 @@ class SignalGenerator:
                     price_a = ticker_a.price
                     price_b = ticker_b.price
 
-                    if not isinstance(price_a, Decimal):
-                        price_a = Decimal(str(price_a))
-                    if not isinstance(price_b, Decimal):
-                        price_b = Decimal(str(price_b))
-
                     # Calculate the funding payment in USD terms
                     # Mypy incorrectly flags the following lines as unreachable,
                     # likely due to its earlier incorrect assessments.
@@ -619,12 +601,7 @@ class SignalGenerator:
                     slippage_a = self.estimate_slippage(exchange_a, symbol)
                     slippage_b = self.estimate_slippage(exchange_b, symbol)
 
-                    # Convert slippage to Decimal if needed
-                    if not isinstance(slippage_a, Decimal):
-                        slippage_a = Decimal(str(slippage_a))
-                    if not isinstance(slippage_b, Decimal):
-                        slippage_b = Decimal(str(slippage_b))
-
+                    # Calculate total slippage
                     total_slippage = slippage_a + slippage_b
                     expected_profit = abs(net_funding_differential) - total_slippage
 

@@ -530,31 +530,48 @@ def mock_config() -> Config:
 
     # Define side_effect to handle nested gets correctly
     def config_side_effect(key: str, default: ConfigValue | None = None) -> ConfigValue:
-        # Simplified: directly traverse the mock_values dict
+        """
+        Traverse the mock_values dict using dot notation to simulate config.get().
+        Args:
+            key: Dot-separated config key.
+            default: Value to return if key is not found.
+        Returns:
+            The config value or default.
+        """
         parts = key.split(".")
         current_data: Any = mock_values
         try:
             for part in parts:
-                if not isinstance(current_data, dict):
-                    return default if default is not None else None
+                # Type assertion for type checker: current_data is dict[str, Any] here
+                assert isinstance(current_data, dict), (
+                    f"Expected dict at part '{part}', got {type(current_data)}"
+                )
                 value = current_data.get(part)
                 if value is None:
                     return default if default is not None else None
                 current_data = value
+            # Explicit cast to ConfigValue to satisfy type checker
             return (
                 current_data
-                if isinstance(current_data, str | int | float | bool | dict | list)
+                if isinstance(current_data, (str, int, float, bool, dict, list))
                 else None
             )
-        except (KeyError, TypeError):
+        except (KeyError, TypeError, AssertionError):
             return default if default is not None else None
 
     # Explicitly handle the top-level 'exchanges' key for the loop
-    # This is needed because the loop directly calls .keys() on the result of get('exchanges', {})
     def specific_side_effect(key: str, default: ConfigValue | None = None) -> ConfigValue:
+        """
+        Special-case for 'exchanges' key to ensure a dict is always returned.
+        Args:
+            key: Config key.
+            default: Default value if not found.
+        Returns:
+            The config value or default.
+        """
         if key == "exchanges":
-            exchanges = mock_values.get("exchanges")
-            return exchanges if isinstance(exchanges, dict) else {}
+            exchanges: dict[str, Any] = mock_values.get("exchanges", {})
+            return exchanges
         return config_side_effect(key, default)
 
     # Configure the mock
@@ -614,9 +631,8 @@ class TestCircuitBreakerSystem:
             # Note: The internal breaker name might be slightly different if prefixes/suffixes are
             # added during creation
             # Let's check the key components are present.
-            if reason is not None:  # Type narrowing for mypy
-                assert "test_exchange" in reason
-                assert "Test trip" in reason  # Ensure the original trip reason is included
+            assert "test_exchange" in reason
+            assert "Test trip" in reason  # Ensure the original trip reason is included
 
     def test_record_api_error(self, mock_config: Config) -> None:
         """Test recording an API error."""
