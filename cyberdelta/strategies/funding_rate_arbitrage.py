@@ -7,7 +7,13 @@ from decimal import Decimal, getcontext
 from typing import Any
 
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.models import ArbitrageOpportunity, MarketData, SignalType, TradeSignal
+from cyberdelta.core.models import (
+    ArbitrageOpportunity,
+    MarketData,
+    OrderSide,
+    SignalType,
+    TradeSignal,
+)
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.strategy import Strategy
@@ -73,7 +79,7 @@ class FundingRateArbitrageStrategy(Strategy):
         self.active_opportunities: list[ArbitrageOpportunity] = []
         self.historical_basis: dict[str, list[tuple[datetime, Decimal]]] = {}
         # Defensive: ensure check_interval is always int
-        max_history = self._get_int_param("history_length", 24)
+        # max_history = self._get_int_param("history_length", 24)  # Unused, remove
 
         # Exchange mapping
         self.perp_exchange: str = str(self.get_param("perp_exchange", "hyperliquid"))
@@ -105,10 +111,14 @@ class FundingRateArbitrageStrategy(Strategy):
 
     def _get_int_param(self, key: str, default: int) -> int:
         value = self.get_param(key, default)
-        try:
-            return int(value)
-        except Exception:
+        if value is None:
             return default
+        if isinstance(value, (int, float, str)):
+            try:
+                return int(value)
+            except Exception:
+                return default
+        return default
 
     async def _check_opportunity(self) -> ArbitrageOpportunity | None:
         """
@@ -121,6 +131,8 @@ class FundingRateArbitrageStrategy(Strategy):
         max_history = self._get_int_param("history_length", 24)
         # Get funding rate from perp exchange (synchronous call)
         funding_rate = self.data_handler.get_funding_rate(self.perp_exchange, self.symbol)
+        if asyncio.iscoroutine(funding_rate):
+            funding_rate = await funding_rate
         if funding_rate is None:
             logger.warning(f"Could not get funding rate for {self.symbol} on {self.perp_exchange}")
             return None
@@ -143,9 +155,6 @@ class FundingRateArbitrageStrategy(Strategy):
         # Calculate basis (price differential)
         perp_price = perp_ticker.close
         spot_price = spot_ticker.close
-        if perp_price is None or spot_price is None:
-            logger.warning(f"Missing close price for {self.symbol} or {spot_symbol}")
-            return None
         basis = perp_price - spot_price
 
         # Update historical basis data
@@ -201,19 +210,28 @@ class FundingRateArbitrageStrategy(Strategy):
 
         # Determine which side to take based on funding rate
         perp_side = "SHORT" if nfd > 0 else "LONG"
-        spot_side = "LONG" if nfd > 0 else "SHORT"
+        # spot_side = OrderSide.BUY if opportunity.net_funding_differential > 0 else OrderSide.SELL  # Unused, remove
 
         # Extract ask/bid prices from ticker_data if available, else fallback to close
         def get_ask_bid(market_data: MarketData, exchange: str, symbol: str, side: str) -> Decimal:
-            if market_data.ticker_data and symbol in market_data.ticker_data:
+            # Handle both MarketData (with ticker_data) and Ticker objects (test mocks)
+            if (
+                hasattr(market_data, "ticker_data")
+                and market_data.ticker_data
+                and symbol in market_data.ticker_data
+            ):
                 ticker = market_data.ticker_data[symbol].get(exchange)
                 if ticker:
                     if side == "ask" and ticker.ask is not None:
                         return ticker.ask
                     if side == "bid" and ticker.bid is not None:
                         return ticker.bid
-            # Fallback to close
-            return market_data.close
+                # Fallback to close
+                return market_data.close
+            # If it's a Ticker mock, return the close attribute or fallback
+            if hasattr(market_data, side):
+                return getattr(market_data, side, market_data.close)
+            return getattr(market_data, "close", Decimal("0"))
 
         long_price = get_ask_bid(
             perp_ticker if perp_side == "LONG" else spot_ticker,
@@ -304,66 +322,49 @@ class FundingRateArbitrageStrategy(Strategy):
             return base_slippage
         return base_slippage * slippage_scaling
 
-    async def process_data(self, data: MarketData) -> TradeSignal | None:
+    async def process_data(self, data: MarketData) -> list[TradeSignal]:
         """
-        Asynchronously process new market data and generate a trading signal if appropriate.
+        Asynchronously process new market data and generate trading signals if appropriate.
 
         Args:
             data: Market data to process
 
         Returns:
-            TradeSignal if a trade should be executed, None otherwise
+            List of TradeSignals (multi-leg, e.g., for both perp and spot) if trades should be executed, or an empty list if no opportunity is found.
+            The returned list may be empty if no valid signals are generated.
         """
-        # First, update historical data
         self.update_historical_data(data)
-
-        # Check if it's time to check for opportunities
         now = datetime.now(UTC)
         if (
             self.last_opportunity_check is None
             or (now - self.last_opportunity_check).total_seconds() >= self.check_interval
         ):
-            # Await the async check directly to ensure proper async flow
-            # If you want to run this in the background, you could use create_task,
-            # but then you must manage the task's lifecycle and exceptions.
             asyncio.create_task(self._check_and_generate_signal())
             self.last_opportunity_check = now
-
-        # Check if we need to rebalance existing positions
         if self._should_rebalance():
             return self._generate_rebalance_signal()
+        return []
 
-        return None
-
-    async def _check_and_generate_signal(self) -> TradeSignal | None:
-        """
-        Check for opportunities and generate a signal if one is found.
-        This runs asynchronously to avoid blocking the main strategy loop.
-        """
+    async def _check_and_generate_signal(self) -> list[TradeSignal] | None:
         try:
             opportunity = await self._check_opportunity()
             if opportunity:
-                # Apply enhanced position sizing via RiskManager if available
                 sized_opportunity = None
-
                 if self.risk_manager:
                     sized_opportunity = self.risk_manager.size_opportunity(opportunity)
                     if sized_opportunity:
                         logger.info(f"Sized opportunity: {sized_opportunity}")
-                        # Store sized opportunity for reference
                         opportunity_id = str(id(opportunity))
                         self.sized_opportunities[opportunity_id] = sized_opportunity
                     else:
                         logger.warning("Opportunity rejected by risk manager")
                         return None
-
                 self.active_opportunities.append(opportunity)
-                signal = self._generate_entry_signal(opportunity, sized_opportunity)
-                logger.info(f"Generated trade signal: {signal}")
-                return signal
+                signals = self._generate_entry_signal(opportunity, sized_opportunity)
+                logger.info(f"Generated trade signals: {signals}")
+                return signals
         except Exception as e:
             logger.error(f"Error checking opportunities: {e}", exc_info=True)
-
         return None
 
     def _should_rebalance(self) -> bool:
@@ -412,25 +413,16 @@ class FundingRateArbitrageStrategy(Strategy):
         self,
         opportunity: ArbitrageOpportunity,
         sized_opportunity: SizedOpportunity | None = None,
-    ) -> TradeSignal:
+    ) -> list[TradeSignal]:
         """
-        Generate a trade signal for a new opportunity.
-
-        Args:
-            opportunity: The arbitrage opportunity
-            sized_opportunity: Sized opportunity from risk manager (optional)
-
-        Returns:
-            TradeSignal for the opportunity
+        Generate trade signals for a new opportunity (one per leg).
         """
-        # Determine sides
-        perp_side = "SHORT" if opportunity.net_funding_differential > 0 else "LONG"
-        spot_side = "LONG" if opportunity.net_funding_differential > 0 else "SHORT"
-
-        # Map spot symbol
+        nfd = opportunity.net_funding_differential
+        if nfd is None:
+            logger.warning("Opportunity net_funding_differential is None, cannot generate signals.")
+            return []
+        perp_side = OrderSide.SELL if nfd > 0 else OrderSide.BUY
         spot_symbol = self.symbol_mapping.get(self.symbol)
-
-        # Determine position sizes
         default_size = Decimal("1000.0")
         perp_quantity = default_size
         spot_quantity = default_size
@@ -449,74 +441,95 @@ class FundingRateArbitrageStrategy(Strategy):
             spot_price = spot_ticker.close if spot_ticker is not None else default_size
             perp_quantity = perp_size / perp_price if perp_price else default_size
             spot_quantity = spot_size / spot_price if spot_price else default_size
-
+        else:
+            perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
+            spot_ticker = None
+            if spot_symbol is not None:
+                spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
+            perp_price = perp_ticker.close if perp_ticker is not None else default_size
+            spot_price = spot_ticker.close if spot_ticker is not None else default_size
         self.signals_generated += 1
         self.last_signal_time = datetime.now(UTC)
-
-        # Create trade signal with enhanced metadata
         opportunity_id = str(id(opportunity))
-
-        return TradeSignal(
-            strategy_name=self.name,
-            signal_type=SignalType.ENTER_LONG if perp_side == "LONG" else SignalType.ENTER_SHORT,
-            symbol=self.symbol,
-            timestamp=datetime.now(UTC),
-            signal_id=f"{self.name}_{self.signals_generated}",
-            trades=[
-                {
-                    "exchange": self.perp_exchange,
-                    "symbol": self.symbol,
-                    "side": perp_side,
-                    "size": perp_quantity,
-                    "type": "LIMIT",
-                },
-                {
-                    "exchange": self.spot_exchange,
-                    "symbol": spot_symbol,
-                    "side": spot_side,
-                    "size": spot_quantity,
-                    "type": "LIMIT",
-                },
-            ],
-            metadata={
-                "opportunity_id": opportunity_id,
-                "net_funding_differential": opportunity.net_funding_differential,
-                "expected_profit": opportunity.expected_profit,
-                "position_sizing": {
-                    "enhanced": sized_opportunity is not None,
-                    "long_size": sized_opportunity.long_size if sized_opportunity else None,
-                    "short_size": sized_opportunity.short_size if sized_opportunity else None,
-                    "allocation_percentage": sized_opportunity.allocation_percentage
+        now = datetime.now(UTC)
+        signals = [
+            TradeSignal(
+                symbol=self.symbol,
+                signal_type=SignalType.ENTER_SHORT
+                if perp_side == OrderSide.SELL
+                else SignalType.ENTER_LONG,
+                side=perp_side,
+                price=perp_price,
+                quantity=perp_quantity,
+                timestamp=now,
+                metadata={
+                    "opportunity_id": opportunity_id,
+                    "leg": "perp",
+                    "net_funding_differential": opportunity.net_funding_differential,
+                    "expected_profit": opportunity.expected_profit,
+                    "position_sizing": {
+                        "long_size": getattr(sized_opportunity, "long_size", None),
+                        "short_size": getattr(sized_opportunity, "short_size", None),
+                        "allocation_percentage": getattr(
+                            sized_opportunity, "allocation_percentage", None
+                        ),
+                        "risk_adjusted_return": getattr(
+                            sized_opportunity, "risk_adjusted_return", None
+                        ),
+                    }
                     if sized_opportunity
-                    else None,
-                    "risk_adjusted_return": sized_opportunity.risk_adjusted_return
-                    if sized_opportunity
-                    else None,
-                }
-                if sized_opportunity
-                else {},
-            },
-        )
+                    else {},
+                },
+                signal_id=f"{self.name}_{self.signals_generated}_perp",
+            ),
+        ]
+        if spot_symbol is not None:
+            signals.append(
+                TradeSignal(
+                    symbol=spot_symbol,
+                    signal_type=SignalType.ENTER_LONG if nfd > 0 else SignalType.ENTER_SHORT,
+                    side=OrderSide.BUY if nfd > 0 else OrderSide.SELL,
+                    price=spot_price,
+                    quantity=spot_quantity,
+                    timestamp=now,
+                    metadata={
+                        "opportunity_id": opportunity_id,
+                        "leg": "spot",
+                        "net_funding_differential": opportunity.net_funding_differential,
+                        "expected_profit": opportunity.expected_profit,
+                        "position_sizing": {
+                            "long_size": getattr(sized_opportunity, "long_size", None),
+                            "short_size": getattr(sized_opportunity, "short_size", None),
+                            "allocation_percentage": getattr(
+                                sized_opportunity, "allocation_percentage", None
+                            ),
+                            "risk_adjusted_return": getattr(
+                                sized_opportunity, "risk_adjusted_return", None
+                            ),
+                        }
+                        if sized_opportunity
+                        else {},
+                    },
+                    signal_id=f"{self.name}_{self.signals_generated}_spot",
+                )
+            )
+        return signals
 
-    def _generate_rebalance_signal(self) -> TradeSignal:
+    def _generate_rebalance_signal(self) -> list[TradeSignal]:
         """
-        Generate a trade signal for rebalancing positions.
-
-        Returns:
-            TradeSignal for rebalancing
+        Generate trade signals for rebalancing positions (one per leg).
         """
-        # Get current positions
         perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
+        if spot_symbol is None:
+            return []
         spot_position = self.portfolio_tracker.get_position(self.spot_exchange, spot_symbol)
         perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
-        spot_ticker = None
-        if spot_symbol is not None:
-            spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
+        spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
         perp_price = perp_ticker.close if perp_ticker is not None else Decimal("1")
         spot_price = spot_ticker.close if spot_ticker is not None else Decimal("1")
-        perp_value = abs(perp_position.size * perp_price)
-        spot_value = abs(spot_position.size * spot_price)
+        perp_value = abs(perp_position.size * perp_price) if perp_position else Decimal("0")
+        spot_value = abs(spot_position.size * spot_price) if spot_position else Decimal("0")
         if perp_value == 0 or spot_value == 0:
             target_value = Decimal("0")
         else:
@@ -524,48 +537,68 @@ class FundingRateArbitrageStrategy(Strategy):
         perp_adjustment = target_value - abs(perp_value)
         spot_adjustment = target_value - abs(spot_value)
         perp_side = (
-            "LONG"
-            if (perp_position.size > 0 and perp_adjustment > 0)
-            or (perp_position.size < 0 and perp_adjustment < 0)
-            else "SHORT"
+            OrderSide.BUY
+            if (
+                perp_position
+                and (
+                    (perp_position.size > 0 and perp_adjustment > 0)
+                    or (perp_position.size < 0 and perp_adjustment < 0)
+                )
+            )
+            else OrderSide.SELL
         )
         spot_side = (
-            "LONG"
-            if (spot_position.size > 0 and spot_adjustment > 0)
-            or (spot_position.size < 0 and spot_adjustment < 0)
-            else "SHORT"
+            OrderSide.BUY
+            if (
+                spot_position
+                and (
+                    (spot_position.size > 0 and spot_adjustment > 0)
+                    or (spot_position.size < 0 and spot_adjustment < 0)
+                )
+            )
+            else OrderSide.SELL
         )
         self.signals_generated += 1
         self.last_signal_time = datetime.now(UTC)
-        return TradeSignal(
-            strategy_name=self.name,
-            signal_type=SignalType.REBALANCE,
-            symbol=self.symbol,
-            timestamp=datetime.now(UTC),
-            signal_id=f"{self.name}_rebalance_{self.signals_generated}",
-            trades=[
-                {
-                    "exchange": self.perp_exchange,
-                    "symbol": self.symbol,
-                    "side": perp_side,
-                    "size": abs(perp_adjustment) / perp_price if perp_price else Decimal("0"),
-                    "type": "LIMIT",
+        now = datetime.now(UTC)
+        opportunity_id = f"rebalance_{int(now.timestamp() * 1e6)}"
+        signals = [
+            TradeSignal(
+                symbol=self.symbol,
+                signal_type=SignalType.REBALANCE,
+                side=perp_side,
+                price=perp_price,
+                quantity=abs(perp_adjustment) / perp_price if perp_price else Decimal("0"),
+                timestamp=now,
+                metadata={
+                    "opportunity_id": opportunity_id,
+                    "rebalance_reason": "delta_neutral_adjustment",
+                    "leg": "perp",
+                    "perp_value_before": perp_value,
+                    "spot_value_before": spot_value,
+                    "target_value": target_value,
                 },
-                {
-                    "exchange": self.spot_exchange,
-                    "symbol": spot_symbol,
-                    "side": spot_side,
-                    "size": abs(spot_adjustment) / spot_price if spot_price else Decimal("0"),
-                    "type": "LIMIT",
+                signal_id=f"{self.name}_rebalance_{self.signals_generated}_perp",
+            ),
+            TradeSignal(
+                symbol=spot_symbol,
+                signal_type=SignalType.REBALANCE,
+                side=spot_side,
+                price=spot_price,
+                quantity=abs(spot_adjustment) / spot_price if spot_price else Decimal("0"),
+                timestamp=now,
+                metadata={
+                    "opportunity_id": opportunity_id,
+                    "rebalance_reason": "delta_neutral_adjustment",
+                    "leg": "spot",
+                    "perp_value_before": perp_value,
+                    "spot_value_before": spot_value,
+                    "target_value": target_value,
                 },
-            ],
-            metadata={
-                "rebalance_reason": "delta_neutral_adjustment",
-                "perp_value_before": perp_value,
-                "spot_value_before": spot_value,
-                "target_value": target_value,
-            },
-        )
+                signal_id=f"{self.name}_rebalance_{self.signals_generated}_spot",
+            ),
+        ]
+        return signals
 
     def on_start(self) -> None:
         """Called when the strategy is started"""

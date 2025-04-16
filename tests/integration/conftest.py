@@ -32,7 +32,7 @@ def basic_opportunity():
     """Provides a basic ArbitrageOpportunity instance for integration tests."""
     # Note: basis_volatility is set after creation currently, which is fine.
     # Ensure all required fields are present.
-    return ArbitrageOpportunity(
+    opp = ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="mock_bp",
         short_exchange="mock_hl",
@@ -43,9 +43,11 @@ def basic_opportunity():
         net_funding_differential=Decimal("0.00015"),  # Already correct
         timestamp=datetime.now(UTC),  # Already correct
         # Add missing optional args if needed, or ensure they are None
-        basis_volatility=0.001,  # Add optional float
+        basis_volatility=0.01,  # Increased for conservative, safe sizing
         utility_score=None,  # Add optional float
     )
+    opp.expected_return = Decimal("0.01")  # Set after instantiation for Kelly sizing
+    return opp
 
 
 @pytest.fixture

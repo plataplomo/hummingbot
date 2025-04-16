@@ -129,7 +129,7 @@ class Engine:
         """
         Process incoming market data.
         Routes the data to relevant, enabled strategies based on symbol.
-        Forwards any generated TradeSignal to the configured signal_handler.
+        Forwards any generated TradeSignals (list or None) to the configured signal_handler.
 
         Args:
             data: MarketData object containing market information.
@@ -140,55 +140,59 @@ class Engine:
 
         if not self.signal_handler:
             logger.error("Engine has no signal handler configured. Signals cannot be processed.")
-            # Depending on requirements, could buffer signals or drop them. Currently dropping.
             return
 
-        self.last_data_time = datetime.now(UTC)  # Use UTC
+        self.last_data_time = datetime.now(UTC)
 
-        # Optimization: Check if any strategy cares about this symbol before iterating
         if data.symbol not in self.active_symbols:
             logger.debug(f"No active strategy for symbol {data.symbol}, ignoring data.")
             return
 
-        # Route data ONLY to enabled strategies for the matching symbol
         for strategy_name in self.enabled_strategies:
             strategy = self.strategies[strategy_name]
             if strategy.symbol == data.symbol:
                 try:
-                    # Strategy is responsible for managing its own state/history
-                    signal = strategy.process_data(data)
-                    if signal:
+                    result = strategy.process_data(data)
+                    # If process_data is a coroutine (async), run it synchronously for now (engine is sync)
+                    if hasattr(result, "__await__"):
+                        import asyncio
+
+                        result = asyncio.get_event_loop().run_until_complete(result)
+                    signals = []
+                    if result is None:
+                        continue
+                    if isinstance(result, list):
+                        signals = result
+                    else:
+                        signals = [result]
+                    if not signals:
+                        continue
+                    for signal in signals:
+                        # Defensive: check signal type
+                        if not hasattr(signal, "symbol") or not hasattr(signal, "signal_type"):
+                            logger.error(
+                                f"Invalid signal object returned by {strategy.name}: {signal}"
+                            )
+                            continue
+                        # Only pass TradeSignal objects to the handler
+                        if not isinstance(signal, TradeSignal):
+                            logger.error(
+                                f"Non-TradeSignal object returned by {strategy.name}: {signal}"
+                            )
+                            continue
                         logger.info(
                             f"Strategy '{strategy.name}' generated signal: "
-                            f"{signal.signal_type.name} for {signal.symbol}."  # Compacted log
+                            f"{getattr(signal, 'signal_type', 'UNKNOWN')} for {getattr(signal, 'symbol', 'UNKNOWN')}."
                         )
-                        # Forward signal IMMEDIATELY to the configured handler
-                        # Ensure handler exists (checked at start, but belt-and-suspenders)
-                        if self.signal_handler is None:  # Correct check for None
-                            # Mypy incorrectly flags this as unreachable sometimes.
-                            logger.error(
-                                f"Signal from {strategy.name} but no handler configured!"
-                            )  # mypy: [unreachable]
-                        else:
-                            # Check the callable directly, not its truthiness
-                            # self.signal_handler(signal) # Original line caused truthy warn
-                            handler = self.signal_handler
-                            handler(signal)  # Call the handler
-
+                        if self.signal_handler is not None:
+                            self.signal_handler(signal)
                 except Exception as e:
-                    # Log the error and potentially disable the faulty strategy
-                    # to prevent repeated errors
                     logger.error(
                         f"Error processing data in strategy '{strategy.name}': {e}",
                         symbol=data.symbol,
                         strategy_name=strategy.name,
-                        exc_info=True,  # Include stack trace
+                        exc_info=True,
                     )
-                    # Option: Automatically disable faulty strategy (consider implications)
-                    # logger.warning(
-                    #     f"Disabling faulty strategy '{strategy.name}' due to processing error."
-                    # )
-                    # self.disable_strategy(strategy_name)
 
     def process_dataframe(self, df: pd.DataFrame, symbol: str) -> None:
         """

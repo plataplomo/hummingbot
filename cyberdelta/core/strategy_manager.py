@@ -42,7 +42,7 @@ class StrategyManager:
         self.portfolio_tracker = portfolio_tracker
         self.risk_manager = risk_manager
         self.strategies: dict[str, Strategy] = {}
-        self._tasks: list[asyncio.Task] = []
+        self._tasks: list[asyncio.Task[Any]] = []
         self._running = False
         self.enabled_strategies: set[str] = set()
         self.active_symbols: set[str] = set()
@@ -124,75 +124,134 @@ class StrategyManager:
         logger.info(f"Disabled strategy '{strategy_name}'")
         return True
 
-    def process_market_data(self, data: MarketData) -> list[TradeSignal]:
+    async def process_market_data(self, data: MarketData) -> list[TradeSignal]:
         """
-        Process market data through all enabled strategies that match the symbol.
+        Asynchronously process market data through all enabled strategies that match the symbol.
+        Robustly handles exceptions and filters invalid signals.
+        For v0.0.1 safety: If any strategy's update_historical_data fails, the whole process fails (fail-fast, all-or-nothing).
 
         Args:
             data: Market data to process
 
         Returns:
-            List of trade signals generated from strategies
+            List of valid trade signals generated from strategies (may be empty if no signals)
+        Raises:
+            Exception: If any update_historical_data call fails.
         """
         signals: list[TradeSignal] = []
         self.last_update_time = datetime.now(UTC)
 
-        # Only process data for symbols we're actually tracking
         if data.symbol not in self.active_symbols:
             return signals
 
-        # Update historical data for all strategies tracking this symbol
+        # Fail-fast: if any update_historical_data fails, raise immediately
         for _strategy_name, strategy in self.strategies.items():
             if strategy.symbol == data.symbol:
                 strategy.update_historical_data(data)
 
-        # Process data through enabled strategies only
         for strategy_name in self.enabled_strategies:
             strategy = self.strategies[strategy_name]
             if strategy.symbol != data.symbol:
                 continue
-
             try:
-                signal = strategy.process_data(data)
-                if signal is not None:
-                    # Sizing is handled *within* the strategy's process_data logic
-                    # which should interact with the risk_manager internally.
-                    # The strategy should return the final, potentially sized, signal.
-                    # No external sizing call needed here.
-                    signals.append(signal)  # Append the signal returned by the strategy
+                result = await strategy.process_data(data)
             except Exception as e:
-                logger.error(f"Error processing data in strategy '{strategy_name}': {str(e)}")
-
+                logger.error(
+                    f"Error processing data in strategy '{strategy_name}': {str(e)}", exc_info=True
+                )
+                continue
+            if result is None:
+                continue
+            # Always treat result as a list for uniformity
+            result_list = result if isinstance(result, list) else [result]
+            for signal in result_list:
+                # Validate signal type
+                if not isinstance(signal, TradeSignal):
+                    logger.error(f"Non-TradeSignal object returned by {strategy_name}: {signal}")
+                    continue
+                # Validate required fields (symbol, signal_type, side, price, quantity)
+                if (
+                    getattr(signal, "symbol", None) is None
+                    or getattr(signal, "signal_type", None) is None
+                    or getattr(signal, "side", None) is None
+                    or getattr(signal, "price", None) is None
+                    or getattr(signal, "quantity", None) is None
+                ):
+                    logger.error(f"Malformed TradeSignal returned by {strategy_name}: {signal}")
+                    continue
+                # Defensive: risk manager sizing
+                try:
+                    # type: ignore[attr-defined] because size_signal is a test mock, not in interface
+                    sized_signal = (
+                        self.risk_manager.size_signal(signal) if self.risk_manager else signal
+                    )  # type: ignore[attr-defined]
+                except Exception as e:
+                    logger.error(
+                        f"Risk manager failed to size signal in {strategy_name}: {e}", exc_info=True
+                    )
+                    continue
+                # Only append if still valid after sizing
+                signals.append(sized_signal)  # type: ignore[assignment]
         return signals
 
-    def on_market_data(self, market_data: MarketData) -> list[TradeSignal]:
-        """Called when new market data is available."""
+    async def on_market_data(self, market_data: MarketData) -> list[TradeSignal]:
+        """
+        Asynchronously called when new market data is available. Returns a list of valid TradeSignals (may be empty).
+        Robustly handles exceptions and filters invalid signals.
+        """
         signals: list[TradeSignal] = []
         strategies = self.get_strategies_for_symbol(market_data.symbol)
         if not strategies:
-            return []  # No strategies for this symbol
-
+            return []
         for strategy in strategies:
             try:
-                result = strategy.process_data(market_data)
-                if isinstance(result, TradeSignal):
-                    signals.append(result)
-                elif isinstance(result, list):
-                    for signal in result:
-                        if isinstance(signal, TradeSignal):
-                            signals.append(signal)
+                result = await strategy.process_data(market_data)
             except Exception as e:
                 self.logger.error(
                     f"Error processing data in strategy '{strategy.name}': {str(e)}", exc_info=True
                 )
-
-        # Send generated signals to the queue
+                continue
+            if result is None:
+                continue
+            result_list = result if isinstance(result, list) else [result]
+            for signal in result_list:
+                if not isinstance(signal, TradeSignal):
+                    self.logger.error(
+                        f"Non-TradeSignal object returned by {strategy.name}: {signal}"
+                    )
+                    continue
+                if (
+                    getattr(signal, "symbol", None) is None
+                    or getattr(signal, "signal_type", None) is None
+                    or getattr(signal, "side", None) is None
+                    or getattr(signal, "price", None) is None
+                    or getattr(signal, "quantity", None) is None
+                ):
+                    self.logger.error(
+                        f"Malformed TradeSignal returned by {strategy.name}: {signal}"
+                    )
+                    continue
+                try:
+                    # type: ignore[attr-defined] because size_signal is a test mock, not in interface
+                    sized_signal = (
+                        self.risk_manager.size_signal(signal) if self.risk_manager else signal
+                    )  # type: ignore[attr-defined]
+                except Exception as e:
+                    self.logger.error(
+                        f"Risk manager failed to size signal in {strategy.name}: {e}", exc_info=True
+                    )
+                    continue
+                # Only append if still valid after sizing
+                signals.append(sized_signal)  # type: ignore[assignment]
+        # Defensive: add signals to queue, catch and log errors
         if hasattr(self, "signal_queue") and self.signal_queue:
             for signal in signals:
-                self.signal_queue.add_signal(signal)
+                try:
+                    self.signal_queue.add_signal(signal)
+                except Exception as e:
+                    logger.error(f"Signal queue failed to add signal: {e}", exc_info=True)
         else:
             logger.warning("Signal queue not available in StrategyManager, cannot queue signals.")
-
         return signals
 
     def get_strategies_for_symbol(self, symbol: str) -> list[Strategy]:

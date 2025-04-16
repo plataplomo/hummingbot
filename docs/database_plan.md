@@ -82,4 +82,28 @@ It's generally best to start simple and introduce databases only when their bene
 
 ## Integration Diagram
 
-*(See `docs/diagrams/database_integration.mermaid` for a visual representation of potential integration points.)* 
+*(See `docs/diagrams/database_integration.mermaid` for a visual representation of potential integration points.)*
+
+## Fail-Fast, All-or-Nothing Safety Policy for Strategy Processing
+
+**Context:**
+CyberDeltaEngine is designed to handle real financial assets and must prioritize safety, correctness, and robust error handling. In early-stage (v0.0.1) operation, partial or silent failures in trading logic are considered unacceptable risks.
+
+**Policy Statement:**
+> If any strategy's `update_historical_data` method fails during the processing of a market data batch, the entire `process_market_data` call will immediately raise an exception. No signals will be returned or processed for that batch. This is a deliberate, conservative design to prevent partial execution and ensure that all downstream consumers are protected from inconsistent or incomplete state.
+
+**Rationale:**
+- Prevents partial or inconsistent trading actions that could result from undetected strategy failures.
+- Ensures that all strategies must be healthy and able to process data for the system to act, reducing the risk of silent data loss or missed risk checks.
+- Provides a clear, auditable failure mode for debugging and operational monitoring.
+
+**Scope:**
+- This policy is enforced in the `StrategyManager.process_market_data` method.
+- Applies to all enabled strategies for a given symbol and market data batch.
+- Will be revisited in future versions as the system matures and more granular error handling is validated.
+
+**Reference Implementation:**
+- See `cyberdelta/core/strategy_manager.py`, method `process_market_data` (v0.0.1+).
+
+**Future Considerations:**
+- As the system evolves, this policy may be relaxed to allow for more granular error handling, but only after comprehensive monitoring and fallback mechanisms are in place. 

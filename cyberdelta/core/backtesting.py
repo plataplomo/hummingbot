@@ -540,18 +540,18 @@ class StrategyAdapter(BacktestStrategy):
             # 2. Call the core strategy's process_data method for each MarketData object
             trade_signals: list[TradeSignal] = []
             for md in market_data_list:
-                # Assuming process_data is synchronous and returns TradeSignal | None
-                signal = self.strategy.process_data(md)
-                if signal:
-                    # Ensure it's a list of TradeSignal for _convert_signals
-                    # Type hint guarantees signal is TradeSignal if not None
-                    trade_signals.append(signal)
-                    # The following else block was removed as it was unreachable
-                    # due to the process_data type hint (TradeSignal | None).
-                    # else:
-                    #     self._logger.warning(
-                    #         f"Strategy process_data returned unexpected type: {type(signal)}"
-                    #     )
+                result = self.strategy.process_data(md)
+                # If process_data is a coroutine (async), run it synchronously for now
+                if hasattr(result, "__await__"):
+                    import asyncio
+
+                    result = asyncio.get_event_loop().run_until_complete(result)
+                if result is None:
+                    continue
+                if isinstance(result, list):
+                    trade_signals.extend(result)
+                else:
+                    trade_signals.append(result)
 
             # 3. Convert core TradeSignal objects back to backtester's signal format (dict)
             backtest_signals: list[dict[str, Any]] = self._convert_signals(

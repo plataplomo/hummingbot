@@ -67,7 +67,10 @@ def mock_portfolio_tracker() -> MagicMock:
     tracker = MagicMock()
     # --- Set DEFAULT return values ---
     tracker.get_total_capital.return_value = Decimal("100000.0")
-    tracker.get_exchange_collateral_balance.return_value = Decimal("1000.0")
+    mock_balance = MagicMock()
+    mock_balance.available = Decimal("1000.0")
+    tracker.get_exchange_balance.return_value = mock_balance
+    tracker.get_exchange_collateral_balance.side_effect = lambda *args: Decimal("1000.0")  # type: ignore
     tracker.get_total_exposure.return_value = Decimal("1000.0")
     tracker.get_exchange_exposure.return_value = Decimal("0.0")  # Method name correction
     tracker.get_symbol_exposure.return_value = Decimal(
@@ -75,7 +78,18 @@ def mock_portfolio_tracker() -> MagicMock:
     )  # Method likely not used directly, keep for now
     tracker.get_portfolio_drawdown.return_value = Decimal("0.0")  # Method name correction
     tracker.get_exchange_drawdown.return_value = Decimal("0.0")
-    tracker.get_all_positions.return_value = []  # Default no active positions
+    tracker.get_current_drawdown.return_value = Decimal("0.0")
+
+    # Patch get_all_positions to return a valid tuple for exposure calculations
+    mock_position = MagicMock()
+    mock_position.symbol = "BTC"
+    mock_position.size = Decimal("0.1")
+    mock_position.entry_price = Decimal("50000.0")
+    mock_position.is_active.return_value = True
+    mock_position.mark_price = Decimal("50000.0")
+    mock_position.liquidation_price = Decimal("40000.0")
+    tracker.get_all_positions.return_value = [("hyperliquid", mock_position)]
+
     tracker.get_active_exchanges.return_value = [
         "hyperliquid",
         "backpack",
@@ -98,7 +112,7 @@ def mock_portfolio_tracker() -> MagicMock:
     mock_position_inactive.is_active.return_value = False
     mock_position_inactive.symbol = "ETH"
 
-    def mock_get_position(exchange_id, symbol):
+    def mock_get_position(exchange_id: str, symbol: str) -> MagicMock:
         if symbol == "BTC":
             return mock_position_active
         else:
@@ -131,7 +145,8 @@ def mock_funding_validator() -> MagicMock:
     fv = MagicMock(spec=FundingRateValidator)
     # Default behavior for get_validation_metrics (called by RiskManager._get_validation_metrics)
     # Return a high confidence factor by default
-    fv.get_validation_metrics.return_value = {"rmse": 0.001, "bias": 0.0005}
+    # Removed: fv.get_validation_metrics.return_value = {"rmse": 0.001, "bias": 0.0005}
+    # This method does not exist on FundingRateValidator and causes test setup to fail.
     return fv
 
 
@@ -167,7 +182,7 @@ def risk_manager(
 def sample_opportunity() -> ArbitrageOpportunity:
     """Create a sample arbitrage opportunity using the correct signature."""
     # Match the signature from signal_generator.py
-    return ArbitrageOpportunity(
+    opp = ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="hyperliquid",
         short_exchange="backpack",
@@ -181,3 +196,5 @@ def sample_opportunity() -> ArbitrageOpportunity:
         utility_score=0.8,  # float is ok here
         basis_volatility=0.002,  # float ok for Kelly input
     )
+    opp.expected_return = Decimal("0.0005")
+    return opp
