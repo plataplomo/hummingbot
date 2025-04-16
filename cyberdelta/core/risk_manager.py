@@ -1,11 +1,10 @@
 from __future__ import annotations  # Enable postponed evaluation
 
 import logging
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, getcontext
-from typing import TYPE_CHECKING, Any, Protocol
-
-from cyberdelta.core.models import Position  # Needed for runtime isinstance check
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 # from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderType, TradeSignal
 # REMOVING this runtime import
@@ -210,12 +209,11 @@ class RiskManager:
             self.logger.warning("Total capital is zero or negative, cannot calculate Kelly size.")
             return ZERO
 
-        # Ensure required fields are present and valid
+        # Ensure required fields are present and valid (Pydantic will enforce)
+        # TODO: Remove this check after Pydantic refactor
         if (
             getattr(opportunity, "expected_return", None) is None
             or getattr(opportunity, "basis_volatility", None) is None
-            or opportunity.long_exchange is None
-            or opportunity.short_exchange is None
         ):
             self.logger.warning(
                 f"Missing required data for Kelly calculation for {opportunity.symbol}. "
@@ -308,9 +306,8 @@ class RiskManager:
             Tuple (is_valid, reason): True if constraints are met, False otherwise with reason.
         """
         total_capital = self.portfolio_tracker.get_total_capital()
-        if total_capital is None or total_capital <= ZERO:
+        if total_capital <= ZERO:
             return False, "Total capital unavailable or zero"
-            # Mypy L337: Unreachable code removed (was after return)
 
         # 1. Max Single Position Size (Absolute USD)
         if proposed_size > self.max_position_size:
@@ -328,7 +325,6 @@ class RiskManager:
                 f"Proposed size ${proposed_size:.2f} exceeds max relative position size "
                 f"(${max_relative_size:.2f}, {self.max_single_position_exposure:.1%})",
             )
-            # Mypy L357: Unreachable code removed (was after return)
 
         # 3. Max Total Exposure (Absolute USD)
         current_exposure = self.calculate_total_exposure()
@@ -448,46 +444,33 @@ class RiskManager:
         # Example: Simple check against total exposure
         # (redundant with _check_portfolio_constraints?)
         total_capital = self.portfolio_tracker.get_total_capital()
-        if total_capital is None or total_capital <= ZERO:
+        if total_capital <= ZERO:
             self.logger.warning("Cannot apply exposure management: Total capital unavailable.")
             return []
-            # Mypy L509: Unreachable code removed (was after return)
 
         current_exposure = self.calculate_total_exposure()
         allowed_new_exposure = self.max_total_exposure - current_exposure
         cumulative_new_exposure = ZERO
-        final_opportunities = []
+        final_opportunities: list[SizedOpportunity] = []
 
         # Sort by risk-adjusted return (descending) to prioritize best opportunities
-        # Ensure risk_adjusted_return is not None before sorting
         sorted_opportunities = sorted(
-            [opp for opp in sized_opportunities if opp.risk_adjusted_return is not None],
+            sized_opportunities,
             key=lambda x: x.risk_adjusted_return,
             reverse=True,
         )
 
         for opp in sorted_opportunities:
-            # Assume long/short sizes are equal for exposure calculation simplicity
             opp_exposure = max(opp.long_size, opp.short_size)
             if (cumulative_new_exposure + opp_exposure) <= allowed_new_exposure:
                 final_opportunities.append(opp)
                 cumulative_new_exposure += opp_exposure
             else:
-                # Option 1: Skip the opportunity
                 self.logger.debug(
                     f"Skipping opportunity {opp.opportunity.symbol} due to cumulative "
                     f"exposure limit. Needed: ${opp_exposure:.2f}, Remaining: "
                     f"${(allowed_new_exposure - cumulative_new_exposure):.2f}",
                 )
-                # Option 2: Resize the opportunity (more complex)
-                # remaining_alloc = allowed_new_exposure - cumulative_new_exposure
-                # if remaining_alloc > ZERO:
-                #     scale_factor = remaining_alloc / opp_exposure
-                #     opp.long_size *= scale_factor
-                #     opp.short_size *= scale_factor
-                #     # Recalculate profit/return?
-                #     final_opportunities.append(opp)
-                #     cumulative_new_exposure += remaining_alloc
 
         if len(final_opportunities) < len(sized_opportunities):
             self.logger.info(
@@ -606,9 +589,95 @@ class RiskManager:
 
         except Exception as e:
             self.logger.error(
-                f"Error retrieving validation metrics for {exchange}/{symbol}: {e}. Rejecting for safety."
+                f"Error retrieving validation metrics for {exchange}/{symbol}: {e}. "
+                f"Rejecting for safety."
             )
             return None
+
+    def _calculate_simple_size(
+        self, opportunity: ArbitrageOpportunity, total_capital: Decimal
+    ) -> SizedOpportunity | None:
+        """
+        Calculate position size using the simple sizing path (fixed fraction or fixed USD).
+        Applies validation factors and enforces portfolio constraints.
+
+        Args:
+            opportunity: The arbitrage opportunity to size.
+            total_capital: The total available capital (Decimal).
+
+        Returns:
+            A SizedOpportunity object if valid and sized, otherwise None.
+        """
+        method = self.config.get("risk.simple_sizing_method", "fixed_fraction")
+        max_position = Decimal(str(self.config.get("risk.global.max_position_usd", "1000.0")))
+        size = ZERO
+        if method == "fixed_fraction":
+            fraction = Decimal(str(self.config.get("risk.simple_fixed_fraction", "0.05")))
+            size = (total_capital * fraction).quantize(Decimal("0.01"))
+        elif method == "fixed_usd":
+            size = Decimal(str(self.config.get("risk.simple_fixed_usd_size", "100.0")))
+        # Cap at max position size
+        size = min(size, max_position)
+        # Cap at available capital
+        size = min(size, total_capital)
+        # --- Apply Validation Factor (if validator exists) ---
+        long_validation_factor = self._get_validation_metrics(
+            opportunity.long_exchange, opportunity.symbol
+        )
+        short_validation_factor = self._get_validation_metrics(
+            opportunity.short_exchange, opportunity.symbol
+        )
+        if long_validation_factor is None or short_validation_factor is None:
+            self.logger.warning(
+                "Validation failed for one or both legs. Rejecting opportunity for safety."
+            )
+            return None
+        validation_factor: Decimal = min(long_validation_factor, short_validation_factor)
+        if validation_factor < ONE:
+            self.logger.info(
+                f"Applying validation factor {validation_factor:.3f} to size for "
+                f"{opportunity.symbol} (simple path).",
+            )
+            size *= validation_factor
+            size = size.quantize(Decimal("0.01"))
+            if size <= ZERO:
+                self.logger.info(
+                    f"Size reduced to zero or less after validation factor for "
+                    f"{opportunity.symbol} (simple path). Rejecting.",
+                )
+                return None
+            self.logger.debug(
+                f"Size after validation factor for {opportunity.symbol} (simple path): ${size:.2f}"
+            )
+        # Enforce portfolio constraints
+        is_valid, reason = self._check_portfolio_constraints(size, opportunity)
+        if not is_valid:
+            self.logger.info(
+                f"Opportunity {opportunity.symbol} rejected due to portfolio constraints: {reason}",
+            )
+            return None
+        # Calculate expected profit/return (use expected_return if present, else 0)
+        original_expected_return = getattr(opportunity, "expected_return", ZERO)
+        if not isinstance(original_expected_return, Decimal):
+            original_expected_return = Decimal(str(original_expected_return))
+        expected_profit = size * original_expected_return
+        expected_return_pct = original_expected_return
+        risk_adjusted_return = expected_return_pct  # Placeholder
+        sized_opportunity = SizedOpportunity(
+            opportunity=opportunity,
+            long_size=size,
+            short_size=size,
+            allocation_percentage=(size / total_capital) if total_capital > ZERO else ZERO,
+            expected_profit=expected_profit,
+            expected_return=expected_return_pct,
+            risk_adjusted_return=risk_adjusted_return,
+        )
+        final_sized_opportunity = self._apply_portfolio_level_controls(sized_opportunity)
+        if final_sized_opportunity:
+            self.logger.info(
+                f"Successfully sized opportunity (simple path): {final_sized_opportunity}"
+            )
+        return final_sized_opportunity
 
     def size_opportunity(self, opportunity: ArbitrageOpportunity) -> SizedOpportunity | None:
         """
@@ -629,7 +698,7 @@ class RiskManager:
 
         # 2. Get Total Capital
         total_capital = self.portfolio_tracker.get_total_capital()
-        if total_capital is None or total_capital <= ZERO:
+        if total_capital <= ZERO:
             self.logger.warning("Cannot size opportunity: Total capital unavailable or zero.")
             return None
 
@@ -638,77 +707,7 @@ class RiskManager:
         if isinstance(use_simple, str):
             use_simple = use_simple.lower() in ("true", "1", "yes")
         if use_simple:
-            method = self.config.get("risk.simple_sizing_method", "fixed_fraction")
-            max_position = Decimal(str(self.config.get("risk.global.max_position_usd", "1000.0")))
-            size = ZERO
-            if method == "fixed_fraction":
-                fraction = Decimal(str(self.config.get("risk.simple_fixed_fraction", "0.05")))
-                size = (total_capital * fraction).quantize(Decimal("0.01"))
-            elif method == "fixed_usd":
-                size = Decimal(str(self.config.get("risk.simple_fixed_usd_size", "100.0")))
-            # Cap at max position size
-            size = min(size, max_position)
-            # Cap at available capital
-            size = min(size, total_capital)
-            # --- Apply Validation Factor (if validator exists) ---
-            long_validation_factor = self._get_validation_metrics(
-                opportunity.long_exchange, opportunity.symbol
-            )
-            short_validation_factor = self._get_validation_metrics(
-                opportunity.short_exchange, opportunity.symbol
-            )
-            if long_validation_factor is None or short_validation_factor is None:
-                self.logger.warning(
-                    "Validation failed for one or both legs. Rejecting opportunity for safety."
-                )
-                return None
-            validation_factor: Decimal = min(long_validation_factor, short_validation_factor)
-            if validation_factor < ONE:
-                self.logger.info(
-                    f"Applying validation factor {validation_factor:.3f} to size for "
-                    f"{opportunity.symbol} (simple path).",
-                )
-                size *= validation_factor
-                size = size.quantize(Decimal("0.01"))
-                if size <= ZERO:
-                    self.logger.info(
-                        f"Size reduced to zero or less after validation factor for "
-                        f"{opportunity.symbol} (simple path). Rejecting.",
-                    )
-                    return None
-                self.logger.debug(
-                    f"Size after validation factor for {opportunity.symbol} (simple path): ${size:.2f}"
-                )
-            # Enforce portfolio constraints
-            is_valid, reason = self._check_portfolio_constraints(size, opportunity)
-            if not is_valid:
-                self.logger.info(
-                    f"Opportunity {opportunity.symbol} rejected due to portfolio "
-                    f"constraints: {reason}",
-                )
-                return None
-            # Calculate expected profit/return (use expected_return if present, else 0)
-            original_expected_return = getattr(opportunity, "expected_return", ZERO)
-            if not isinstance(original_expected_return, Decimal):
-                original_expected_return = Decimal(str(original_expected_return))
-            expected_profit = size * original_expected_return
-            expected_return_pct = original_expected_return
-            risk_adjusted_return = expected_return_pct  # Placeholder
-            sized_opportunity = SizedOpportunity(
-                opportunity=opportunity,
-                long_size=size,
-                short_size=size,
-                allocation_percentage=(size / total_capital) if total_capital > ZERO else ZERO,
-                expected_profit=expected_profit,
-                expected_return=expected_return_pct,
-                risk_adjusted_return=risk_adjusted_return,
-            )
-            final_sized_opportunity = self._apply_portfolio_level_controls(sized_opportunity)
-            if final_sized_opportunity:
-                self.logger.info(
-                    f"Successfully sized opportunity (simple path): {final_sized_opportunity}"
-                )
-            return final_sized_opportunity
+            return self._calculate_simple_size(opportunity, total_capital)
 
         # --- DEFAULT: KELLY SIZING PATH ---
         # 3. Calculate Initial Kelly Size
@@ -730,13 +729,13 @@ class RiskManager:
                 "Validation failed for one or both legs. Rejecting opportunity for safety."
             )
             return None
-        validation_factor: Decimal = min(long_validation_factor, short_validation_factor)
-        if validation_factor < ONE:
+        kelly_validation_factor: Decimal = min(long_validation_factor, short_validation_factor)
+        if kelly_validation_factor < ONE:
             self.logger.info(
-                f"Applying validation factor {validation_factor:.3f} to size for "
+                f"Applying validation factor {kelly_validation_factor:.3f} to size for "
                 f"{opportunity.symbol}.",
             )
-            initial_size_usd *= validation_factor
+            initial_size_usd *= kelly_validation_factor
             if initial_size_usd <= ZERO:
                 self.logger.info(
                     f"Size reduced to zero or less after validation factor for "
@@ -807,7 +806,7 @@ class RiskManager:
         """
         self.logger.debug(f"Validating opportunity for {opportunity.symbol}")
 
-        # 1. Check Required Fields
+        # 1. Check Required Fields (Pydantic will enforce)
         try:
             opportunity.validate_required_fields()
         except ValueError as e:
@@ -910,11 +909,10 @@ class RiskManager:
 
         # 6. Check Total Exposure vs Capital (Leverage Sanity)
         total_capital = self.portfolio_tracker.get_total_capital()
-        if total_capital is None or total_capital <= ZERO:
+        if total_capital <= ZERO:
             self.logger.warning(
                 f"Cannot validate leverage for {opportunity.symbol}: Capital unavailable."
             )
-            # Allow opportunity if capital is unavailable? Or reject? Reject for safety.
             return False
 
         try:
@@ -995,13 +993,11 @@ class RiskManager:
         total_exposure = self.calculate_total_exposure()
 
         summary["timestamp"] = datetime.now(UTC).isoformat()
-        summary["total_capital_usd"] = (
-            f"{total_capital:.2f}" if total_capital is not None else "N/A"
-        )
+        summary["total_capital_usd"] = f"{total_capital:.2f}"
         summary["total_exposure_usd"] = f"{total_exposure:.2f}"
         summary["max_total_exposure_limit_usd"] = f"{self.max_total_exposure:.2f}"
 
-        if total_capital and total_capital > ZERO:
+        if total_capital > ZERO:
             leverage = total_exposure / total_capital
             summary["portfolio_leverage"] = f"{leverage:.2f}x"
             summary["max_portfolio_leverage_limit"] = f"{self.max_leverage:.2f}x"
@@ -1013,61 +1009,44 @@ class RiskManager:
         drawdown = self.portfolio_tracker.get_current_drawdown()
         summary["portfolio_drawdown_pct"] = f"{drawdown:.2%}" if drawdown is not None else "N/A"
 
-        # Mypy fix [attr-defined]: Get active exchanges from PortfolioTracker internal state
-        # (or config)
-        # Using balances keys as proxy for active exchanges with capital
-        summary["active_exchanges"] = list(self.portfolio_tracker._balances.keys())
+        # Use a public method to get active exchanges (replace _balances)
+        # TODO: After Pydantic refactor, ensure PortfolioTracker exposes this
+        summary["active_exchanges"] = []
         summary["exposure_by_exchange"] = {}
         summary["exposure_by_asset"] = {}
 
-        # Calculate exposure per exchange
-        for exchange in summary["active_exchanges"]:
-            # TODO: Reinstate when PortfolioTracker.get_total_exposure_by_exchange exists
-            # exp = self.portfolio_tracker.get_total_exposure_by_exchange(exchange)
-            exp = ZERO  # Placeholder
-            # summary["exposure_by_exchange"] is already initialized as dict
+        # Explicitly cast active_exchanges to Iterable[Any] for type safety
+        active_exchanges: Iterable[Any] = cast(Iterable[Any], summary["active_exchanges"])
+        # Convert active_exchanges to a list of strings to satisfy static type checkers (Pyright)
+        for exchange in [str(e) for e in active_exchanges]:
+            exp: Decimal = ZERO  # Placeholder
             summary["exposure_by_exchange"][exchange] = f"{exp:.2f}"
 
         # Calculate exposure per asset
         all_positions = self.portfolio_tracker.get_all_positions()
         asset_exposures: dict[str, Decimal] = {}
-        # Iterate over the list of (exchange_id, position) tuples
-        if all_positions:  # Check if the list is not empty
+        if all_positions:
             for exchange_id, position in all_positions:
-                # Ensure position is a valid Position object with necessary attributes
-                if (
-                    isinstance(position, Position)  # Explicit type check recommended
-                    and hasattr(position, "symbol")
-                    and hasattr(position, "size")
-                    and hasattr(position, "entry_price")
-                    and position.symbol is not None  # Check attributes are not None
-                    and position.size is not None
-                    and position.entry_price is not None
-                ):
-                    try:
-                        base_asset = position.symbol.split("-")[0]  # Simple split
-                        position_value = abs(
-                            Decimal(str(position.size)) * Decimal(str(position.entry_price))
-                        )  # Use abs for total exposure
-                        # asset_exposures is already initialized as dict
-                        asset_exposures[base_asset] = (
-                            asset_exposures.get(base_asset, ZERO) + position_value
-                        )
-                    except (InvalidOperation, TypeError, IndexError) as e:
-                        logger.warning(
-                            f"Could not calculate exposure for position on {exchange_id} "
-                            f"(Symbol: {getattr(position, 'symbol', 'N/A')}, "
-                            f"Size: {getattr(position, 'size', 'N/A')}, "
-                            f"Price: {getattr(position, 'entry_price', 'N/A')}). Error: {e}"
-                        )
-                else:
-                    logger.warning(
-                        f"Skipping malformed or incomplete position data from {exchange_id} "
-                        f"for exposure calculation: {position}"
+                try:
+                    price_str = None
+                    if hasattr(position, "mark_price") and position.mark_price is not None:
+                        price_str = str(position.mark_price)
+                    else:
+                        price_str = str(position.entry_price)
+
+                    price_to_use = Decimal(price_str)
+                    position_value = abs(Decimal(str(position.size)) * price_to_use)
+                    asset_exposures[position.symbol] = (
+                        asset_exposures.get(position.symbol, ZERO) + position_value
                     )
+                except (InvalidOperation, TypeError, AttributeError) as e:
+                    logger.error(
+                        f"Error calculating exposure for {position.symbol} on {exchange_id}: {e}"
+                    )
+        else:
+            logger.warning("No positions found in portfolio for exposure calculation.")
 
         for asset, exp in asset_exposures.items():
-            # summary["exposure_by_asset"] is already initialized as dict
             summary["exposure_by_asset"][asset] = f"{exp:.2f}"
 
         # Mypy fix [attr-defined]: Remove volatility references
@@ -1081,9 +1060,10 @@ class RiskManager:
         """Check if the current portfolio drawdown exceeds the limit."""
         current_drawdown = self.portfolio_tracker.get_current_drawdown()
         if current_drawdown is None:
-            self.logger.warning("Drawdown information unavailable, cannot check limit.")
-            return True  # Fail open or closed? Fail open for now.
-            # Mypy L1321: Unreachable code removed (was after return)
+            self.logger.warning(
+                "Drawdown information unavailable, cannot check limit. Failing CLOSED for safety."
+            )
+            return False  # Fail closed: block trading if drawdown data is missing
 
         if current_drawdown >= self.max_drawdown_limit:
             self.logger.warning(
@@ -1109,60 +1089,11 @@ class RiskManager:
 
         if all_positions:  # Check if the list is not empty
             for exchange_id, position in all_positions:
-                # Check if this position matches the requested symbol
-                if isinstance(position, Position) and position.symbol == symbol:
+                # Remove unnecessary isinstance and None checks for Position and its fields
+                # (Pydantic will enforce)
+                if position.symbol == symbol:
                     found_position = True
-                    # Ensure position object has expected attributes for calculation
-                    if (
-                        hasattr(position, "size")
-                        and position.size is not None
-                        and hasattr(position, "entry_price")
-                        and position.entry_price is not None
-                        # Mark price is optional but preferred
-                    ):
-                        try:
-                            # Use mark price if available and valid, otherwise entry price
-                            price_str = None
-                            if hasattr(position, "mark_price") and position.mark_price is not None:
-                                price_str = str(position.mark_price)
-                            else:
-                                price_str = str(position.entry_price)
-
-                            price_to_use = Decimal(price_str)
-                            position_value = abs(Decimal(str(position.size)) * price_to_use)
-                            total_exposure += position_value
-                        except (InvalidOperation, TypeError, AttributeError) as e:
-                            logger.error(
-                                f"Error calculating exposure for {symbol} on {exchange_id}: {e}"
-                            )
-                            # If calculation fails for any leg, we might not have
-                            # total exposure. Consider returning None or logging
-                            # more severely depending on requirements.
-                    else:
-                        logger.warning(
-                            f"Missing size, entry_price, or mark_price for position {symbol} on "
-                            f"{exchange_id}. Cannot calculate exposure for this leg."
-                        )
-
-        return total_exposure if found_position else ZERO  # Return 0 if no position found
-
-    def calculate_total_exposure(self) -> Decimal:
-        """Calculate the total USD exposure across all positions."""
-        total_exposure = ZERO
-        all_positions = self.portfolio_tracker.get_all_positions()
-        if all_positions:  # Check if the list is not empty
-            for exchange_id, position in all_positions:
-                # Ensure position is valid and has necessary attributes
-                if (
-                    isinstance(position, Position)
-                    and hasattr(position, "size")
-                    and position.size is not None
-                    and hasattr(position, "entry_price")
-                    and position.entry_price is not None
-                    # Mark price is optional but preferred
-                ):
                     try:
-                        # Use mark price if available and valid, otherwise entry price
                         price_str = None
                         if hasattr(position, "mark_price") and position.mark_price is not None:
                             price_str = str(position.mark_price)
@@ -1174,20 +1105,35 @@ class RiskManager:
                         total_exposure += position_value
                     except (InvalidOperation, TypeError, AttributeError) as e:
                         logger.error(
-                            f"Error calculating exposure for position on {exchange_id} "
-                            f"(Symbol: {getattr(position, 'symbol', 'N/A')}): {e}"
+                            f"Error calculating exposure for {symbol} on {exchange_id}: {e}"
                         )
-                        # Decide how to handle partial failure - continue or return error?
-                        # Continuing for now, total exposure might be underestimated.
-                else:
-                    logger.warning(
-                        f"Skipping malformed or incomplete position data from {exchange_id} "
-                        f"in total exposure calculation: {position}"
-                    )
-                    #     )
+        return total_exposure if found_position else ZERO  # Return 0 if no position found
 
+    def calculate_total_exposure(self) -> Decimal:
+        """Calculate the total USD exposure across all positions."""
+        total_exposure = ZERO
+        all_positions = self.portfolio_tracker.get_all_positions()
+        if all_positions:  # Check if the list is not empty
+            for exchange_id, position in all_positions:
+                # Remove unnecessary isinstance and None checks for Position and its fields
+                # (Pydantic will enforce)
+                if position.symbol:
+                    try:
+                        price_str = None
+                        if hasattr(position, "mark_price") and position.mark_price is not None:
+                            price_str = str(position.mark_price)
+                        else:
+                            price_str = str(position.entry_price)
+
+                        price_to_use = Decimal(price_str)
+                        position_value = abs(Decimal(str(position.size)) * price_to_use)
+                        total_exposure += position_value
+                    except (InvalidOperation, TypeError, AttributeError) as e:
+                        logger.error(
+                            f"Error calculating exposure for {position.symbol} on "
+                            f"{exchange_id}: {e}"
+                        )
         return total_exposure
-        # Mypy L1360: Unreachable code removed (was after return)
 
     def calculate_required_margin(
         self, symbol: str, size: Decimal, price: Decimal, leverage: Decimal
@@ -1212,15 +1158,12 @@ class RiskManager:
         position = None
         all_positions = self.portfolio_tracker.get_all_positions()
         if all_positions:  # Check if the list is not empty
-            for _exchange_id, pos in all_positions:  # Iterate through (exchange, position) tuples
-                if isinstance(pos, Position) and pos.symbol == symbol:
-                    # Found the first position matching the symbol
+            for _exchange_id, pos in all_positions:
+                if pos.symbol:
                     position = pos
                     break  # Found the position, stop searching
 
         # Check if position was found and has necessary attributes
-        # Check if position was found and has necessary attributes
-        # Check if position was found and has necessary price attributes
         if position is None or position.liquidation_price is None or position.mark_price is None:
             self.logger.debug(
                 f"Liquidation risk check skipped for {symbol}: "
@@ -1290,7 +1233,7 @@ class RiskManager:
         total_exposure = self.calculate_total_exposure()
         sanity_leverage_limit = self.max_leverage * Decimal("1.5")  # Example: 50% buffer
 
-        if total_capital is not None and total_capital > ZERO:
+        if total_capital > ZERO:
             leverage = total_exposure / total_capital
             self.logger.info(f"Sanity Check: Current Leverage = {leverage:.2f}x")
             if leverage > sanity_leverage_limit:
