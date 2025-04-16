@@ -4,7 +4,7 @@ Tests for the PositionReconciliationSystem class.
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any  # Added Union
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -22,22 +22,25 @@ class TestPositionReconciliationSystem:
     def config(self) -> Config:
         """Create a mock config for testing."""
         config = MagicMock(spec=Config)
-        config_data = {
+        config_data: dict[str, Any] = {
             "exchanges": {"hyperliquid": {}, "backpack": {}},
             "exchanges.hyperliquid.enabled": True,
             "exchanges.backpack.enabled": True,
-            "validation.position_reconciliation.threshold": 0.05,
+            "validation.position_reconciliation.threshold": Decimal("0.05"),
             "validation.position_reconciliation.auto_correct": False,
             "validation.position_reconciliation.check_interval": 3600,
             "validation.position_reconciliation.use_fill_history": False,
         }
 
-        def config_get_side_effect(key: str, default: Any = None) -> bool | int | None:
+        def config_get_side_effect(key: str, default: Any = None) -> Any:
             if key in config_data:
                 return config_data[key]
             parts = key.split(".")
             if len(parts) == 3 and parts[0] == "exchanges" and parts[2] == "enabled":
-                return config_data.get("exchanges", {}).get(parts[1], {}).get("enabled", default)
+                exchanges = config_data.get("exchanges", {})
+                if isinstance(exchanges, dict):
+                    return exchanges.get(parts[1], {}).get("enabled", default)
+                return default
             return default
 
         config.get.side_effect = config_get_side_effect
@@ -52,22 +55,22 @@ class TestPositionReconciliationSystem:
         hyper_positions = [
             Position(
                 symbol="BTC",
-                size=1.0,
-                entry_price=50000.0,
-                mark_price=51000.0,
-                liquidation_price=45000.0,
-                unrealized_pnl=1000.0,
-                leverage=2.0,
+                size=Decimal("1.0"),
+                entry_price=Decimal("50000.0"),
+                mark_price=Decimal("51000.0"),
+                liquidation_price=Decimal("45000.0"),
+                unrealized_pnl=Decimal("1000.0"),
+                leverage=Decimal("2.0"),
                 side=OrderSide.BUY,
             ),
             Position(
                 symbol="ETH",
-                size=10.0,
-                entry_price=3000.0,
-                mark_price=3100.0,
-                liquidation_price=2800.0,
-                unrealized_pnl=1000.0,
-                leverage=1.0,
+                size=Decimal("10.0"),
+                entry_price=Decimal("3000.0"),
+                mark_price=Decimal("3100.0"),
+                liquidation_price=Decimal("2800.0"),
+                unrealized_pnl=Decimal("1000.0"),
+                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             ),
         ]
@@ -76,12 +79,12 @@ class TestPositionReconciliationSystem:
         backpack_positions = [
             Position(
                 symbol="BTC",
-                size=-2.0,
-                entry_price=50500.0,
-                mark_price=51000.0,
-                liquidation_price=55000.0,
-                unrealized_pnl=-1000.0,
-                leverage=1.0,
+                size=Decimal("-2.0"),
+                entry_price=Decimal("50500.0"),
+                mark_price=Decimal("51000.0"),
+                liquidation_price=Decimal("55000.0"),
+                unrealized_pnl=Decimal("-1000.0"),
+                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             )
         ]
@@ -114,22 +117,22 @@ class TestPositionReconciliationSystem:
         hyper_api_positions = [
             Position(
                 symbol="BTC",
-                size=1.1,  # 10% discrepancy with local (1.0)
-                entry_price=50000.0,
-                mark_price=51000.0,
-                liquidation_price=45000.0,
-                unrealized_pnl=1000.0,
-                leverage=2.0,
+                size=Decimal("1.1"),  # 10% discrepancy with local (1.0)
+                entry_price=Decimal("50000.0"),
+                mark_price=Decimal("51000.0"),
+                liquidation_price=Decimal("45000.0"),
+                unrealized_pnl=Decimal("1000.0"),
+                leverage=Decimal("2.0"),
                 side=OrderSide.BUY,
             ),
             Position(
                 symbol="ETH",
-                size=10.0,  # Matches local
-                entry_price=3000.0,
-                mark_price=3100.0,
-                liquidation_price=2800.0,
-                unrealized_pnl=1000.0,
-                leverage=1.0,
+                size=Decimal("10.0"),  # Matches local
+                entry_price=Decimal("3000.0"),
+                mark_price=Decimal("3100.0"),
+                liquidation_price=Decimal("2800.0"),
+                unrealized_pnl=Decimal("1000.0"),
+                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             ),
         ]
@@ -137,12 +140,12 @@ class TestPositionReconciliationSystem:
         backpack_api_positions = [
             Position(
                 symbol="BTC",
-                size=-2.0,  # Matches local
-                entry_price=50500.0,
-                mark_price=51000.0,
-                liquidation_price=55000.0,
-                unrealized_pnl=-1000.0,
-                leverage=1.0,
+                size=Decimal("-2.0"),  # Matches local
+                entry_price=Decimal("50500.0"),
+                mark_price=Decimal("51000.0"),
+                liquidation_price=Decimal("55000.0"),
+                unrealized_pnl=Decimal("-1000.0"),
+                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             )
         ]
@@ -155,22 +158,22 @@ class TestPositionReconciliationSystem:
         hyper_fill_positions = [
             Position(
                 symbol="BTC",
-                size=1.05,  # 5% discrepancy with local (1.0)
-                entry_price=50000.0,
-                mark_price=51000.0,
-                liquidation_price=45000.0,
-                unrealized_pnl=1000.0,
-                leverage=2.0,
+                size=Decimal("1.05"),  # 5% discrepancy with local (1.0)
+                entry_price=Decimal("50000.0"),
+                mark_price=Decimal("51000.0"),
+                liquidation_price=Decimal("45000.0"),
+                unrealized_pnl=Decimal("1000.0"),
+                leverage=Decimal("2.0"),
                 side=OrderSide.BUY,
             ),
             Position(
                 symbol="ETH",
-                size=10.0,  # Matches local
-                entry_price=3000.0,
-                mark_price=3100.0,
-                liquidation_price=2800.0,
-                unrealized_pnl=1000.0,
-                leverage=1.0,
+                size=Decimal("10.0"),  # Matches local
+                entry_price=Decimal("3000.0"),
+                mark_price=Decimal("3100.0"),
+                liquidation_price=Decimal("2800.0"),
+                unrealized_pnl=Decimal("1000.0"),
+                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             ),
         ]
@@ -178,22 +181,22 @@ class TestPositionReconciliationSystem:
         backpack_fill_positions = [
             Position(
                 symbol="BTC",
-                size=-1.9,  # 5% discrepancy with local (-2.0)
-                entry_price=50500.0,
-                mark_price=51000.0,
-                liquidation_price=55000.0,
-                unrealized_pnl=-1000.0,
-                leverage=1.0,
+                size=Decimal("-1.9"),  # 5% discrepancy with local (-2.0)
+                entry_price=Decimal("50500.0"),
+                mark_price=Decimal("51000.0"),
+                liquidation_price=Decimal("55000.0"),
+                unrealized_pnl=Decimal("-1000.0"),
+                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             ),
             Position(
                 symbol="SOL",  # Position not in local state
-                size=5.0,
-                entry_price=100.0,
-                mark_price=103.0,
-                liquidation_price=90.0,
-                unrealized_pnl=15.0,
-                leverage=1.0,
+                size=Decimal("5.0"),
+                entry_price=Decimal("100.0"),
+                mark_price=Decimal("103.0"),
+                liquidation_price=Decimal("90.0"),
+                unrealized_pnl=Decimal("15.0"),
+                leverage=Decimal("1.0"),
                 side=OrderSide.BUY,
             ),
         ]
@@ -220,9 +223,12 @@ class TestPositionReconciliationSystem:
         # Configure mock get method on the tracker's mock config
         if not hasattr(tracker, "config") or tracker.config is None:
             tracker.config = MagicMock()
-        tracker.config.get.side_effect = lambda key, default=None: {
-            "validation.position_reconciliation.use_fill_history": False
-        }.get(key, default)
+
+        # Use a named function with explicit type annotations for type safety
+        def config_get(key: str, default: Any = None) -> Any:
+            return {"validation.position_reconciliation.use_fill_history": False}.get(key, default)
+
+        tracker.config.get.side_effect = config_get  # type: ignore[attr-defined, reportUnknownMemberType]
 
         def get_execution_handler(exchange: str) -> MagicMock:
             if exchange == "hyperliquid":
@@ -232,7 +238,7 @@ class TestPositionReconciliationSystem:
             return execution_handler_hyper  # Default
 
         # Add helper method for test access to exchange positions
-        def _get_exchange_positions(exchange: str) -> list[dict[str, Any]]:
+        def _get_exchange_positions(exchange: str) -> list[Position]:
             if exchange == "hyperliquid":
                 return hyper_api_positions
             elif exchange == "backpack":
@@ -262,7 +268,7 @@ class TestPositionReconciliationSystem:
     ) -> None:
         """Test initializing the reconciliation system."""
         # Verify configuration parameters were loaded
-        assert reconciliation_system.reconciliation_threshold == 0.05
+        assert reconciliation_system.reconciliation_threshold == Decimal("0.05")
         assert reconciliation_system.auto_correct is False
         assert reconciliation_system.check_interval == 3600
 
@@ -344,15 +350,19 @@ class TestPositionReconciliationSystem:
     @pytest.mark.asyncio
     async def test_auto_correct(self, config: Config, portfolio_tracker: MagicMock) -> None:
         """Test auto-correction of positions."""
+
         # Create system with auto-correct enabled
-        config.get.side_effect = lambda key, default=None: {
-            "exchanges": {"hyperliquid": {}, "backpack": {}},
-            "exchanges.hyperliquid.enabled": True,
-            "exchanges.backpack.enabled": True,
-            "validation.position_reconciliation.threshold": 0.05,
-            "validation.position_reconciliation.auto_correct": True,  # Auto-correct enabled
-            "validation.position_reconciliation.check_interval": 3600,
-        }.get(key, default)
+        def config_get(key: str, default: Any = None) -> Any:
+            return {
+                "exchanges": {"hyperliquid": {}, "backpack": {}},
+                "exchanges.hyperliquid.enabled": True,
+                "exchanges.backpack.enabled": True,
+                "validation.position_reconciliation.threshold": Decimal("0.05"),
+                "validation.position_reconciliation.auto_correct": True,  # Auto-correct enabled
+                "validation.position_reconciliation.check_interval": 3600,
+            }.get(key, default)
+
+        config.get.side_effect = config_get  # type: ignore[attr-defined, reportUnknownMemberType]
 
         system = PositionReconciliationSystem(config, portfolio_tracker)
 
@@ -485,9 +495,10 @@ class TestPositionReconciliationSystem:
         ]
 
         # Call the method
+        # Intentional use of private method for test coverage
         results = reconciliation_system._reconcile_positions(
             exchange, exchange_positions, fill_positions, local_positions
-        )
+        )  # type: ignore[attr-defined, reportUnknownMemberType]
 
         # Verify results structure
         assert results["success"] is True
@@ -531,7 +542,8 @@ class TestPositionReconciliationSystem:
         }
 
         # Call the method
-        reconciliation_system._record_discrepancy(exchange, results)
+        # Intentional use of private method for test coverage
+        reconciliation_system._record_discrepancy(exchange, results)  # type: ignore[attr-defined, reportUnknownMemberType]
 
         # Verify history was updated
         assert len(reconciliation_system.discrepancy_history) == 1

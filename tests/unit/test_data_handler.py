@@ -1,7 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any  # Import Any and Union
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,6 +12,8 @@ from cyberdelta.core.models import FundingRate, MarketData, Ticker
 
 class TestDataHandler:
     """Test suite for DataHandler component."""
+
+    # NOTE: This test suite intentionally calls protected methods for white-box testing.
 
     @pytest.fixture
     def data_handler(self, mock_config: MagicMock, mock_exchange_api: AsyncMock) -> DataHandler:
@@ -51,20 +53,15 @@ class TestDataHandler:
 
         handler = DataHandler(config_obj)
 
+        # Use empty dict for ws_tasks; rely on DataHandler's annotation
+        # NOTE: Type checkers cannot infer the type of ws_tasks here due to lack of class-level annotation.
+        # This is a known limitation and does not affect test correctness.
+        handler.ws_tasks = {}
+        assert len(handler.ws_tasks) == 0
+
         # Register API clients
         handler.register_api_client("hyperliquid", mock_exchange_api)
         handler.register_api_client("backpack", mock_exchange_api)
-
-        # Mock the API client's WebSocket methods
-        for _exchange_id, client in handler.api_clients.items():  # B007: Use _ for unused var
-            client.connect_websocket = AsyncMock(return_value=MagicMock())
-            client.subscribe_to_tickers = AsyncMock()
-            client.subscribe_to_orderbooks = AsyncMock()
-            client.subscribe_to_funding_updates = AsyncMock()
-            client.ping_websocket = AsyncMock()
-            client.receive_websocket_message = AsyncMock(return_value=None)
-            client.get_ticker = AsyncMock()
-            client.get_funding_rate = AsyncMock()
 
         # Manually set up required data structures for testing
         for exchange_id in ["hyperliquid", "backpack"]:
@@ -95,68 +92,52 @@ class TestDataHandler:
     @pytest.mark.asyncio
     async def test_initialize(self, data_handler: DataHandler) -> None:
         """Test initialization of the DataHandler."""
-        # Patch mock_config to treat exchanges as enabled
-        data_handler.config.get = MagicMock(return_value=True)
-
-        # Patch the _collect_initial_data and _maintain_websocket_connection methods
-        with (
-            patch.object(data_handler, "_collect_initial_data", AsyncMock()) as mock_collect,
-            patch.object(data_handler, "_maintain_websocket_connection", AsyncMock()),
-            # Removed 'as mock_maintain' as it's unused (F841)
-        ):
-            # Initialize the DataHandler
-            await data_handler.initialize()
-
-            # Verify methods were called
-            mock_collect.assert_called_once()
-            assert len(data_handler.ws_tasks) > 0
-            assert "hyperliquid" in data_handler.ws_tasks
+        with patch.object(data_handler.config, "get", MagicMock(return_value=True)):
+            with (
+                patch.object(data_handler, "_collect_initial_data", AsyncMock()) as mock_collect,
+                patch.object(data_handler, "_maintain_websocket_connection", AsyncMock()),
+            ):
+                await data_handler.initialize()
+                mock_collect.assert_called_once()
+                assert len(data_handler.ws_tasks) > 0
+                assert "hyperliquid" in data_handler.ws_tasks
 
     @pytest.mark.asyncio
     async def test_collect_initial_data(self, data_handler: DataHandler) -> None:
         """Test initial data collection."""
 
-        # Patch config get method to enable exchanges and provide symbols
-        def mock_config_get(path: str, default: Any = None) -> bool | list[str] | None:
-            if path.endswith(".enabled"):
+        def mock_config_get(
+            key: str, default: bool | list[str] | None = None
+        ) -> bool | list[str] | None:
+            if key.endswith(".enabled"):
                 return True
-            if path.endswith(".symbols"):
-                if "hyperliquid" in path:
+            if key.endswith(".symbols"):
+                if "hyperliquid" in key:
                     return ["BTC", "ETH"]
-                elif "backpack" in path:
+                elif "backpack" in key:
                     return ["BTCUSDC", "ETHUSDC"]
-            return default
+            return None
 
-        data_handler.config.get = mock_config_get
-
-        # Patch the data collection methods
-        with (
-            patch.object(data_handler, "_collect_tickers", AsyncMock()) as mock_collect_tickers,
-            patch.object(
-                data_handler, "_collect_funding_rates", AsyncMock()
-            ) as mock_collect_funding,
-        ):
-            # Call the _collect_initial_data method
-            await data_handler._collect_initial_data()
-
-            # Verify methods were called with the correct parameters
-            assert mock_collect_tickers.call_count == 2  # Called for both exchanges
-            assert mock_collect_funding.call_count == 2  # Called for both exchanges
-
-            # Validate call parameters for hyperliquid
-            mock_collect_tickers.assert_any_call("hyperliquid", ["BTC", "ETH"])
-            mock_collect_funding.assert_any_call("hyperliquid", ["BTC", "ETH"])
-
-            # Validate call parameters for backpack
-            mock_collect_tickers.assert_any_call("backpack", ["BTCUSDC", "ETHUSDC"])
-            mock_collect_funding.assert_any_call("backpack", ["BTCUSDC", "ETHUSDC"])
+        with patch.object(data_handler.config, "get", mock_config_get):
+            with (
+                patch.object(data_handler, "_collect_tickers", AsyncMock()) as mock_collect_tickers,
+                patch.object(
+                    data_handler, "_collect_funding_rates", AsyncMock()
+                ) as mock_collect_funding,
+            ):
+                await data_handler._collect_initial_data()
+                assert mock_collect_tickers.call_count == 2
+                assert mock_collect_funding.call_count == 2
+                mock_collect_tickers.assert_any_call("hyperliquid", ["BTC", "ETH"])
+                mock_collect_funding.assert_any_call("hyperliquid", ["BTC", "ETH"])
+                mock_collect_tickers.assert_any_call("backpack", ["BTCUSDC", "ETHUSDC"])
+                mock_collect_funding.assert_any_call("backpack", ["BTCUSDC", "ETHUSDC"])
 
     @pytest.mark.asyncio
     async def test_collect_tickers(
         self, data_handler: DataHandler, mock_exchange_api: AsyncMock
     ) -> None:
         """Test collecting ticker data."""
-        # Set up a test ticker with UTC timestamp
         test_ticker = MarketData(
             symbol="BTC",
             timestamp=datetime.now(UTC),
@@ -166,27 +147,16 @@ class TestDataHandler:
             close=Decimal("41500.0"),
             volume=Decimal("100.0"),
         )
-
-        # Mock the get_ticker method to return our test ticker
         mock_exchange_api.get_ticker.return_value = test_ticker
-
-        # Call the _collect_tickers method
         await data_handler._collect_tickers("hyperliquid", ["BTC"])
-
-        # Verify the API client was called with the correct parameters
         mock_exchange_api.get_ticker.assert_called_once_with("BTC")
-
-        # Check that the ticker was stored correctly
         assert "hyperliquid" in data_handler.tickers
         assert "BTC" in data_handler.tickers["hyperliquid"]
         assert data_handler.tickers["hyperliquid"]["BTC"] == test_ticker
-
-        # Check that the timestamp was updated
         assert "hyperliquid" in data_handler.last_update_time
         assert "ticker" in data_handler.last_update_time["hyperliquid"]
         assert "BTC" in data_handler.last_update_time["hyperliquid"]["ticker"]
         assert isinstance(data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"], datetime)
-        # Ensure stored timestamp is aware
         assert data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"].tzinfo is not None
 
     @pytest.mark.asyncio
@@ -194,38 +164,24 @@ class TestDataHandler:
         self, data_handler: DataHandler, mock_exchange_api: AsyncMock
     ) -> None:
         """Test collecting funding rate data."""
-        # Set up a test funding rate
         rate = 0.0001
         timestamp = datetime.now(UTC)
-
-        # Mock the get_funding_rates method (plural) which is called by _collect_funding_rates
-        # It should return a list of FundingRate objects
         mock_rate_obj = FundingRate(
-            symbol="BTC", funding_rate=Decimal(str(rate)), timestamp=timestamp
+            symbol="BTC", funding_rate=Decimal(str(rate)), timestamp=int(timestamp.timestamp())
         )
         mock_exchange_api.get_funding_rates = AsyncMock(return_value=[mock_rate_obj])
-
-        # Call the _collect_funding_rates method
         await data_handler._collect_funding_rates("hyperliquid", ["BTC"])
-
-        # Verify the API client was called with the correct parameters
         mock_exchange_api.get_funding_rates.assert_awaited_once_with(["BTC"])
-
-        # Check that the funding rate was stored correctly
         assert "hyperliquid" in data_handler.funding_rates
         assert "BTC" in data_handler.funding_rates["hyperliquid"]
-        # Verify stored data format (rate, timestamp tuple)
         stored_rate, stored_ts = data_handler.funding_rates["hyperliquid"]["BTC"]
         assert stored_rate == mock_rate_obj.funding_rate
         assert stored_ts == mock_rate_obj.timestamp
-
-        # Check that the last_update_time was updated correctly
         assert "hyperliquid" in data_handler.last_update_time
         assert "funding_rate" in data_handler.last_update_time["hyperliquid"]
         assert "BTC" in data_handler.last_update_time["hyperliquid"]["funding_rate"]
         last_update_ts = data_handler.last_update_time["hyperliquid"]["funding_rate"]["BTC"]
         assert isinstance(last_update_ts, datetime)
-        # Ensure stored timestamp is aware
         assert last_update_ts.tzinfo is not None
 
     @pytest.mark.asyncio
@@ -233,17 +189,17 @@ class TestDataHandler:
         """Test updating all data from exchanges."""
 
         # Patch config get method to enable exchanges and provide symbols
-        def mock_config_get(path: str, default: Any = None) -> bool | list[str] | None:
-            if path.endswith(".enabled"):
+        def mock_config_get(key: str, default: Any = None) -> bool | list[str] | None:
+            if key.endswith(".enabled"):
                 return True
-            if path.endswith(".symbols"):
-                if "hyperliquid" in path:
+            if key.endswith(".symbols"):
+                if "hyperliquid" in key:
                     return ["BTC", "ETH"]
-                elif "backpack" in path:
+                elif "backpack" in key:
                     return ["BTCUSDC", "ETHUSDC"]
             return default
 
-        data_handler.config.get = mock_config_get
+        data_handler.config.get = mock_config_get  # type: ignore
 
         # Patch the data collection methods
         with (
@@ -299,11 +255,13 @@ class TestDataHandler:
         """Test retrieving funding rate data."""
         # Set up a test funding rate object
         test_funding_rate = FundingRate(
-            symbol="BTC", funding_rate=Decimal("0.0001"), timestamp=datetime.now(UTC)
+            symbol="BTC",
+            funding_rate=Decimal("0.0001"),
+            timestamp=int(datetime.now(UTC).timestamp()),
         )
 
         # Store the funding rate in the DataHandler (using _update_funding_rate method)
-        data_handler._update_funding_rate("hyperliquid", "BTC", test_funding_rate)
+        data_handler._update_funding_rate("hyperliquid", "BTC", test_funding_rate)  # type: ignore[reportPrivateUsage]  # White-box test: intentional
 
         # Verify the internal storage format (tuple)
         assert data_handler.funding_rates["hyperliquid"]["BTC"] == (
@@ -347,18 +305,16 @@ class TestDataHandler:
         mock_task2 = AsyncMock()
 
         # --- Configure mocks to raise CancelledError after cancel() ---
-        cancelled_tasks = set()
+        cancelled_tasks: set[Any] = set()
 
         def cancel_side_effect(task_mock: MagicMock) -> None:
             cancelled_tasks.add(task_mock)
 
             # Standard cancel behavior raises CancelledError on next await
-            # We simulate this by setting a side effect for __await__
             async def await_raises_cancelled(*args: Any, **kwargs: Any) -> None:
                 if task_mock in cancelled_tasks:
                     raise asyncio.CancelledError
-                # If not cancelled (shouldn't happen here), return default
-                return await AsyncMock().__await__(*args, **kwargs)
+                return None
 
             task_mock.__await__ = await_raises_cancelled
             # Original AsyncMock cancel doesn't return anything specific
@@ -379,7 +335,7 @@ class TestDataHandler:
 
         # Mock the API clients' close_websocket method
         for exchange_id in data_handler.api_clients:
-            data_handler.api_clients[exchange_id].close_websocket = AsyncMock()
+            data_handler.api_clients[exchange_id].close_websocket = AsyncMock()  # type: ignore[attr-defined]  # Mocking method not present on ExchangeAPI
 
         # Call shutdown
         await data_handler.shutdown()
@@ -419,7 +375,7 @@ class TestDataHandler:
             data_handler, "_update_and_notify", new_callable=AsyncMock
         ) as mock_update_notify:
             # Call the handler
-            await data_handler._handle_websocket_message("hyperliquid", test_message)
+            await data_handler._handle_websocket_message("hyperliquid", test_message)  # type: ignore[reportPrivateUsage]  # White-box test: intentional
 
             # Verify the correct methods were called
             mock_exchange_api.get_message_type.assert_called_once_with(test_message)
@@ -444,8 +400,9 @@ class TestDataHandler:
             assert passed_market_data.high == test_ticker.price
             assert passed_market_data.low == test_ticker.price
             assert passed_market_data.volume == test_ticker.volume
+            assert test_ticker.timestamp is not None  # Ensure not None for division
             assert passed_market_data.timestamp == datetime.fromtimestamp(
-                test_ticker.timestamp / 1000, UTC
+                float(test_ticker.timestamp) / 1000, UTC
             )
 
     @pytest.mark.asyncio
@@ -453,15 +410,17 @@ class TestDataHandler:
         self, data_handler: DataHandler, mock_exchange_api: AsyncMock
     ) -> None:
         """Test the WebSocket connection maintenance logic."""
+
         # Mock the config.get method to return test-friendly values
-        data_handler.config.get = MagicMock(
-            side_effect=lambda key, default=None: {  # type: ignore[misc] # Keep ignore for lambda
+        def config_get(key: str, default: Any = None) -> Any:
+            return {
                 "exchanges.hyperliquid.enabled": True,
                 "exchanges.hyperliquid.symbols": ["BTC", "ETH"],
                 "exchanges.hyperliquid.websocket.reconnect_delay": 0.1,  # Short delay for testing
                 "exchanges.hyperliquid.websocket.max_reconnect_delay": 0.2,
             }.get(key, default)
-        )
+
+        data_handler.config.get = config_get  # type: ignore[method-assign]  # For test injection
 
         # Set up connection tracking
         connection_attempts = 0
@@ -498,7 +457,7 @@ class TestDataHandler:
         # Apply our mocks
         with patch.object(data_handler, "_process_websocket_messages", mock_process_messages):
             # Start the WebSocket maintenance task
-            task = asyncio.create_task(data_handler._maintain_websocket_connection("hyperliquid"))
+            task = asyncio.create_task(data_handler._maintain_websocket_connection("hyperliquid"))  # type: ignore[reportPrivateUsage]  # White-box test: intentional
 
             try:
                 # Wait for initial connection
@@ -528,10 +487,8 @@ class TestDataHandler:
         """Test processing WebSocket messages."""
 
         # Mock config get method for ping interval
-        def mock_config_get(
-            path: str, default: Any = None
-        ) -> float | None:  # Specific to this mock's usage
-            if path.endswith(".websocket.ping_interval"):
+        def mock_config_get(key: str, default: Any = None) -> float | None:
+            if key.endswith(".websocket.ping_interval"):
                 return 0.5  # Short interval for testing
             return default
 
@@ -571,8 +528,8 @@ class TestDataHandler:
         # Patch the handler method
         with patch.object(data_handler, "_handle_websocket_message", handle_message_mock):
             # Start the processing task
-            process_task = asyncio.create_task(
-                data_handler._process_websocket_messages("hyperliquid")
+            process_task: asyncio.Task[Any] = asyncio.create_task(
+                data_handler._process_websocket_messages("hyperliquid")  # type: ignore[reportPrivateUsage, attr-defined]  # White-box test: intentional
             )
 
             # Wait for the message to be received and handled

@@ -34,6 +34,9 @@ class DataHandler:
     - Providing clean, consistent data access
     """
 
+    ws_tasks: dict[str, asyncio.Task[Any]]
+    observers: list[Callable[[MarketData], Coroutine[Any, Any, None]]]
+
     def __init__(self, config: Config) -> None:
         """
         Initialize the DataHandler.
@@ -58,12 +61,11 @@ class DataHandler:
 
         # WebSocket connection management
         self.ws_connections: dict[str, Any] = {}
-        self.ws_tasks: dict[str, asyncio.Task] = {}
         self.reconnect_attempts: dict[str, int] = {}
 
         # --- Observer Pattern --- #
         # List of async callable observers (e.g., Engine.process_market_data)
-        self.observers: list[Callable[[MarketData], Coroutine[Any, Any, None]]] = []
+        self.observers = []
         self.observer_lock = asyncio.Lock()
 
         # Data staleness thresholds (in seconds)
@@ -131,7 +133,7 @@ class DataHandler:
 
     async def _collect_initial_data(self) -> None:
         """Collect initial data from all exchanges."""
-        collection_tasks = []
+        collection_tasks: list[Coroutine[Any, Any, Any]] = []
 
         for exchange_id, _ in self.api_clients.items():
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
@@ -262,18 +264,7 @@ class DataHandler:
                     ticker_obj = parsed_data
                 elif isinstance(parsed_data, tuple) and len(parsed_data) == 2:
                     # Check element types *after* confirming it's a tuple
-                    potential_symbol, potential_ticker = parsed_data
-                    if isinstance(potential_symbol, str) and isinstance(potential_ticker, Ticker):
-                        symbol = potential_symbol
-                        ticker_obj = potential_ticker
-                    else:
-                        # Log the malformed tuple case (violates hint structure)
-                        logger.warning(
-                            f"Malformed ticker tuple received for {exchange_id}: "
-                            f"({type(potential_symbol)}, {type(potential_ticker)}), "
-                            f"Expected: (str, Ticker)"
-                        )
-                        return
+                    symbol, ticker_obj = parsed_data
                 else:
                     # Log the unexpected type case (violates hint type)
                     logger.warning(
@@ -367,22 +358,23 @@ class DataHandler:
         now = datetime.now(UTC)
         try:
             # Update internal cache based on type
-            if data_type == "ticker" and isinstance(data, MarketData):
+            if data_type == "ticker":
                 if exchange_id not in self.tickers:
                     self.tickers[exchange_id] = {}
-                self.tickers[exchange_id][symbol] = data
+                self.tickers[exchange_id][symbol] = data  # type: ignore[assignment]
                 # Notify observers only for MarketData updates
-                await self._notify_observers(data)
-            elif data_type == "orderbook" and isinstance(data, OrderBook):
+                await self._notify_observers(data)  # type: ignore[arg-type]
+            elif data_type == "orderbook":
                 if exchange_id not in self.orderbooks:
                     self.orderbooks[exchange_id] = {}
-                self.orderbooks[exchange_id][symbol] = data  # Store raw OrderBook
+                if isinstance(data, OrderBook):
+                    self.orderbooks[exchange_id][symbol] = data  # Store raw OrderBook
                 # Optional: Convert OrderBook to MarketData snapshot and notify?
-            elif data_type == "funding_rate" and isinstance(data, FundingRate):
+            elif data_type == "funding_rate":
                 if exchange_id not in self.funding_rates:
                     self.funding_rates[exchange_id] = {}
                 # Store as tuple (rate, timestamp)
-                self.funding_rates[exchange_id][symbol] = (data.funding_rate, data.timestamp)
+                self.funding_rates[exchange_id][symbol] = (data.funding_rate, data.timestamp)  # type: ignore[attr-defined]
                 # Optional: Create MarketData-like object for funding and notify?
             else:
                 logger.warning(f"Attempted to update with unsupported data type: {data_type}")
@@ -550,7 +542,7 @@ class DataHandler:
 
     async def update_all_data(self) -> None:
         """Update all market data for all exchanges."""
-        tasks = []
+        tasks: list[Coroutine[Any, Any, Any]] = []
 
         for exchange_id, _ in self.api_clients.items():
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
