@@ -36,10 +36,11 @@ def apply_portfolio_exposure_management_passthrough(
 class TestRiskManagerDependencyFailures:
     """Tests for RiskManager handling failures from its dependencies."""
 
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "bad_capital", [Decimal("0"), Decimal("-100"), None, "invalid_decimal"]
     )
-    def test_size_opportunity_bad_total_capital(
+    async def test_size_opportunity_bad_total_capital(
         self,
         risk_manager: RiskManager,
         mock_portfolio_tracker: MagicMock,
@@ -61,12 +62,13 @@ class TestRiskManagerDependencyFailures:
         mock_config.get.side_effect = get_side_effect
         if bad_capital == "invalid_decimal":
             with pytest.raises((TypeError, Exception)):
-                risk_manager.size_opportunity(sample_opportunity)
+                await risk_manager.size_opportunity(sample_opportunity)
         else:
-            sized_opp = risk_manager.size_opportunity(sample_opportunity)
+            sized_opp = await risk_manager.size_opportunity(sample_opportunity)
             assert sized_opp is None
 
-    def test_size_opportunity_constraint_check_fail(
+    @pytest.mark.asyncio
+    async def test_size_opportunity_constraint_check_fail(
         self,
         risk_manager: RiskManager,
         mock_portfolio_tracker: MagicMock,
@@ -94,10 +96,11 @@ class TestRiskManagerDependencyFailures:
                 "_check_portfolio_constraints",
                 return_value=(False, "constraint failed"),
             ):
-                sized_opp = risk_manager.size_opportunity(sample_opportunity)
+                sized_opp = await risk_manager.size_opportunity(sample_opportunity)
                 assert sized_opp is None
 
-    def test_size_opportunity_dependency_exception(
+    @pytest.mark.asyncio
+    async def test_size_opportunity_dependency_exception(
         self,
         risk_manager: RiskManager,
         mock_portfolio_tracker: MagicMock,
@@ -116,13 +119,14 @@ class TestRiskManagerDependencyFailures:
         mock_portfolio_tracker.get_total_capital.side_effect = Exception("Simulated PT Error")
         with patch.object(risk_manager, "_apply_portfolio_exposure_management", return_value=None):
             with pytest.raises(Exception) as excinfo:
-                risk_manager.size_opportunity(sample_opportunity)
+                await risk_manager.size_opportunity(sample_opportunity)
             assert str(excinfo.value) == "Simulated PT Error"
 
     # --- CircuitBreakerSystem Failures ---
 
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("scope_to_trip", ["global", "long_exchange", "short_exchange"])
-    def test_size_opportunity_circuit_breaker_tripped(
+    async def test_size_opportunity_circuit_breaker_tripped(
         self,
         risk_manager: RiskManager,
         mock_config: MagicMock,
@@ -179,12 +183,14 @@ class TestRiskManagerDependencyFailures:
 
                 mock_circuit_breaker.can_execute.side_effect = can_execute_side_effect
                 risk_manager.circuit_breaker_system = mock_circuit_breaker
-                sized_opp = risk_manager.size_opportunity(sample_opportunity)
-                # Fail-safe: should always reject (return None) if circuit breaker is tripped or validator fails
+                sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+                # Fail-safe: should always reject (return None) if circuit breaker
+                #       is tripped or validator fails
                 assert sized_opp is None
                 mock_circuit_breaker.can_execute.assert_called()
 
-    def test_size_opportunity_circuit_breaker_exception(
+    @pytest.mark.asyncio
+    async def test_size_opportunity_circuit_breaker_exception(
         self,
         risk_manager: RiskManager,
         mock_portfolio_tracker: MagicMock,
@@ -218,12 +224,13 @@ class TestRiskManagerDependencyFailures:
                 mock_circuit_breaker.can_execute.side_effect = Exception("Simulated CB Error")
                 risk_manager.circuit_breaker_system = mock_circuit_breaker
                 with pytest.raises(Exception) as excinfo:
-                    risk_manager.size_opportunity(sample_opportunity)
+                    await risk_manager.size_opportunity(sample_opportunity)
                 assert "Simulated CB Error" in str(excinfo.value)
 
     # --- FundingRateValidator Failures ---
 
-    def test_size_opportunity_low_funding_validation(
+    @pytest.mark.asyncio
+    async def test_size_opportunity_low_funding_validation(
         self,
         risk_manager: RiskManager,
         mock_config: MagicMock,
@@ -261,12 +268,13 @@ class TestRiskManagerDependencyFailures:
             ):
                 mock_circuit_breaker.can_execute.return_value = (True, None)
                 risk_manager.circuit_breaker_system = mock_circuit_breaker
-                sized_opp = risk_manager.size_opportunity(sample_opportunity)
+                sized_opp = await risk_manager.size_opportunity(sample_opportunity)
                 # Fail-safe: should always reject (return None) if validator fails
                 assert sized_opp is None
 
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("bad_metrics_return", [None, Exception("Simulated FV Error")])
-    def test_size_opportunity_funding_validation_error_or_none(
+    async def test_size_opportunity_funding_validation_error_or_none(
         self,
         risk_manager: RiskManager,
         mock_config: MagicMock,
@@ -312,6 +320,6 @@ class TestRiskManagerDependencyFailures:
             ):
                 mock_circuit_breaker.can_execute.return_value = (True, None)
                 risk_manager.circuit_breaker_system = mock_circuit_breaker
-                sized_opp = risk_manager.size_opportunity(sample_opportunity)
+                sized_opp = await risk_manager.size_opportunity(sample_opportunity)
                 # Fail-safe: should always reject (return None) if validator fails or errors
                 assert sized_opp is None

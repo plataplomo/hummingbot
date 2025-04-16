@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
+from pytest import fixture
 
 from cyberdelta.core.models import ArbitrageOpportunity
 from cyberdelta.core.risk_manager import RiskManager
@@ -12,7 +12,7 @@ from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 
-@pytest.fixture
+@fixture
 def mock_config_values() -> dict[str, Any]:
     """Return the dictionary of default mock config values."""
     # Centralize the default mock values
@@ -50,18 +50,22 @@ def mock_config_values() -> dict[str, Any]:
     }
 
 
-@pytest.fixture
+@fixture
 def mock_config(mock_config_values: dict[str, Any]) -> MagicMock:
     """Create a mock config using the default values."""
     cfg = MagicMock(spec=Config)
     # Store the default values dictionary for reference in tests
     cfg.default_values = mock_config_values
-    # The side_effect lambda now just looks up from the stored defaults
-    cfg.get.side_effect = lambda key, default=None: cfg.default_values.get(key, default)
+
+    # The side_effect function now just looks up from the stored defaults
+    def config_get_side_effect(key: str, default: object | None = None) -> Any:
+        return cfg.default_values.get(key, default)
+
+    cfg.get.side_effect = config_get_side_effect
     return cfg
 
 
-@pytest.fixture
+@fixture
 def mock_portfolio_tracker() -> MagicMock:
     """Create a mock portfolio tracker for testing."""
     tracker = MagicMock()
@@ -70,7 +74,7 @@ def mock_portfolio_tracker() -> MagicMock:
     mock_balance = MagicMock()
     mock_balance.available = Decimal("1000.0")
     tracker.get_exchange_balance.return_value = mock_balance
-    tracker.get_exchange_collateral_balance.side_effect = lambda *args: Decimal("1000.0")  # type: ignore
+    tracker.get_exchange_collateral_balance.side_effect = lambda *args: Decimal("1000.0")
     tracker.get_total_exposure.return_value = Decimal("1000.0")
     tracker.get_exchange_exposure.return_value = Decimal("0.0")  # Method name correction
     tracker.get_symbol_exposure.return_value = Decimal(
@@ -125,7 +129,7 @@ def mock_portfolio_tracker() -> MagicMock:
     return tracker
 
 
-@pytest.fixture
+@fixture
 def mock_circuit_breaker() -> MagicMock:
     """Create a mock CircuitBreakerSystem."""
     # Define the methods expected by RiskManager based on CircuitBreakerSystem definition
@@ -136,18 +140,22 @@ def mock_circuit_breaker() -> MagicMock:
     return cb
 
 
-@pytest.fixture
+@fixture
 def mock_funding_validator() -> MagicMock:
     """Create a mock FundingRateValidator."""
     from cyberdelta.validation.funding_rate_validator import FundingRateValidator
 
     fv = MagicMock(spec=FundingRateValidator)
+
     # Always return high-confidence metrics for any call
-    fv.get_symbol_metrics.side_effect = lambda exchange, symbol: {"rmse": 0.0, "bias": 0.0}
+    def symbol_metrics_side_effect(exchange: str, symbol: str) -> dict[str, float]:
+        return {"rmse": 0.0, "bias": 0.0}
+
+    fv.get_symbol_metrics.side_effect = symbol_metrics_side_effect
     return fv
 
 
-@pytest.fixture
+@fixture
 def mock_data_handler() -> MagicMock:
     """Create a mock data handler for testing."""
     # Import locally
@@ -161,7 +169,7 @@ def mock_data_handler() -> MagicMock:
     return dh
 
 
-@pytest.fixture
+@fixture
 def risk_manager(
     mock_config: MagicMock,
     mock_portfolio_tracker: MagicMock,
@@ -175,7 +183,7 @@ def risk_manager(
     return rm
 
 
-@pytest.fixture
+@fixture
 def sample_opportunity() -> ArbitrageOpportunity:
     """Create a sample arbitrage opportunity using the correct signature."""
     # Match the signature from signal_generator.py
@@ -193,5 +201,4 @@ def sample_opportunity() -> ArbitrageOpportunity:
         utility_score=0.8,  # float is ok here
         basis_volatility=0.002,  # float ok for Kelly input
     )
-    opp.expected_return = Decimal("0.0005")
     return opp

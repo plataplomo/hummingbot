@@ -2,7 +2,7 @@
 """Tests for RiskManager standard (Kelly) sizing path."""
 
 from decimal import Decimal
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from cyberdelta.core.models import ArbitrageOpportunity
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
@@ -28,31 +28,48 @@ class TestRiskManagerSizingStandard:
         assert not mock_config.get("risk.use_simple_sizing_path")
         max_position_cap = risk_manager.max_position_size  # e.g., 1000.0
 
-        # Mock the underlying calculation and control methods to isolate the path
-        risk_manager._calculate_kelly_size.return_value = Decimal("1500.0")
-        risk_manager._apply_portfolio_exposure_management.side_effect = (
-            lambda opp, size: size * Decimal("0.9")
-        )  # Apply 10% reduction
-        risk_manager._apply_portfolio_level_controls.side_effect = lambda size, opp: size * Decimal(
-            "0.95"
-        )  # Apply 5% reduction
-        risk_manager._check_portfolio_constraints.return_value = True
+        # Patch protected methods for test isolation (intentional for unit test)
+        def exposure_management_side_effect(opp: ArbitrageOpportunity, size: Decimal) -> Decimal:
+            return size * Decimal("0.9")
 
-        # --- Act ---
-        sized_opp = risk_manager.size_opportunity(sample_opportunity)
+        def portfolio_level_controls_side_effect(
+            size: Decimal, opp: ArbitrageOpportunity
+        ) -> Decimal:
+            return size * Decimal("0.95")
 
-        # --- Assert ---
-        assert isinstance(sized_opp, SizedOpportunity)
-        risk_manager._calculate_kelly_size.assert_called_once()
-        risk_manager._apply_portfolio_exposure_management.assert_called_once()
-        risk_manager._apply_portfolio_level_controls.assert_called_once()
-        risk_manager._check_portfolio_constraints.assert_called_once()
+        with (
+            patch.object(
+                risk_manager, "_calculate_kelly_size", return_value=Decimal("1500.0")
+            ) as mock_kelly,
+            patch.object(
+                risk_manager,
+                "_apply_portfolio_exposure_management",
+                side_effect=exposure_management_side_effect,
+            ) as mock_exposure,
+            patch.object(
+                risk_manager,
+                "_apply_portfolio_level_controls",
+                side_effect=portfolio_level_controls_side_effect,
+            ) as mock_portfolio,
+            patch.object(
+                risk_manager, "_check_portfolio_constraints", return_value=True
+            ) as mock_constraints,
+        ):
+            # --- Act ---
+            sized_opp = risk_manager.size_opportunity(sample_opportunity)
 
-        expected_uncapped_size = Decimal("1282.50")
-        expected_final_size = min(expected_uncapped_size, max_position_cap)
-        assert sized_opp.long_size == expected_final_size, (
-            f"Expected {expected_final_size}, got {sized_opp.long_size}"
-        )
-        assert sized_opp.short_size == expected_final_size, (
-            f"Expected {expected_final_size}, got {sized_opp.short_size}"
-        )
+            # --- Assert ---
+            assert isinstance(sized_opp, SizedOpportunity)
+            mock_kelly.assert_called_once()
+            mock_exposure.assert_called_once()
+            mock_portfolio.assert_called_once()
+            mock_constraints.assert_called_once()
+
+            expected_uncapped_size = Decimal("1282.50")
+            expected_final_size = min(expected_uncapped_size, max_position_cap)
+            assert sized_opp.long_size == expected_final_size, (
+                f"Expected {expected_final_size}, got {sized_opp.long_size}"
+            )
+            assert sized_opp.short_size == expected_final_size, (
+                f"Expected {expected_final_size}, got {sized_opp.short_size}"
+            )
