@@ -3,7 +3,7 @@ import json
 import logging
 import time
 from decimal import Decimal
-from typing import Any, TypedDict, TypeVar
+from typing import Any, TypedDict, TypeVar, cast
 
 import aiohttp
 from aiohttp import ClientTimeout
@@ -157,8 +157,8 @@ class HyperliquidAPI(ExchangeAPI):
         self,
         method: str,
         path: str,
-        params: dict | None = None,
-        data: dict | None = None,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Sign a request using EIP-712 and wallet private key.
@@ -166,14 +166,14 @@ class HyperliquidAPI(ExchangeAPI):
         Args:
             method: HTTP method
             path: API endpoint
-            params: URL parameters
-            data: Request body
+            params: URL parameters (dictionary)
+            data: Request body (dictionary)
 
         Returns:
             Authentication data for the request
         """
         if not self._account:
-            if "test" in path or (data and isinstance(data, dict) and data.get("test")):
+            if "test" in path or (data and data.get("test")):
                 logger.info(
                     f"[{self.exchange_name}] Using mock authentication for test environment "
                     f"(no private key)"
@@ -314,14 +314,15 @@ class HyperliquidAPI(ExchangeAPI):
         retry_count: int = 3,
         timeout: float = 30.0,
     ) -> dict[str, Any] | list[Any] | str | None:
-        """Make a request to the API with proper error handling and type annotations.
+        """
+        Make a request to the API with proper error handling and type annotations.
 
         Args:
             method: HTTP method (GET, POST, etc.)
             path: API endpoint path
-            params: Query parameters for the request
-            data: JSON data to send in the request body
-            headers: Additional headers to include
+            params: Query parameters for the request (dictionary)
+            data: JSON data to send in the request body (dictionary)
+            headers: Additional headers to include (dictionary)
             signed: Whether the request requires authentication
             retry_count: Maximum number of retry attempts
             timeout: Request timeout in seconds
@@ -341,9 +342,10 @@ class HyperliquidAPI(ExchangeAPI):
             )
 
             # Prepare headers
-            full_headers = {}
+            full_headers: dict[str, str] = {}
             if hasattr(self, "default_headers"):
-                full_headers.update(self.default_headers)
+                default_headers: dict[str, str] = self.default_headers  # type: ignore[attr-defined]
+                full_headers.update(default_headers)
             if headers:
                 full_headers.update(headers)
 
@@ -371,7 +373,7 @@ class HyperliquidAPI(ExchangeAPI):
                     )
 
                 if response.content_type == "application/json":
-                    json_data = await response.json()
+                    json_data: dict[str, Any] | list[Any] = await response.json()
                     if isinstance(json_data, dict):
                         return json_data
                     elif isinstance(json_data, list):
@@ -401,24 +403,26 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_balances(self) -> dict[str, Balance]:
         """Get account balances."""
         try:
-            payload = {"type": "clearinghouseState", "user": self._wallet_address}
+            payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
-            state_data = None
+            state_data: dict[str, Any] | None = None
             if isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict):
                 state_data = response[0].get("clearinghouseState")
             elif isinstance(response, dict):
                 state_data = response.get("clearinghouseState")
 
-            if state_data and isinstance(state_data, dict) and "assetPositions" in state_data:
+            if state_data and "assetPositions" in state_data:
                 balances: dict[str, Balance] = {}
-                for asset_pos in state_data["assetPositions"]:
+                for asset_pos_raw in state_data["assetPositions"]:
+                    asset_pos: dict[str, Any] = cast(dict[str, Any], asset_pos_raw)
                     if asset_pos.get("asset") == "USDC" and isinstance(
                         asset_pos.get("position"), dict
                     ):
-                        position = asset_pos["position"]
-                        total_balance_str = position.get("value", "0")
-                        total_balance = Decimal(str(total_balance_str))
+                        position_raw = asset_pos["position"]
+                        position: dict[str, Any] = cast(dict[str, Any], position_raw)
+                        total_balance_str: str = str(position.get("value", "0"))
+                        total_balance: Decimal = Decimal(total_balance_str)
                         balances["USDC"] = Balance(
                             asset="USDC",
                             total=total_balance,
@@ -444,37 +448,41 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_positions(self, symbol: str | None = None) -> list[Position]:
         """Get current positions, optionally filtering by symbol."""
         try:
-            payload = {"type": "clearinghouseState", "user": self._wallet_address}
+            payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
             positions_list: list[Position] = []
-            state_data = None
+            state_data: dict[str, Any] | None = None
 
             if isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict):
                 state_data = response[0].get("clearinghouseState")
             elif isinstance(response, dict):
                 state_data = response.get("clearinghouseState")
 
-            if state_data and isinstance(state_data, dict) and "assetPositions" in state_data:
-                for asset_pos in state_data["assetPositions"]:
-                    position_data = asset_pos.get("position")
-                    if position_data and isinstance(position_data, dict):
-                        pos_symbol = asset_pos.get("asset")
+            if state_data and "assetPositions" in state_data:
+                for asset_pos_raw in state_data["assetPositions"]:
+                    asset_pos: dict[str, Any] = cast(dict[str, Any], asset_pos_raw)
+                    position_data_raw = asset_pos.get("position")
+                    position_data: dict[str, Any] | None = (
+                        cast(dict[str, Any], position_data_raw)
+                        if isinstance(position_data_raw, dict)
+                        else None
+                    )
+                    if position_data:
+                        pos_symbol: str | None = asset_pos.get("asset")
                         if symbol is not None and pos_symbol != symbol:
                             continue
-
-                        size_str = position_data.get("szi", "0")
-                        entry_price_str = position_data.get("entryPx", "0")
-                        unrealized_pnl_str = position_data.get("unrealizedPnl", "0")
-
-                        size = Decimal(str(size_str))
-                        entry_price = Decimal(str(entry_price_str)) if entry_price_str else None
-                        unrealized_pnl = Decimal(str(unrealized_pnl_str))
-
+                        size_str: str = str(position_data.get("szi", "0"))
+                        entry_price_str: str = str(position_data.get("entryPx", "0"))
+                        unrealized_pnl_str: str = str(position_data.get("unrealizedPnl", "0"))
+                        size: Decimal = Decimal(size_str)
+                        entry_price: Decimal | None = (
+                            Decimal(entry_price_str) if entry_price_str else None
+                        )
+                        unrealized_pnl: Decimal = Decimal(unrealized_pnl_str)
                         if size != Decimal(0) and pos_symbol and entry_price is not None:
-                            side = OrderSide.BUY if size > 0 else OrderSide.SELL
-                            leverage_placeholder = Decimal("1")
-
+                            side: OrderSide = OrderSide.BUY if size > 0 else OrderSide.SELL
+                            leverage_placeholder: Decimal = Decimal("1")
                             positions_list.append(
                                 Position(
                                     symbol=pos_symbol,
@@ -1072,52 +1080,43 @@ class HyperliquidAPI(ExchangeAPI):
 
     # --- Helper Methods (Parsing, etc.) ---
 
-    def parse_order(self, order_data: dict[str, Any]) -> Order:
-        """Parse exchange-specific order format to standard Order object.
+    def parse_order(self, data: dict[str, Any]) -> Order:
+        """
+        Parse exchange-specific order format to standard Order object.
 
         Args:
-            order_data: Exchange-specific order data
+            data: Exchange-specific order data (dictionary)
 
         Returns:
             Standardized Order object
         """
-        if not order_data or not isinstance(order_data, dict):
+        if not data:
             raise ValueError("Invalid order data provided")
-
         try:
-            order_id = str(order_data.get("oid", ""))
+            order_id = str(data.get("oid", ""))
             if not order_id:
                 raise ValueError("Order ID missing from order data")
-
-            symbol = order_data.get("coin", "")
+            symbol = data.get("coin", "")
             if not symbol:
                 raise ValueError("Symbol missing from order data")
-
-            # Extract order details
-            side_str = order_data.get("side", "B")
-            type_str = order_data.get("orderType", "limit").lower()
-            status_str = order_data.get("status", "open").lower()
-
-            # Convert string values to appropriate types
-            price_str = order_data.get("limitPx", "0")
-            size_str = order_data.get("sz", "0")
-            remaining_str = order_data.get("remainingSz", size_str)
+            side_str = data.get("side", "B")
+            type_str = data.get("orderType", "limit").lower()
+            status_str = data.get("status", "open").lower()
+            price_str = data.get("limitPx", "0")
+            size_str = data.get("sz", "0")
+            remaining_str = data.get("remainingSz", size_str)
             filled_qty = (
                 Decimal(str(size_str)) - Decimal(str(remaining_str))
                 if remaining_str
                 else Decimal("0")
             )
-            timestamp = order_data.get("time", int(time.time() * 1000))
-
-            # Map to standard enums
+            timestamp = data.get("time", int(time.time() * 1000))
             side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
-
             order_type = OrderType.LIMIT
             if type_str == "market":
                 order_type = OrderType.MARKET
             elif type_str == "postonly":
                 order_type = OrderType.LIMIT  # Post-only is a flag, not an order type
-
             status = OrderStatus.OPEN
             if status_str == "filled":
                 status = OrderStatus.FILLED
@@ -1127,11 +1126,9 @@ class HyperliquidAPI(ExchangeAPI):
                 status = OrderStatus.REJECTED
             elif Decimal(str(remaining_str)) < Decimal(str(size_str)):
                 status = OrderStatus.PARTIALLY_FILLED
-
-            # Create and return the standardized order
             return Order(
                 id=order_id,
-                client_order_id=order_data.get("cloid", ""),
+                client_order_id=data.get("cloid", ""),
                 symbol=symbol,
                 side=side,
                 type=order_type,
@@ -1140,7 +1137,7 @@ class HyperliquidAPI(ExchangeAPI):
                 filled_quantity=filled_qty,
                 status=status,
                 time=timestamp,
-                reduce_only=order_data.get("reduceOnly", False),
+                reduce_only=data.get("reduceOnly", False),
             )
         except Exception as e:
             logger.error(f"Error parsing order data: {e}")

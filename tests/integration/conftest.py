@@ -1,20 +1,33 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import cast
+from unittest.mock import create_autospec
 
 import pytest
 
+from cyberdelta.core.data_handler import DataHandler
+from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import ArbitrageOpportunity, Ticker
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.risk_manager import FundingRateValidatorProtocol, PortfolioTrackerProtocol
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config  # Assuming Config class is used
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
+from tests.integration.mocks.mock_exchange import MockExchangeAPI
 
 # --- Integration Test Specific Helpers & Fixtures ---
 
 
 # Moved from test_core_workflow.py
-def create_mock_ticker(symbol, bid, ask, price, timestamp):
+def create_mock_ticker(
+    symbol: str,
+    bid: float,
+    ask: float,
+    price: float,
+    timestamp: int,
+) -> Ticker:
     """Helper to create a Ticker object with Decimal conversion."""
     # This should ideally be moved from test_core_workflow.py
     # For now, defining it here if not already moved.
@@ -28,7 +41,7 @@ def create_mock_ticker(symbol, bid, ask, price, timestamp):
 
 
 @pytest.fixture(scope="function")
-def basic_opportunity():
+def basic_opportunity() -> ArbitrageOpportunity:
     """Provides a basic ArbitrageOpportunity instance for integration tests."""
     # Note: basis_volatility is set after creation currently, which is fine.
     # Ensure all required fields are present.
@@ -45,13 +58,13 @@ def basic_opportunity():
         # Add missing optional args if needed, or ensure they are None
         basis_volatility=0.01,  # Increased for conservative, safe sizing
         utility_score=None,  # Add optional float
+        expected_profit=Decimal("0.01"),  # Set via constructor, not as attribute
     )
-    opp.expected_return = Decimal("0.01")  # Set after instantiation for Kelly sizing
     return opp
 
 
 @pytest.fixture
-def real_portfolio_tracker(mock_config: Config):
+def real_portfolio_tracker(mock_config: Config) -> PortfolioTracker:
     """Provides a real PortfolioTracker instance initialized with mock config."""
     # Assumes mock_config fixture is available from parent conftest.py
     tracker = PortfolioTracker(mock_config)
@@ -63,7 +76,7 @@ def real_portfolio_tracker(mock_config: Config):
 
 # Define needed secrets locally for integration tests
 @pytest.fixture
-def mock_secrets():
+def mock_secrets() -> dict[str, dict[str, str]]:
     """Provides dummy secrets needed by integration mock APIs."""
     return {
         "mock_hl": {"api_key": "integ_hl_key", "api_secret": "integ_hl_secret"},
@@ -72,10 +85,8 @@ def mock_secrets():
 
 
 @pytest.fixture
-def mock_hl_api(mock_config, mock_secrets):
+def mock_hl_api(mock_config: Config, mock_secrets: dict[str, dict[str, str]]) -> MockExchangeAPI:
     """Mock API for Hyperliquid, passes full config."""
-    from tests.integration.mocks.mock_exchange import MockExchangeAPI
-
     # Ensure necessary keys exist, *especially* collateral_asset
     if "mock_hl" not in mock_config.config_data["exchanges"]:
         mock_config.config_data["exchanges"]["mock_hl"] = {}
@@ -86,21 +97,19 @@ def mock_hl_api(mock_config, mock_secrets):
     if "fee_rate" not in mock_config.config_data["exchanges"]["mock_hl"]:
         mock_config.config_data["exchanges"]["mock_hl"]["fee_rate"] = 0.0005
 
-    if "mock_hl" not in mock_secrets:
-        mock_secrets["mock_hl"] = {"api_key": "hl_key", "api_secret": "hl_secret"}
+    # Convert secrets to dict[str, Optional[str]] for compatibility
+    secrets_hl: dict[str, str | None] = {k: v for k, v in mock_secrets["mock_hl"].items()}
     return MockExchangeAPI(
         "mock_hl",
         mock_config.config_data["exchanges"]["mock_hl"],
-        mock_secrets["mock_hl"],
+        secrets_hl,
         config_obj=mock_config,
     )
 
 
 @pytest.fixture
-def mock_bp_api(mock_config, mock_secrets):
+def mock_bp_api(mock_config: Config, mock_secrets: dict[str, dict[str, str]]) -> MockExchangeAPI:
     """Mock API for Backpack, passes full config."""
-    from tests.integration.mocks.mock_exchange import MockExchangeAPI
-
     # Ensure necessary keys exist, *especially* collateral_asset
     if "mock_bp" not in mock_config.config_data["exchanges"]:
         mock_config.config_data["exchanges"]["mock_bp"] = {}
@@ -111,12 +120,12 @@ def mock_bp_api(mock_config, mock_secrets):
     if "fee_rate" not in mock_config.config_data["exchanges"]["mock_bp"]:
         mock_config.config_data["exchanges"]["mock_bp"]["fee_rate"] = 0.0005
 
-    if "mock_bp" not in mock_secrets:
-        mock_secrets["mock_bp"] = {"api_key": "bp_key", "api_secret": "bp_secret"}
+    # Convert secrets to dict[str, Optional[str]] for compatibility
+    secrets_bp: dict[str, str | None] = {k: v for k, v in mock_secrets["mock_bp"].items()}
     return MockExchangeAPI(
         "mock_bp",
         mock_config.config_data["exchanges"]["mock_bp"],
-        mock_secrets["mock_bp"],
+        secrets_bp,
         config_obj=mock_config,
     )
 
@@ -125,12 +134,11 @@ def mock_bp_api(mock_config, mock_secrets):
 
 
 @pytest.fixture
-def data_handler(mock_config, mock_hl_api, mock_bp_api):
+def data_handler(
+    mock_config: Config, mock_hl_api: MockExchangeAPI, mock_bp_api: MockExchangeAPI
+) -> DataHandler:
     """Data Handler instance with mock APIs registered."""
-    from cyberdelta.core.data_handler import DataHandler
-
     dh = DataHandler(mock_config)
-    # Use the correct mock API fixtures defined in this conftest
     dh.register_api_client("mock_hl", mock_hl_api)
     dh.register_api_client("mock_bp", mock_bp_api)
     return dh
@@ -144,46 +152,57 @@ def symbol_mapper(mock_config: Config) -> SymbolMapper:
 
 
 @pytest.fixture(scope="function")
-def signal_generator(mock_config, data_handler, symbol_mapper):
+def signal_generator(
+    mock_config: Config, data_handler: DataHandler, symbol_mapper: SymbolMapper
+) -> SignalGenerator:
     """Fixture for a SignalGenerator instance with mock data handler."""
     return SignalGenerator(mock_config, data_handler, symbol_mapper)
 
 
 @pytest.fixture
-def risk_manager(mock_config, real_portfolio_tracker, funding_rate_validator):
-    """Risk Manager instance using the real portfolio tracker and mock validator."""
+def risk_manager(
+    mock_config: Config,
+    # Use protocol-compliant mocks for both dependencies
+) -> object:
+    """
+    Risk Manager instance using protocol-compliant mocks for portfolio tracker and
+    funding rate validator.
+    """
     from cyberdelta.core.risk_manager import RiskManager
 
-    # Pass the mock validator fixture during initialization
+    # Create a protocol-compliant mock for PortfolioTrackerProtocol
+    mock_portfolio_tracker = create_autospec(PortfolioTrackerProtocol, instance=True)
+    mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+    mock_balance = type("ExchangeBalance", (), {"available": Decimal("1000.0")})()
+    mock_portfolio_tracker.get_exchange_balance.return_value = mock_balance
+    # Create a protocol-compliant mock for FundingRateValidatorProtocol
+    mock_funding_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
+    mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
     return RiskManager(
         mock_config,
-        real_portfolio_tracker,
-        funding_rate_validator=funding_rate_validator,
+        mock_portfolio_tracker,
+        funding_rate_validator=mock_funding_validator,
     )
 
 
 @pytest.fixture
 def execution_handler(
-    mock_config,
-    real_portfolio_tracker,
-    mock_hl_api,
-    mock_bp_api,
-    circuit_breaker_system,
-):
+    mock_config: Config,
+    real_portfolio_tracker: PortfolioTracker,
+    mock_hl_api: MockExchangeAPI,
+    mock_bp_api: MockExchangeAPI,
+    circuit_breaker_system: CircuitBreakerSystem,
+) -> ExecutionHandler:
     """Execution Handler instance with real tracker, mock APIs, CB system, and SymbolMapper."""
     from cyberdelta.core.execution_handler import ExecutionHandler
 
-    # Instantiate SymbolMapper using the mock_config
     symbol_mapper = SymbolMapper(mock_config.config_data)
-
     eh = ExecutionHandler(
         config=mock_config,
         portfolio_tracker=real_portfolio_tracker,
         symbol_mapper=symbol_mapper,
         circuit_breaker_system=circuit_breaker_system,
     )
-
-    # Register APIs with the execution handler
     eh.register_api_client("mock_hl", mock_hl_api)
     eh.register_api_client("mock_bp", mock_bp_api)
     return eh
@@ -193,41 +212,35 @@ def execution_handler(
 
 
 @pytest.fixture
-def funding_rate_validator():
-    """Provides a MagicMock for the FundingRateValidator."""
-    from unittest.mock import MagicMock
+def funding_rate_validator() -> FundingRateValidatorProtocol:
+    """Provides a protocol-compliant mock for the FundingRateValidator."""
+    from unittest.mock import create_autospec
 
-    # Mock the validator used by RiskManager
-    validator = MagicMock()
-    # Set default return values if needed for tests not specifically configuring it
-    validator.get_validation_metrics.return_value = {
-        "rmse": 0.0,
-        "bias": 0.0,
-    }  # Assume good metrics initially
-    return validator
+    mock_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
+    mock_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
+    return cast(FundingRateValidatorProtocol, mock_validator)
 
 
 @pytest.fixture
-def position_reconciler(mock_config, real_portfolio_tracker, mock_hl_api, mock_bp_api):
+def position_reconciler(
+    mock_config: Config,
+    real_portfolio_tracker: PortfolioTracker,
+    mock_hl_api: MockExchangeAPI,
+    mock_bp_api: MockExchangeAPI,
+) -> PositionReconciliationSystem:
     """Provides a PositionReconciliationSystem instance using the shared mock_config."""
-    from cyberdelta.validation.position_reconciliation import (
-        PositionReconciliationSystem,
-    )
-    # Removed creation of separate integration_config
+    from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
 
-    # Ensure mock APIs are registered on the tracker
     if "mock_hl" not in real_portfolio_tracker.api_clients:
         real_portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
     if "mock_bp" not in real_portfolio_tracker.api_clients:
         real_portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
-
-    # Pass the shared mock_config object directly
     reconciler = PositionReconciliationSystem(mock_config, real_portfolio_tracker)
     return reconciler
 
 
 @pytest.fixture
-def circuit_breaker_system(mock_config):
+def circuit_breaker_system(mock_config: Config) -> CircuitBreakerSystem:
     """Provides a CircuitBreakerSystem instance."""
 
     # Pass mock_config to ensure it uses the test configuration
@@ -236,7 +249,7 @@ def circuit_breaker_system(mock_config):
 
 # Find opportunity creation/mocking
 @pytest.fixture
-def mock_opportunity():
+def mock_opportunity() -> ArbitrageOpportunity:
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
         long_exchange="mock_hl",

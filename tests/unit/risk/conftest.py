@@ -163,7 +163,7 @@ def mock_funding_validator() -> MagicMock:
 def mock_data_handler() -> MagicMock:
     """Create a mock data handler for testing."""
     # Import locally
-    from cyberdelta.data.data_handler import DataHandler  # type: ignore[import,attr-defined]
+    from cyberdelta.core.data_handler import DataHandler
 
     dh = MagicMock(spec=DataHandler)
     # Setup default return values if needed for specific tests

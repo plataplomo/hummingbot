@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 import structlog
@@ -153,12 +154,9 @@ class Engine:
             if strategy.symbol == data.symbol:
                 try:
                     result = strategy.process_data(data)
-                    # If process_data is a coroutine (async), run it synchronously for now (engine is sync)
-                    if hasattr(result, "__await__"):
-                        import asyncio
-
+                    if asyncio.iscoroutine(result):
                         result = asyncio.get_event_loop().run_until_complete(result)
-                    signals = []
+                    signals: list[TradeSignal] = []
                     if result is None:
                         continue
                     if isinstance(result, list):
@@ -174,18 +172,11 @@ class Engine:
                                 f"Invalid signal object returned by {strategy.name}: {signal}"
                             )
                             continue
-                        # Only pass TradeSignal objects to the handler
-                        if not isinstance(signal, TradeSignal):
-                            logger.error(
-                                f"Non-TradeSignal object returned by {strategy.name}: {signal}"
-                            )
-                            continue
                         logger.info(
                             f"Strategy '{strategy.name}' generated signal: "
                             f"{getattr(signal, 'signal_type', 'UNKNOWN')} for {getattr(signal, 'symbol', 'UNKNOWN')}."
                         )
-                        if self.signal_handler is not None:
-                            self.signal_handler(signal)
+                        self.signal_handler(signal)
                 except Exception as e:
                     logger.error(
                         f"Error processing data in strategy '{strategy.name}': {e}",
@@ -225,9 +216,13 @@ class Engine:
                 volume_p = Decimal(str(row["volume"]))
 
                 # Ensure timestamp is timezone-aware (UTC)
-                ts = row["timestamp"]
-                if not isinstance(ts, datetime):
-                    ts = pd.to_datetime(ts)  # Pandas handles various formats
+                ts_raw: Any = row["timestamp"]
+                ts: datetime
+                if not isinstance(ts_raw, datetime):
+                    # Use .to_pydatetime() to ensure a datetime object for type safety
+                    ts = cast(datetime, pd.to_datetime(ts_raw).to_pydatetime())
+                else:
+                    ts = ts_raw
                 if ts.tzinfo is None:
                     ts = ts.replace(tzinfo=UTC)  # Assume UTC if naive
                 else:

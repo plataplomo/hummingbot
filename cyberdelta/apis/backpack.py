@@ -5,7 +5,7 @@ import logging
 import time
 from datetime import UTC, datetime  # Added datetime, UTC
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from cyberdelta.apis.base import (  # Use absolute import
     APIError,
@@ -64,15 +64,14 @@ class BackpackAPI(ExchangeAPI):
             logger.debug(f"[{self.exchange_name}] No handler registered for topic: {topic}")
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
-        """Subscribe to a Backpack WebSocket topic."""
+        """Subscribe to a Backpack WebSocket topic with explicit type safety and validation."""
         if not self._ws_connection or not self.is_connected:
             logger.error(f"[{self.exchange_name}] Cannot subscribe, WebSocket not connected.")
             # Store handler for reconnection
             self._ws_handlers[topic] = handler
             return
 
-        # Construct Backpack subscription message
-        subscription_message = {
+        subscription_message: dict[str, Any] = {
             "op": "subscribe",
             "channel": topic,
             "args": {},  # Additional arguments if needed
@@ -152,7 +151,7 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_ticker(self, symbol: str) -> Ticker:
         """
-        Get current ticker information for a symbol.
+        Get current ticker information for a symbol, with strict type validation.
 
         Args:
             symbol: Trading symbol
@@ -161,15 +160,18 @@ class BackpackAPI(ExchangeAPI):
             Ticker object.
 
         Raises:
-            APIError: If the ticker cannot be fetched.
+            APIError: If the ticker cannot be fetched or data is malformed.
         """
-        request_path = f"/api/v1/ticker/{symbol}"
+        request_path: str = f"/api/v1/ticker/{symbol}"
         try:
-            response = await self._request("GET", request_path)
-
-            # Process response to create Ticker object
+            response: Any = await self._request("GET", request_path)
+            if not isinstance(response, dict):
+                raise APIError(f"Unexpected response type for ticker: {type(response)}")
+            for key in ("symbol", "bidPrice", "askPrice", "lastPrice", "volume", "time"):
+                if key not in response:
+                    raise APIError(f"Missing key '{key}' in ticker response for {symbol}")
             ticker = Ticker(
-                symbol=response["symbol"],
+                symbol=str(response["symbol"]),
                 bid=Decimal(str(response["bidPrice"])),
                 ask=Decimal(str(response["askPrice"])),
                 price=Decimal(str(response["lastPrice"])),
@@ -188,27 +190,64 @@ class BackpackAPI(ExchangeAPI):
             ) from e
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
-        """Get order book for a symbol."""
-        request_path = "/api/v1/depth"
+        """Get order book for a symbol, with strict type validation."""
+        request_path: str = "/api/v1/depth"
+
+        def safe_list_of_pairs(raw: object) -> list[tuple[str, str]]:
+            """
+            Convert a raw list of pairs (from API) to a list of (str, str) tuples.
+            Accepts any input, but only processes lists of 2-element lists/tuples.
+            This is defensive: all elements are converted to str for safe Decimal conversion later.
+            """
+            if not isinstance(raw, list):
+                return []
+            result: list[tuple[str, str]] = []
+            for entry in raw:
+                # Defensive: ensure entry is a list/tuple of length 2
+                if isinstance(entry, (list, tuple)) and len(entry) == 2:
+                    # Safe to cast due to the above check
+                    a, b = cast(tuple[Any, Any], entry)
+                    result.append((str(a), str(b)))
+                # else: skip invalid entry
+            return result
+
         try:
-            params: dict[str, Any] = {"symbol": symbol}
+            params: dict[str, object] = {"symbol": symbol}
             if depth:
                 params["limit"] = depth
 
-            response = await self._request("GET", request_path, params=params)
-
-            bids = [
-                (Decimal(str(price)), Decimal(str(qty))) for price, qty in response.get("bids", [])
-            ]
-            asks = [
-                (Decimal(str(price)), Decimal(str(qty))) for price, qty in response.get("asks", [])
-            ]
-
+            response_raw: object = await self._request("GET", request_path, params=params)
+            if not isinstance(response_raw, dict):
+                raise APIError(f"Unexpected response type for order book: {type(response_raw)}")
+            response: dict[str, object] = response_raw
+            bids_raw = safe_list_of_pairs(response.get("bids", []) or [])
+            asks_raw = safe_list_of_pairs(response.get("asks", []) or [])
+            bids: list[tuple[Decimal, Decimal]] = []
+            asks: list[tuple[Decimal, Decimal]] = []
+            for price_raw, qty_raw in bids_raw:
+                try:
+                    price: Decimal = Decimal(price_raw)
+                    qty: Decimal = Decimal(qty_raw)
+                    bids.append((price, qty))
+                except Exception:
+                    continue
+            for price_raw, qty_raw in asks_raw:
+                try:
+                    price: Decimal = Decimal(price_raw)
+                    qty: Decimal = Decimal(qty_raw)
+                    asks.append((price, qty))
+                except Exception:
+                    continue
+            timestamp_raw = response.get("time", int(time.time() * 1000))
+            if isinstance(timestamp_raw, (int, float, str)):
+                timestamp = int(float(timestamp_raw))
+            else:
+                timestamp = int(time.time() * 1000)
             return OrderBook(
                 symbol=symbol,
                 bids=bids,
                 asks=asks,
-                timestamp=int(response.get("time", int(time.time() * 1000))),
+                timestamp=timestamp,
             )
         except Exception as e:
             logger.error(
