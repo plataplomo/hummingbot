@@ -85,33 +85,33 @@ class MarketData(BaseModel):
 
     @field_validator("open", "high", "low", "close", "volume", mode="before")
     @classmethod
-    def parse_decimal(cls, v: Any, info: Any) -> Decimal:
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal:
+        field_name = getattr(info, "field_name", "<unknown>")
         if v is None:
-            raise ValueError(f"Field '{info.field_name}' cannot be None")
+            raise ValueError(f"Field '{field_name}' cannot be None")
         try:
             if isinstance(v, str):
                 v = v.replace(",", "")
             return Decimal(str(v))
         except (InvalidOperation, ValueError, TypeError) as e:
             raise ValueError(
-                f"Field '{info.field_name}': cannot convert value '{v}' to Decimal: {e}"
-            )
+                f"Field '{field_name}': cannot convert value '{v}' to Decimal: {e}"
+            ) from e
 
     @field_validator("timestamp", mode="before")
     @classmethod
-    def parse_datetime(cls, v: Any) -> datetime:
+    def parse_datetime(cls, v: str | int | float | datetime | None) -> datetime:
         if v is None:
             raise ValueError("timestamp cannot be None")
         if isinstance(v, datetime):
             return v if v.tzinfo else v.replace(tzinfo=UTC)
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return datetime.fromtimestamp(v, tz=UTC)
-        if isinstance(v, str):
-            try:
-                dt = datetime.fromisoformat(v)
-                return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
-            except ValueError as e:
-                raise ValueError(f"timestamp: cannot parse datetime string '{v}': {e}")
+        try:
+            dt = datetime.fromisoformat(v)
+            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+        except ValueError as e:
+            raise ValueError(f"timestamp: cannot parse datetime string '{v}': {e}") from e
         raise ValueError(f"timestamp: unsupported type {type(v)}")
 
     def to_dict(self) -> dict[str, Any]:
@@ -139,7 +139,8 @@ class Balance(BaseModel):
 
     @field_validator("total", "available", "free", "locked", mode="before")
     @classmethod
-    def parse_decimal(cls, v: Any, info: Any) -> Decimal | None:
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
+        field_name = getattr(info, "field_name", "<unknown>")
         if v is None:
             return None
         try:
@@ -148,8 +149,8 @@ class Balance(BaseModel):
             return Decimal(str(v))
         except (InvalidOperation, ValueError, TypeError) as e:
             raise ValueError(
-                f"Field '{info.field_name}': cannot convert value '{v}' to Decimal: {e}"
-            )
+                f"Field '{field_name}': cannot convert value '{v}' to Decimal: {e}"
+            ) from e
 
     @model_validator(mode="after")
     def set_defaults(self) -> Self:
@@ -221,7 +222,8 @@ class Position(BaseModel):
         mode="before",
     )
     @classmethod
-    def parse_decimal(cls, v: Any, info: Any) -> Decimal | None:
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
+        field_name = getattr(info, "field_name", "<unknown>")
         if v is None:
             return None
         try:
@@ -230,24 +232,23 @@ class Position(BaseModel):
             return Decimal(str(v))
         except (InvalidOperation, ValueError, TypeError) as e:
             raise ValueError(
-                f"Field '{info.field_name}': cannot convert value '{v}' to Decimal: {e}"
-            )
+                f"Field '{field_name}': cannot convert value '{v}' to Decimal: {e}"
+            ) from e
 
     @field_validator("close_time", mode="before")
     @classmethod
-    def parse_datetime(cls, v: Any) -> datetime | None:
+    def parse_datetime(cls, v: str | int | float | datetime | None) -> datetime | None:
         if v is None:
             return None
         if isinstance(v, datetime):
             return v if v.tzinfo else v.replace(tzinfo=UTC)
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return datetime.fromtimestamp(v, tz=UTC)
-        if isinstance(v, str):
-            try:
-                dt = datetime.fromisoformat(v)
-                return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
-            except ValueError as e:
-                raise ValueError(f"close_time: cannot parse datetime string '{v}': {e}")
+        try:
+            dt = datetime.fromisoformat(v)
+            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+        except ValueError as e:
+            raise ValueError(f"close_time: cannot parse datetime string '{v}': {e}") from e
         raise ValueError(f"close_time: unsupported type {type(v)}")
 
     def is_active(self) -> bool:
@@ -301,7 +302,8 @@ class Trade(BaseModel):
 
     @field_validator("price", "quantity", "fee", "cost", mode="before")
     @classmethod
-    def parse_decimal(cls, v: Any, info: Any) -> Decimal | None:
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
+        field_name = getattr(info, "field_name", "<unknown>")
         if v is None:
             return None
         try:
@@ -310,8 +312,8 @@ class Trade(BaseModel):
             return Decimal(str(v))
         except (InvalidOperation, ValueError, TypeError) as e:
             raise ValueError(
-                f"Field '{info.field_name}': cannot convert value '{v}' to Decimal: {e}"
-            )
+                f"Field '{field_name}': cannot convert value '{v}' to Decimal: {e}"
+            ) from e
 
     @model_validator(mode="after")
     def set_cost_and_datetime(self) -> Self:
@@ -354,7 +356,8 @@ class Ticker(BaseModel):
 
     @field_validator("price", "bid", "ask", "volume", mode="before")
     @classmethod
-    def parse_decimal(cls, v: Any, info: Any) -> Decimal | None:
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
+        field_name = getattr(info, "field_name", "<unknown>")
         if v is None:
             return None
         try:
@@ -363,8 +366,8 @@ class Ticker(BaseModel):
             return Decimal(str(v))
         except (InvalidOperation, ValueError, TypeError) as e:
             raise ValueError(
-                f"Field '{info.field_name}': cannot convert value '{v}' to Decimal: {e}"
-            )
+                f"Field '{field_name}': cannot convert value '{v}' to Decimal: {e}"
+            ) from e
 
     def to_dict(self) -> dict[str, Any]:
         d = self.model_dump()
@@ -388,20 +391,21 @@ class OrderBook(BaseModel):
 
     @field_validator("bids", "asks", mode="before")
     @classmethod
-    def parse_levels(cls, v: Any, info: Any) -> list[tuple[Decimal, Decimal]]:
-        if not isinstance(v, list):
-            raise ValueError(f"Field '{info.field_name}' must be a list.")
+    def parse_levels(
+        cls, v: list[tuple[str | int | float | Decimal, str | int | float | Decimal]], info: object
+    ) -> list[tuple[Decimal, Decimal]]:
+        field_name = getattr(info, "field_name", "<unknown>")
         result: list[tuple[Decimal, Decimal]] = []
         for i, level in enumerate(v):
-            if not isinstance(level, (list, tuple)) or len(level) != 2:
-                raise ValueError(f"Invalid item in '{info.field_name}' at index {i}: {level}")
+            if len(level) != 2:
+                raise ValueError(f"Invalid item in '{field_name}' at index {i}: {level}")
             try:
                 price: Decimal = Decimal(str(level[0]))
                 quantity: Decimal = Decimal(str(level[1]))
                 result.append((price, quantity))
             except (InvalidOperation, TypeError, IndexError) as err:
                 raise ValueError(
-                    f"Invalid price/quantity in '{info.field_name}' at index {i}: {level}"
+                    f"Invalid price/quantity in '{field_name}' at index {i}: {level}"
                 ) from err
         return result
 
@@ -424,7 +428,8 @@ class FundingRate(BaseModel):
 
     @field_validator("funding_rate", "predicted_rate", "mark_price", "index_price", mode="before")
     @classmethod
-    def parse_decimal(cls, v: Any, info: Any) -> Decimal | None:
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
+        field_name = getattr(info, "field_name", "<unknown>")
         if v is None:
             return None
         try:
@@ -433,8 +438,8 @@ class FundingRate(BaseModel):
             return Decimal(str(v))
         except (InvalidOperation, ValueError, TypeError) as e:
             raise ValueError(
-                f"Field '{info.field_name}': cannot convert value '{v}' to Decimal: {e}"
-            )
+                f"Field '{field_name}': cannot convert value '{v}' to Decimal: {e}"
+            ) from e
 
 
 # ArbitrageOpportunity is not a dataclass, handle conversion in __init__
@@ -693,10 +698,8 @@ class TradeSignal:
         """Convert TradeSignal to dictionary."""
         result = {
             "symbol": self.symbol,
-            "signal_type": self.signal_type.name
-            if isinstance(self.signal_type, SignalType)
-            else self.signal_type,
-            "side": self.side.name if isinstance(self.side, OrderSide) else self.side,
+            "signal_type": self.signal_type.value,
+            "side": self.side.value,
             "price": str(self.price) if self.price is not None else None,
             "quantity": str(self.quantity) if self.quantity is not None else None,
             "timestamp": self.timestamp.isoformat() if self.timestamp is not None else None,
