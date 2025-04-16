@@ -253,6 +253,7 @@ class TestRiskManagerSizingSimple:
         combined_config = {**mock_config.default_values, **test_overrides}
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")
+        mock_portfolio_tracker.get_all_positions.return_value = []
         risk_manager = RiskManager(
             mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
         )

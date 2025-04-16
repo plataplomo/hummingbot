@@ -671,6 +671,30 @@ class RiskManager:
             size = min(size, max_position)
             # Cap at available capital
             size = min(size, total_capital)
+            # --- Apply Validation Factor (if validator exists) ---
+            long_validation_factor = self._get_validation_metrics(
+                opportunity.long_exchange, opportunity.symbol
+            )
+            short_validation_factor = self._get_validation_metrics(
+                opportunity.short_exchange, opportunity.symbol
+            )
+            validation_factor = min(long_validation_factor, short_validation_factor)
+            if validation_factor < ONE:
+                self.logger.info(
+                    f"Applying validation factor {validation_factor:.3f} to size for "
+                    f"{opportunity.symbol} (simple path).",
+                )
+                size *= validation_factor
+                size = size.quantize(Decimal("0.01"))
+                if size <= ZERO:
+                    self.logger.info(
+                        f"Size reduced to zero or less after validation factor for "
+                        f"{opportunity.symbol} (simple path). Rejecting.",
+                    )
+                    return None
+                self.logger.debug(
+                    f"Size after validation factor for {opportunity.symbol} (simple path): ${size:.2f}"
+                )
             # Enforce portfolio constraints
             is_valid, reason = self._check_portfolio_constraints(size, opportunity)
             if not is_valid:
