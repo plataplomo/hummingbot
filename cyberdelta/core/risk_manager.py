@@ -654,6 +654,55 @@ class RiskManager:
             self.logger.warning("Cannot size opportunity: Total capital unavailable or zero.")
             return None
 
+        # --- SIMPLE SIZING PATH (if enabled in config) ---
+        use_simple = self.config.get("risk.use_simple_sizing_path", False)
+        if isinstance(use_simple, str):
+            use_simple = use_simple.lower() in ("true", "1", "yes")
+        if use_simple:
+            method = self.config.get("risk.simple_sizing_method", "fixed_fraction")
+            max_position = Decimal(str(self.config.get("risk.global.max_position_usd", "1000.0")))
+            size = ZERO
+            if method == "fixed_fraction":
+                fraction = Decimal(str(self.config.get("risk.simple_fixed_fraction", "0.05")))
+                size = (total_capital * fraction).quantize(Decimal("0.01"))
+            elif method == "fixed_usd":
+                size = Decimal(str(self.config.get("risk.simple_fixed_usd_size", "100.0")))
+            # Cap at max position size
+            size = min(size, max_position)
+            # Cap at available capital
+            size = min(size, total_capital)
+            # Enforce portfolio constraints
+            is_valid, reason = self._check_portfolio_constraints(size, opportunity)
+            if not is_valid:
+                self.logger.info(
+                    f"Opportunity {opportunity.symbol} rejected due to portfolio "
+                    f"constraints: {reason}",
+                )
+                return None
+            # Calculate expected profit/return (use expected_return if present, else 0)
+            original_expected_return = getattr(opportunity, "expected_return", ZERO)
+            if not isinstance(original_expected_return, Decimal):
+                original_expected_return = Decimal(str(original_expected_return))
+            expected_profit = size * original_expected_return
+            expected_return_pct = original_expected_return
+            risk_adjusted_return = expected_return_pct  # Placeholder
+            sized_opportunity = SizedOpportunity(
+                opportunity=opportunity,
+                long_size=size,
+                short_size=size,
+                allocation_percentage=(size / total_capital) if total_capital > ZERO else ZERO,
+                expected_profit=expected_profit,
+                expected_return=expected_return_pct,
+                risk_adjusted_return=risk_adjusted_return,
+            )
+            final_sized_opportunity = self._apply_portfolio_level_controls(sized_opportunity)
+            if final_sized_opportunity:
+                self.logger.info(
+                    f"Successfully sized opportunity (simple path): {final_sized_opportunity}"
+                )
+            return final_sized_opportunity
+
+        # --- DEFAULT: KELLY SIZING PATH ---
         # 3. Calculate Initial Kelly Size
         initial_size_usd = self._calculate_kelly_size(opportunity, total_capital)
         if initial_size_usd <= ZERO:
@@ -697,42 +746,18 @@ class RiskManager:
             return None
 
         # 6. Determine Final Sizes (assuming equal USD size for long/short for now)
-        # In reality, might need slight adjustments based on price, fees, leverage limits per leg
         final_long_size = initial_size_usd
         final_short_size = initial_size_usd
 
         # 7. Apply Leverage Constraints (per leg/trade) - Adjust size if needed
-        # This requires knowing the price on each exchange to convert USD size to asset quantity
-        # and then checking against max leverage. Placeholder for now.
-        # Example logic:
-        # long_price = opportunity.long_entry_price # Need reliable price
-        # short_price = opportunity.short_entry_price # Need reliable price
-        # if long_price and short_price:
-        #     long_qty = final_long_size / long_price
-        #     short_qty = final_short_size / short_price
-        #     # Check margin requirements and leverage limits per exchange...
-        #     # If limits exceeded, reduce final_long_size/final_short_size...
-        # else:
-        #     self.logger.warning(
-        #         f"Cannot check per-trade leverage for {opportunity.symbol}: Missing prices."
-        #     )
+        # (Placeholder for future logic)
 
         # 8. Calculate Expected Profit & Return (Based on Final Size)
-        # Assuming profit scales linearly with size (simplification)
-        # Need original expected return percentage
-        # Mypy L221/L228/L234/L294: Accessing expected_return which might not exist
-        # Need to handle potential AttributeError if ArbitrageOpportunity changes
         original_expected_return = getattr(opportunity, "expected_return", ZERO)
         if not isinstance(original_expected_return, Decimal):
             original_expected_return = Decimal(str(original_expected_return))
-
         expected_profit = final_long_size * original_expected_return  # Approx profit in USD
         expected_return_pct = original_expected_return  # Percentage return remains same
-
-        # 9. Calculate Risk-Adjusted Return (Placeholder)
-        # Requires a risk measure (e.g., volatility, VaR) associated with the opportunity
-        # risk_measure = Decimal(str(opportunity.basis_volatility)) # Example using volatility
-        # risk_adjusted_return = expected_return_pct / risk_measure if risk_measure > ZERO else ZERO
         risk_adjusted_return = expected_return_pct  # Placeholder: Use simple return for now
 
         # 10. Create SizedOpportunity object

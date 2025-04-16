@@ -379,3 +379,7 @@ class FundingRateValidator:
             f"Cleared data older than {days_to_keep} days. "
             f"Remaining: {len(self.predictions)} predictions, {len(self.payments)} payments"
         )
+
+    def get_symbol_metrics(self, exchange: str, symbol: str) -> dict[str, float | None]:
+        """Protocol-compatible method for RiskManager; delegates to calculate_metrics."""
+        return self.calculate_metrics(exchange, symbol)

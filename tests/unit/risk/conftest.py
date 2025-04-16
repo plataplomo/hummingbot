@@ -139,14 +139,11 @@ def mock_circuit_breaker() -> MagicMock:
 @pytest.fixture
 def mock_funding_validator() -> MagicMock:
     """Create a mock FundingRateValidator."""
-    # Import locally to avoid circular dependency issues at module level
     from cyberdelta.validation.funding_rate_validator import FundingRateValidator
 
     fv = MagicMock(spec=FundingRateValidator)
-    # Default behavior for get_validation_metrics (called by RiskManager._get_validation_metrics)
-    # Return a high confidence factor by default
-    # Removed: fv.get_validation_metrics.return_value = {"rmse": 0.001, "bias": 0.0005}
-    # This method does not exist on FundingRateValidator and causes test setup to fail.
+    # Always return high-confidence metrics for any call
+    fv.get_symbol_metrics.side_effect = lambda exchange, symbol: {"rmse": 0.0, "bias": 0.0}
     return fv
 
 

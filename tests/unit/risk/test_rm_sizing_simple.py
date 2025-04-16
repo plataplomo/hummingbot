@@ -16,9 +16,10 @@ class TestRiskManagerSizingSimple:
 
     def test_size_opportunity_simple_path_fixed_fraction(
         self,
-        risk_manager: RiskManager,
         mock_config: MagicMock,
         mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker: MagicMock,
+        mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size_opportunity with simple_path=True, method=fixed_fraction."""
@@ -33,7 +34,9 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
 
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        risk_manager.max_position_size = Decimal("10000.0")
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
 
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
@@ -45,9 +48,10 @@ class TestRiskManagerSizingSimple:
 
     def test_size_opportunity_simple_path_fixed_fraction_capped(
         self,
-        risk_manager: RiskManager,
         mock_config: MagicMock,
         mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker: MagicMock,
+        mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size_opportunity with simple_path=True, fraction size exceeding cap."""
@@ -63,7 +67,9 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
 
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        risk_manager.max_position_size = max_cap
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
 
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
@@ -75,9 +81,10 @@ class TestRiskManagerSizingSimple:
 
     def test_size_opportunity_simple_path_fixed_usd(
         self,
-        risk_manager: RiskManager,
         mock_config: MagicMock,
         mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker: MagicMock,
+        mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size_opportunity with simple_path=True, method=fixed_usd."""
@@ -93,7 +100,9 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
 
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        risk_manager.max_position_size = Decimal("10000.0")
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
 
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
@@ -105,9 +114,10 @@ class TestRiskManagerSizingSimple:
 
     def test_size_opportunity_simple_path_fixed_usd_capped(
         self,
-        risk_manager: RiskManager,
         mock_config: MagicMock,
         mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker: MagicMock,
+        mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size_opportunity with simple_path=True, fixed USD exceeding cap."""
@@ -124,7 +134,9 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
 
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        risk_manager.max_position_size = max_cap
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
 
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
@@ -136,8 +148,10 @@ class TestRiskManagerSizingSimple:
 
     def test_size_opportunity_reject_low_nfd(
         self,
-        risk_manager: RiskManager,
         mock_config: MagicMock,
+        mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker: MagicMock,
+        mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test opportunity rejection due to low net funding differential."""
@@ -148,6 +162,9 @@ class TestRiskManagerSizingSimple:
         )  # Set NFD below minimum
 
         # --- Act ---
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
 
         # --- Assert ---
@@ -155,9 +172,10 @@ class TestRiskManagerSizingSimple:
 
     def test_size_opportunity_total_exposure_limit(
         self,
-        risk_manager: RiskManager,
         mock_config: MagicMock,
         mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker: MagicMock,
+        mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test rejection when total exposure would exceed max_total_exposure_usd."""
@@ -172,7 +190,9 @@ class TestRiskManagerSizingSimple:
         combined_config = {**mock_config.default_values, **test_overrides}
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")
-        risk_manager.max_position_size = Decimal("200.0")
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
         # Simulate $400 already open by patching the method if available, else skip this check.
         # If RiskManager does not support direct exposure injection, this test may need to be adapted.
         # For now, we skip the exposure check if not feasible.
@@ -183,9 +203,10 @@ class TestRiskManagerSizingSimple:
 
     def test_size_opportunity_insufficient_capital(
         self,
-        risk_manager: RiskManager,
         mock_config: MagicMock,
         mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker: MagicMock,
+        mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test rejection or sizing down when available capital is less than fixed size."""
@@ -200,7 +221,9 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
         # Only $100 available
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100.0")
-        risk_manager.max_position_size = Decimal("200.0")
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
         # --- Act ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
         # --- Assert ---
@@ -213,9 +236,10 @@ class TestRiskManagerSizingSimple:
 
     def test_size_opportunity_config_change_enforcement(
         self,
-        risk_manager: RiskManager,
         mock_config: MagicMock,
         mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker: MagicMock,
+        mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test that changing config values updates sizing and limits immediately."""
@@ -229,14 +253,83 @@ class TestRiskManagerSizingSimple:
         combined_config = {**mock_config.default_values, **test_overrides}
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")
-        risk_manager.max_position_size = Decimal("200.0")
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
         # --- Act & Assert ---
         sized_opp = risk_manager.size_opportunity(sample_opportunity)
         assert sized_opp is not None
         assert sized_opp.long_size == Decimal("200.0")
         # Now change config to lower the max position size
         combined_config["risk.global.max_position_usd"] = "100.0"
-        risk_manager.max_position_size = Decimal("100.0")
+        mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
         sized_opp2 = risk_manager.size_opportunity(sample_opportunity)
         assert sized_opp2 is not None
         assert sized_opp2.long_size == Decimal("100.0")
+
+    def test_size_opportunity_validation_factor_happy_path(
+        self,
+        mock_config: MagicMock,
+        mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker: MagicMock,
+        mock_funding_validator: MagicMock,
+        sample_opportunity: ArbitrageOpportunity,
+    ) -> None:
+        """Test sizing with validation factor = 1.0 (happy path)."""
+        test_overrides = {
+            "risk.use_simple_sizing_path": True,
+            "risk.simple_sizing_method": "fixed_fraction",
+            "risk.simple_fixed_fraction": "0.05",
+            "risk.global.max_position_usd": "10000.0",
+        }
+        combined_config = {**mock_config.default_values, **test_overrides}
+        mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
+        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
+        mock_funding_validator.get_symbol_metrics.side_effect = lambda exchange, symbol: {
+            "rmse": 0.0,
+            "bias": 0.0,
+        }
+        # --- Act ---
+        sized_opp = risk_manager.size_opportunity(sample_opportunity)
+        # --- Assert ---
+        assert isinstance(sized_opp, SizedOpportunity)
+        assert sized_opp.long_size == Decimal("5000.0")
+        assert sized_opp.short_size == Decimal("5000.0")
+
+    def test_size_opportunity_validation_factor_safety_path(
+        self,
+        mock_config: MagicMock,
+        mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker: MagicMock,
+        mock_funding_validator: MagicMock,
+        sample_opportunity: ArbitrageOpportunity,
+    ) -> None:
+        """Test sizing with validation factor = 0.2 (safety path)."""
+        test_overrides = {
+            "risk.use_simple_sizing_path": True,
+            "risk.simple_sizing_method": "fixed_fraction",
+            "risk.simple_fixed_fraction": "0.05",
+            "risk.global.max_position_usd": "10000.0",
+        }
+        combined_config = {**mock_config.default_values, **test_overrides}
+        mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
+        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        risk_manager = RiskManager(
+            mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        )
+        mock_funding_validator.get_symbol_metrics.side_effect = lambda exchange, symbol: {
+            "rmse": 999.0,
+            "bias": 999.0,
+        }
+        # --- Act ---
+        sized_opp = risk_manager.size_opportunity(sample_opportunity)
+        # --- Assert ---
+        assert isinstance(sized_opp, SizedOpportunity)
+        assert sized_opp.long_size == Decimal("1000.0")
+        assert sized_opp.short_size == Decimal("1000.0")
