@@ -23,7 +23,13 @@ from cyberdelta.utils.config import Config
 
 # Mock aiohttp ClientSession and Response for API testing
 class MockResponse:
-    def __init__(self, data, status=200, headers=None, content_type="application/json"):
+    def __init__(
+        self,
+        data: object,
+        status: int = 200,
+        headers: dict[str, str] | None = None,
+        content_type: str = "application/json",
+    ):
         self._data = data
         self.status = status
         self.headers = headers or {}
@@ -39,7 +45,7 @@ class MockResponse:
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object):
         pass
 
     def raise_for_status(self):
@@ -51,21 +57,24 @@ class MockResponse:
 
 
 class MockClientSession:
-    def __init__(self, responses=None):
+    def __init__(
+        self,
+        responses: dict[tuple[str, str], MockResponse] | None = None,
+    ):
         self.responses = responses or {}
-        self.requests = []
+        self.requests: list[dict[str, object]] = []
         self.closed = False
 
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object):
         pass
 
     async def close(self):
         self.closed = True
 
-    async def _request(self, method, url, **kwargs):
+    async def _request(self, method: str, url: str, **kwargs: object) -> MockResponse:
         self.requests.append({"method": method, "url": url, "kwargs": kwargs})
 
         # Find match in responses
@@ -80,16 +89,16 @@ class MockClientSession:
         # Default response if no match
         return MockResponse({}, status=404)
 
-    async def get(self, url, **kwargs):
+    async def get(self, url: str, **kwargs: object) -> MockResponse:
         return await self._request("GET", url, **kwargs)
 
-    async def post(self, url, **kwargs):
+    async def post(self, url: str, **kwargs: object) -> MockResponse:
         return await self._request("POST", url, **kwargs)
 
-    async def put(self, url, **kwargs):
+    async def put(self, url: str, **kwargs: object) -> MockResponse:
         return await self._request("PUT", url, **kwargs)
 
-    async def delete(self, url, **kwargs):
+    async def delete(self, url: str, **kwargs: object) -> MockResponse:
         return await self._request("DELETE", url, **kwargs)
 
 
@@ -97,7 +106,9 @@ class MockClientSession:
 def mock_client_session():
     """Fixture to provide a mock aiohttp ClientSession."""
 
-    def create_session(responses=None):
+    def create_session(
+        responses: dict[tuple[str, str], MockResponse] | None = None,
+    ) -> MockClientSession:
         return MockClientSession(responses)
 
     return create_session
@@ -304,7 +315,7 @@ def mock_exchange_api():
         quantity=Decimal("0.1"),
         filled_quantity=Decimal("0.0"),
         status=OrderStatus.NEW,
-        time=int(time.time() * 1000),
+        time=datetime.now(),
         client_order_id="test-order-123",
     )
 
@@ -312,7 +323,7 @@ def mock_exchange_api():
 
 
 @pytest.fixture
-def circuit_breaker_system(mock_config):
+def circuit_breaker_system(mock_config: Config):
     """Create a CircuitBreakerSystem instance using mock config."""
     from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 

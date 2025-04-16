@@ -33,8 +33,10 @@ class TestRiskManagerConstraints:
             net_funding_differential="0.005",
             timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         )
-        is_valid, reason = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)
-        assert is_valid, f"Expected constraints to pass with default mocks, got reason: {reason}"
+        # Direct access to protected method is justified here for white-box testing;
+        # no public interface exposes this logic.
+        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)
+        assert is_valid, "Expected constraints to pass with default mocks"
 
     def test_check_portfolio_constraints_fail_total_exposure(
         self, risk_manager: RiskManager, mock_portfolio_tracker: MagicMock
@@ -53,7 +55,9 @@ class TestRiskManagerConstraints:
             net_funding_differential="0.005",
             timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         )
-        is_valid, reason = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)
+        # Direct access to protected method is justified here for white-box testing;
+        # no public interface exposes this logic.
+        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)
         assert not is_valid, "Expected failure due to total exposure limit"
 
     def test_check_portfolio_constraints_fail_leverage(
@@ -73,5 +77,7 @@ class TestRiskManagerConstraints:
             net_funding_differential="0.005",
             timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         )
-        is_valid, reason = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)
+        # Direct access to protected method is justified here for white-box testing;
+        # no public interface exposes this logic.
+        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)
         assert not is_valid, "Expected failure due to leverage limit"

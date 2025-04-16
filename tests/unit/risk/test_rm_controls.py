@@ -2,7 +2,6 @@
 """Tests for RiskManager portfolio level controls logic."""
 
 from decimal import Decimal
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 from cyberdelta.core.models import ArbitrageOpportunity
@@ -24,7 +23,9 @@ class TestRiskManagerControls:
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
-        """Verify portfolio controls skip complex adjustments but run safety checks in simple mode."""
+        """
+        Verify portfolio controls skip complex adjustments but run safety checks in simple mode.
+        """
         # --- Arrange ---
         min_factor_test_val = Decimal("0.2")  # Corresponds to default mock_config_values
         test_overrides = {
@@ -34,10 +35,10 @@ class TestRiskManagerControls:
             "risk.max_acceptable_rmse": 0.05,
             "risk.max_acceptable_bias": 0.02,
         }
-        combined_config = {**mock_config.default_values, **test_overrides}
+        combined_config: dict[str, object] = {**mock_config.default_values, **test_overrides}
 
-        def config_get_side_effect(key: str) -> Any:
-            return combined_config.get(key, None)
+        def config_get_side_effect(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get_side_effect
 
@@ -82,8 +83,8 @@ class TestRiskManagerControls:
                 expected_return=Decimal("0.0"),
                 risk_adjusted_return=Decimal("0.0"),
             )
-            # NOTE: Accessing protected member _apply_portfolio_level_controls for unit testing purposes.
-            # This is intentional and justified to ensure internal risk logic is robustly tested.
+            # Direct access to protected method is justified here for white-box testing;
+            # no public interface exposes this logic.
             adjusted_sized_opp = risk_manager._apply_portfolio_level_controls(sized_opp)
 
             # --- Assert ---

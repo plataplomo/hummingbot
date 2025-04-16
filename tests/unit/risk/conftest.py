@@ -74,7 +74,11 @@ def mock_portfolio_tracker() -> MagicMock:
     mock_balance = MagicMock()
     mock_balance.available = Decimal("1000.0")
     tracker.get_exchange_balance.return_value = mock_balance
-    tracker.get_exchange_collateral_balance.side_effect = lambda *args: Decimal("1000.0")
+
+    def collateral_balance_side_effect(*args: Any) -> Decimal:
+        return Decimal("1000.0")
+
+    tracker.get_exchange_collateral_balance.side_effect = collateral_balance_side_effect
     tracker.get_total_exposure.return_value = Decimal("1000.0")
     tracker.get_exchange_exposure.return_value = Decimal("0.0")  # Method name correction
     tracker.get_symbol_exposure.return_value = Decimal(
@@ -159,7 +163,7 @@ def mock_funding_validator() -> MagicMock:
 def mock_data_handler() -> MagicMock:
     """Create a mock data handler for testing."""
     # Import locally
-    from cyberdelta.data.data_handler import DataHandler
+    from cyberdelta.data.data_handler import DataHandler  # type: ignore[import,attr-defined]
 
     dh = MagicMock(spec=DataHandler)
     # Setup default return values if needed for specific tests
