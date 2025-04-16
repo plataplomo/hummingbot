@@ -7,7 +7,7 @@ from decimal import Decimal, getcontext
 from typing import Any
 
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.models import ArbitrageOpportunity, MarketData, TradeSignal
+from cyberdelta.core.models import ArbitrageOpportunity, MarketData, SignalType, TradeSignal
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.strategy import Strategy
@@ -55,33 +55,35 @@ class FundingRateArbitrageStrategy(Strategy):
         self.portfolio_tracker = portfolio_tracker
         self.risk_manager = risk_manager
 
-        # Load strategy parameters from config or use defaults
-        self.min_funding_differential = self.get_param(
-            "min_funding_differential", 0.0001
-        )  # 0.01% minimum
-        self.min_profit_threshold = self.get_param(
-            "min_profit_threshold", 5.0
-        )  # $5 minimum expected profit
-        self.risk_aversion = self.get_param(
-            "risk_aversion", 1.0
-        )  # Risk aversion parameter for utility function
-        self.rebalance_threshold = self.get_param(
-            "rebalance_threshold", 0.05
-        )  # 5% threshold for rebalancing
+        # Use helpers for config-derived parameters
+        self.min_funding_differential: Decimal = self._get_decimal_param(
+            "min_funding_differential", Decimal("0.0001")
+        )
+        self.min_profit_threshold: Decimal = self._get_decimal_param(
+            "min_profit_threshold", Decimal("5.0")
+        )
+        self.risk_aversion: Decimal = self._get_decimal_param("risk_aversion", Decimal("1.0"))
+        self.rebalance_threshold: Decimal = self._get_decimal_param(
+            "rebalance_threshold", Decimal("0.05")
+        )
+        self.check_interval: int = self._get_int_param("check_interval", 600)
 
         # Strategy state
         self.last_opportunity_check: datetime | None = None
         self.active_opportunities: list[ArbitrageOpportunity] = []
         self.historical_basis: dict[str, list[tuple[datetime, Decimal]]] = {}
-        self.check_interval: int = self.get_param("check_interval", 600)  # 10 minutes by default
+        # Defensive: ensure check_interval is always int
+        max_history = self._get_int_param("history_length", 24)
 
         # Exchange mapping
-        self.perp_exchange: str = self.get_param("perp_exchange", "hyperliquid")
-        self.spot_exchange: str = self.get_param("spot_exchange", "backpack")
+        self.perp_exchange: str = str(self.get_param("perp_exchange", "hyperliquid"))
+        self.spot_exchange: str = str(self.get_param("spot_exchange", "backpack"))
 
         # Market mapping (perp to spot)
-        self.symbol_mapping: dict[str, str] = self.get_param("symbol_mapping", {})
-        if not self.symbol_mapping:
+        symbol_mapping_param = self.get_param("symbol_mapping", None)
+        if symbol_mapping_param is not None and isinstance(symbol_mapping_param, dict):
+            self.symbol_mapping: dict[str, str] = symbol_mapping_param
+        else:
             # Default mapping if not provided
             base = symbol.split("-")[0] if "-" in symbol else symbol.split("_")[0]
             self.symbol_mapping = {symbol: f"{base}_USDC"}
@@ -94,6 +96,20 @@ class FundingRateArbitrageStrategy(Strategy):
             f"between {self.perp_exchange} and {self.spot_exchange}"
         )
 
+    def _get_decimal_param(self, key: str, default: Decimal) -> Decimal:
+        value = self.get_param(key, default)
+        try:
+            return Decimal(str(value))
+        except Exception:
+            return default
+
+    def _get_int_param(self, key: str, default: int) -> int:
+        value = self.get_param(key, default)
+        try:
+            return int(value)
+        except Exception:
+            return default
+
     async def _check_opportunity(self) -> ArbitrageOpportunity | None:
         """
         Check for funding rate arbitrage opportunity between perp and spot markets.
@@ -101,26 +117,36 @@ class FundingRateArbitrageStrategy(Strategy):
         Returns:
             ArbitrageOpportunity if found, None otherwise
         """
-        # Get funding rate from perp exchange
-        funding_rate = await self.data_handler.get_funding_rate(self.perp_exchange, self.symbol)
-        if not funding_rate:
+        # Get max_history at the start so it's always defined
+        max_history = self._get_int_param("history_length", 24)
+        # Get funding rate from perp exchange (synchronous call)
+        funding_rate = self.data_handler.get_funding_rate(self.perp_exchange, self.symbol)
+        if funding_rate is None:
             logger.warning(f"Could not get funding rate for {self.symbol} on {self.perp_exchange}")
             return None
 
         # Get current time
         now = datetime.now(UTC)
 
-        # Get prices for basis calculation
-        perp_ticker = await self.data_handler.get_ticker(self.perp_exchange, self.symbol)
+        # Get prices for basis calculation (synchronous calls)
+        perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
-        spot_ticker = await self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
+        if spot_symbol is None:
+            logger.warning(f"No spot symbol mapping for {self.symbol}")
+            return None
+        spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
 
-        if not perp_ticker or not spot_ticker:
+        if perp_ticker is None or spot_ticker is None:
             logger.warning(f"Could not get prices for {self.symbol} or {spot_symbol}")
             return None
 
         # Calculate basis (price differential)
-        basis = perp_ticker.price - spot_ticker.price
+        perp_price = perp_ticker.close
+        spot_price = spot_ticker.close
+        if perp_price is None or spot_price is None:
+            logger.warning(f"Missing close price for {self.symbol} or {spot_symbol}")
+            return None
+        basis = perp_price - spot_price
 
         # Update historical basis data
         if self.symbol not in self.historical_basis:
@@ -128,7 +154,6 @@ class FundingRateArbitrageStrategy(Strategy):
         self.historical_basis[self.symbol].append((now, basis))
 
         # Keep only recent data points
-        max_history = self.get_param("history_length", 24)  # 24 data points by default
         if len(self.historical_basis[self.symbol]) > max_history:
             self.historical_basis[self.symbol] = self.historical_basis[self.symbol][-max_history:]
 
@@ -136,8 +161,10 @@ class FundingRateArbitrageStrategy(Strategy):
         basis_volatility = self._calculate_basis_volatility(self.symbol)
 
         # Calculate Net Funding Differential (NFD)
-        # For the perp vs spot strategy, this is just the funding rate
         nfd = funding_rate.funding_rate
+        if nfd is None:
+            logger.warning(f"Funding rate is None for {self.symbol}")
+            return None
 
         # Skip if NFD is below threshold
         if abs(nfd) < self.min_funding_differential:
@@ -145,55 +172,74 @@ class FundingRateArbitrageStrategy(Strategy):
             return None
 
         # Estimate position size (will be refined by risk manager)
-        position_size = Decimal("1000.0")  # Use Decimal, will be adjusted by risk manager
+        position_size = Decimal("1000.0")
 
         # Estimate trading costs
         perp_slippage = self._estimate_slippage(self.symbol, position_size, self.perp_exchange)
         spot_slippage = self._estimate_slippage(spot_symbol, position_size, self.spot_exchange)
 
-        # Get exchange fee rates as Decimal
-        perp_fee_rate = Decimal(str(self.get_param(f"{self.perp_exchange}_fee_rate", 0.0005)))
-        spot_fee_rate = Decimal(str(self.get_param(f"{self.spot_exchange}_fee_rate", 0.0005)))
+        perp_fee_rate = self._get_decimal_param(f"{self.perp_exchange}_fee_rate", Decimal("0.0005"))
+        spot_fee_rate = self._get_decimal_param(f"{self.spot_exchange}_fee_rate", Decimal("0.0005"))
 
         # Calculate total costs (Decimal math)
         total_costs = position_size * (
             perp_slippage + spot_slippage + perp_fee_rate + spot_fee_rate
         )
 
-        # Calculate expected profit (Decimal math, convert funding rate correctly)
-        # Assuming nfd is already Decimal rate (e.g., 0.0001 for 0.01%)
+        # Calculate expected profit (Decimal math)
         expected_profit = (position_size * nfd) - total_costs
 
         # Skip if expected profit is below threshold
         if expected_profit < self.min_profit_threshold:
             logger.debug(
-                f"Expected profit (${expected_profit:.2f}) below threshold "
-                f"(${self.min_profit_threshold:.2f})"
+                f"Expected profit (${expected_profit:.2f}) below threshold (${self.min_profit_threshold:.2f})"
             )
             return None
 
-        # Calculate utility score (using float conversion for simplicity here)
         # Calculate utility score
         utility_score = expected_profit - (self.risk_aversion * (basis_volatility**2))
 
         # Determine which side to take based on funding rate
-        # If funding is positive, shorts receive payment, so we short the perp and long the spot
-        # If funding is negative, longs receive payment, so we long the perp and short the spot
         perp_side = "SHORT" if nfd > 0 else "LONG"
-        # spot_side = "LONG" if nfd > 0 else "SHORT" # Unused variable F841
+        spot_side = "LONG" if nfd > 0 else "SHORT"
+
+        # Extract ask/bid prices from ticker_data if available, else fallback to close
+        def get_ask_bid(market_data: MarketData, exchange: str, symbol: str, side: str) -> Decimal:
+            if market_data.ticker_data and symbol in market_data.ticker_data:
+                ticker = market_data.ticker_data[symbol].get(exchange)
+                if ticker:
+                    if side == "ask" and ticker.ask is not None:
+                        return ticker.ask
+                    if side == "bid" and ticker.bid is not None:
+                        return ticker.bid
+            # Fallback to close
+            return market_data.close
+
+        long_price = get_ask_bid(
+            perp_ticker if perp_side == "LONG" else spot_ticker,
+            self.perp_exchange if perp_side == "LONG" else self.spot_exchange,
+            self.symbol if perp_side == "LONG" else spot_symbol,
+            "ask",
+        )
+        short_price = get_ask_bid(
+            spot_ticker if perp_side == "LONG" else perp_ticker,
+            self.spot_exchange if perp_side == "LONG" else self.perp_exchange,
+            spot_symbol if perp_side == "LONG" else self.symbol,
+            "bid",
+        )
 
         # Create opportunity object
         opportunity = ArbitrageOpportunity(
             symbol=self.symbol,
             long_exchange=self.perp_exchange if perp_side == "LONG" else self.spot_exchange,
             short_exchange=self.spot_exchange if perp_side == "LONG" else self.perp_exchange,
-            long_price=perp_ticker.ask if perp_side == "LONG" else spot_ticker.ask,
-            short_price=spot_ticker.bid if perp_side == "LONG" else perp_ticker.bid,
-            long_funding_rate=Decimal(str(nfd)) if perp_side == "LONG" else Decimal("0"),
-            short_funding_rate=Decimal(str(nfd)) if perp_side == "SHORT" else Decimal("0"),
-            net_funding_differential=Decimal(str(nfd)),
+            long_price=long_price,
+            short_price=short_price,
+            long_funding_rate=nfd if perp_side == "LONG" else Decimal("0"),
+            short_funding_rate=nfd if perp_side == "SHORT" else Decimal("0"),
+            net_funding_differential=nfd,
             timestamp=now,
-            expected_profit=Decimal(str(expected_profit)),
+            expected_profit=expected_profit,
             utility_score=float(utility_score),
             basis_volatility=float(basis_volatility),
             optimal_size=None,
@@ -214,27 +260,20 @@ class FundingRateArbitrageStrategy(Strategy):
             Basis volatility as standard deviation
         """
         if symbol not in self.historical_basis or len(self.historical_basis[symbol]) < 2:
-            # Not enough data, return default volatility
-            return Decimal("0.01")  # Default volatility of 1%
-
-        # Extract basis values
-        basis_values = [b for _, b in self.historical_basis[symbol]]
-
-        # Calculate standard deviation
-        mean = sum(basis_values) / len(basis_values)
-        variance = sum((x - mean) ** 2 for x in basis_values) / len(basis_values)
-        # Use Decimal for sqrt
+            return Decimal("0.01")
+        basis_values = [Decimal(str(b)) for _, b in self.historical_basis[symbol]]
+        mean = sum(basis_values) / Decimal(len(basis_values))
+        variance = sum((x - mean) ** 2 for x in basis_values) / Decimal(len(basis_values))
         try:
-            # Ensure variance is non-negative before sqrt
             if variance < 0:
                 logger.warning(
                     f"Calculated negative variance ({variance}) for basis volatility of {symbol}. Returning default."
                 )
-                return Decimal("0.01")  # Return default Decimal volatility
-            return variance.sqrt()  # Equivalent to ** Decimal("0.5")
+                return Decimal("0.01")
+            return variance.sqrt()
         except Exception as e:
             logger.error(f"Error calculating sqrt of variance {variance} for {symbol}: {e}")
-            return Decimal("0.01")  # Return default Decimal volatility on error
+            return Decimal("0.01")
 
     def _estimate_slippage(self, symbol: str, size: Decimal, exchange: str) -> Decimal:
         """
@@ -248,36 +287,26 @@ class FundingRateArbitrageStrategy(Strategy):
         Returns:
             Estimated slippage as a percentage (Decimal)
         """
-        # Simple slippage model
-        # More sophisticated models would use orderbook depth
-        base_slippage = Decimal("0.0001")  # 0.01% base slippage
-
-        # Scale slippage based on size (use Decimal math)
+        base_slippage = Decimal("0.0001")
         ref_size = Decimal("10000")
         if size <= Decimal("0") or ref_size <= Decimal("0"):
-            return base_slippage  # Avoid math errors for zero/negative size
-
-        # Use Decimal for exponentiation
+            return base_slippage
         try:
             size_ratio = size / ref_size
-            # Ensure ratio is non-negative before sqrt
             if size_ratio < 0:
                 logger.warning(
                     f"Calculated negative size ratio ({size_ratio}) for slippage of {symbol}. Using base."
                 )
                 return base_slippage
-            slippage_scaling = size_ratio.sqrt()  # Equivalent to ** Decimal("0.5")
+            slippage_scaling = size_ratio.sqrt()
         except Exception as e:
-            logger.error(
-                f"Error calculating sqrt of size_ratio {size_ratio} for {symbol} slippage: {e}"
-            )
-            return base_slippage  # Return base on error
-
+            logger.error(f"Error calculating sqrt of size_ratio for {symbol} slippage: {e}")
+            return base_slippage
         return base_slippage * slippage_scaling
 
-    def process_data(self, data: MarketData) -> TradeSignal | None:
+    async def process_data(self, data: MarketData) -> TradeSignal | None:
         """
-        Process new market data and generate a trading signal if appropriate.
+        Asynchronously process new market data and generate a trading signal if appropriate.
 
         Args:
             data: Market data to process
@@ -294,8 +323,9 @@ class FundingRateArbitrageStrategy(Strategy):
             self.last_opportunity_check is None
             or (now - self.last_opportunity_check).total_seconds() >= self.check_interval
         ):
-            # Create task but don't await immediately - it will run in the background
-            # This avoids blocking the main strategy loop
+            # Await the async check directly to ensure proper async flow
+            # If you want to run this in the background, you could use create_task,
+            # but then you must manage the task's lifecycle and exceptions.
             asyncio.create_task(self._check_and_generate_signal())
             self.last_opportunity_check = now
 
@@ -344,18 +374,25 @@ class FundingRateArbitrageStrategy(Strategy):
             True if rebalancing is needed, False otherwise
         """
         # Check if we have active positions
-        perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
-        spot_symbol = self.symbol_mapping.get(self.symbol)
-        spot_position = self.portfolio_tracker.get_position(self.spot_exchange, spot_symbol)
-
+        perp_position = None
+        spot_position = None
+        if hasattr(self.portfolio_tracker, "get_position"):
+            perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
+            spot_symbol = self.symbol_mapping.get(self.symbol)
+            if spot_symbol is not None:
+                spot_position = self.portfolio_tracker.get_position(self.spot_exchange, spot_symbol)
         if not perp_position or not spot_position:
             return False
 
-        # Get latest prices
-        perp_price = self.data_handler.get_latest_price(self.perp_exchange, self.symbol)
-        spot_price = self.data_handler.get_latest_price(self.spot_exchange, spot_symbol)
-
-        if not perp_price or not spot_price:
+        # Get latest prices using get_ticker().close as fallback
+        perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
+        spot_symbol = self.symbol_mapping.get(self.symbol)
+        spot_ticker = None
+        if spot_symbol is not None:
+            spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
+        perp_price = perp_ticker.close if perp_ticker is not None else None
+        spot_price = spot_ticker.close if spot_ticker is not None else None
+        if perp_price is None or spot_price is None:
             return False
 
         # Calculate position values
@@ -394,31 +431,24 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_symbol = self.symbol_mapping.get(self.symbol)
 
         # Determine position sizes
-        default_size = 1000.0
-
+        default_size = Decimal("1000.0")
+        perp_quantity = default_size
+        spot_quantity = default_size
         if sized_opportunity:
-            # Use sizes from risk manager
             if opportunity.long_exchange == self.perp_exchange:
                 perp_size = sized_opportunity.long_size
                 spot_size = sized_opportunity.short_size
             else:
                 perp_size = sized_opportunity.short_size
                 spot_size = sized_opportunity.long_size
-
-            # Convert to quantity using latest prices
-            perp_price = (
-                self.data_handler.get_latest_price(self.perp_exchange, self.symbol) or default_size
-            )
-            spot_price = (
-                self.data_handler.get_latest_price(self.spot_exchange, spot_symbol) or default_size
-            )
-
-            perp_quantity = perp_size / perp_price
-            spot_quantity = spot_size / spot_price
-        else:
-            # Use default sizes
-            perp_quantity = default_size
-            spot_quantity = default_size
+            perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
+            spot_ticker = None
+            if spot_symbol is not None:
+                spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
+            perp_price = perp_ticker.close if perp_ticker is not None else default_size
+            spot_price = spot_ticker.close if spot_ticker is not None else default_size
+            perp_quantity = perp_size / perp_price if perp_price else default_size
+            spot_quantity = spot_size / spot_price if spot_price else default_size
 
         self.signals_generated += 1
         self.last_signal_time = datetime.now(UTC)
@@ -479,40 +509,34 @@ class FundingRateArbitrageStrategy(Strategy):
         perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
         spot_position = self.portfolio_tracker.get_position(self.spot_exchange, spot_symbol)
-
-        # Get latest prices
-        perp_price = self.data_handler.get_latest_price(self.perp_exchange, self.symbol)
-        spot_price = self.data_handler.get_latest_price(self.spot_exchange, spot_symbol)
-
-        # Calculate position values
+        perp_ticker = self.data_handler.get_ticker(self.perp_exchange, self.symbol)
+        spot_ticker = None
+        if spot_symbol is not None:
+            spot_ticker = self.data_handler.get_ticker(self.spot_exchange, spot_symbol)
+        perp_price = perp_ticker.close if perp_ticker is not None else Decimal("1")
+        spot_price = spot_ticker.close if spot_ticker is not None else Decimal("1")
         perp_value = abs(perp_position.size * perp_price)
         spot_value = abs(spot_position.size * spot_price)
-
-        # Calculate target delta-neutral position
-        target_value = (abs(perp_value) + abs(spot_value)) / 2
-
-        # Calculate adjustments needed
+        if perp_value == 0 or spot_value == 0:
+            target_value = Decimal("0")
+        else:
+            target_value = (abs(perp_value) + abs(spot_value)) / 2
         perp_adjustment = target_value - abs(perp_value)
         spot_adjustment = target_value - abs(spot_value)
-
-        # Determine sides for adjustments
         perp_side = (
             "LONG"
             if (perp_position.size > 0 and perp_adjustment > 0)
             or (perp_position.size < 0 and perp_adjustment < 0)
             else "SHORT"
         )
-
         spot_side = (
             "LONG"
             if (spot_position.size > 0 and spot_adjustment > 0)
             or (spot_position.size < 0 and spot_adjustment < 0)
             else "SHORT"
         )
-
         self.signals_generated += 1
         self.last_signal_time = datetime.now(UTC)
-
         return TradeSignal(
             strategy_name=self.name,
             signal_type=SignalType.REBALANCE,
@@ -524,14 +548,14 @@ class FundingRateArbitrageStrategy(Strategy):
                     "exchange": self.perp_exchange,
                     "symbol": self.symbol,
                     "side": perp_side,
-                    "size": abs(perp_adjustment) / perp_price,
+                    "size": abs(perp_adjustment) / perp_price if perp_price else Decimal("0"),
                     "type": "LIMIT",
                 },
                 {
                     "exchange": self.spot_exchange,
                     "symbol": spot_symbol,
                     "side": spot_side,
-                    "size": abs(spot_adjustment) / spot_price,
+                    "size": abs(spot_adjustment) / spot_price if spot_price else Decimal("0"),
                     "type": "LIMIT",
                 },
             ],

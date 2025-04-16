@@ -1,19 +1,27 @@
 import time
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 
+from cyberdelta.apis.base import MessageHandler
 from cyberdelta.apis.hyperliquid import HyperliquidAPI
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
+    MarketData,
     Order,
+    OrderBook,
     OrderSide,
     OrderStatus,
     OrderType,
     Position,
+    Ticker,
+    TimeInForce,
+    Trade,
 )
 
 
@@ -39,17 +47,23 @@ class TestHyperliquidAPI:
 
             # --- ADD MISSING ABSTRACT METHODS ---
             async def _authenticate(
-                self, method: str, path: str, params: dict | None = None, data: dict | None = None
-            ) -> dict:
+                self,
+                method: str,
+                path: str,
+                params: dict[str, Any] | None = None,
+                data: dict[str, Any] | None = None,
+            ) -> dict[str, Any]:
                 return {}
 
-            def _update_rate_limit_from_headers(self, headers: Any, method: str, path: str) -> None:
+            def _update_rate_limit_from_headers(
+                self, headers: Mapping[str, str], method: str, path: str
+            ) -> None:
                 pass
 
             async def get_ticker(self, symbol: str) -> Ticker:
                 raise NotImplementedError
 
-            async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
+            async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
                 raise NotImplementedError
 
             async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
@@ -75,7 +89,9 @@ class TestHyperliquidAPI:
             ) -> Order:
                 raise NotImplementedError
 
-            async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict:
+            async def cancel_order(
+                self, order_id: str, symbol: str | None = None
+            ) -> dict[str, Any]:
                 raise NotImplementedError
 
             # get_order_status is already implemented below
@@ -96,8 +112,8 @@ class TestHyperliquidAPI:
                 limit: int | None = None,
                 order_id: str | None = None,
                 start_time: int | None = None,
-            ) -> list["Fill"]:
-                return []  # Use forward ref
+            ) -> list[Trade]:
+                return []
 
             async def get_funding_rates(
                 self, symbols: list[str] | None = None
@@ -131,8 +147,8 @@ class TestHyperliquidAPI:
             def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
                 return None
 
-            def parse_order(self, data: Any) -> Order:
-                raise NotImplementedError  # Changed arg name
+            def parse_order(self, order_data: dict[str, Any]) -> Order:
+                raise NotImplementedError
 
             def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
                 raise NotImplementedError
@@ -164,21 +180,29 @@ class TestHyperliquidAPI:
             async def subscribe_to_account_updates(self) -> None:
                 pass
 
-            async def subscribe_to_order_book(self, symbol: str, handler: MessageHandler) -> None:
+            async def subscribe_to_order_book(
+                self, symbol: str, handler: MessageHandler | None = None
+            ) -> None:
                 pass
 
-            async def subscribe_to_ticker(self, symbol: str, handler: MessageHandler) -> None:
+            async def subscribe_to_ticker(
+                self, symbol: str, handler: MessageHandler | None = None
+            ) -> None:
                 pass
 
-            async def subscribe_to_trades(self, symbol: str, handler: MessageHandler) -> None:
+            async def subscribe_to_trades(
+                self, symbol: str, handler: MessageHandler | None = None
+            ) -> None:
                 pass
 
             async def connect_websocket(self) -> None:
                 pass  # Added connect_websocket
 
-        client = ConcreteHyperliquidAPI(api_config=hyperliquid_config, secrets=hyperliquid_secrets)
+        client = ConcreteHyperliquidAPI(
+            api_config=hyperliquid_config, secrets={k: v for k, v in hyperliquid_secrets.items()}
+        )
         # Prevent actual network calls
-        client._request = AsyncMock(side_effect=RuntimeError("Network call attempted!"))
+        client._request = AsyncMock(side_effect=RuntimeError("Network call attempted!"))  # type: ignore[method-assign]  # Test mock override
         # Ensure wallet address is set if needed for method mocks
         client._wallet_address = hyperliquid_secrets.get(
             "HYPERLIQUID_WALLET_ADDRESS", "0xMockAddress"
@@ -194,7 +218,7 @@ class TestHyperliquidAPI:
                 asset="USDC", total=Decimal("1000.50"), available=Decimal("1000.50")
             )  # Hyperliquid only gives total USD value
         }
-        api_client.get_balances = AsyncMock(return_value=mock_balance_data)
+        api_client.get_balances = AsyncMock(return_value=mock_balance_data)  # type: ignore[method-assign]  # Test mock override
 
         # Get balances
         balances: dict[str, Balance] = await api_client.get_balances()
@@ -234,7 +258,7 @@ class TestHyperliquidAPI:
                 side=OrderSide.SELL,
             ),
         ]
-        api_client.get_positions = AsyncMock(return_value=mock_position_data)
+        api_client.get_positions = AsyncMock(return_value=mock_position_data)  # type: ignore[method-assign]  # Test mock override
 
         # Get positions
         positions: list[Position] = await api_client.get_positions()
@@ -278,7 +302,7 @@ class TestHyperliquidAPI:
             mark_price=None,  # Not directly available in this response part
             index_price=None,
         )
-        api_client.get_funding_rate = AsyncMock(return_value=mock_funding_data)
+        api_client.get_funding_rate = AsyncMock(return_value=mock_funding_data)  # type: ignore[method-assign]  # Test mock override
 
         # Get funding rate for BTC
         funding_rate: FundingRate = await api_client.get_funding_rate("BTC")
@@ -298,20 +322,19 @@ class TestHyperliquidAPI:
         """Test place_order returns proper Order object."""
         # Mock the specific public method
         mock_order_response = Order(
-            # id="123456789", # ID not set directly
+            id="123456789",
             symbol="BTC",
             side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
+            type=OrderType.LIMIT,
             price=Decimal("42000.0"),
             quantity=Decimal("0.1"),
             filled_quantity=Decimal("0.0"),  # Initial status
             status=OrderStatus.OPEN,  # Use OrderStatus enum
-            timestamp=int(time.time() * 1000),
+            time=datetime.now(UTC),
             client_order_id="test-order-123",
-            # exchange_order_id would likely be set later
         )
         # Mock the place_order method itself
-        api_client.place_order = AsyncMock(return_value=mock_order_response)
+        api_client.place_order = AsyncMock(return_value=mock_order_response)  # type: ignore[method-assign]  # Test mock override
 
         # Place order
         order: Order = await api_client.place_order(
@@ -325,18 +348,18 @@ class TestHyperliquidAPI:
 
         # Verify expected data (based on what place_order is expected to return)
         assert isinstance(order, Order)
-        # assert order.id is not None # ID might not be in immediate response
+        assert order.id is not None
         assert order.symbol == "BTC"
         assert order.side == OrderSide.BUY
-        assert order.order_type == OrderType.LIMIT
+        assert order.type == OrderType.LIMIT
         assert order.price == Decimal("42000.0")
         assert order.quantity == Decimal("0.1")
-        assert order.status == OrderStatus.OPEN  # Check against enum
+        assert order.status == OrderStatus.OPEN
         assert order.client_order_id == "test-order-123"
 
         # Verify the mocked method was called
         api_client.place_order.assert_called_once()
-        args, kwargs = api_client.place_order.call_args
+        kwargs = api_client.place_order.call_args.kwargs
         assert kwargs.get("symbol") == "BTC"
         assert kwargs.get("side") == OrderSide.BUY
         assert kwargs.get("quantity") == Decimal("0.1")
@@ -345,7 +368,7 @@ class TestHyperliquidAPI:
     async def test_cancel_order(self, api_client: HyperliquidAPI) -> None:
         """Test cancel_order returns success indication."""
         # Mock the specific public method - HL cancel might just return status
-        api_client.cancel_order = AsyncMock(return_value=True)  # Assume True on success
+        api_client.cancel_order = AsyncMock(return_value=True)  # type: ignore[method-assign]  # Test mock override
 
         # Cancel order
         result: bool = await api_client.cancel_order(oid=12345, symbol="BTC")

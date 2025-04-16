@@ -461,6 +461,7 @@ class SignalGenerator:
         # Return the final calculated slippage
         # Mypy incorrectly reports [no-any-return] here sometimes.
         # Both base_slippage and sensitivity are guaranteed Decimal by this point.
+        # type: ignore[no-any-return]  # Mypy false positive: runtime checks guarantee Decimal
         return base_slippage * sensitivity
 
     def generate_arbitrage_opportunities(

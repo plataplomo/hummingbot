@@ -3,6 +3,11 @@ description:
 globs: *.py,*.pyi
 alwaysApply: false
 ---
+---
+description: 
+globs: ["*.py,*.pyi"]
+alwaysApply: true
+---
 # Rule: Assume Hostile Input - Rigorous Validation
 
 **Mandate:** Treat ALL external input as potentially malicious and untrusted. This includes data from exchange APIs (REST & WebSocket), configuration files, persisted state files, and environment variables. Implement strict validation at the point of entry.

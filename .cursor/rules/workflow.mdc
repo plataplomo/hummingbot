@@ -5,12 +5,12 @@ alwaysApply: true
 ---
 ---
 description: Guidelines for maintaining concise, high-value workflow documentation for significant events and decisions.
-globs: ["current_workflow/**/*.md"] # Apply primarily to workflow directory markdown files
+globs: ["workflow/**/*.md"] # Apply primarily to workflow directory markdown files
 alwaysApply: true # Guideline for documenting significant items
 ---
-# Focused Workflow & Context Documentation (`current_workflow/`)
+# Focused Workflow & Context Documentation (`workflow/`)
 
-1.  **Mandate:** Maintain a **concise and accessible** record of **significant** development context, architectural decisions, major challenges, and strategic planning using Markdown files (`.md`) within the `current_workflow/` directory. Use Mermaid diagrams (` ```mermaid ``` `) **judiciously** where they substantially clarify complex architectures, state flows, or decision trees.
+1.  **Mandate:** Maintain a **concise and accessible** record of **significant** development context, architectural decisions, major challenges, and strategic planning using Markdown files (`.md`) within the `workflow/` directory. Use Mermaid diagrams (` ```mermaid ``` `) **judiciously** where they substantially clarify complex architectures, state flows, or decision trees.
 
 2.  **Purpose:** To capture **high-value context** *during* development that is not effectively conveyed through code comments or commit logs alone. This facilitates collaboration, preserves critical project history for onboarding and future reference, and supports informed strategic decision-making. **It is NOT a substitute for code-level documentation.**
 
@@ -26,7 +26,7 @@ alwaysApply: true # Guideline for documenting significant items
 4.  **Guidance:**
     *   **Be Concise & Targeted:** Focus on the "why" and the "what" for significant items. Avoid excessive detail better suited for commit messages or code comments.
     *   **Link, Don't Duplicate:** Link heavily to specific code files/functions, docstrings, issue tickets, or other relevant artifacts. Do not copy large amounts of code or detailed implementation steps into workflow docs.
-    *   **Maintain Organization:** Use clear filenames and potentially subdirectories within `current_workflow/` (e.g., `/decisions`, `/investigations`, `/architecture`) to keep information discoverable.
+    *   **Maintain Organization:** Use clear filenames and potentially subdirectories within `workflow/` (e.g., `/decisions`, `/investigations`, `/architecture`) to keep information discoverable.
     *   **Review Periodically:** Briefly review recent workflow docs to ensure consistency and consolidate related information if needed. Archive outdated planning documents clearly.
 
 5.  **Rationale:** Rigorous code-level documentation combined with *focused* workflow documentation on *significant* items creates a balanced approach. It ensures code is understandable directly, while preserving the critical context and rationale behind major architectural and strategic decisions without creating an unmanageable documentation burden.

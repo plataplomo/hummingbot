@@ -486,6 +486,7 @@ class TestExecutionHandler:
             client_order_id: str | None = None,
             reduce_only: bool = False,
             post_only: bool = False,
+            **kwargs: Any,
         ) -> Order:
             await asyncio.sleep(0.01)
             if exchange_id == "hyperliquid":
@@ -616,6 +617,7 @@ class TestExecutionHandler:
             client_order_id: str | None = None,
             reduce_only: bool = False,
             post_only: bool = False,
+            **kwargs: Any,
         ) -> Order:
             nonlocal comp_order
             await asyncio.sleep(0.01)

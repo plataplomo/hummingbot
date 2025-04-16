@@ -1,10 +1,9 @@
 from __future__ import annotations  # Enable postponed evaluation
 
 import logging
-from collections.abc import Callable  # Added Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, getcontext
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from cyberdelta.core.models import Position  # Needed for runtime isinstance check
 
@@ -25,6 +24,13 @@ getcontext().prec = 28  # Default precision, adjust if needed
 # Define ZERO and ONE constants for clarity
 ZERO = Decimal("0")
 ONE = Decimal("1")
+
+
+# Protocol for funding rate validator
+class FundingRateValidatorProtocol(Protocol):
+    def get_symbol_metrics(
+        self, exchange: str, symbol: str
+    ) -> dict[str, float | Decimal | None]: ...
 
 
 class SizedOpportunity:
@@ -54,7 +60,6 @@ class SizedOpportunity:
             expected_return: Expected return as percentage (Decimal)
             risk_adjusted_return: Risk-adjusted return (Decimal)
         """
-        # Ensure Decimals are used
         self.opportunity = opportunity
         self.long_size = Decimal(str(long_size))
         self.short_size = Decimal(str(short_size))
@@ -71,7 +76,6 @@ class SizedOpportunity:
             f"Short: {self.opportunity.short_exchange} ${self.short_size:.2f}, "
             f"Alloc: {self.allocation_percentage:.2f}%, "
             f"ExpProfit: ${self.expected_profit:.2f}, "
-            # Mypy fix [operator]: Ensure expected_return is Decimal before multiplication
             f"ExpReturn: {(self.expected_return * Decimal('100')):.2f}%, "
             f"RiskAdjReturn: {self.risk_adjusted_return:.4f}"
         )
@@ -93,10 +97,7 @@ class RiskManager:
         config: Config,
         portfolio_tracker: PortfolioTracker,
         circuit_breaker_system: CircuitBreakerSystem | None = None,
-        # TODO: Replace Any with a more specific validator type if possible
-        # Define a more specific signature if the validator's expected input/output is known
-        funding_rate_validator: Callable[[Any], bool | None] | None = None,
-        # Type hint using Callable
+        funding_rate_validator: FundingRateValidatorProtocol | None = None,
     ) -> None:
         """
         Initialize the risk manager.
@@ -105,7 +106,8 @@ class RiskManager:
             config: Application configuration
             portfolio_tracker: Portfolio state tracking
             circuit_breaker_system: Optional system for circuit breakers
-            funding_rate_validator: Optional validator for funding rate predictions
+            funding_rate_validator: Optional validator for funding rate predictions.
+                Must implement get_symbol_metrics(exchange: str, symbol: str).
         """
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.config = config
@@ -384,7 +386,7 @@ class RiskManager:
         #      return (
         #         False,
         #         f"Adding ${proposed_size:.2f} to {base_asset} exceeds max asset exposure "
-        #         f"({self.max_exposure_per_asset:.1%}). Current: ${asset_exposure:.2f}",
+        #         f"({self.max_exposure_per_asset:.1%}). Current: ${asset_exposures:.2f}",
         #      )
 
         # 7. Min Exchange Balance Check

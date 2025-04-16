@@ -1,0 +1,744 @@
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:56:22 - error: Type of parameter "current_data" is partially unknown
+    Parameter type is "Series[Unknown] | DataFrame" (reportUnknownParameterType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:56:36 - error: Expected type arguments for generic class "Series" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:106:29 - error: Type of "read_csv" is partially unknown
+    Type of "read_csv" is "Overload[(filepath_or_buffer: str | PathLike[str] | ReadCsvBuffer[bytes] | ReadCsvBuffer[str], *, sep: str | None = ..., delimiter: str | None = ..., header: int | Sequence[int] | Literal['infer'] | None = ..., names: MutableSequence[Unknown] | ndarray[Unknown, Unknown] | tuple[Unknown, ...] | range | None = ..., index_col: int | str | Sequence[str | int] | Literal[False] | None = ..., usecols: SequenceNotStr[Hashable] | range | ExtensionArray | ndarray[Any, Any] | Index[Any] | Series[Any] | ((Unknown) -> bool) | None = ..., dtype: ExtensionDtype | str | dtype[generic[Any]] | type[str] | type[complex] | type[bool] | type[object] | Mapping[Any, ExtensionDtype | str | dtype[generic[Any]] | type[str] | type[complex] | type[bool] | type[object]] | defaultdict[Unknown, Unknown] | None = ..., engine: Literal['c', 'python', 'pyarrow', 'python-fwf'] | None = ..., converters: Mapping[int | str, (str) -> Any] | Mapping[int, (str) -> Any] | Mapping[str, (str) -> Any] | None = ..., true_values: list[str] = ..., false_values: list[str] = ..., skipinitialspace: bool = ..., skiprows: int | Sequence[int] | ((int) -> bool) = ..., skipfooter: int = ..., nrows: int | None = ..., na_values: Sequence[str] | Mapping[str, Sequence[str]] = ..., keep_default_na: bool = ..., na_filter: bool = ..., verbose: bool = ..., skip_blank_lines: bool = ..., parse_dates: bool | list[int] | list[str] | Sequence[Sequence[int]] | Mapping[str, Sequence[int | str]] = ..., keep_date_col: bool = ..., date_format: dict[Hashable, str] | str | None = ..., dayfirst: bool = ..., cache_dates: bool = ..., iterator: Literal[True], chunksize: int | None = ..., compression: dict[str, Any] | Literal['infer', 'gzip', 'bz2', 'zip', 'xz', 'zstd'] | None = ..., thousands: str | None = ..., decimal: str = ..., lineterminator: str | None = ..., quotechar: str = ..., quoting: Literal[0, 1, 2, 3, 4, 5] = ..., doublequote: bool = ..., escapechar: str | None = ..., comment: str | None = ..., encoding: str | None = ..., encoding_errors: str | None = ..., dialect: str | Dialect = ..., on_bad_lines: ((list[str]) -> (list[str] | None)) | Literal['error', 'warn', 'skip'] = ..., delim_whitespace: bool = ..., low_memory: bool = ..., memory_map: bool = ..., float_precision: Literal['high', 'legacy', 'round_trip'] | None = ..., storage_options: dict[str, Any] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> TextFileReader, (filepath_or_buffer: str | PathLike[str] | ReadCsvBuffer[bytes] | ReadCsvBuffer[str], *, sep: str | None = ..., delimiter: str | None = ..., header: int | Sequence[int] | Literal['infer'] | None = ..., names: MutableSequence[Unknown] | ndarray[Unknown, Unknown] | tuple[Unknown, ...] | range | None = ..., index_col: int | str | Sequence[str | int] | Literal[False] | None = ..., usecols: SequenceNotStr[Hashable] | range | ExtensionArray | ndarray[Any, Any] | Index[Any] | Series[Any] | ((Unknown) -> bool) | None = ..., dtype: ExtensionDtype | str | dtype[generic[Any]] | type[str] | type[complex] | type[bool] | type[object] | Mapping[Any, ExtensionDtype | str | dtype[generic[Any]] | type[str] | type[complex] | type[bool] | type[object]] | defaultdict[Unknown, Unknown] | None = ..., engine: Literal['c', 'python', 'pyarrow', 'python-fwf'] | None = ..., converters: Mapping[int | str, (str) -> Any] | Mapping[int, (str) -> Any] | Mapping[str, (str) -> Any] | None = ..., true_values: list[str] = ..., false_values: list[str] = ..., skipinitialspace: bool = ..., skiprows: int | Sequence[int] | ((int) -> bool) = ..., skipfooter: int = ..., nrows: int | None = ..., na_values: Sequence[str] | Mapping[str, Sequence[str]] = ..., keep_default_na: bool = ..., na_filter: bool = ..., verbose: bool = ..., skip_blank_lines: bool = ..., parse_dates: bool | list[int] | list[str] | Sequence[Sequence[int]] | Mapping[str, Sequence[int | str]] = ..., keep_date_col: bool = ..., date_format: dict[Hashable, str] | str | None = ..., dayfirst: bool = ..., cache_dates: bool = ..., iterator: bool = ..., chunksize: int, compression: dict[str, Any] | Literal['infer', 'gzip', 'bz2', 'zip', 'xz', 'zstd'] | None = ..., thousands: str | None = ..., decimal: str = ..., lineterminator: str | None = ..., quotechar: str = ..., quoting: Literal[0, 1, 2, 3, 4, 5] = ..., doublequote: bool = ..., escapechar: str | None = ..., comment: str | None = ..., encoding: str | None = ..., encoding_errors: str | None = ..., dialect: str | Dialect = ..., on_bad_lines: ((list[str]) -> (list[str] | None)) | Literal['error', 'warn', 'skip'] = ..., delim_whitespace: bool = ..., low_memory: bool = ..., memory_map: bool = ..., float_precision: Literal['high', 'legacy', 'round_trip'] | None = ..., storage_options: dict[str, Any] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> TextFileReader, (filepath_or_buffer: str | PathLike[str] | ReadCsvBuffer[bytes] | ReadCsvBuffer[str], *, sep: str | None = ..., delimiter: str | None = ..., header: int | Sequence[int] | Literal['infer'] | None = ..., names: MutableSequence[Unknown] | ndarray[Unknown, Unknown] | tuple[Unknown, ...] | range | None = ..., index_col: int | str | Sequence[str | int] | Literal[False] | None = ..., usecols: SequenceNotStr[Hashable] | range | ExtensionArray | ndarray[Any, Any] | Index[Any] | Series[Any] | ((Unknown) -> bool) | None = ..., dtype: ExtensionDtype | str | dtype[generic[Any]] | type[str] | type[complex] | type[bool] | type[object] | Mapping[Any, ExtensionDtype | str | dtype[generic[Any]] | type[str] | type[complex] | type[bool] | type[object]] | defaultdict[Unknown, Unknown] | None = ..., engine: Literal['c', 'python', 'pyarrow', 'python-fwf'] | None = ..., converters: Mapping[int | str, (str) -> Any] | Mapping[int, (str) -> Any] | Mapping[str, (str) -> Any] | None = ..., true_values: list[str] = ..., false_values: list[str] = ..., skipinitialspace: bool = ..., skiprows: int | Sequence[int] | ((int) -> bool) = ..., skipfooter: int = ..., nrows: int | None = ..., na_values: Sequence[str] | Mapping[str, Sequence[str]] = ..., keep_default_na: bool = ..., na_filter: bool = ..., verbose: bool = ..., skip_blank_lines: bool = ..., parse_dates: bool | list[int] | list[str] | Sequence[Sequence[int]] | Mapping[str, Sequence[int | str]] = ..., keep_date_col: bool = ..., date_format: dict[Hashable, str] | str | None = ..., dayfirst: bool = ..., cache_dates: bool = ..., iterator: Literal[False] = ..., chunksize: None = ..., compression: dict[str, Any] | Literal['infer', 'gzip', 'bz2', 'zip', 'xz', 'zstd'] | None = ..., thousands: str | None = ..., decimal: str = ..., lineterminator: str | None = ..., quotechar: str = ..., quoting: Literal[0, 1, 2, 3, 4, 5] = ..., doublequote: bool = ..., escapechar: str | None = ..., comment: str | None = ..., encoding: str | None = ..., encoding_errors: str | None = ..., dialect: str | Dialect = ..., on_bad_lines: ((list[str]) -> (list[str] | None)) | Literal['error', 'warn', 'skip'] = ..., delim_whitespace: bool = ..., low_memory: bool = ..., memory_map: bool = ..., float_precision: Literal['high', 'legacy', 'round_trip'] | None = ..., storage_options: dict[str, Any] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> DataFrame]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:111:14 - error: Unnecessary isinstance call; "DataFrame" is always an instance of "DataFrame" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:117:12 - error: Condition will always evaluate to False since the types "DataFrame" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:121:27 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:123:44 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:123:44 - error: Argument type is partially unknown
+    Argument corresponds to parameter "o" in function "__init__"
+    Argument type is "Index[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:127:17 - error: Type of "original_index_name" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:127:39 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:127:39 - error: Type of "name" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:129:35 - error: Type of "to_datetime" is partially unknown
+    Type of "to_datetime" is "Overload[(arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['ignore', 'raise'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> Timestamp, (arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['coerce'], dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> (Timestamp | NaTType), (arg: Series[Unknown] | FulldatetimeDict | DataFrame, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> TimestampSeries, (arg: Sequence[float | date] | list[str] | tuple[float | str | date, ...] | ndarray[tuple[int, ...], dtype[datetime64[date | int | None]]] | ndarray[tuple[int, ...], dtype[str_]] | ndarray[tuple[int, ...], dtype[signedinteger[_32Bit | _64Bit]]] | Index[Unknown] | ExtensionArray, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> DatetimeIndex]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:129:50 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:130:20 - error: Type of "isna" is partially unknown
+    Type of "isna" is "() -> Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:130:20 - error: Type of "any" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:131:21 - error: Type of "num_failed" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:131:34 - error: Type of "isna" is partially unknown
+    Type of "isna" is "() -> Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:131:34 - error: Type of "sum" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:134:21 - error: Type of "failed_examples" is partially unknown
+    Type of "failed_examples" is "list[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:134:39 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:134:55 - error: Type of "isna" is partially unknown
+    Type of "isna" is "() -> Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:151:16 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:177:16 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:198:16 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:277:9 - error: Type of "start_time" is partially unknown
+    Type of "start_time" is "Unknown | datetime" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:277:22 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:279:51 - error: Argument type is partially unknown
+    Argument corresponds to parameter "timestamp" in function "add_equity_point"
+    Argument type is "Unknown | datetime" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:281:18 - error: Type of "row" is partially unknown
+    Type of "row" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:281:25 - error: Type of "iterrows" is partially unknown
+    Type of "iterrows" is "() -> Iterable[tuple[Hashable, Series[Unknown]]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:283:22 - error: Type of "update" is partially unknown
+    Type of "update" is "(current_data: Series[Unknown] | DataFrame) -> dict[str, Any]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:353:29 - error: Type of "trade" is partially unknown
+    Type of "trade" is "dict[str, Any | float | Unknown | str]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:359:41 - error: Type of "isoformat" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:359:45 - error: Cannot access attribute "isoformat" for class "Hashable"
+    Attribute "isoformat" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:362:55 - error: Argument type is partially unknown
+    Argument corresponds to parameter "trade" in function "add_trade"
+    Argument type is "dict[str, Any | float | Unknown | str]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:394:29 - error: Type of "trade" is partially unknown
+    Type of "trade" is "dict[str, Any | str | float | Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:401:41 - error: Type of "isoformat" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:401:45 - error: Cannot access attribute "isoformat" for class "Hashable"
+    Attribute "isoformat" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:404:55 - error: Argument type is partially unknown
+    Argument corresponds to parameter "trade" in function "add_trade"
+    Argument type is "dict[str, Any | str | float | Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:426:20 - error: Condition will always evaluate to True since the types "datetime" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:501:17 - error: Type of "initialize_with_history" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:501:31 - error: Cannot access attribute "initialize_with_history" for class "Strategy"
+    Attribute "initialize_with_history" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:513:22 - error: Type of parameter "current_data" is partially unknown
+    Parameter type is "Series[Unknown] | DataFrame" (reportUnknownParameterType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:513:36 - error: Expected type arguments for generic class "Series" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:534:50 - error: Type of "_convert_to_market_data" is partially unknown
+    Type of "_convert_to_market_data" is "(data: Series[Unknown] | DataFrame) -> list[MarketData]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:557:54 - error: Type of "_convert_signals" is partially unknown
+    Type of "_convert_signals" is "(signals: list[TradeSignal], current_data: Series[Unknown] | DataFrame) -> list[dict[str, Any]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:570:39 - error: Type of parameter "data" is partially unknown
+    Parameter type is "Series[Unknown] | DataFrame" (reportUnknownParameterType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:570:45 - error: Expected type arguments for generic class "Series" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:592:27 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown] | MultiIndex" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:594:17 - error: Type of "symbols" is partially unknown
+    Type of "symbols" is "Index[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:594:27 - error: Type of "get_level_values" is partially unknown
+    Type of "get_level_values" is "(level: str | int) -> Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:595:21 - error: Type of "symbol" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:596:21 - error: Type of "row" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:596:27 - error: Type of "loc" is partially unknown
+    Type of "loc" is "_LocIndexerSeries[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:600:40 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:602:46 - error: Type of "get" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:602:46 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:603:46 - error: Type of "get" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:603:46 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:604:45 - error: Type of "get" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:604:45 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:605:47 - error: Type of "get" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:605:47 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:606:48 - error: Type of "get" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:606:48 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:612:64 - error: Type of "to_dict" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:617:17 - error: Type of "symbol" is partially unknown
+    Type of "symbol" is "Unknown | Literal['UNKNOWN_SYMBOL']" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:617:26 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:617:26 - error: Type of "name" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:617:45 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:617:45 - error: Type of "name" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:621:36 - error: Argument type is partially unknown
+    Argument corresponds to parameter "object" in function "__new__"
+    Argument type is "Unknown | Literal['UNKNOWN_SYMBOL']" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:623:42 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Hashable, default: None = ...) -> (Unknown | None), (key: Hashable, default: Unknown) -> Unknown, (key: Hashable, default: T@get) -> (Unknown | T@get)]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:623:42 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:624:42 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Hashable, default: None = ...) -> (Unknown | None), (key: Hashable, default: Unknown) -> Unknown, (key: Hashable, default: T@get) -> (Unknown | T@get)]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:624:42 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:625:41 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Hashable, default: None = ...) -> (Unknown | None), (key: Hashable, default: Unknown) -> Unknown, (key: Hashable, default: T@get) -> (Unknown | T@get)]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:625:41 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:626:43 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Hashable, default: None = ...) -> (Unknown | None), (key: Hashable, default: Unknown) -> Unknown, (key: Hashable, default: T@get) -> (Unknown | T@get)]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:626:43 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:627:44 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Hashable, default: None = ...) -> (Unknown | None), (key: Hashable, default: Unknown) -> Unknown, (key: Hashable, default: T@get) -> (Unknown | T@get)]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:627:44 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:633:63 - error: Type of "to_dict" is partially unknown
+    Type of "to_dict" is "Overload[(*, into: type[dict[Unknown, Unknown]] = ...) -> dict[Any, Unknown], (*, into: type[MutableMapping[Unknown, Unknown]] | MutableMapping[Unknown, Unknown]) -> MutableMapping[Hashable, Unknown]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:636:14 - error: Unnecessary isinstance call; "DataFrame" is always an instance of "DataFrame" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:641:29 - error: Type of "row_series" is partially unknown
+    Type of "row_series" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:641:43 - error: Type of "iterrows" is partially unknown
+    Type of "iterrows" is "() -> Iterable[tuple[Hashable, Series[Unknown]]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:643:41 - error: Type of "_convert_to_market_data" is partially unknown
+    Type of "_convert_to_market_data" is "(data: Series[Unknown] | DataFrame) -> list[MarketData]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:653:43 - error: Type of parameter "current_data" is partially unknown
+    Parameter type is "Series[Unknown] | DataFrame" (reportUnknownParameterType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:653:57 - error: Expected type arguments for generic class "Series" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:660:9 - error: Type of "timestamp" is partially unknown
+    Type of "timestamp" is "Hashable | Unknown | Timestamp | None" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:663:18 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:670:44 - error: Type of parameter "data" is partially unknown
+    Parameter type is "Series[Unknown] | DataFrame" (reportUnknownParameterType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:670:50 - error: Expected type arguments for generic class "Series" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:675:35 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown] | MultiIndex" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:677:25 - error: Type of "symbol_data" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:677:39 - error: Type of "loc" is partially unknown
+    Type of "loc" is "_LocIndexerSeries[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:678:25 - error: Type of "price_val" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:679:29 - error: Type of "get" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:679:65 - error: Argument type is unknown
+    Argument corresponds to parameter "obj" in function "hasattr" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:683:28 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:683:28 - error: Type of "name" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:684:29 - error: Type of "price_val" is partially unknown
+    Type of "price_val" is "Unknown | Series[Unknown] | None" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:684:41 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Hashable, default: None = ...) -> (Unknown | None), (key: Hashable, default: Unknown) -> Unknown, (key: Hashable, default: T@get) -> (Unknown | T@get)]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:684:70 - error: Argument type is partially unknown
+    Argument corresponds to parameter "obj" in function "hasattr"
+    Argument type is "Series[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:689:22 - error: Unnecessary isinstance call; "DataFrame" is always an instance of "DataFrame" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:692:38 - error: Type of "get_level_values" is partially unknown
+    Type of "get_level_values" is "(level: str | int) -> Index[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:693:29 - error: Type of "price_val" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:693:41 - error: Type of "iloc" is partially unknown
+    Type of "iloc" is "_iLocIndexerSeries[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:698:29 - error: Type of "price_val" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:698:41 - error: Type of "iloc" is partially unknown
+    Type of "iloc" is "_iLocIndexerSeries[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:700:25 - error: Type of "price_val" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:700:37 - error: Type of "iloc" is partially unknown
+    Type of "iloc" is "_iLocIndexerSeries[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:707:59 - error: Argument type is partially unknown
+    Argument corresponds to parameter "__x1" in function "__call__"
+    Argument type is "Unknown | Series[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:708:40 - error: Argument type is partially unknown
+    Argument corresponds to parameter "object" in function "__new__"
+    Argument type is "Unknown | Series[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:775:13 - error: Type of "date_range" is partially unknown
+    Type of "date_range" is "(start: str | date | datetime | datetime64[date | int | None] | Timestamp | None = ..., end: str | date | datetime | datetime64[date | int | None] | Timestamp | None = ..., periods: int | None = ..., freq: str | timedelta | Timedelta | BaseOffset = ..., tz: Unknown = ..., normalize: bool = ..., name: Hashable | None = ..., inclusive: Literal['left', 'right', 'both', 'neither'] = ..., unit: Literal['s', 'ms', 'us', 'ns'] | None = ...) -> DatetimeIndex" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting.py:778:15 - error: Type of "from_product" is partially unknown
+    Type of "from_product" is "(iterables: Sequence[Unknown], sortorder: int | None = ..., names: Unknown = ...) -> MultiIndex" (reportUnknownMemberType)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:71:30 - error: Type of "set_index" is partially unknown
+    Type of "set_index" is "Overload[(keys: Hashable | Series[Unknown] | Index[Unknown] | ndarray[Unknown, Unknown] | Iterator[Hashable] | Sequence[Hashable] | None, *, drop: bool = ..., append: bool = ..., verify_integrity: bool = ..., inplace: Literal[True]) -> None, (keys: Hashable | Series[Unknown] | Index[Unknown] | ndarray[Unknown, Unknown] | Iterator[Hashable] | Sequence[Hashable] | None, *, drop: bool = ..., append: bool = ..., verify_integrity: bool = ..., inplace: Literal[False] = ...) -> DataFrame]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:71:74 - error: Type of "to_datetime" is partially unknown
+    Type of "to_datetime" is "Overload[(arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['ignore', 'raise'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> Timestamp, (arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['coerce'], dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> (Timestamp | NaTType), (arg: Series[Unknown] | FulldatetimeDict | DataFrame, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> TimestampSeries, (arg: Sequence[float | date] | list[str] | tuple[float | str | date, ...] | ndarray[tuple[int, ...], dtype[datetime64[date | int | None]]] | ndarray[tuple[int, ...], dtype[str_]] | ndarray[tuple[int, ...], dtype[signedinteger[_32Bit | _64Bit]]] | Index[Unknown] | ExtensionArray, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> DatetimeIndex]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:75:47 - error: Type of "to_datetime" is partially unknown
+    Type of "to_datetime" is "Overload[(arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['ignore', 'raise'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> Timestamp, (arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['coerce'], dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> (Timestamp | NaTType), (arg: Series[Unknown] | FulldatetimeDict | DataFrame, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> TimestampSeries, (arg: Sequence[float | date] | list[str] | tuple[float | str | date, ...] | ndarray[tuple[int, ...], dtype[datetime64[date | int | None]]] | ndarray[tuple[int, ...], dtype[str_]] | ndarray[tuple[int, ...], dtype[signedinteger[_32Bit | _64Bit]]] | Index[Unknown] | ExtensionArray, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> DatetimeIndex]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:76:34 - error: Type of "set_index" is partially unknown
+    Type of "set_index" is "Overload[(keys: Hashable | Series[Unknown] | Index[Unknown] | ndarray[Unknown, Unknown] | Iterator[Hashable] | Sequence[Hashable] | None, *, drop: bool = ..., append: bool = ..., verify_integrity: bool = ..., inplace: Literal[True]) -> None, (keys: Hashable | Series[Unknown] | Index[Unknown] | ndarray[Unknown, Unknown] | Iterator[Hashable] | Sequence[Hashable] | None, *, drop: bool = ..., append: bool = ..., verify_integrity: bool = ..., inplace: Literal[False] = ...) -> DataFrame]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:78:45 - error: Type of "to_numeric" is partially unknown
+    Type of "to_numeric" is "Overload[(arg: str | bytes | date | datetime | timedelta | datetime64[date | int | None] | timedelta64[timedelta | int | None] | bool | int | float | Timestamp | Timedelta | complex, errors: Literal['raise', 'coerce'] = ..., downcast: Literal['integer', 'signed', 'unsigned', 'float'] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> float, (arg: list[Unknown] | tuple[Unknown, ...] | ndarray[Unknown, Unknown], errors: Literal['raise', 'coerce'] = ..., downcast: Literal['integer', 'signed', 'unsigned', 'float'] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> ndarray[tuple[int, ...], dtype[Unknown]], (arg: Series[Unknown], errors: Literal['raise', 'coerce'] = ..., downcast: Literal['integer', 'signed', 'unsigned', 'float'] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> Series[Unknown]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:83:34 - error: Type of "set_index" is partially unknown
+    Type of "set_index" is "Overload[(keys: Hashable | Series[Unknown] | Index[Unknown] | ndarray[Unknown, Unknown] | Iterator[Hashable] | Sequence[Hashable] | None, *, drop: bool = ..., append: bool = ..., verify_integrity: bool = ..., inplace: Literal[True]) -> None, (keys: Hashable | Series[Unknown] | Index[Unknown] | ndarray[Unknown, Unknown] | Iterator[Hashable] | Sequence[Hashable] | None, *, drop: bool = ..., append: bool = ..., verify_integrity: bool = ..., inplace: Literal[False] = ...) -> DataFrame]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:83:78 - error: Type of "to_datetime" is partially unknown
+    Type of "to_datetime" is "Overload[(arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['ignore', 'raise'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> Timestamp, (arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['coerce'], dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> (Timestamp | NaTType), (arg: Series[Unknown] | FulldatetimeDict | DataFrame, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> TimestampSeries, (arg: Sequence[float | date] | list[str] | tuple[float | str | date, ...] | ndarray[tuple[int, ...], dtype[datetime64[date | int | None]]] | ndarray[tuple[int, ...], dtype[str_]] | ndarray[tuple[int, ...], dtype[signedinteger[_32Bit | _64Bit]]] | Index[Unknown] | ExtensionArray, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> DatetimeIndex]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:101:47 - error: Type of "to_numeric" is partially unknown
+    Type of "to_numeric" is "Overload[(arg: str | bytes | date | datetime | timedelta | datetime64[date | int | None] | timedelta64[timedelta | int | None] | bool | int | float | Timestamp | Timedelta | complex, errors: Literal['raise', 'coerce'] = ..., downcast: Literal['integer', 'signed', 'unsigned', 'float'] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> float, (arg: list[Unknown] | tuple[Unknown, ...] | ndarray[Unknown, Unknown], errors: Literal['raise', 'coerce'] = ..., downcast: Literal['integer', 'signed', 'unsigned', 'float'] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> ndarray[tuple[int, ...], dtype[Unknown]], (arg: Series[Unknown], errors: Literal['raise', 'coerce'] = ..., downcast: Literal['integer', 'signed', 'unsigned', 'float'] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> Series[Unknown]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:104:47 - error: Type of "to_datetime" is partially unknown
+    Type of "to_datetime" is "Overload[(arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['ignore', 'raise'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> Timestamp, (arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['coerce'], dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> (Timestamp | NaTType), (arg: Series[Unknown] | FulldatetimeDict | DataFrame, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> TimestampSeries, (arg: Sequence[float | date] | list[str] | tuple[float | str | date, ...] | ndarray[tuple[int, ...], dtype[datetime64[date | int | None]]] | ndarray[tuple[int, ...], dtype[str_]] | ndarray[tuple[int, ...], dtype[signedinteger[_32Bit | _64Bit]]] | Index[Unknown] | ExtensionArray, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> DatetimeIndex]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:123:19 - error: Type of "pct_change" is partially unknown
+    Type of "pct_change" is "(periods: int = ..., fill_method: str = ..., limit: int | None = ..., freq: ... = ..., **kwargs: Unknown) -> Series[float]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:146:17 - error: Type of "mean" is partially unknown
+    Type of "mean" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., level: None = ..., numeric_only: bool = ..., **kwargs: Unknown) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:148:33 - error: Type of "std" is partially unknown
+    Type of "std" is "(axis: Literal['index', 0] | None = ..., skipna: bool | None = ..., level: None = ..., ddof: int = ..., numeric_only: bool = ..., **kwargs: Unknown) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:156:30 - error: Type of "cumprod" is partially unknown
+    Type of "cumprod" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., ...) -> Series[float]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:157:23 - error: Type of "cummax" is partially unknown
+    Type of "cummax" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., ...) -> Series[float]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:158:9 - error: Type of "drawdown" is partially unknown
+    Type of "drawdown" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:159:9 - error: Type of "max_drawdown" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:159:24 - error: Type of "min" is partially unknown
+    Type of "min" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., level: None = ..., numeric_only: bool = ..., **kwargs: Unknown) -> Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:162:9 - error: Type of "calmar_ratio" is partially unknown
+    Type of "calmar_ratio" is "Unknown | float" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:162:49 - error: Argument type is unknown
+    Argument corresponds to parameter "x" in function "abs" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:193:32 - error: Type of "sum" is partially unknown
+    Type of "sum" is "Overload[(axis: Literal['index', 0] | None = ..., skipna: bool | None = ..., level: None = ..., numeric_only: bool = ..., min_count: int = ..., **kwargs: Unknown) -> Any, (axis: Literal['index', 0] | None = ..., skipna: bool | None = ..., level: None = ..., numeric_only: bool = ..., min_count: int = ..., **kwargs: Unknown) -> int, (axis: Literal['index', 0] | None = ..., skipna: bool | None = ..., level: None = ..., numeric_only: bool = ..., min_count: int = ..., **kwargs: Unknown) -> Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:194:34 - error: Type of "sum" is partially unknown
+    Type of "sum" is "Overload[(axis: Literal['index', 0] | None = ..., skipna: bool | None = ..., level: None = ..., numeric_only: bool = ..., min_count: int = ..., **kwargs: Unknown) -> Any, (axis: Literal['index', 0] | None = ..., skipna: bool | None = ..., level: None = ..., numeric_only: bool = ..., min_count: int = ..., **kwargs: Unknown) -> int, (axis: Literal['index', 0] | None = ..., skipna: bool | None = ..., level: None = ..., numeric_only: bool = ..., min_count: int = ..., **kwargs: Unknown) -> Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:201:49 - error: Type of "mean" is partially unknown
+    Type of "mean" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., level: None = ..., numeric_only: bool = ..., **kwargs: Unknown) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:203:21 - error: Type of "mean" is partially unknown
+    Type of "mean" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., level: None = ..., numeric_only: bool = ..., **kwargs: Unknown) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:206:21 - error: Type of "mean" is partially unknown
+    Type of "mean" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., level: None = ..., numeric_only: bool = ..., **kwargs: Unknown) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:212:44 - error: Type of "to_datetime" is partially unknown
+    Type of "to_datetime" is "Overload[(arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['ignore', 'raise'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> Timestamp, (arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['coerce'], dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> (Timestamp | NaTType), (arg: Series[Unknown] | FulldatetimeDict | DataFrame, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> TimestampSeries, (arg: Sequence[float | date] | list[str] | tuple[float | str | date, ...] | ndarray[tuple[int, ...], dtype[datetime64[date | int | None]]] | ndarray[tuple[int, ...], dtype[str_]] | ndarray[tuple[int, ...], dtype[signedinteger[_32Bit | _64Bit]]] | Index[Unknown] | ExtensionArray, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> DatetimeIndex]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:213:43 - error: Type of "to_datetime" is partially unknown
+    Type of "to_datetime" is "Overload[(arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['ignore', 'raise'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> Timestamp, (arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['coerce'], dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> (Timestamp | NaTType), (arg: Series[Unknown] | FulldatetimeDict | DataFrame, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> TimestampSeries, (arg: Sequence[float | date] | list[str] | tuple[float | str | date, ...] | ndarray[tuple[int, ...], dtype[datetime64[date | int | None]]] | ndarray[tuple[int, ...], dtype[str_]] | ndarray[tuple[int, ...], dtype[signedinteger[_32Bit | _64Bit]]] | Index[Unknown] | ExtensionArray, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> DatetimeIndex]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:214:30 - error: Type of "dropna" is partially unknown
+    Type of "dropna" is "Overload[(*, axis: Literal['index', 0, 'columns', 1] = ..., how: Literal['any', 'all'] = ..., thresh: int | None = ..., subset: Sequence[Unknown] | ndarray[Unknown, Unknown] | Series[Unknown] | Index[Unknown] | str | bytes | date | datetime | timedelta | datetime64[date | int | None] | timedelta64[timedelta | int | None] | bool | int | float | Timestamp | Timedelta | complex | None = ..., inplace: Literal[True], ignore_index: bool = ...) -> None, (*, axis: Literal['index', 0, 'columns', 1] = ..., how: Literal['any', 'all'] = ..., thresh: int | None = ..., subset: Sequence[Unknown] | ndarray[Unknown, Unknown] | Series[Unknown] | Index[Unknown] | str | bytes | date | datetime | timedelta | datetime64[date | int | None] | timedelta64[timedelta | int | None] | bool | int | float | Timestamp | Timedelta | complex | None = ..., inplace: Literal[False] = ..., ignore_index: bool = ...) -> DataFrame]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:216:25 - error: Type of "holding_periods" is partially unknown
+    Type of "holding_periods" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:218:38 - error: Type of "mean" is partially unknown
+    Type of "mean" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., level: None = ..., numeric_only: bool = ..., **kwargs: Unknown) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:274:25 - error: Type of "subplots" is partially unknown
+    Type of "subplots" is "Overload[(nrows: Literal[1] = ..., ncols: Literal[1] = ..., *, sharex: bool | Literal['none', 'all', 'row', 'col'] = ..., sharey: bool | Literal['none', 'all', 'row', 'col'] = ..., squeeze: Literal[True] = ..., width_ratios: Sequence[float] | None = ..., height_ratios: Sequence[float] | None = ..., subplot_kw: dict[str, Any] | None = ..., gridspec_kw: dict[str, Any] | None = ..., **fig_kw: Unknown) -> tuple[Figure, Axes], (nrows: int = ..., ncols: int = ..., *, sharex: bool | Literal['none', 'all', 'row', 'col'] = ..., sharey: bool | Literal['none', 'all', 'row', 'col'] = ..., squeeze: Literal[False], width_ratios: Sequence[float] | None = ..., height_ratios: Sequence[float] | None = ..., subplot_kw: dict[str, Any] | None = ..., gridspec_kw: dict[str, Any] | None = ..., **fig_kw: Unknown) -> tuple[Figure, ndarray[Unknown, Unknown]], (nrows: int = ..., ncols: int = ..., *, sharex: bool | Literal['none', 'all', 'row', 'col'] = ..., sharey: bool | Literal['none', 'all', 'row', 'col'] = ..., squeeze: bool = ..., width_ratios: Sequence[float] | None = ..., height_ratios: Sequence[float] | None = ..., subplot_kw: dict[str, Any] | None = ..., gridspec_kw: dict[str, Any] | None = ..., **fig_kw: Unknown) -> tuple[Figure, Any]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:277:13 - error: Type of "suptitle" is partially unknown
+    Type of "suptitle" is "(t: str, **kwargs: Unknown) -> Text" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:290:13 - error: Type of "returns" is partially unknown
+    Type of "returns" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:290:23 - error: Type of "pct_change" is partially unknown
+    Type of "pct_change" is "(periods: int = ..., fill_method: str = ..., limit: int | None = ..., freq: ... = ..., **kwargs: Unknown) -> Series[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:291:13 - error: Type of "cumulative_returns" is partially unknown
+    Type of "cumulative_returns" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:291:34 - error: Type of "cumprod" is partially unknown
+    Type of "cumprod" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., ...) -> Series[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:292:13 - error: Type of "rolling_max" is partially unknown
+    Type of "rolling_max" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:292:27 - error: Type of "cummax" is partially unknown
+    Type of "cummax" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., ...) -> Series[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:293:13 - error: Type of "drawdown" is partially unknown
+    Type of "drawdown" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:295:30 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown] | MultiIndex" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:296:22 - error: Type of "index" is partially unknown
+    Type of "index" is "Index[Unknown] | MultiIndex" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:303:13 - error: Type of "xlabel" is partially unknown
+    Type of "xlabel" is "(xlabel: str, fontdict: dict[str, Any] | None = None, labelpad: float | None = None, *, loc: Literal['left', 'center', 'right'] | None = None, **kwargs: Unknown) -> Text" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:312:13 - error: Type of "savefig" is partially unknown
+    Type of "savefig" is "(...) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:316:17 - error: Type of "show" is partially unknown
+    Type of "show" is "(...) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:325:56 - error: "fig" is possibly unbound (reportPossiblyUnboundVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:326:27 - error: "fig" is possibly unbound (reportPossiblyUnboundVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:355:42 - error: Argument type is unknown
+    Argument corresponds to parameter "x" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:357:30 - error: Type of "row" is partially unknown
+    Type of "row" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/backtesting/results.py:357:37 - error: Type of "iterrows" is partially unknown
+    Type of "iterrows" is "() -> Iterable[tuple[Hashable, Series[Unknown]]]" (reportUnknownMemberType)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/balance_monitor.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/balance_monitor.py:155:9 - error: Type of "already_alerted" is partially unknown
+    Type of "already_alerted" is "set[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/balance_monitor.py:187:21 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/balance_monitor.py:189:21 - error: Type of "add" is partially unknown
+    Type of "add" is "(element: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/balance_monitor.py:209:21 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/balance_monitor.py:215:35 - error: Argument type is partially unknown
+    Argument corresponds to parameter "iterable" in function "extend"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/balance_monitor.py:219:16 - error: Return type, "list[Unknown]", is partially unknown (reportUnknownVariableType)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:61:34 - error: Expected type arguments for generic class "Task" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:117:17 - error: Type of "ws_tasks" is partially unknown
+    Type of "ws_tasks" is "dict[str, Task[Unknown]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:144:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:145:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:148:31 - error: Argument type is unknown
+    Argument corresponds to parameter "coros_or_futures" in function "gather" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:263:22 - error: Unnecessary isinstance call; "tuple[str, Ticker]" is always an instance of "tuple[Unknown, ...]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:266:24 - error: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:266:62 - error: Unnecessary isinstance call; "Ticker" is always an instance of "Ticker" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:328:20 - error: Unnecessary isinstance call; "FundingRate" is always an instance of "FundingRate" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:565:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:566:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:570:35 - error: Argument type is unknown
+    Argument corresponds to parameter "coros_or_futures" in function "gather" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:704:26 - error: Type of "task" is partially unknown
+    Type of "task" is "Task[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/data_handler.py:704:34 - error: Type of "ws_tasks" is partially unknown
+    Type of "ws_tasks" is "dict[str, Task[Unknown]]" (reportUnknownMemberType)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:213:20 - error: Type of "row" is partially unknown
+    Type of "row" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:213:27 - error: Type of "iterrows" is partially unknown
+    Type of "iterrows" is "() -> Iterable[tuple[Hashable, Series[Unknown]]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:217:38 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:218:38 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:219:37 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:220:39 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:221:40 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:224:17 - error: Type of "ts" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:226:21 - error: Type of "ts" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:226:26 - error: Type of "to_datetime" is partially unknown
+    Type of "to_datetime" is "Overload[(arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['ignore', 'raise'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> Timestamp, (arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['coerce'], dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> (Timestamp | NaTType), (arg: Series[Unknown] | FulldatetimeDict | DataFrame, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> TimestampSeries, (arg: Sequence[float | date] | list[str] | tuple[float | str | date, ...] | ndarray[tuple[int, ...], dtype[datetime64[date | int | None]]] | ndarray[tuple[int, ...], dtype[str_]] | ndarray[tuple[int, ...], dtype[signedinteger[_32Bit | _64Bit]]] | Index[Unknown] | ExtensionArray, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> DatetimeIndex]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:226:41 - error: Argument type is unknown
+    Argument corresponds to parameter "arg" in function "to_datetime" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:227:20 - error: Type of "tzinfo" is partially unknown
+    Type of "tzinfo" is "Unknown | tzinfo | None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:228:21 - error: Type of "ts" is partially unknown
+    Type of "ts" is "datetime | Unknown" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:228:26 - error: Type of "replace" is partially unknown
+    Type of "replace" is "Unknown | ((year: SupportsIndex = ..., month: SupportsIndex = ..., day: SupportsIndex = ..., hour: SupportsIndex = ..., minute: SupportsIndex = ..., second: SupportsIndex = ..., microsecond: SupportsIndex = ..., tzinfo: tzinfo | None = ..., *, fold: int = ...) -> datetime)" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:230:21 - error: Type of "ts" is partially unknown
+    Type of "ts" is "datetime | Unknown" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:230:26 - error: Type of "astimezone" is partially unknown
+    Type of "astimezone" is "Unknown | ((tz: tzinfo | None = ...) -> datetime)" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:235:30 - error: Type of "to_dict" is partially unknown
+    Type of "to_dict" is "Overload[(*, into: type[dict[Unknown, Unknown]] = ...) -> dict[Any, Unknown], (*, into: type[MutableMapping[Unknown, Unknown]] | MutableMapping[Unknown, Unknown]) -> MutableMapping[Hashable, Unknown]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/engine.py:244:27 - error: Argument type is partially unknown
+    Argument corresponds to parameter "timestamp" in function "__init__"
+    Argument type is "datetime | Unknown" (reportUnknownArgumentType)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:182:60 - error: "_orders" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:241:21 - error: Type of "api_value" is partially unknown
+    Type of "api_value" is "Unknown | Any | None" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:242:25 - error: Type of "get" is partially unknown
+    Type of "get" is "Overload[(key: Unknown, default: None = None, /) -> (Unknown | None), (key: Unknown, default: Unknown, /) -> Unknown, (key: Unknown, default: _T@get, /) -> (Unknown | _T@get)]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:272:60 - error: "_orders" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:298:9 - error: Type of "recent_fills" is partially unknown
+    Type of "recent_fills" is "list[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:298:30 - error: Type of "get_recent_fills" is partially unknown
+    Type of "get_recent_fills" is "(symbol: str | None = None, limit: int | None = None) -> CoroutineType[Any, Any, list[Unknown]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:298:41 - error: "get_recent_fills" is not a known attribute of "None" (reportOptionalMemberAccess)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:395:32 - error: Type of "to_dict" is partially unknown
+    Type of "to_dict" is "(() -> dict[str, Any]) | Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:395:44 - error: Cannot access attribute "to_dict" for class "dict[str, Any]"
+    Attribute "to_dict" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:480:24 - error: Condition will always evaluate to True since the types "datetime" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:480:57 - error: Condition will always evaluate to True since the types "datetime" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution/synchronized_order_submission.py:928:14 - error: Unnecessary isinstance call; "dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/execution_handler.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution_handler.py:275:22 - error: Unnecessary isinstance call; "BaseException" is always an instance of "BaseException" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/execution_handler.py:283:22 - error: Unnecessary isinstance call; "BaseException" is always an instance of "BaseException" (reportUnnecessaryIsInstance)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:103:12 - error: Condition will always evaluate to False since the types "str | int | float" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:270:12 - error: Condition will always evaluate to False since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:272:12 - error: Condition will always evaluate to False since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:348:16 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:361:42 - error: Condition will always evaluate to False since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:414:5 - error: Type of "metadata" is partially unknown
+    Type of "metadata" is "dict[Unknown, Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:519:40 - error: Unnecessary isinstance call; "OrderSide" is always an instance of "OrderSide" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:521:16 - error: Unnecessary isinstance call; "OrderType" is always an instance of "OrderType" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:534:44 - error: Unnecessary isinstance call; "OrderStatus" is always an instance of "OrderStatus" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:719:16 - error: Unnecessary isinstance call; "list[Any]" is always an instance of "list[Unknown]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:726:59 - error: Argument type is partially unknown
+    Argument corresponds to parameter "obj" in function "len"
+    Argument type is "list[Unknown] | tuple[Unknown, ...]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:733:37 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:734:40 - error: Argument type is unknown
+    Argument corresponds to parameter "object" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:1066:16 - error: Unnecessary isinstance call; "SignalType" is always an instance of "SignalType" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/models.py:1068:39 - error: Unnecessary isinstance call; "OrderSide" is always an instance of "OrderSide" (reportUnnecessaryIsInstance)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:118:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:119:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:121:13 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:130:9 - error: Type of "results" is partially unknown
+    Type of "results" is "list[Unknown | BaseException]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:130:41 - error: Argument type is unknown
+    Argument corresponds to parameter "coros_or_futures" in function "gather" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:137:16 - error: Type of "result" is partially unknown
+    Type of "result" is "Unknown | BaseException" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:137:36 - error: Argument type is partially unknown
+    Argument corresponds to parameter "iterable" in function "__new__"
+    Argument type is "list[Unknown | BaseException]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:151:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:155:39 - error: Argument type is partially unknown
+    Argument corresponds to parameter "iterable" in function "join"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:166:12 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:203:34 - error: Condition will always evaluate to True since the types "Balance" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:223:18 - error: Unnecessary isinstance call; "list[Balance | dict[str, Any]]" is always an instance of "list[Unknown]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:232:26 - error: Unnecessary isinstance call; "dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:234:43 - error: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:330:14 - error: Unnecessary isinstance call; "dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:415:16 - error: Unnecessary isinstance call; "list[Position]" is always an instance of "list[Unknown]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:417:24 - error: Unnecessary isinstance call; "Position" is always an instance of "Position" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:463:26 - error: Unnecessary isinstance call; "Never" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:566:65 - error: Function with declared return type "bool" must return value on all code paths
+    "None" is not assignable to "bool" (reportReturnType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:576:16 - error: Condition will always evaluate to False since the types "list[Order]" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:588:16 - error: Unnecessary isinstance call; "list[Order]" is always an instance of "list[Unknown]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:593:24 - error: Unnecessary isinstance call; "Order" is always an instance of "Order" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:596:26 - error: Unnecessary isinstance call; "Never" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:714:30 - error: Unnecessary isinstance call; "Order" is always an instance of "Order" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:746:18 - error: Unnecessary isinstance call; "Never" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:749:21 - error: Type of "_order_id" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:749:32 - error: Type of "_order_info" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:749:47 - error: "Never" is not iterable (reportGeneralTypeIssues)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:802:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:803:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:804:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:811:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:814:13 - error: Type of "results" is partially unknown
+    Type of "results" is "list[Unknown | BaseException]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:814:45 - error: Argument type is unknown
+    Argument corresponds to parameter "coros_or_futures" in function "gather" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:816:20 - error: Type of "result" is partially unknown
+    Type of "result" is "Unknown | BaseException" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:816:40 - error: Argument type is partially unknown
+    Argument corresponds to parameter "iterable" in function "__new__"
+    Argument type is "list[Unknown | BaseException]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:829:12 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1004:37 - error: "new_size" is possibly unbound (reportPossiblyUnboundVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1005:54 - error: "new_size" is possibly unbound (reportPossiblyUnboundVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1006:72 - error: "new_size" is possibly unbound (reportPossiblyUnboundVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1040:9 - error: Variable "base_asset" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1124:14 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal | int | float | str" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1207:52 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1217:56 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1245:29 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1246:29 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1290:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1291:16 - error: Return type, "list[Unknown]", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1298:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1299:16 - error: Return type, "list[Unknown]", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1341:21 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1342:16 - error: Return type, "list[Unknown]", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1349:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1350:16 - error: Return type, "list[Unknown]", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1428:9 - error: Type of "active" is partially unknown
+    Type of "active" is "set[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1431:20 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1432:21 - error: Type of "add" is partially unknown
+    Type of "add" is "(element: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/portfolio_tracker.py:1440:21 - error: Type of "add" is partially unknown
+    Type of "add" is "(element: Unknown, /) -> None" (reportUnknownMemberType)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:87:9 - error: Return type, "Series[Unknown]", is partially unknown (reportUnknownParameterType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:87:36 - error: Expected type arguments for generic class "Series" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:95:20 - error: Return type, "Series[Unknown]", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:99:27 - error: Type of "to_datetime" is partially unknown
+    Type of "to_datetime" is "Overload[(arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['ignore', 'raise'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> Timestamp, (arg: float | str | datetime | datetime64[date | int | None] | date, errors: Literal['coerce'], dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> (Timestamp | NaTType), (arg: Series[Unknown] | FulldatetimeDict | DataFrame, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> TimestampSeries, (arg: Sequence[float | date] | list[str] | tuple[float | str | date, ...] | ndarray[tuple[int, ...], dtype[datetime64[date | int | None]]] | ndarray[tuple[int, ...], dtype[str_]] | ndarray[tuple[int, ...], dtype[signedinteger[_32Bit | _64Bit]]] | Index[Unknown] | ExtensionArray, errors: Literal['raise', 'coerce'] = ..., dayfirst: bool = ..., yearfirst: bool = ..., utc: bool = ..., format: str | None = ..., exact: bool = ..., unit: str | None = ..., origin: Timestamp | datetime | date | datetime64[date | int | None] | signedinteger[_64Bit] | float | str | Literal['julian', 'unix'] = ..., cache: bool = ...) -> DatetimeIndex]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:100:9 - error: Type of "set_index" is partially unknown
+    Type of "set_index" is "Overload[(keys: Hashable | Series[Unknown] | Index[Unknown] | ndarray[Unknown, Unknown] | Iterator[Hashable] | Sequence[Hashable] | None, *, drop: bool = ..., append: bool = ..., verify_integrity: bool = ..., inplace: Literal[True]) -> None, (keys: Hashable | Series[Unknown] | Index[Unknown] | ndarray[Unknown, Unknown] | Iterator[Hashable] | Sequence[Hashable] | None, *, drop: bool = ..., append: bool = ..., verify_integrity: bool = ..., inplace: Literal[False] = ...) -> DataFrame]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:101:9 - error: Type of "sort_index" is partially unknown
+    Type of "sort_index" is "Overload[(*, axis: Literal['index', 0, 'columns', 1] = ..., level: Hashable | int | None = ..., ascending: bool | Sequence[bool] = ..., kind: Literal['quicksort', 'mergesort', 'heapsort', 'stable'] = ..., na_position: Literal['first', 'last'] = ..., sort_remaining: bool = ..., ignore_index: bool = ..., inplace: Literal[True], key: ((...) -> Unknown) | None = ...) -> None, (*, axis: Literal['index', 0, 'columns', 1] = ..., level: Hashable | int | list[int] | list[str] | None = ..., ascending: bool | Sequence[bool] = ..., kind: Literal['quicksort', 'mergesort', 'heapsort', 'stable'] = ..., na_position: Literal['first', 'last'] = ..., sort_remaining: bool = ..., ignore_index: bool = ..., inplace: Literal[False] = ..., key: ((...) -> Unknown) | None = ...) -> DataFrame]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:104:24 - error: Type of "to_numeric" is partially unknown
+    Type of "to_numeric" is "Overload[(arg: str | bytes | date | datetime | timedelta | datetime64[date | int | None] | timedelta64[timedelta | int | None] | bool | int | float | Timestamp | Timedelta | complex, errors: Literal['raise', 'coerce'] = ..., downcast: Literal['integer', 'signed', 'unsigned', 'float'] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> float, (arg: list[Unknown] | tuple[Unknown, ...] | ndarray[Unknown, Unknown], errors: Literal['raise', 'coerce'] = ..., downcast: Literal['integer', 'signed', 'unsigned', 'float'] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> ndarray[tuple[int, ...], dtype[Unknown]], (arg: Series[Unknown], errors: Literal['raise', 'coerce'] = ..., downcast: Literal['integer', 'signed', 'unsigned', 'float'] | None = ..., dtype_backend: Literal['pyarrow', 'numpy_nullable', _NoDefault.no_default] = ...) -> Series[Unknown]]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:106:31 - error: Type of "pct_change" is partially unknown
+    Type of "pct_change" is "(periods: int = ..., fill_method: str = ..., limit: int | None = ..., freq: ... = ..., **kwargs: Unknown) -> Series[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:117:13 - error: Type of "calculate_returns" is partially unknown
+    Type of "calculate_returns" is "() -> Series[Unknown]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:164:9 - error: Type of "total_return" is partially unknown
+    Type of "total_return" is "Unknown | timedelta64[timedelta | int | None] | int | float | complex" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:164:24 - error: Operator "-" not supported for types "Scalar" and "Literal[1]"
+    Operator "-" not supported for types "str" and "Literal[1]"
+    Operator "-" not supported for types "bytes" and "Literal[1]"
+    Operator "-" not supported for types "date" and "Literal[1]"
+    Operator "-" not supported for types "datetime" and "Literal[1]"
+    Operator "-" not supported for types "timedelta" and "Literal[1]"
+    Operator "-" not supported for types "Timestamp" and "Literal[1]"
+    Operator "-" not supported for types "Timedelta" and "Literal[1]" (reportOperatorIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:164:24 - error: Operator "*" not supported for types "Unknown | datetime64[date | int | None] | timedelta64[timedelta | int | None] | int | float | complex" and "Literal[100]"
+    Operator "*" not supported for types "datetime64[date | int | None]" and "Literal[100]" (reportOperatorIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:164:25 - error: Type of "prod" is partially unknown
+    Type of "prod" is "(axis: Literal['index', 0] | None = ..., skipna: bool | None = ..., level: None = ..., numeric_only: bool = ..., min_count: int = ..., **kwargs: Unknown) -> (str | bytes | date | datetime | timedelta | datetime64[date | int | None] | timedelta64[timedelta | int | None] | bool | int | float | Timestamp | Timedelta | complex)" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:166:9 - error: Type of "annualized_return" is partially unknown
+    Type of "annualized_return" is "Unknown | Any | complex | float" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:167:14 - error: Operator "**" not supported for types "Unknown | timedelta64[timedelta | int | None] | float | complex" and "float"
+    Operator "**" not supported for types "timedelta64[timedelta | int | None]" and "float" (reportOperatorIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:171:22 - error: Type of "std" is partially unknown
+    Type of "std" is "(axis: Literal['index', 0] | None = ..., skipna: bool | None = ..., level: None = ..., ddof: int = ..., numeric_only: bool = ..., **kwargs: Unknown) -> float" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:174:23 - error: Type of "cumprod" is partially unknown
+    Type of "cumprod" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., ...) -> Series[float]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:175:23 - error: Type of "cummax" is partially unknown
+    Type of "cummax" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., ...) -> Series[float]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:176:9 - error: Type of "drawdown" is partially unknown
+    Type of "drawdown" is "Series[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:177:9 - error: Type of "max_drawdown" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:177:28 - error: Type of "min" is partially unknown
+    Type of "min" is "(axis: Literal['index', 0] | None = ..., skipna: bool = ..., level: None = ..., numeric_only: bool = ..., **kwargs: Unknown) -> Unknown" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:177:28 - error: Argument type is unknown
+    Argument corresponds to parameter "x" in function "abs" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:180:9 - error: Type of "sharpe_ratio" is partially unknown
+    Type of "sharpe_ratio" is "Unknown | Any | float" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:185:39 - error: Argument of type "Unknown | timedelta64[timedelta | int | None] | int | float | complex" cannot be assigned to parameter "x" of type "ConvertibleToFloat" in function "__new__"
+    Type "Unknown | timedelta64[timedelta | int | None] | int | float | complex" is not assignable to type "ConvertibleToFloat"
+      Type "complex" is not assignable to type "ConvertibleToFloat"
+        "complex" is not assignable to "str"
+        "complex" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "complex" is incompatible with protocol "SupportsFloat"
+          "__float__" is not present
+        "complex" is incompatible with protocol "SupportsIndex"
+    ... (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:185:39 - error: Argument of type "Unknown | timedelta64[timedelta | int | None] | int | float | complex" cannot be assigned to parameter "x" of type "ConvertibleToFloat" in function "__new__"
+    Type "Unknown | timedelta64[timedelta | int | None] | int | float | complex" is not assignable to type "ConvertibleToFloat"
+      Type "complex" is not assignable to type "ConvertibleToFloat"
+        "complex" is not assignable to "str"
+        "complex" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "complex" is incompatible with protocol "SupportsFloat"
+          "__float__" is not present
+        "complex" is incompatible with protocol "SupportsIndex" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:186:44 - error: Argument of type "Unknown | Any | complex | float" cannot be assigned to parameter "x" of type "ConvertibleToFloat" in function "__new__"
+    Type "Unknown | Any | complex | float" is not assignable to type "ConvertibleToFloat"
+      Type "complex" is not assignable to type "ConvertibleToFloat"
+        "complex" is not assignable to "str"
+        "complex" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "complex" is incompatible with protocol "SupportsFloat"
+          "__float__" is not present
+        "complex" is incompatible with protocol "SupportsIndex"
+    ... (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:186:44 - error: Argument of type "Unknown | Any | complex | float" cannot be assigned to parameter "x" of type "ConvertibleToFloat" in function "__new__"
+    Type "Unknown | Any | complex | float" is not assignable to type "ConvertibleToFloat"
+      Type "complex" is not assignable to type "ConvertibleToFloat"
+        "complex" is not assignable to "str"
+        "complex" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "complex" is incompatible with protocol "SupportsFloat"
+          "__float__" is not present
+        "complex" is incompatible with protocol "SupportsIndex" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:188:39 - error: Argument type is partially unknown
+    Argument corresponds to parameter "x" in function "__new__"
+    Argument type is "Unknown | Any | float" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/results.py:189:39 - error: Argument type is unknown
+    Argument corresponds to parameter "x" in function "__new__" (reportUnknownArgumentType)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:217:16 - error: Condition will always evaluate to False since the types "str" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:218:16 - error: Condition will always evaluate to False since the types "str" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:311:12 - error: Condition will always evaluate to False since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:451:12 - error: Condition will always evaluate to False since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:464:52 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:473:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:492:16 - error: Argument type is partially unknown
+    Argument corresponds to parameter "obj" in function "len"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:495:54 - error: Argument type is partially unknown
+    Argument corresponds to parameter "obj" in function "len"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:498:16 - error: Return type, "list[Unknown]", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:653:12 - error: Condition will always evaluate to False since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:877:12 - error: Condition will always evaluate to False since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:963:39 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:983:67 - error: "_balances" is protected and used outside of the class in which it is declared (reportPrivateUsage)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1003:21 - error: Unnecessary isinstance call; "Position" is always an instance of "Position" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1007:25 - error: Condition will always evaluate to True since the types "str" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1008:25 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1009:25 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1077:20 - error: Unnecessary isinstance call; "Position" is always an instance of "Position" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1082:29 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1084:29 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1121:21 - error: Unnecessary isinstance call; "Position" is always an instance of "Position" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1123:25 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1125:25 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1180:20 - error: Unnecessary isinstance call; "Position" is always an instance of "Position" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/risk_manager.py:1257:12 - error: Condition will always evaluate to True since the types "Decimal" and "None" have no overlap (reportUnnecessaryComparison)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:262:29 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:283:20 - error: Argument type is partially unknown
+    Argument corresponds to parameter "obj" in function "len"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:285:17 - error: Type of "ex1" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:286:17 - error: Type of "ex2" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:287:48 - error: Argument type is unknown
+    Argument corresponds to parameter "key" in function "get" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:288:48 - error: Argument type is unknown
+    Argument corresponds to parameter "key" in function "get" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:340:35 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:392:35 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:481:12 - error: Condition will always evaluate to False since the types "MarketData" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:515:13 - error: Type of "extend" is partially unknown
+    Type of "extend" is "(iterable: Iterable[Unknown], /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:519:9 - error: Type of "sort" is partially unknown
+    Type of "sort" is "Overload[(*, key: None = None, reverse: bool = False) -> None, (*, key: (Unknown) -> (SupportsDunderLT[Any] | SupportsDunderGT[Any]), reverse: bool = False) -> None]" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:520:24 - error: Type of parameter "x" is unknown (reportUnknownLambdaType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:520:33 - error: Type of "net_funding_differential" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:520:33 - error: Argument type is unknown
+    Argument corresponds to parameter "x" in function "__new__" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:521:16 - error: Type of "net_funding_differential" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:525:16 - error: Return type, "list[Unknown]", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:557:20 - error: Condition will always evaluate to False since the types "FundingRate" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:557:41 - error: Condition will always evaluate to False since the types "FundingRate" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:573:28 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:575:28 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:602:28 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:604:28 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:623:28 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:625:28 - error: Unnecessary isinstance call; "Decimal" is always an instance of "Decimal" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:665:21 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_generator.py:674:16 - error: Return type, "list[Unknown]", is partially unknown (reportUnknownVariableType)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:257:17 - error: Variable "neg_score" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:387:21 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:397:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:400:16 - error: Argument type is partially unknown
+    Argument corresponds to parameter "obj" in function "len"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:403:44 - error: Argument type is partially unknown
+    Argument corresponds to parameter "obj" in function "len"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:670:34 - error: Variable "score" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:670:41 - error: Variable "count" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:681:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:689:13 - error: Variable "score" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:689:20 - error: Variable "count" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:818:17 - error: Variable "priority" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:818:27 - error: Variable "timestamp" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:818:38 - error: Variable "count" is not accessed (reportUnusedVariable)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:819:17 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:826:44 - error: Argument type is partially unknown
+    Argument corresponds to parameter "obj" in function "len"
+    Argument type is "list[Unknown]" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:828:16 - error: Return type, "list[Unknown]", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:863:13 - error: Type of "exchanges_to_check" is partially unknown
+    Type of "exchanges_to_check" is "set[Unknown]" (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:869:17 - error: Type of "add" is partially unknown
+    Type of "add" is "(element: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:871:17 - error: Type of "add" is partially unknown
+    Type of "add" is "(element: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:873:17 - error: Type of "add" is partially unknown
+    Type of "add" is "(element: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:879:21 - error: Type of "add" is partially unknown
+    Type of "add" is "(element: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:892:17 - error: Type of "ex" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/signal_queue.py:893:76 - error: Argument type is unknown
+    Argument corresponds to parameter "exchange" in function "can_execute" (reportUnknownArgumentType)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy.py:104:43 - error: TypeVar "_T" appears only once in generic function signature
+    Use "object" instead (reportInvalidTypeVarUse)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:45:27 - error: Expected type arguments for generic class "Task" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:176:9 - error: Type of "results" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:176:25 - error: No overloads for "gather" match the provided arguments (reportCallIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:176:41 - error: Argument of type "TradeSignal | None" cannot be assigned to parameter "coros_or_futures" of type "_FutureLike[_T@gather]" in function "gather"
+    Type "TradeSignal | None" is not assignable to type "_FutureLike[_T@gather]"
+      Type "TradeSignal" is not assignable to type "_FutureLike[_T@gather]"
+        "TradeSignal" is incompatible with protocol "Awaitable[_T@gather]"
+          "__await__" is not present
+        "TradeSignal" is not assignable to "Future[_T@gather]" (reportArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:178:13 - error: Type of "result" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:181:20 - error: Condition will always evaluate to True since the types "TradeSignal" and "None" have no overlap (reportUnnecessaryComparison)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:182:21 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:185:21 - error: Type of "signal" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:188:25 - error: Type of "append" is partially unknown
+    Type of "append" is "(object: Unknown, /) -> None" (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:193:46 - error: Type of "signal_queue" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:193:51 - error: Cannot access attribute "signal_queue" for class "StrategyManager*"
+    Attribute "signal_queue" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:194:17 - error: Type of "signal" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:197:29 - error: Argument type is unknown
+    Argument corresponds to parameter "o" in function "getattr" (reportUnknownArgumentType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:199:17 - error: Type of "signal_queue" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:199:17 - error: Type of "add_signal" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:199:22 - error: Cannot access attribute "signal_queue" for class "StrategyManager*"
+    Attribute "signal_queue" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:203:16 - error: Return type, "list[Unknown]", is partially unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:236:37 - error: Type of "performance_metrics" is unknown (reportUnknownMemberType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:236:46 - error: Cannot access attribute "performance_metrics" for class "Strategy"
+    Attribute "performance_metrics" is unknown (reportAttributeAccessIssue)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/strategy_manager.py:242:16 - error: Return type, "dict[Unknown, Unknown]", is partially unknown (reportUnknownVariableType)
+/home/demute/code/CyberDeltaEngine/cyberdelta/core/symbol_mapper.py
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/symbol_mapper.py:39:24 - error: Type of parameter "config" is partially unknown
+    Parameter type is "dict[Unknown, Unknown]" (reportUnknownParameterType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/symbol_mapper.py:39:32 - error: Expected type arguments for generic class "dict" (reportMissingTypeArgument)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/symbol_mapper.py:57:16 - error: Unnecessary isinstance call; "dict[Unknown, Unknown]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/symbol_mapper.py:60:9 - error: Type of "exchanges_config" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/symbol_mapper.py:64:13 - error: Type of "exchange_id" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/symbol_mapper.py:64:26 - error: Type of "exchange_data" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/symbol_mapper.py:71:13 - error: Type of "symbol_map" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/symbol_mapper.py:79:17 - error: Type of "internal_symbol" is unknown (reportUnknownVariableType)
+  /home/demute/code/CyberDeltaEngine/cyberdelta/core/symbol_mapper.py:79:34 - error: Type of "exchange_symbol" is unknown (reportUnknownVariableType)
+421 errors, 0 warnings, 0 informations 

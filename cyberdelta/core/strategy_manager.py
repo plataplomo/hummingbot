@@ -47,6 +47,7 @@ class StrategyManager:
         self.enabled_strategies: set[str] = set()
         self.active_symbols: set[str] = set()
         self.last_update_time: datetime | None = None
+        self.signal_queue: PrioritySignalQueue = signal_queue
 
         logger.info("StrategyManager initialized")
 
@@ -164,39 +165,31 @@ class StrategyManager:
 
         return signals
 
-    async def on_market_data(self, market_data: MarketData) -> list[TradeSignal]:
+    def on_market_data(self, market_data: MarketData) -> list[TradeSignal]:
         """Called when new market data is available."""
-        signals = []
+        signals: list[TradeSignal] = []
         strategies = self.get_strategies_for_symbol(market_data.symbol)
         if not strategies:
             return []  # No strategies for this symbol
 
-        # Run strategy updates concurrently
-        tasks = [strategy.process_data(market_data) for strategy in strategies]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for result in results:
-            if isinstance(result, TradeSignal):
-                # Corrected: Check for None before appending
-                if result is not None:
+        for strategy in strategies:
+            try:
+                result = strategy.process_data(market_data)
+                if isinstance(result, TradeSignal):
                     signals.append(result)
-                # Optionally handle signal generation errors if needed
-            elif isinstance(result, list):  # Strategy might return multiple signals
-                for signal in result:
-                    # Corrected: Check for None before appending
-                    if isinstance(signal, TradeSignal):
-                        signals.append(signal)
-            elif isinstance(result, Exception):
-                self.logger.error("Error processing data in strategy", exc_info=result)
+                elif isinstance(result, list):
+                    for signal in result:
+                        if isinstance(signal, TradeSignal):
+                            signals.append(signal)
+            except Exception as e:
+                self.logger.error(
+                    f"Error processing data in strategy '{strategy.name}': {str(e)}", exc_info=True
+                )
 
         # Send generated signals to the queue
-        if hasattr(self, "signal_queue") and self.signal_queue:  # Check if signal_queue exists
+        if hasattr(self, "signal_queue") and self.signal_queue:
             for signal in signals:
-                # Assign priority based on strategy config or signal properties
-                priority = (
-                    getattr(signal, "confidence", 0.5) or 0.5
-                )  # Example priority, handle None confidence
-                self.signal_queue.add_signal(signal, priority)
+                self.signal_queue.add_signal(signal)
         else:
             logger.warning("Signal queue not available in StrategyManager, cannot queue signals.")
 

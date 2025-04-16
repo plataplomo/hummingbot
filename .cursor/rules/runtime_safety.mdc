@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
 # Rule: Runtime Safety Over Static Purity
 
 **Mandate:** Prioritize runtime robustness and explicit type/value validation, especially at component boundaries or after data transformations, even if static analysis (`mypy`) flags these checks as redundant or unreachable based on type hints. Document, do not suppress, valid static analysis warnings arising from necessary runtime checks.

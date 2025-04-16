@@ -537,13 +537,13 @@ class PortfolioTracker:
                                 f"Data: {position_info}"
                             )
                             # Exception already continues the loop - no need for explicit continue
-                    # else: # Mypy error: Statement is unreachable [unreachable] -
+                    # else: Mypy error: Statement is unreachable [unreachable] -
                     # Removed unreachable code block
                     #      logger.warning(
                     #          f"Unsupported position item type in list for {exchange_id}: "
                     #          f"{type(position_info)}"
                     #      )
-            # else: # Mypy error: Statement is unreachable [unreachable] -
+            # else: Mypy error: Statement is unreachable [unreachable] -
             # Removed unreachable code block
             #      logger.error(
             #          f"Received unexpected data type for positions from {exchange_id}: "
@@ -594,9 +594,7 @@ class PortfolioTracker:
                         order_instance = order_info
                         order_id = order_instance.id  # Use the object's ID (renamed from order_id)
                     elif isinstance(order_info, dict):
-                        order_id = order_info.get("order_id") or order_info.get(
-                            "id"
-                        )  # Check common keys
+                        order_id = order_info.get("order_id") or order_info.get("id")
                         if order_id:
                             # Validate required fields before creating Order
                             symbol = str(order_info.get("symbol", ""))
@@ -604,51 +602,7 @@ class PortfolioTracker:
                             order_type_val = order_info.get("order_type") or order_info.get("type")
                             status_val = order_info.get("status")
 
-                            side: OrderSide | None = None
-                            order_type: OrderType | None = None
-                            status: OrderStatus | None = None
-
-                            if not symbol:
-                                logger.warning(
-                                    f"Skipping order dict without symbol on {exchange_id}: "
-                                    f"{order_info}"
-                                )
-                                continue
-                            try:
-                                if side_val:
-                                    side = OrderSide(side_val)
-                                else:
-                                    raise ValueError("Missing 'side'")
-                                if order_type_val:
-                                    order_type = OrderType(order_type_val)
-                                else:
-                                    raise ValueError("Missing 'order_type' or 'type'")
-                                if status_val:
-                                    status = OrderStatus(status_val)
-                                else:
-                                    raise ValueError("Missing 'status'")
-                            except ValueError as ve:
-                                logger.warning(
-                                    f"Invalid or missing enum value for order {order_id} on "
-                                    f"{exchange_id}: {ve}. Data: {order_info}"
-                                )
-                                continue
-
-                            # The validation checks are already made above, and would
-                            # have already continued
-                    # Runtime check: Handle dict case even if type hint expects Order,
-                    # for robustness against API client bugs or malformed responses.
-                    elif isinstance(order_info, dict):
-                        order_id = order_info.get("order_id") or order_info.get(
-                            "id"
-                        )  # Check common keys
-                        if order_id:
-                            # Validate required fields before creating Order
-                            symbol = str(order_info.get("symbol", ""))
-                            side_val = order_info.get("side")
-                            order_type_val = order_info.get("order_type") or order_info.get("type")
-                            status_val = order_info.get("status")
-
+                            # Only define these variables once per scope
                             side: OrderSide | None = None
                             order_type: OrderType | None = None
                             status: OrderStatus | None = None
@@ -751,14 +705,7 @@ class PortfolioTracker:
                                 f"Skipping order dict without ID on {exchange_id}: {order_info}"
                             )
                             continue
-                    #    ... (code removed) ...
-                    # else: # Mypy error: Statement is unreachable [unreachable] -
-                    # Removed unreachable code block
-                    #     logger.warning(
-                    #         f"Unsupported order item type in list for {exchange_id}: "
-                    #         f"{type(order_info)}"
-                    #     )
-                    #     continue
+                    # else: unreachable - do not handle other types
 
                     if order_instance and order_id:
                         # Ensure Decimal types are correct if parsed from dict or pre-existing
@@ -809,14 +756,6 @@ class PortfolioTracker:
                     f"implementation pending."
                 )
 
-            # else: # Mypy error: Statement is unreachable [unreachable] -
-            # Removed unreachable code block
-            #      logger.error(
-            #          f"Received unexpected data type for orders from {exchange_id}: "
-            #          f"{type(orders_data)}"
-            #      )
-            #      return False # Indicate failure
-
             # Add explicit return False if not processed (Mypy fix for missing return)
             if not processed:
                 logger.error(
@@ -836,19 +775,10 @@ class PortfolioTracker:
                     f"Count: {len(updated_orders)}"
                 )
                 return True
-            # else: # Mypy error: Missing return statement [return] - Added explicit return
-            # Mypy unreachable
-            #      logger.error(
-            #          f"Failed to process orders data for {exchange_id} "
-            #          f"(processed flag is False)."
-            #      )
-            #      return False
 
         except Exception as e:
             logger.exception(f"Unexpected error fetching orders for {exchange_id}: {e}")
             return False
-        # Mypy error: Statement is unreachable [unreachable] - Removed unreachable return
-        # return False
 
     async def update(self) -> None:
         """Update portfolio state by fetching data from exchanges."""
@@ -1060,7 +990,7 @@ class PortfolioTracker:
 
                 current_position.entry_price = new_entry_price
                 logger.debug(f"Position {trade.symbol} updated. New avg entry: {new_entry_price}")
-            # else: # Mypy error: Statement is unreachable [unreachable] -
+            # else: Mypy error: Statement is unreachable [unreachable] -
             # Removed unreachable code block
             #      logger.warning(
             #          f"Position {trade.symbol} flipped side due to trade. "
@@ -1128,7 +1058,7 @@ class PortfolioTracker:
                 f"Updated {quote_asset} balance on {exchange_id} due to trade. "
                 f"New total: {balance.total}"
             )
-        # else: # Mypy error: Statement is unreachable - Removed unreachable code block
+        # else: Mypy error: Statement is unreachable - Removed unreachable code block
         # logger.warning(f"Could not update balance for quote asset {quote_asset} "
         #               f"on {exchange_id}")
 

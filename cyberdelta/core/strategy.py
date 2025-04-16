@@ -39,15 +39,15 @@ class Strategy(ABC):
         logger.info(f"Initialized strategy '{name}' for {symbol}")
 
     @abstractmethod
-    def process_data(self, data: MarketData) -> TradeSignal | None:  # Changed
+    async def process_data(self, data: MarketData) -> TradeSignal | list[TradeSignal] | None:
         """
-        Process new market data and optionally generate a trading signal
+        Asynchronously process new market data and optionally generate one or more trading signals.
 
         Args:
             data: Market data to process
 
         Returns:
-            Optional TradeSignal if a trade should be executed, None otherwise
+            Optional TradeSignal, list of TradeSignals, or None if no trade should be executed
         """
         pass
 
@@ -88,7 +88,7 @@ class Strategy(ABC):
         logger.info(f"Strategy '{self.name}' stopped")
 
     # Ensure correct indentation for methods within the class
-    def get_param(self, name: str, default: _T | None = None) -> _T | None:
+    def get_param(self, name: str, default: object | None = None) -> object | None:
         """
         Get a strategy parameter.
 
@@ -101,7 +101,7 @@ class Strategy(ABC):
         """
         return self.params.get(name, default)
 
-    def set_param(self, name: str, value: _T) -> None:
+    def set_param(self, name: str, value: object) -> None:
         """
         Set a strategy parameter.
 
@@ -127,4 +127,15 @@ class Strategy(ABC):
             "signals_generated": self.signals_generated,
             "last_signal_time": self.last_signal_time,
             "historical_data_points": len(self._historical_data),
+        }
+
+    @property
+    def performance_metrics(self) -> dict[str, Any]:
+        """
+        Return default performance metrics for the strategy.
+        Subclasses can override to provide richer metrics.
+        """
+        return {
+            "signals_generated": self.signals_generated,
+            "last_signal_time": self.last_signal_time,
         }
