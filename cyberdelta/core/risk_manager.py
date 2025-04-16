@@ -573,63 +573,42 @@ class RiskManager:
 
         return sized_opportunity
 
-    def _get_validation_metrics(self, exchange: str, symbol: str) -> Decimal:
+    def _get_validation_metrics(self, exchange: str, symbol: str) -> Decimal | None:
         """
         Retrieve validation metrics for funding rate predictions.
-        (Placeholder - needs integration with actual validation source)
-
-        Args:
-            exchange: The exchange name.
-            symbol: The symbol name.
-
-        Returns:
-            A validation factor (0.0 to 1.0) based on prediction accuracy.
-            Returns 1.0 if no validator is configured or metrics are unavailable.
+        Returns a factor in [0, 1] if valid, or None if validation cannot be performed.
         """
         if not self.funding_rate_validator:
-            return ONE  # No validator, assume predictions are perfect
-            # Mypy L736: Unreachable code removed (was after return)
+            self.logger.error(
+                "No funding rate validator configured. Rejecting opportunity for safety."
+            )
+            return None
 
         try:
-            # Assume validator has a method like get_symbol_metrics
             metrics = self.funding_rate_validator.get_symbol_metrics(exchange, symbol)
             if not metrics:
                 self.logger.warning(
-                    f"No validation metrics found for {exchange}/{symbol}. Using factor 1.0.",
+                    f"No validation metrics found for {exchange}/{symbol}. Rejecting for safety."
                 )
-                return ONE
-                # Mypy L755: Unreachable code removed (was after return)
+                return None
 
             rmse = Decimal(str(metrics.get("rmse", self.max_acceptable_rmse + ONE)))
             bias = Decimal(str(metrics.get("bias", self.max_acceptable_bias + ONE)))
 
-            # Simple factor calculation: Penalize high RMSE and bias
-            # Start with 1.0 and reduce based on how much thresholds are exceeded
-            factor = ONE
-            if rmse > self.max_acceptable_rmse:
-                # Penalize more heavily the further RMSE is above threshold
-                # Example penalty
-                factor -= (rmse - self.max_acceptable_rmse) * Decimal("5.0")
-            if abs(bias) > self.max_acceptable_bias:
-                # Penalize more heavily the further bias is above threshold
-                # Example penalty
-                factor -= (abs(bias) - self.max_acceptable_bias) * Decimal("10.0")
+            if rmse > self.max_acceptable_rmse or abs(bias) > self.max_acceptable_bias:
+                self.logger.warning(
+                    f"Validation metrics for {exchange}/{symbol} exceed thresholds. "
+                    f"RMSE={rmse}, Bias={bias}. Rejecting for safety."
+                )
+                return None
 
-            # Ensure factor is within [min_validation_factor, 1.0]
-            final_factor = max(self.min_validation_factor, min(factor, ONE))
-
-            self.logger.debug(
-                f"Validation metrics for {exchange}/{symbol}: RMSE={rmse:.4f}, "
-                f"Bias={bias:.4f}. Calculated Factor: {final_factor:.3f}",
-            )
-            return final_factor
+            return ONE  # Only allow full size if metrics are within thresholds
 
         except Exception as e:
             self.logger.error(
-                f"Error retrieving validation metrics for {exchange}/{symbol}: {e}. "
-                f"Using factor {self.min_validation_factor}.",
+                f"Error retrieving validation metrics for {exchange}/{symbol}: {e}. Rejecting for safety."
             )
-            return self.min_validation_factor  # Return minimum factor on error
+            return None
 
     def size_opportunity(self, opportunity: ArbitrageOpportunity) -> SizedOpportunity | None:
         """
@@ -678,7 +657,12 @@ class RiskManager:
             short_validation_factor = self._get_validation_metrics(
                 opportunity.short_exchange, opportunity.symbol
             )
-            validation_factor = min(long_validation_factor, short_validation_factor)
+            if long_validation_factor is None or short_validation_factor is None:
+                self.logger.warning(
+                    "Validation failed for one or both legs. Rejecting opportunity for safety."
+                )
+                return None
+            validation_factor: Decimal = min(long_validation_factor, short_validation_factor)
             if validation_factor < ONE:
                 self.logger.info(
                     f"Applying validation factor {validation_factor:.3f} to size for "
@@ -741,9 +725,12 @@ class RiskManager:
         short_validation_factor = self._get_validation_metrics(
             opportunity.short_exchange, opportunity.symbol
         )
-        # Use the minimum factor from both exchanges involved
-        validation_factor = min(long_validation_factor, short_validation_factor)
-
+        if long_validation_factor is None or short_validation_factor is None:
+            self.logger.warning(
+                "Validation failed for one or both legs. Rejecting opportunity for safety."
+            )
+            return None
+        validation_factor: Decimal = min(long_validation_factor, short_validation_factor)
         if validation_factor < ONE:
             self.logger.info(
                 f"Applying validation factor {validation_factor:.3f} to size for "

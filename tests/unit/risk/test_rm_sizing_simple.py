@@ -254,6 +254,14 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = lambda key, default=None: combined_config.get(key, default)
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")
         mock_portfolio_tracker.get_all_positions.return_value = []
+
+        class MockBalance:
+            def __init__(self, available):
+                self.available = available
+
+        mock_portfolio_tracker.get_exchange_balance.side_effect = (
+            lambda *args, **kwargs: MockBalance(Decimal("10000.0"))
+        )
         risk_manager = RiskManager(
             mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
         )
