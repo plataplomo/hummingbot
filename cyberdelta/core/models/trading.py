@@ -8,7 +8,15 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
+
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +192,29 @@ class Balance(BaseModel):
 
 class Position(BaseModel):
     """
-    Represents an open position.
+    Represents the current net holding or exposure (position) in a specific asset/contract on a specific exchange.
+
+    This model aggregates the result of all trades for a symbol and side, and is updated as new trades occur.
+
+    Attributes:
+        symbol (str): The trading symbol (e.g., 'BTC-PERP').
+        side (OrderSide): The current net side (long/buy or short/sell).
+        size (Decimal): The current net quantity held (positive for long, negative for short).
+        entry_price (Decimal): The average entry price for the current position.
+        leverage (Decimal | None): Leverage used for the position, if applicable.
+        id (str | None): Optional unique identifier for the position.
+        status (str | None): Optional status string.
+        mark_price (Decimal | None): Current mark price for the symbol.
+        liquidation_price (Decimal | None): Liquidation price for the position.
+        unrealized_pnl (Decimal | None): Current unrealized profit and loss.
+        realized_pnl (Decimal | None): Realized profit and loss from closed portions.
+        margin_type (str | None): Margin type (e.g., 'cross', 'isolated').
+        margin_used (Decimal | None): Margin used for the position.
+        timestamp (int | None): Optional timestamp for the position.
+        strategy_name (str | None): Optional strategy identifier.
+        close_price (Decimal | None): Price at which the position was closed.
+        close_time (datetime | None): Time at which the position was closed.
+        pnl (Decimal | None): Total profit and loss for the position.
     """
 
     symbol: str
@@ -222,39 +252,30 @@ class Position(BaseModel):
         mode="before",
     )
     @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
-        field_name = getattr(info, "field_name", "<unknown>")
-        if v is None:
-            return None
-        try:
-            if isinstance(v, str):
-                v = v.replace(",", "")
-            return Decimal(str(v))
-        except (InvalidOperation, ValueError, TypeError) as e:
-            raise ValueError(
-                f"Field '{field_name}': cannot convert value '{v}' to Decimal: {e}"
-            ) from e
+    def parse_decimal(cls, v: Any, info: Any) -> Decimal | None:
+        return parse_decimal_value(v)
 
     @field_validator("close_time", mode="before")
     @classmethod
-    def parse_datetime(cls, v: str | int | float | datetime | None) -> datetime | None:
-        if v is None:
-            return None
-        if isinstance(v, datetime):
-            return v if v.tzinfo else v.replace(tzinfo=UTC)
-        if isinstance(v, int | float):
-            return datetime.fromtimestamp(v, tz=UTC)
-        try:
-            dt = datetime.fromisoformat(v)
-            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
-        except ValueError as e:
-            raise ValueError(f"close_time: cannot parse datetime string '{v}': {e}") from e
-        raise ValueError(f"close_time: unsupported type {type(v)}")
+    def parse_datetime(cls, v: Any, info: Any) -> datetime | None:
+        return parse_datetime_utc(v)
 
     def is_active(self) -> bool:
+        """
+        Returns True if the position is currently open (size != 0), False otherwise.
+        """
         return self.size != Decimal("0")
 
     def calculate_unrealized_pnl(self, current_mark_price: Decimal | None = None) -> Decimal | None:
+        """
+        Calculate the unrealized PnL for the position based on the current mark price.
+        If no mark price is provided, returns the stored unrealized_pnl.
+
+        Args:
+            current_mark_price (Decimal | None): The current mark price for the symbol.
+        Returns:
+            Decimal | None: The calculated or stored unrealized PnL.
+        """
         if current_mark_price is None:
             return self.unrealized_pnl
         if self.size == Decimal("0"):
@@ -267,6 +288,11 @@ class Position(BaseModel):
         return pnl
 
     def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the Position to a dictionary, serializing Decimals, Enums, and datetimes appropriately.
+        Returns:
+            dict[str, Any]: Dictionary representation of the position.
+        """
         d = self.model_dump()
         for k, v in d.items():
             if isinstance(v, Decimal):
@@ -280,7 +306,25 @@ class Position(BaseModel):
 
 class Trade(BaseModel):
     """
-    Represents a trade execution.
+    Represents a single execution event (fill) that occurs against an order.
+
+    This model records the details of a specific trade/fill, including price, quantity, fee, and execution time.
+
+    Attributes:
+        id (str): Unique identifier for this trade (exchange's execution ID).
+        symbol (str): Trading symbol.
+        timestamp (int): Raw timestamp of the trade (milliseconds since epoch).
+        price (Decimal): Execution price for this fill.
+        quantity (Decimal): Quantity executed in this fill.
+        side (OrderSide | None): Side of the trade (buy/sell), if available.
+        order_id (str | None): Exchange order ID of the parent order.
+        exchange (str | None): Exchange name.
+        executed_at (datetime | None): Parsed execution time as a datetime object (UTC).
+        fee (Decimal | None): Fee paid for this trade.
+        fee_asset (str | None): Asset in which the fee was paid.
+        is_maker (bool | None): Whether this trade was a maker fill.
+        client_order_id (str | None): Client order ID of the parent order.
+        cost (Decimal | None): Total cost (price * quantity) for this fill.
     """
 
     id: str
@@ -291,7 +335,7 @@ class Trade(BaseModel):
     side: OrderSide | None = None
     order_id: str | None = None
     exchange: str | None = None
-    datetime: datetime | None = None
+    executed_at: datetime | None = None
     fee: Decimal | None = None
     fee_asset: str | None = None
     is_maker: bool | None = None
@@ -302,33 +346,37 @@ class Trade(BaseModel):
 
     @field_validator("price", "quantity", "fee", "cost", mode="before")
     @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
-        field_name = getattr(info, "field_name", "<unknown>")
-        if v is None:
-            return None
-        try:
-            if isinstance(v, str):
-                v = v.replace(",", "")
-            return Decimal(str(v))
-        except (InvalidOperation, ValueError, TypeError) as e:
-            raise ValueError(
-                f"Field '{field_name}': cannot convert value '{v}' to Decimal: {e}"
-            ) from e
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info) -> Decimal | None:
+        return parse_decimal_value(v)
+
+    @field_validator("executed_at", mode="before")
+    @classmethod
+    def parse_datetime(cls, v: str | int | float | datetime | None, info) -> datetime | None:
+        return parse_datetime_utc(v)
 
     @model_validator(mode="after")
     def set_cost_and_datetime(self) -> Self:
+        """
+        Post-model validation to set the cost (if not provided) and parse the datetime from timestamp.
+        Ensures cost is always available and datetime is UTC-aware.
+        """
         if self.cost is None:
             object.__setattr__(self, "cost", self.price * self.quantity)
-        if self.timestamp and self.datetime is None:
+        if self.timestamp and self.executed_at is None:
             try:
                 object.__setattr__(
-                    self, "datetime", datetime.fromtimestamp(self.timestamp / 1000, tz=UTC)
+                    self, "executed_at", datetime.fromtimestamp(self.timestamp / 1000, tz=UTC)
                 )
             except (TypeError, ValueError, OSError):
-                object.__setattr__(self, "datetime", None)
+                object.__setattr__(self, "executed_at", None)
         return self
 
     def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the Trade to a dictionary, serializing Decimals, Enums, and datetimes appropriately.
+        Returns:
+            dict[str, Any]: Dictionary representation of the trade.
+        """
         d = self.model_dump()
         for k, v in d.items():
             if isinstance(v, Decimal):
@@ -713,3 +761,145 @@ class TradeSignal:
             "signal_id": self.signal_id,
         }
         return result
+
+
+class Order(BaseModel):
+    """
+    Represents a trading order instruction and its lifecycle state (intent) within the CyberDeltaEngine.
+
+    This model tracks the order from creation through all possible states, and aggregates all associated trades (fills).
+
+    Attributes:
+        client_order_id (str): Unique identifier generated by the client for this order.
+        exchange_order_id (str | None): Unique identifier assigned by the exchange (if available).
+        symbol (str): Trading symbol (e.g., 'BTC-PERP').
+        side (OrderSide): Side of the order (buy or sell).
+        order_type (OrderType): Type of the order (limit, market, etc.).
+        status (OrderStatus): Current status of the order.
+        quantity_requested (Decimal): Total quantity requested in the order.
+        quantity_filled (Decimal): Total quantity filled so far (aggregate of all trades).
+        price (Decimal | None): Limit price (if applicable).
+        average_fill_price (Decimal | None): Weighted average price of all fills.
+        created_at (datetime): Timestamp when the order was created (UTC).
+        updated_at (datetime | None): Timestamp of the last status update (UTC).
+        trades (list[Trade]): List of associated trade executions (fills).
+        strategy_name (str | None): Optional strategy identifier.
+        signal_id (str | None): Optional originating signal identifier.
+
+    Methods:
+        add_trade(trade): Adds a trade/fill to the order and updates aggregate state.
+        to_dict(): Serializes the order for API or storage.
+    """
+
+    client_order_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    exchange_order_id: str | None = None
+    symbol: str
+    side: OrderSide
+    order_type: OrderType
+    status: OrderStatus = OrderStatus.NEW
+    quantity_requested: Decimal
+    quantity_filled: Decimal = Decimal("0.0")
+    price: Decimal | None = None
+    average_fill_price: Decimal | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime | None = None
+    trades: list[Trade] = Field(default_factory=list)
+    strategy_name: str | None = None
+    signal_id: str | None = None
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    @field_validator(
+        "quantity_requested",
+        "quantity_filled",
+        "price",
+        "average_fill_price",
+        mode="before",
+    )
+    @classmethod
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info) -> Decimal | None:
+        return parse_decimal_value(v)
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def parse_datetime(cls, v: str | int | float | datetime | None, info) -> datetime | None:
+        return parse_datetime_utc(v)
+
+    @model_validator(mode="after")
+    def check_order_state(self) -> Self:
+        """
+        Post-model validation for order state and price logic.
+        Ensures logical consistency between fields (e.g., filled <= requested, price for limit orders).
+        """
+        if self.quantity_requested <= 0:
+            raise ValueError("quantity_requested must be positive")
+        if self.quantity_filled < 0:
+            raise ValueError("quantity_filled cannot be negative")
+        if self.quantity_filled > self.quantity_requested:
+            raise ValueError("quantity_filled cannot exceed quantity_requested")
+        if self.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
+            if self.price is None or self.price <= 0:
+                raise ValueError(f"Limit price must be positive for order type {self.order_type}")
+        if self.quantity_filled > 0 and self.average_fill_price is None and self.trades:
+            # This may be temporarily valid if fills arrive before order update
+            logger.warning(
+                f"Order {self.client_order_id} partially/fully filled but average_fill_price is None"
+            )
+        if self.updated_at is None:
+            object.__setattr__(self, "updated_at", self.created_at)
+        return self
+
+    def add_trade(self, trade: Trade) -> None:
+        """
+        Add a trade (fill) to this order and update aggregate state.
+        Updates filled quantity, recalculates average fill price, and updates order status.
+        Args:
+            trade (Trade): The trade execution to add.
+        Raises:
+            ValueError: If the trade does not match this order's IDs or symbol/side.
+        """
+        if trade.order_id and self.exchange_order_id and trade.order_id != self.exchange_order_id:
+            raise ValueError("Trade order_id does not match this order's exchange_order_id")
+        if trade.client_order_id and trade.client_order_id != self.client_order_id:
+            raise ValueError("Trade client_order_id does not match this order's client_order_id")
+        if trade.symbol != self.symbol or (trade.side and trade.side != self.side):
+            raise ValueError("Trade details mismatch order details")
+
+        # Update filled quantity and recalculate average fill price
+        new_total_value = (
+            self.average_fill_price or Decimal(0)
+        ) * self.quantity_filled + trade.price * trade.quantity
+        new_quantity_filled = self.quantity_filled + trade.quantity
+
+        if new_quantity_filled > 0:
+            self.average_fill_price = new_total_value / new_quantity_filled
+        else:
+            self.average_fill_price = None
+
+        self.quantity_filled = new_quantity_filled
+        self.trades.append(trade)
+        self.updated_at = datetime.now(UTC)
+
+        # Update status based on fills
+        if self.quantity_filled >= self.quantity_requested:
+            self.status = OrderStatus.FILLED
+        elif self.quantity_filled > 0:
+            self.status = OrderStatus.PARTIALLY_FILLED
+        # Note: Actual status updates may also come from exchange events
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the Order to a dictionary, serializing Decimals, Enums, and datetimes
+        appropriately.
+        Returns:
+            dict[str, Any]: Dictionary representation of the order.
+        """
+        d = self.model_dump()
+        for k, v in d.items():
+            if isinstance(v, Decimal):
+                d[k] = str(v)
+            elif isinstance(v, datetime):
+                d[k] = v.isoformat()
+            elif k == "trades" and isinstance(v, list):
+                d[k] = [t.to_dict() if isinstance(t, Trade) else t for t in v]
+        return d
