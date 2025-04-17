@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
-from typing import Any, Self
+from typing import Any, Self, cast
 
 from pydantic import (
     BaseModel,
@@ -254,12 +254,14 @@ class Position(BaseModel):
         mode="before",
     )
     @classmethod
-    def parse_decimal(cls, v: Any, info: Any) -> Decimal | None:
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
         return parse_decimal_value(v)
 
     @field_validator("close_time", mode="before")
     @classmethod
-    def parse_datetime(cls, v: Any, info: Any) -> datetime | None:
+    def parse_datetime(
+        cls, v: str | int | float | datetime | None, info: object
+    ) -> datetime | None:
         return parse_datetime_utc(v)
 
     def is_active(self) -> bool:
@@ -291,7 +293,8 @@ class Position(BaseModel):
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Convert the Position to a dictionary, serializing Decimals, Enums, and datetimes appropriately.
+        Convert the Position to a dictionary, serializing Decimals, Enums, and
+        datetimes appropriately.
         Returns:
             dict[str, Any]: Dictionary representation of the position.
         """
@@ -310,23 +313,8 @@ class Trade(BaseModel):
     """
     Represents a single execution event (fill) that occurs against an order.
 
-    This model records the details of a specific trade/fill, including price, quantity, fee, and execution time.
-
-    Attributes:
-        id (str): Unique identifier for this trade (exchange's execution ID).
-        symbol (str): Trading symbol.
-        timestamp (int): Raw timestamp of the trade (milliseconds since epoch).
-        price (Decimal): Execution price for this fill.
-        quantity (Decimal): Quantity executed in this fill.
-        side (OrderSide | None): Side of the trade (buy/sell), if available.
-        order_id (str | None): Exchange order ID of the parent order.
-        exchange (str | None): Exchange name.
-        executed_at (datetime | None): Parsed execution time as a datetime object (UTC).
-        fee (Decimal | None): Fee paid for this trade.
-        fee_asset (str | None): Asset in which the fee was paid.
-        is_maker (bool | None): Whether this trade was a maker fill.
-        client_order_id (str | None): Client order ID of the parent order.
-        cost (Decimal | None): Total cost (price * quantity) for this fill.
+    This model records the details of a specific trade/fill, including price,
+    quantity, fee, and execution time.
     """
 
     id: str
@@ -370,7 +358,8 @@ class Trade(BaseModel):
     @model_validator(mode="after")
     def set_cost_and_datetime(self) -> Self:
         """
-        Post-model validation to set the cost (if not provided) and parse the datetime from timestamp.
+        Post-model validation to set the cost (if not provided) and parse the
+        datetime from timestamp.
         Ensures cost is always available and datetime is UTC-aware.
         """
         if self.cost is None:
@@ -647,20 +636,22 @@ class ArbitrageOpportunity:
             "short_exchange": self.short_exchange,
             "long_price": str(self.long_price) if self.long_price is not None else None,
             "short_price": str(self.short_price) if self.short_price is not None else None,
-            "long_funding_rate": str(self.long_funding_rate)
-            if self.long_funding_rate is not None
-            else None,
-            "short_funding_rate": str(self.short_funding_rate)
-            if self.short_funding_rate is not None
-            else None,
-            "net_funding_differential": str(self.net_funding_differential)
-            if self.net_funding_differential is not None
-            else None,
+            "long_funding_rate": (
+                str(self.long_funding_rate) if self.long_funding_rate is not None else None
+            ),
+            "short_funding_rate": (
+                str(self.short_funding_rate) if self.short_funding_rate is not None else None
+            ),
+            "net_funding_differential": (
+                str(self.net_funding_differential)
+                if self.net_funding_differential is not None
+                else None
+            ),
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "optimal_size": str(self.optimal_size) if self.optimal_size is not None else None,
-            "expected_profit": str(self.expected_profit)
-            if self.expected_profit is not None
-            else None,
+            "expected_profit": (
+                str(self.expected_profit) if self.expected_profit is not None else None
+            ),
             # Float fields don't need str() conversion
             "confidence": self.confidence,
             "basis_volatility": self.basis_volatility,
@@ -778,30 +769,11 @@ class TradeSignal:
 
 class Order(BaseModel):
     """
-    Represents a trading order instruction and its lifecycle state (intent) within the CyberDeltaEngine.
+    Represents a trading order instruction and its lifecycle state (intent)
+    within the CyberDeltaEngine.
 
-    This model tracks the order from creation through all possible states, and aggregates all associated trades (fills).
-
-    Attributes:
-        client_order_id (str): Unique identifier generated by the client for this order.
-        exchange_order_id (str | None): Unique identifier assigned by the exchange (if available).
-        symbol (str): Trading symbol (e.g., 'BTC-PERP').
-        side (OrderSide): Side of the order (buy or sell).
-        order_type (OrderType): Type of the order (limit, market, etc.).
-        status (OrderStatus): Current status of the order.
-        quantity_requested (Decimal): Total quantity requested in the order.
-        quantity_filled (Decimal): Total quantity filled so far (aggregate of all trades).
-        price (Decimal | None): Limit price (if applicable).
-        average_fill_price (Decimal | None): Weighted average price of all fills.
-        created_at (datetime): Timestamp when the order was created (UTC).
-        updated_at (datetime | None): Timestamp of the last status update (UTC).
-        trades (list[Trade]): List of associated trade executions (fills).
-        strategy_name (str | None): Optional strategy identifier.
-        signal_id (str | None): Optional originating signal identifier.
-
-    Methods:
-        add_trade(trade): Adds a trade/fill to the order and updates aggregate state.
-        to_dict(): Serializes the order for API or storage.
+    This model tracks the order from creation through all possible states,
+    and aggregates all associated trades (fills).
     """
 
     client_order_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -854,7 +826,8 @@ class Order(BaseModel):
     def check_order_state(self) -> Self:
         """
         Post-model validation for order state and price logic.
-        Ensures logical consistency between fields (e.g., filled <= requested, price for limit orders).
+        Ensures logical consistency between fields (e.g., filled <= requested,
+        price for limit orders).
         """
         if self.quantity_requested <= 0:
             raise ValueError("quantity_requested must be positive")
@@ -862,13 +835,18 @@ class Order(BaseModel):
             raise ValueError("quantity_filled cannot be negative")
         if self.quantity_filled > self.quantity_requested:
             raise ValueError("quantity_filled cannot exceed quantity_requested")
-        if self.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
+        if self.order_type in [
+            OrderType.LIMIT,
+            OrderType.STOP_LIMIT,
+            OrderType.TAKE_PROFIT_LIMIT,
+        ]:
             if self.price is None or self.price <= 0:
                 raise ValueError(f"Limit price must be positive for order type {self.order_type}")
         if self.quantity_filled > 0 and self.average_fill_price is None and self.trades:
             # This may be temporarily valid if fills arrive before order update
             logger.warning(
-                f"Order {self.client_order_id} partially/fully filled but average_fill_price is None"
+                f"Order {self.client_order_id} partially/fully filled but "
+                "average_fill_price is None"
             )
         if self.updated_at is None:
             object.__setattr__(self, "updated_at", self.created_at)
@@ -926,5 +904,6 @@ class Order(BaseModel):
             elif isinstance(v, datetime):
                 d[k] = v.isoformat()
             elif k == "trades" and isinstance(v, list):
-                d[k] = [t.to_dict() if isinstance(t, Trade) else t for t in v]
+                trades_list = cast(list[Trade], v)
+                d[k] = [t.to_dict() for t in trades_list]
         return d
