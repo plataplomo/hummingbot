@@ -15,7 +15,9 @@ from .enums import (
     SignalType,
     TimeInForce,
 )
-from .trading import ArbitrageOpportunity, Order, Position, Trade, TradeSignal
+from .market import Order, Trade
+from .portfolio import Position
+from .strategy import ArbitrageOpportunity, TradeSignal
 
 __all__ = [
     # Explicitly re-export enums
