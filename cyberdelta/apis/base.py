@@ -8,12 +8,14 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine, Mapping
 from decimal import Decimal
-from enum import Enum
 from typing import TYPE_CHECKING, Any, cast
 
 import aiohttp
 from aiohttp import ClientTimeout, ClientWSTimeout
-from pydantic import BaseModel, ConfigDict, Field
+
+from cyberdelta.apis.models.api import APIError, RateLimiterConfig
+from cyberdelta.apis.models.enums import APIErrorCode
+from cyberdelta.apis.models.rate_limiter import TokenBucketRateLimiterRuntime
 
 if TYPE_CHECKING:
     # Import other models only needed for type hints here
@@ -35,205 +37,6 @@ logger = logging.getLogger(__name__)
 
 # Type hint for WebSocket message handlers
 MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
-
-
-class APIErrorCode(Enum):
-    """
-    Standard error codes for API failures to allow consistent handling across exchanges.
-    These codes abstract the exchange-specific error codes into a common format.
-    """
-
-    UNKNOWN = 0
-    AUTHENTICATION_FAILED = 1
-    INSUFFICIENT_FUNDS = 2
-    RATE_LIMITED = 3
-    ORDER_NOT_FOUND = 4
-    SYMBOL_NOT_FOUND = 5
-    INVALID_PARAMS = 6
-    SERVER_ERROR = 7
-    CONNECTION_ERROR = 8
-    TIMEOUT = 9
-    MAINTENANCE = 10
-    # New error codes for exchange-specific failures
-    ORDER_REJECTED = 11
-    PRICE_OUT_OF_RANGE = 12
-    MARKET_CLOSED = 13
-    DUPLICATE_ORDER = 14
-    MIN_NOTIONAL_NOT_MET = 15
-    MAX_POSITION_EXCEEDED = 16
-    LIQUIDATION_IN_PROGRESS = 17
-    FUNDING_RATE_UNAVAILABLE = 18
-    EXCHANGE_SPECIFIC = 19  # For truly exchange-specific errors that don't fit other categories
-    NETWORK_ISSUE = 20  # Specific network connectivity issues (DNS, routing, etc.)
-    QUANTITY_OUT_OF_RANGE = 21  # For min/max quantity violations
-    PRECISION_ERROR = 22  # When price/quantity doesn't match required precision
-    INVALID_REQUEST = 23  # Added for non-retryable client errors (like bad params)
-    INVALID_SYMBOL = 24  # Symbol does not exist or is not tradable
-    INVALID_ORDER_SIZE = 25  # Order size is invalid (too small/large)
-    SERVICE_UNAVAILABLE = 26  # Exchange or endpoint is temporarily unavailable
-
-
-class APIErrorModel(BaseModel):
-    """
-    Pydantic model for API error details, used for validation and serialization.
-    """
-
-    message: str = Field(..., description="Human-readable error message.")
-    code: APIErrorCode = Field(..., description="Standardized error code enum.")
-    http_status: int | None = Field(None, description="HTTP status code, if available.")
-    exchange_code: str | None = Field(None, description="Exchange-specific error code, if any.")
-    exchange_message: str | None = Field(
-        None, description="Exchange-specific error message, if any."
-    )
-    retry_after: float | None = Field(
-        None, description="Retry-after value in seconds, if rate limited."
-    )
-    original_exception: Exception | None = Field(
-        None, description="Original exception, if chained."
-    )
-
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-
-class APIError(Exception):
-    """
-    Custom exception for API-related errors with enhanced context information
-    to enable better error handling and recovery mechanisms. Now Pydantic-compatible.
-    """
-
-    def __init__(
-        self,
-        message: str,
-        code: APIErrorCode = APIErrorCode.UNKNOWN,
-        http_status: int | None = None,
-        exchange_code: str | None = None,
-        exchange_message: str | None = None,
-        retry_after: float | None = None,
-        original_exception: Exception | None = None,
-    ) -> None:
-        self.model = APIErrorModel(
-            message=message,
-            code=code,
-            http_status=http_status,
-            exchange_code=exchange_code,
-            exchange_message=exchange_message,
-            retry_after=retry_after,
-            original_exception=original_exception,
-        )
-        super().__init__(self.model.message)
-
-    @property
-    def message(self) -> str:
-        return self.model.message
-
-    @property
-    def code(self) -> APIErrorCode:
-        return self.model.code
-
-    @property
-    def http_status(self) -> int | None:
-        return self.model.http_status
-
-    @property
-    def exchange_code(self) -> str | None:
-        return self.model.exchange_code
-
-    @property
-    def exchange_message(self) -> str | None:
-        return self.model.exchange_message
-
-    @property
-    def retry_after(self) -> float | None:
-        return self.model.retry_after
-
-    @property
-    def original_exception(self) -> Exception | None:
-        return self.model.original_exception
-
-    @property
-    def is_retryable(self) -> bool:
-        """
-        Determines if this error can be retried based on its nature.
-        Rate limits, timeouts and some server errors can be retried.
-        """
-        return (
-            self.code
-            in (
-                APIErrorCode.RATE_LIMITED,
-                APIErrorCode.TIMEOUT,
-                APIErrorCode.CONNECTION_ERROR,
-            )
-            or (
-                self.code == APIErrorCode.SERVER_ERROR
-                and self.http_status
-                and 500 <= self.http_status < 600
-            )
-            or self.code == APIErrorCode.NETWORK_ISSUE
-        )
-
-
-class RateLimiter:
-    """
-    Token bucket rate limiter for API request management.
-    Ensures compliance with exchange rate limits while maximizing throughput.
-    """
-
-    def __init__(self, rate: float, bucket_size: int) -> None:
-        """
-        Initialize a rate limiter with given constraints.
-
-        Args:
-            rate: Maximum requests per second
-            bucket_size: Maximum burst capacity
-        """
-        self.rate = rate  # tokens per second
-        self.bucket_size = bucket_size  # maximum bucket capacity
-        self.tokens: float = float(bucket_size)  # current token count, start with full bucket
-        self.last_refill: float = time.monotonic()  # timestamp of last token refill
-        self.lock = asyncio.Lock()  # thread safety for token management
-
-    async def acquire(self) -> float:
-        """
-        Acquire a token for making a request, waiting if necessary.
-
-        Returns:
-            wait_time: Time waited in seconds (0 if no wait)
-        """
-        wait_time = 0.0
-
-        async with self.lock:
-            # Refill tokens based on time elapsed
-            now = time.monotonic()
-            elapsed = now - self.last_refill
-            new_tokens = elapsed * self.rate
-
-            if new_tokens > 0:
-                self.tokens = min(self.bucket_size, self.tokens + new_tokens)
-                self.last_refill = now
-
-            # If no tokens available, calculate wait time
-            if self.tokens < 1:
-                wait_time = (1 - self.tokens) / self.rate
-
-                # Release lock during wait
-                self.lock.release()
-                try:
-                    await asyncio.sleep(wait_time)
-                finally:
-                    # Reacquire lock after wait
-                    await self.lock.acquire()
-
-                # Refresh token count after waiting
-                now = time.monotonic()
-                elapsed = now - self.last_refill
-                new_tokens = elapsed * self.rate
-                self.tokens = min(self.bucket_size, self.tokens + new_tokens)
-                self.last_refill = now
-
-            # Consume one token
-            self.tokens -= 1
-
-            return wait_time
 
 
 class ExchangeAPI(ABC):
@@ -287,57 +90,37 @@ class ExchangeAPI(ABC):
     def _setup_rate_limiters(self, rate_limit_config: dict[str, Any]) -> None:
         """
         Set up rate limiters based on configuration.
-
-        Args:
-            rate_limit_config: Dictionary containing rate limit configuration
         """
-        # Simplified: Using a single default limiter for now.
-        # Can be expanded later to support per-endpoint or per-resource limits
-        # based on the structure of rate_limit_config.
-
-        # Default rate limiter
         default_rate = rate_limit_config.get("default_rate", 1.0)
         default_bucket = rate_limit_config.get("default_bucket", 5)
-
-        self._default_limiter = RateLimiter(default_rate, default_bucket)
-
-        # Endpoint-specific rate limiters
-        self._endpoint_limiters: dict[str, RateLimiter] = {}
+        self._default_limiter_config = RateLimiterConfig(
+            rate=default_rate, bucket_size=default_bucket
+        )
+        self._default_limiter = TokenBucketRateLimiterRuntime(default_rate, default_bucket)
+        self._endpoint_limiter_configs: dict[str, RateLimiterConfig] = {}
+        self._endpoint_limiters: dict[str, TokenBucketRateLimiterRuntime] = {}
         endpoints = rate_limit_config.get("endpoints", {})
-
         for endpoint, config in endpoints.items():
             rate = config.get("rate", default_rate)
             bucket = config.get("bucket", default_bucket)
-            self._endpoint_limiters[endpoint] = RateLimiter(rate, bucket)
+            self._endpoint_limiter_configs[endpoint] = RateLimiterConfig(
+                rate=rate, bucket_size=bucket
+            )
+            self._endpoint_limiters[endpoint] = TokenBucketRateLimiterRuntime(rate, bucket)
 
-    async def _get_rate_limiter(self, method: str, path: str) -> RateLimiter:
+    async def _get_rate_limiter(self, method: str, path: str) -> TokenBucketRateLimiterRuntime:
         """
-        Get the appropriate rate limiter for a specific API endpoint.
-
-        Args:
-            method: HTTP method (e.g., 'GET', 'POST')
-            path: API endpoint path
-
-        Returns:
-            The rate limiter to use for this request
+        Get the appropriate runtime rate limiter for a specific API endpoint.
         """
         endpoint_key = f"{method}:{path}"
-
-        # Try exact match first
         if endpoint_key in self._endpoint_limiters:
             return self._endpoint_limiters[endpoint_key]
-
-        # Try method-only match
         method_key = f"{method}:*"
         if method_key in self._endpoint_limiters:
             return self._endpoint_limiters[method_key]
-
-        # Try path-only match
         for pattern, limiter in self._endpoint_limiters.items():
             if pattern.endswith("*") and path.startswith(pattern[:-1]):
                 return limiter
-
-        # Default limiter as fallback
         return self._default_limiter
 
     @property

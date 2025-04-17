@@ -1,57 +1,3 @@
-# Code Review Report: 07 - Workflow and Progress
-
-**Report Date:** 2025-04-14
-**Reviewer:** Angel (AI Assistant)
-**Project:** CyberDeltaEngine
-**Version Target:** v0.0.1
-
-## 1. Overview
-
-This section summarizes the development workflow employed for CyberDeltaEngine, the current project phase, recent progress, identified gaps, and immediate next steps, drawing heavily on recent status updates (`workflow/01_Current_Status_Summary.md`).
-
-## 2. Development Workflow
-
-*   **Phased Approach:** Development appears to follow distinct phases. The current focus is explicitly stated as **"Phase: Foundational Stability & Testing"**. This implies prior phases likely involved initial component design and implementation.
-*   **AI Assistance:** The project leverages AI assistance (specifically "Angel", the persona for this review) integrated into the development environment (VS Code). The AI assists with code generation, analysis, refactoring, and applying project rules.
-*   **Rule Enforcement:** Development adheres to a strict set of project-specific rules enforced via `.roo/rules-code/` files. Key rules include:
-    *   Mandatory `Decimal` usage for financial values.
-    *   Strict static analysis (`mypy` for types, `ruff` for linting/formatting).
-    *   Mandatory code-level documentation (docstrings, comments).
-    *   Execution within a virtual environment (`.venv`).
-    *   Emphasis on runtime safety (explicit checks) even if static analysis flags redundancy.
-    *   Secure secrets management.
-    *   Focused workflow documentation (`current_workflow/`).
-*   **Static Analysis Integration:** `mypy` and `ruff` are integral to the workflow. Code modifications are expected to pass checks from these tools before being considered complete (Rule: `python_file_validation.md`).
-*   **Documentation:** Emphasis is placed on both code-level documentation (Rule: `comments.md`) and focused workflow documentation for significant decisions/context (Rule: `workflow.md`).
-
-## 3. Current Project Phase & Progress
-
-*   **Current Phase:** Foundational Stability & Testing (as of 2025-04-13).
-*   **Focus:** Achieving type safety (`mypy` compliance), adhering to coding standards (`ruff` compliance, `Decimal` usage), and resolving static analysis errors across the core codebase (`cyberdelta/core/`, `tests/`).
-*   **Recent Progress (per `01_Current_Status_Summary.md`):**
-    *   Identified numerous static analysis errors across core components and tests.
-    *   Refactored the `Order` model (`core/models.py`) for more standard naming conventions.
-    *   Updated key components (`PortfolioTracker`, `ExecutionHandler`) to align with the `Order` model changes, resolving associated `mypy` errors.
-    *   Attempted fixes in `execution/synchronized_order_submission.py`.
-*   **Overall Impression:** Progress is being made on stabilizing the core codebase and adhering to type/style rules, but significant static analysis issues remained as of the last update.
-
-## 4. Identified Gaps & Blockers (per `01_Current_Status_Summary.md`)
-
-*   **Persistent `mypy` Errors:** Significant challenges were encountered in reliably applying fixes and getting accurate `mypy` results, potentially due to tooling issues (`apply_diff` unreliability, caching, file sync problems). This slowed down the stabilization process.
-*   **Remaining Static Analysis Issues:** A substantial number of `mypy` errors related to `Decimal` usage, `None` handling, unreachable code, and other type mismatches still need resolution across core components.
-*   **Tooling/Environment Uncertainty:** Issues with `apply_diff` and potential file state inconsistencies (line count errors during `write_to_file` attempts in *this* review process) raise concerns about the stability and reliability of the development tooling or environment interaction.
-
-## 5. Immediate Next Steps (Inferred)
-
-Based on the current phase and identified gaps, the immediate priorities should be:
-
-1.  **Resolve Tooling/Environment Issues:** Investigate and fix the inconsistencies related to file modification tools (`apply_diff`, `write_to_file`) and potential `mypy` caching/sync problems to ensure reliable development feedback.
-2.  **Systematic Static Analysis Cleanup:** Continue methodically addressing the remaining `mypy` and `ruff` errors throughout the `cyberdelta/` and `tests/` directories, ensuring adherence to `Decimal` usage, `None` safety, and type hinting rules.
-3.  **Configuration Consistency:** **Urgently** investigate and resolve the discrepancy between the expected configuration structure (`main.py`, component `__init__` methods, `mock_config` fixture) and the actual minimal `config.yaml`. Ensure the application uses a single, consistent, and validated configuration source.
-4.  **Basic Functionality Testing:** Once static analysis errors are largely resolved, begin basic integration testing (if not already underway) to confirm that core workflows (data -> signal -> risk -> execution -> portfolio update) function at a fundamental level, even with mocked APIs initially.
-
-Achieving foundational stability by resolving static analysis errors and configuration issues is paramount before moving to more extensive functional and failure scenario testing for v0.0.1.
-
 ## Appendix: Detailed Business Logic Comparison – `backpack.py` vs. `backpack_old.py`
 
 ### 1. Introduction
@@ -73,6 +19,73 @@ The new version consistently uses explicit type hints (e.g., `dict[str, Any]`, `
 
 ---
 
+### 2A. API Endpoint Comparison
+
+A critical aspect of business logic is how each version interacts with the Backpack exchange API. Below is a comparative analysis of the endpoints used, their business roles, and any changes in usage patterns.
+
+#### **Endpoints Used in Both Versions**
+
+| Endpoint                | Method | Used In                | Business Role                                 |
+|------------------------|--------|------------------------|-----------------------------------------------|
+| `/api/v1/ticker/{symbol}` | GET    | get_ticker             | Fetches current ticker data for a symbol      |
+| `/api/v1/depth`        | GET    | get_order_book         | Fetches order book (market depth)             |
+| `/api/v1/trades`       | GET    | get_recent_trades      | Fetches recent trades for a symbol            |
+| `/api/v1/funding`      | GET    | get_funding_rate       | Fetches funding rate data                     |
+| `/api/v1/order`        | POST   | place_order            | Places a new order                            |
+| `/api/v1/order`        | DELETE | cancel_order           | Cancels an existing order                     |
+| `/api/v1/orders`       | GET    | get_open_orders        | Fetches open orders                           |
+| `/api/v1/positions`    | GET    | get_positions          | Fetches current positions                     |
+| `/api/v1/capital`      | GET    | get_balances           | Fetches account balances                      |
+| `/api/v1/account`      | GET    | get_account_info       | Fetches general account info                  |
+
+#### **Endpoint Usage Patterns**
+- **Both versions** use the same set of endpoints, reflecting a stable business interface with Backpack.
+- **New version** introduces stricter validation and more defensive error handling for each endpoint, especially in parsing and validating responses.
+- **WebSocket endpoints** are managed via subscription messages (e.g., `subscribe`, `SUBSCRIBE`), with the new version adding improved handler management and reconnection logic.
+- **Order placement and cancellation** logic is nearly identical in endpoint usage, but the new version is more explicit in parameter validation and error mapping.
+
+#### **API Call Volume and Structure**
+- Both versions support all core trading operations (market data, order management, account state).
+- The new version is more modular, making it easier to extend with new endpoints or modify existing ones.
+- The number of endpoints is unchanged, but the new version's business logic is more robust in handling API evolution or changes.
+
+---
+
+#### **Mermaid Diagram: API Call Flow (Simplified)**
+
+```mermaid
+flowchart TD
+    subgraph Client
+        U[User/Strategy]
+    end
+    subgraph API
+        BAPI[BackpackAPI]
+    end
+    subgraph Exchange
+        EX[Backpack Exchange]
+    end
+    U-->|Place Order|BAPI
+    BAPI-->|POST /api/v1/order|EX
+    U-->|Cancel Order|BAPI
+    BAPI-->|DELETE /api/v1/order|EX
+    U-->|Get Ticker|BAPI
+    BAPI-->|GET /api/v1/ticker/{symbol}|EX
+    U-->|Get OrderBook|BAPI
+    BAPI-->|GET /api/v1/depth|EX
+    U-->|Get Trades|BAPI
+    BAPI-->|GET /api/v1/trades|EX
+    U-->|Get Funding|BAPI
+    BAPI-->|GET /api/v1/funding|EX
+    U-->|Get Positions|BAPI
+    BAPI-->|GET /api/v1/positions|EX
+    U-->|Get Balances|BAPI
+    BAPI-->|GET /api/v1/capital|EX
+    U-->|Get Account|BAPI
+    BAPI-->|GET /api/v1/account|EX
+```
+
+---
+
 ### 3. Error Handling & Robustness
 
 #### a. **APIError and Error Mapping**
@@ -83,6 +96,29 @@ The new version introduces more explicit validation of API responses. For exampl
 
 #### c. **Logging and Observability**
 Logging is more consistent and informative in the new version. Errors, warnings, and operational events (such as missing credentials or failed subscriptions) are logged with contextual information, aiding in debugging and monitoring. The old version logs less information and sometimes omits context, making post-mortem analysis more difficult.
+
+---
+
+### 3A. Data Validation & Error Handling Flow (Mermaid)
+
+The new version's business logic emphasizes strict validation and robust error handling. The following diagram illustrates the flow for a typical API call:
+
+```mermaid
+flowchart TD
+    CALL[API Call Initiated]
+    REQ[Send HTTP Request]
+    RESP[Receive Response]
+    VAL[Validate Response Structure]
+    ERR[Error Detected?]
+    MAP[Map to APIError]
+    RET[Return Validated Model]
+    LOG[Log Error]
+    CALL-->REQ-->RESP-->VAL
+    VAL-->|Valid|RET
+    VAL-->|Invalid|ERR
+    ERR-->|Yes|MAP-->LOG-->MAP
+    ERR-->|No|RET
+```
 
 ---
 
@@ -99,6 +135,42 @@ Both versions use `Decimal` for financial quantities, but the new version is mor
 
 ---
 
+### 4A. Class/Module Relationships (Mermaid)
+
+```mermaid
+classDiagram
+    class BackpackAPI {
+        +get_ticker()
+        +get_order_book()
+        +get_recent_trades()
+        +get_funding_rate()
+        +place_order()
+        +cancel_order()
+        +get_open_orders()
+        +get_positions()
+        +get_balances()
+        +get_account_info()
+    }
+    class ExchangeAPI
+    class Order
+    class Trade
+    class Ticker
+    class OrderBook
+    class FundingRate
+    class Balance
+    class Position
+    BackpackAPI --|> ExchangeAPI
+    BackpackAPI --> Order
+    BackpackAPI --> Trade
+    BackpackAPI --> Ticker
+    BackpackAPI --> OrderBook
+    BackpackAPI --> FundingRate
+    BackpackAPI --> Balance
+    BackpackAPI --> Position
+```
+
+---
+
 ### 5. Async Patterns & Concurrency
 
 #### a. **Async/Await Usage**
@@ -106,6 +178,26 @@ Both versions use async/await for I/O-bound operations, but the new version is m
 
 #### b. **Locking and State Management**
 While not directly related to rate limiting in these files, the new codebase's general approach to async state (e.g., using `asyncio.Lock` in rate limiter logic elsewhere) is more robust and idiomatic, reducing the risk of race conditions.
+
+---
+
+### 5A. Sequence: Order Placement & Error Handling (Mermaid)
+
+```mermaid
+sequenceDiagram
+    participant U as User/Strategy
+    participant API as BackpackAPI
+    participant EX as Exchange
+    U->>API: place_order()
+    API->>EX: POST /api/v1/order
+    EX-->>API: Response (success or error)
+    alt Valid Response
+        API-->>U: Order Model
+    else Error/Invalid
+        API->>API: Map error, log, raise APIError
+        API-->>U: Exception/Error
+    end
+```
 
 ---
 

@@ -9,7 +9,7 @@ import pytest
 from _pytest.logging import LogCaptureFixture  # Added for caplog typing
 
 # from cyberdelta.apis.base import APIErrorCode, ExchangeAPI # Removed unused import
-from cyberdelta.apis.base import APIErrorCode  # Kept APIErrorCode
+from cyberdelta.apis.models.enums import APIErrorCode  # Updated import location
 
 # Core Components
 from cyberdelta.core.data_handler import DataHandler
@@ -886,7 +886,6 @@ async def test_partial_fill(
         nonlocal bp_place_call_count
         bp_place_call_count += 1
         side = kwargs.get("side")
-        qty = kwargs.get("quantity")
         logger.debug(f"MOCK BP place_order call {bp_place_call_count}, side={side}, qty={qty}")
         if bp_place_call_count == 1 and side == OrderSide.BUY:
             logger.debug("MOCK BP place_order: Returning initial partial fill BUY order.")

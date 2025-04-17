@@ -7,7 +7,6 @@ convenient import.
 - Star imports are avoided for clarity and type safety.
 """
 
-from .api import OrderUpdateEvent, PlaceOrderRequest, TradeFillEvent
 from .enums import (
     OrderSide,
     OrderStatus,
@@ -36,8 +35,4 @@ __all__ = [
     "OrderBook",
     "FundingRate",
     "Balance",
-    # API models
-    "PlaceOrderRequest",
-    "OrderUpdateEvent",
-    "TradeFillEvent",
 ]
