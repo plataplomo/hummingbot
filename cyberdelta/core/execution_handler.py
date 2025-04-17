@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any  # Added cast for timestamp if needed
+from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
@@ -34,6 +34,8 @@ if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
+
+# NOTE: CyberDeltaEngine Order model uses 'client_order_id' as the unique identifier, 'quantity_requested' for order size, 'quantity_filled' for filled size, and 'average_fill_price' for fill price. There is no 'id', 'quantity', or 'avg_fill_price' attribute.
 
 
 class ExecutionStatus(Enum):
@@ -272,7 +274,7 @@ class ExecutionHandler:
 
                 if isinstance(long_ticker_result, Ticker):
                     long_ticker = long_ticker_result
-                elif isinstance(long_ticker_result, BaseException):
+                else:
                     logger.warning(
                         f"Execution {execution.id}: Failed to fetch long ticker: "
                         f"{long_ticker_result}"
@@ -280,7 +282,7 @@ class ExecutionHandler:
 
                 if isinstance(short_ticker_result, Ticker):
                     short_ticker = short_ticker_result
-                elif isinstance(short_ticker_result, BaseException):
+                else:
                     logger.warning(
                         f"Execution {execution.id}: Failed to fetch short ticker: "
                         f"{short_ticker_result}"
@@ -345,6 +347,9 @@ class ExecutionHandler:
         compensating_symbol: str | None = None
         compensating_side: OrderSide | None = None
         compensating_size: Decimal | None = None
+        fill_qty: Decimal | None = None
+        fill_price: Decimal | None = None
+        order_id: Any = None
 
         try:
             execution_mode = self.config.get("execution.mode", "sequential")
@@ -387,8 +392,13 @@ class ExecutionHandler:
                             compensating_symbol = long_symbol
                             compensating_side = OrderSide.SELL  # Opposite of original long
                             # Compensate filled amount
-                            if long_order_result and long_order_result.filled_quantity is not None:
-                                compensating_size = long_order_result.filled_quantity
+                            if long_order_result and long_order_result.quantity_filled is not None:
+                                try:
+                                    compensating_size = Decimal(
+                                        str(long_order_result.quantity_filled)
+                                    )
+                                except (InvalidOperation, TypeError, ValueError):
+                                    compensating_size = None
                             else:
                                 compensating_size = None  # Cannot compensate if size unknown
                                 logger.error(
@@ -414,9 +424,11 @@ class ExecutionHandler:
                         compensating_exchange_id = opportunity.opportunity.long_exchange
                         compensating_symbol = long_symbol
                         compensating_side = OrderSide.SELL
+                        # Ensure compensating_size is always Optional[Decimal]
                         compensating_size = (
-                            long_order_result.filled_quantity
-                            if long_order_result and long_order_result.filled_quantity is not None
+                            long_order_result.quantity_filled
+                            if long_order_result
+                            and getattr(long_order_result, "quantity_filled", None) is not None
                             else None
                         )
                         if compensating_size is None:
@@ -477,10 +489,6 @@ class ExecutionHandler:
                     logger.warning(
                         f"Execution {execution.id}: Long leg failed or not filled (concurrent)."
                     )
-                    if isinstance(order_results[0], BaseException):
-                        logger.error(
-                            f"Execution {execution.id}: Long leg error: {order_results[0]}"
-                        )
 
                 if short_filled:
                     logger.info(f"Execution {execution.id}: Short leg filled successfully.")
@@ -488,10 +496,6 @@ class ExecutionHandler:
                     logger.warning(
                         f"Execution {execution.id}: Short leg failed or not filled (concurrent)."
                     )
-                    if isinstance(order_results[1], BaseException):
-                        logger.error(
-                            f"Execution {execution.id}: Short leg error: {order_results[1]}"
-                        )
 
                 # Determine final status and compensation needs
                 if long_filled and short_filled:
@@ -507,9 +511,11 @@ class ExecutionHandler:
                     compensating_exchange_id = opportunity.opportunity.long_exchange
                     compensating_symbol = long_symbol
                     compensating_side = OrderSide.SELL
+                    # Ensure compensating_size is always Optional[Decimal]
                     compensating_size = (
-                        long_order_result.filled_quantity
-                        if long_order_result and long_order_result.filled_quantity is not None
+                        long_order_result.quantity_filled
+                        if long_order_result
+                        and getattr(long_order_result, "quantity_filled", None) is not None
                         else None
                     )
                     if compensating_size is None:
@@ -527,9 +533,11 @@ class ExecutionHandler:
                     compensating_exchange_id = opportunity.opportunity.short_exchange
                     compensating_symbol = short_symbol
                     compensating_side = OrderSide.BUY  # Opposite of original short
+                    # Ensure compensating_size is always Optional[Decimal]
                     compensating_size = (
-                        short_order_result.filled_quantity
-                        if short_order_result and short_order_result.filled_quantity is not None
+                        short_order_result.quantity_filled
+                        if short_order_result
+                        and getattr(short_order_result, "quantity_filled", None) is not None
                         else None
                     )
                     if compensating_size is None:
@@ -574,10 +582,14 @@ class ExecutionHandler:
                 compensating_exchange_id = opportunity.opportunity.long_exchange
                 compensating_symbol = long_symbol
                 compensating_side = OrderSide.SELL
-                if long_order_result.filled_quantity is not None:
-                    compensating_size = long_order_result.filled_quantity
-                else:
-                    compensating_size = None  # Cannot compensate if size unknown
+                # Ensure compensating_size is always Optional[Decimal]
+                compensating_size = (
+                    long_order_result.quantity_filled
+                    if long_order_result
+                    and getattr(long_order_result, "quantity_filled", None) is not None
+                    else None
+                )
+                if compensating_size is None:
                     logger.error(
                         f"Execution {execution.id}: Cannot determine compensation size "
                         f"for long leg (Order: {long_order_result})."
@@ -588,10 +600,14 @@ class ExecutionHandler:
                 compensating_exchange_id = opportunity.opportunity.short_exchange
                 compensating_symbol = short_symbol
                 compensating_side = OrderSide.BUY
-                if short_order_result.filled_quantity is not None:
-                    compensating_size = short_order_result.filled_quantity
-                else:
-                    compensating_size = None  # Cannot compensate if size unknown
+                # Ensure compensating_size is always Optional[Decimal]
+                compensating_size = (
+                    short_order_result.quantity_filled
+                    if short_order_result
+                    and getattr(short_order_result, "quantity_filled", None) is not None
+                    else None
+                )
+                if compensating_size is None:
                     logger.error(
                         f"Execution {execution.id}: Cannot determine compensation size "
                         f"for short leg (Order: {short_order_result})."
@@ -732,30 +748,34 @@ class ExecutionHandler:
 
                 if order:
                     logger.info(  # Changed to info as success is expected outcome here
-                        f"Execution {execution.id}: Order {order.id if order else 'N/A'} "
+                        f"Execution {execution.id}: Order {order.client_order_id if order else 'N/A'} "
                         f"placed successfully on attempt {attempt + 1}."
                     )
                     # Store order response in execution object
                     # Safely access raw_data if the attribute exists on the order object
                     raw_data = getattr(order, "raw_data", None)
                     if is_long_leg:
-                        execution.long_order_id = order.id
+                        execution.long_order_id = (
+                            order.client_order_id
+                        )  # Use client_order_id as unique identifier
                         # Store raw if available
                         execution.long_order_response = raw_data or {}
                     else:
-                        execution.short_order_id = order.id
+                        execution.short_order_id = (
+                            order.client_order_id
+                        )  # Use client_order_id as unique identifier
                         execution.short_order_response = raw_data or {}
 
                     # Check initial status - might be filled immediately
                     if order.status == OrderStatus.FILLED:
-                        logger.info(  # Changed to info
-                            f"Execution {execution.id}: Order {order.id} filled immediately. "
+                        logger.info(
+                            f"Execution {execution.id}: Order {order.client_order_id} filled immediately. "
                             f"Status: {order.status.name}"
                         )
                         await self._handle_filled_order(execution, order, exchange_id, is_long_leg)
                     elif order.status in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]:
-                        logger.info(  # Changed to info
-                            f"Execution {execution.id}: Order {order.id} status is "
+                        logger.info(
+                            f"Execution {execution.id}: Order {order.client_order_id} status is "
                             f"{order.status.name}. Monitoring..."
                         )
                         # Monitoring might happen elsewhere or be triggered later
@@ -766,7 +786,7 @@ class ExecutionHandler:
                         OrderStatus.EXPIRED,
                     ]:
                         logger.warning(
-                            f"Execution {execution.id}: Order {order.id} immediately "
+                            f"Execution {execution.id}: Order {order.client_order_id} immediately "
                             f"{order.status.name}."
                         )
                         if self.circuit_breaker_system:
@@ -1043,7 +1063,7 @@ class ExecutionHandler:
                     # Order placed but not filled immediately, needs monitoring
                     logger.warning(
                         f"Execution {execution.id}: Compensation order "
-                        f"{compensating_order.id} placed but status is "
+                        f"{compensating_order.client_order_id} placed but status is "
                         f"{compensating_order.status.name}. Needs monitoring."
                     )
                     # TODO: Implement monitoring for compensation orders or handle failure
@@ -1187,22 +1207,22 @@ class ExecutionHandler:
             long_id = execution.long_order_id
             short_id = execution.short_order_id
             long_filled_qty_raw = execution.long_fill_quantity or (
-                execution.long_order_response.get("filled_quantity")
+                execution.long_order_response.get("quantity_filled")
                 if execution.long_order_response
                 else None
             )
             long_avg_price_raw = execution.long_fill_price or (
-                execution.long_order_response.get("avg_fill_price")
+                execution.long_order_response.get("average_fill_price")
                 if execution.long_order_response
                 else None
             )
             short_filled_qty_raw = execution.short_fill_quantity or (
-                execution.short_order_response.get("filled_quantity")
+                execution.short_order_response.get("quantity_filled")
                 if execution.short_order_response
                 else None
             )
             short_avg_price_raw = execution.short_fill_price or (
-                execution.short_order_response.get("avg_fill_price")
+                execution.short_order_response.get("average_fill_price")
                 if execution.short_order_response
                 else None
             )
@@ -1265,31 +1285,31 @@ class ExecutionHandler:
     ) -> None:
         """Process a filled order, update execution state, and notify portfolio tracker."""
         logger.info(
-            f"Execution {execution.id}: Handling filled order {order.id} on "
+            f"Execution {execution.id}: Handling filled order {order.client_order_id} on "
             f"{exchange_id} ({'LONG' if is_long_leg else 'SHORT'})"
         )
 
         # Ensure necessary fill info exists
-        if order.filled_quantity is None or order.avg_fill_price is None:
+        if order.quantity_filled is None or order.average_fill_price is None:
             logger.error(
-                f"Execution {execution.id}: Order {order.id} status is FILLED but "
+                f"Execution {execution.id}: Order {order.client_order_id} status is FILLED but "
                 f"missing fill quantity or price. Cannot process fill."
             )
             return
 
         # Update TradeExecution object
-        fill_qty = order.filled_quantity
-        fill_price = order.avg_fill_price
-        order_id = order.id
+        fill_qty = order.quantity_filled
+        fill_price = order.average_fill_price
+        order_id = order.client_order_id  # Use client_order_id as unique identifier
 
         if is_long_leg:
             execution.long_fill_quantity = fill_qty
             execution.long_fill_price = fill_price
-            execution.long_order_id = order_id  # Ensure ID is set
+            execution.long_order_id = order_id  # Use client_order_id as unique identifier
         else:
             execution.short_fill_quantity = fill_qty
             execution.short_fill_price = fill_price
-            execution.short_order_id = order_id  # Ensure ID is set
+            execution.short_order_id = order_id  # Use client_order_id as unique identifier
 
         # Create and record Trade object
         try:
@@ -1413,7 +1433,7 @@ class ExecutionHandler:
                 elif current_status == OrderStatus.PARTIALLY_FILLED:
                     logger.info(
                         f"Execution {execution.id}: Order {order_id} partially filled "
-                        f"({order.filled_quantity}/{order.quantity}). "
+                        f"({order.quantity_filled}/{order.quantity}). "
                         f"Continuing monitoring."
                     )
                     # Update execution state if needed (e.g., store partial fill info)

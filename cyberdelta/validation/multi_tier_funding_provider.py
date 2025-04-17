@@ -9,6 +9,7 @@ confidence-scored funding rate data.
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from .funding_data import (
@@ -69,17 +70,17 @@ class MultiTierFundingProvider:
         self.freshness_weight = config.get("freshness_weight", 0.1)
 
         # Register data sources
-        self.primary_sources: dict[str, Callable] = {}
-        self.secondary_sources: dict[str, Callable] = {}
-        self.tertiary_sources: dict[str, Callable] = {}
-        self.fallback_sources: dict[str, Callable] = {}
+        self.primary_sources: dict[str, Callable[..., Any]] = {}
+        self.secondary_sources: dict[str, Callable[..., Any]] = {}
+        self.tertiary_sources: dict[str, Callable[..., Any]] = {}
+        self.fallback_sources: dict[str, Callable[..., Any]] = {}
 
         logger.info("Initialized multi-tier funding rate provider")
 
     def register_source(
         self,
         exchange: str,
-        source_func: Callable,
+        source_func: Callable[..., Any],
         source_type: SourceType,
         reliability: SourceReliability,
     ) -> None:
@@ -133,12 +134,14 @@ class MultiTierFundingProvider:
             else:
                 # Adjust confidence for stale data
                 decay_factor = max(0, 1 - (age / (self.max_acceptable_age * 2)))
-                adjusted_confidence = cached_data.confidence_score * decay_factor
+                adjusted_confidence = Decimal(str(cached_data.confidence_score)) * Decimal(
+                    str(decay_factor)
+                )
                 logger.info(
                     f"Using stale cached funding rate for {exchange}:{symbol} "
                     f"with age {age:.0f}s, confidence reduced to {adjusted_confidence:.2f}"
                 )
-                return cached_data.rate, adjusted_confidence
+                return cached_data.rate, float(adjusted_confidence)
 
         # Try primary source
         try:
@@ -379,7 +382,7 @@ class MultiTierFundingProvider:
             )
 
             # Use lower confidence for fallback data and adjust for age
-            base_confidence = 0.2
+            base_confidence = Decimal("0.2")
             # Ensure fallback_data.timestamp is aware before subtraction
             fallback_ts_aware = fallback_data.timestamp
             if fallback_ts_aware.tzinfo is None:
@@ -388,15 +391,15 @@ class MultiTierFundingProvider:
                 )  # Should not happen due to above logic, but belt-and-suspenders
             age = (datetime.now(UTC) - fallback_ts_aware).total_seconds()
             decay_factor = max(0, 1 - (age / (self.max_acceptable_age * 4)))
-            adjusted_confidence = base_confidence * decay_factor
-            adjusted_rate = fallback_data.rate
+            adjusted_confidence = base_confidence * Decimal(str(decay_factor))
+            adjusted_rate = float(fallback_data.rate)
 
             logger.debug(
                 f"Using fallback funding rate {adjusted_rate:.6f} for {exchange}:{symbol} "
                 f"with age {age:.0f}s, confidence reduced to {adjusted_confidence:.2f}"
             )
 
-            return adjusted_rate, adjusted_confidence
+            return adjusted_rate, float(adjusted_confidence)
 
         except Exception as e:
             logger.error(f"Fallback source for {exchange}:{symbol} failed: {e}")
@@ -424,7 +427,7 @@ class MultiTierFundingProvider:
             IntegratedFundingData object
         """
         # Collect available sources
-        available_sources = []
+        available_sources: list[FundingData] = []
         if primary:
             available_sources.append(primary)
         if secondary:
@@ -437,70 +440,62 @@ class MultiTierFundingProvider:
                 f"No funding rate data available for {exchange}:{symbol} from primary/secondary/tertiary sources"
             )
 
-        # Get rates, weights, and timestamps
-        rates = [source.rate for source in available_sources]
-        weights = [
-            self.primary_source_weight
-            if source.source_type == SourceType.PRIMARY
-            else self.secondary_source_weight
-            if source.source_type == SourceType.SECONDARY
-            else self.tertiary_source_weight
-            if source.source_type == SourceType.TERTIARY
-            else 0
-            for source in available_sources
-        ]
-        timestamps = [source.timestamp for source in available_sources]
+        # Get rates, timestamps, and raw data
+        rates: list[Decimal] = [Decimal(str(s.rate)) for s in available_sources]
+        timestamps: list[datetime] = [s.timestamp for s in available_sources]
+
+        if not rates:
+            raise FundingRateSourceError(
+                f"No valid funding rate data found for {exchange}:{symbol} from primary/secondary/tertiary sources"
+            )
 
         # Ensure weights sum to 1 (or normalize)
-        total_weight = sum(weights)
-        if total_weight > 0:
-            normalized_weights = [w / total_weight for w in weights]
+        total_weight = Decimal(str(sum(rates, Decimal("0"))))
+        if total_weight > Decimal(0):
+            normalized_weights: list[Decimal] = [r / total_weight for r in rates]
         else:
-            # Handle case where all weights are zero (e.g., only fallback?)
-            # Distribute weight equally or handle as error
-            normalized_weights = [1.0 / len(weights)] * len(weights)
+            normalized_weights = [Decimal("1.0") / Decimal(len(rates))] * len(rates)
 
         # Calculate weighted average
-        weighted_sum = sum(r * w for r, w in zip(rates, normalized_weights, strict=True))
-        integrated_rate = weighted_sum
+        weighted_sum = Decimal(
+            str(sum((r * w for r, w in zip(rates, normalized_weights, strict=True)), Decimal("0")))
+        )
+        integrated_rate: Decimal = weighted_sum
 
         # Calculate weighted average timestamp
-        # Convert timestamps to seconds since epoch for calculation
-        epoch = datetime(1970, 1, 1, tzinfo=UTC)  # Use timezone-aware epoch
-        timestamps_seconds = []
+        epoch = datetime(1970, 1, 1, tzinfo=UTC)
+        timestamps_seconds: list[Decimal] = []
         for ts in timestamps:
-            # Ensure timestamp is timezone-aware (assume UTC if naive)
             if ts.tzinfo is None:
                 ts = ts.replace(tzinfo=UTC)
-            timestamps_seconds.append((ts - epoch).total_seconds())
-
-        # weighted_timestamp_seconds = sum(
-        #     ts * w for ts, w in zip(timestamps_seconds, normalized_weights, strict=True)
-        # )
-        # Fix for potential zip strict=True issue if lists have different lengths unexpectedly
+            seconds = Decimal(str((ts - epoch).total_seconds()))
+            timestamps_seconds.append(seconds)
         min_len = min(len(timestamps_seconds), len(normalized_weights))
-        weighted_timestamp_seconds = sum(
-            timestamps_seconds[i] * normalized_weights[i] for i in range(min_len)
+        weighted_timestamp_seconds = Decimal(
+            str(
+                sum(
+                    (timestamps_seconds[i] * normalized_weights[i] for i in range(min_len)),
+                    Decimal("0"),
+                )
+            )
         )
+        integrated_timestamp = epoch + timedelta(seconds=float(weighted_timestamp_seconds))
 
-        # Resulting timestamp will be timezone-aware (UTC)
-        integrated_timestamp = epoch + timedelta(seconds=weighted_timestamp_seconds)
-
-        # Calculate dispersion (e.g., standard deviation of rates)
+        # Calculate dispersion (standard deviation of rates)
         if len(rates) > 1:
-            mean_rate = sum(rates) / len(rates)
-            variance = sum((r - mean_rate) ** 2 for r in rates) / len(rates)
-            rate_dispersion = variance**0.5
+            mean_rate = Decimal(str(sum(rates, Decimal("0")))) / Decimal(len(rates))
+            variance = Decimal(
+                str(sum(((r - mean_rate) ** 2 for r in rates), Decimal("0")))
+            ) / Decimal(len(rates))
+            rate_dispersion: float = float(variance.sqrt())
         else:
             rate_dispersion = 0.0
 
-        # Aggregate raw data (simple list for now)
-        raw_data_aggregate = [source.raw_data for source in available_sources]
-
+        # Compose IntegratedFundingData, converting Decimals to float if required
         integrated_data = IntegratedFundingData(
             exchange=exchange,
             symbol=symbol,
-            rate=integrated_rate,
+            rate=float(integrated_rate),
             timestamp=integrated_timestamp,
             confidence_score=0.0,  # To be calculated later
             dispersion=rate_dispersion,
@@ -512,7 +507,6 @@ class MultiTierFundingProvider:
             tertiary_available=any(s.source_type == SourceType.TERTIARY for s in available_sources),
             source_data={s.source_type: s for s in available_sources},
         )
-
         return integrated_data
 
     def _calculate_confidence_factors(
@@ -537,8 +531,8 @@ class MultiTierFundingProvider:
         source_count_score = integrated_data.sources_count / max_sources
 
         # Dispersion score (lower dispersion = higher confidence)
-        max_dispersion = 0.001  # Example: Max acceptable std dev of 0.1%
-        dispersion_score = max(0, 1 - (integrated_data.dispersion / max_dispersion))
+        max_dispersion = Decimal("0.001")  # Example: Max acceptable std dev of 0.1%
+        dispersion_score = max(0, 1 - (integrated_data.dispersion / float(max_dispersion)))
 
         # Freshness score (more recent = higher confidence)
         age_seconds = (datetime.now(UTC) - integrated_data.timestamp).total_seconds()
@@ -574,8 +568,8 @@ class MultiTierFundingProvider:
                 return float(self.default_accuracy_score)
 
             # Normalize RMSE and bias to a score between 0 and 1
-            rmse_score = max(0, 1 - (metrics["rmse"] / self.max_acceptable_rmse))
-            bias_score = max(0, 1 - (abs(metrics["bias"]) / self.max_acceptable_bias))
+            rmse_score = max(0, 1 - (float(metrics["rmse"]) / self.max_acceptable_rmse))
+            bias_score = max(0, 1 - (abs(float(metrics["bias"])) / self.max_acceptable_bias))
 
             # Combine scores (e.g., weighted average)
             accuracy_score = (rmse_score * 0.7) + (bias_score * 0.3)

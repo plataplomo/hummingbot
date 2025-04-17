@@ -8,7 +8,7 @@ from typing import Any
 
 from cyberdelta.utils.config import Config
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 class StateManager:
@@ -32,9 +32,9 @@ class StateManager:
         self.config = config
 
         # Load state parameters from config
-        self.state_file = config.get("general.state_file", "state.json")
-        self.backup_dir = config.get("general.state_backup_directory", "state_backups")
-        self.backup_count = config.get("general.state_backup_count", 5)
+        self.state_file: str = config.get("general.state_file", "state.json")
+        self.backup_dir: str = config.get("general.state_backup_directory", "state_backups")
+        self.backup_count: int = config.get("general.state_backup_count", 5)
 
         # Ensure backup directory exists
         os.makedirs(self.backup_dir, exist_ok=True)
@@ -112,7 +112,7 @@ class StateManager:
             self._create_backup()
 
             # Write state to a temporary file first
-            temp_file = f"{self.state_file}.tmp"
+            temp_file: str = f"{self.state_file}.tmp"
             with open(temp_file, "w") as file:
                 json.dump(state_data, file, indent=2)
 
@@ -150,8 +150,8 @@ class StateManager:
 
         try:
             # Generate backup filename with timestamp
-            timestamp = int(time.time())
-            backup_path = os.path.join(self.backup_dir, f"state_{timestamp}.json")
+            timestamp: int = int(time.time())
+            backup_path: str = os.path.join(self.backup_dir, f"state_{timestamp}.json")
 
             # Copy current state file to backup
             shutil.copy2(self.state_file, backup_path)
@@ -170,17 +170,17 @@ class StateManager:
         """Rotate state backups, keeping only the most recent ones."""
         try:
             # Get all backup files
-            backup_files = []
+            files: list[str] = []
             for filename in os.listdir(self.backup_dir):
                 if filename.startswith("state_") and filename.endswith(".json"):
-                    backup_path = os.path.join(self.backup_dir, filename)
-                    backup_files.append((backup_path, os.path.getmtime(backup_path)))
+                    backup_path: str = os.path.join(self.backup_dir, filename)
+                    files.append(backup_path)
 
             # Sort by modification time (newest first)
-            backup_files.sort(key=lambda x: x[1], reverse=True)
+            files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
 
             # Remove excess backups
-            for backup_path, _ in backup_files[self.backup_count :]:
+            for backup_path in files[self.backup_count :]:
                 os.remove(backup_path)
                 logger.debug(f"Removed old state backup {backup_path}")
 
@@ -196,21 +196,21 @@ class StateManager:
         """
         try:
             # Get all backup files
-            backup_files = []
+            files: list[str] = []
             for filename in os.listdir(self.backup_dir):
                 if filename.startswith("state_") and filename.endswith(".json"):
-                    backup_path = os.path.join(self.backup_dir, filename)
-                    backup_files.append((backup_path, os.path.getmtime(backup_path)))
+                    backup_path: str = os.path.join(self.backup_dir, filename)
+                    files.append(backup_path)
 
-            if not backup_files:
+            if not files:
                 logger.warning("No state backups available for recovery")
                 return False
 
             # Sort by modification time (newest first)
-            backup_files.sort(key=lambda x: x[1], reverse=True)
+            files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
 
             # Try each backup in order until one works
-            for backup_path, _ in backup_files:
+            for backup_path in files:
                 try:
                     # Read backup file
                     with open(backup_path) as file:
@@ -264,15 +264,15 @@ class StateManager:
             return False
 
         # Verify checksum
-        expected_checksum = metadata["checksum"]
+        expected_checksum_raw: object = metadata["checksum"]
+        if not isinstance(expected_checksum_raw, str):
+            logger.error(f"Expected checksum must be a string, got {type(expected_checksum_raw)}")
+            return False
+        expected_checksum: str = expected_checksum_raw
         actual_checksum = self._calculate_checksum(state_data["state"])
 
-        # Explicitly check type before comparison as Mypy seems confused
-        if not isinstance(expected_checksum, str):
-            self.logger.warning(f"Expected checksum is not a string: {type(expected_checksum)}")
-            return False  # Or raise an error, depending on desired strictness
         # Return true if checksums match
-        return expected_checksum == actual_checksum
+        return bool(expected_checksum == actual_checksum)
 
     def _calculate_checksum(self, state: dict[str, Any]) -> str:
         """
@@ -286,7 +286,7 @@ class StateManager:
         """
         # For simplicity, we're using a JSON hash as the checksum
         # In a production system, you might want to use a more robust algorithm
-        state_json = json.dumps(state, sort_keys=True)
+        state_json: str = json.dumps(state, sort_keys=True)
         return str(hash(state_json))
 
 

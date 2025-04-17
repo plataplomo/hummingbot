@@ -57,11 +57,11 @@ class PerformanceVisualizer:
     def create_returns_chart(
         self,
         returns_data: pd.DataFrame,
-        strategy_names: list[str] = None,
-        benchmark_data: pd.DataFrame = None,
+        strategy_names: list[str] | None = None,
+        benchmark_data: pd.DataFrame | None = None,
         title: str = "Cumulative Returns",
-        height: int = None,
-        width: int = None,
+        height: int | None = None,
+        width: int | None = None,
     ) -> go.Figure:
         """
         Create a cumulative returns chart for one or more strategies.
@@ -77,11 +77,12 @@ class PerformanceVisualizer:
         Returns:
             Plotly figure object
         """
-        height = height or self.config.default_height
-        width = width or self.config.default_width
-
         if strategy_names is None:
             strategy_names = returns_data.columns.tolist()
+        if benchmark_data is None:
+            benchmark_data = pd.DataFrame()
+        height = height or self.config.default_height
+        width = width or self.config.default_width
 
         # Calculate cumulative returns
         cum_returns = (1 + returns_data[strategy_names]).cumprod() - 1
@@ -103,7 +104,7 @@ class PerformanceVisualizer:
             )
 
         # Add benchmark if provided
-        if benchmark_data is not None:
+        if not benchmark_data.empty:
             cum_benchmark = (1 + benchmark_data).cumprod() - 1
             fig.add_trace(
                 go.Scatter(
@@ -156,10 +157,10 @@ class PerformanceVisualizer:
     def create_drawdown_chart(
         self,
         returns_data: pd.DataFrame,
-        strategy_names: list[str] = None,
+        strategy_names: list[str] | None = None,
         title: str = "Drawdown Analysis",
-        height: int = None,
-        width: int = None,
+        height: int | None = None,
+        width: int | None = None,
     ) -> go.Figure:
         """
         Create a drawdown chart for one or more strategies.
@@ -174,11 +175,10 @@ class PerformanceVisualizer:
         Returns:
             Plotly figure object
         """
-        height = height or self.config.default_height
-        width = width or self.config.default_width
-
         if strategy_names is None:
             strategy_names = returns_data.columns.tolist()
+        height = height or self.config.default_height
+        width = width or self.config.default_width
 
         # Calculate drawdowns
         cum_returns = (1 + returns_data[strategy_names]).cumprod()
@@ -244,8 +244,8 @@ class PerformanceVisualizer:
         self,
         trade_data: pd.DataFrame,
         title: str = "Trade Analysis",
-        height: int = None,
-        width: int = None,
+        height: int | None = None,
+        width: int | None = None,
     ) -> go.Figure:
         """
         Create a scatter plot of trades showing PnL vs duration.
@@ -350,8 +350,8 @@ class PerformanceVisualizer:
         self,
         funding_data: pd.DataFrame,
         title: str = "Funding Rate Heatmap",
-        height: int = None,
-        width: int = None,
+        height: int | None = None,
+        width: int | None = None,
     ) -> go.Figure:
         """
         Create a heatmap of funding rates across assets and time.
@@ -405,10 +405,10 @@ class PerformanceVisualizer:
         returns_data: pd.DataFrame,
         trade_data: pd.DataFrame = None,
         funding_data: pd.DataFrame = None,
-        strategy_names: list[str] = None,
-        benchmark_data: pd.DataFrame = None,
-        height: int = None,
-        width: int = None,
+        strategy_names: list[str] | None = None,
+        benchmark_data: pd.DataFrame | None = None,
+        height: int | None = None,
+        width: int | None = None,
     ) -> go.Figure:
         """
         Create a comprehensive performance dashboard with multiple charts.
@@ -430,6 +430,8 @@ class PerformanceVisualizer:
 
         if strategy_names is None:
             strategy_names = returns_data.columns.tolist()
+        if benchmark_data is None:
+            benchmark_data = pd.DataFrame()
 
         # Create subplot grid
         fig = make_subplots(
@@ -464,7 +466,7 @@ class PerformanceVisualizer:
             )
 
         # Add benchmark if provided
-        if benchmark_data is not None:
+        if not benchmark_data.empty:
             cum_benchmark = (1 + benchmark_data).cumprod() - 1
             fig.add_trace(
                 go.Scatter(
