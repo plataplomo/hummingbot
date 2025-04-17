@@ -2,10 +2,8 @@ from __future__ import annotations  # Enable postponed evaluation
 
 import logging
 import uuid
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from enum import Enum
 from typing import Any, Self, cast
 
 from pydantic import (
@@ -16,63 +14,13 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, SignalType
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
 
 # Set Decimal precision globally if desired, or manage context locally
 # getcontext().prec = 28
-
-
-class OrderSide(Enum):
-    """Enum representing the side of an order (BUY or SELL)."""
-
-    BUY = "buy"
-    SELL = "sell"
-
-
-class OrderType(Enum):
-    """Enum representing the type of an order."""
-
-    LIMIT = "limit"
-    MARKET = "market"
-    STOP = "stop"
-    STOP_LIMIT = "stop_limit"
-    TAKE_PROFIT = "take_profit"
-    TAKE_PROFIT_LIMIT = "take_profit_limit"
-
-
-class OrderStatus(Enum):
-    """Enum representing the status of an order."""
-
-    NEW = "NEW"
-    PARTIALLY_FILLED = "PARTIALLY_FILLED"
-    FILLED = "FILLED"
-    CANCELED = "CANCELED"
-    REJECTED = "REJECTED"
-    EXPIRED = "EXPIRED"
-    OPEN = "OPEN"
-    FAILED = "FAILED"
-    UNKNOWN = "UNKNOWN"
-
-
-class SignalType(Enum):
-    """Enum representing the type of a trading signal."""
-
-    ENTER_LONG = "ENTER_LONG"
-    EXIT_LONG = "EXIT_LONG"
-    ENTER_SHORT = "ENTER_SHORT"
-    EXIT_SHORT = "EXIT_SHORT"
-    HOLD = "HOLD"
-    REBALANCE = "REBALANCE"
-
-
-class TimeInForce(Enum):
-    """Enum representing the time in force for an order."""
-
-    GTC = "GTC"  # Good 'Til Canceled
-    IOC = "IOC"  # Immediate Or Cancel
-    FOK = "FOK"  # Fill Or Kill
 
 
 class MarketData(BaseModel):
@@ -222,7 +170,9 @@ class Position(BaseModel):
     symbol: str
     side: OrderSide
     size: Decimal
-    entry_price: Decimal
+    entry_price: Decimal = Field(
+        gt=0, description="Entry price must be positive if position is open."
+    )
     leverage: Decimal | None = None
     id: str | None = None
     status: str | None = None
@@ -308,69 +258,97 @@ class Position(BaseModel):
                 d[k] = v.isoformat()
         return d
 
+    @model_validator(mode="after")
+    def check_position_logic(self) -> Self:
+        """
+        Ensure entry_price is positive if size is not zero. Optionally, check side/size consistency.
+        """
+        if self.size != Decimal("0") and self.entry_price <= 0:
+            raise ValueError("Entry price must be positive if position is open.")
+        # Example: if self.side == OrderSide.BUY and self.size < 0: ...
+        return self
+
 
 class Trade(BaseModel):
     """
     Represents a single execution event (fill) that occurs against an order.
-
-    This model records the details of a specific trade/fill, including price,
-    quantity, fee, and execution time.
+    All core fields are required for auditability and downstream processing.
+    - 'side', 'order_id', 'exchange', 'cost', 'client_order_id', and 'fee' are always required.
+    - 'fee_asset' is required if 'fee' is nonzero, else may be an empty string.
+    - 'is_maker' is Optional due to upstream API variability.
+    - 'timestamp' is retained as an optional raw value and excluded from serialization by default.
     """
 
     id: str
     symbol: str
-    timestamp: int
-    price: Decimal
-    quantity: Decimal
-    side: OrderSide | None = None
-    order_id: str | None = None
-    exchange: str | None = None
-    executed_at: datetime | None = None
-    fee: Decimal | None = None
-    fee_asset: str | None = None
-    is_maker: bool | None = None
-    client_order_id: str | None = None
-    cost: Decimal | None = None
+    executed_at: datetime
+    side: OrderSide
+    order_id: str
+    exchange: str
+    client_order_id: str
+    price: Decimal = Field(gt=0, description="Execution price must be positive.")
+    quantity: Decimal = Field(gt=0, description="Executed quantity must be positive.")
+    cost: Decimal = Field(gt=0, description="Total cost (price * quantity) must be positive.")
+    fee: Decimal = Field(
+        default=Decimal("0"), ge=0, description="Fee paid for this trade. Defaults to 0."
+    )
+    fee_asset: str = Field(
+        default="", description="Asset in which the fee was paid. Required if fee != 0."
+    )
+    is_maker: bool | None = Field(
+        default=None, description="True if maker fill, False if taker, None if unknown."
+    )
+    timestamp: int | None = Field(default=None, exclude=True)
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    @field_validator("price", "quantity", "fee", "cost", mode="before")
-    @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
-        """
-        Parse and validate Decimal fields for Trade.
-        Ensures all financial values are stored as Decimals for precision and
-        consistency.
-        """
-        return parse_decimal_value(v)
-
     @field_validator("executed_at", mode="before")
     @classmethod
-    def parse_datetime(
-        cls, v: str | int | float | datetime | None, info: object
-    ) -> datetime | None:
-        """
-        Parse and validate datetime fields for Trade, ensuring UTC awareness.
-        Accepts datetime, int/float (epoch seconds or ms), or ISO string.
-        """
-        return parse_datetime_utc(v)
+    def parse_executed_at(cls, v: str | int | float | datetime | None, info: object) -> datetime:
+        dt = parse_datetime_utc(v)
+        if dt is None:
+            raise ValueError("executed_at cannot be None")
+        return dt
+
+    @field_validator("price", "quantity", "cost", "fee", mode="before")
+    @classmethod
+    def parse_decimal_fields(cls, v: str | int | float | Decimal | None, info: object) -> Decimal:
+        field_name = getattr(info, "field_name", "")
+        if v is None:
+            if field_name == "fee":
+                return Decimal("0")
+            raise ValueError(f"Field '{field_name}' is required and cannot be None.")
+        dec = parse_decimal_value(v)
+        if dec is None:
+            raise ValueError(
+                f"Field '{field_name}' could not be parsed to Decimal and is required."
+            )
+        return dec
 
     @model_validator(mode="after")
-    def set_cost_and_datetime(self) -> Self:
+    def check_trade_logic(self) -> Self:
         """
-        Post-model validation to set the cost (if not provided) and parse the
-        datetime from timestamp.
-        Ensures cost is always available and datetime is UTC-aware.
+        Ensure all required fields are present and logically valid.
+        - fee_asset must be present if fee != 0.
         """
-        if self.cost is None:
-            object.__setattr__(self, "cost", self.price * self.quantity)
-        if self.timestamp and self.executed_at is None:
-            try:
-                object.__setattr__(
-                    self, "executed_at", datetime.fromtimestamp(self.timestamp / 1000, tz=UTC)
-                )
-            except (TypeError, ValueError, OSError):
-                object.__setattr__(self, "executed_at", None)
+        if self.price <= 0:
+            raise ValueError("Trade price must be positive.")
+        if self.quantity <= 0:
+            raise ValueError("Trade quantity must be positive.")
+        if self.cost <= 0:
+            raise ValueError("Trade cost must be positive.")
+        if self.fee < 0:
+            raise ValueError("Trade fee cannot be negative.")
+        if self.fee != 0 and not self.fee_asset:
+            raise ValueError("fee_asset must be provided if fee is nonzero.")
+        if not self.side:
+            raise ValueError("Trade side is required.")
+        if not self.order_id:
+            raise ValueError("Trade order_id is required.")
+        if not self.exchange:
+            raise ValueError("Trade exchange is required.")
+        if not self.client_order_id:
+            raise ValueError("Trade client_order_id is required.")
         return self
 
     def to_dict(self) -> dict[str, Any]:
@@ -492,125 +470,74 @@ class FundingRate(BaseModel):
             ) from e
 
 
-# ArbitrageOpportunity is not a dataclass, handle conversion in __init__
-class ArbitrageOpportunity:
-    """Represents a funding rate arbitrage opportunity."""
+class ArbitrageOpportunity(BaseModel):
+    """
+    Represents a funding rate arbitrage opportunity between two exchanges for a given symbol.
+    All financial fields are validated and parsed as Decimals for precision.
+    """
 
-    def __init__(
-        self,
-        symbol: str,
-        long_exchange: str,
-        short_exchange: str,
-        long_price: str | int | float | Decimal | None,
-        short_price: str | int | float | Decimal | None,
-        long_funding_rate: str | int | float | Decimal | None,
-        short_funding_rate: str | int | float | Decimal | None,
-        net_funding_differential: str | int | float | Decimal | None,
-        timestamp: datetime,
-        optimal_size: str | int | float | Decimal | None = None,
-        expected_profit: str | int | float | Decimal | None = None,
-        confidence: str | int | float | Decimal | None = None,
-        basis_volatility: str | int | float | Decimal | None = None,
-        utility_score: str | int | float | Decimal | None = None,
-    ) -> None:
-        self.symbol = symbol
-        self.long_exchange = long_exchange
-        self.short_exchange = short_exchange
-        self.timestamp = timestamp
+    symbol: str
+    long_exchange: str
+    short_exchange: str
+    long_price: Decimal = Field(gt=0, description="Long price must be positive.")
+    short_price: Decimal = Field(gt=0, description="Short price must be positive.")
+    long_funding_rate: Decimal
+    short_funding_rate: Decimal
+    net_funding_differential: Decimal
+    timestamp: datetime
+    optimal_size: Decimal | None = Field(
+        default=None, gt=0, description="Optimal size must be positive if present."
+    )
+    expected_profit: Decimal | None = Field(
+        default=None, description="Expected profit can be negative (loss)."
+    )
+    confidence: float | None = None
+    basis_volatility: float | None = None
+    utility_score: float | None = None
+    expiration_timestamp: float
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
-        # Perform safe Decimal conversions for financial values
-        self.long_price = self._safe_decimal_convert(
-            long_price, "long_price", symbol, allow_none=False
-        )
-        self.short_price = self._safe_decimal_convert(
-            short_price, "short_price", symbol, allow_none=False
-        )
-        self.long_funding_rate = self._safe_decimal_convert(
-            long_funding_rate, "long_funding_rate", symbol, allow_none=False
-        )
-        self.short_funding_rate = self._safe_decimal_convert(
-            short_funding_rate, "short_funding_rate", symbol, allow_none=False
-        )
-        self.net_funding_differential = self._safe_decimal_convert(
-            net_funding_differential, "net_funding_differential", symbol, allow_none=False
-        )
-        self.optimal_size = self._safe_decimal_convert(
-            optimal_size, "optimal_size", symbol, allow_none=True
-        )
-        self.expected_profit = self._safe_decimal_convert(
-            expected_profit, "expected_profit", symbol, allow_none=True
-        )
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-        # Use float for statistical/ranking metrics that don't require financial precision
-        self.confidence = self._safe_float_convert(confidence, "confidence", symbol)
-        self.basis_volatility = self._safe_float_convert(
-            basis_volatility, "basis_volatility", symbol
-        )
-        self.utility_score = self._safe_float_convert(utility_score, "utility_score", symbol)
-
-        # Validate required fields are not None after conversion
-        self.validate_required_fields()
-
-        # Expiration calculation
-        # Use timezone-aware comparison if timestamp has timezone
-        if timestamp.tzinfo:
-            self.expiration_timestamp = timestamp.timestamp() + 3600  # 1 hour
-        else:
-            # Assume UTC if no timezone provided for timestamp()
-            self.expiration_timestamp = timestamp.replace(tzinfo=UTC).timestamp() + 3600
-
-    @staticmethod
-    def _safe_decimal_convert(
-        value: str | int | float | Decimal | None,
-        field_name: str,
-        symbol: str,
-        allow_none: bool = False,
+    @field_validator(
+        "long_price",
+        "short_price",
+        "long_funding_rate",
+        "short_funding_rate",
+        "net_funding_differential",
+        "optimal_size",
+        "expected_profit",
+        mode="before",
+    )
+    @classmethod
+    def parse_decimal_fields(
+        cls, v: str | int | float | Decimal | None, info: object
     ) -> Decimal | None:
-        """Safely convert a value to Decimal, handling None values."""
-        if isinstance(value, Decimal):
-            return value
-        if value is None:
-            if allow_none:
-                return None
-            else:
-                raise ValueError(
-                    f"ArbitrageOpportunity field '{field_name}' for symbol '{symbol}'"
-                    " cannot be None"
-                )
-        try:
-            return Decimal(str(value))
-        except (InvalidOperation, TypeError) as err:
-            raise ValueError(
-                f"Invalid value '{value}' for ArbitrageOpportunity field '{field_name}' "
-                f"for symbol '{symbol}'. Cannot convert to Decimal."
-            ) from err
+        return parse_decimal_value(v)
 
-    @staticmethod
-    def _safe_float_convert(
-        value: str | int | float | Decimal | None,
-        field_name: str,
-        symbol: str,
-    ) -> float | None:
-        """Safely convert a value to float for non-financial metrics, handling None values."""
-        if value is None:
-            return None
-        if isinstance(value, float):
-            return value
-        try:
-            if isinstance(value, Decimal):
-                # Convert via string to avoid float precision issues with direct float(Decimal)
-                return float(str(value))
-            return float(value)
-        except (ValueError, TypeError):
-            logger.warning(
-                f"Invalid value '{value}' for ArbitrageOpportunity field '{field_name}' "
-                f"for symbol '{symbol}'. Cannot convert to float. Using None."
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def parse_timestamp(cls, v: str | int | float | datetime | None, info: object) -> datetime:
+        dt = parse_datetime_utc(v)
+        if dt is None:
+            raise ValueError("timestamp cannot be None")
+        return dt
+
+    @model_validator(mode="after")
+    def set_expiration(self) -> Self:
+        """
+        Set expiration_timestamp to 1 hour after timestamp (UTC).
+        """
+        if self.timestamp.tzinfo:
+            object.__setattr__(self, "expiration_timestamp", self.timestamp.timestamp() + 3600)
+        else:
+            object.__setattr__(
+                self, "expiration_timestamp", self.timestamp.replace(tzinfo=UTC).timestamp() + 3600
             )
-            return None
+        return self
 
-    def validate_required_fields(self) -> None:
-        """Check if all required fields are set and not None."""
-        # Define required fields (critical for an arbitrage opportunity)
+    @model_validator(mode="after")
+    def validate_required_fields(self) -> Self:
         required_fields = [
             "long_price",
             "short_price",
@@ -618,153 +545,99 @@ class ArbitrageOpportunity:
             "short_funding_rate",
             "net_funding_differential",
         ]
+        missing = [f for f in required_fields if getattr(self, f) is None]
+        if missing:
+            raise ValueError(f"Required fields {', '.join(missing)} are None after conversion")
+        return self
 
-        # Check which fields are None
-        missing_fields = [field for field in required_fields if getattr(self, field) is None]
-
-        if missing_fields:
-            raise ValueError(
-                f"Required fields {', '.join(missing_fields)} are None after conversion"
-                f" for ArbitrageOpportunity (symbol: {self.symbol})"
-            )
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert ArbitrageOpportunity to dictionary."""
-        return {
-            "symbol": self.symbol,
-            "long_exchange": self.long_exchange,
-            "short_exchange": self.short_exchange,
-            "long_price": str(self.long_price) if self.long_price is not None else None,
-            "short_price": str(self.short_price) if self.short_price is not None else None,
-            "long_funding_rate": (
-                str(self.long_funding_rate) if self.long_funding_rate is not None else None
-            ),
-            "short_funding_rate": (
-                str(self.short_funding_rate) if self.short_funding_rate is not None else None
-            ),
-            "net_funding_differential": (
-                str(self.net_funding_differential)
-                if self.net_funding_differential is not None
-                else None
-            ),
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
-            "optimal_size": str(self.optimal_size) if self.optimal_size is not None else None,
-            "expected_profit": (
-                str(self.expected_profit) if self.expected_profit is not None else None
-            ),
-            # Float fields don't need str() conversion
-            "confidence": self.confidence,
-            "basis_volatility": self.basis_volatility,
-            "utility_score": self.utility_score,
-            "expiration_timestamp": self.expiration_timestamp,
-            "id": str(uuid.uuid4()),
-        }
-
-    @property
-    def is_expired(self) -> bool:
-        """Check if the opportunity has expired."""
-        # Compare current UTC time with expiration timestamp
-        return datetime.now(UTC).timestamp() > self.expiration_timestamp
+    @model_validator(mode="after")
+    def check_arbitrage_logic(self) -> Self:
+        """
+        Ensure all required financial fields are positive where appropriate.
+        """
+        if self.long_price <= 0:
+            raise ValueError("Long price must be positive.")
+        if self.short_price <= 0:
+            raise ValueError("Short price must be positive.")
+        if self.optimal_size is not None and self.optimal_size <= 0:
+            raise ValueError("Optimal size must be positive if present.")
+        return self
 
 
-@dataclass(order=True)  # order=True needed for sorting? Depends on usage.
-class TradeSignal:
-    """Represents a decision signal generated by a strategy."""
+class TradeSignal(BaseModel):
+    """
+    Represents a decision signal generated by a strategy.
+    All financial fields are validated and parsed as Decimals for precision.
+    """
 
     symbol: str
     signal_type: SignalType
     side: OrderSide
-    price: Decimal | None = None
-    quantity: Decimal | None = None
+    price: Decimal | None = Field(
+        default=None, gt=0, description="Signal price must be positive if present."
+    )
+    quantity: Decimal | None = Field(
+        default=None, gt=0, description="Signal quantity must be positive if present."
+    )
     timestamp: datetime | None = None
-    confidence: float | None = None  # Changed from Decimal to float for statistical measure
+    confidence: float | None = None
     source_strategy: str | None = None
-    stop_loss: Decimal | None = None
-    take_profit: Decimal | None = None
+    stop_loss: Decimal | None = Field(
+        default=None, gt=0, description="Stop loss must be positive if present."
+    )
+    take_profit: Decimal | None = Field(
+        default=None, gt=0, description="Take profit must be positive if present."
+    )
     expiration: datetime | None = None
     metadata: dict[str, Any] | None = None
-    signal_id: str | None = None  # Unique identifier, should be added if not in dataclass already
+    signal_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
-    def __post_init__(self) -> None:
-        """Ensure numeric fields are Decimal and handle None values."""
-        # Convert Decimal fields safely - all are optional in TradeSignal
-        self.price = self._safe_decimal_convert_optional(self.price, "price", self.symbol)
-        self.quantity = self._safe_decimal_convert_optional(self.quantity, "quantity", self.symbol)
-        self.stop_loss = self._safe_decimal_convert_optional(
-            self.stop_loss, "stop_loss", self.symbol
-        )
-        self.take_profit = self._safe_decimal_convert_optional(
-            self.take_profit, "take_profit", self.symbol
-        )
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-        # Convert confidence to float | None (statistical measure, not financial)
-        confidence_val = self.confidence
-        final_confidence: float | None = None  # Explicitly type the target variable
-
-        if isinstance(confidence_val, float):
-            final_confidence = confidence_val
-        # The following elif blocks were removed as they were deemed unreachable by Mypy
-        # due to the type hint `confidence: float | None`.
-        # The float case is handled above, and the None case is handled by the default value.
-
-        # Assign the final processed value back
-        self.confidence = final_confidence
-
-        # Ensure timestamp and expiration are timezone-aware (UTC) if provided
-        if self.timestamp and self.timestamp.tzinfo is None:
-            self.timestamp = self.timestamp.replace(tzinfo=UTC)
-        if self.expiration and self.expiration.tzinfo is None:
-            self.expiration = self.expiration.replace(tzinfo=UTC)
-
-        # Generate unique signal_id if not provided
-        if self.signal_id is None:
-            self.signal_id = str(uuid.uuid4())
-
-    @staticmethod
-    def _safe_decimal_convert_optional(
-        value: str | int | float | Decimal | None,  # ANN401 Fix
-        field_name: str,
-        symbol: str,
+    @field_validator("price", "quantity", "stop_loss", "take_profit", mode="before")
+    @classmethod
+    def parse_decimal_fields(
+        cls, v: str | int | float | Decimal | None, info: object
     ) -> Decimal | None:
-        """Safely convert a value to Decimal, handling None values."""
-        if isinstance(value, Decimal):
-            return value
-        if value is None:
-            return None
-        try:
-            return Decimal(str(value))
-        except (InvalidOperation, TypeError) as err:
-            raise ValueError(
-                f"Invalid value '{value}' for TradeSignal field '{field_name}' "
-                f"for symbol '{symbol}'. Cannot convert to Decimal."
-            ) from err
+        return parse_decimal_value(v)
+
+    @field_validator("timestamp", "expiration", mode="before")
+    @classmethod
+    def parse_datetime_fields(
+        cls, v: str | int | float | datetime | None, info: object
+    ) -> datetime | None:
+        return parse_datetime_utc(v)
+
+    @model_validator(mode="after")
+    def ensure_signal_id(self) -> Self:
+        if not self.signal_id:
+            object.__setattr__(self, "signal_id", str(uuid.uuid4()))
+        return self
+
+    @model_validator(mode="after")
+    def check_signal_logic(self) -> Self:
+        """
+        Ensure price, quantity, stop_loss, and take_profit are positive if present.
+        """
+        if self.price is not None and self.price <= 0:
+            raise ValueError("Signal price must be positive if present.")
+        if self.quantity is not None and self.quantity <= 0:
+            raise ValueError("Signal quantity must be positive if present.")
+        if self.stop_loss is not None and self.stop_loss <= 0:
+            raise ValueError("Stop loss must be positive if present.")
+        if self.take_profit is not None and self.take_profit <= 0:
+            raise ValueError("Take profit must be positive if present.")
+        return self
 
     def is_valid(self) -> bool:
-        """Check if the signal is still valid (e.g., not expired)."""
+        """
+        Check if the signal is still valid (e.g., not expired).
+        Returns:
+            bool: True if not expired, False otherwise.
+        """
         if self.expiration is None:
             return True
-        # Ensure comparison uses timezone-aware datetime
         return datetime.now(UTC) < self.expiration
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert TradeSignal to dictionary."""
-        result = {
-            "symbol": self.symbol,
-            "signal_type": self.signal_type.value,
-            "side": self.side.value,
-            "price": str(self.price) if self.price is not None else None,
-            "quantity": str(self.quantity) if self.quantity is not None else None,
-            "timestamp": self.timestamp.isoformat() if self.timestamp is not None else None,
-            # Float values don't need str() conversion like Decimal
-            "confidence": self.confidence,  # Now a float
-            "source_strategy": self.source_strategy,
-            "stop_loss": str(self.stop_loss) if self.stop_loss is not None else None,
-            "take_profit": str(self.take_profit) if self.take_profit is not None else None,
-            "expiration": self.expiration.isoformat() if self.expiration is not None else None,
-            "metadata": self.metadata if self.metadata is not None else {},
-            "signal_id": self.signal_id,
-        }
-        return result
 
 
 class Order(BaseModel):
@@ -782,10 +655,16 @@ class Order(BaseModel):
     side: OrderSide
     order_type: OrderType
     status: OrderStatus = OrderStatus.NEW
-    quantity_requested: Decimal
-    quantity_filled: Decimal = Decimal("0.0")
-    price: Decimal | None = None
-    average_fill_price: Decimal | None = None
+    quantity_requested: Decimal = Field(gt=0, description="Requested quantity must be positive.")
+    quantity_filled: Decimal = Field(
+        default=Decimal("0.0"), ge=0, description="Filled quantity cannot be negative."
+    )
+    price: Decimal | None = Field(
+        default=None, gt=0, description="Limit price must be positive if present."
+    )
+    average_fill_price: Decimal | None = Field(
+        default=None, gt=0, description="Average fill price must be positive if present."
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime | None = None
     trades: list[Trade] = Field(default_factory=list)
@@ -823,10 +702,9 @@ class Order(BaseModel):
         return parse_datetime_utc(v)
 
     @model_validator(mode="after")
-    def check_order_state(self) -> Self:
+    def check_order_logic(self) -> Self:
         """
-        Post-model validation for order state and price logic.
-        Ensures logical consistency between fields (e.g., filled <= requested,
+        Ensure logical consistency between fields (e.g., filled <= requested,
         price for limit orders).
         """
         if self.quantity_requested <= 0:
@@ -835,21 +713,10 @@ class Order(BaseModel):
             raise ValueError("quantity_filled cannot be negative")
         if self.quantity_filled > self.quantity_requested:
             raise ValueError("quantity_filled cannot exceed quantity_requested")
-        if self.order_type in [
-            OrderType.LIMIT,
-            OrderType.STOP_LIMIT,
-            OrderType.TAKE_PROFIT_LIMIT,
-        ]:
-            if self.price is None or self.price <= 0:
-                raise ValueError(f"Limit price must be positive for order type {self.order_type}")
-        if self.quantity_filled > 0 and self.average_fill_price is None and self.trades:
-            # This may be temporarily valid if fills arrive before order update
-            logger.warning(
-                f"Order {self.client_order_id} partially/fully filled but "
-                "average_fill_price is None"
-            )
-        if self.updated_at is None:
-            object.__setattr__(self, "updated_at", self.created_at)
+        if self.price is not None and self.price <= 0:
+            raise ValueError("Order price must be positive if present.")
+        if self.average_fill_price is not None and self.average_fill_price <= 0:
+            raise ValueError("Average fill price must be positive if present.")
         return self
 
     def add_trade(self, trade: Trade) -> None:

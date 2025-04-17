@@ -9,7 +9,7 @@ class OrderSide(Enum):
 
 
 class OrderType(Enum):
-    """Enum representing the type of an order."""
+    """Enum representing the type of an order (merged from all sources)."""
 
     LIMIT = "limit"
     MARKET = "market"
@@ -17,6 +17,8 @@ class OrderType(Enum):
     STOP_LIMIT = "stop_limit"
     TAKE_PROFIT = "take_profit"
     TAKE_PROFIT_LIMIT = "take_profit_limit"
+    STOP_MARKET = "stop_market"  # Used for stop orders that execute at market
+    TAKE_PROFIT_MARKET = "take_profit_market"  # Take profit at market
 
 
 class OrderStatus(Enum):

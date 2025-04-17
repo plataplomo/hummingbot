@@ -1,5 +1,7 @@
 """
 Constants for the CyberDeltaEngine.
+
+Note: Trading enums (OrderType, OrderSide) are now sourced from cyberdelta.core.models.enums.
 """
 
 from enum import Enum, auto
@@ -14,22 +16,6 @@ DEFAULT_STATE_FILE = "state.json"
 class Exchange(Enum):
     HYPERLIQUID = "hyperliquid"
     BACKPACK = "backpack"
-
-
-# Order types
-class OrderType(Enum):
-    MARKET = "market"
-    LIMIT = "limit"
-    STOP_MARKET = "stop_market"
-    STOP_LIMIT = "stop_limit"
-    TAKE_PROFIT_MARKET = "take_profit_market"
-    TAKE_PROFIT_LIMIT = "take_profit_limit"
-
-
-# Order sides
-class OrderSide(Enum):
-    BUY = "buy"
-    SELL = "sell"
 
 
 # Position status
