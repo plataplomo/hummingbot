@@ -192,9 +192,11 @@ class Balance(BaseModel):
 
 class Position(BaseModel):
     """
-    Represents the current net holding or exposure (position) in a specific asset/contract on a specific exchange.
+    Represents the current net holding or exposure (position)
+        in a specific asset/contract on a specific exchange.
 
-    This model aggregates the result of all trades for a symbol and side, and is updated as new trades occur.
+    This model aggregates the result of all trades for a symbol and side,
+        and is updated as new trades occur.
 
     Attributes:
         symbol (str): The trading symbol (e.g., 'BTC-PERP').
@@ -347,11 +349,20 @@ class Trade(BaseModel):
     @field_validator("price", "quantity", "fee", "cost", mode="before")
     @classmethod
     def parse_decimal(cls, v: str | int | float | Decimal | None, info) -> Decimal | None:
+        """
+        Parse and validate Decimal fields for Trade.
+        Ensures all financial values are stored as Decimals for precision and
+        consistency.
+        """
         return parse_decimal_value(v)
 
     @field_validator("executed_at", mode="before")
     @classmethod
     def parse_datetime(cls, v: str | int | float | datetime | None, info) -> datetime | None:
+        """
+        Parse and validate datetime fields for Trade, ensuring UTC awareness.
+        Accepts datetime, int/float (epoch seconds or ms), or ISO string.
+        """
         return parse_datetime_utc(v)
 
     @model_validator(mode="after")
@@ -818,11 +829,21 @@ class Order(BaseModel):
     )
     @classmethod
     def parse_decimal(cls, v: str | int | float | Decimal | None, info) -> Decimal | None:
+        """
+        Parse and validate Decimal fields for Order.
+        Ensures all financial values are stored as Decimals for precision and
+        consistency. Field-specific checks (e.g., non-negativity) are enforced
+        after conversion.
+        """
         return parse_decimal_value(v)
 
     @field_validator("created_at", "updated_at", mode="before")
     @classmethod
     def parse_datetime(cls, v: str | int | float | datetime | None, info) -> datetime | None:
+        """
+        Parse and validate datetime fields for Order, ensuring UTC awareness.
+        Accepts datetime, int/float (epoch seconds or ms), or ISO string.
+        """
         return parse_datetime_utc(v)
 
     @model_validator(mode="after")
