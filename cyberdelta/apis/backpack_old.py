@@ -3,17 +3,17 @@ import hashlib
 import hmac
 import logging
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime  # Added datetime, UTC
 from decimal import Decimal
 from typing import Any, cast
 
 from cyberdelta.apis.base import (  # Use absolute import
     APIError,
+    APIErrorCode,
     ExchangeAPI,
     MessageHandler,
 )
 from cyberdelta.core.models import (  # Use absolute import
-    APIErrorCode,
     Balance,
     FundingRate,
     Order,
@@ -215,10 +215,11 @@ class BackpackAPI(ExchangeAPI):
             if not isinstance(raw, list):
                 return []
             result: list[tuple[str, str]] = []
-            for entry_item in raw:
-                if isinstance(entry_item, tuple | list) and len(entry_item) == 2:
-                    a0: Any = entry_item[0]
-                    a1: Any = entry_item[1]
+            for entry in raw:
+                entry: Any
+                if isinstance(entry, tuple | list) and len(entry) == 2:  # type: ignore[arg-type]
+                    a0: Any = entry[0]
+                    a1: Any = entry[1]
                     result.append((str(a0), str(a1)))
             return result
 
@@ -454,16 +455,22 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return {}
             balances: dict[str, Balance] = {}
-            for asset_key, data_val in response.items():
-                asset_str = str(asset_key)
-                data_dict = cast(dict[str, Any], data_val)
-                available = Decimal(str(data_dict.get("available", "0")))
-                total = Decimal(str(data_dict.get("total", "0")))
-                balances[asset_str] = Balance(
-                    asset=asset_str,
-                    available=available,
-                    total=total,
-                )
+            asset: Any
+            for asset, data in response.items():
+                asset_str = str(asset)
+                data: Any = data
+                try:
+                    data_dict = cast(dict[str, Any], data)
+                    available = Decimal(str(data_dict.get("available", "0")))
+                    total = Decimal(str(data_dict.get("total", "0")))
+                    balances[asset_str] = Balance(
+                        asset=asset_str,
+                        available=available,
+                        total=total,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to parse Backpack balance for asset {asset}: {e}")
+                    continue
             return balances
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Error getting balances: {e}")
@@ -494,14 +501,16 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return []
             positions: list[Position] = []
-            for pos_data_item in response:
-                if not isinstance(pos_data_item, dict):
+            pos_data_raw: Any
+            for pos_data_raw in response:
+                pos_data_raw: Any = pos_data_raw
+                if not isinstance(pos_data_raw, dict):
                     logger.warning(
-                        f"[backpack] Unexpected position entry type: {type(pos_data_item)}. "
+                        f"[backpack] Unexpected position entry type: {type(pos_data_raw)}. "
                         f"Skipping entry."
                     )
                     continue
-                pos_data: dict[str, Any] = pos_data_item
+                pos_data: dict[str, Any] = pos_data_raw  # Temporary cast for static analysis
                 symbol_from_data = pos_data.get("symbol")
                 if not isinstance(symbol_from_data, str) or not symbol_from_data:
                     logger.warning(f"[backpack] Position missing or invalid 'symbol': {pos_data}")
@@ -699,8 +708,12 @@ class BackpackAPI(ExchangeAPI):
                     f"[{self.exchange_name}] Unexpected open orders response type: {type(response)}"
                 )
                 return []
-            for order_data_item in response:
-                status_val: Any = order_data_item.get("status", "")
+            order_data: dict[str, Any]
+            for order_data in response:
+                order_data: dict[str, Any]
+            for order_data in response:  # type: ignore
+                order_data: dict[str, Any]  # type annotation for linter
+                status_val: Any = order_data.get("status", "")
                 status_str: str = str(status_val).upper()
                 status: OrderStatus = OrderStatus.UNKNOWN
                 if status_str == "NEW":
@@ -716,16 +729,16 @@ class BackpackAPI(ExchangeAPI):
                 elif status_str == "REJECTED":
                     status = OrderStatus.REJECTED
 
-                client_order_id_val: Any = order_data_item.get("clientId", "")
-                exchange_order_id_val: Any = order_data_item.get("id", "")
-                symbol_val: Any = order_data_item.get("symbol", symbol or "")
-                side_val: Any = order_data_item.get("side", "buy")
-                order_type_val: Any = order_data_item.get("orderType", "limit")
-                quantity_requested_val: Any = order_data_item.get("quantity", "0")
-                quantity_filled_val: Any = order_data_item.get("executedQuantity", "0")
-                price_val: Any = order_data_item.get("price")
-                avg_fill_price_val: Any = order_data_item.get("avgFillPrice")
-                created_at_val: Any = order_data_item.get("createdAt", int(time.time() * 1000))
+                client_order_id_val: Any = order_data.get("clientId", "")
+                exchange_order_id_val: Any = order_data.get("id", "")
+                symbol_val: Any = order_data.get("symbol", symbol or "")
+                side_val: Any = order_data.get("side", "buy")
+                order_type_val: Any = order_data.get("orderType", "limit")
+                quantity_requested_val: Any = order_data.get("quantity", "0")
+                quantity_filled_val: Any = order_data.get("executedQuantity", "0")
+                price_val: Any = order_data.get("price")
+                avg_fill_price_val: Any = order_data.get("avgFillPrice")
+                created_at_val: Any = order_data.get("createdAt", int(time.time() * 1000))
 
                 order = Order(
                     client_order_id=str(client_order_id_val),
@@ -1075,4 +1088,3 @@ class BackpackAPI(ExchangeAPI):
             )
 
     # TODO: Implement remaining abstract methods from ExchangeAPI
-    #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)

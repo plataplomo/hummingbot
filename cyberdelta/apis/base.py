@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import aiohttp
 from aiohttp import ClientTimeout, ClientWSTimeout
+from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     # Import other models only needed for type hints here
@@ -72,10 +73,32 @@ class APIErrorCode(Enum):
     SERVICE_UNAVAILABLE = 26  # Exchange or endpoint is temporarily unavailable
 
 
+class APIErrorModel(BaseModel):
+    """
+    Pydantic model for API error details, used for validation and serialization.
+    """
+
+    message: str = Field(..., description="Human-readable error message.")
+    code: APIErrorCode = Field(..., description="Standardized error code enum.")
+    http_status: int | None = Field(None, description="HTTP status code, if available.")
+    exchange_code: str | None = Field(None, description="Exchange-specific error code, if any.")
+    exchange_message: str | None = Field(
+        None, description="Exchange-specific error message, if any."
+    )
+    retry_after: float | None = Field(
+        None, description="Retry-after value in seconds, if rate limited."
+    )
+    original_exception: Exception | None = Field(
+        None, description="Original exception, if chained."
+    )
+
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+
 class APIError(Exception):
     """
     Custom exception for API-related errors with enhanced context information
-    to enable better error handling and recovery mechanisms.
+    to enable better error handling and recovery mechanisms. Now Pydantic-compatible.
     """
 
     def __init__(
@@ -88,27 +111,44 @@ class APIError(Exception):
         retry_after: float | None = None,
         original_exception: Exception | None = None,
     ) -> None:
-        # Comprehensive error information for debugging and recovery
-        self.message = message
-        self.code = code
-        self.http_status = http_status
-        self.exchange_code = exchange_code
-        self.exchange_message = exchange_message
-        self.retry_after = retry_after
-        self.original_exception = original_exception
+        self.model = APIErrorModel(
+            message=message,
+            code=code,
+            http_status=http_status,
+            exchange_code=exchange_code,
+            exchange_message=exchange_message,
+            retry_after=retry_after,
+            original_exception=original_exception,
+        )
+        super().__init__(self.model.message)
 
-        # Construct the full message with all available context
-        full_message = f"{message}"
-        if http_status:
-            full_message += f" (HTTP {http_status})"
-        if exchange_code:
-            full_message += f" [Exchange code: {exchange_code}]"
-        if exchange_message:
-            full_message += f": {exchange_message}"
-        if retry_after:
-            full_message += f" - Retry after {retry_after}s"
+    @property
+    def message(self) -> str:
+        return self.model.message
 
-        super().__init__(full_message)
+    @property
+    def code(self) -> APIErrorCode:
+        return self.model.code
+
+    @property
+    def http_status(self) -> int | None:
+        return self.model.http_status
+
+    @property
+    def exchange_code(self) -> str | None:
+        return self.model.exchange_code
+
+    @property
+    def exchange_message(self) -> str | None:
+        return self.model.exchange_message
+
+    @property
+    def retry_after(self) -> float | None:
+        return self.model.retry_after
+
+    @property
+    def original_exception(self) -> Exception | None:
+        return self.model.original_exception
 
     @property
     def is_retryable(self) -> bool:
@@ -685,8 +725,8 @@ class ExchangeAPI(ABC):
             # Suppressing with type: ignore as this is correct and safe.
             self._ws_connection = await self._session.ws_connect(
                 self.ws_endpoint,
-                timeout=ClientWSTimeout(30.0),
                 heartbeat=30.0,
+                timeout=ClientWSTimeout(30.0),
             )  # type: ignore[reportCallIssue, unused-ignore]
 
             self._is_connected = True
