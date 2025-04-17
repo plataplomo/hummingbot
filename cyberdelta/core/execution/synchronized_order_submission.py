@@ -6,9 +6,9 @@ with comprehensive verification at every step.
 """
 
 import asyncio
+import dataclasses
 import logging
 import time
-import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation  # Add this import
@@ -17,7 +17,6 @@ from typing import Any, Protocol
 
 from cyberdelta.apis.base import ExchangeAPI
 from cyberdelta.core.models import (
-    ArbitrageOpportunity,
     Order,
     OrderSide,
     OrderStatus,
@@ -26,12 +25,13 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
 # Define a type for opportunity that can be various types
-OpportunityType = ArbitrageOpportunity | dict[str, Any]  # Use | syntax
+OpportunityType = ArbitrageOpportunity
 
 
 # Define a Protocol for the position reconciliation system
@@ -237,19 +237,18 @@ class OrderVerifier:
 
             # Verify essential properties match on API side too
             for key in ["symbol", "side", "type"]:
-                if key in expected_details:
-                    api_value = (
-                        api_order.get(key)
-                        if isinstance(api_order, dict)
-                        else getattr(api_order, key, None)
+                api_value: Any
+                if isinstance(api_order, dict):
+                    api_value = api_order.get(key)
+                else:
+                    api_value = getattr(api_order, key, None)
+                if api_value != expected_details[key]:
+                    verification_success = False
+                    verification_error = (verification_error or "") + (
+                        " API order {key} mismatch:"
+                        f" expected {expected_details[key]}, got {api_value}"
                     )
-                    if api_value != expected_details[key]:
-                        verification_success = False
-                        verification_error = (verification_error or "") + (
-                            " API order {key} mismatch:"
-                            f" expected {expected_details[key]}, got {api_value}"
-                        )
-                        break
+                    break
 
         return {
             "timestamp": int(time.time() * 1000),
@@ -295,9 +294,11 @@ class OrderVerifier:
             verification_error = f"API client not found for {exchange}"
 
         # Get recent fills
-        recent_fills = await api_client.get_recent_fills(
-            local_order.symbol if local_order else None
-        )
+        recent_fills = None
+        if api_client is not None:
+            recent_fills = await api_client.get_recent_fills(
+                local_order.symbol if local_order else None
+            )
 
         # Check if order exists and is filled
         if not local_order:
@@ -392,8 +393,8 @@ class ExecutionCoordinator:
             "execution_started",
             {
                 "time": datetime.now(UTC).isoformat(),
-                "opportunity": opportunity.to_dict()
-                if hasattr(opportunity, "to_dict")
+                "opportunity": dataclasses.asdict(opportunity)
+                if dataclasses.is_dataclass(opportunity)
                 else str(opportunity),
                 "strategy": strategy,
             },
@@ -432,8 +433,8 @@ class ExecutionCoordinator:
             result: Execution result
         """
         context.status = result.status
-        context.end_time = datetime.now(UTC)  # Ensure assignment is valid
-        context.result = result  # Ensure assignment is valid
+        context.end_time = datetime.now(UTC)
+        context.result = result
 
         # Add final checkpoint
         await self.add_checkpoint(
@@ -749,34 +750,36 @@ class SynchronizedOrderSubmissionService:
 
             # Place order with verify
             try:
-                placed_order = await first_api.place_order(
+                placed_order: Order = await first_api.place_order(
                     symbol=first_order.symbol,
                     side=first_order.side,
-                    order_type=first_order.type,  # Use 'type'
-                    quantity=first_order.quantity,
+                    order_type=first_order.order_type,
+                    quantity=first_order.quantity_requested,
                     price=first_order.price,
-                    time_in_force=first_order.time_in_force or TimeInForce.GTC,
-                    post_only=first_order.post_only,
-                    reduce_only=first_order.reduce_only,
+                    time_in_force=TimeInForce.GTC,  # Default value
+                    # TODO: Handle post_only, reduce_only if needed via config/adapter
                 )
-                result.first_order_id = placed_order.id  # Use .id
+                assert hasattr(placed_order, "client_order_id") and hasattr(
+                    placed_order, "to_dict"
+                ), "placed_order missing required attributes"
+                result.first_order_id = placed_order.client_order_id  # Use client_order_id
 
                 # Checkpoint: first order placed
                 await self.execution_coordinator.add_checkpoint(
                     execution_context,
                     "first_order_placed",
-                    {"order_id": placed_order.id, "order": placed_order.to_dict()},  # Use 'id'
+                    {"order_id": placed_order.client_order_id, "order": placed_order.to_dict()},
                 )
 
                 # Verify first order
                 order_verifier = OrderVerifier(self.config, self.portfolio_tracker)
                 verification_result = await order_verifier.verify_order_placement(
                     first_exchange,
-                    placed_order.id,  # Use 'id'
+                    placed_order.client_order_id,  # Use client_order_id
                     {
                         "symbol": first_order.symbol,
                         "side": first_order.side,
-                        "type": first_order.type,  # Use 'type'
+                        "type": first_order.order_type,  # Corrected field
                     },
                 )
 
@@ -827,24 +830,28 @@ class SynchronizedOrderSubmissionService:
 
                 # Place order with verification
                 try:
-                    second_placed_order = await second_api.place_order(
+                    second_placed_order: Order = await second_api.place_order(
                         symbol=second_order.symbol,
                         side=second_order.side,
-                        order_type=second_order.type,  # Use 'type'
-                        quantity=second_order.quantity,
+                        order_type=second_order.order_type,
+                        quantity=second_order.quantity_requested,
                         price=second_order.price,
-                        time_in_force=second_order.time_in_force or TimeInForce.GTC,
-                        post_only=second_order.post_only,
-                        reduce_only=second_order.reduce_only,
+                        time_in_force=TimeInForce.GTC,  # Default value
+                        # TODO: Handle post_only, reduce_only if needed via config/adapter
                     )
-                    result.second_order_id = second_placed_order.id  # Use .id
+                    assert hasattr(second_placed_order, "client_order_id") and hasattr(
+                        second_placed_order, "to_dict"
+                    ), "second_placed_order missing required attributes"
+                    result.second_order_id = (
+                        second_placed_order.client_order_id
+                    )  # Use client_order_id
 
                     # Checkpoint: second order placed
                     await self.execution_coordinator.add_checkpoint(
                         execution_context,
                         "second_order_placed",
                         {
-                            "order_id": second_placed_order.id,  # Use 'id'
+                            "order_id": second_placed_order.client_order_id,
                             "order": second_placed_order.to_dict(),
                         },
                     )
@@ -852,11 +859,11 @@ class SynchronizedOrderSubmissionService:
                     # Verify second order
                     second_verification = await order_verifier.verify_order_placement(
                         second_exchange,
-                        second_placed_order.id,  # Use 'id'
+                        second_placed_order.client_order_id,  # Use client_order_id
                         {
                             "symbol": second_order.symbol,
                             "side": second_order.side,
-                            "type": second_order.type,  # Use 'type'
+                            "type": second_order.order_type,  # Corrected field
                         },
                     )
 
@@ -915,37 +922,17 @@ class SynchronizedOrderSubmissionService:
     def _prepare_order(self, opportunity: OpportunityType, leg_type: str) -> Order:
         """Prepare an Order object for a specific leg of the opportunity."""
         # Ensure opportunity is the correct type before accessing attributes
-        symbol_val: str | None = None
-        quantity_val: Any = None  # Can be Decimal or None initially
-        price_val: Any = None  # Can be Decimal or None initially
+        symbol_val: str
+        quantity_val: Any
+        price_val: Any
 
-        if isinstance(opportunity, ArbitrageOpportunity):
-            symbol_val = opportunity.symbol
-            # Use optimal_size (assuming it represents the size for both legs)
-            # and the direct price attributes
-            quantity_val = opportunity.optimal_size  # Use optimal_size
-            price_val = opportunity.long_price if leg_type == "long" else opportunity.short_price
-        elif isinstance(opportunity, dict):
-            # Handle dict case - assuming keys match ArbitrageOpportunity attributes
-            # Mypy incorrectly flags the following lines as unreachable, but the
-            # opportunity parameter is typed as
-            # OpportunityType = ArbitrageOpportunity | dict[str, Any],
-            # making this block reachable.
-            symbol_val = opportunity.get("symbol")  # mypy: [unreachable]
-            quantity_val = opportunity.get("optimal_size")  # mypy: [unreachable]
-            price_val = (  # mypy: [unreachable]
-                opportunity.get("long_price")
-                if leg_type == "long"
-                else opportunity.get("short_price")
-            )  # mypy: [unreachable]
-        else:
-            logger.error(
-                f"Cannot prepare order from unsupported opportunity type: {type(opportunity)}"
-            )
-            raise TypeError("Invalid opportunity type for order preparation")
+        # OpportunityType is always ArbitrageOpportunity, so no need for isinstance check
+        symbol_val = opportunity.symbol
+        quantity_val = opportunity.optimal_size
+        price_val = opportunity.long_price if leg_type == "long" else opportunity.short_price
 
         # Validate extracted values
-        if symbol_val is None or quantity_val is None:  # Price can be None for MARKET
+        if symbol_val is None or quantity_val is None:
             logger.error(f"Missing required fields (symbol/quantity) in opportunity: {opportunity}")
             raise ValueError("Invalid opportunity data for order preparation")
 
@@ -957,25 +944,22 @@ class SynchronizedOrderSubmissionService:
             logger.error(f"Error converting quantity/price to Decimal: {e}")
             raise ValueError("Invalid numeric data in opportunity for order preparation") from e
 
-        if quantity_dec is None:  # Should have been caught earlier, but double-check
+        if quantity_dec is None:
             raise ValueError("Quantity cannot be None for order preparation")
 
         # Determine order type (assuming MARKET for now, could be configurable)
         order_type = OrderType.MARKET
 
-        # Create the Order object - Add a placeholder or generated ID
-        order_id = str(uuid.uuid4())  # Generate a unique ID
-
+        # Create the Order object using correct field names
         return Order(
-            id=order_id,  # Provide the required 'id'
             symbol=symbol_val,
             side=OrderSide.BUY if leg_type == "long" else OrderSide.SELL,
-            type=order_type,
-            quantity=quantity_dec,
-            price=price_dec,  # Pass Decimal or None
-            status=OrderStatus.NEW,  # Provide required status
-            time=datetime.now(UTC),  # Set creation time
-            avg_fill_price=None,  # Ensure all required fields are present
+            order_type=order_type,
+            quantity_requested=quantity_dec,
+            price=price_dec,
+            status=OrderStatus.NEW,
+            created_at=datetime.now(UTC),
+            # average_fill_price, exchange_order_id, updated_at, trades, strategy_name, signal_id are optional
         )
 
     async def _execute_simultaneous_with_verification(

@@ -199,23 +199,20 @@ class PrioritySignalQueue:
         metadata = {
             "utility_score": getattr(opportunity, "utility_score", 0.0),
             "confidence_score": getattr(opportunity, "confidence_score", None),
-            "expected_profit": str(
-                getattr(opportunity, "expected_profit", Decimal("0"))
-            ),  # Store as str
+            "expected_profit": str(getattr(opportunity, "expected_profit", Decimal("0"))),
             "basis_volatility": getattr(opportunity, "basis_volatility", None),
             "long_exchange": opportunity.long_exchange,
             "short_exchange": opportunity.short_exchange,
-            "long_funding_rate": str(
-                getattr(opportunity, "long_funding_rate", None)
-            ),  # Store as str
-            "short_funding_rate": str(
-                getattr(opportunity, "short_funding_rate", None)
-            ),  # Store as str
-            "net_funding_differential": str(
-                getattr(opportunity, "net_funding_differential", None)
-            ),  # Store as str
-            # Add other relevant opportunity details if needed
+            "long_funding_rate": str(getattr(opportunity, "long_funding_rate", None)),
+            "short_funding_rate": str(getattr(opportunity, "short_funding_rate", None)),
+            "net_funding_differential": str(getattr(opportunity, "net_funding_differential", None)),
         }
+
+        # Ensure price and quantity are always Decimal, never None
+        price_val = getattr(opportunity, "price", None)
+        price = Decimal(str(price_val)) if price_val is not None else Decimal("0")
+        quantity_val = getattr(opportunity, "quantity", None)
+        quantity = Decimal(str(quantity_val)) if quantity_val is not None else Decimal("0")
 
         # Create signal
         signal = TradeSignal(
@@ -224,8 +221,8 @@ class PrioritySignalQueue:
             signal_type=signal_type,
             side=side,
             timestamp=timestamp,
-            price=None,  # Price might be determined later or based on execution
-            quantity=None,  # Quantity determined by RiskManager
+            price=price,  # Always Decimal
+            quantity=quantity,  # Always Decimal
             expiration=getattr(opportunity, "expiration", None),
             metadata=metadata,
         )
@@ -338,7 +335,7 @@ class PrioritySignalQueue:
             List of signals in priority order
         """
         result: list[TradeSignal] = []
-        temp_queue = self.signal_queue.copy()
+        temp_queue: list[tuple[float, int, TradeSignal]] = self.signal_queue.copy()
 
         # Clean expired signals
         self._clean_expired_signals()
@@ -378,9 +375,7 @@ class PrioritySignalQueue:
             Number of signals removed
         """
         original_count = len(self.signal_queue)
-
-        # Filter out expired signals
-        valid_signals = []
+        valid_signals: list[tuple[float, int, TradeSignal]] = []
         for score, count, signal in self.signal_queue:
             try:
                 if signal.is_valid():
@@ -388,22 +383,17 @@ class PrioritySignalQueue:
                 else:
                     self.logger.debug(f"Removed expired signal for {signal.symbol} during cleanup")
             except Exception as e:
-                # If there's an error checking validity, log it and keep the signal
-                # This is safer than potentially dropping valid signals
                 self.logger.warning(
                     f"Error checking validity of signal for {signal.symbol}: {e}. "
                     f"Keeping signal in queue."
                 )
                 valid_signals.append((score, count, signal))
-
-        # Rebuild queue if any signals were removed
         if len(valid_signals) < original_count:
             self.signal_queue = valid_signals
             heapq.heapify(self.signal_queue)
             removed = original_count - len(valid_signals)
             logger.debug(f"Removed {removed} expired signals")
             return removed
-
         return 0
 
     def _trim_queue(self) -> bool:
@@ -513,7 +503,7 @@ class PrioritySignalQueue:
         if not exchanges_to_check:
             inferred_exchange = self._infer_exchange_from_symbol(signal.symbol)
             if inferred_exchange:
-                exchanges_to_check.add(inferred_exchange)
+                exchanges_to_check.add(str(inferred_exchange))
                 self.logger.debug(
                     f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} "
                     f"for pre-add CB check."
@@ -527,6 +517,7 @@ class PrioritySignalQueue:
 
         # Check breakers for relevant exchanges
         for ex in exchanges_to_check:
+            ex: str  # Explicit annotation for type checker
             # Only check if breaker is OPEN. We don't care about HALF_OPEN here.
             # Get the exchange API error breaker first
             api_breaker = self.circuit_breaker_system.get_exchange_breaker(ex, "api_errors")
@@ -569,7 +560,7 @@ class PrioritySignalQueue:
         if not exchanges_to_check:
             inferred_exchange = self._infer_exchange_from_symbol(signal.symbol)
             if inferred_exchange:
-                exchanges_to_check.add(inferred_exchange)
+                exchanges_to_check.add(str(inferred_exchange))
                 self.logger.debug(
                     f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} "
                     f"for post-get CB check."
@@ -583,6 +574,7 @@ class PrioritySignalQueue:
 
         # Check breakers using can_execute, which handles HALF_OPEN state
         for ex in exchanges_to_check:
+            ex: str  # Explicit annotation for type checker
             can_exec, reason = self.circuit_breaker_system.can_execute(ex, signal.symbol)
             if not can_exec:
                 self.logger.warning(
@@ -674,7 +666,7 @@ class PrioritySignalQueue:
         """Get the number of signals currently in the queue."""
         # Remove expired signals
         now = datetime.now(UTC)
-        valid_signals = []
+        valid_signals: list[tuple[float, int, TradeSignal]] = []
         while self.signal_queue:
             score, count, signal = heapq.heappop(self.signal_queue)
             if True and (signal.expiration is None or signal.expiration > now):
@@ -720,7 +712,10 @@ class PrioritySignalQueue:
 
         # Create a new TradeSignal instance with direct parameter passing
         # instead of using dictionary unpacking which causes type issues
-        price_decimal = Decimal(str(signal.price)) if signal.price is not None else None
+        price_decimal = Decimal(str(signal.price)) if signal.price is not None else Decimal("0")
+        quantity_decimal = (
+            Decimal(str(signal.quantity)) if signal.quantity is not None else Decimal("0")
+        )
         source_strategy = getattr(signal, "source_strategy", None)
         stop_loss = getattr(signal, "stop_loss", None)
         take_profit = getattr(signal, "take_profit", None)
@@ -732,7 +727,7 @@ class PrioritySignalQueue:
             signal_type=signal.signal_type,
             side=signal.side,
             price=price_decimal,
-            quantity=signal.quantity,
+            quantity=quantity_decimal,
             timestamp=timestamp,
             confidence=signal.confidence,
             source_strategy=source_strategy,
@@ -876,7 +871,7 @@ class PrioritySignalQueue:
             if not exchanges_to_check:
                 inferred_exchange = self._infer_exchange_from_symbol(signal.symbol)
                 if inferred_exchange:
-                    exchanges_to_check.add(inferred_exchange)
+                    exchanges_to_check.add(str(inferred_exchange))
                     self.logger.debug(
                         f"Inferred exchange '{inferred_exchange}' from symbol {signal.symbol} "
                         f"for circuit breaker check."
@@ -890,6 +885,7 @@ class PrioritySignalQueue:
 
             # Check each relevant exchange and the specific symbol
             for ex in exchanges_to_check:
+                ex: str  # Explicit annotation for type checker
                 can_exec, reason = self.circuit_breaker_system.can_execute(ex, signal.symbol)
                 if not can_exec:
                     self.logger.warning(
