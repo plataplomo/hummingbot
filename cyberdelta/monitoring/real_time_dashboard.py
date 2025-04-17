@@ -299,11 +299,13 @@ class RealTimeDashboard:
         )
         def update_strategy_options(n_intervals: int) -> tuple[list[dict[str, str]], list[str]]:
             """Update the strategy selector dropdown options."""
-            strategies = self.performance_tracker.get_tracked_strategies()
-            options = [{"label": s, "value": s} for s in strategies]
+            strategies: list[str] = self.performance_tracker.get_tracked_strategies()
+            options: list[dict[str, str]] = [{"label": s, "value": s} for s in strategies]
             # Keep current selection if available
-            current_selection = dash.callback_context.states.get("strategy-selector.value", [])
-            valid_selection = [s for s in current_selection if s in strategies]
+            current_selection: list[str] = dash.callback_context.states.get(
+                "strategy-selector.value", []
+            )
+            valid_selection: list[str] = [s for s in current_selection if s in strategies]
             return options, valid_selection
 
         # Update last update time display
@@ -313,7 +315,7 @@ class RealTimeDashboard:
         )
         def update_time_display(n_intervals: int) -> str:
             """Update the last updated time display."""
-            now = datetime.now(UTC)
+            now: datetime = datetime.now(UTC)
             self.last_update_time = now
             return f"Last Updated: {self.last_update_time.strftime('%Y-%m-%d %H:%M:%S')}"
 
@@ -332,8 +334,7 @@ class RealTimeDashboard:
             if not selected_strategies:
                 return go.Figure().update_layout(template="plotly_dark")
 
-            # Get returns data for selected strategies and time range
-            returns_data = self._get_returns_data(selected_strategies, time_range)
+            returns_data: pd.DataFrame = self._get_returns_data(selected_strategies, time_range)
 
             if returns_data.empty:
                 return go.Figure().update_layout(
@@ -341,7 +342,6 @@ class RealTimeDashboard:
                     template="plotly_dark",
                 )
 
-            # Create returns chart using the visualizer
             return self.visualizer.create_returns_chart(
                 returns_data=returns_data,
                 strategy_names=selected_strategies,
@@ -363,8 +363,7 @@ class RealTimeDashboard:
             if not selected_strategies:
                 return go.Figure().update_layout(template="plotly_dark")
 
-            # Get returns data for selected strategies and time range
-            returns_data = self._get_returns_data(selected_strategies, time_range)
+            returns_data: pd.DataFrame = self._get_returns_data(selected_strategies, time_range)
 
             if returns_data.empty:
                 return go.Figure().update_layout(
@@ -372,7 +371,6 @@ class RealTimeDashboard:
                     template="plotly_dark",
                 )
 
-            # Create drawdown chart using the visualizer
             return self.visualizer.create_drawdown_chart(
                 returns_data=returns_data,
                 strategy_names=selected_strategies,
@@ -394,8 +392,7 @@ class RealTimeDashboard:
             if not selected_strategies:
                 return go.Figure().update_layout(template="plotly_dark")
 
-            # Get trade data for selected strategies and time range
-            trade_data = self._get_trade_data(selected_strategies, time_range)
+            trade_data: pd.DataFrame = self._get_trade_data(selected_strategies, time_range)
 
             if trade_data.empty:
                 return go.Figure().update_layout(
@@ -403,11 +400,10 @@ class RealTimeDashboard:
                     template="plotly_dark",
                 )
 
-            # Create a histogram of PnL values
-            fig = go.Figure()
+            fig: go.Figure = go.Figure()
 
             for strategy in selected_strategies:
-                strategy_trades = trade_data[trade_data["strategy"] == strategy]
+                strategy_trades: pd.DataFrame = trade_data[trade_data["strategy"] == strategy]
                 if not strategy_trades.empty:
                     fig.add_trace(
                         go.Histogram(
@@ -443,8 +439,7 @@ class RealTimeDashboard:
             if not selected_strategies:
                 return go.Figure().update_layout(template="plotly_dark")
 
-            # Get trade data for selected strategies and time range
-            trade_data = self._get_trade_data(selected_strategies, time_range)
+            trade_data: pd.DataFrame = self._get_trade_data(selected_strategies, time_range)
 
             if trade_data.empty:
                 return go.Figure().update_layout(
@@ -452,10 +447,10 @@ class RealTimeDashboard:
                     template="plotly_dark",
                 )
 
-            # Filter for the selected strategies
-            filtered_data = trade_data[trade_data["strategy"].isin(selected_strategies)]
+            filtered_data: pd.DataFrame = trade_data[
+                trade_data["strategy"].isin(selected_strategies)
+            ]
 
-            # Create trade analysis chart using the visualizer
             return self.visualizer.create_trade_analysis_chart(
                 trade_data=filtered_data, title="Trade Analysis (PnL vs Duration)"
             )
@@ -467,8 +462,7 @@ class RealTimeDashboard:
             Input("interval-component", "n_intervals"),
         )
         def update_funding_rate_heatmap(time_range: str, n_intervals: int) -> go.Figure:
-            # Get funding rate data for time range
-            funding_data = self._get_funding_rate_data(time_range)
+            funding_data: pd.DataFrame = self._get_funding_rate_data(time_range)
 
             if funding_data.empty:
                 return go.Figure().update_layout(
@@ -476,7 +470,6 @@ class RealTimeDashboard:
                     template="plotly_dark",
                 )
 
-            # Create funding rate heatmap using the visualizer
             return self.visualizer.create_funding_rate_heatmap(
                 funding_data=funding_data, title="Funding Rate Heatmap"
             )
@@ -496,30 +489,27 @@ class RealTimeDashboard:
             if not selected_strategies:
                 return html.P("No strategies selected")
 
-            # Get returns and trade data for selected strategies and time range
-            returns_data = self._get_returns_data(selected_strategies, time_range)
-            trade_data = self._get_trade_data(selected_strategies, time_range)
+            returns_data: pd.DataFrame = self._get_returns_data(selected_strategies, time_range)
+            trade_data: pd.DataFrame = self._get_trade_data(selected_strategies, time_range)
 
             if returns_data.empty:
                 return html.P("No data available for selected time range")
 
-            # Calculate metrics for each strategy
-            metrics_rows = []
+            metrics_rows: list[html.Tr] = []
 
             for strategy in selected_strategies:
                 if strategy in returns_data.columns:
-                    strategy_returns = returns_data[strategy]
-                    strategy_trades = (
+                    strategy_returns: pd.Series = returns_data[strategy]
+                    strategy_trades: pd.DataFrame | None = (
                         trade_data[trade_data["strategy"] == strategy]
                         if not trade_data.empty
                         else None
                     )
 
-                    metrics = self.metrics_calculator.calculate_all_metrics(
+                    metrics: dict[str, Any] = self.metrics_calculator.calculate_all_metrics(
                         returns=strategy_returns, trades=strategy_trades
                     )
 
-                    # Create a row for this strategy's metrics
                     metrics_rows.append(
                         html.Tr(
                             [
@@ -532,20 +522,19 @@ class RealTimeDashboard:
                                 html.Td(f"{metrics['calmar_ratio']:.2f}"),
                                 html.Td(
                                     f"{metrics.get('win_rate', 'N/A'):.2f}%"
-                                    if isinstance(metrics.get("win_rate"), int | float)
+                                    if isinstance(metrics.get("win_rate"), (int, float))
                                     else "N/A"
                                 ),
                                 html.Td(
                                     f"{metrics.get('profit_factor', 'N/A'):.2f}"
-                                    if isinstance(metrics.get("profit_factor"), int | float)
+                                    if isinstance(metrics.get("profit_factor"), (int, float))
                                     else "N/A"
                                 ),
                             ]
                         )
                     )
 
-            # Create the table with all metrics
-            table = dbc.Table(
+            table: dbc.Table = dbc.Table(
                 [
                     html.Thead(
                         html.Tr(

@@ -43,7 +43,7 @@ class PerformanceDataPersistence:
         return dir_path / filename
 
     # Changed data type from Any to dict | list for better type safety where possible
-    def save_data(self, data_type: str, filename: str, data: dict | list) -> None:
+    def save_data(self, data_type: str, filename: str, data: dict[str, Any] | list[Any]) -> None:
         """Saves generic data (dict or list) to a JSON file."""
         filepath = self._get_filepath(data_type, filename)
         serializable_data = self._make_serializable(data)
@@ -65,7 +65,7 @@ class PerformanceDataPersistence:
             logger.error(f"Unexpected error saving {filepath}: {e}", exc_info=True)
 
     # Changed return type from Any | None
-    def load_data(self, data_type: str, filename: str) -> dict | list | None:
+    def load_data(self, data_type: str, filename: str) -> dict[str, Any] | list[Any] | None:
         """Loads generic data (dict or list) from a JSON file."""
         filepath = self._get_filepath(data_type, filename)
         if not filepath.exists():
@@ -96,7 +96,7 @@ class PerformanceDataPersistence:
         return None
 
     # Changed input/output types from Any
-    def _make_serializable(self, data: dict | list) -> dict | list:
+    def _make_serializable(self, data: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
         """Converts data structures containing non-serializable types (like datetime)."""
         if isinstance(data, dict):
             # Handle returns dict {strategy: {timestamp: value}}
@@ -132,7 +132,7 @@ class PerformanceDataPersistence:
         # logger.warning(f"_make_serializable received unexpected type: {type(data)}")
         # return data
 
-    def _make_dict_serializable(self, item: dict) -> dict:
+    def _make_dict_serializable(self, item: dict[str, Any]) -> dict[str, Any]:
         """Makes a single dictionary (like a trade or signal) serializable."""
         item_copy = item.copy()
         for key, value in item_copy.items():
@@ -148,8 +148,8 @@ class PerformanceDataPersistence:
 
     # Changed loaded_data type from Any, return type from Any
     def post_process_loaded_data(
-        self, data_type: str, loaded_data: dict | list | None
-    ) -> dict | list | None:
+        self, data_type: str, loaded_data: dict[str, Any] | list[Any] | None
+    ) -> dict[str, Any] | list[Any] | None:
         """Converts loaded data structures back (e.g., string to datetime)."""
         if loaded_data is None:
             return None  # Or appropriate default (e.g., empty list/dict)
@@ -199,7 +199,7 @@ class PerformanceDataPersistence:
             )
             return loaded_data  # Return original if type mismatch
 
-    def _post_process_dict(self, item: dict) -> dict:
+    def _post_process_dict(self, item: dict[str, Any]) -> dict[str, Any]:
         """Converts known string fields back to datetime in a loaded dict."""
         item_copy = item.copy()
         # Define keys that might contain ISO datetime strings

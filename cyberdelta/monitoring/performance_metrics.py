@@ -18,7 +18,9 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_sharpe_ratio(
-        returns: pd.Series, risk_free_rate: Decimal = Decimal("0.0"), periods_per_year: int = 252
+        returns: pd.Series[float],
+        risk_free_rate: Decimal = Decimal("0.0"),
+        periods_per_year: int = 252,
     ) -> Decimal:
         """
         Calculate the Sharpe ratio.
@@ -55,7 +57,9 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_sortino_ratio(
-        returns: pd.Series, risk_free_rate: Decimal = Decimal("0.0"), periods_per_year: int = 252
+        returns: pd.Series[float],
+        risk_free_rate: Decimal = Decimal("0.0"),
+        periods_per_year: int = 252,
     ) -> Decimal:
         """
         Calculate the Sortino ratio (uses downside deviation).
@@ -99,7 +103,7 @@ class PerformanceMetricsCalculator:
         return annualized_sortino_ratio
 
     @staticmethod
-    def calculate_max_drawdown(returns: pd.Series) -> Decimal:
+    def calculate_max_drawdown(returns: pd.Series[float]) -> Decimal:
         """
         Calculate the maximum drawdown.
 
@@ -116,7 +120,7 @@ class PerformanceMetricsCalculator:
         return Decimal(str(max_drawdown))  # Convert to Decimal
 
     @staticmethod
-    def calculate_calmar_ratio(returns: pd.Series, periods_per_year: int = 252) -> Decimal:
+    def calculate_calmar_ratio(returns: pd.Series[float], periods_per_year: int = 252) -> Decimal:
         """
         Calculate the Calmar ratio (Annualized Return / Abs(Max Drawdown)).
 
@@ -155,7 +159,7 @@ class PerformanceMetricsCalculator:
         Returns:
             Win rate (percentage of winning trades) (Decimal).
         """
-        if trades is None or trades.empty or "pnl" not in trades.columns:
+        if trades.empty or "pnl" not in trades.columns:
             logger.warning("Trade data is missing or invalid for win rate calculation.")
             return Decimal("NaN")
 
@@ -180,7 +184,7 @@ class PerformanceMetricsCalculator:
         Returns:
             Profit factor (Gross Profits / Gross Losses) (Decimal).
         """
-        if trades is None or trades.empty or "pnl" not in trades.columns:
+        if trades.empty or "pnl" not in trades.columns:
             logger.warning("Trade data is missing or invalid for profit factor calculation.")
             return Decimal("NaN")
 
@@ -197,7 +201,7 @@ class PerformanceMetricsCalculator:
 
     def calculate_all_metrics(
         self,
-        returns: pd.Series,
+        returns: pd.Series[float],
         trades: pd.DataFrame | None = None,
         risk_free_rate: Decimal = Decimal("0.0"),
         periods_per_year: int = 252,
@@ -243,6 +247,7 @@ class PerformanceMetricsCalculator:
         metrics["annualized_volatility"] = Decimal(str(returns.std() * np.sqrt(periods_per_year)))
 
         logger.info(
-            f"Calculated performance metrics: { {k: f'{v:.4f}' if isinstance(v, Decimal) else v for k, v in metrics.items()} }"
+            "Calculated performance metrics: %s",
+            {k: f"{v:.4f}" if isinstance(v, Decimal) else v for k, v in metrics.items()},
         )
         return metrics

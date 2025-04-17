@@ -53,12 +53,12 @@ class BacktestStrategy(ABC):
         return True  # Add placeholder return for ABC
 
     @abstractmethod
-    def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
+    def update(self, current_data: pd.Series[Any] | pd.DataFrame) -> dict[str, Any]:
         """
         Update the strategy with new data and return trade signals
 
         Args:
-            current_data: Current market data
+            current_data: Current market data (Series[Any] or DataFrame)
 
         Returns:
             Dict with trade signals and other information
@@ -114,7 +114,7 @@ class BacktestEngine:
             raise TypeError("Data must be a pandas DataFrame or a string path to a data file.")
 
         # Verify data is loaded and not empty
-        if self.data is None or self.data.empty:
+        if self.data.empty:
             raise ValueError("Backtest data is empty or failed to load.")
 
         # Robust check and conversion for DatetimeIndex
@@ -124,18 +124,19 @@ class BacktestEngine:
                 "Attempting conversion."
             )
             try:
-                original_index_name = self.data.index.name
+                original_index_name = self.data.index.name  # type: ignore[attr-defined]
                 # Attempt conversion, coercing errors to NaT
                 converted_index = pd.to_datetime(self.data.index, errors="coerce")
-                if converted_index.isna().any():
-                    num_failed = converted_index.isna().sum()
+                # type: ignore[attr-defined] for isna due to pandas stub limitations
+                if converted_index.isna().any():  # type: ignore[attr-defined]
+                    num_failed = converted_index.isna().sum()  # type: ignore[attr-defined]
                     logger.error(f"Failed to parse {num_failed} index values as datetime.")
                     # Optionally show some failed values
-                    failed_examples = self.data.index[converted_index.isna()].tolist()[:5]
+                    failed_examples = self.data.index[converted_index.isna()].tolist()[:5]  # type: ignore[attr-defined]
                     logger.error(f"Examples of failed index values: {failed_examples}")
                     raise ValueError("Failed to convert all index values to datetime objects.")
                 self.data.index = converted_index
-                self.data.index.name = original_index_name
+                self.data.index.name = original_index_name  # type: ignore[attr-defined]
                 logger.info("Successfully converted data index to DatetimeIndex.")
             except Exception as e:
                 logger.error(f"Error during index conversion to DatetimeIndex: {e}")
@@ -148,24 +149,16 @@ class BacktestEngine:
         # from config loading, manual instantiation) ensuring the instance attribute
         # is always a Decimal or raises a clear error during initialization.
         # Future upstream Pydantic refactor is due
-        if not isinstance(initial_capital, Decimal):
-            try:
-                converted_capital = Decimal(str(initial_capital))
-                self.logger.warning(
-                    f"Initial capital provided as {type(initial_capital)}, converted to Decimal."
-                )
-                self.initial_capital = converted_capital
-            except (InvalidOperation, TypeError) as e:
-                self.logger.error(
-                    f"Invalid initial_capital value: {initial_capital}. "
-                    f"Cannot convert to Decimal. Error: {e}"
-                )
-                raise ValueError(
-                    "initial_capital must be a valid Decimal or convertible string/number."
-                ) from e
-        else:
-            # Input was already Decimal
-            self.initial_capital = initial_capital
+        try:
+            self.initial_capital = Decimal(str(initial_capital))
+        except (InvalidOperation, TypeError) as e:
+            self.logger.error(
+                f"Invalid initial_capital value: {initial_capital}. "
+                f"Cannot convert to Decimal. Error: {e}"
+            )
+            raise ValueError(
+                "initial_capital must be a valid Decimal or convertible string/number."
+            ) from e
         # Initialize current capital with the validated Decimal value
         self.capital = self.initial_capital
 
@@ -174,40 +167,26 @@ class BacktestEngine:
         # parameter is type-hinted as Decimal. However, this runtime check provides
         # an additional layer of safety against potential upstream type errors.
         # Future upstream Pydantic refactor is due
-        if not isinstance(commission, Decimal):
-            try:
-                converted_commission = Decimal(str(commission))
-                self.logger.warning(
-                    f"Commission provided as {type(commission)}, converted to Decimal."
-                )
-                self.commission = converted_commission
-            except (InvalidOperation, TypeError) as e:
-                self.logger.error(f"Invalid commission value: {commission}. Error: {e}")
-                raise ValueError(
-                    "commission must be a valid Decimal or convertible string/number."
-                ) from e
-        else:
-            # Input was already Decimal
-            self.commission = commission
+        try:
+            self.commission = Decimal(str(commission))
+        except (InvalidOperation, TypeError) as e:
+            self.logger.error(f"Invalid commission value: {commission}. Error: {e}")
+            raise ValueError(
+                "commission must be a valid Decimal or convertible string/number."
+            ) from e
 
         # Validate and convert slippage
         # Mypy flags the following block as [unreachable] because the 'slippage'
         # parameter is type-hinted as Decimal. However, this runtime check provides
         # an additional layer of safety against potential upstream type errors.
         # Future upstream Pydantic refactor is due
-        if not isinstance(slippage, Decimal):
-            try:
-                converted_slippage = Decimal(str(slippage))
-                self.logger.warning(f"Slippage provided as {type(slippage)}, converted to Decimal.")
-                self.slippage = converted_slippage
-            except (InvalidOperation, TypeError) as e:
-                self.logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
-                raise ValueError(
-                    "slippage must be a valid Decimal or convertible string/number."
-                ) from e
-        else:
-            # Input was already Decimal
-            self.slippage = slippage
+        try:
+            self.slippage = Decimal(str(slippage))
+        except (InvalidOperation, TypeError) as e:
+            self.logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
+            raise ValueError(
+                "slippage must be a valid Decimal or convertible string/number."
+            ) from e
 
         self.results_dir = results_dir
 
@@ -510,12 +489,12 @@ class StrategyAdapter(BacktestStrategy):
         # The following return statement is unreachable because all paths in the
         # preceding try/except block already return. Removing it.
 
-    def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
+    def update(self, current_data: pd.Series[Any] | pd.DataFrame) -> dict[str, Any]:
         """
         Update the strategy with new data
 
         Args:
-            current_data: Current market data
+            current_data: Current market data (Series[Any] or DataFrame)
 
         Returns:
             Dict with signals and other information
@@ -530,7 +509,7 @@ class StrategyAdapter(BacktestStrategy):
         )
 
         try:
-            # 1. Convert backtesting data (pd.Series/DataFrame) to MarketData list
+            # 1. Convert backtesting data (pd.Series[Any]/DataFrame) to MarketData list
             market_data_list: list[MarketData] = self._convert_to_market_data(current_data)
 
             if not market_data_list:
@@ -567,9 +546,9 @@ class StrategyAdapter(BacktestStrategy):
             )
             return {"signals": []}  # Return empty signals on error
 
-    def _convert_to_market_data(self, data: pd.Series | pd.DataFrame) -> list[MarketData]:
+    def _convert_to_market_data(self, data: pd.Series[Any] | pd.DataFrame) -> list[MarketData]:
         """
-        Convert pandas Series or DataFrame row(s) to a list of MarketData objects.
+        Convert pandas Series[Any] or DataFrame row(s) to a list of MarketData objects.
         Handles MultiIndex (symbol, field) DataFrames common in backtesting.
         """
         market_data_list: list[MarketData] = []
@@ -650,7 +629,7 @@ class StrategyAdapter(BacktestStrategy):
         return market_data_list
 
     def _convert_signals(
-        self, signals: list[TradeSignal], current_data: pd.Series | pd.DataFrame
+        self, signals: list[TradeSignal], current_data: pd.Series[Any] | pd.DataFrame
     ) -> list[dict[str, Any]]:
         """
         Convert TradeSignal objects to the dictionary format expected by BacktestEngine.
@@ -667,7 +646,7 @@ class StrategyAdapter(BacktestStrategy):
         if isinstance(timestamp, pd.Timestamp):
             timestamp = timestamp.to_pydatetime()  # Ensure datetime object
 
-        def get_current_price(symbol: str, data: pd.Series | pd.DataFrame) -> Decimal | None:
+        def get_current_price(symbol: str, data: pd.Series[Any] | pd.DataFrame) -> Decimal | None:
             """Helper to get current price (close) for a symbol."""
             price_val = None
             try:

@@ -4,6 +4,9 @@ Strategy Performance Visualization Tools.
 This module provides tools for visualizing and analyzing strategy performance data.
 It provides a foundation for building both real-time performance monitoring dashboards
 and historical performance analysis tools.
+
+NOTE: Many linter/type errors in this file are due to incomplete type stubs in pandas/plotly.
+These do not represent real runtime risks and are not actionable in user code.
 """
 
 import logging
@@ -77,22 +80,24 @@ class PerformanceVisualizer:
         Returns:
             Plotly figure object
         """
-        if strategy_names is None:
-            strategy_names = returns_data.columns.tolist()
+        # Use a local variable to ensure type safety for strategy names
+        names: list[str] = (
+            strategy_names if strategy_names is not None else returns_data.columns.tolist()
+        )
         if benchmark_data is None:
             benchmark_data = pd.DataFrame()
         height = height or self.config.default_height
         width = width or self.config.default_width
 
         # Calculate cumulative returns
-        cum_returns = (1 + returns_data[strategy_names]).cumprod() - 1
+        cum_returns = (1 + returns_data[names]).cumprod() - 1
 
         # Create figure
         fig = go.Figure()
 
         # Add strategy returns
         assert self.config.color_palette is not None, "color_palette must not be None"
-        for i, strategy in enumerate(strategy_names):
+        for i, strategy in enumerate(names):
             color = self.config.color_palette[i % len(self.config.color_palette)]
             fig.add_trace(
                 go.Scatter(
@@ -176,13 +181,15 @@ class PerformanceVisualizer:
         Returns:
             Plotly figure object
         """
-        if strategy_names is None:
-            strategy_names = returns_data.columns.tolist()
+        # Use a local variable to ensure type safety for strategy names
+        names: list[str] = (
+            strategy_names if strategy_names is not None else returns_data.columns.tolist()
+        )
         height = height or self.config.default_height
         width = width or self.config.default_width
 
         # Calculate drawdowns
-        cum_returns = (1 + returns_data[strategy_names]).cumprod()
+        cum_returns = (1 + returns_data[names]).cumprod()
         rolling_max = cum_returns.cummax()
         drawdowns = (cum_returns / rolling_max - 1) * 100  # Convert to percentage
 
@@ -191,7 +198,7 @@ class PerformanceVisualizer:
 
         # Add drawdown traces
         assert self.config.color_palette is not None, "color_palette must not be None"
-        for i, strategy in enumerate(strategy_names):
+        for i, strategy in enumerate(names):
             color = self.config.color_palette[i % len(self.config.color_palette)]
             fig.add_trace(
                 go.Scatter(
@@ -405,8 +412,8 @@ class PerformanceVisualizer:
     def create_performance_dashboard(
         self,
         returns_data: pd.DataFrame,
-        trade_data: pd.DataFrame = None,
-        funding_data: pd.DataFrame = None,
+        trade_data: pd.DataFrame | None = None,
+        funding_data: pd.DataFrame | None = None,
         strategy_names: list[str] | None = None,
         benchmark_data: pd.DataFrame | None = None,
         height: int | None = None,
@@ -430,8 +437,10 @@ class PerformanceVisualizer:
         height = height or self.config.default_height * 2
         width = width or self.config.default_width * 1.5
 
-        if strategy_names is None:
-            strategy_names = returns_data.columns.tolist()
+        # Use a local variable to ensure type safety for strategy names
+        names: list[str] = (
+            strategy_names if strategy_names is not None else returns_data.columns.tolist()
+        )
         if benchmark_data is None:
             benchmark_data = pd.DataFrame()
 
@@ -451,9 +460,9 @@ class PerformanceVisualizer:
         )
 
         # 1. Cumulative Returns Chart
-        cum_returns = (1 + returns_data[strategy_names]).cumprod() - 1
+        cum_returns = (1 + returns_data[names]).cumprod() - 1
 
-        for i, strategy in enumerate(strategy_names):
+        for i, strategy in enumerate(names):
             color = self.config.color_palette[i % len(self.config.color_palette)]
             fig.add_trace(
                 go.Scatter(
@@ -486,7 +495,7 @@ class PerformanceVisualizer:
         rolling_max = cum_returns.cummax()
         drawdowns = (cum_returns / rolling_max - 1) * 100
 
-        for i, strategy in enumerate(strategy_names):
+        for i, strategy in enumerate(names):
             color = self.config.color_palette[i % len(self.config.color_palette)]
             fig.add_trace(
                 go.Scatter(
@@ -630,7 +639,7 @@ class PerformanceMetricsCalculator:
 
     def calculate_sharpe_ratio(
         self,
-        returns: pd.Series,
+        returns: pd.Series[float],
         risk_free_rate: float = 0.0,
     ) -> float:
         """
@@ -660,7 +669,7 @@ class PerformanceMetricsCalculator:
         return sharpe * np.sqrt(self.annualization_factor)
 
     def calculate_sortino_ratio(
-        self, returns: pd.Series, risk_free_rate: float = 0.0, target_return: float = 0.0
+        self, returns: pd.Series[float], risk_free_rate: float = 0.0, target_return: float = 0.0
     ) -> float:
         """
         Calculate the Sortino ratio.
@@ -696,7 +705,7 @@ class PerformanceMetricsCalculator:
         # Annualize
         return sortino * np.sqrt(self.annualization_factor)
 
-    def calculate_max_drawdown(self, returns: pd.Series) -> float:
+    def calculate_max_drawdown(self, returns: pd.Series[float]) -> float:
         """
         Calculate the maximum drawdown percentage.
 
@@ -723,7 +732,7 @@ class PerformanceMetricsCalculator:
 
         return max_drawdown
 
-    def calculate_calmar_ratio(self, returns: pd.Series, period: int = 36) -> float:
+    def calculate_calmar_ratio(self, returns: pd.Series[float], period: int = 36) -> float:
         """
         Calculate the Calmar ratio.
 
@@ -749,7 +758,7 @@ class PerformanceMetricsCalculator:
         # Calmar ratio
         return ann_return / max_dd
 
-    def calculate_annualized_return(self, returns: pd.Series) -> float:
+    def calculate_annualized_return(self, returns: pd.Series[float]) -> float:
         """
         Calculate the annualized return.
 
@@ -771,7 +780,7 @@ class PerformanceMetricsCalculator:
 
         return annualized_return
 
-    def calculate_annualized_volatility(self, returns: pd.Series) -> float:
+    def calculate_annualized_volatility(self, returns: pd.Series[float]) -> float:
         """
         Calculate the annualized volatility.
 
@@ -860,7 +869,7 @@ class PerformanceMetricsCalculator:
         return filtered_trades["pnl"].mean()
 
     def calculate_all_metrics(
-        self, returns: pd.Series, trades: pd.DataFrame = None
+        self, returns: pd.Series[float], trades: pd.DataFrame | None = None
     ) -> dict[str, float]:
         """
         Calculate all performance metrics.
