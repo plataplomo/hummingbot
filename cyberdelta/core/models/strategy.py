@@ -15,8 +15,9 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from cyberdelta.core.models.enums import OrderSide, SignalType
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+
+from .enums import OrderSide, SignalType
 
 
 class TradeSignal(BaseModel):

@@ -18,7 +18,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from cyberdelta.core.models import ArbitrageOpportunity, OrderSide, SignalType, TradeSignal
+from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 logger = logging.getLogger(__name__)
 

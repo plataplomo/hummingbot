@@ -7,8 +7,6 @@ convenient import.
 - Star imports are avoided for clarity and type safety.
 """
 
-from cyberdelta.validation.funding_data import ArbitrageOpportunity
-
 from .api import OrderUpdateEvent, PlaceOrderRequest, TradeFillEvent
 from .enums import (
     OrderSide,
@@ -17,8 +15,9 @@ from .enums import (
     SignalType,
     TimeInForce,
 )
-from .market import Order, Trade
-from .portfolio import Position
+from .market import FundingRate, MarketData, Order, OrderBook, Ticker, Trade
+from .portfolio import Balance, Position
+from .strategy import TradeSignal
 
 __all__ = [
     # Explicitly re-export enums
@@ -31,7 +30,12 @@ __all__ = [
     "Order",
     "Trade",
     "Position",
-    "ArbitrageOpportunity",
+    "TradeSignal",
+    "MarketData",
+    "Ticker",
+    "OrderBook",
+    "FundingRate",
+    "Balance",
     # API models
     "PlaceOrderRequest",
     "OrderUpdateEvent",

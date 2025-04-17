@@ -4,15 +4,13 @@ import logging
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, getcontext
-from typing import TYPE_CHECKING, Any, Protocol, TypedDict, cast
+from typing import Any, Protocol, TypedDict, cast
 
 # from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderType, TradeSignal
 # REMOVING this runtime import
 from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import BreakerState
-
-if TYPE_CHECKING:  # Keep ArbitrageOpportunity here for type hinting only
-    from cyberdelta.core.models import ArbitrageOpportunity
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 logger = logging.getLogger(__name__)
 

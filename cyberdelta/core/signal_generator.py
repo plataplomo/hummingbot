@@ -8,7 +8,6 @@ import numpy as np
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import (  # Import MarketData, OrderBook
-    ArbitrageOpportunity,
     FundingRate,
     MarketData,
     Ticker,
@@ -16,11 +15,7 @@ from cyberdelta.core.models import (  # Import MarketData, OrderBook
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger  # <--- Use get_logger
-
-# Remove redundant import since ArbitrageOpportunity is already imported above
-# if TYPE_CHECKING:
-#     from cyberdelta.core.models import ArbitrageOpportunity
-
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 logger = get_logger(__name__)  # <--- Use configured logger
 

@@ -8,7 +8,6 @@ from typing import Any
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import (
-    ArbitrageOpportunity,
     MarketData,
     OrderSide,
     SignalType,
@@ -17,6 +16,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.strategy import Strategy
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 # Set precision for Decimal
 getcontext().prec = 28
