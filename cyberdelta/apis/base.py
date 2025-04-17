@@ -14,26 +14,6 @@ from typing import TYPE_CHECKING, Any, cast
 import aiohttp
 from aiohttp import ClientTimeout, ClientWSTimeout
 
-# Assuming models are in src.core.models
-# Adjust import path if structure changes
-# Moved under TYPE_CHECKING to break circular import
-# from ..core.models import (
-#     Balance,
-#     FundingRate,
-#     MarketData,
-#     Order,
-#     OrderBook,
-#     OrderSide,
-#     OrderType,
-#     Position,
-#     Ticker,
-#     TimeInForce,
-#     Trade,
-# )
-
-# Import Enums needed at runtime outside TYPE_CHECKING
-# from ..core.models import OrderSide, OrderType, TimeInForce # REMOVING THIS RUNTIME IMPORT
-
 if TYPE_CHECKING:
     # Import other models only needed for type hints here
     from ..core.models import (

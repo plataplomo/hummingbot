@@ -55,6 +55,7 @@ def sample_signal() -> TradeSignal:
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000"),  # Convert to Decimal
+        quantity=Decimal("1"),
         source_strategy="test_strategy",
         metadata={"utility_score": 0.8},
     )
@@ -64,20 +65,20 @@ def sample_signal() -> TradeSignal:
 def sample_opportunity() -> ArbitrageOpportunity:
     """Fixture to create a sample ArbitrageOpportunity."""
     now = datetime.now(UTC)
-    # Use float values for funding rates as required by ArbitrageOpportunity class
     return ArbitrageOpportunity(
         symbol="ETH/USDT",
         long_exchange="exA",
         short_exchange="exB",
-        long_funding_rate=0.0001,  # Float for funding rates
-        short_funding_rate=-0.0001,  # Float for funding rates
-        net_funding_differential=-0.0002,  # Float for funding rates
+        long_price=Decimal("2000"),
+        short_price=Decimal("1995"),
+        long_funding_rate=Decimal("0.0001"),
+        short_funding_rate=Decimal("-0.0001"),
+        net_funding_differential=Decimal("-0.0002"),
         timestamp=now,
         utility_score=0.9,
-        expected_profit=1.5,  # Float for expected profit
-        confidence_score=0.85,  # Required by the constructor
+        expected_profit=Decimal("1.5"),
         basis_volatility=0.0005,
-        integrated_funding_data=None,
+        confidence_score=0.85,
     )
 
 
@@ -207,12 +208,14 @@ def test_get_signals(mock_config: Config) -> None:
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000"),
+        quantity=Decimal("1"),
     )
     signal2 = TradeSignal(
         symbol="ETH/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("3000"),
+        quantity=Decimal("1"),
     )
 
     queue.add_signal(signal1)
@@ -276,6 +279,7 @@ def test_clean_expired_signals(
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000"),
+        quantity=Decimal("1"),
         expiration=fixed_now - timedelta(seconds=10),  # Already expired
     )
 
@@ -285,6 +289,7 @@ def test_clean_expired_signals(
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("3000"),
+        quantity=Decimal("1"),
         expiration=fixed_now + timedelta(seconds=30),  # Not expired
     )
 
@@ -325,6 +330,7 @@ def test_trim_queue(mock_config: Config) -> None:
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000"),
+        quantity=Decimal("1"),
         metadata={"utility_score": 0.9},  # Higher priority
     )
 
@@ -333,6 +339,7 @@ def test_trim_queue(mock_config: Config) -> None:
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("3000"),
+        quantity=Decimal("1"),
         metadata={"utility_score": 0.8},  # Medium priority
     )
 
@@ -341,6 +348,7 @@ def test_trim_queue(mock_config: Config) -> None:
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("100"),
+        quantity=Decimal("1"),
         metadata={"utility_score": 0.7},  # Lower priority
     )
 
@@ -370,6 +378,7 @@ def test_calculate_expiration(mock_config: Config, sample_signal: TradeSignal) -
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000"),
+        quantity=Decimal("1"),
         expiration=None,  # No expiration set
     )
 
@@ -393,6 +402,7 @@ def test_calculate_expiration(mock_config: Config, sample_signal: TradeSignal) -
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("3000"),
+        quantity=Decimal("1"),
         expiration=preset_expiration_time,
     )
 
@@ -410,6 +420,7 @@ def test_check_circuit_breakers(mock_config: Config, mock_circuit_breaker: Magic
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000"),
+        quantity=Decimal("1"),
         metadata={
             "long_exchange": "exchange_a",
             "short_exchange": "exchange_b",
@@ -452,6 +463,7 @@ def test_check_circuit_breakers(mock_config: Config, mock_circuit_breaker: Magic
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000"),
+        quantity=Decimal("1"),
     )
 
     mock_circuit_breaker.check_symbol.return_value = True

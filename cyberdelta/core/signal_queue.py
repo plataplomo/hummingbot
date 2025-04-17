@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 """
 Priority Signal Queue for trade signals.
@@ -22,7 +23,6 @@ on their utility scores and other attributes.
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import SignalType, TradeSignal
-    from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 # Setup logging
 logger = logging.getLogger(__name__)
