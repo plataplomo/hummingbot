@@ -348,7 +348,7 @@ class Trade(BaseModel):
 
     @field_validator("price", "quantity", "fee", "cost", mode="before")
     @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info) -> Decimal | None:
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
         """
         Parse and validate Decimal fields for Trade.
         Ensures all financial values are stored as Decimals for precision and
@@ -358,7 +358,9 @@ class Trade(BaseModel):
 
     @field_validator("executed_at", mode="before")
     @classmethod
-    def parse_datetime(cls, v: str | int | float | datetime | None, info) -> datetime | None:
+    def parse_datetime(
+        cls, v: str | int | float | datetime | None, info: object
+    ) -> datetime | None:
         """
         Parse and validate datetime fields for Trade, ensuring UTC awareness.
         Accepts datetime, int/float (epoch seconds or ms), or ISO string.
@@ -828,7 +830,7 @@ class Order(BaseModel):
         mode="before",
     )
     @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info) -> Decimal | None:
+    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
         """
         Parse and validate Decimal fields for Order.
         Ensures all financial values are stored as Decimals for precision and
@@ -839,7 +841,9 @@ class Order(BaseModel):
 
     @field_validator("created_at", "updated_at", mode="before")
     @classmethod
-    def parse_datetime(cls, v: str | int | float | datetime | None, info) -> datetime | None:
+    def parse_datetime(
+        cls, v: str | int | float | datetime | None, info: object
+    ) -> datetime | None:
         """
         Parse and validate datetime fields for Order, ensuring UTC awareness.
         Accepts datetime, int/float (epoch seconds or ms), or ISO string.
