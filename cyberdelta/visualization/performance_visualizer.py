@@ -11,9 +11,9 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import plotly.express as px  # type: ignore
+import plotly.graph_objects as go  # type: ignore
+from plotly.subplots import make_subplots  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class VisualizationConfig:
     theme: str = "light"  # "light" or "dark"
     default_height: int = 600
     default_width: int = 800
-    color_palette: list[str] = None
+    color_palette: list[str] | None = None
     template: str = "plotly_white"
     show_legend: bool = True
 
@@ -91,6 +91,7 @@ class PerformanceVisualizer:
         fig = go.Figure()
 
         # Add strategy returns
+        assert self.config.color_palette is not None, "color_palette must not be None"
         for i, strategy in enumerate(strategy_names):
             color = self.config.color_palette[i % len(self.config.color_palette)]
             fig.add_trace(
@@ -189,6 +190,7 @@ class PerformanceVisualizer:
         fig = go.Figure()
 
         # Add drawdown traces
+        assert self.config.color_palette is not None, "color_palette must not be None"
         for i, strategy in enumerate(strategy_names):
             color = self.config.color_palette[i % len(self.config.color_palette)]
             fig.add_trace(
