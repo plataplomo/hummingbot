@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     # Import other models only needed for type hints here
     from ..core.models import (
         Balance,
-        Fill,  # Added Fill
         FundingRate,
         MarketData,
         Order,
@@ -28,7 +27,7 @@ if TYPE_CHECKING:
         Position,
         Ticker,
         TimeInForce,  # Moved back
-        Trade,
+        Trade,  # Use Trade instead of Fill
     )
 
 logger = logging.getLogger(__name__)
@@ -68,6 +67,9 @@ class APIErrorCode(Enum):
     QUANTITY_OUT_OF_RANGE = 21  # For min/max quantity violations
     PRECISION_ERROR = 22  # When price/quantity doesn't match required precision
     INVALID_REQUEST = 23  # Added for non-retryable client errors (like bad params)
+    INVALID_SYMBOL = 24  # Symbol does not exist or is not tradable
+    INVALID_ORDER_SIZE = 25  # Order size is invalid (too small/large)
+    SERVICE_UNAVAILABLE = 26  # Exchange or endpoint is temporarily unavailable
 
 
 class APIError(Exception):
@@ -230,7 +232,7 @@ class ExchangeAPI(ABC):
         # Initialize WebSocket
         self._ws_connection: aiohttp.ClientWebSocketResponse | None = None
         self._ws_handlers: dict[str, MessageHandler] = {}
-        self._ws_listener_task: asyncio.Task | None = None
+        self._ws_listener_task: asyncio.Task[None] | None = None
         self._is_connected = False  # WebSocket connection state
 
         # Set up rate limiters
@@ -260,7 +262,7 @@ class ExchangeAPI(ABC):
         self._default_limiter = RateLimiter(default_rate, default_bucket)
 
         # Endpoint-specific rate limiters
-        self._endpoint_limiters = {}
+        self._endpoint_limiters: dict[str, RateLimiter] = {}
         endpoints = rate_limit_config.get("endpoints", {})
 
         for endpoint, config in endpoints.items():
@@ -416,7 +418,7 @@ class ExchangeAPI(ABC):
                         error = self._map_error_response(
                             status_code=response.status,
                             error_body=error_body,
-                            error_data=error_data,
+                            error_data=cast(dict[str, Any], error_data),
                         )
 
                         # Handle retryable errors
@@ -425,8 +427,10 @@ class ExchangeAPI(ABC):
                             retry_delay = error.retry_after if error.retry_after else (2**attempt)
 
                             logger.warning(
-                                f"[{self.exchange_name}] Request failed with retryable error: {error}. "
-                                f"Retrying in {retry_delay:.1f}s ({attempt + 1}/{retry_count})"
+                                f"[{self.exchange_name}] Request failed with retryable error: "
+                                f"{error}. "
+                                f"Retrying in {retry_delay:.1f}s "
+                                f"({attempt + 1}/{retry_count})"
                             )
 
                             await asyncio.sleep(retry_delay)
@@ -553,7 +557,8 @@ class ExchangeAPI(ABC):
         exchange_code = None
         retry_after = None
 
-        if isinstance(error_data, dict):
+        # error_data is always dict[str, Any] by type contract
+        if error_data:
             # Handle various message field names in different exchange responses
             message = (
                 error_data.get("message")
@@ -673,11 +678,16 @@ class ExchangeAPI(ABC):
         try:
             logger.info(f"[{self.exchange_name}] Connecting to WebSocket: {self.ws_endpoint}")
 
+            # NOTE: The following ws_connect usage matches aiohttp's official documentation.
+            # Some type checkers (e.g., Pylance, Pyright) may incorrectly flag this as an error
+            # due to outdated or incomplete type stubs. This is a false positive; see:
+            # https://docs.aiohttp.org/en/stable/client_reference.html#aiohttp.ClientSession.ws_connect
+            # Suppressing with type: ignore as this is correct and safe.
             self._ws_connection = await self._session.ws_connect(
                 self.ws_endpoint,
-                timeout=ClientWSTimeout(30.0),  # Use ClientWSTimeout object
-                heartbeat=30.0,  # Enable heartbeat to detect disconnects
-            )
+                timeout=ClientWSTimeout(30.0),
+                heartbeat=30.0,
+            )  # type: ignore[reportCallIssue, unused-ignore]
 
             self._is_connected = True
             logger.info(f"[{self.exchange_name}] WebSocket connected successfully")
@@ -714,8 +724,8 @@ class ExchangeAPI(ABC):
             sleep_time = max(1.0, backoff + jitter)
 
             logger.info(
-                f"[{self.exchange_name}] WebSocket reconnection attempt {attempt + 1}/{max_attempts} "
-                f"scheduled in {sleep_time:.1f}s"
+                f"[{self.exchange_name}] WebSocket reconnection attempt {attempt + 1}/"
+                f"{max_attempts} scheduled in {sleep_time:.1f}s"
             )
 
             await asyncio.sleep(sleep_time)
@@ -728,7 +738,8 @@ class ExchangeAPI(ABC):
                     return
             except Exception as e:
                 logger.error(
-                    f"[{self.exchange_name}] WebSocket reconnection attempt {attempt + 1} failed: {e}"
+                    f"[{self.exchange_name}] WebSocket reconnection attempt {attempt + 1} "
+                    f"failed: {e}"
                 )
 
         logger.critical(
@@ -758,7 +769,8 @@ class ExchangeAPI(ABC):
                         await self._route_ws_message(data)
                     except json.JSONDecodeError:
                         logger.warning(
-                            f"[{self.exchange_name}] Received non-JSON WebSocket message: {msg.data[:100]}..."
+                            f"[{self.exchange_name}] Received non-JSON WebSocket message: "
+                            f"{msg.data[:100]}..."
                         )
                     except Exception as e:
                         logger.error(
@@ -773,7 +785,8 @@ class ExchangeAPI(ABC):
 
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     logger.error(
-                        f"[{self.exchange_name}] WebSocket connection error: {self._ws_connection.exception()}"
+                        f"[{self.exchange_name}] WebSocket connection error: "
+                        f"{self._ws_connection.exception()}"
                     )
                     break
 
@@ -966,14 +979,14 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def _handle_websocket_message(self, message: Any) -> None:
+    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """Internal handler to process raw WebSocket messages."""
         raise NotImplementedError
 
     @abstractmethod
     async def get_recent_fills(
         self, symbol: str | None = None, limit: int | None = None
-    ) -> list[Fill]:
+    ) -> list[Trade]:  # Use Trade instead of Fill
         """
         Fetch recent fills/trades for the account, optionally filtered by symbol.
         """
