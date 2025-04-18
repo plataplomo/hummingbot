@@ -1,0 +1,607 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Hyperliquid API (Synthesized Internal Spec)",
+      "version": "v0.0.1-internal",
+      "description": "An internally generated OpenAPI specification for the Hyperliquid REST API, focusing on the /info and /exchange endpoints. Synthesized from official documentation (GitBook), hyperliquid-python-sdk source code, and YAML API descriptions. **CRITICAL NOTE:** The `/info` and `/exchange` endpoints return different structures based on the 'type' field in the request body; refer to component schemas for details. This spec attempts to model known types but may be incomplete. Verify against actual API behavior."
+    },
+    "servers": [
+      {
+        "url": "https://api.hyperliquid.xyz",
+        "description": "Mainnet (Endpoint for /exchange)"
+      },
+      {
+         "url": "https://info.hyperliquid.xyz",
+         "description": "Info Endpoint Server (Endpoint for /info)"
+      }
+      // Add Testnet URLs if needed: https://api.hyperliquid-testnet.xyz
+    ],
+    "tags": [
+        {"name": "Info", "description": "Read-only endpoints for retrieving market and user state (via POST to /info)"},
+        {"name": "Exchange", "description": "Endpoints for executing actions like orders/cancels (via POST to /exchange, requires EIP-712 signing)"}
+    ],
+    "paths": {
+      "/info": {
+        "post": {
+          "tags": ["Info"],
+          "operationId": "postInfo",
+          "summary": "Retrieve various market and user state information",
+          "description": "Generic endpoint for fetching different types of information based on the 'type' field in the request body. The request body schema AND the response schema depend entirely on the 'type' specified. Refer to specific request/response schemas in the components section (e.g., OpenOrdersRequestPayload, OpenOrdersResponse, MetaAndAssetCtxsResponse, etc.). Authentication is NOT required for public info types.",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                   "type": "object",
+                   "properties": {
+                      "type": {
+                          "type": "string",
+                          "description": "Determines the specific information requested and the expected response format (e.g., 'openOrders', 'metaAndAssetCtxs', 'clearinghouseState', 'l2Book', 'userFills', 'recentTrades')."
+                      }
+                   },
+                   "required": ["type"],
+                   "description": "Base request structure. Additional fields (like 'user' or 'coin') depend on the 'type'. See component schemas.",
+                   "example": {"type": "openOrders", "user": "0x0d7EFf7EA14ce09359A83396C37468556A56145C"}
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful response. **The actual schema varies based on the request 'type'.** Refer to component schemas (e.g., OpenOrdersResponse, MetaAndAssetCtxsResponse, ClearinghouseStateResponse, L2BookResponse, UserFillsResponse, RecentTradesResponse).",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "description": "Response structure varies. See component schemas. Often an object or an array."
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Bad Request - Invalid 'type' or parameters for the given type.",
+              "content": {
+                "application/json": {
+                  "schema": { "$ref": "#/components/schemas/ApiError" }
+                }
+              }
+            },
+            "500": {
+              "description": "Internal Server Error.",
+              "content": {
+                "application/json": {
+                   "schema": { "$ref": "#/components/schemas/ApiError" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/exchange": {
+        "post": {
+          "tags": ["Exchange"],
+          "operationId": "postExchange",
+          "summary": "Execute trading actions (place order, cancel order, etc.)",
+          "description": "Endpoint for submitting actions that modify state, such as placing or canceling orders. Requires EIP-712 authentication via headers (X-HL-Signature, X-HL-Timestamp, X-HL-Nonce). The request body schema depends on the 'type' of action.",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                   "type": "object",
+                   "properties": {
+                      "type": {
+                          "type": "string",
+                          "description": "The type of action to perform (e.g., 'order', 'cancel')."
+                      },
+                      "action": {
+                          "type": "object",
+                          "description": "The payload specific to the action type. See component schemas like PlaceOrderActionPayload, CancelActionPayload."
+                      }
+                   },
+                   "required": ["type", "action"],
+                   "description": "Base request structure for exchange actions.",
+                   "example": {
+                     "type": "order",
+                     "action": {
+                       "asset": "BTC", "isBuy": true, "limitPx": "30000.0", "sz": 0.1, "reduceOnly": false,
+                       "orderType": {"limit": {"tif": "Gtc"}}, "cloid": "my-client-order-id-123"
+                     }
+                   }
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful action execution. The response 'data' structure varies.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": ["ok"],
+                        "description": "Indicates successful processing."
+                      },
+                      "data": {
+                         "type": "object",
+                         "description": "Contains action-specific results (e.g., order statuses). Structure varies, see component schemas like OrderResponseData."
+                      }
+                    },
+                    "required": ["status"]
+                  }
+                }
+              }
+            },
+             "400": {
+              "description": "Bad Request - Invalid action type or payload.",
+              "content": {
+                "application/json": {
+                  "schema": { "$ref": "#/components/schemas/ApiError" }
+                }
+              }
+            },
+            "401": {
+              "description": "Authentication Failed - Invalid signature, timestamp, or nonce.",
+              "content": {
+                "application/json": {
+                   "schema": { "$ref": "#/components/schemas/ApiError" }
+                }
+              }
+            },
+            "500": {
+              "description": "Internal Server Error.",
+              "content": {
+                "application/json": {
+                   "schema": { "$ref": "#/components/schemas/ApiError" }
+                }
+              }
+            }
+            // Add other potential errors like 403, 429
+          }
+        }
+      }
+    },
+    "components": {
+      "schemas": {
+  
+        // --- Basic Error Schema ---
+        "ApiError": {
+             "type": "object",
+             "properties": {
+                 "error": {
+                     "type": "string",
+                     "description": "Error message from Hyperliquid"
+                 }
+             },
+             "description": "Generic error response structure."
+         },
+  
+         // --- Shared Enums (Based on SDK types.py) ---
+         "ApiSide": {
+             "type": "string",
+             "enum": ["B", "A"],
+             "description": "Order side ('B' for Buy/Bid, 'A' for Ask/Sell)."
+         },
+         "ApiTif": {
+              "type": "string",
+              "enum": ["Gtc", "Ioc", "Alo"],
+              "description": "Time in Force ('Alo' = Add Liquidity Only / Post-Only)."
+          },
+         "ApiTriggerType": {
+              "type": "string",
+              "enum": ["tp", "sl"],
+              "description": "Trigger type ('tp' for take-profit, 'sl' for stop-loss)."
+          },
+  
+         // --- Schemas for /info Payloads ---
+  
+         "OpenOrdersRequestPayload": {
+            "type": "object",
+            "description": "Request payload for type='openOrders'.",
+            "properties": {
+              "type": { "type": "string", "enum": ["openOrders"] },
+              "user": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "description": "User address." }
+            },
+            "required": ["type", "user"]
+          },
+         "OpenOrderResponseItem": {
+              "type": "object",
+              "description": "Schema for one item in the openOrders response array.",
+              "properties": {
+                  "order": { "$ref": "#/components/schemas/ApiOrder" },
+                  "trigger": { "$ref": "#/components/schemas/ApiTriggerInfo" }
+              },
+              "required": ["order"]
+          },
+          "OpenOrdersResponse": {
+              "type": "array",
+              "items": { "$ref": "#/components/schemas/OpenOrderResponseItem" },
+              "description": "Response for type='openOrders'."
+          },
+  
+         "UserStateRequestPayload": {
+            "type": "object",
+            "description": "Request payload for type='clearinghouseState'.",
+            "properties": {
+              "type": { "type": "string", "enum": ["clearinghouseState"] },
+              "user": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "description": "User address." }
+            },
+            "required": ["type", "user"]
+          },
+         "UserStateResponse": {
+             # This is complex, based on SDK ClearinghouseState
+             "type": "object",
+             "description": "Response for type='clearinghouseState'. Contains asset positions, margin summary, etc. See SDK types.py for full structure.",
+             "properties": {
+                  "assetPositions": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ApiAssetPosition" }
+                  },
+                  "marginSummary": { "$ref": "#/components/schemas/ApiMarginSummary" },
+                  "crossMaintenanceMarginUsed": { "type": "string", "format": "decimal" },
+                  "crossMarginSummary": { "$ref": "#/components/schemas/ApiMarginSummary" },
+                  "isolatedMaintenanceMarginUsed": { "type": "string", "format": "decimal" },
+                  "isolatedMarginSummary": { "$ref": "#/components/schemas/ApiMarginSummary" },
+                  "withdrawable": { "type": "string", "format": "decimal" }
+                  # Add other fields from ClearinghouseState TypedDict...
+             },
+             "required": ["assetPositions", "marginSummary"] # Mark core required fields
+         },
+  
+         "UserFillsRequestPayload": {
+              "type": "object",
+              "description": "Request payload for type='userFills'.",
+              "properties": {
+                  "type": { "type": "string", "enum": ["userFills"] },
+                  "user": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "description": "User address." }
+              },
+              "required": ["type", "user"]
+         },
+         "UserFillsResponse": {
+             "type": "array",
+             "items": { "$ref": "#/components/schemas/ApiUserFill" },
+             "description": "Response for type='userFills'. Array of user fill/trade data."
+         },
+  
+         "MetaRequestPayload": {
+              "type": "object",
+              "description": "Request payload for type='meta'.",
+              "properties": { "type": { "type": "string", "enum": ["meta"] } },
+              "required": ["type"]
+         },
+         "MetaResponse": {
+              # Based on SDK Meta TypedDict
+              "type": "object",
+              "description": "Response for type='meta'. Contains universe/asset definitions.",
+              "properties": {
+                  "universe": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ApiAsset" }
+                  }
+              },
+              "required": ["universe"]
+         },
+  
+         "MetaAndAssetCtxsRequestPayload": {
+              "type": "object",
+              "description": "Request payload for type='metaAndAssetCtxs'.",
+              "properties": { "type": { "type": "string", "enum": ["metaAndAssetCtxs"] } },
+              "required": ["type"]
+         },
+         "MetaAndAssetCtxsResponse": {
+             "type": "array",
+             "minItems": 2,
+             "maxItems": 2,
+             "items": [
+                 { "$ref": "#/components/schemas/MetaResponse" },
+                 {
+                      "type": "array",
+                      "description": "Array of Asset Contexts",
+                      "items": { "$ref": "#/components/schemas/ApiAssetCtx" }
+                 }
+             ],
+             "description": "Response for type='metaAndAssetCtxs'. A tuple containing [MetaResponse, List[ApiAssetCtx]]."
+         },
+  
+         "L2BookRequestPayload": {
+              "type": "object",
+              "description": "Request payload for type='l2Book'.",
+              "properties": {
+                  "type": { "type": "string", "enum": ["l2Book"] },
+                  "coin": { "type": "string", "description": "Asset symbol (e.g., BTC)." }
+              },
+              "required": ["type", "coin"]
+         },
+         "L2BookResponse": { "$ref": "#/components/schemas/ApiL2Book" },
+  
+         "RecentTradesRequestPayload": {
+             "type": "object",
+             "description": "Request payload for type='recentTrades'.",
+             "properties": {
+                 "type": { "type": "string", "enum": ["recentTrades"] },
+                 "coin": { "type": "string", "description": "Asset symbol (e.g., BTC)." }
+             },
+             "required": ["type", "coin"]
+         },
+         "RecentTradesResponse": {
+              "type": "array",
+              "items": { "$ref": "#/components/schemas/ApiPublicTrade" },
+              "description": "Response for type='recentTrades'. Array of recent public trades."
+          },
+  
+         // --- Schemas for /exchange Payloads ---
+  
+         "PlaceOrderActionPayload": {
+             "type": "object",
+             "description": "Action payload for placing an order (type='order'). Based on SDK OrderSpec.",
+             "properties": {
+                 "asset": { "type": "string", "description": "Asset index or symbol (check SDK)." },
+                 "isBuy": { "type": "boolean" },
+                 "limitPx": { "type": "string", "format": "decimal", "description": "Limit price string." },
+                 "sz": { "type": "number", "format": "float", "description": "Size as float." }, # SDK uses float here
+                 "reduceOnly": { "type": "boolean" },
+                 "orderType": { "$ref": "#/components/schemas/ApiOrderType" },
+                 "trigger": { "$ref": "#/components/schemas/ApiTriggerSpec", "nullable": True },
+                 "cloid": { "type": "string", "nullable": True, "description": "Client Order ID (must be bytes32 hex if used)." }
+             },
+             "required": ["asset", "isBuy", "limitPx", "sz", "reduceOnly", "orderType"]
+         },
+         "CancelActionPayload": {
+              "type": "object",
+              "description": "Action payload for canceling an order (type='cancel'). Based on SDK CancelRequest.",
+              "properties": {
+                  "asset": { "type": "string", "description": "Asset index or symbol." },
+                  "oid": { "type": "integer", "format": "int64", "description": "Order ID to cancel." }
+              },
+              "required": ["asset", "oid"]
+          },
+          # Add other action payloads like cancelByCloid, modifyOrder, etc. if needed
+  
+         // --- Schemas for /exchange Responses ---
+          "OrderResponseData": {
+              "type": "object",
+              "description": "Structure within the 'data' field of a successful order/cancel response.",
+              "properties": {
+                  "statuses": {
+                      "type": "array",
+                      "items": {
+                          "type": "object", # Or string 'canceled'
+                          "description": "Status of each order/cancel attempt. Structure varies significantly.",
+                          "properties": {
+                               # Example fields for 'resting' or 'filled' status
+                               "resting": { "$ref": "#/components/schemas/ApiOrder", "nullable": True},
+                               "filled": { "$ref": "#/components/schemas/ApiOrder", "nullable": True}, # May contain fill details
+                               "error": { "type": "string", "nullable": True}
+                          }
+                      }
+                  }
+              },
+              "required": ["statuses"]
+          },
+  
+         // --- Reusable Component Schemas (Based on SDK types.py) ---
+  
+         "ApiOrder": {
+              "type": "object",
+              "description": "Represents an order structure as used in API responses. Based on SDK Order.",
+              "properties": {
+                  "oid": { "type": "integer", "format": "int64" },
+                  "cloid": { "type": "string", "nullable": True },
+                  "asset": { "type": "string" },
+                  "side": { "$ref": "#/components/schemas/ApiSide" },
+                  "limitPx": { "type": "string", "format": "decimal" },
+                  "sz": { "type": "string", "format": "decimal" },
+                  "timestamp": { "type": "integer", "format": "int64", "description": "Milliseconds" },
+                  "orderType": { "$ref": "#/components/schemas/ApiOrderType" },
+                  "reduceOnly": { "type": "boolean" },
+                  "remainingSz": { "type": "string", "format": "decimal" },
+                  "status": { "type": "string" }, # Need enum? "open", "filled", "canceled"?
+                  "statusTimestamp": { "type": "integer", "format": "int64", "description": "Milliseconds" },
+                  "trigger": { "$ref": "#/components/schemas/ApiTriggerInfo", "nullable": True}
+                  # Add other relevant fields from SDK Order TypedDict
+              },
+              "required": ["oid", "asset", "side", "limitPx", "sz", "timestamp", "orderType", "reduceOnly", "remainingSz", "status", "statusTimestamp"]
+          },
+          "ApiOrderType": {
+              "type": "object",
+              "oneOf": [
+                   {"$ref": "#/components/schemas/ApiOrderTypeLimit"},
+                   {"$ref": "#/components/schemas/ApiOrderTypeMarket"}
+                   # Add other types if needed
+              ],
+              "description": "Represents different order types in API responses."
+          },
+          "ApiOrderTypeLimit": {
+               "type": "object",
+               "properties": { "limit": { "$ref": "#/components/schemas/ApiTifLimit" } },
+               "required": ["limit"]
+           },
+           "ApiOrderTypeMarket": {
+                "type": "object",
+                "properties": { "market": { "type": "object"} }, # Empty object for market type
+                "required": ["market"]
+            },
+           "ApiTifLimit": {
+                "type": "object",
+                "properties": { "tif": { "$ref": "#/components/schemas/ApiTif" } },
+                "required": ["tif"]
+            },
+          "ApiTriggerInfo": {
+              "type": "object",
+              "description": "Trigger details for conditional orders in API responses.",
+              "properties": {
+                  "triggerPx": { "type": "string", "format": "decimal" },
+                  "isMarket": { "type": "boolean" },
+                  "tpsl": { "$ref": "#/components/schemas/ApiTriggerType" }
+              },
+              "required": ["triggerPx", "isMarket", "tpsl"]
+          },
+          "ApiTriggerSpec": {
+              "type": "object",
+              "description": "Trigger details for placing conditional orders.",
+              "properties": {
+                  "triggerPx": { "type": "string", "format": "decimal" },
+                  "isMarket": { "type": "boolean" },
+                  "tpsl": { "$ref": "#/components/schemas/ApiTriggerType" }
+              },
+              "required": ["triggerPx", "isMarket", "tpsl"]
+          },
+  
+          "ApiUserFill": {
+              "type": "object",
+              "description": "Schema for one item in the userFills response array. Based on SDK UserFill.",
+              "properties": {
+                  "tid": { "type": "integer", "format": "int64", "description": "Trade ID." },
+                  "coin": { "type": "string", "description": "Asset symbol." },
+                  "px": { "type": "string", "format": "decimal", "description": "Fill price." },
+                  "sz": { "type": "string", "format": "decimal", "description": "Fill size." },
+                  "time": { "type": "integer", "format": "int64", "description": "Timestamp (ms)." },
+                  "side": { "$ref": "#/components/schemas/ApiSide" },
+                  "oid": { "type": "integer", "format": "int64", "description": "Order ID." },
+                  "startPosition": { "type": "string", "format": "decimal", "description": "Position size before fill." },
+                  "dir": { "type": "string", "description": "Direction text." },
+                  "hash": { "type": "string", "description": "Fill hash." },
+                  # "sig": { ??? }, # What type is sig? string? bytes?
+                  "fee": { "type": "string", "format": "decimal", "description": "Fee paid." },
+                  "isMaker": { "type": "boolean" },
+                  "liquidationMarkPx": { "type": "string", "format": "decimal", "nullable": True },
+                  "cloid": { "type": "string", "nullable": True }
+              },
+              "required": ["tid", "coin", "px", "sz", "time", "side", "oid", "startPosition", "dir", "hash", "fee", "isMaker"]
+          },
+  
+          "ApiAssetPosition": {
+              # Based on SDK AssetPosition
+              "type": "object",
+              "description": "User's position details for a specific asset.",
+              "properties": {
+                  "asset": { "type": "string" },
+                  "position": { "$ref": "#/components/schemas/ApiPositionInfo" }
+              },
+              "required": ["asset", "position"]
+          },
+          "ApiPositionInfo": {
+              # Based on SDK Position
+               "type": "object",
+               "properties": {
+                   "coin": { "type": "string" },
+                   "entryPx": { "type": "string", "format": "decimal", "nullable": True },
+                   "leverage": { "$ref": "#/components/schemas/ApiLeverage" },
+                   "liquidationPx": { "type": "string", "format": "decimal", "nullable": True },
+                   "marginUsed": { "type": "string", "format": "decimal" },
+                   "maxLeverage": { "type": "integer" },
+                   "positionValue": { "type": "string", "format": "decimal" },
+                   "returnOnEquity": { "type": "string", "format": "decimal" },
+                   "szi": { "type": "string", "format": "decimal", "description": "Size (positive=long, negative=short)"},
+                   "unrealizedPnl": { "type": "string", "format": "decimal" }
+               },
+              "required": ["coin", "leverage", "marginUsed", "maxLeverage", "positionValue", "returnOnEquity", "szi", "unrealizedPnl"]
+          },
+           "ApiLeverage": {
+               # Based on SDK Leverage
+               "type": "object",
+               "properties": {
+                   "type": { "type": "string", "enum": ["cross", "isolated"] },
+                   "value": { "type": "integer" }
+               },
+               "required": ["type", "value"]
+           },
+          "ApiMarginSummary": {
+              # Based on SDK MarginSummary
+              "type": "object",
+              "properties": {
+                   "accountValue": { "type": "string", "format": "decimal"},
+                   "totalMarginUsed": { "type": "string", "format": "decimal"},
+                   "totalNtlPos": { "type": "string", "format": "decimal"},
+                   "totalRawUsd": { "type": "string", "format": "decimal"}
+              },
+              "required": ["accountValue", "totalMarginUsed", "totalNtlPos", "totalRawUsd"]
+          },
+  
+          "ApiAsset": {
+               # Based on SDK Asset
+               "type": "object",
+               "description": "Definition of an asset/market.",
+               "properties": {
+                   "name": { "type": "string" },
+                   "szDecimals": { "type": "integer" },
+                   "maxLeverage": { "type": "integer" },
+                   "onlyIsolated": { "type": "boolean" }
+                   # Add other fields from SDK Asset...
+               },
+               "required": ["name", "szDecimals", "maxLeverage", "onlyIsolated"]
+           },
+           "ApiAssetCtx": {
+                # Based on SDK AssetCtx
+                "type": "object",
+                "description": "Contextual information for an asset (price, funding).",
+                "properties": {
+                     "name": { "type": "string" },
+                     "funding": { "type": "string", "format": "decimal", "description": "Hourly funding rate string." },
+                     "markPx": { "type": "string", "format": "decimal" },
+                     "prevDayPx": { "type": "string", "format": "decimal" },
+                     "dayNtlVlm": { "type": "string", "format": "decimal"},
+                     "impactPx": { "type": "string", "format": "decimal", "nullable": True}
+                     # Add other fields...
+                },
+                "required": ["name", "funding", "markPx", "prevDayPx", "dayNtlVlm"]
+            },
+  
+          "ApiL2Book": {
+               # Based on SDK L2Book
+               "type": "object",
+               "description": "L2 Order Book snapshot.",
+               "properties": {
+                   "coin": { "type": "string" },
+                   "levels": {
+                       "type": "array",
+                       "minItems": 2,
+                       "maxItems": 2,
+                       "items": [
+                           { # Bids
+                                "type": "array",
+                                "items": { "$ref": "#/components/schemas/ApiBookLevel" }
+                            },
+                           { # Asks
+                                "type": "array",
+                                "items": { "$ref": "#/components/schemas/ApiBookLevel" }
+                            }
+                       ],
+                       "description": "[Bids[], Asks[]]"
+                    },
+                   "time": { "type": "integer", "format": "int64", "description": "Timestamp (ms)." }
+               },
+               "required": ["coin", "levels", "time"]
+           },
+           "ApiBookLevel": {
+                "type": "object",
+                "description": "A single price level in the order book.",
+                "properties": {
+                    "px": { "type": "string", "format": "decimal" },
+                    "sz": { "type": "string", "format": "decimal" },
+                    "n": { "type": "integer", "description": "Number of orders at level."}
+                },
+                "required": ["px", "sz", "n"]
+            },
+  
+           "ApiPublicTrade": {
+                # Based on SDK Trade
+                "type": "object",
+                "description": "A public trade event.",
+                "properties": {
+                     "coin": { "type": "string" },
+                     "side": { "$ref": "#/components/schemas/ApiSide" },
+                     "px": { "type": "string", "format": "decimal" },
+                     "sz": { "type": "string", "format": "decimal" },
+                     "time": { "type": "integer", "format": "int64", "description": "Timestamp (ms)." },
+                     "hash": { "type": "string" }
+                },
+                "required": ["coin", "side", "px", "sz", "time", "hash"]
+            }
+  
+      }
+    }
+  }
