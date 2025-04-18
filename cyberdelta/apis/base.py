@@ -15,7 +15,7 @@ from aiohttp import ClientTimeout, ClientWSTimeout
 
 from cyberdelta.apis.models.api import APIError, RateLimiterConfig
 from cyberdelta.apis.models.enums import APIErrorCode
-from cyberdelta.apis.models.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 
 if TYPE_CHECKING:
     # Import other models only needed for type hints here

@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import logging
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -28,7 +29,6 @@ from cyberdelta.core.models import (  # Use absolute import
     TimeInForce,
     Trade,
 )
-from cyberdelta.core.models.market import Trade
 
 logger = logging.getLogger(__name__)
 
@@ -191,8 +191,8 @@ class BackpackAPI(ExchangeAPI):
 
         def safe_list_of_pairs(raw: object) -> list[tuple[str, str]]:
             """
-            Safely converts a list of pairs (tuples or lists of length 2) of arbitrary objects into a list of string pairs.
-            Ignores any entries that are not tuples/lists of length 2.
+            Safely converts a list of pairs (tuples or lists of length 2) of arbitrary objects
+            into a list of string pairs. Ignores any entries that are not tuples/lists of length 2.
 
             Args:
                 raw (object): Input expected to be a list of pairs (tuples or lists).
@@ -204,9 +204,18 @@ class BackpackAPI(ExchangeAPI):
                 return []
             result: list[tuple[str, str]] = []
             for entry_item in raw:
-                if isinstance(entry_item, tuple | list) and len(entry_item) == 2:
-                    a0: Any = entry_item[0]
-                    a1: Any = entry_item[1]
+                # mypy cannot infer type of entry_item from external data; project policy prohibits type: ignore
+                # so we use cast(Any, ...) at the point of use
+                item = cast(Any, entry_item)
+                if isinstance(item, tuple):
+                    entry_pair = cast(Sequence[Any], item)
+                elif isinstance(item, list):
+                    entry_pair = cast(Sequence[Any], item)
+                else:
+                    continue
+                if len(entry_pair) == 2:
+                    a0: Any = entry_pair[0]
+                    a1: Any = entry_pair[1]
                     result.append((str(a0), str(a1)))
             return result
 
@@ -354,12 +363,12 @@ class BackpackAPI(ExchangeAPI):
                         is_maker=is_maker,
                         timestamp=int(float(raw_time)),
                     )
-                    trades.append(trade)  # type: ignore[arg-type]
+                    trades.append(trade)
                 except Exception as e:
                     logger.warning(
                         f"[{self.exchange_name}] Error processing trade: {e} | Data: {trade_data}"
                     )
-            return trades  # type: ignore[return-value]
+            return trades
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Error getting recent trades for {symbol}: {e}",
@@ -443,8 +452,11 @@ class BackpackAPI(ExchangeAPI):
                 return {}
             balances: dict[str, Balance] = {}
             for asset_key, data_val in response.items():
-                asset_str = str(asset_key)
-                data_dict = cast(dict[str, Any], data_val)
+                # mypy cannot infer type of asset_key/data_val from external data; project policy prohibits type: ignore
+                key = cast(Any, asset_key)
+                val = cast(Any, data_val)
+                asset_str = str(key)
+                data_dict = cast(dict[str, Any], val)
                 available = Decimal(str(data_dict.get("available", "0")))
                 total = Decimal(str(data_dict.get("total", "0")))
                 balances[asset_str] = Balance(
@@ -483,13 +495,14 @@ class BackpackAPI(ExchangeAPI):
                 return []
             positions: list[Position] = []
             for pos_data_item in response:
-                if not isinstance(pos_data_item, dict):
+                # mypy cannot infer type of pos_data_item from external data; project policy prohibits type: ignore
+                item = cast(Any, pos_data_item)
+                if not isinstance(item, dict):
                     logger.warning(
-                        f"[backpack] Unexpected position entry type: {type(pos_data_item)}. "
-                        f"Skipping entry."
+                        f"[backpack] Unexpected position entry type: {type(item)}. Skipping entry."
                     )
                     continue
-                pos_data: dict[str, Any] = pos_data_item
+                pos_data: dict[str, Any] = cast(dict[str, Any], item)
                 symbol_from_data = pos_data.get("symbol")
                 if not isinstance(symbol_from_data, str) or not symbol_from_data:
                     logger.warning(f"[backpack] Position missing or invalid 'symbol': {pos_data}")
@@ -587,7 +600,10 @@ class BackpackAPI(ExchangeAPI):
 
             if not response or not isinstance(response, dict) or "id" not in response:
                 raise APIError(
-                    message=f"[{self.exchange_name}] Failed to place order. Invalid response: {response}",
+                    message=(
+                        f"[{self.exchange_name}] Failed to place order. Invalid response: "
+                        f"{response}"
+                    ),
                     code=APIErrorCode.UNKNOWN,
                     http_status=None,
                 )
@@ -777,7 +793,8 @@ class BackpackAPI(ExchangeAPI):
             response = await self._request("GET", request_path)
             if not isinstance(response, dict):
                 logger.error(
-                    f"[{self.exchange_name}] Unexpected response type for funding rate: {type(response)}"
+                    f"[{self.exchange_name}] Unexpected response type for funding rate: "
+                    f"{type(response)}"
                 )
                 raise APIError(f"Could not fetch funding rate for {symbol}")
             timestamp = int(response.get("time", int(time.time() * 1000)))
@@ -822,11 +839,11 @@ class BackpackAPI(ExchangeAPI):
             f"[{self.exchange_name}] get_funding_rates not fully implemented. "
             f"Fetching current rate only."
         )
-        rates = []
+        rates: list[FundingRate] = []
         if symbols:
             for symbol in symbols:
                 try:
-                    current_rate = await self.fetch_funding_rate(symbol)
+                    current_rate: FundingRate = await self.fetch_funding_rate(symbol)
                     rates.append(current_rate)
                 except APIError as e:
                     logger.error(
@@ -854,7 +871,8 @@ class BackpackAPI(ExchangeAPI):
             response = await self._request("GET", request_path, signed=True)
             if not isinstance(response, dict):
                 logger.warning(
-                    f"[{self.exchange_name}] Unexpected response type for account info: {type(response)}. Returning empty dict."
+                    f"[{self.exchange_name}] Unexpected response type for account info: "
+                    f"{type(response)}. Returning empty dict."
                 )
                 return {}
             return response
@@ -948,63 +966,20 @@ class BackpackAPI(ExchangeAPI):
             original_exception=None,  # Can pass original exception if caught earlier
         )
 
-    # --- Data Parsing (Implementation for Base Class Abstract Method) --- #
-
-    def parse_order(self, data: dict[str, Any]) -> Order:
-        """
-        Parse raw order data from Backpack into an Order object (CyberDeltaEngine standard).
-
-        Args:
-            data: Raw order data from Backpack API (dict)
-        Returns:
-            Order: Standardized Order object for CyberDeltaEngine
-        Raises:
-            APIError: If required fields are missing or invalid
-        """
-        try:
-            status_str = data.get("status", "").upper()
-            order_status = (
-                OrderStatus[status_str]
-                if status_str in OrderStatus.__members__
-                else OrderStatus.UNKNOWN
-            )
-            price = data.get("price")
-            quantity = data.get("quantity")
-            quantity_filled = data.get("filledQuantity")
-            average_fill_price = data.get("avgFillPrice")
-            # Backpack uses integer ms timestamps
-            order_time_ms = data.get("time")
-            created_at = (
-                datetime.fromtimestamp(order_time_ms / 1000, UTC)
-                if order_time_ms
-                else datetime.now(UTC)
-            )
-            return Order(
-                symbol=data["symbol"] if "symbol" in data else "",
-                side=OrderSide(data["side"]) if "side" in data else OrderSide.BUY,
-                order_type=OrderType(data["orderType"]) if "orderType" in data else OrderType.LIMIT,
-                quantity_requested=Decimal(str(quantity)) if quantity is not None else Decimal("0"),
-                status=order_status,
-                client_order_id=str(data.get("clientId", "")),
-                price=Decimal(str(price)) if price is not None else None,
-                quantity_filled=Decimal(str(quantity_filled))
-                if quantity_filled is not None
-                else Decimal("0"),
-                average_fill_price=Decimal(str(average_fill_price))
-                if average_fill_price is not None
-                else None,
-                created_at=created_at,
-            )
-        except KeyError as e:
-            logger.error(f"[{self.exchange_name}] Missing key {e} in order data: {data}")
-            raise APIError(
-                f"Missing key {e} in order data", code=APIErrorCode.INVALID_PARAMS
-            ) from e
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error parsing order data: {e}", exc_info=True)
-            raise APIError(
-                f"Error parsing order data: {e}", code=APIErrorCode.INVALID_PARAMS
-            ) from e
+    # --- Data Parsing (Refactored to backpack/ submodules) --- #
+    # The following parser methods have been refactored into standalone modules:
+    #   - bp_parse_order:      backpack/bp_parse_order.py
+    #   - bp_parse_trade:      backpack/bp_parse_trade.py
+    #   - bp_parse_position:   backpack/bp_parse_position.py
+    #   - bp_parse_balance:    backpack/bp_parse_balance.py
+    #   - bp_parse_funding_rate: backpack/bp_parse_funding_rate.py
+    #   - bp_parse_order_book: backpack/bp_parse_order_book.py
+    # Import and use these functions from their respective modules.
+    #
+    # Example usage:
+    #   from cyberdelta.apis.backpack.bp_parse_order import bp_parse_order
+    #   order = bp_parse_order(raw_order_data)
+    #
 
     # --- WebSocket Subscriptions (Implementations for Base Class Abstract Methods) ---
 
@@ -1064,193 +1039,3 @@ class BackpackAPI(ExchangeAPI):
 
     # TODO: Implement remaining abstract methods from ExchangeAPI
     #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)
-
-    def parse_trade(self, data: dict[str, Any], symbol: str) -> Trade:
-        """
-        Parse raw trade data from Backpack into a Trade object.
-        Args:
-            data: Raw trade data from Backpack API or WebSocket.
-        Returns:
-            Trade: Standardized Trade object for CyberDeltaEngine.
-        Raises:
-            APIError: If required fields are missing or invalid.
-        """
-        try:
-            symbol = data.get("s") or data.get("symbol") or ""
-            price = Decimal(str(data.get("p") or data.get("price") or "0"))
-            quantity = Decimal(str(data.get("q") or data.get("qty") or "0"))
-            trade_id = str(data.get("t") or data.get("id") or "")
-            buyer_order_id = str(data.get("b") or data.get("buyerOrderId") or "")
-            seller_order_id = str(data.get("a") or data.get("sellerOrderId") or "")
-            timestamp = int(data.get("E") or data.get("time") or data.get("T") or 0)
-            executed_at = (
-                datetime.fromtimestamp(timestamp / 1e6, UTC)
-                if timestamp > 1e12
-                else datetime.fromtimestamp(timestamp / 1e3, UTC)
-            )
-            is_maker = bool(data.get("m")) if "m" in data else None
-            side = (
-                OrderSide.BUY
-                if is_maker is False
-                else OrderSide.SELL
-                if is_maker is not None
-                else OrderSide.BUY
-            )
-            return Trade(
-                id=trade_id,
-                symbol=symbol,
-                executed_at=executed_at,
-                side=side,
-                order_id=buyer_order_id if side == OrderSide.BUY else seller_order_id,
-                exchange=self.exchange_name,
-                client_order_id="",
-                price=price,
-                quantity=quantity,
-                cost=price * quantity,
-                fee=Decimal("0"),
-                fee_asset="",
-                is_maker=is_maker,
-                timestamp=timestamp,
-            )
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Error parsing trade data: {e} | Data: {data}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Error parsing trade data: {e}", code=APIErrorCode.INVALID_PARAMS
-            ) from e
-
-    def parse_position(self, data: dict[str, Any]) -> Position:
-        """
-        Parse raw position data from Backpack into a Position object.
-        Args:
-            data: Raw position data from Backpack API or WebSocket.
-        Returns:
-            Position: Standardized Position object for CyberDeltaEngine.
-        Raises:
-            APIError: If required fields are missing or invalid.
-        """
-        try:
-            symbol = data.get("symbol") or ""
-            size = Decimal(str(data.get("positionSize") or "0"))
-            entry_price = Decimal(str(data.get("entryPrice") or "0"))
-            mark_price = Decimal(str(data.get("markPrice") or "0"))
-            liquidation_price = Decimal(str(data.get("liquidationPrice") or "0"))
-            unrealized_pnl = Decimal(str(data.get("unrealizedPnl") or "0"))
-            leverage = Decimal(str(data.get("leverage") or "1"))
-            side = OrderSide.BUY if size > 0 else OrderSide.SELL
-            return Position(
-                symbol=symbol,
-                size=size,
-                entry_price=entry_price,
-                mark_price=mark_price,
-                side=side,
-                liquidation_price=liquidation_price,
-                unrealized_pnl=unrealized_pnl,
-                leverage=leverage,
-            )
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Error parsing position data: {e} | Data: {data}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Error parsing position data: {e}", code=APIErrorCode.INVALID_PARAMS
-            ) from e
-
-    def parse_balance(self, data: dict[str, Any]) -> Balance:
-        """
-        Parse raw balance data from Backpack into a Balance object.
-        Args:
-            data: Raw balance data from Backpack API or WebSocket.
-        Returns:
-            Balance: Standardized Balance object for CyberDeltaEngine.
-        Raises:
-            APIError: If required fields are missing or invalid.
-        """
-        try:
-            asset = data.get("asset") or data.get("symbol") or ""
-            available = Decimal(str(data.get("available") or "0"))
-            total = Decimal(str(data.get("total") or "0"))
-            return Balance(
-                asset=asset,
-                available=available,
-                total=total,
-            )
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Error parsing balance data: {e} | Data: {data}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Error parsing balance data: {e}", code=APIErrorCode.INVALID_PARAMS
-            ) from e
-
-    def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate:
-        """
-        Parse raw funding rate data from Backpack into a FundingRate object.
-        Args:
-            data: Raw funding rate data from Backpack API or WebSocket.
-        Returns:
-            FundingRate: Standardized FundingRate object for CyberDeltaEngine.
-        Raises:
-            APIError: If required fields are missing or invalid.
-        """
-        try:
-            symbol = data.get("s") or data.get("symbol") or ""
-            funding_rate = Decimal(str(data.get("f") or data.get("fundingRate") or "0"))
-            mark_price = Decimal(str(data.get("p") or data.get("markPrice") or "0"))
-            index_price = Decimal(str(data.get("i") or data.get("indexPrice") or "0"))
-            timestamp = int(data.get("E") or data.get("time") or data.get("T") or 0)
-            return FundingRate(
-                symbol=symbol,
-                funding_rate=funding_rate,
-                mark_price=mark_price,
-                index_price=index_price,
-                timestamp=timestamp,
-            )
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Error parsing funding rate data: {e} | Data: {data}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Error parsing funding rate data: {e}", code=APIErrorCode.INVALID_PARAMS
-            ) from e
-
-    def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
-        """
-        Parse raw order book data from Backpack into an OrderBook object.
-        Args:
-            data: Raw order book data from Backpack API or WebSocket.
-            symbol: Trading symbol for the order book.
-        Returns:
-            OrderBook: Standardized OrderBook object for CyberDeltaEngine.
-        Raises:
-            APIError: If required fields are missing or invalid.
-        """
-        try:
-            bids = [
-                (Decimal(str(price)), Decimal(str(qty)))
-                for price, qty in data.get("b", data.get("bids", []))
-            ]
-            asks = [
-                (Decimal(str(price)), Decimal(str(qty)))
-                for price, qty in data.get("a", data.get("asks", []))
-            ]
-            timestamp = int(data.get("E") or data.get("time") or data.get("T") or 0)
-            return OrderBook(
-                symbol=symbol,
-                bids=bids,
-                asks=asks,
-                timestamp=timestamp,
-            )
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Error parsing order book data: {e} | Data: {data}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Error parsing order book data: {e}", code=APIErrorCode.INVALID_PARAMS
-            ) from e
