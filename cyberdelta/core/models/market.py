@@ -485,16 +485,21 @@ class Order(BaseModel):
     )
     @classmethod
     def parse_decimal_fields(cls, v: Any, info: ValidationInfo) -> Decimal | None:
+        """
+        Pydantic field validator for all Decimal fields in Order.
+        Uses parse_decimal_value with field_name for robust error context.
+        All parsing errors will include the field name for traceability.
+        Applies field-specific business rules (positivity, non-negativity, required/optional).
+        """
         field_name = info.field_name if info.field_name is not None else ""
         field_info = cls.model_fields.get(field_name) if field_name else None
-        # Ensure allow_none is always a bool
         allow_none = False
         if field_info is not None:
             annotation = getattr(field_info, "annotation", None)
             is_optional = annotation is not None and ("| None" in str(annotation))
             allow_none = is_optional or not field_info.is_required()
         try:
-            dec_val = parse_decimal_value(v, allow_none=allow_none)
+            dec_val = parse_decimal_value(v, allow_none=allow_none, field_name=field_name)
             if dec_val is not None:
                 if field_name == "quantity_requested" and dec_val <= 0:
                     raise ValueError(f"Field '{field_name}' must be positive.")
@@ -505,12 +510,18 @@ class Order(BaseModel):
             elif not allow_none:
                 raise ValueError(f"Field '{field_name}' is required and cannot be None or invalid.")
             return dec_val
-        except ValueError as e:
-            raise ValueError(f"Validation failed for {field_name}: {e}") from e
+        except ValueError:
+            raise
 
     @field_validator("created_at", "updated_at", "triggered_at", mode="before")
     @classmethod
     def parse_datetime_fields(cls, v: Any, info: ValidationInfo) -> datetime | None:
+        """
+        Pydantic field validator for all datetime fields in Order.
+        Uses parse_datetime_utc with field_name for robust error context.
+        All parsing errors will include the field name for traceability.
+        Applies field-specific business rules (required/optional).
+        """
         field_name = info.field_name if info.field_name is not None else ""
         field_info = cls.model_fields.get(field_name) if field_name else None
         allow_none = False
@@ -518,12 +529,12 @@ class Order(BaseModel):
             annotation = getattr(field_info, "annotation", None)
             allow_none = annotation is not None and ("| None" in str(annotation))
         try:
-            parsed = parse_datetime_utc(v)
+            parsed = parse_datetime_utc(v, field_name=field_name)
             if parsed is None and not allow_none:
                 raise ValueError(f"Field '{field_name}' cannot be None or invalid.")
             return parsed
-        except ValueError as e:
-            raise ValueError(f"Validation failed for {field_name}: {e}") from e
+        except ValueError:
+            raise
 
     @model_validator(mode="after")
     def check_order_logic(self) -> Self:
