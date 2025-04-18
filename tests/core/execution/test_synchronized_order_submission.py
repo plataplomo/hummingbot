@@ -24,6 +24,7 @@ from cyberdelta.core.execution.synchronized_order_submission import (
 from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -72,15 +73,14 @@ class TestOrderVerifier:
         # Define a sample filled order for mocking
         # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         sample_filled_order = Order(
-            id="test-order-1",
-            type=OrderType.LIMIT,  # Added positional 'type'
+            client_order_id="test-order-1",
+            order_type=OrderType.LIMIT,
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
-            quantity=Decimal("1.0"),
-            client_order_id="client-order-1",
+            quantity_requested=Decimal("1.0"),
             status=OrderStatus.FILLED,
-            filled_quantity=Decimal("1.0"),
+            quantity_filled=Decimal("1.0"),
         )
         # Set attributes after creation that are not in __init__
         # Mypy fix: Order does not have avg_fill_price directly
@@ -93,15 +93,14 @@ class TestOrderVerifier:
         # (Assuming get_order_status returns an Order object)
         # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         mock_api_order = Order(
-            id="exchange-order-id-1",
-            type=OrderType.LIMIT,  # Added positional 'type'
+            client_order_id="exchange-order-id-1",
+            order_type=OrderType.LIMIT,
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            quantity=Decimal("1.0"),
+            quantity_requested=Decimal("1.0"),
             price=Decimal("50000"),
             status=OrderStatus.FILLED,
-            client_order_id="client-order-1",
-            filled_quantity=Decimal("1.0"),
+            quantity_filled=Decimal("1.0"),
         )
         # Mypy fix: Order does not have exchange_order_id directly
         # mock_api_order.exchange_order_id="exchange-order-id-1" # Remove, order_id holds this
@@ -148,16 +147,14 @@ class TestOrderVerifier:
         # Ensure the mock returns the Order object defined in fixture
         # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         mock_local_order = Order(
-            id="test-order-1",
-            type=OrderType.LIMIT,  # Added positional 'type'
+            client_order_id="test-order-1",
+            order_type=OrderType.LIMIT,
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             status=OrderStatus.OPEN,
             price=Decimal("50000.0"),
-            quantity=Decimal("1.0"),
-            client_order_id="client-order-1",
-            # Add 'time' if required by Order model
-            time=datetime.now(UTC),
+            quantity_requested=Decimal("1.0"),
+            created_at=datetime.now(UTC),
         )
         # Directly populate the internal dict instead of mocking get_order
         exchange_id = "hyperliquid"
@@ -193,33 +190,28 @@ class TestOrderVerifier:
         # Test successful verification
         # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         local_order_mock = Order(
-            id="exchange-order-id-1",
-            type=OrderType.LIMIT,  # Added positional 'type'
+            client_order_id="exchange-order-id-1",
+            order_type=OrderType.LIMIT,
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             price=Decimal("50000.0"),
-            quantity=Decimal("1.0"),
-            client_order_id="test-order-1",
-            filled_quantity=Decimal("1.0"),
-            # Mypy fix: avg_fill_price is not direct attribute - handle assertion differently
-            # No avg_fill_price here - fixes [call-arg] error 180
+            quantity_requested=Decimal("1.0"),
+            quantity_filled=Decimal("1.0"),
         )
         portfolio_tracker.get_order.return_value = local_order_mock
 
         # Mock the API call within verify_order_execution
         mock_api = portfolio_tracker.get_api_client()
         api_order_response = Order(
-            id="exchange-order-id-1",  # Use 'id'
-            type=OrderType.LIMIT,  # Add 'type'
+            client_order_id="exchange-order-id-1",
+            order_type=OrderType.LIMIT,
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            quantity=Decimal("1.0"),
+            quantity_requested=Decimal("1.0"),
             price=Decimal("50000"),
             status=OrderStatus.FILLED,
-            client_order_id="test-order-1",
-            filled_quantity=Decimal("1.0"),
-            # timestamp removed
+            quantity_filled=Decimal("1.0"),
         )
         # Mypy fix: avg_fill_price is not a direct attribute
         # api_order_response.avg_fill_price=Decimal("50000")
@@ -244,16 +236,14 @@ class TestOrderVerifier:
 
         # Test failed verification (e.g., order not filled on exchange)
         api_order_response_open = Order(
-            id="exchange-order-id-1",  # Use 'id'
-            type=OrderType.LIMIT,  # Add 'type'
+            client_order_id="exchange-order-id-1",
+            order_type=OrderType.LIMIT,
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            quantity=Decimal("1.0"),
+            quantity_requested=Decimal("1.0"),
             price=Decimal("50000"),
-            status=OrderStatus.OPEN,  # Changed status
-            client_order_id="test-order-1",
-            filled_quantity=Decimal("0"),
-            # timestamp removed
+            status=OrderStatus.OPEN,
+            quantity_filled=Decimal("0"),
         )
         mock_api.get_order_status.return_value = api_order_response_open  # Update return value
         result_fail = await verifier.verify_order_execution("hyperliquid", "exchange-order-id-1")
@@ -276,16 +266,29 @@ class TestExecutionCoordinator:
     @pytest.mark.asyncio
     async def test_start_execution(self, coordinator: ExecutionCoordinator) -> None:
         """Test starting an execution."""
-        mock_opportunity = MockOpportunity()
+        mock_opportunity = ArbitrageOpportunity(
+            symbol="BTC-PERP",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_price=Decimal("50000.0"),
+            short_price=Decimal("50001.0"),
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0001"),
+            net_funding_differential=Decimal("0.0002"),
+            timestamp=datetime.now(UTC),
+            expected_profit=Decimal("1.0"),
+            utility_score=0.8,
+            basis_volatility=0.001,
+        )
         strategy = "sequential_lock_in"
 
-        await coordinator.start_execution("test-execution-1", mock_opportunity.to_dict(), strategy)
+        await coordinator.start_execution("test-execution-1", mock_opportunity, strategy)
 
         # Verify the execution was stored and has correct initial state
         assert "test-execution-1" in coordinator.executions
         context = coordinator.executions["test-execution-1"]
         assert context.execution_id == "test-execution-1"
-        assert context.opportunity == mock_opportunity.to_dict()
+        assert context.opportunity == mock_opportunity.model_dump()
         assert context.strategy == strategy
         assert context.status == ExecutionStatus.PENDING
         assert len(context.checkpoints) == 1
@@ -294,10 +297,23 @@ class TestExecutionCoordinator:
     @pytest.mark.asyncio
     async def test_add_checkpoint(self, coordinator: ExecutionCoordinator) -> None:
         """Test adding a checkpoint."""
-        mock_opportunity = MockOpportunity()
+        mock_opportunity = ArbitrageOpportunity(
+            symbol="BTC-PERP",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_price=Decimal("50000.0"),
+            short_price=Decimal("50001.0"),
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0001"),
+            net_funding_differential=Decimal("0.0002"),
+            timestamp=datetime.now(UTC),
+            expected_profit=Decimal("1.0"),
+            utility_score=0.8,
+            basis_volatility=0.001,
+        )
         strategy = "sequential_lock_in"
 
-        await coordinator.start_execution("test-execution-2", mock_opportunity.to_dict(), strategy)
+        await coordinator.start_execution("test-execution-2", mock_opportunity, strategy)
         context = coordinator.executions["test-execution-2"]
 
         # Add a checkpoint
@@ -310,10 +326,23 @@ class TestExecutionCoordinator:
     @pytest.mark.asyncio
     async def test_complete_execution(self, coordinator: ExecutionCoordinator) -> None:
         """Test completing an execution."""
-        mock_opportunity = MockOpportunity()
+        mock_opportunity = ArbitrageOpportunity(
+            symbol="BTC-PERP",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_price=Decimal("50000.0"),
+            short_price=Decimal("50001.0"),
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0001"),
+            net_funding_differential=Decimal("0.0002"),
+            timestamp=datetime.now(UTC),
+            expected_profit=Decimal("1.0"),
+            utility_score=0.8,
+            basis_volatility=0.001,
+        )
         strategy = "sequential_lock_in"
 
-        await coordinator.start_execution("test-execution-3", mock_opportunity.to_dict(), strategy)
+        await coordinator.start_execution("test-execution-3", mock_opportunity, strategy)
         context = coordinator.executions["test-execution-3"]
 
         # Complete the execution
@@ -334,10 +363,23 @@ class TestExecutionCoordinator:
     @pytest.mark.asyncio
     async def test_abort_execution(self, coordinator: ExecutionCoordinator) -> None:
         """Test aborting an execution."""
-        mock_opportunity = MockOpportunity()
+        mock_opportunity = ArbitrageOpportunity(
+            symbol="BTC-PERP",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_price=Decimal("50000.0"),
+            short_price=Decimal("50001.0"),
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0001"),
+            net_funding_differential=Decimal("0.0002"),
+            timestamp=datetime.now(UTC),
+            expected_profit=Decimal("1.0"),
+            utility_score=0.8,
+            basis_volatility=0.001,
+        )
         strategy = "sequential_lock_in"
 
-        await coordinator.start_execution("test-execution-4", mock_opportunity.to_dict(), strategy)
+        await coordinator.start_execution("test-execution-4", mock_opportunity, strategy)
         context = coordinator.executions["test-execution-4"]
 
         # Abort the execution
@@ -442,8 +484,21 @@ class TestSynchronizedOrderSubmissionService:
         service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
     ) -> None:
         """Test submitting orders with sequential strategy."""
-        service_instance, config, mock_verifier, mock_coordinator = service
-        mock_opportunity = MockOpportunity()
+        service_instance, _, _, _ = service
+        mock_opportunity = ArbitrageOpportunity(
+            symbol="BTC-PERP",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_price=Decimal("50000.0"),
+            short_price=Decimal("50001.0"),
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0001"),
+            net_funding_differential=Decimal("0.0002"),
+            timestamp=datetime.now(UTC),
+            expected_profit=Decimal("1.0"),
+            utility_score=0.8,
+            basis_volatility=0.001,
+        )
 
         # Configure patched mocks (they replace the instance methods)
         mock_verify_pre.return_value = {"success": True, "error": None, "details": {}}
@@ -456,7 +511,7 @@ class TestSynchronizedOrderSubmissionService:
 
         # Call the SUT
         result_obj: ExecutionResult = await service_instance.submit_orders(
-            mock_opportunity.to_dict(), "sequential_lock_in"
+            mock_opportunity, "sequential_lock_in"
         )
 
         # Assert based on the expected dictionary structure returned by submit_orders
@@ -491,8 +546,21 @@ class TestSynchronizedOrderSubmissionService:
         service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
     ) -> None:
         """Test submitting orders with simultaneous strategy."""
-        service_instance, config, mock_verifier, mock_coordinator = service
-        mock_opportunity = MockOpportunity()
+        service_instance, _, _, _ = service
+        mock_opportunity = ArbitrageOpportunity(
+            symbol="BTC-PERP",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_price=Decimal("50000.0"),
+            short_price=Decimal("50001.0"),
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0001"),
+            net_funding_differential=Decimal("0.0002"),
+            timestamp=datetime.now(UTC),
+            expected_profit=Decimal("1.0"),
+            utility_score=0.8,
+            basis_volatility=0.001,
+        )
 
         # Configure patched mocks
         mock_verify_pre.return_value = {"success": True, "error": None, "details": {}}
@@ -506,7 +574,7 @@ class TestSynchronizedOrderSubmissionService:
 
         # Call the SUT
         result_obj: ExecutionResult = await service_instance.submit_orders(
-            mock_opportunity.to_dict(), "simultaneous"
+            mock_opportunity, "simultaneous"
         )
 
         # Assert based on the expected dictionary structure
@@ -549,14 +617,27 @@ class TestSynchronizedOrderSubmissionService:
         service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
     ) -> None:
         """Test failure during pre-execution checks."""
-        service_instance, config, mock_verifier, mock_coordinator_fixture = service
+        service_instance, _, _, _ = service
         # Use patched coordinator mocks from parameters, not fixture
         service_instance.execution_coordinator = MagicMock(spec=ExecutionCoordinator)
         service_instance.execution_coordinator.start_execution = mock_start_execution
         service_instance.execution_coordinator.add_checkpoint = mock_add_checkpoint
         service_instance.execution_coordinator.complete_execution = mock_complete_execution
 
-        mock_opportunity = MockOpportunity()
+        mock_opportunity = ArbitrageOpportunity(
+            symbol="BTC-PERP",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_price=Decimal("50000.0"),
+            short_price=Decimal("50001.0"),
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0001"),
+            net_funding_differential=Decimal("0.0002"),
+            timestamp=datetime.now(UTC),
+            expected_profit=Decimal("1.0"),
+            utility_score=0.8,
+            basis_volatility=0.001,
+        )
         strategy = "sequential_lock_in"
 
         # Configure the mock for _verify_pre_execution to fail
@@ -580,7 +661,7 @@ class TestSynchronizedOrderSubmissionService:
 
         # Submit orders
         result_obj: ExecutionResult = await service_instance.submit_orders(
-            mock_opportunity.to_dict(), strategy
+            mock_opportunity, strategy
         )
 
         # Verify status is REJECTED and error is propagated correctly in ExecutionResult
@@ -633,14 +714,27 @@ class TestSynchronizedOrderSubmissionService:
         service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
     ) -> None:
         """Test failure during post-execution verification."""
-        service_instance, config, mock_verifier, mock_coordinator_fixture = service
+        service_instance, _, _, _ = service
         # Use patched coordinator mocks from parameters
         service_instance.execution_coordinator = MagicMock(spec=ExecutionCoordinator)
         service_instance.execution_coordinator.start_execution = mock_start_execution
         service_instance.execution_coordinator.add_checkpoint = mock_add_checkpoint
         service_instance.execution_coordinator.complete_execution = mock_complete_execution
 
-        mock_opportunity = MockOpportunity()
+        mock_opportunity = ArbitrageOpportunity(
+            symbol="BTC-PERP",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_price=Decimal("50000.0"),
+            short_price=Decimal("50001.0"),
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0001"),
+            net_funding_differential=Decimal("0.0002"),
+            timestamp=datetime.now(UTC),
+            expected_profit=Decimal("1.0"),
+            utility_score=0.8,
+            basis_volatility=0.001,
+        )
         strategy = "sequential_lock_in"
 
         # Mock pre-execution to pass
@@ -670,7 +764,7 @@ class TestSynchronizedOrderSubmissionService:
 
         # Submit orders
         result_obj: ExecutionResult = await service_instance.submit_orders(
-            mock_opportunity.to_dict(), strategy
+            mock_opportunity, strategy
         )
 
         # Verify status is PARTIALLY_COMPLETED after compensation attempt
@@ -711,8 +805,21 @@ class TestSynchronizedOrderSubmissionService:
         service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
     ) -> None:
         """Test the internal _verify_pre_execution method logic."""
-        service_instance, config, _, _ = service  # Use service_instance
-        mock_opportunity = MockOpportunity()
+        service_instance, _, _, _ = service  # Use service_instance
+        mock_opportunity = ArbitrageOpportunity(
+            symbol="BTC-PERP",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_price=Decimal("50000.0"),
+            short_price=Decimal("50001.0"),
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0001"),
+            net_funding_differential=Decimal("0.0002"),
+            timestamp=datetime.now(UTC),
+            expected_profit=Decimal("1.0"),
+            utility_score=0.8,
+            basis_volatility=0.001,
+        )
         # execution_id = service_instance._generate_execution_id(...) # ID generated internally
 
         # Instantiate the coordinator mock for interaction (though the class is patched)
@@ -739,7 +846,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_balances.return_value = mock_balance_result_dict
 
         # Call the actual method on the service instance
-        result_dict = await service_instance._verify_pre_execution(mock_opportunity.to_dict())
+        result_dict = await service_instance._verify_pre_execution(mock_opportunity)  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
 
         assert result_dict.get("success") is True
         # Check mocked methods on dependencies were called
@@ -757,7 +864,7 @@ class TestSynchronizedOrderSubmissionService:
         # Configure CB mock to fail
         mock_circuit_breaker_system.can_execute.return_value = (False, "CB Tripped")
 
-        result_cb_fail = await service_instance._verify_pre_execution(mock_opportunity.to_dict())
+        result_cb_fail = await service_instance._verify_pre_execution(mock_opportunity)  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
         assert result_cb_fail.get("success") is False
         assert "CB Tripped" in result_cb_fail.get("error", "")
         # Check mocked methods
@@ -781,9 +888,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_market_conditions.return_value = mock_market_fail_dict
         mock_verify_balances.return_value = mock_balance_result_dict  # Ensure balance mock passes
 
-        result_market_fail = await service_instance._verify_pre_execution(
-            mock_opportunity.to_dict()
-        )
+        result_market_fail = await service_instance._verify_pre_execution(mock_opportunity)  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
         assert result_market_fail.get("success") is False
         assert "Bad Market" in result_market_fail.get("error", "")
         # Check mocked methods
@@ -807,9 +912,7 @@ class TestSynchronizedOrderSubmissionService:
         }
         mock_verify_balances.return_value = mock_balance_fail_dict
 
-        result_balance_fail = await service_instance._verify_pre_execution(
-            mock_opportunity.to_dict()
-        )
+        result_balance_fail = await service_instance._verify_pre_execution(mock_opportunity)  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
         assert result_balance_fail.get("success") is False
         assert "Low Balance" in result_balance_fail.get("error", "")
         # Check mocked methods
@@ -835,13 +938,26 @@ class TestSynchronizedOrderSubmissionService:
         service: tuple[SynchronizedOrderSubmissionService, dict[str, Any], MagicMock, MagicMock],
     ) -> None:
         """Test the internal _verify_post_execution method logic."""
-        service_instance, config, _, _ = service
+        service_instance, _, _, _ = service
         # Mock context is passed in, but we need coordinator instance for checkpoint calls
         mock_coordinator_instance = MockExecutionCoordinator.return_value
         service_instance.execution_coordinator = mock_coordinator_instance  # Assign instance
 
         # mock_context = MagicMock() # Mock context passed - Not needed as it's not used
-        mock_opportunity = MockOpportunity()
+        mock_opportunity = ArbitrageOpportunity(
+            symbol="BTC-PERP",
+            long_exchange="hyperliquid",
+            short_exchange="backpack",
+            long_price=Decimal("50000.0"),
+            short_price=Decimal("50001.0"),
+            long_funding_rate=Decimal("0.0001"),
+            short_funding_rate=Decimal("-0.0001"),
+            net_funding_differential=Decimal("0.0002"),
+            timestamp=datetime.now(UTC),
+            expected_profit=Decimal("1.0"),
+            utility_score=0.8,
+            basis_volatility=0.001,
+        )
         mock_execution_result = ExecutionResult(
             execution_id="test-execution",
             status=ExecutionStatus.COMPLETED,
@@ -857,7 +973,8 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_orders.return_value = mock_order_result
 
         final_result_dict = await service_instance._verify_post_execution(
-            mock_opportunity.to_dict(), mock_execution_result
+            mock_opportunity,
+            mock_execution_result,  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
         )
 
         assert final_result_dict.get("success") is True
@@ -884,7 +1001,8 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_orders.return_value = mock_order_result  # Ensure others pass
 
         final_result_pos_fail = await service_instance._verify_post_execution(
-            mock_opportunity.to_dict(), mock_execution_result
+            mock_opportunity,
+            mock_execution_result,  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
         )
 
         assert final_result_pos_fail.get("success") is False
@@ -912,7 +1030,8 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_orders.return_value = mock_order_result  # Ensure orders passes
 
         final_result_fill_fail = await service_instance._verify_post_execution(
-            mock_opportunity.to_dict(), mock_execution_result
+            mock_opportunity,
+            mock_execution_result,  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
         )
 
         assert final_result_fill_fail.get("success") is False
@@ -937,7 +1056,8 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_orders.return_value = mock_order_fail_result
 
         final_result_order_fail = await service_instance._verify_post_execution(
-            mock_opportunity.to_dict(), mock_execution_result
+            mock_opportunity,
+            mock_execution_result,  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
         )
 
         assert final_result_order_fail.get("success") is False

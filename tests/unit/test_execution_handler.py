@@ -14,7 +14,6 @@ from cyberdelta.core.execution_handler import (
     TradeExecution,
 )
 from cyberdelta.core.models import (
-    ArbitrageOpportunity,
     Order,
     OrderSide,
     OrderStatus,
@@ -26,6 +25,7 @@ from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 @pytest.fixture
@@ -258,16 +258,16 @@ class TestExecutionHandler:
         sized_opportunity: SizedOpportunity,
     ) -> None:
         mock_order = Order(
-            id="HL-Success",
+            client_order_id="HL-Success",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            type=OrderType.MARKET,
-            quantity=Decimal("0.1"),
+            order_type=OrderType.MARKET,
+            quantity_requested=Decimal("0.1"),
             status=OrderStatus.NEW,
         )
         mock_hl_api.place_order.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
-        result_order = await execution_handler._place_order_with_retry(
+        result_order = await execution_handler._place_order_with_retry(  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
             execution=execution,
             exchange_id="hyperliquid",
             symbol="BTC-PERP",
@@ -289,7 +289,7 @@ class TestExecutionHandler:
         mock_hl_api.place_order.side_effect = APIError("Timeout", APIErrorCode.TIMEOUT)
         execution = TradeExecution(sized_opportunity)
         with pytest.raises(APIError):
-            await execution_handler._place_order_with_retry(
+            await execution_handler._place_order_with_retry(  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
                 execution=execution,
                 exchange_id="hyperliquid",
                 symbol="BTC-PERP",
@@ -308,16 +308,16 @@ class TestExecutionHandler:
         sized_opportunity: SizedOpportunity,
     ) -> None:
         mock_order = Order(
-            id="HL-Status",
+            client_order_id="HL-Status",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            type=OrderType.MARKET,
-            quantity=Decimal("0.1"),
+            order_type=OrderType.MARKET,
+            quantity_requested=Decimal("0.1"),
             status=OrderStatus.FILLED,
         )
         mock_hl_api.get_order_status.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
-        result_status = await execution_handler._get_order_status(
+        result_status = await execution_handler._get_order_status(  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
             execution=execution, exchange_id="hyperliquid", order_id="HL-Status"
         )
         assert result_status == mock_order
@@ -334,7 +334,7 @@ class TestExecutionHandler:
             "Not Found", APIErrorCode.ORDER_NOT_FOUND
         )
         execution = TradeExecution(sized_opportunity)
-        result_status = await execution_handler._get_order_status(
+        result_status = await execution_handler._get_order_status(  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
             execution=execution, exchange_id="hyperliquid", order_id="HL-NotFound"
         )
         assert result_status is None
@@ -364,11 +364,11 @@ class TestExecutionHandler:
             comp_price = mock_ticker.ask * (Decimal(1) - limit_price_offset_pct)
 
         mock_comp_order = Order(
-            id="COMP-HL",
+            client_order_id="COMP-HL",
             symbol="BTC-PERP",
             side=OrderSide.SELL,
-            type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("0.1"),
             status=OrderStatus.NEW,
             price=comp_price,
         )
@@ -379,7 +379,7 @@ class TestExecutionHandler:
         with patch.object(
             execution_handler, "_place_order_with_retry", return_value=mock_comp_order
         ) as mock_place_comp:
-            result = await execution_handler._compensate_position(
+            result = await execution_handler._compensate_position(  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
                 execution=execution,
                 exchange_id="hyperliquid",
                 symbol="BTC-PERP",
@@ -413,7 +413,7 @@ class TestExecutionHandler:
         execution = TradeExecution(sized_opportunity)
 
         # Call with the *exchange specific symbol* that _compensate_position receives
-        result = await execution_handler._compensate_position(
+        result = await execution_handler._compensate_position(  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
             execution=execution,
             exchange_id="hyperliquid",
             symbol="INVALID_SYMBOL",
@@ -457,19 +457,19 @@ class TestExecutionHandler:
         mock_bp_api.get_ticker.return_value = bp_ticker
 
         long_order = Order(
-            id="HL-1",
+            client_order_id="HL-1",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            type=OrderType.MARKET,
-            quantity=sized_opportunity.long_size,
+            order_type=OrderType.MARKET,
+            quantity_requested=sized_opportunity.long_size,
             status=OrderStatus.NEW,
         )
         short_order = Order(
-            id="BP-1",
+            client_order_id="BP-1",
             symbol="BTC_USDC",
             side=OrderSide.SELL,
-            type=OrderType.MARKET,
-            quantity=sized_opportunity.short_size,
+            order_type=OrderType.MARKET,
+            quantity_requested=sized_opportunity.short_size,
             status=OrderStatus.NEW,
         )
 
@@ -503,14 +503,14 @@ class TestExecutionHandler:
             if order_id == "HL-1":
                 filled_long = Order(**long_order.to_dict())
                 filled_long.status = OrderStatus.FILLED
-                filled_long.filled_quantity = long_order.quantity
-                filled_long.avg_fill_price = hl_ticker.ask
+                filled_long.quantity_filled = long_order.quantity_requested
+                filled_long.average_fill_price = hl_ticker.ask
                 return filled_long
             if order_id == "BP-1":
                 filled_short = Order(**short_order.to_dict())
                 filled_short.status = OrderStatus.FILLED
-                filled_short.filled_quantity = short_order.quantity
-                filled_short.avg_fill_price = bp_ticker.bid
+                filled_short.quantity_filled = short_order.quantity_requested
+                filled_short.average_fill_price = bp_ticker.bid
                 return filled_short
             return None
 
@@ -571,11 +571,11 @@ class TestExecutionHandler:
         mock_bp_api.get_ticker.return_value = bp_ticker
 
         long_order = Order(
-            id="HL-COMP-L",
+            client_order_id="HL-COMP-L",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
-            type=OrderType.MARKET,
-            quantity=sized_opportunity.long_size,
+            order_type=OrderType.MARKET,
+            quantity_requested=sized_opportunity.long_size,
             status=OrderStatus.NEW,
         )
         short_order_failure = APIError("Insufficient funds", APIErrorCode.INSUFFICIENT_FUNDS)
@@ -595,12 +595,12 @@ class TestExecutionHandler:
             else OrderType.MARKET
         )
         comp_order = Order(
-            id="HL-COMP-C",
+            client_order_id="HL-COMP-C",
             symbol="BTC-PERP",
             side=OrderSide.SELL,
-            type=comp_order_type,
+            order_type=comp_order_type,
             price=comp_price,
-            quantity=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.long_size,
             status=OrderStatus.NEW,
         )
 
@@ -631,7 +631,9 @@ class TestExecutionHandler:
                 and client_order_id
                 and client_order_id.startswith("COMP_")
             ):
-                comp_order.id = client_order_id if client_order_id else comp_order.id
+                comp_order.client_order_id = (
+                    client_order_id if client_order_id else comp_order.client_order_id
+                )
                 return comp_order
             raise ValueError(f"Unexpected place call: {exchange_id} {side}")
 
@@ -644,14 +646,14 @@ class TestExecutionHandler:
             if order_id == "HL-COMP-L" and exchange_id == "hyperliquid":
                 filled_long = Order(**long_order.to_dict())
                 filled_long.status = OrderStatus.FILLED
-                filled_long.filled_quantity = long_order.quantity
-                filled_long.avg_fill_price = hl_ticker.ask
+                filled_long.quantity_filled = long_order.quantity_requested
+                filled_long.average_fill_price = hl_ticker.ask
                 return filled_long
-            if order_id == comp_order.id and exchange_id == "hyperliquid":
+            if order_id == comp_order.client_order_id and exchange_id == "hyperliquid":
                 filled_comp = Order(**comp_order.to_dict())
                 filled_comp.status = OrderStatus.FILLED
-                filled_comp.filled_quantity = comp_order.quantity
-                filled_comp.avg_fill_price = hl_ticker.bid
+                filled_comp.quantity_filled = comp_order.quantity_requested
+                filled_comp.average_fill_price = hl_ticker.bid
                 return filled_comp
             return None
 
@@ -662,8 +664,8 @@ class TestExecutionHandler:
             if order_id == "HL-COMP-L":
                 filled_long_for_comp = Order(**long_order.to_dict())
                 filled_long_for_comp.status = OrderStatus.FILLED
-                filled_long_for_comp.filled_quantity = long_order.quantity
-                filled_long_for_comp.avg_fill_price = hl_ticker.ask
+                filled_long_for_comp.quantity_filled = long_order.quantity_requested
+                filled_long_for_comp.average_fill_price = hl_ticker.ask
                 return filled_long_for_comp
             # Correct delegation using await
             result: Order | None = await get_status_side_effect(

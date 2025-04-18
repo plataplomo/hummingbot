@@ -147,7 +147,7 @@ class TestHyperliquidAPI:
             def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
                 return None
 
-            def parse_order(self, order_data: dict[str, Any]) -> Order:
+            def parse_order(self, data: dict[str, Any]) -> Order:
                 raise NotImplementedError
 
             def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
@@ -322,16 +322,15 @@ class TestHyperliquidAPI:
         """Test place_order returns proper Order object."""
         # Mock the specific public method
         mock_order_response = Order(
-            id="123456789",
+            client_order_id="123456789",
             symbol="BTC",
             side=OrderSide.BUY,
-            type=OrderType.LIMIT,
+            order_type=OrderType.LIMIT,
             price=Decimal("42000.0"),
-            quantity=Decimal("0.1"),
-            filled_quantity=Decimal("0.0"),  # Initial status
+            quantity_requested=Decimal("0.1"),
+            quantity_filled=Decimal("0.0"),  # Initial status
             status=OrderStatus.OPEN,  # Use OrderStatus enum
-            time=datetime.now(UTC),
-            client_order_id="test-order-123",
+            created_at=datetime.now(UTC),
         )
         # Mock the place_order method itself
         api_client.place_order = AsyncMock(return_value=mock_order_response)  # type: ignore[method-assign]  # Test mock override
@@ -348,12 +347,12 @@ class TestHyperliquidAPI:
 
         # Verify expected data (based on what place_order is expected to return)
         assert isinstance(order, Order)
-        assert order.id is not None
+        assert order.client_order_id is not None
         assert order.symbol == "BTC"
         assert order.side == OrderSide.BUY
-        assert order.type == OrderType.LIMIT
+        assert order.order_type == OrderType.LIMIT
         assert order.price == Decimal("42000.0")
-        assert order.quantity == Decimal("0.1")
+        assert order.quantity_requested == Decimal("0.1")
         assert order.status == OrderStatus.OPEN
         assert order.client_order_id == "test-order-123"
 
@@ -388,10 +387,10 @@ class TestHyperliquidAPI:
         # Prepare sample inputs for authentication
         method = "POST"
         path = "/info"
-        data = {"type": "clearinghouseState", "user": api_client._wallet_address}
+        data = {"type": "clearinghouseState", "user": api_client._wallet_address}  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
 
         # Call the method to test
-        auth_data = await api_client._authenticate(method=method, path=path, data=data)
+        auth_data = await api_client._authenticate(method=method, path=path, data=data)  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
 
         # Verify the output structure
         assert isinstance(auth_data, dict)
