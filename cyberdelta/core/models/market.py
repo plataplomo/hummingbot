@@ -76,32 +76,59 @@ class MarketData(BaseModel):
 
     @field_validator("open", "high", "low", "close", "volume", mode="before")
     @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal:
-        dec = parse_decimal_value(v)
-        if dec is None:
+    def parse_decimal(cls, raw_value: str | int | float | Decimal | None, info: object) -> Decimal:
+        """
+        Validator for decimal fields in MarketData.
+        Converts the input to Decimal using parse_decimal_value.
+        Raises ValueError if conversion fails or value is None.
+        Args:
+            raw_value: The input value to convert to Decimal.
+            info: Pydantic validation info (used for field name context).
+        Returns:
+            Decimal: The parsed decimal value.
+        """
+        decimal_value = parse_decimal_value(raw_value)
+        if decimal_value is None:
             raise ValueError(
                 f"Field '{getattr(info, 'field_name', '<unknown>')}' cannot be None or invalid."
             )
-        return dec
+        return decimal_value
 
     @field_validator("timestamp", mode="before")
     @classmethod
-    def parse_datetime(cls, v: str | int | float | datetime | None, info: object) -> datetime:
-        dt = parse_datetime_utc(v)
-        if dt is None:
+    def parse_datetime(
+        cls, raw_value: str | int | float | datetime | None, info: object
+    ) -> datetime:
+        """
+        Validator for timestamp field in MarketData.
+        Converts the input to a UTC datetime using parse_datetime_utc.
+        Raises ValueError if conversion fails or value is None.
+        Args:
+            raw_value: The input value to convert to datetime.
+            info: Pydantic validation info (used for field name context).
+        Returns:
+            datetime: The parsed UTC datetime value.
+        """
+        datetime_value = parse_datetime_utc(raw_value)
+        if datetime_value is None:
             raise ValueError(
                 f"Field '{getattr(info, 'field_name', '<unknown>')}' cannot be None or invalid."
             )
-        return dt
+        return datetime_value
 
     def to_dict(self) -> dict[str, Any]:
-        d = self.model_dump()
-        for k, v in d.items():
-            if isinstance(v, Decimal):
-                d[k] = str(v)
-            elif isinstance(v, datetime):
-                d[k] = v.isoformat()
-        return d
+        """
+        Convert the MarketData instance to a dictionary, serializing Decimals and datetimes.
+        Returns:
+            dict[str, Any]: Dictionary representation of the market data.
+        """
+        data = self.model_dump()
+        for key, value in data.items():
+            if isinstance(value, Decimal):
+                data[key] = str(value)
+            elif isinstance(value, datetime):
+                data[key] = value.isoformat()
+        return data
 
 
 class Ticker(BaseModel):
@@ -134,15 +161,31 @@ class Ticker(BaseModel):
 
     @field_validator("price", "bid", "ask", "volume", mode="before")
     @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
-        return parse_decimal_value(v)
+    def parse_decimal(
+        cls, raw_value: str | int | float | Decimal | None, info: object
+    ) -> Decimal | None:
+        """
+        Validator for decimal fields in Ticker.
+        Converts the input to Decimal using parse_decimal_value.
+        Args:
+            raw_value: The input value to convert to Decimal.
+            info: Pydantic validation info.
+        Returns:
+            Decimal or None: The parsed decimal value or None if input is None.
+        """
+        return parse_decimal_value(raw_value)
 
     def to_dict(self) -> dict[str, Any]:
-        d = self.model_dump()
-        for k, v in d.items():
-            if isinstance(v, Decimal):
-                d[k] = str(v)
-        return d
+        """
+        Convert the Ticker instance to a dictionary, serializing Decimals.
+        Returns:
+            dict[str, Any]: Dictionary representation of the ticker.
+        """
+        data = self.model_dump()
+        for key, value in data.items():
+            if isinstance(value, Decimal):
+                data[key] = str(value)
+        return data
 
 
 class OrderBook(BaseModel):
@@ -172,21 +215,34 @@ class OrderBook(BaseModel):
     @field_validator("bids", "asks", mode="before")
     @classmethod
     def parse_levels(
-        cls, v: list[tuple[str | int | float | Decimal, str | int | float | Decimal]], info: object
+        cls,
+        raw_levels: list[tuple[str | int | float | Decimal, str | int | float | Decimal]],
+        info: object,
     ) -> list[tuple[Decimal, Decimal]]:
+        """
+        Validator for order book levels.
+        Converts each price/quantity pair to Decimals, validates structure.
+        Args:
+            raw_levels: List of (price, quantity) pairs to convert.
+            info: Pydantic validation info (used for field name context).
+        Returns:
+            list[tuple[Decimal, Decimal]]: List of validated (price, quantity) pairs.
+        Raises:
+            ValueError: If any entry is not a valid pair or cannot be converted.
+        """
         result: list[tuple[Decimal, Decimal]] = []
-        for i, level in enumerate(v):
+        for field_index, level in enumerate(raw_levels):
             if len(level) != 2:
                 raise ValueError(
                     f"Invalid item in '{getattr(info, 'field_name', '<unknown>')}' "
-                    f"at index {i}: {level}"
+                    f"at index {field_index}: {level}"
                 )
             price = parse_decimal_value(level[0])
             quantity = parse_decimal_value(level[1])
             if price is None or quantity is None:
                 raise ValueError(
                     f"Invalid price/quantity in '{getattr(info, 'field_name', '<unknown>')}' "
-                    f"at index {i}: {level}"
+                    f"at index {field_index}: {level}"
                 )
             result.append((price, quantity))
         return result
@@ -225,8 +281,19 @@ class FundingRate(BaseModel):
 
     @field_validator("funding_rate", "predicted_rate", "mark_price", "index_price", mode="before")
     @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
-        return parse_decimal_value(v)
+    def parse_decimal(
+        cls, raw_value: str | int | float | Decimal | None, info: object
+    ) -> Decimal | None:
+        """
+        Validator for decimal fields in FundingRate.
+        Converts the input to Decimal using parse_decimal_value.
+        Args:
+            raw_value: The input value to convert to Decimal.
+            info: Pydantic validation info.
+        Returns:
+            Decimal or None: The parsed decimal value or None if input is None.
+        """
+        return parse_decimal_value(raw_value)
 
 
 class Trade(BaseModel):
@@ -286,26 +353,52 @@ class Trade(BaseModel):
 
     @field_validator("executed_at", mode="before")
     @classmethod
-    def parse_executed_at(cls, v: str | int | float | datetime | None, info: object) -> datetime:
-        dt = parse_datetime_utc(v)
-        if dt is None:
+    def parse_executed_at(
+        cls, raw_value: str | int | float | datetime | None, info: object
+    ) -> datetime:
+        """
+        Validator for executed_at field in Trade.
+        Converts the input to a UTC datetime using parse_datetime_utc.
+        Args:
+            raw_value: The input value to convert to datetime.
+            info: Pydantic validation info.
+        Returns:
+            datetime: The parsed UTC datetime value.
+        Raises:
+            ValueError: If conversion fails or value is None.
+        """
+        datetime_value = parse_datetime_utc(raw_value)
+        if datetime_value is None:
             raise ValueError("executed_at cannot be None")
-        return dt
+        return datetime_value
 
     @field_validator("price", "quantity", "cost", "fee", mode="before")
     @classmethod
-    def parse_decimal_fields(cls, v: str | int | float | Decimal | None, info: object) -> Decimal:
+    def parse_decimal_fields(
+        cls, raw_value: str | int | float | Decimal | None, info: object
+    ) -> Decimal:
+        """
+        Validator for price, quantity, cost, and fee fields in Trade.
+        Converts the input to Decimal using parse_decimal_value.
+        Args:
+            raw_value: The input value to convert to Decimal.
+            info: Pydantic validation info.
+        Returns:
+            Decimal: The parsed decimal value.
+        Raises:
+            ValueError: If conversion fails or value is None (except fee, which defaults to 0).
+        """
         field_name = getattr(info, "field_name", "")
-        if v is None:
+        if raw_value is None:
             if field_name == "fee":
                 return Decimal("0")
             raise ValueError(f"Field '{field_name}' is required and cannot be None.")
-        dec = parse_decimal_value(v)
-        if dec is None:
+        decimal_value = parse_decimal_value(raw_value)
+        if decimal_value is None:
             raise ValueError(
                 f"Field '{field_name}' could not be parsed to Decimal and is required."
             )
-        return dec
+        return decimal_value
 
     @model_validator(mode="after")
     def check_trade_logic(self) -> Self:
@@ -338,15 +431,15 @@ class Trade(BaseModel):
         Returns:
             dict[str, Any]: Dictionary representation of the trade.
         """
-        d = self.model_dump()
-        for k, v in d.items():
-            if isinstance(v, Decimal):
-                d[k] = str(v)
-            elif isinstance(v, OrderSide):
-                d[k] = v.value
-            elif isinstance(v, datetime):
-                d[k] = v.isoformat()
-        return d
+        data = self.model_dump()
+        for key, value in data.items():
+            if isinstance(value, Decimal):
+                data[key] = str(value)
+            elif isinstance(value, OrderSide):
+                data[key] = value.value
+            elif isinstance(value, datetime):
+                data[key] = value.isoformat()
+        return data
 
 
 class Order(BaseModel):
@@ -484,12 +577,19 @@ class Order(BaseModel):
         mode="before",
     )
     @classmethod
-    def parse_decimal_fields(cls, v: Any, info: ValidationInfo) -> Decimal | None:
+    def parse_decimal_fields(cls, raw_value: object, info: ValidationInfo) -> Decimal | None:
         """
         Pydantic field validator for all Decimal fields in Order.
         Uses parse_decimal_value with field_name for robust error context.
         All parsing errors will include the field name for traceability.
         Applies field-specific business rules (positivity, non-negativity, required/optional).
+        Args:
+            raw_value: The input value to convert to Decimal.
+            info: Pydantic validation info (used for field name context).
+        Returns:
+            Decimal or None: The parsed decimal value or None if input is None and allowed.
+        Raises:
+            ValueError: If conversion fails or value is invalid for the field.
         """
         field_name = info.field_name if info.field_name is not None else ""
         field_info = cls.model_fields.get(field_name) if field_name else None
@@ -499,7 +599,7 @@ class Order(BaseModel):
             is_optional = annotation is not None and ("| None" in str(annotation))
             allow_none = is_optional or not field_info.is_required()
         try:
-            dec_val = parse_decimal_value(v, allow_none=allow_none, field_name=field_name)
+            dec_val = parse_decimal_value(raw_value, allow_none=allow_none, field_name=field_name)
             if dec_val is not None:
                 if field_name == "quantity_requested" and dec_val <= 0:
                     raise ValueError(f"Field '{field_name}' must be positive.")
@@ -515,12 +615,19 @@ class Order(BaseModel):
 
     @field_validator("created_at", "updated_at", "triggered_at", mode="before")
     @classmethod
-    def parse_datetime_fields(cls, v: Any, info: ValidationInfo) -> datetime | None:
+    def parse_datetime_fields(cls, raw_value: object, info: ValidationInfo) -> datetime | None:
         """
         Pydantic field validator for all datetime fields in Order.
         Uses parse_datetime_utc with field_name for robust error context.
         All parsing errors will include the field name for traceability.
         Applies field-specific business rules (required/optional).
+        Args:
+            raw_value: The input value to convert to datetime.
+            info: Pydantic validation info (used for field name context).
+        Returns:
+            datetime or None: The parsed datetime value or None if input is None and allowed.
+        Raises:
+            ValueError: If conversion fails or value is invalid for the field.
         """
         field_name = info.field_name if info.field_name is not None else ""
         field_info = cls.model_fields.get(field_name) if field_name else None
@@ -529,7 +636,7 @@ class Order(BaseModel):
             annotation = getattr(field_info, "annotation", None)
             allow_none = annotation is not None and ("| None" in str(annotation))
         try:
-            parsed = parse_datetime_utc(v, field_name=field_name)
+            parsed = parse_datetime_utc(raw_value, field_name=field_name)
             if parsed is None and not allow_none:
                 raise ValueError(f"Field '{field_name}' cannot be None or invalid.")
             return parsed
@@ -563,11 +670,13 @@ class Order(BaseModel):
             tolerance = Decimal("1e-9")
             if (self.quantity_filled - self.quantity_requested) > tolerance:
                 raise ValueError(
-                    f"Internal inconsistency: quantity_filled ({self.quantity_filled}) > quantity_requested ({self.quantity_requested})"
+                    f"Internal inconsistency: quantity_filled ({self.quantity_filled}) > "
+                    f"quantity_requested ({self.quantity_requested})"
                 )
             else:
                 logger.warning(
-                    f"Snapping slightly overfilled qty {self.quantity_filled} to requested {self.quantity_requested} for {self.client_order_id}"
+                    f"Snapping slightly overfilled qty {self.quantity_filled} to requested "
+                    f"{self.quantity_requested} for {self.client_order_id}"
                 )
                 object.__setattr__(self, "quantity_filled", self.quantity_requested)
 
@@ -619,12 +728,14 @@ class Order(BaseModel):
     def to_dict(self) -> dict[str, Any]:
         """
         Convert the Order to a dictionary, serializing Decimals, Enums, datetimes, and nested Trades.
+        Returns:
+            dict[str, Any]: Dictionary representation of the order.
         """
-        d = self.model_dump(exclude={"trades"})
-        d["trades"] = [t.model_dump(mode="json") for t in self.trades]
-        for k, v in d.items():
-            if isinstance(v, datetime):
-                d[k] = v.isoformat()
-            elif isinstance(v, Enum):
-                d[k] = v.value
-        return d
+        data = self.model_dump(exclude={"trades"})
+        data["trades"] = [trade.model_dump(mode="json") for trade in self.trades]
+        for key, value in data.items():
+            if isinstance(value, datetime):
+                data[key] = value.isoformat()
+            elif isinstance(value, Enum):
+                data[key] = value.value
+        return data
