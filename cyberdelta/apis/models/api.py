@@ -5,7 +5,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from cyberdelta.apis.models.enums import APIErrorCode
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     Balance,
     Order,
@@ -37,7 +37,7 @@ class PlaceOrderRequest(BaseModel):
 
     @field_validator("quantity", "price", mode="before")
     @classmethod
-    def parse_decimal(cls, v: Any) -> Decimal | None:
+    def parse_decimal(cls, v: Decimal | str | int | float | None) -> Decimal | None:
         if v is None:
             return None
         return Decimal(str(v))
@@ -258,8 +258,9 @@ class APIError(Exception):
 
 class RateLimiterConfig(BaseModel):
     """
-    Pydantic model for configuration and (optionally) serializable state of a token bucket rate limiter.
-    This model is for config, validation, and checkpointing only. It does NOT include any runtime logic or async methods.
+    Pydantic model for configuration and (optionally) serializable state of a token bucket
+    rate limiter. This model is for config, validation, and checkpointing only. It does NOT
+    include any runtime logic or async methods.
 
     Attributes:
         rate (float): Maximum number of requests per second.

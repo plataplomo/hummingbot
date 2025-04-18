@@ -1,14 +1,15 @@
 """
 CyberDeltaEngine Backpack Balance Parser
 
-This module provides a function to parse raw balance data from Backpack into a standardized Balance object for CyberDeltaEngine.
+This module provides a function to parse raw balance data from Backpack into a standardized
+Balance object for CyberDeltaEngine.
 """
 
 from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.base import APIError
-from cyberdelta.apis.models.enums import APIErrorCode
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import Balance
 
 

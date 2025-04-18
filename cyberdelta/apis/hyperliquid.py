@@ -10,7 +10,7 @@ import aiohttp
 from aiohttp import ClientTimeout
 from eth_account.messages import encode_typed_data
 from web3.auto import w3
-from websockets.legacy.client import WebSocketClientProtocol  # Use legacy client for compatibility
+from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 from cyberdelta.core.models import (

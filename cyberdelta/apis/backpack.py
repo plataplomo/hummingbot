@@ -15,8 +15,8 @@ from cyberdelta.apis.base import (  # Use absolute import
     ExchangeAPI,
     MessageHandler,
 )
-from cyberdelta.apis.models.backpack_api_models import BackpackRawOrder
-from cyberdelta.apis.models.enums import APIErrorCode
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.bp_api_models import BackpackRawOrder
 from cyberdelta.core.models import (  # Use absolute import
     Balance,
     FundingRate,
