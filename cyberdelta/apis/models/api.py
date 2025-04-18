@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cyberdelta.apis.models.enums import APIErrorCode
-from cyberdelta.core.models import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models import (
+    Balance,
+    Order,
+    OrderSide,
+    OrderType,
+    Position,
+    TimeInForce,
+    Trade,
+)
 
 # --- API Boundary Models ---
 
@@ -13,17 +22,25 @@ from cyberdelta.core.models import OrderSide, OrderType, TimeInForce
 class PlaceOrderRequest(BaseModel):
     """
     Request model for placing a new order via the API.
+    All financial values must use Decimal for precision and compliance.
     """
 
     symbol: str
     side: OrderSide
     order_type: OrderType
-    quantity: float  # Use Decimal if required by your API
-    price: float | None = None
+    quantity: Decimal  # Use Decimal for all financial values
+    price: Decimal | None = None
     time_in_force: TimeInForce
     client_order_id: str | None = None
     reduce_only: bool = False
     post_only: bool = False
+
+    @field_validator("quantity", "price", mode="before")
+    @classmethod
+    def parse_decimal(cls, v: Any) -> Decimal | None:
+        if v is None:
+            return None
+        return Decimal(str(v))
 
 
 class CancelOrderRequest(BaseModel):
@@ -40,7 +57,7 @@ class OrdersResponse(BaseModel):
     Response model for a batch of orders (e.g., open orders, order history).
     """
 
-    orders: list[Any]  # Should be list[Order], but import from models.py if needed
+    orders: list[Order]
     next_page_token: str | None = None
 
 
@@ -50,7 +67,7 @@ class WebSocketMessage(BaseModel):
     """
 
     topic: str
-    data: dict[str, Any] | list[Any] | None = None
+    data: dict[str, Any] | list[Any] | None = None  # This may remain generic for now
     event: str | None = None
     ts: int | None = None  # Optional timestamp
 
@@ -87,6 +104,7 @@ class BackpackPlaceOrderRequest(PlaceOrderRequest):
     """
     Backpack-specific order placement request model.
     Example: includes a 'margin_type' field required by Backpack.
+    Inherits Decimal fields from PlaceOrderRequest.
     """
 
     margin_type: str | None = None  # e.g., 'cross' or 'isolated'
@@ -97,6 +115,7 @@ class HyperliquidPlaceOrderRequest(PlaceOrderRequest):
     """
     Hyperliquid-specific order placement request model.
     Example: includes a 'chain_id' field required by Hyperliquid.
+    Inherits Decimal fields from PlaceOrderRequest.
     """
 
     chain_id: int | None = None
@@ -113,8 +132,8 @@ class AccountUpdateEvent(BaseModel):
 
     event: str
     account_id: str
-    balances: list[Any] | None = None  # Should be list[Balance], import if needed
-    positions: list[Any] | None = None  # Should be list[Position], import if needed
+    balances: list[Balance] | None = None
+    positions: list[Position] | None = None
     ts: int | None = None
 
 
@@ -124,7 +143,7 @@ class OrderUpdateEvent(BaseModel):
     """
 
     event: str
-    order: Any  # Should be Order, import if needed
+    order: Order
     ts: int | None = None
 
 
@@ -134,7 +153,7 @@ class TradeFillEvent(BaseModel):
     """
 
     event: str
-    trade: Any  # Should be Trade, import if needed
+    trade: Trade
     ts: int | None = None
 
 
