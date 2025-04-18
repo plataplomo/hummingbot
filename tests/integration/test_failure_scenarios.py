@@ -19,9 +19,10 @@ logger = logging.getLogger(__name__)
 # Import core components and models
 from cyberdelta.apis.base import APIError  # Import APIError for simulation
 from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus
-from cyberdelta.core.models import ArbitrageOpportunity, Balance
+from cyberdelta.core.models import Balance
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
+from cyberdelta.validation import ArbitrageOpportunity
 from cyberdelta.validation.circuit_breaker import (
     BreakerState,
     CircuitBreakerSystem,

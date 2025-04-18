@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from cyberdelta.core.models import ArbitrageOpportunity
 from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 # Note: Fixtures risk_manager, mock_portfolio_tracker
 #       are provided by tests/unit/risk/conftest.py
@@ -26,11 +26,11 @@ class TestRiskManagerConstraints:
             symbol="BTC-PERP",
             long_exchange="hyperliquid",
             short_exchange="backpack",
-            long_price="30000",
-            short_price="29900",
-            long_funding_rate="0.01",
-            short_funding_rate="0.005",
-            net_funding_differential="0.005",
+            long_price=Decimal("30000"),
+            short_price=Decimal("29900"),
+            long_funding_rate=Decimal("0.01"),
+            short_funding_rate=Decimal("0.005"),
+            net_funding_differential=Decimal("0.005"),
             timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         )
         # Direct access to protected method is justified here for white-box testing;
@@ -48,11 +48,11 @@ class TestRiskManagerConstraints:
             symbol="BTC-PERP",
             long_exchange="hyperliquid",
             short_exchange="backpack",
-            long_price="30000",
-            short_price="29900",
-            long_funding_rate="0.01",
-            short_funding_rate="0.005",
-            net_funding_differential="0.005",
+            long_price=Decimal("30000"),
+            short_price=Decimal("29900"),
+            long_funding_rate=Decimal("0.01"),
+            short_funding_rate=Decimal("0.005"),
+            net_funding_differential=Decimal("0.005"),
             timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         )
         # Direct access to protected method is justified here for white-box testing;
@@ -70,11 +70,11 @@ class TestRiskManagerConstraints:
             symbol="BTC-PERP",
             long_exchange="hyperliquid",
             short_exchange="backpack",
-            long_price="30000",
-            short_price="29900",
-            long_funding_rate="0.01",
-            short_funding_rate="0.005",
-            net_funding_differential="0.005",
+            long_price=Decimal("30000"),
+            short_price=Decimal("29900"),
+            long_funding_rate=Decimal("0.01"),
+            short_funding_rate=Decimal("0.005"),
+            net_funding_differential=Decimal("0.005"),
             timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         )
         # Direct access to protected method is justified here for white-box testing;

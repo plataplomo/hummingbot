@@ -800,7 +800,7 @@ class PortfolioTracker:
             size = position.size
             mark_price = position.mark_price
             # Defensive: mark_price may be None if not yet updated from exchange API.
-            # Linter false positive: This check is required until strict Pydantic validation is enforced at API boundaries.
+            # pyright: ignore[reportAlwaysTrue]
             if size is not None and mark_price is not None:
                 exposure += abs(size) * mark_price
         return exposure
@@ -813,7 +813,7 @@ class PortfolioTracker:
                 size = position.size
                 mark_price = position.mark_price
                 # Defensive: mark_price may be None if not yet updated from exchange API.
-                # Linter false positive: This check is required until strict Pydantic validation is enforced at API boundaries.
+                # pyright: ignore[reportAlwaysTrue]
                 if size is not None and mark_price is not None:
                     total_exposure += size * mark_price
         return total_exposure
@@ -832,8 +832,8 @@ class PortfolioTracker:
                 mark_price = position.mark_price
                 entry_price = position.entry_price
                 size = position.size
-                # Defensive: unrealized_pnl, mark_price, entry_price, and size may be None if not yet updated from exchange API.
-                # Linter false positive: This check is required until strict Pydantic validation is enforced at API boundaries.
+                # Defensive: mark_price, entry_price, and size may be None if not yet updated from exchange API.
+                # pyright: ignore[reportAlwaysTrue]
                 if unrealized_pnl is not None:
                     total_unrealized_pnl += unrealized_pnl
                 elif mark_price is not None and entry_price is not None and size is not None:
@@ -899,6 +899,18 @@ class PortfolioTracker:
             logger.warning(f"Attempted to get positions for unknown exchange: {exchange_id}")
             return []
         return list(self._positions[exchange_id].values())
+
+    @property
+    def positions(self) -> dict[str, dict[str, Position]]:
+        """
+        Public read-only accessor for all tracked positions.
+        Returns:
+            A dictionary mapping exchange_id to position_id to Position.
+        Note:
+            This property is intended for safe, read-only access (e.g., in tests).
+            Modifying the returned dictionary or its contents may break encapsulation.
+        """
+        return self._positions
 
     def get_current_drawdown(self) -> Decimal | None:
         """
@@ -1077,3 +1089,24 @@ class PortfolioTracker:
         else:
             for _ in orders:
                 pass
+
+    def reset(self) -> None:
+        """
+        Reset the portfolio tracker to a clean initial state.
+
+        This method clears all tracked balances, positions, orders, timestamps, high watermark,
+        realized PNL, active symbols, and watchlist. It is intended for use in tests or integration
+        scenarios where a fresh portfolio state is required.
+        """
+        self._balances.clear()
+        self._positions.clear()
+        self._orders.clear()
+        self._last_update_time.clear()
+        self._last_reconciliation_time.clear()
+        self._high_watermark = Decimal("0.0")
+        self._realized_pnl = Decimal("0.0")
+        self._active_symbols.clear()
+        self._watchlist.clear()
+        self._initialize_data_structures()
+        # Optionally, log the reset event
+        logger.info("PortfolioTracker state has been reset.")

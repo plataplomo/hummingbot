@@ -9,10 +9,47 @@ import logging
 import math
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, TypedDict
 
 # from cyberdelta.config import Config # Incorrect path
 from cyberdelta.utils.config import Config  # Correct path
+
+
+class HistorySeries(TypedDict):
+    """
+    Represents a time series of funding rate predictions or actuals.
+    - timestamps: List of integer timestamps (ms since epoch)
+    - datetimes: List of ISO-formatted datetime strings
+    - rates: List of predicted or actual funding rates (float)
+    """
+
+    timestamps: list[int]
+    datetimes: list[str]
+    rates: list[float]
+
+
+class PredictionHistory(TypedDict):
+    """
+    Structure for prediction history, containing both predictions and actuals.
+    - predictions: HistorySeries of predicted rates
+    - actuals: HistorySeries of actual rates
+    """
+
+    predictions: HistorySeries
+    actuals: HistorySeries
+
+
+class MergedDataEntry(TypedDict):
+    """
+    Represents a merged prediction-payment pair for metric calculation.
+    """
+
+    timestamp: int
+    predicted_rate: float
+    actual_rate: float
+    method: str
+    confidence: float
+    error: float
 
 
 class FundingRateValidator:
@@ -160,7 +197,7 @@ class FundingRateValidator:
 
         # Merge predictions with closest actual payments
         # For each payment, find the most recent prediction before the payment
-        merged_data = []
+        merged_data: list[MergedDataEntry] = []
         for payment in filtered_payments:
             payment_time = payment["timestamp"]
             actual_rate = payment["actual_rate"]
@@ -199,7 +236,7 @@ class FundingRateValidator:
             }
 
         # Calculate metrics
-        errors = [item["error"] for item in merged_data]
+        errors: list[float] = [item["error"] for item in merged_data]
         rmse = math.sqrt(sum(e**2 for e in errors) / len(errors))
         mae = sum(abs(e) for e in errors) / len(errors)
         bias = sum(errors) / len(errors)
@@ -232,7 +269,7 @@ class FundingRateValidator:
         report: dict[str, dict[str, dict[str, float | None]]] = {}
 
         # Get unique exchange-symbol pairs from all predictions and payments
-        exchange_symbols = set()
+        exchange_symbols: set[tuple[str, str]] = set()
 
         for prediction in self.predictions:
             exchange_symbols.add((prediction["exchange"], prediction["symbol"]))
@@ -308,7 +345,7 @@ class FundingRateValidator:
 
     def get_prediction_history(
         self, exchange: str, symbol: str, days: int = 30
-    ) -> dict[str, dict[str, list]]:
+    ) -> PredictionHistory:
         """
         Get prediction history for a specific exchange and symbol.
 

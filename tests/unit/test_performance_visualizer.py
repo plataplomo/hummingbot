@@ -1,4 +1,5 @@
 import unittest
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -50,7 +51,8 @@ class TestPerformanceVisualizer(unittest.TestCase):
         self.visualizer = PerformanceVisualizer(config=self.config)
 
         # Generate sample return data
-        dates = pd.date_range(start="2020-01-01", end="2020-12-31", freq="D")
+        # Linter warning for 'date_range' is a false positive due to pandas' complex typing; usage is correct.
+        dates: pd.DatetimeIndex = pd.date_range(start="2020-01-01", end="2020-12-31", freq="D")
         np.random.seed(42)
 
         self.returns_data = pd.DataFrame(
@@ -75,7 +77,7 @@ class TestPerformanceVisualizer(unittest.TestCase):
 
         # Generate sample funding rate data
         assets = ["BTC", "ETH", "SOL", "ADA", "DOT"]
-        funding_data = pd.DataFrame(
+        funding_data: pd.DataFrame = pd.DataFrame(
             {
                 "asset": np.repeat(assets, len(dates)),
                 "date": np.tile(dates, len(assets)),
@@ -91,46 +93,70 @@ class TestPerformanceVisualizer(unittest.TestCase):
 
     def test_create_returns_chart(self) -> None:
         """Test returns chart generation"""
-        fig = self.visualizer.create_returns_chart(self.returns_data)
+        fig: go.Figure = self.visualizer.create_returns_chart(self.returns_data)
         self.assertIsInstance(fig, go.Figure)
-        self.assertEqual(len(fig.data), 3)  # Should have 3 traces for 3 strategies
+        if isinstance(fig.data, tuple):
+            data: tuple[Any, ...] = fig.data
+            self.assertEqual(len(data), 3)  # Should have 3 traces for 3 strategies
+        else:
+            raise TypeError("fig.data is not a tuple as expected")
 
         # Test with specific strategies
         fig = self.visualizer.create_returns_chart(
             self.returns_data, strategy_names=["Strategy1", "Strategy2"]
         )
-        self.assertEqual(len(fig.data), 2)  # Should have 2 traces
+        self.assertIsInstance(fig, go.Figure)
+        if isinstance(fig.data, tuple):
+            data = fig.data
+            self.assertEqual(len(data), 2)  # Should have 2 traces
+        else:
+            raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_drawdown_chart(self) -> None:
         """Test drawdown chart generation"""
-        fig = self.visualizer.create_drawdown_chart(self.returns_data)
+        fig: go.Figure = self.visualizer.create_drawdown_chart(self.returns_data)
         self.assertIsInstance(fig, go.Figure)
-        self.assertEqual(len(fig.data), 3)  # Should have 3 traces for 3 strategies
+        if isinstance(fig.data, tuple):
+            data: tuple[Any, ...] = fig.data
+            self.assertEqual(len(data), 3)  # Should have 3 traces for 3 strategies
+        else:
+            raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_trade_analysis_chart(self) -> None:
         """Test trade analysis chart generation"""
-        fig = self.visualizer.create_trade_analysis_chart(self.trade_data)
+        fig: go.Figure = self.visualizer.create_trade_analysis_chart(self.trade_data)
         self.assertIsInstance(fig, go.Figure)
-
-        # Should have 2 traces: profitable and losing trades
-        self.assertTrue(1 <= len(fig.data) <= 2)  # Could be 1 if all trades are profitable/losing
+        if isinstance(fig.data, tuple):
+            data: tuple[Any, ...] = fig.data
+            # Should have 2 traces: profitable and losing trades
+            self.assertTrue(1 <= len(data) <= 2)  # Could be 1 if all trades are profitable/losing
+        else:
+            raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_funding_rate_heatmap(self) -> None:
         """Test funding rate heatmap generation"""
-        fig = self.visualizer.create_funding_rate_heatmap(self.funding_data)
+        fig: go.Figure = self.visualizer.create_funding_rate_heatmap(self.funding_data)
         self.assertIsInstance(fig, go.Figure)
-        self.assertEqual(len(fig.data), 1)  # Should have 1 heatmap trace
+        if isinstance(fig.data, tuple):
+            data: tuple[Any, ...] = fig.data
+            self.assertEqual(len(data), 1)  # Should have 1 heatmap trace
+        else:
+            raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_performance_dashboard(self) -> None:
         """Test performance dashboard generation"""
-        fig = self.visualizer.create_performance_dashboard(
+        fig: go.Figure = self.visualizer.create_performance_dashboard(
             returns_data=self.returns_data,
             trade_data=self.trade_data,
             funding_data=self.funding_data,
         )
         self.assertIsInstance(fig, go.Figure)
-        # Dashboard should have at least 4 subplots with multiple traces
-        self.assertTrue(len(fig.data) >= 4)
+        if isinstance(fig.data, tuple):
+            data: tuple[Any, ...] = fig.data
+            # Dashboard should have at least 4 subplots with multiple traces
+            self.assertTrue(len(data) >= 4)
+        else:
+            raise TypeError("fig.data is not a tuple as expected")
 
 
 class TestPerformanceMetricsCalculator(unittest.TestCase):

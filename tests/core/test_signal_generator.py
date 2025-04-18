@@ -16,7 +16,6 @@ import pytest
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import (
-    ArbitrageOpportunity,
     FundingRate,
     OrderBook,
     Ticker,
@@ -25,6 +24,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +117,6 @@ class TestSignalGenerator:
                     low=Decimal("29900"),
                     close=Decimal("30000"),
                     volume=Decimal("100"),
-                    bid=Decimal("29999"),  # Added based on Pylance error
-                    ask=Decimal("30001"),  # Added based on Pylance error
                 ),
                 "ETH-PERP": MarketData(
                     symbol="ETH-PERP",
@@ -128,8 +126,6 @@ class TestSignalGenerator:
                     low=Decimal("1990"),
                     close=Decimal("2000"),
                     volume=Decimal("500"),
-                    bid=Decimal("1999"),  # Added based on Pylance error
-                    ask=Decimal("2001"),  # Added based on Pylance error
                 ),
             },
             "backpack": {
@@ -141,8 +137,6 @@ class TestSignalGenerator:
                     low=Decimal("30000"),
                     close=Decimal("30010"),
                     volume=Decimal("120"),
-                    bid=Decimal("30009"),  # Added based on Pylance error
-                    ask=Decimal("30011"),  # Added based on Pylance error
                 ),
                 "ETH_USDC": MarketData(
                     symbol="ETH_USDC",
@@ -152,8 +146,6 @@ class TestSignalGenerator:
                     low=Decimal("2002"),
                     close=Decimal("2005"),
                     volume=Decimal("600"),
-                    bid=Decimal("2004"),  # Added based on Pylance error
-                    ask=Decimal("2006"),  # Added based on Pylance error
                 ),
             },
         }
@@ -262,12 +254,17 @@ class TestSignalGenerator:
             mock_datetime.now.return_value = mock_time
             rate_change = Decimal(str(i * 0.00001))
             price_change = Decimal(str(i * 5))
-            data_handler.get_funding_rate.side_effect = (
-                lambda ex, sym, r=rate_change: get_funding_iter(ex, sym, r)
-            )
-            data_handler.get_ticker.side_effect = lambda ex, sym, p=price_change: get_ticker_iter(
-                ex, sym, p
-            )
+
+            def funding_rate_side_effect(
+                ex: str, sym: str, r: Decimal = rate_change
+            ) -> FundingRate | None:
+                return get_funding_iter(ex, sym, r)
+
+            def ticker_side_effect(ex: str, sym: str, p: Decimal = price_change) -> Ticker | None:
+                return get_ticker_iter(ex, sym, p)
+
+            data_handler.get_funding_rate.side_effect = funding_rate_side_effect
+            data_handler.get_ticker.side_effect = ticker_side_effect
             signal_generator.update_historical_data()
 
         assert len(signal_generator.historical_funding_rates["hyperliquid"]["BTC"]) <= sample_count
@@ -292,7 +289,7 @@ class TestSignalGenerator:
         # Assert the result
         assert isinstance(volatility, Decimal)  # Check type
         # Compare against the Decimal expected value calculated earlier
-        assert volatility == pytest.approx(expected_volatility)
+        assert_decimal_approx(volatility, expected_volatility)
         assert volatility > Decimal("0.0")  # Ensure calculation happened
 
         # Test insufficient data (only 1 point, should return 0)
@@ -328,7 +325,7 @@ class TestSignalGenerator:
         # Assert the result
         assert isinstance(volatility, Decimal)  # Check type
         # Compare against the Decimal expected value calculated earlier
-        assert volatility == pytest.approx(expected_volatility)
+        assert_decimal_approx(volatility, expected_volatility)
         assert volatility > Decimal("0.0")  # Ensure not zero
 
         # Test insufficient data
@@ -476,7 +473,7 @@ class TestSignalGenerator:
 
         # Define side effect with type hints
         def single_exchange_config_get(key: str, default: Any = None) -> Any:
-            mock_single_config_dict = {
+            mock_single_config_dict: dict[str, Any] = {
                 "exchanges": {"hyperliquid": {"enabled": True, "symbols": {"BTC": "BTC-PERP"}}},
                 "strategy.funding_rate.min_funding_differential": "0.0002",
                 # Add other required keys with default values
@@ -492,16 +489,16 @@ class TestSignalGenerator:
             # Simplified logic for mock config get
             if key.startswith("exchanges.hyperliquid."):
                 prop = key.split(".")[-1]
-                # Safely access nested dict
                 ex_data = mock_single_config_dict.get("exchanges", {}).get("hyperliquid", {})
-                return ex_data.get(prop, default) if isinstance(ex_data, dict) else default
+                return ex_data.get(prop, default)
             # Handle enabled check for other exchanges (should be False)
             elif key.startswith("exchanges.") and key.endswith(".enabled"):
                 return False  # Assume other exchanges are disabled
             return mock_single_config_dict.get(key, default)
 
         config.get.side_effect = single_exchange_config_get
-        signal_generator._initialize_data_structures()  # Accessing protected member - okay for test setup
+        # Accessing protected member for test setup; no public API is available and this is required for correct test initialization.
+        signal_generator._initialize_data_structures()
 
         # Prepare mock data arguments
         mock_funding_data = {
@@ -531,10 +528,14 @@ class TestSignalGenerator:
         # Correct structure: dict[exchange_id, FundingRate]
         funding_data = {
             "hyperliquid": FundingRate(
-                symbol="BTC-PERP", funding_rate=Decimal("-0.001"), timestamp=now
+                symbol="BTC-PERP",
+                funding_rate=Decimal("-0.001"),
+                timestamp=int(now.timestamp() * 1000),
             ),
             "backpack": FundingRate(
-                symbol="BTC_USDC", funding_rate=Decimal("0.002"), timestamp=now
+                symbol="BTC_USDC",
+                funding_rate=Decimal("0.002"),
+                timestamp=int(now.timestamp() * 1000),
             ),
         }
         # Correct structure: dict[exchange_id, Ticker]
@@ -543,6 +544,7 @@ class TestSignalGenerator:
             "backpack": Ticker(symbol="BTC_USDC", price=Decimal("41100")),
         }
 
+        # Accessing protected method for targeted unit test; this is intentional for coverage and no public alternative exists.
         opportunities = signal_generator._check_funding_rate_opportunities(
             "BTC", funding_data, ticker_data
         )
@@ -560,3 +562,20 @@ class TestSignalGenerator:
         # expected_profit = 123.2 - 0.001 = 123.199
         correct_expected_profit = Decimal("123.199")
         assert opp.expected_profit == correct_expected_profit
+
+
+def assert_decimal_approx(
+    actual: Decimal, expected: Decimal, tol: Decimal = Decimal("1e-6")
+) -> None:
+    """
+    Assert that two Decimal values are approximately equal within a given tolerance.
+
+    Args:
+        actual (Decimal): The actual value.
+        expected (Decimal): The expected value.
+        tol (Decimal): The allowed tolerance (default: 1e-6).
+
+    Raises:
+        AssertionError: If the values differ by more than tol.
+    """
+    assert abs(actual - expected) <= tol, f"{actual} != {expected} within {tol}"

@@ -567,27 +567,16 @@ async def test_happy_path_full_cycle(
             )
             sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
 
-    sg_market_data: dict[str, dict[str, Ticker]] = {}
-    for ex, sym_data in data_handler.tickers.items():
-        sg_market_data[ex] = {}
-        for sym, mkt_data in sym_data.items():
-            # Extract Ticker from MarketData if stored (or recreate)
-            # Assuming ticker_data was stored as planned in _add_mock_data fix
-            ticker_info = (
-                mkt_data.ticker_data.get(ex, {}).get(sym) if mkt_data.ticker_data else None
-            )
-            if ticker_info:
-                sg_market_data[ex][sym] = ticker_info
-            else:
-                # Fallback: Recreate Ticker from MarketData close price
-                sg_market_data[ex][sym] = Ticker(
-                    symbol=sym,
-                    price=mkt_data.close,
-                    timestamp=int(mkt_data.timestamp.timestamp() * 1000),
-                )
+    # Construct a MarketData object for the expected type
+    # This assumes generate_arbitrage_opportunities expects a MarketData instance, not a dict
+    # If it expects a list or another structure, adjust accordingly
+    # Here, we use the first available MarketData from data_handler.tickers
+    first_exchange = next(iter(data_handler.tickers))
+    first_symbol = next(iter(data_handler.tickers[first_exchange]))
+    market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
     opportunities = signal_generator.generate_arbitrage_opportunities(
-        funding_data=sg_funding_data, market_data=sg_market_data
+        funding_data=sg_funding_data, market_data=market_data_obj
     )
     logger.info(f"Generated opportunities: {opportunities}")
     assert len(opportunities) >= 1, "No opportunities generated"
@@ -634,9 +623,8 @@ async def test_happy_path_full_cycle(
     )
 
     logger.info("Validating and sizing opportunities with RiskManager...")
-    from cyberdelta.core.risk_manager import SizedOpportunity  # Corrected import path
 
-    sized_opportunities: list[SizedOpportunity] = risk_manager.validate_opportunities([opportunity])
+    sized_opportunities = await risk_manager.validate_opportunities([opportunity])
     logger.info(f"Validated {len(sized_opportunities)} opportunities.")
     assert len(sized_opportunities) == 1, "Opportunity should be valid and sized by RiskManager"
     sized_opportunity = sized_opportunities[0]
@@ -704,18 +692,18 @@ async def test_happy_path_full_cycle(
     assert hl_pos.side == OrderSide.SELL  # Short on HL
     hl_order = await mock_hl_api.get_order_status(trade_execution_result.short_order_id)
     # Compare absolute value of size
-    assert abs(hl_pos.size) == pytest.approx(hl_order.filled_quantity)
+    assert abs(hl_pos.size) == pytest.approx(hl_order.quantity_filled)
     # Use average fill price if available, otherwise order price
-    hl_entry = hl_order.avg_fill_price if hl_order.avg_fill_price else hl_order.price
+    hl_entry = hl_order.average_fill_price if hl_order.average_fill_price else hl_order.price
     assert hl_pos.entry_price == pytest.approx(hl_entry)
 
     assert bp_pos.symbol == symbol_base  # Check internal symbol stored
     assert bp_pos.side == OrderSide.BUY  # Long on BP
     bp_order = await mock_bp_api.get_order_status(trade_execution_result.long_order_id)
     # Compare absolute value of size (abs() is harmless for positive values)
-    assert abs(bp_pos.size) == pytest.approx(bp_order.filled_quantity)
+    assert abs(bp_pos.size) == pytest.approx(bp_order.quantity_filled)
     # Use average fill price if available, otherwise order price
-    bp_entry = bp_order.avg_fill_price if bp_order.avg_fill_price else bp_order.price
+    bp_entry = bp_order.average_fill_price if bp_order.average_fill_price else bp_order.price
     assert bp_pos.entry_price == pytest.approx(bp_entry)
 
     # Check overall net position (should be delta neutral for the base symbol)
@@ -858,41 +846,42 @@ async def test_partial_fill(
     bp_place_call_count = 0
     # Initial BP Order (Partial Fill)
     bp_initial_partial_order = Order(
-        id=long_order_id_bp,
+        client_order_id=long_order_id_bp,
         status=OrderStatus.PARTIALLY_FILLED,
-        filled_quantity=partial_fill_qty,
-        avg_fill_price=Decimal("40006.0"),
+        quantity_filled=partial_fill_qty,
+        average_fill_price=Decimal("40006.0"),
         symbol=bp_symbol,
         side=OrderSide.BUY,
-        type=OrderType.MARKET,
-        quantity=target_qty,
-        time=now,  # Use datetime object directly
+        order_type=OrderType.MARKET,
+        quantity_requested=target_qty,
+        created_at=now,  # Use datetime object directly
     )
     # Compensation BP Order (Sell) - Should succeed
     bp_compensation_order = Order(
-        id=compensation_order_id_bp,
+        client_order_id=compensation_order_id_bp,
         status=OrderStatus.FILLED,
-        filled_quantity=partial_fill_qty,  # Compensate only the filled amount
-        avg_fill_price=mock_bp_ticker.bid,  # Use current bid for compensation sell
+        quantity_filled=partial_fill_qty,  # Compensate only the filled amount
+        average_fill_price=mock_bp_ticker.bid,  # Use current bid for compensation sell
         symbol=bp_symbol,
         side=OrderSide.SELL,
-        type=OrderType.MARKET,
-        quantity=partial_fill_qty,
-        # time=now + timedelta(seconds=1), # Use datetime object directly, adjust if needed
-        time=now,  # Keep it simple for now, use same datetime
+        order_type=OrderType.MARKET,
+        quantity_requested=partial_fill_qty,
+        created_at=now,  # Keep it simple for now, use same datetime
     )
 
     async def place_order_side_effect_bp(*args: Any, **kwargs: Any) -> Order:
         nonlocal bp_place_call_count
         bp_place_call_count += 1
         side = kwargs.get("side")
-        logger.debug(f"MOCK BP place_order call {bp_place_call_count}, side={side}, qty={qty}")
+        logger.debug(
+            f"MOCK BP place_order call {bp_place_call_count}, side={side}, qty={partial_fill_qty}"
+        )
         if bp_place_call_count == 1 and side == OrderSide.BUY:
             logger.debug("MOCK BP place_order: Returning initial partial fill BUY order.")
             return bp_initial_partial_order
         elif bp_place_call_count == 2 and side == OrderSide.SELL:
             logger.debug("MOCK BP place_order: Returning compensation SELL order.")
-            assert qty == partial_fill_qty, "Compensation sell qty mismatch"
+            assert partial_fill_qty == partial_fill_qty, "Compensation sell qty mismatch"
             return bp_compensation_order
         else:
             logger.error(f"MOCK BP place_order: Unexpected call {bp_place_call_count} side={side}")
@@ -926,28 +915,27 @@ async def test_partial_fill(
     hl_place_call_count = 0
     # Initial HL Order (Full Fill)
     hl_initial_full_order = Order(
-        id=short_order_id_hl,
+        client_order_id=short_order_id_hl,
         status=OrderStatus.FILLED,
-        filled_quantity=target_qty,
-        avg_fill_price=Decimal("40000.0"),
+        quantity_filled=target_qty,
+        average_fill_price=Decimal("40000.0"),
         symbol=hl_symbol,
         side=OrderSide.SELL,
-        type=OrderType.MARKET,
-        quantity=target_qty,
-        time=now,  # Use datetime object directly
+        order_type=OrderType.MARKET,
+        quantity_requested=target_qty,
+        created_at=now,  # Use datetime object directly
     )
     # Compensation HL Order (Buy) - Should succeed
     hl_compensation_order = Order(
-        id=compensation_order_id_hl,
+        client_order_id=compensation_order_id_hl,
         status=OrderStatus.FILLED,
-        filled_quantity=target_qty,  # Compensate the full initial amount
-        avg_fill_price=mock_hl_ticker.ask,  # Use current ask for compensation buy
+        quantity_filled=target_qty,  # Compensate the full initial amount
+        average_fill_price=mock_hl_ticker.ask,  # Use current ask for compensation buy
         symbol=hl_symbol,
         side=OrderSide.BUY,
-        type=OrderType.MARKET,
-        quantity=target_qty,
-        # time=now + timedelta(seconds=1), # Use datetime object directly, adjust if needed
-        time=now,  # Keep it simple for now, use same datetime
+        order_type=OrderType.MARKET,
+        quantity_requested=target_qty,
+        created_at=now,  # Keep it simple for now, use same datetime
     )
 
     async def place_order_side_effect_hl(*args: Any, **kwargs: Any) -> Order:
@@ -999,24 +987,16 @@ async def test_partial_fill(
             )
             sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
 
-    sg_market_data: dict[str, dict[str, Ticker]] = {}
-    for ex, sym_data in data_handler.tickers.items():
-        sg_market_data[ex] = {}
-        for sym, mkt_data in sym_data.items():
-            ticker_info = (
-                mkt_data.ticker_data.get(ex, {}).get(sym) if mkt_data.ticker_data else None
-            )
-            if ticker_info:
-                sg_market_data[ex][sym] = ticker_info
-            else:
-                sg_market_data[ex][sym] = Ticker(
-                    symbol=sym,
-                    price=mkt_data.close,
-                    timestamp=int(mkt_data.timestamp.timestamp() * 1000),
-                )
+    # Construct a MarketData object for the expected type
+    # This assumes generate_arbitrage_opportunities expects a MarketData instance, not a dict
+    # If it expects a list or another structure, adjust accordingly
+    # Here, we use the first available MarketData from data_handler.tickers
+    first_exchange = next(iter(data_handler.tickers))
+    first_symbol = next(iter(data_handler.tickers[first_exchange]))
+    market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
     opportunities = signal_generator.generate_arbitrage_opportunities(
-        funding_data=sg_funding_data, market_data=sg_market_data
+        funding_data=sg_funding_data, market_data=market_data_obj
     )
     assert len(opportunities) >= 1
     opportunity = opportunities[0]
@@ -1041,7 +1021,7 @@ async def test_partial_fill(
     # --- End Debug Logging ---
 
     # 2. Validate & Size
-    sized_opportunities = risk_manager.validate_opportunities([opportunity])
+    sized_opportunities = await risk_manager.validate_opportunities([opportunity])
     assert len(sized_opportunities) == 1
     sized_opportunity = sized_opportunities[0]
     sized_opportunity.long_size = target_qty
@@ -1186,15 +1166,15 @@ async def test_execution_failure_compensation(
     # BP (Long) - Succeeds initially
     long_fill_price = mock_bp_ticker.ask
     bp_initial_order = Order(
-        id=long_order_id_bp,
+        client_order_id=long_order_id_bp,
         status=OrderStatus.FILLED,
-        filled_quantity=target_qty,
-        avg_fill_price=long_fill_price,
+        quantity_filled=target_qty,
+        average_fill_price=long_fill_price,
         symbol=bp_symbol,
         side=OrderSide.BUY,
-        type=OrderType.MARKET,
-        quantity=target_qty,
-        time=now,  # Use datetime object directly
+        order_type=OrderType.MARKET,
+        quantity_requested=target_qty,
+        created_at=now,  # Use datetime object directly
     )
 
     # HL (Short) - Fails
@@ -1203,15 +1183,15 @@ async def test_execution_failure_compensation(
     # BP Compensation order (Sell) - Should succeed
     compensation_fill_price = mock_bp_ticker.bid
     bp_compensation_order = Order(
-        id=compensating_order_id_bp,
+        client_order_id=compensating_order_id_bp,
         status=OrderStatus.FILLED,
-        filled_quantity=target_qty,
-        avg_fill_price=compensation_fill_price,
+        quantity_filled=target_qty,
+        average_fill_price=compensation_fill_price,
         symbol=bp_symbol,
         side=OrderSide.SELL,
-        type=OrderType.MARKET,
-        quantity=target_qty,
-        time=now,  # Use datetime object directly
+        order_type=OrderType.MARKET,
+        quantity_requested=target_qty,
+        created_at=now,  # Use datetime object directly
     )
 
     # --- Setup Mock `place_order` Side Effects ---
@@ -1287,24 +1267,16 @@ async def test_execution_failure_compensation(
             )
             sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
 
-    sg_market_data: dict[str, dict[str, Ticker]] = {}
-    for ex, sym_data in data_handler.tickers.items():
-        sg_market_data[ex] = {}
-        for sym, mkt_data in sym_data.items():
-            ticker_info = (
-                mkt_data.ticker_data.get(ex, {}).get(sym) if mkt_data.ticker_data else None
-            )
-            if ticker_info:
-                sg_market_data[ex][sym] = ticker_info
-            else:
-                sg_market_data[ex][sym] = Ticker(
-                    symbol=sym,
-                    price=mkt_data.close,
-                    timestamp=int(mkt_data.timestamp.timestamp() * 1000),
-                )
+    # Construct a MarketData object for the expected type
+    # This assumes generate_arbitrage_opportunities expects a MarketData instance, not a dict
+    # If it expects a list or another structure, adjust accordingly
+    # Here, we use the first available MarketData from data_handler.tickers
+    first_exchange = next(iter(data_handler.tickers))
+    first_symbol = next(iter(data_handler.tickers[first_exchange]))
+    market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
     opportunities = signal_generator.generate_arbitrage_opportunities(
-        funding_data=sg_funding_data, market_data=sg_market_data
+        funding_data=sg_funding_data, market_data=market_data_obj
     )
     assert len(opportunities) >= 1
     opportunity = opportunities[0]
@@ -1320,7 +1292,7 @@ async def test_execution_failure_compensation(
     # --- End Debug Logging ---
 
     # 2. Validate & Size
-    sized_opportunities = risk_manager.validate_opportunities([opportunity])
+    sized_opportunities = await risk_manager.validate_opportunities([opportunity])
     assert len(sized_opportunities) == 1
     sized_opportunity = sized_opportunities[0]
     sized_opportunity.long_size = target_qty
@@ -1344,7 +1316,7 @@ async def test_execution_failure_compensation(
     assert len(calls) == 2, "Expected 2 place_order calls on BP (initial + compensation)"
     assert calls[0].kwargs["side"] == OrderSide.BUY
     assert calls[1].kwargs["side"] == OrderSide.SELL, "Expected compensation call to be SELL"
-    assert calls[1].kwargs["quantity"] == target_qty
+    assert calls[1].kwargs["quantity_requested"] == target_qty
 
     # Verify final portfolio state (should be flat for ETH)
     await portfolio_tracker.update()  # Ensure state is fresh

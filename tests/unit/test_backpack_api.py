@@ -1,4 +1,5 @@
 import time
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -6,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cyberdelta.apis.backpack import BackpackAPI
-from cyberdelta.apis.base import MessageHandler
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.core.models import (
     Balance,
@@ -39,7 +39,7 @@ class ConcreteBackpackAPI(BackpackAPI):
     async def connect_websocket(self) -> None:
         pass
 
-    async def get_funding_rates(self, symbol: str | None = None) -> list[FundingRate]:
+    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         return []
 
     async def get_market_data(
@@ -70,7 +70,7 @@ class ConcreteBackpackAPI(BackpackAPI):
     def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
         return None
 
-    def parse_order(self, order_data: dict[str, Any]) -> Order:
+    def parse_order(self, data: dict[str, Any]) -> Order:
         raise NotImplementedError
 
     def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
@@ -103,13 +103,13 @@ class ConcreteBackpackAPI(BackpackAPI):
     async def subscribe_to_account_updates(self) -> None:
         pass
 
-    async def subscribe_to_order_book(self, symbol: str, handler: MessageHandler) -> None:
+    async def subscribe_to_order_book(self, symbol: str) -> None:
         pass
 
-    async def subscribe_to_ticker(self, symbol: str, handler: MessageHandler) -> None:
+    async def subscribe_to_ticker(self, symbol: str) -> None:
         pass
 
-    async def subscribe_to_trades(self, symbol: str, handler: MessageHandler) -> None:
+    async def subscribe_to_trades(self, symbol: str) -> None:
         pass
 
     # --- ADD MISSING ABSTRACT METHODS ---
@@ -273,39 +273,55 @@ class TestBackpackAPI:
     @pytest.mark.asyncio
     async def test_get_recent_trades(self, api_client: BackpackAPI):
         """Test get_recent_trades returns list of Trade objects."""
-        mock_trade_data = [
+        now = datetime.now(UTC)
+        mock_trade_data: list[Trade] = [
             Trade(
                 id="12345",
+                symbol="BTCUSDC",
+                executed_at=now,
+                side=OrderSide.BUY,
+                order_id="order12345",
+                exchange="backpack",
+                client_order_id="client12345",
                 price=Decimal("42500.25"),
                 quantity=Decimal("0.05"),
-                timestamp=int(time.time() * 1000),
-                side=None,  # Backpack doesn't provide side directly here - USE NONE
+                cost=Decimal("2125.0125"),
+                fee=Decimal("0"),
+                fee_asset="USDC",
                 is_maker=True,
-                symbol="BTCUSDC",
+                timestamp=int(time.time() * 1000),
             ),
             Trade(
                 id="12346",
+                symbol="BTCUSDC",
+                executed_at=now,
+                side=OrderSide.SELL,
+                order_id="order12346",
+                exchange="backpack",
+                client_order_id="client12346",
                 price=Decimal("42505.50"),
                 quantity=Decimal("0.03"),
-                timestamp=int(time.time() * 1000) - 5000,
-                side=None,  # USE NONE
+                cost=Decimal("1275.165"),
+                fee=Decimal("0"),
+                fee_asset="USDC",
                 is_maker=False,
-                symbol="BTCUSDC",
+                timestamp=int(time.time() * 1000) - 5000,
             ),
         ]
         api_client.get_recent_trades = AsyncMock(return_value=mock_trade_data)
 
         # Get recent trades
-        trades = await api_client.get_recent_trades("BTCUSDC", limit=2)
+        trades: list[Trade] = await api_client.get_recent_trades("BTCUSDC", limit=2)
 
         # Verify expected data
         assert isinstance(trades, list)
         assert len(trades) == 2
-        assert all(isinstance(t, Trade) for t in trades)
+        for t in trades:
+            assert isinstance(t, Trade)
         assert trades[0].id == "12345"
-        assert trades[0].side is None  # Verify side is None
+        assert trades[0].side == OrderSide.BUY
         assert trades[1].id == "12346"
-        assert trades[1].side is None  # Verify side is None
+        assert trades[1].side == OrderSide.SELL
 
         # Verify the mocked method was called
         api_client.get_recent_trades.assert_called_once_with("BTCUSDC", limit=2)
@@ -354,17 +370,20 @@ class TestBackpackAPI:
         api_client.get_balances = AsyncMock(return_value=mock_balance_data)
 
         # Get balances
-        balances = await api_client.get_balances()
+        balances: dict[str, Balance] = await api_client.get_balances()
 
         # Verify expected data
         assert isinstance(balances, dict)
         assert "BTC" in balances
         assert "USDC" in balances
-        assert isinstance(balances["BTC"], Balance)
-        assert balances["USDC"].asset == "USDC"
-        assert balances["USDC"].free == Decimal("10000.50")
-        assert balances["USDC"].locked == Decimal("500.25")
-        assert balances["USDC"].total == Decimal("10500.75")
+        btc_balance = balances["BTC"]
+        usdc_balance = balances["USDC"]
+        assert isinstance(btc_balance, Balance)
+        assert isinstance(usdc_balance, Balance)
+        assert usdc_balance.asset == "USDC"
+        assert usdc_balance.free == Decimal("10000.50")
+        assert usdc_balance.locked == Decimal("500.25")
+        assert usdc_balance.total == Decimal("10500.75")
 
         # Verify the mocked method was called
         api_client.get_balances.assert_called_once_with()
@@ -397,28 +416,29 @@ class TestBackpackAPI:
         api_client.get_positions = AsyncMock(return_value=mock_position_data)
 
         # Get positions
-        positions = await api_client.get_positions()
+        positions: list[Position] = await api_client.get_positions()
 
         # Verify expected data
         assert isinstance(positions, list)
         assert len(positions) == 2
-        assert isinstance(positions[0], Position)
-
+        btc_position: Position = positions[0]
+        eth_position: Position = positions[1]
+        assert isinstance(btc_position, Position)
+        assert isinstance(eth_position, Position)
         # Verify first position details (BTC)
-        assert positions[0].symbol == "BTCUSDC"
-        assert positions[0].side == OrderSide.BUY
-        assert positions[0].size == Decimal("0.5")
-        assert positions[0].entry_price == Decimal("40000.0")
-        assert positions[0].mark_price == Decimal("42000.0")
-        assert positions[0].unrealized_pnl == Decimal("1000.0")
-        assert positions[0].liquidation_price == Decimal("35000.0")
-        assert positions[0].leverage == Decimal("10")
-
+        assert btc_position.symbol == "BTCUSDC"
+        assert btc_position.side == OrderSide.BUY
+        assert btc_position.size == Decimal("0.5")
+        assert btc_position.entry_price == Decimal("40000.0")
+        assert btc_position.mark_price == Decimal("42000.0")
+        assert btc_position.unrealized_pnl == Decimal("1000.0")
+        assert btc_position.liquidation_price == Decimal("35000.0")
+        assert btc_position.leverage == Decimal("10")
         # Verify second position details (ETH)
-        assert positions[1].symbol == "ETHUSDC"
-        assert positions[1].side == OrderSide.SELL
-        assert positions[1].size == Decimal("-2.0")
-        assert positions[1].entry_price == Decimal("2500.0")
+        assert eth_position.symbol == "ETHUSDC"
+        assert eth_position.side == OrderSide.SELL
+        assert eth_position.size == Decimal("-2.0")
+        assert eth_position.entry_price == Decimal("2500.0")
 
         # Verify the mocked method was called
         api_client.get_positions.assert_called_once_with()
@@ -427,16 +447,15 @@ class TestBackpackAPI:
     async def test_place_order(self, api_client: BackpackAPI):
         """Test place_order returns proper Order object."""
         mock_order_data = Order(
-            id="123456789",
             symbol="BTCUSDC",
             side=OrderSide.BUY,
-            type=OrderType.LIMIT,
-            price=Decimal("42000.0"),
-            quantity=Decimal("0.1"),
-            filled_quantity=Decimal("0.0"),
+            order_type=OrderType.LIMIT,
             status=OrderStatus.NEW,
-            time=int(time.time() * 1000),
+            quantity_requested=Decimal("0.1"),
+            quantity_filled=Decimal("0.0"),
+            price=Decimal("42000.0"),
             client_order_id="test-order-123",
+            created_at=datetime.now(UTC),
         )
         api_client.place_order = AsyncMock(return_value=mock_order_data)
 
@@ -444,7 +463,7 @@ class TestBackpackAPI:
         order = await api_client.place_order(
             symbol="BTCUSDC",
             side=OrderSide.BUY,
-            type=OrderType.LIMIT,
+            order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
             price=Decimal("42000.0"),
             client_order_id="test-order-123",
@@ -452,14 +471,13 @@ class TestBackpackAPI:
 
         # Verify expected data
         assert isinstance(order, Order)
-        assert order.id == "123456789"
         assert order.symbol == "BTCUSDC"
         assert order.side == OrderSide.BUY
-        assert order.type == OrderType.LIMIT
-        assert order.price == Decimal("42000.0")
-        assert order.quantity == Decimal("0.1")
-        assert order.filled_quantity == Decimal("0.0")
+        assert order.order_type == OrderType.LIMIT
         assert order.status == OrderStatus.NEW
+        assert order.quantity_requested == Decimal("0.1")
+        assert order.quantity_filled == Decimal("0.0")
+        assert order.price == Decimal("42000.0")
         assert order.client_order_id == "test-order-123"
 
         # Verify the mocked method was called

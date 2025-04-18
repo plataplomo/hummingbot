@@ -13,7 +13,6 @@ from cyberdelta.core.execution_handler import (
     TradeExecution,
 )
 from cyberdelta.core.models import (
-    ArbitrageOpportunity,
     Balance,
     OrderSide,
     Position,  # Added Position
@@ -27,6 +26,7 @@ from cyberdelta.core.risk_manager import (
 )
 from cyberdelta.core.signal_generator import SignalGenerator  # Added SignalGenerator
 from cyberdelta.utils.config import Config  # Added Config
+from cyberdelta.validation import ArbitrageOpportunity
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem  # Added CircuitBreakerSystem
 from cyberdelta.validation.position_reconciliation import (
     PositionReconciliationSystem,  # Added PositionReconciliationSystem
@@ -81,6 +81,8 @@ async def test_circuit_breaker_global_halts_execution(
     )
     await real_portfolio_tracker.initialize()
     ts = datetime.now(UTC)
+    # Ensure timestamp is int (milliseconds since epoch)
+    ts = int(ts.timestamp() * 1000)
     mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts))
     mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts))
 
@@ -169,6 +171,8 @@ async def test_circuit_breaker_exchange_halts_execution(
     )
     await real_portfolio_tracker.initialize()
     ts = datetime.now(UTC)
+    # Ensure timestamp is int (milliseconds since epoch)
+    ts = int(ts.timestamp() * 1000)
     mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts))
     mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts))
 
@@ -282,7 +286,7 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
     opp.expected_return = Decimal("0.0005")
     # Temporarily disable validator influence for baseline
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     risk_manager.funding_rate_validator = funding_rate_validator
     assert len(sized_opps) == 1, "Safe opportunity should be accepted and sized."
 
@@ -333,7 +337,7 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
     opp.expected_return = Decimal("0.01")
     # Temporarily disable validator influence for baseline
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     risk_manager.funding_rate_validator = funding_rate_validator
     assert len(sized_opps) == 0, "Oversized opportunity should be rejected by risk controls."
 
@@ -506,7 +510,7 @@ async def test_kelly_size_exactly_at_max_position_size(
     opp = cast(Any, opp)
     opp.expected_return = Decimal("0.01")
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 1, "Kelly size exactly at max should be accepted."
 
 
@@ -537,7 +541,7 @@ async def test_kelly_size_just_below_max_position_size(
     opp = cast(Any, opp)
     opp.expected_return = Decimal("0.009999")
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 1, "Kelly size just below max should be accepted."
 
 
@@ -568,7 +572,7 @@ async def test_kelly_size_just_above_max_position_size(
     opp = cast(Any, opp)
     opp.expected_return = Decimal("0.0100001")
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 0, "Kelly size just above max should be rejected."
 
 
@@ -599,7 +603,7 @@ async def test_kelly_size_near_zero(
     opp = cast(Any, opp)
     opp.expected_return = Decimal("0.01")
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 0, "Kelly size near zero should be rejected."
 
 
@@ -630,7 +634,7 @@ async def test_kelly_negative_expected_return(
     opp = cast(Any, opp)
     opp.expected_return = Decimal("-0.01")
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 0, "Negative expected return should be rejected."
 
 
@@ -661,7 +665,7 @@ async def test_kelly_zero_or_negative_volatility(
     opp = cast(Any, opp)
     opp.expected_return = Decimal("0.01")
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 0, "Zero volatility should be rejected."
     # Negative volatility
     opp2 = ArbitrageOpportunity(
@@ -679,7 +683,7 @@ async def test_kelly_zero_or_negative_volatility(
     )
     opp2 = cast(Any, opp2)
     opp2.expected_return = Decimal("0.01")
-    sized_opps2 = risk_manager.validate_opportunities([opp2])
+    sized_opps2 = await risk_manager.validate_opportunities([opp2])
     assert len(sized_opps2) == 0, "Negative volatility should be rejected."
 
 
@@ -719,7 +723,7 @@ async def test_kelly_insufficient_balance(
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.initialize()
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 0, "Insufficient balance should cause rejection."
 
 
@@ -754,7 +758,7 @@ async def test_kelly_zero_total_capital(
     opp = cast(Any, opp)
     opp.expected_return = Decimal("0.01")
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 0, "Zero total capital should cause rejection."
 
 
@@ -786,7 +790,7 @@ async def test_kelly_max_position_size_zero(
     opp = cast(Any, opp)
     opp.expected_return = Decimal("0.01")
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 0, "Zero max position size should cause rejection."
 
 
@@ -818,5 +822,5 @@ async def test_kelly_max_position_size_very_large(
     opp = cast(Any, opp)
     opp.expected_return = Decimal("0.01")
     risk_manager.funding_rate_validator = None
-    sized_opps = risk_manager.validate_opportunities([opp])
+    sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 1, "Very large max position size should allow valid Kelly sizing."

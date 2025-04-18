@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from cyberdelta.core.models import ArbitrageOpportunity
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 # Note: Fixtures risk_manager, sample_opportunity
 #       are provided by tests/unit/risk/conftest.py

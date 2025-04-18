@@ -3,6 +3,7 @@
 
 import re
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -22,9 +23,8 @@ def get_yaml_keys(file_path: Path) -> set[str]:
         with open(file_path) as f:
             data = yaml.safe_load(f)
         if not isinstance(data, dict):
-            print(f"Warning: YAML content in {file_path} is not a dictionary.")
             return set()
-        return _extract_keys(data)
+        return _extract_keys(cast(dict[str, Any], data))
     except FileNotFoundError:
         pytest.fail(f"YAML file not found: {file_path}")
     except yaml.YAMLError as e:
@@ -36,17 +36,16 @@ def get_yaml_keys_from_string(yaml_string: str) -> set[str]:
     try:
         data = yaml.safe_load(yaml_string)
         if not isinstance(data, dict):
-            print("Warning: YAML string content is not a dictionary.")
             return set()
-        return _extract_keys(data)
+        return _extract_keys(cast(dict[str, Any], data))
     except yaml.YAMLError as e:
         pytest.fail(f"Error parsing YAML string: {e}")
 
 
-def _extract_keys(data: dict, prefix: str = "") -> set[str]:
+def _extract_keys(data: dict[str, Any], prefix: str = "") -> set[str]:
     """Recursively extracts keys from a nested dictionary."""
-    keys = set()
-    for k, v in data.items():
+    keys: set[str] = set()
+    for k, v in data.items():  # type: ignore
         full_key = f"{prefix}.{k}" if prefix else k
         keys.add(full_key)
         if isinstance(v, dict):
@@ -94,7 +93,7 @@ class TestConfigConsistency:
 
     @pytest.mark.skipif(not CONFIG_PATH.exists(), reason=f"{CONFIG_PATH} not found")
     @pytest.mark.skipif(not EXAMPLE_CONFIG_PATH.exists(), reason=f"{EXAMPLE_CONFIG_PATH} not found")
-    def test_config_and_example_match(self):
+    def test_config_and_example_match(self) -> None:
         """Ensure config.yaml and config.yaml.example have the same keys."""
         actual_keys = get_yaml_keys(CONFIG_PATH)
         example_keys = get_yaml_keys(EXAMPLE_CONFIG_PATH)
@@ -107,7 +106,7 @@ class TestConfigConsistency:
 
     @pytest.mark.skipif(not CONFIG_PATH.exists(), reason=f"{CONFIG_PATH} not found")
     @pytest.mark.skipif(not EXAMPLE_SCRIPT_PATH.exists(), reason=f"{EXAMPLE_SCRIPT_PATH} not found")
-    def test_example_script_content_matches(self):
+    def test_example_script_content_matches(self) -> None:
         """Ensure config_content in examples/config_example.py matches config.yaml."""
         actual_keys = get_yaml_keys(CONFIG_PATH)
 
@@ -118,7 +117,11 @@ class TestConfigConsistency:
                 f"Failed to extract config_content variable from {EXAMPLE_SCRIPT_PATH}. Check the script."
             )
 
-        script_keys = get_yaml_keys_from_string(config_content_str)
+        # Cast loaded YAML to dict[str, Any] before passing to _extract_keys
+        script_data = yaml.safe_load(config_content_str)
+        if not isinstance(script_data, dict):
+            pytest.fail("YAML string content is not a dictionary.")
+        script_keys = _extract_keys(cast(dict[str, Any], script_data))
 
         assert actual_keys == script_keys, (
             f"Mismatch between {CONFIG_PATH} and config_content in {EXAMPLE_SCRIPT_PATH}. \

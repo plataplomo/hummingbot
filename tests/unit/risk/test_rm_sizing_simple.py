@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cyberdelta.core.models import ArbitrageOpportunity
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 # Note: Fixtures risk_manager, mock_config, mock_portfolio_tracker,
 #       sample_opportunity are provided by tests/unit/risk/conftest.py

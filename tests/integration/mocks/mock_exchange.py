@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from collections import defaultdict
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -51,7 +51,7 @@ class MockExchangeAPI(ExchangeAPI):
         config: dict[str, Any],
         secrets: dict[str, str | None],
         config_obj: Config | None = None,
-    ):  # Add optional config_obj parameter
+    ) -> None:
         super().__init__(exchange_name, config, secrets)
         self.full_config = config_obj  # Store the full config object if provided
         self._order_id_counter = 1
@@ -110,7 +110,8 @@ class MockExchangeAPI(ExchangeAPI):
         self._open_orders_behavior = "keep_open"
 
         logger.info(
-            f"Initialized MockExchangeAPI for {exchange_name} (Maker Fee: {self.maker_fee}, Taker Fee: {self.taker_fee}, Fee Asset: {self.fee_asset})"
+            f"Initialized MockExchangeAPI for {exchange_name} (Maker Fee: {self.maker_fee}, "
+            f"Taker Fee: {self.taker_fee}, Fee Asset: {self.fee_asset})"
         )
 
     async def _simulate_latency(self) -> None:
@@ -302,7 +303,6 @@ class MockExchangeAPI(ExchangeAPI):
 
         order_id = f"{self.exchange_name.lower()}-{self._order_id_counter}"
         self._order_id_counter += 1
-        order_time = datetime.now(UTC)  # Use a consistent time for the order
 
         # Determine fill price for market orders or use limit price
         fill_price = price
@@ -329,20 +329,16 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Create the order object - using only fields defined in models.Order
         order = Order(
-            id=order_id,
-            client_order_id=client_order_id or f"mock-{order_id}",
             symbol=symbol,
             side=side,
-            type=order_type,
+            order_type=order_type,
+            quantity_requested=quantity,
+            client_order_id=client_order_id or f"mock-{order_id}",
             status=OrderStatus.OPEN,  # Initial status
             price=price,  # Limit price
-            quantity=quantity,
-            filled_quantity=Decimal("0.0"),
-            avg_fill_price=None,
-            time_in_force=time_in_force,
-            reduce_only=reduce_only,
-            post_only=post_only,
-            time=order_time,
+            quantity_filled=Decimal("0.0"),
+            average_fill_price=None,
+            exchange_order_id=order_id,
         )
 
         self._orders[order_id] = order
@@ -360,12 +356,12 @@ class MockExchangeAPI(ExchangeAPI):
                 raise ValueError("Cannot fill market order without a fill price")
 
             order.status = OrderStatus.FILLED
-            order.filled_quantity = quantity
-            order.avg_fill_price = fill_price
+            order.quantity_filled = quantity
+            order.average_fill_price = fill_price
             trade_timestamp = datetime.now(UTC)  # Use a consistent time for the fill/trade
 
             # Calculate cost and fee
-            trade_cost = order.filled_quantity * order.avg_fill_price
+            trade_cost = order.quantity_filled * order.average_fill_price
             # Determine fee rate (simplified: assume taker for market orders)
             trade_fee_rate = self.taker_fee
             trade_fee = trade_cost * trade_fee_rate
@@ -374,7 +370,7 @@ class MockExchangeAPI(ExchangeAPI):
             logger.info(f"Mock {self.exchange_name}: Order {order_id} filled immediately.")
 
             # Create and record the trade
-            assert order.avg_fill_price is not None  # Ensure fill price is set
+            assert order.average_fill_price is not None  # Ensure fill price is set
             assert trade_timestamp is not None  # Ensure timestamp is set
             trade_to_record = Trade(
                 id=f"trade-{order_id}",
@@ -382,13 +378,15 @@ class MockExchangeAPI(ExchangeAPI):
                 exchange=self.exchange_name,  # Trade model has exchange
                 symbol=symbol,
                 side=side,
-                price=order.avg_fill_price,
-                quantity=order.filled_quantity,
+                price=order.average_fill_price,
+                quantity=order.quantity_filled,
                 fee=trade_fee,
-                fee_asset=trade_fee_asset,
+                fee_asset=trade_fee_asset or "",  # Ensure string, never None
                 cost=trade_cost,
                 timestamp=int(trade_timestamp.timestamp() * 1000),  # Convert to int ms
                 is_maker=False,  # Assume taker for market fills
+                executed_at=trade_timestamp,
+                client_order_id=order.client_order_id,
             )
             self._trades.append(trade_to_record)
             # Update balances and positions based on the trade
@@ -401,12 +399,12 @@ class MockExchangeAPI(ExchangeAPI):
             # Simulate partial fill (e.g., 50%)
             partial_fill_qty = quantity / Decimal("2")
             order.status = OrderStatus.PARTIALLY_FILLED
-            order.filled_quantity = partial_fill_qty
-            order.avg_fill_price = fill_price  # Use simulated fill price
+            order.quantity_filled = partial_fill_qty
+            order.average_fill_price = fill_price  # Use simulated fill price
             trade_timestamp = datetime.now(UTC)  # Use a consistent time for the fill/trade
 
             # Calculate cost and fee for partial fill
-            trade_cost = order.filled_quantity * order.avg_fill_price
+            trade_cost = order.quantity_filled * order.average_fill_price
             trade_fee_rate = self.taker_fee  # Assume taker for simplicity
             trade_fee = trade_cost * trade_fee_rate
             trade_fee_asset = self.fee_asset
@@ -414,7 +412,7 @@ class MockExchangeAPI(ExchangeAPI):
             logger.info(f"Mock {self.exchange_name}: Order {order_id} partially filled.")
 
             # Create and record the partial trade
-            assert order.avg_fill_price is not None  # Ensure fill price is set
+            assert order.average_fill_price is not None  # Ensure fill price is set
             assert trade_timestamp is not None  # Ensure timestamp is set
             trade_to_record = Trade(
                 id=f"trade-{order_id}-p1",
@@ -422,13 +420,15 @@ class MockExchangeAPI(ExchangeAPI):
                 exchange=self.exchange_name,  # Trade model has exchange
                 symbol=symbol,
                 side=side,
-                price=order.avg_fill_price,
-                quantity=order.filled_quantity,
+                price=order.average_fill_price,
+                quantity=order.quantity_filled,
                 fee=trade_fee,
-                fee_asset=trade_fee_asset,
+                fee_asset=trade_fee_asset or "",  # Ensure string, never None
                 cost=trade_cost,
                 timestamp=int(trade_timestamp.timestamp() * 1000),  # Convert to int ms
                 is_maker=False,
+                executed_at=trade_timestamp,
+                client_order_id=order.client_order_id,
             )
             self._trades.append(trade_to_record)
             self._update_balance_and_position(trade_to_record)
@@ -567,7 +567,7 @@ class MockExchangeAPI(ExchangeAPI):
             logger.debug(
                 f"Mock {self.exchange_name}: Setting mock balance for {asset} using Balance object."
             )
-        elif isinstance(balance_data, dict):
+        elif True:  # balance_data is always a dict here
             # Try to construct Balance from dict
             try:
                 # Extract required fields first
@@ -597,8 +597,8 @@ class MockExchangeAPI(ExchangeAPI):
                 logger.debug(
                     f"Mock {self.exchange_name}: Setting mock balance for {asset} using direct Balance dict."
                 )
-            except (TypeError, KeyError, ValueError, InvalidOperation) as e:
-                logger.error(f"Failed to parse direct balance dict: {balance_data}. Error: {e}")
+            except (TypeError, KeyError, ValueError, InvalidOperation) as err:
+                logger.error(f"Failed to parse direct balance dict: {balance_data}. Error: {err}")
                 return  # Don't proceed if parsing fails
 
         if asset and balance_obj:
@@ -690,9 +690,9 @@ class MockExchangeAPI(ExchangeAPI):
 
         # --- Balance Update --- (Existing logic, ensure robustness)
         # Assume trade.price and trade.quantity are non-None based on Mypy unreachable error
-        cost = trade.cost if trade.cost is not None else trade.price * trade.quantity
-        fee = trade.fee if trade.fee is not None else Decimal("0")
-        fee_asset = trade.fee_asset if trade.fee_asset is not None else self.fee_asset
+        cost = trade.cost
+        fee = trade.fee
+        fee_asset = trade.fee_asset
 
         # Determine the asset involved (base or quote)
         base_asset, quote_asset = self._split_symbol(trade.symbol)
@@ -701,28 +701,24 @@ class MockExchangeAPI(ExchangeAPI):
         quote_balance = self._balances.get(
             quote_asset, Balance(asset=quote_asset, total=Decimal("0"), available=Decimal("0"))
         )
+        quote_balance.total = Decimal(quote_balance.total or 0)
+        quote_balance.available = Decimal(quote_balance.available or 0)
         if trade.side == OrderSide.BUY:
-            if cost is not None and quote_balance.total is not None:
-                quote_balance.total -= cost
-            if cost is not None and quote_balance.available is not None:
-                quote_balance.available -= cost  # Assuming cost reflects available reduction
+            quote_balance.total -= cost
+            quote_balance.available -= cost  # Assuming cost reflects available reduction
         elif trade.side == OrderSide.SELL:
-            # Ensure cost and balances are not None before arithmetic
-            if cost is not None and quote_balance.total is not None:
-                quote_balance.total += cost
-            if cost is not None and quote_balance.available is not None:
-                quote_balance.available += cost
+            quote_balance.total += cost
+            quote_balance.available += cost
 
         # Update fee asset balance
         if fee > 0:
             fee_balance = self._balances.get(
                 fee_asset, Balance(asset=fee_asset, total=Decimal("0"), available=Decimal("0"))
             )
-            # Ensure fee and balances are not None
-            if fee is not None and fee_balance.total is not None:
-                fee_balance.total -= fee
-            if fee is not None and fee_balance.available is not None:
-                fee_balance.available -= fee
+            fee_balance.total = Decimal(fee_balance.total or 0)
+            fee_balance.available = Decimal(fee_balance.available or 0)
+            fee_balance.total -= fee
+            fee_balance.available -= fee
             self._balances[fee_asset] = fee_balance
             logger.debug(f"Applied fee: {fee} {fee_asset}")
 
@@ -730,18 +726,14 @@ class MockExchangeAPI(ExchangeAPI):
         base_balance = self._balances.get(
             base_asset, Balance(asset=base_asset, total=Decimal("0"), available=Decimal("0"))
         )
+        base_balance.total = Decimal(base_balance.total or 0)
+        base_balance.available = Decimal(base_balance.available or 0)
         if trade.side == OrderSide.BUY:
-            # Ensure quantity and balances are not None
-            if trade.quantity is not None and base_balance.total is not None:
-                base_balance.total += trade.quantity
-            if trade.quantity is not None and base_balance.available is not None:
-                base_balance.available += trade.quantity  # Simplified
+            base_balance.total += trade.quantity
+            base_balance.available += trade.quantity  # Simplified
         elif trade.side == OrderSide.SELL:
-            # Ensure quantity and balances are not None
-            if trade.quantity is not None and base_balance.total is not None:
-                base_balance.total -= trade.quantity
-            if trade.quantity is not None and base_balance.available is not None:
-                base_balance.available -= trade.quantity  # Simplified
+            base_balance.total -= trade.quantity
+            base_balance.available -= trade.quantity  # Simplified
 
         self._balances[quote_asset] = quote_balance
         self._balances[base_asset] = base_balance
@@ -846,9 +838,7 @@ class MockExchangeAPI(ExchangeAPI):
                 ticker = self._mock_tickers.get(trade.symbol)
                 if ticker and ticker.price is not None:  # Check if ticker and its price exist
                     existing_position.mark_price = ticker.price
-                    # Ensure calculate_unrealized_pnl handles potential None entry_price defensively
-                    if existing_position.entry_price is not None:
-                        existing_position.calculate_unrealized_pnl(ticker.price)
+                    existing_position.calculate_unrealized_pnl(ticker.price)
                 logger.debug(f"Updated position: {existing_position}")
 
         else:
@@ -891,7 +881,6 @@ class MockExchangeAPI(ExchangeAPI):
         """Simulate cancelling all orders."""
         self._check_error("cancel_all_orders")
         await self._simulate_latency()
-        orders_to_remove: list[str] = []
         cancelled_count = 0
         final_statuses = (
             OrderStatus.FILLED,
@@ -954,7 +943,7 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
         history = sorted(
             self._orders.values(),
-            key=lambda o: o.time or datetime.min.replace(tzinfo=UTC),
+            key=lambda o: o.created_at or datetime.min.replace(tzinfo=UTC),
             reverse=True,
         )
         if symbol:
@@ -965,7 +954,9 @@ class MockExchangeAPI(ExchangeAPI):
         """Return mock trade history."""
         self._check_error("get_trade_history")
         await self._simulate_latency()
-        history = sorted(self._trades, key=lambda t: t.timestamp, reverse=True)
+        history = sorted(
+            self._trades, key=lambda t: t.timestamp if t.timestamp is not None else 0, reverse=True
+        )
         if symbol:
             history = [t for t in history if t.symbol == symbol]
         return history[:limit]
@@ -979,33 +970,33 @@ class MockExchangeAPI(ExchangeAPI):
         return None, None
 
     def parse_balance(
-        self, data: Any
+        self, data: dict[str, Any]
     ) -> Balance:  # Ensure implementation raises on failure, not returns None
         """Parse balance data (placeholder)."""
         try:
             # Attempt to create Balance, assuming data is a dict-like structure
             return Balance(**data)
-        except Exception as e:
-            logger.error(f"Mock parse_balance failed for data: {data}. Error: {e}")
-            raise ValueError(f"Mock parse_balance failed: {e}") from e
+        except Exception as err:
+            logger.error(f"Mock parse_balance failed for data: {data}. Error: {err}")
+            raise ValueError(f"Mock parse_balance failed: {err}") from err
 
     def parse_funding_rate(
-        self, data: Any
+        self, data: dict[str, Any]
     ) -> FundingRate:  # Ensure implementation raises on failure
         """Parse funding rate data (placeholder)."""
         try:
             # Assuming data is dict-like
             return FundingRate(**data)
-        except Exception as e:
-            logger.error(f"Mock parse_funding_rate failed for data: {data}. Error: {e}")
-            raise ValueError(f"Mock parse_funding_rate failed: {e}") from e
+        except Exception as err:
+            logger.error(f"Mock parse_funding_rate failed for data: {data}. Error: {err}")
+            raise ValueError(f"Mock parse_funding_rate failed: {err}") from err
 
     def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
         """Parse funding rate message (placeholder)."""
         # Depends heavily on exchange message format
         return None
 
-    def parse_order(self, data: Any) -> Order:  # Ensure implementation raises on failure
+    def parse_order(self, data: dict[str, Any]) -> Order:  # Ensure implementation raises on failure
         """Parse order data (placeholder)."""
         try:
             # Assuming data is dict-like
@@ -1023,7 +1014,7 @@ class MockExchangeAPI(ExchangeAPI):
                 "price",
                 "quantity",
                 "filled_quantity",
-                "avg_fill_price",
+                "average_fill_price",
             ]:  # Removed fee, cost
                 if field in data and data[field] is not None:
                     try:
@@ -1035,11 +1026,11 @@ class MockExchangeAPI(ExchangeAPI):
                         # Raise error instead of returning None
                         raise ValueError(f"Invalid Decimal value for field '{field}'")
             # Convert timestamps
-            for field in ["time"]:  # Removed last_update_time
+            for field in ["created_at"]:  # Removed last_update_time
                 if field in data and data[field] is not None:
                     # Assuming datetime object or compatible string/int
                     try:
-                        if isinstance(data[field], (int, float)):
+                        if isinstance(data[field], int | float):
                             ts_sec = int(data[field]) / 1000
                             data[field] = datetime.fromtimestamp(ts_sec, tz=UTC)
                         elif isinstance(data[field], str):
@@ -1052,12 +1043,12 @@ class MockExchangeAPI(ExchangeAPI):
                         data[field] = None  # Or raise error if timestamp is mandatory
 
             return Order(**data)
-        except Exception as e:
-            logger.error(f"Mock parse_order failed for data: {data}. Error: {e}")
-            raise ValueError(f"Mock parse_order failed: {e}") from e
+        except Exception as err:
+            logger.error(f"Mock parse_order failed for data: {data}. Error: {err}")
+            raise ValueError(f"Mock parse_order failed: {err}") from err
 
     def parse_order_book(
-        self, data: Any, symbol: str
+        self, data: dict[str, Any], symbol: str
     ) -> OrderBook:  # Ensure implementation raises on failure
         """Parse order book data (placeholder)."""
         try:
@@ -1068,9 +1059,9 @@ class MockExchangeAPI(ExchangeAPI):
             ts_raw = data.get("timestamp", datetime.now(UTC).timestamp() * 1000)
             ts = int(ts_raw) if ts_raw is not None else None  # Convert to int
             return OrderBook(symbol=symbol, bids=bids, asks=asks, timestamp=ts)
-        except Exception as e:
-            logger.error(f"Mock parse_order_book failed for data: {data}. Error: {e}")
-            raise ValueError(f"Mock parse_order_book failed: {e}") from e
+        except Exception as err:
+            logger.error(f"Mock parse_order_book failed for data: {data}. Error: {err}")
+            raise ValueError(f"Mock parse_order_book failed: {err}") from err
 
     def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
         """Parse order update message (placeholder)."""
@@ -1081,8 +1072,8 @@ class MockExchangeAPI(ExchangeAPI):
             if "order_data" in message:
                 return self.parse_order(message["order_data"])
             return None  # Or raise if format is unknown/invalid
-        except Exception as e:
-            logger.error(f"Failed to parse order update message: {message}, Error: {e}")
+        except Exception as err:
+            logger.error(f"Failed to parse order update message: {message}, Error: {err}")
             return None  # Keep returning None for WS messages if parsing fails
 
     def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
@@ -1093,11 +1084,13 @@ class MockExchangeAPI(ExchangeAPI):
             if "symbol" in message and ("bids" in message or "asks" in message):
                 return self.parse_order_book(message, message["symbol"])
             return None
-        except Exception as e:
-            logger.error(f"Failed to parse orderbook message: {message}, Error: {e}")
+        except Exception as err:
+            logger.error(f"Failed to parse orderbook message: {message}, Error: {err}")
             return None  # Keep returning None for WS messages
 
-    def parse_position(self, data: Any) -> Position:  # Ensure implementation raises on failure
+    def parse_position(
+        self, data: dict[str, Any]
+    ) -> Position:  # Ensure implementation raises on failure
         """Parse position data (placeholder)."""
         try:
             # Assuming data is dict-like
@@ -1143,12 +1136,12 @@ class MockExchangeAPI(ExchangeAPI):
                     data["close_time"] = None
 
             return Position(**data)
-        except Exception as e:  # Outer exception block
-            logger.error(f"Mock parse_position failed for data: {data}. Error: {e}")
-            raise ValueError(f"Mock parse_position failed: {e}") from e
+        except Exception as err:  # Outer exception block
+            logger.error(f"Mock parse_position failed for data: {data}. Error: {err}")
+            raise ValueError(f"Mock parse_position failed: {err}") from err
 
     def parse_ticker(
-        self, data: Any, symbol: str
+        self, data: dict[str, Any], symbol: str
     ) -> Ticker:  # Ensure implementation raises on failure
         """Parse ticker data (placeholder)."""
         try:
@@ -1167,9 +1160,9 @@ class MockExchangeAPI(ExchangeAPI):
                             f"Could not convert ticker field '{field}' value '{data[field]}' to Decimal."
                         )
             return Ticker(**data)
-        except Exception as e:
-            logger.error(f"Mock parse_ticker failed for data: {data}. Error: {e}")
-            raise ValueError(f"Mock parse_ticker failed: {e}") from e
+        except Exception as err:
+            logger.error(f"Mock parse_ticker failed for data: {data}. Error: {err}")
+            raise ValueError(f"Mock parse_ticker failed: {err}") from err
 
     def parse_ticker_message(self, message: dict[str, Any]) -> tuple[str, Ticker] | Ticker | None:
         """Parse ticker message (placeholder)."""
@@ -1178,7 +1171,7 @@ class MockExchangeAPI(ExchangeAPI):
         return None
 
     def parse_trade(
-        self, data: Any, symbol: str
+        self, data: dict[str, Any], symbol: str
     ) -> Trade:  # Ensure implementation raises on failure
         """Parse trade data (placeholder)."""
         try:
@@ -1215,9 +1208,9 @@ class MockExchangeAPI(ExchangeAPI):
             data.pop("datetime", None)
 
             return Trade(**data)
-        except Exception as e:  # Outer exception block
-            logger.error(f"Mock parse_trade failed for data: {data}. Error: {e}")
-            raise ValueError(f"Mock parse_trade failed: {e}") from e
+        except Exception as err:  # Outer exception block
+            logger.error(f"Mock parse_trade failed for data: {data}. Error: {err}")
+            raise ValueError(f"Mock parse_trade failed: {err}") from err
 
     def parse_trade_message(
         self, message: dict[str, Any]
@@ -1260,7 +1253,9 @@ class MockExchangeAPI(ExchangeAPI):
         logger.info(f"Mock {self.exchange_name}: Subscribed to trades for {symbol} (simulated).")
 
     # Corrected signature to match base class
-    def _update_rate_limit_from_headers(self, headers: Any, method: str, path: str) -> None:
+    def _update_rate_limit_from_headers(
+        self, headers: Mapping[str, str], method: str, path: str
+    ) -> None:
         """Mock implementation - does nothing (ignores method/path)."""
         # Mark params as unused if necessary for linters
         _ = method
