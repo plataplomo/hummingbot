@@ -156,13 +156,15 @@ class Engine:
                     result = strategy.process_data(data)
                     if asyncio.iscoroutine(result):
                         result = asyncio.get_event_loop().run_until_complete(result)
-                    signals: list[TradeSignal] = []
                     if result is None:
                         continue
+                    # Only process actual TradeSignal objects, not coroutines
                     if isinstance(result, list):
-                        signals = result
-                    else:
+                        signals = [s for s in result if not asyncio.iscoroutine(s)]
+                    elif not asyncio.iscoroutine(result):
                         signals = [result]
+                    else:
+                        continue
                     if not signals:
                         continue
                     for signal in signals:
@@ -174,7 +176,8 @@ class Engine:
                             continue
                         logger.info(
                             f"Strategy '{strategy.name}' generated signal: "
-                            f"{getattr(signal, 'signal_type', 'UNKNOWN')} for {getattr(signal, 'symbol', 'UNKNOWN')}."
+                            f"{getattr(signal, 'signal_type', 'UNKNOWN')} for "
+                            f"{getattr(signal, 'symbol', 'UNKNOWN')}."
                         )
                         self.signal_handler(signal)
                 except Exception as e:
@@ -188,6 +191,7 @@ class Engine:
     def process_dataframe(self, df: pd.DataFrame, symbol: str) -> None:
         """
         Process a pandas DataFrame of historical/batch market data.
+        Expects columns: timestamp (int/str), open/high/low/close/volume (float/str/Decimal).
         Converts rows to MarketData objects and feeds them to process_market_data.
 
         Args:
@@ -205,7 +209,9 @@ class Engine:
             raise ValueError(f"DataFrame missing required columns: {missing}")
 
         logger.info(f"Processing DataFrame for {symbol} with {len(df)} rows.")
+        # Note: pandas typing is incomplete; type warnings for row/iterrows are safe to ignore here.
         for index, row in df.iterrows():
+            # row: pd.Series[Any]  # No need to re-annotate; pandas typing is sufficient
             # Convert to Decimal safely, handle potential errors per row
             try:
                 # Ensure conversion from string for precision
