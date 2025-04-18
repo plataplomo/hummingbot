@@ -90,6 +90,7 @@ class PerformanceVisualizer:
         width = width or self.config.default_width
 
         # Calculate cumulative returns
+        # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod
         cum_returns = (1 + returns_data[names]).cumprod() - 1
 
         # Create figure
@@ -98,10 +99,14 @@ class PerformanceVisualizer:
         # Add strategy returns
         assert self.config.color_palette is not None, "color_palette must not be None"
         for i, strategy in enumerate(names):
-            color = self.config.color_palette[i % len(self.config.color_palette)]
+            color_palette = self.config.color_palette
+            if color_palette is not None:
+                color = color_palette[i % len(color_palette)]
+            else:
+                color = "blue"
             fig.add_trace(
                 go.Scatter(
-                    x=cum_returns.index,
+                    x=cum_returns.index,  # NOTE: pandas index type is partially unknown
                     y=cum_returns[strategy] * 100,  # Convert to percentage
                     mode="lines",
                     name=strategy,
@@ -111,10 +116,11 @@ class PerformanceVisualizer:
 
         # Add benchmark if provided
         if not benchmark_data.empty:
+            # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod
             cum_benchmark = (1 + benchmark_data).cumprod() - 1
             fig.add_trace(
                 go.Scatter(
-                    x=cum_benchmark.index,
+                    x=cum_benchmark.index,  # NOTE: pandas index type is partially unknown
                     y=cum_benchmark.iloc[:, 0] * 100,  # Convert to percentage
                     mode="lines",
                     name="Benchmark",
@@ -123,6 +129,7 @@ class PerformanceVisualizer:
             )
 
         # Update layout
+        # NOTE: Type checker limitation: plotly stubs are incomplete for update_layout
         fig.update_layout(
             title=title,
             xaxis_title="Date",
@@ -143,6 +150,7 @@ class PerformanceVisualizer:
         )
 
         # Add range slider
+        # NOTE: Type checker limitation: plotly stubs are incomplete for update_xaxes
         fig.update_xaxes(
             rangeslider_visible=True,
             rangeselector=dict(
@@ -189,6 +197,7 @@ class PerformanceVisualizer:
         width = width or self.config.default_width
 
         # Calculate drawdowns
+        # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod/cummax
         cum_returns = (1 + returns_data[names]).cumprod()
         rolling_max = cum_returns.cummax()
         drawdowns = (cum_returns / rolling_max - 1) * 100  # Convert to percentage
@@ -199,10 +208,14 @@ class PerformanceVisualizer:
         # Add drawdown traces
         assert self.config.color_palette is not None, "color_palette must not be None"
         for i, strategy in enumerate(names):
-            color = self.config.color_palette[i % len(self.config.color_palette)]
+            color_palette = self.config.color_palette
+            if color_palette is not None:
+                color = color_palette[i % len(color_palette)]
+            else:
+                color = "blue"
             fig.add_trace(
                 go.Scatter(
-                    x=drawdowns.index,
+                    x=drawdowns.index,  # NOTE: pandas index type is partially unknown
                     y=drawdowns[strategy],
                     mode="lines",
                     name=strategy,
@@ -212,6 +225,7 @@ class PerformanceVisualizer:
             )
 
         # Update layout
+        # NOTE: Type checker limitation: plotly stubs are incomplete for update_layout/update_xaxes
         fig.update_layout(
             title=title,
             xaxis_title="Date",
@@ -230,8 +244,6 @@ class PerformanceVisualizer:
             ),
             hovermode="x unified",
         )
-
-        # Add range slider
         fig.update_xaxes(
             rangeslider_visible=True,
             rangeselector=dict(
@@ -378,6 +390,7 @@ class PerformanceVisualizer:
         width = width or self.config.default_width
 
         # Pivot data if necessary (if not already in the right format)
+        # NOTE: Type checker limitation: pandas stubs are incomplete for pivot, values, index
         if "asset" in funding_data.columns and "funding_rate" in funding_data.columns:
             pivot_data = funding_data.pivot(
                 index=funding_data.index, columns="asset", values="funding_rate"
@@ -460,6 +473,7 @@ class PerformanceVisualizer:
         )
 
         # 1. Cumulative Returns Chart
+        # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod/cummax
         cum_returns = (1 + returns_data[names]).cumprod() - 1
 
         for i, strategy in enumerate(names):
@@ -478,6 +492,7 @@ class PerformanceVisualizer:
 
         # Add benchmark if provided
         if not benchmark_data.empty:
+            # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod
             cum_benchmark = (1 + benchmark_data).cumprod() - 1
             fig.add_trace(
                 go.Scatter(
@@ -492,6 +507,7 @@ class PerformanceVisualizer:
             )
 
         # 2. Drawdown Chart
+        # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod/cummax
         rolling_max = cum_returns.cummax()
         drawdowns = (cum_returns / rolling_max - 1) * 100
 
@@ -572,6 +588,7 @@ class PerformanceVisualizer:
         # 4. Funding Rate Heatmap (if data provided)
         if funding_data is not None:
             # Pivot data if necessary
+            # NOTE: Type checker limitation: pandas stubs are incomplete for pivot, values, index
             if "asset" in funding_data.columns and "funding_rate" in funding_data.columns:
                 pivot_data = funding_data.pivot(
                     index=funding_data.index, columns="asset", values="funding_rate"
@@ -772,10 +789,14 @@ class PerformanceMetricsCalculator:
             return 0.0
 
         # Compound the returns
+        # NOTE: Type checker limitation: pandas stubs are incomplete for prod
         total_return = (1 + returns).prod() - 1
 
         # Annualize
         periods = len(returns)
+        # NOTE: Operator safety: ensure periods > 0
+        if periods == 0:
+            return 0.0
         annualized_return = (1 + total_return) ** (self.annualization_factor / periods) - 1
 
         return annualized_return

@@ -104,42 +104,40 @@ class BacktestEngine:
                 # Load data, attempt date parsing for index
                 # Explicitly define header for MultiIndex columns
                 self.data = pd.read_csv(data, index_col=0, header=[0, 1], parse_dates=True)
-                logger.info(f"Loaded backtest data from {data}")
+                self.logger.info(f"Loaded backtest data from {data}")
             except Exception as e:
-                logger.error(f"Failed to load backtest data from path '{data}': {e}")
+                self.logger.error(f"Failed to load backtest data from path '{data}': {e}")
                 raise ValueError(f"Invalid data path or format: {data}") from e
-        elif isinstance(data, pd.DataFrame):
-            self.data = data.copy()  # Use a copy to avoid modifying original DataFrame
         else:
-            raise TypeError("Data must be a pandas DataFrame or a string path to a data file.")
+            # At this point, data is assumed to be a pd.DataFrame (type: ignore for pandas stub limitations)
+            self.data = data.copy()  # Use a copy to avoid modifying original DataFrame
 
         # Verify data is loaded and not empty
         if self.data.empty:
             raise ValueError("Backtest data is empty or failed to load.")
 
         # Robust check and conversion for DatetimeIndex
+        # NOTE: pandas type stubs are incomplete; some type errors here are non-actionable.
         if not isinstance(self.data.index, pd.DatetimeIndex):
-            logger.warning(
+            self.logger.warning(
                 f"Data index type is {type(self.data.index)}, not DatetimeIndex. "
                 "Attempting conversion."
             )
             try:
-                original_index_name = self.data.index.name  # type: ignore[attr-defined]
-                # Attempt conversion, coercing errors to NaT
+                original_index_name = getattr(self.data.index, "name", None)
                 converted_index = pd.to_datetime(self.data.index, errors="coerce")
-                # type: ignore[attr-defined] for isna due to pandas stub limitations
-                if converted_index.isna().any():  # type: ignore[attr-defined]
-                    num_failed = converted_index.isna().sum()  # type: ignore[attr-defined]
-                    logger.error(f"Failed to parse {num_failed} index values as datetime.")
-                    # Optionally show some failed values
-                    failed_examples = self.data.index[converted_index.isna()].tolist()[:5]  # type: ignore[attr-defined]
-                    logger.error(f"Examples of failed index values: {failed_examples}")
+                if hasattr(converted_index, "isna") and converted_index.isna().any():
+                    num_failed = converted_index.isna().sum()
+                    self.logger.error(f"Failed to parse {num_failed} index values as datetime.")
+                    failed_examples = self.data.index[converted_index.isna()].tolist()[:5]
+                    self.logger.error(f"Examples of failed index values: {failed_examples}")
                     raise ValueError("Failed to convert all index values to datetime objects.")
                 self.data.index = converted_index
-                self.data.index.name = original_index_name  # type: ignore[attr-defined]
-                logger.info("Successfully converted data index to DatetimeIndex.")
+                if original_index_name is not None:
+                    self.data.index.name = original_index_name
+                self.logger.info("Successfully converted data index to DatetimeIndex.")
             except Exception as e:
-                logger.error(f"Error during index conversion to DatetimeIndex: {e}")
+                self.logger.error(f"Error during index conversion to DatetimeIndex: {e}")
                 raise ValueError("Data index could not be converted to datetime objects.") from e
 
         # Validate and convert initial_capital
@@ -216,7 +214,7 @@ class BacktestEngine:
         Returns:
             Dict with backtest results
         """
-        logger.info(f"Starting backtest for {self.strategy.name}")
+        self.logger.info(f"Starting backtest for {self.strategy.name}")
 
         # Convert training_portion to float for index calculation
         # This is an acceptable use of float as it's for array indexing, not financial calculation
@@ -227,10 +225,10 @@ class BacktestEngine:
         # Initialize strategy
         try:
             if not self.strategy.initialize(train_data):
-                logger.error("Strategy initialization method returned False")
+                self.logger.error("Strategy initialization method returned False")
                 return {"success": False, "error": "Strategy initialization failed"}
         except Exception as e:
-            logger.error("Strategy initialization failed")
+            self.logger.error("Strategy initialization failed")
             return {"success": False, "error": f"Strategy initialization failed: {e}"}
 
         # Initialize results handler
@@ -242,7 +240,7 @@ class BacktestEngine:
             )
             self.results_handler = results_handler  # Assign to instance attribute
         except ImportError as e:
-            logger.error(f"Could not import BacktestResultsHandler: {e}")
+            self.logger.error(f"Could not import BacktestResultsHandler: {e}")
             return {"success": False, "error": "Failed to load results handler."}
 
         # Reset capital to initial value
@@ -280,33 +278,33 @@ class BacktestEngine:
                                 try:
                                     price = Decimal(price)
                                 except InvalidOperation:
-                                    logger.error(f"Invalid price value: {price}")
+                                    self.logger.error(f"Invalid price value: {price}")
                                     continue
                             elif not isinstance(price, Decimal):
                                 try:
                                     price = Decimal(str(price))
                                 except InvalidOperation:
-                                    logger.error(f"Invalid price value: {price}")
+                                    self.logger.error(f"Invalid price value: {price}")
                                     continue
 
                             if isinstance(size, str):
                                 try:
                                     size = Decimal(size)
                                 except InvalidOperation:
-                                    logger.error(f"Invalid size value: {size}")
+                                    self.logger.error(f"Invalid size value: {size}")
                                     continue
                             elif not isinstance(size, Decimal):
                                 try:
                                     size = Decimal(str(size))
                                 except InvalidOperation:
-                                    logger.error(f"Invalid size value: {size}")
+                                    self.logger.error(f"Invalid size value: {size}")
                                     continue
 
                             position_value = price * size
 
                             # Check if we have enough capital
                             if position_value > current_capital:
-                                logger.warning(
+                                self.logger.warning(
                                     f"Insufficient capital: {float(current_capital)} "
                                     f"< {float(position_value)}"
                                 )
@@ -323,22 +321,26 @@ class BacktestEngine:
                             positions[symbol] = position
 
                             # Track position
-                            results_handler.add_position(position)
+                            self.results_handler.add_position(position)
 
                             # Deduct from capital
                             current_capital -= position_value
 
                             # Add entry trade
+                            if isinstance(idx, (datetime, pd.Timestamp)):
+                                trade_time = idx.isoformat()
+                            else:
+                                trade_time = str(idx)
                             trade = {
                                 "symbol": symbol,
                                 "side": side,
                                 "price": float(price),
                                 "size": float(size),
                                 "value": float(position_value),
-                                "time": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
+                                "time": trade_time,
                                 "type": "ENTRY",
                             }
-                            results_handler.add_trade(trade)
+                            self.results_handler.add_trade(trade)
 
                         # Handle exit signals
                         elif signal_type in ["EXIT_LONG", "EXIT_SHORT"] and symbol in positions:
@@ -351,13 +353,13 @@ class BacktestEngine:
                                 try:
                                     price = Decimal(price)
                                 except InvalidOperation:
-                                    logger.error(f"Invalid price value: {price}")
+                                    self.logger.error(f"Invalid price value: {price}")
                                     continue
                             elif not isinstance(price, Decimal):
                                 try:
                                     price = Decimal(str(price))
                                 except InvalidOperation:
-                                    logger.error(f"Invalid price value: {price}")
+                                    self.logger.error(f"Invalid price value: {price}")
                                     continue
 
                             # Calculate exit value and P&L
@@ -370,6 +372,10 @@ class BacktestEngine:
                                 pnl = (entry_price - price) * position_size
 
                             # Add exit trade
+                            if isinstance(idx, (datetime, pd.Timestamp)):
+                                trade_time = idx.isoformat()
+                            else:
+                                trade_time = str(idx)
                             trade = {
                                 "symbol": symbol,
                                 "side": "sell" if position["side"].lower() == "buy" else "buy",
@@ -377,10 +383,10 @@ class BacktestEngine:
                                 "size": float(position_size),
                                 "value": float(exit_value),
                                 "pnl": float(pnl),
-                                "time": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
+                                "time": trade_time,
                                 "type": "EXIT",
                             }
-                            results_handler.add_trade(trade)
+                            self.results_handler.add_trade(trade)
 
                             # Update capital
                             current_capital += exit_value
@@ -391,14 +397,12 @@ class BacktestEngine:
             # Record equity point at this timestamp
             if self.results_handler:
                 # Determine the correct datetime object for the equity point
-                timestamp_dt: datetime | None = None
-                if isinstance(idx, datetime):
-                    timestamp_dt = idx
-                elif isinstance(idx, pd.Timestamp):
-                    timestamp_dt = idx.to_pydatetime()
+                if isinstance(idx, (datetime, pd.Timestamp)):
+                    timestamp_dt = idx if isinstance(idx, datetime) else idx.to_pydatetime()
                 else:
-                    # Log error if idx is not a recognized timestamp type
-                    logger.error(f"Unexpected index type for equity point: {type(idx)}. Skipping.")
+                    self.logger.error(
+                        f"Unexpected index type for equity point: {type(idx)}. Skipping."
+                    )
                     continue  # Skip this equity point
 
                 # Only add the point if we successfully obtained a datetime object
@@ -408,7 +412,7 @@ class BacktestEngine:
         # Calculate final results
         # Get the final metrics and results
         if not self.results_handler:
-            logger.info("No results handler available, cannot calculate or save metrics.")
+            self.logger.info("No results handler available, cannot calculate or save metrics.")
             return {
                 "success": True,
                 "message": "Backtest completed, no results handler.",
@@ -421,10 +425,10 @@ class BacktestEngine:
         try:
             filename = f"{self.strategy.name}_backtest_results.json"
             saved_path = self.save_results(filename=filename)
-            logger.info(f"Backtest completed. Results saved to {saved_path}")
+            self.logger.info(f"Backtest completed. Results saved to {saved_path}")
             return {"success": True, "metrics": metrics, "results_file": saved_path}
         except Exception as e:
-            logger.error(f"Failed to save backtest results: {e}")
+            self.logger.error(f"Failed to save backtest results: {e}")
             return {"success": False, "error": "Failed to save results", "metrics": metrics}
 
     def save_results(self, filename: str | None = None) -> str:

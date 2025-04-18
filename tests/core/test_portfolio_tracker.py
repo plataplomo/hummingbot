@@ -26,12 +26,24 @@ class TestPortfolioTracker:
     def config(self) -> MagicMock:
         """Create a mock config for testing."""
         config = MagicMock()
-        config.get.side_effect = lambda key, default=None: {
-            "exchanges": {"hyperliquid": {}, "backpack": {}},
-            "exchanges.hyperliquid.enabled": True,
-            "exchanges.backpack.enabled": True,
-            "portfolio.reconciliation_interval": 300,
-        }.get(key, default)
+
+        # Explicitly type the side effect function for config.get
+        def get_config_value(key: str, default: object = None) -> object:
+            """
+            Mocked config.get implementation.
+            Returns values for known keys, otherwise returns the provided default.
+            Type: (str, object) -> object
+            Note: This is a test mock; in production, config values should be strictly typed.
+            """
+            config_dict: dict[str, object] = {
+                "exchanges": {"hyperliquid": {}, "backpack": {}},
+                "exchanges.hyperliquid.enabled": True,
+                "exchanges.backpack.enabled": True,
+                "portfolio.reconciliation_interval": 300,
+            }
+            return config_dict.get(key, default)
+
+        config.get.side_effect = get_config_value
         return config
 
     @pytest.fixture
@@ -91,30 +103,28 @@ class TestPortfolioTracker:
         return {
             "hyperliquid": [
                 Order(
-                    id="hl-order-1",
-                    type=OrderType.LIMIT,
+                    client_order_id="hl-order-1",
+                    order_type=OrderType.LIMIT,
                     symbol="BTC",
                     side=OrderSide.BUY,
                     price=Decimal("49000.0"),
-                    quantity=Decimal("0.5"),
-                    filled_quantity=Decimal("0.0"),
+                    quantity_requested=Decimal("0.5"),
+                    quantity_filled=Decimal("0.0"),
                     status=OrderStatus.NEW,
-                    client_order_id="client-order-1",
-                    time=datetime.now(UTC),  # Add time
+                    created_at=datetime.now(UTC),
                 )
             ],
             "backpack": [
                 Order(
-                    id="bp-order-1",
-                    type=OrderType.MARKET,
+                    client_order_id="bp-order-1",
+                    order_type=OrderType.MARKET,
                     symbol="ETH",
                     side=OrderSide.SELL,
                     price=None,
-                    quantity=Decimal("5.0"),
-                    filled_quantity=Decimal("5.0"),
+                    quantity_requested=Decimal("5.0"),
+                    quantity_filled=Decimal("5.0"),
                     status=OrderStatus.FILLED,
-                    client_order_id="client-order-2",
-                    time=datetime.now(UTC),  # Add time
+                    created_at=datetime.now(UTC),
                 )
             ],
         }
@@ -170,7 +180,7 @@ class TestPortfolioTracker:
         # Verify orders were stored properly
         for exchange_id, orders in sample_orders.items():
             for order in orders:
-                stored_order = portfolio_tracker._orders[exchange_id].get(order.id)  # Use 'id'
+                stored_order = portfolio_tracker._orders[exchange_id].get(order.client_order_id)
                 assert stored_order is not None
 
     @pytest.mark.asyncio
@@ -233,18 +243,16 @@ class TestPortfolioTracker:
     def test_update_order(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test updating an order in the portfolio tracker."""
         # Create a new order
-        # Create a new order using correct field names
         order = Order(
-            id="test-order-1",  # Use 'id'
+            client_order_id="test-order-1",
             symbol="BTC",
             side=OrderSide.BUY,
-            type=OrderType.LIMIT,  # Use 'type'
+            order_type=OrderType.LIMIT,
             price=Decimal("50000.0"),
-            quantity=Decimal("1.0"),
-            filled_quantity=Decimal("0.0"),
+            quantity_requested=Decimal("1.0"),
+            quantity_filled=Decimal("0.0"),
             status=OrderStatus.NEW,
-            time=datetime.now(UTC),  # Use 'time'
-            client_order_id="client-order-3",
+            created_at=datetime.now(UTC),
         )
 
         # Update the order in the tracker
@@ -253,24 +261,24 @@ class TestPortfolioTracker:
         # Verify the order was stored
         # Retrieve the order from history/open orders
         history = portfolio_tracker.get_order_history("hyperliquid")
-        stored_order = next((o for o in history if o.id == "test-order-1"), None)
+        stored_order = next((o for o in history if o.client_order_id == "test-order-1"), None)
         assert stored_order is not None
-        assert stored_order.id == "test-order-1"  # Use 'id'
+        assert stored_order.client_order_id == "test-order-1"
         assert stored_order.symbol == "BTC"
         assert stored_order.side == OrderSide.BUY
 
         # Update the order status to filled
-        order.status = OrderStatus.FILLED  # Use Enum member
-        order.filled_quantity = Decimal("1.0")
+        order.status = OrderStatus.FILLED
+        order.quantity_filled = Decimal("1.0")
         portfolio_tracker.update_order("hyperliquid", order)
 
         # Verify the order was updated
         # Retrieve the order from history/open orders
         history = portfolio_tracker.get_order_history("hyperliquid")
-        stored_order = next((o for o in history if o.id == "test-order-1"), None)
-        assert stored_order is not None  # Check for None before accessing attributes
-        assert stored_order.status == OrderStatus.FILLED  # Compare Enum member directly
-        assert stored_order.filled_quantity == Decimal("1.0")
+        stored_order = next((o for o in history if o.client_order_id == "test-order-1"), None)
+        assert stored_order is not None
+        assert stored_order.status == OrderStatus.FILLED
+        assert stored_order.quantity_filled == Decimal("1.0")
 
     def test_update_position(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test updating a position in the portfolio tracker."""
@@ -290,7 +298,7 @@ class TestPortfolioTracker:
         portfolio_tracker.update_position("hyperliquid", position)
 
         # Verify the position was stored
-        stored_position = portfolio_tracker.get_position("hyperliquid", "BTC")
+        stored_position = portfolio_tracker._positions["hyperliquid"].get("BTC")  # noqa: SLF001  # White-box test: no public getter exists
         assert stored_position is not None
         assert stored_position.symbol == "BTC"
         assert stored_position.size == Decimal("1.0")
@@ -302,8 +310,8 @@ class TestPortfolioTracker:
         portfolio_tracker.update_position("hyperliquid", position)
 
         # Verify the position was updated
-        stored_position = portfolio_tracker.get_position("hyperliquid", "BTC")
-        assert stored_position is not None  # Check for None before accessing attributes
+        stored_position = portfolio_tracker._positions["hyperliquid"].get("BTC")  # noqa: SLF001  # White-box test: no public getter exists
+        assert stored_position is not None
         assert stored_position.mark_price == Decimal("52000.0")
         assert stored_position.unrealized_pnl == Decimal("2000.0")
 
@@ -436,7 +444,7 @@ class TestPortfolioTracker:
         assert "BTC" in symbols
         assert "ETH" in symbols
 
-    def test_get_order_by_id(  # Renamed test
+    def test_get_order_by_id(
         self, portfolio_tracker: PortfolioTracker, sample_orders: dict[str, list[Order]]
     ) -> None:
         """Test getting an order by ID."""
@@ -446,24 +454,18 @@ class TestPortfolioTracker:
                 portfolio_tracker.update_order(exchange_id, order)
 
         # Test getting orders using the correct method and attribute
-        hl_order = portfolio_tracker.get_order_by_id(
-            "hyperliquid", "hl-order-1"
-        )  # Use get_order_by_id
+        hl_order = portfolio_tracker.get_order_by_id("hyperliquid", "hl-order-1")
         assert hl_order is not None
-        assert hl_order.id == "hl-order-1"  # Use correct attribute 'id'
+        assert hl_order.client_order_id == "hl-order-1"
         assert hl_order.symbol == "BTC"
 
-        bp_order = portfolio_tracker.get_order_by_id(
-            "backpack", "bp-order-1"
-        )  # Use get_order_by_id
+        bp_order = portfolio_tracker.get_order_by_id("backpack", "bp-order-1")
         assert bp_order is not None
-        assert bp_order.id == "bp-order-1"  # Use correct attribute 'id'
+        assert bp_order.client_order_id == "bp-order-1"
         assert bp_order.symbol == "ETH"
 
         # Test getting a non-existent order using the correct method
-        assert (
-            portfolio_tracker.get_order_by_id("hyperliquid", "non-existent") is None
-        )  # Use get_order_by_id
+        assert portfolio_tracker.get_order_by_id("hyperliquid", "non-existent") is None
 
     def test_get_open_orders(
         self, portfolio_tracker: PortfolioTracker, sample_orders: dict[str, list[Order]]
@@ -476,60 +478,51 @@ class TestPortfolioTracker:
 
         # Add an order that should be considered open
         open_order = Order(
-            id="hl-order-open",  # Use 'id'
+            client_order_id="hl-order-open",
+            order_type=OrderType.LIMIT,
             symbol="BTC",
             side=OrderSide.BUY,
-            type=OrderType.LIMIT,  # Use 'type'
             price=Decimal("51000.0"),
-            quantity=Decimal("0.5"),
-            filled_quantity=Decimal("0.1"),  # Partially filled
-            status=OrderStatus.PARTIALLY_FILLED,  # Use Enum member
-            # timestamp removed as it's not an init parameter
-            client_order_id="client-order-open",
-            # Add required 'time' if missing (assuming it might be needed)
-            # If Order model requires 'time' in __init__, add it here:
-            time=datetime.now(UTC),  # Check Order model definition if 'time' is required
+            quantity_requested=Decimal("0.5"),
+            quantity_filled=Decimal("0.1"),
+            status=OrderStatus.PARTIALLY_FILLED,
+            created_at=datetime.now(UTC),
         )
         portfolio_tracker.update_order("hyperliquid", open_order)
 
         # Add an order that should NOT be considered open
-        # Applying fix based on actual content and inferred signature
         cancelled_order = Order(
-            id="hl-order-2",  # Use 'id'
-            type=OrderType.LIMIT,  # Add 'type'
+            client_order_id="hl-order-2",
+            order_type=OrderType.LIMIT,
             symbol="BTC",
             side=OrderSide.SELL,
             price=Decimal("53000.0"),
-            quantity=Decimal("0.3"),
-            filled_quantity=Decimal("0.0"),
+            quantity_requested=Decimal("0.3"),
+            quantity_filled=Decimal("0.0"),
             status=OrderStatus.CANCELED,
-            client_order_id="client-order-4",
-            # timestamp removed
+            created_at=datetime.now(UTC),
         )
         portfolio_tracker.update_order("hyperliquid", cancelled_order)
 
         # Test getting open orders (only NEW and PARTIALLY_FILLED should be included)
         open_orders = portfolio_tracker.get_open_orders("hyperliquid")
-        # Original hl-order-1 (status NEW) should also be open if added correctly
-        # Check if hl-order-1 exists and has status NEW
-        initial_open_order = portfolio_tracker.get_order("hyperliquid", "hl-order-1")
+        initial_open_order = portfolio_tracker.get_order_by_id("hyperliquid", "hl-order-1")
         expected_count = 0
         if initial_open_order and initial_open_order.status == OrderStatus.NEW:
             expected_count += 1
-        if open_order.status == OrderStatus.PARTIALLY_FILLED:  # Our added open order
+        if open_order.status == OrderStatus.PARTIALLY_FILLED:
             expected_count += 1
 
         assert len(open_orders) == expected_count
         assert all(o.status in [OrderStatus.NEW, OrderStatus.PARTIALLY_FILLED] for o in open_orders)
-        # Ensure the cancelled order is not present
-        assert not any(o.id == "hl-order-2" for o in open_orders)  # Use 'id'
+        assert not any(o.client_order_id == "hl-order-2" for o in open_orders)
 
-    def test_to_dict_and_from_dict(  # TODO: Review this test logic, esp. from_dict
+    def test_to_dict_and_from_dict(
         self,
         portfolio_tracker: PortfolioTracker,
         sample_balances: dict[str, dict[str, Decimal]],
-        sample_positions: dict[str, list[Position]],  # Corrected hint
-        sample_orders: dict[str, list[Order]],  # Corrected hint
+        sample_positions: dict[str, list[Position]],
+        sample_orders: dict[str, list[Order]],
     ) -> None:
         """Test serialization and deserialization of the portfolio tracker state."""
         # Set up some test data
@@ -552,13 +545,6 @@ class TestPortfolioTracker:
         new_tracker = PortfolioTracker(portfolio_tracker.config)
 
         # Deserialize the state
-        # Pass config to from_dict if it's a class method needing it
-        # Assuming from_dict is intended to load state into an existing instance here,
-        # but if it's a classmethod constructor, the call would be different:
-        # new_tracker = PortfolioTracker.from_dict(portfolio_tracker.config, state_dict)
-        # For now, assuming instance method and modifying call - this might be wrong.
-        # Call from_dict as a class method, passing config
-        # Call from_dict as a class method, passing config
         new_tracker = PortfolioTracker.from_dict(state_dict, portfolio_tracker.config)
 
         # Verify balances were restored
@@ -579,17 +565,34 @@ class TestPortfolioTracker:
         # Verify orders were restored
         for exchange_id, orders in sample_orders.items():
             for order in orders:
-                # Verify orders were restored by checking history
                 history = new_tracker.get_order_history(exchange_id)
-                restored_order = next((o for o in history if o.id == order.id), None)
-                assert restored_order is not None, (
-                    f"Order {order.id} not found in history for {exchange_id}"
+                restored_order = next(
+                    (o for o in history if o.client_order_id == order.client_order_id), None
                 )
-                # Compare relevant fields (adjust as needed based on Order definition)
+                assert restored_order is not None
                 assert restored_order.symbol == order.symbol
                 assert restored_order.side == order.side
-                assert restored_order.type == order.type
-                assert restored_order.quantity == order.quantity
-                assert restored_order.price == order.price  # Price might differ if market order
+                assert restored_order.order_type == order.order_type
+                assert restored_order.quantity_requested == order.quantity_requested
+                assert restored_order.quantity_filled == order.quantity_filled
+                assert restored_order.price == order.price
                 assert restored_order.status == order.status
-                # assert restored_order.filled_quantity == order.filled_quantity # May change
+
+    def test_last_reconciliation_time(self, portfolio_tracker: PortfolioTracker) -> None:
+        """Test the last_reconciliation_time attribute."""
+        # Verify initial state
+        assert portfolio_tracker._last_reconciliation_time is None  # noqa: SLF001  # White-box test: no public getter exists
+
+        # Set last reconciliation time
+        previous_time = datetime.now(UTC)
+        portfolio_tracker._last_reconciliation_time = previous_time
+        assert portfolio_tracker._last_reconciliation_time == previous_time  # noqa: SLF001  # White-box test: no public getter exists
+
+        # Verify subsequent updates
+        expected_time = datetime.now(UTC)
+        portfolio_tracker._last_reconciliation_time = expected_time
+        assert portfolio_tracker._last_reconciliation_time == expected_time  # noqa: SLF001  # White-box test: no public getter exists
+
+        # Verify reset
+        portfolio_tracker._last_reconciliation_time = None
+        assert portfolio_tracker._last_reconciliation_time is None  # noqa: SLF001  # White-box test: no public getter exists

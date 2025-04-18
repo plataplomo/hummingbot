@@ -27,6 +27,7 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
+from cyberdelta.utils.parsing import parse_decimal_value
 
 logger = logging.getLogger(__name__)
 
@@ -775,7 +776,18 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e
 
     async def get_ticker(self, symbol: str) -> Ticker:
-        """Get current ticker information for a symbol."""
+        """
+        Get current ticker information for a symbol.
+
+        Args:
+            symbol: The trading symbol to fetch ticker data for.
+
+        Returns:
+            Ticker: The current ticker data with Decimal-typed financial fields.
+
+        Raises:
+            APIError: If ticker data is not found or response is malformed.
+        """
         try:
             payload = {"type": "metaAndAssetCtxs"}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
@@ -784,18 +796,19 @@ class HyperliquidAPI(ExchangeAPI):
                 asset_contexts = response[1]
                 if isinstance(asset_contexts, list):
                     for ctx in asset_contexts:
-                        # Explicitly annotate ctx as dict[str, Any] per API contract
-                        ctx: dict[str, Any] = ctx
+                        # ctx is expected to be dict[str, Any] per API contract
                         if ctx.get("name") == symbol:
                             # mark_px is expected to be Any or None per API contract
                             mark_px = ctx.get("markPx")
                             if mark_px is not None:
-                                # mark_px is expected to be float or str convertible to float per API contract
+                                # Use robust Decimal parsing for all financial fields (see decimal rule)
+                                bid = parse_decimal_value(mark_px, allow_none=True)
+                                ask = parse_decimal_value(mark_px, allow_none=True)
+                                # 'last' is not a valid argument for Ticker; only use valid fields
                                 return Ticker(
                                     symbol=symbol,
-                                    bid=float(mark_px),
-                                    ask=float(mark_px),
-                                    last=float(mark_px),
+                                    bid=bid,
+                                    ask=ask,
                                     timestamp=int(time.time() * 1000),
                                 )
             logger.warning(
@@ -832,7 +845,7 @@ class HyperliquidAPI(ExchangeAPI):
 
                 if isinstance(levels, list) and len(levels) > 1:
                     # Process bids
-                    bid_levels: list[Any] = levels[0]  # type: ignore  # API contract: list
+                    bid_levels: list[Any] = levels[0]  # API contract: list
                     if isinstance(bid_levels, list):
                         for level in bid_levels:
                             if isinstance(level, list) and len(level) >= 2:
@@ -844,7 +857,7 @@ class HyperliquidAPI(ExchangeAPI):
                                     logger.warning(f"Error parsing bid level {level}: {e}")
 
                     # Process asks
-                    ask_levels: list[Any] = levels[1]  # type: ignore  # API contract: list
+                    ask_levels: list[Any] = levels[1]  # API contract: list
                     if isinstance(ask_levels, list):
                         for level in ask_levels:
                             if isinstance(level, list) and len(level) >= 2:
@@ -916,10 +929,18 @@ class HyperliquidAPI(ExchangeAPI):
                                 Trade(
                                     id=trade_id,
                                     symbol=symbol,
-                                    timestamp=timestamp_ms,
+                                    executed_at=datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC),
                                     side=side,
+                                    order_id=trade_id,
+                                    exchange="hyperliquid",
+                                    client_order_id="",
                                     price=price,
                                     quantity=quantity,
+                                    cost=price * quantity,
+                                    fee=Decimal("0"),
+                                    fee_asset="USDC",
+                                    is_maker=False,
+                                    timestamp=timestamp_ms,
                                 )
                             )
                         except (ValueError, TypeError) as e:
@@ -1153,17 +1174,17 @@ class HyperliquidAPI(ExchangeAPI):
             elif Decimal(str(remaining_str)) < Decimal(str(size_str)):
                 status = OrderStatus.PARTIALLY_FILLED
             return Order(
-                id=order_id,
-                client_order_id=data.get("cloid", ""),
+                client_order_id=data.get("cloid", order_id),
+                exchange_order_id=order_id,
                 symbol=symbol,
                 side=side,
-                type=order_type,
-                price=Decimal(str(price_str)),
-                quantity=Decimal(str(size_str)),
-                filled_quantity=filled_qty,
+                order_type=order_type,
                 status=status,
-                time=timestamp,
-                reduce_only=data.get("reduceOnly", False),
+                quantity_requested=Decimal(str(size_str)),
+                quantity_filled=filled_qty,
+                price=Decimal(str(price_str)),
+                average_fill_price=None,  # Set if available
+                created_at=datetime.fromtimestamp(timestamp / 1000, tz=UTC),
             )
         except Exception as e:
             logger.error(f"Error parsing order data: {e}")
@@ -1466,11 +1487,18 @@ class HyperliquidAPI(ExchangeAPI):
                 trade = Trade(
                     id=f"{order_id}_{time_ms}",
                     symbol=coin,
-                    timestamp=time_ms,
+                    executed_at=datetime.fromtimestamp(time_ms / 1000, tz=UTC),
                     side=side,
+                    order_id=order_id,
+                    exchange="hyperliquid",
+                    client_order_id="",
                     price=price,
                     quantity=quantity,
+                    cost=price * quantity,
+                    fee=Decimal("0"),
+                    fee_asset="USDC",
                     is_maker=False,  # Assuming fills are taker trades
+                    timestamp=time_ms,
                 )
                 trades.append(trade)
             except (ValueError, TypeError) as e:

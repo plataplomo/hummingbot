@@ -1,4 +1,4 @@
-from cyberdelta.apis.models import OrderUpdateEvent, PlaceOrderRequest, TradeFillEvent
+from cyberdelta.apis.models.api import OrderUpdateEvent, PlaceOrderRequest, TradeFillEvent
 
 __all__ = [
     "OrderUpdateEvent",
