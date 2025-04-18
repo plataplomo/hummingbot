@@ -15,6 +15,7 @@ from cyberdelta.apis.base import (  # Use absolute import
     ExchangeAPI,
     MessageHandler,
 )
+from cyberdelta.apis.models.backpack_api_models import BackpackRawOrder
 from cyberdelta.apis.models.enums import APIErrorCode
 from cyberdelta.core.models import (  # Use absolute import
     Balance,
@@ -29,6 +30,7 @@ from cyberdelta.core.models import (  # Use absolute import
     TimeInForce,
     Trade,
 )
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
 
@@ -1036,3 +1038,94 @@ class BackpackAPI(ExchangeAPI):
 
     # TODO: Implement remaining abstract methods from ExchangeAPI
     #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)
+
+
+def _parse_api_order_to_internal_order(raw_data: dict[str, object]) -> Order:
+    """
+    Parses a raw order dictionary from Backpack API into the internal Order model.
+    1. Validates raw data against BackpackRawOrder schema.
+    2. Transforms validated raw data into the CyberDeltaEngine Order model.
+
+    Args:
+        raw_data: Raw order data from Backpack API (dict)
+    Returns:
+        Order: Standardized Order object for CyberDeltaEngine
+    Raises:
+        APIError: If validation or transformation fails
+    """
+    try:
+        # 1. VALIDATE against the raw API structure model
+        raw_order = BackpackRawOrder.model_validate(raw_data)
+
+        # 2. TRANSFORM validated raw data into your INTERNAL Order model
+        # Map status
+        try:
+            order_status_enum = OrderStatus[raw_order.status.upper()]
+        except KeyError:
+            logger.warning(
+                f"Unknown Backpack order status '{raw_order.status}', mapping to UNKNOWN."
+            )
+            order_status_enum = OrderStatus.UNKNOWN
+
+        # Map side (Backpack: 'Bid'/'Ask', 'buy'/'sell', etc.)
+        side_val = raw_order.side.lower()
+        if side_val in ("buy", "bid"):
+            order_side_enum = OrderSide.BUY
+        elif side_val in ("sell", "ask"):
+            order_side_enum = OrderSide.SELL
+        else:
+            logger.warning(f"Unknown Backpack order side '{raw_order.side}', defaulting to BUY.")
+            order_side_enum = OrderSide.BUY
+
+        # Map order type (Backpack: 'LIMIT', 'MARKET', etc.)
+        order_type_val = raw_order.order_type.lower()
+        try:
+            order_type_enum = OrderType(order_type_val)
+        except ValueError:
+            logger.warning(
+                f"Unknown Backpack order type '{raw_order.order_type}', defaulting to LIMIT."
+            )
+            order_type_enum = OrderType.LIMIT
+
+        parsed_price = parse_decimal_value(raw_order.price)
+        parsed_avg_fill_price = parse_decimal_value(raw_order.average_fill_price)
+        parsed_created_at = parse_datetime_utc(raw_order.created_at)
+        if parsed_created_at is None:
+            raise ValueError("Failed to parse created_at timestamp from raw order")
+
+        parsed_quantity = parse_decimal_value(raw_order.quantity, allow_none=False)
+        parsed_quantity_filled = parse_decimal_value(raw_order.quantity_filled, allow_none=False)
+        if parsed_quantity is None or parsed_quantity_filled is None:
+            raise ValueError("Failed parsing required quantity fields")
+
+        internal_order = Order(
+            client_order_id=raw_order.client_order_id or "",
+            exchange_order_id=raw_order.exchange_order_id,
+            symbol=raw_order.symbol,
+            side=order_side_enum,
+            order_type=order_type_enum,
+            status=order_status_enum,
+            quantity_requested=parsed_quantity,
+            quantity_filled=parsed_quantity_filled,
+            price=parsed_price,
+            average_fill_price=parsed_avg_fill_price,
+            created_at=parsed_created_at,
+            updated_at=parse_datetime_utc(raw_order.updated_at) if raw_order.updated_at else None,
+        )
+        return internal_order
+
+    except ValidationError as e:
+        logger.error(f"Pydantic validation failed for raw order data: {e}. Data: {raw_data}")
+        raise APIError(
+            f"Invalid raw order data structure from Backpack: {e}", code=APIErrorCode.INVALID_PARAMS
+        ) from e
+    except (ValueError, TypeError, KeyError) as e:
+        logger.error(f"Error transforming raw Backpack order data: {e}. Data: {raw_data}")
+        raise APIError(
+            f"Error processing order data fields: {e}", code=APIErrorCode.INVALID_PARAMS
+        ) from e
+    except Exception as e:
+        logger.error(
+            f"Unexpected error parsing Backpack order: {e}. Data: {raw_data}", exc_info=True
+        )
+        raise APIError(f"Unexpected error parsing order: {e}", code=APIErrorCode.UNKNOWN) from e
