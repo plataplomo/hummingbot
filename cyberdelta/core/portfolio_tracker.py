@@ -16,6 +16,7 @@ from cyberdelta.core.models import (
     Position,
     Trade,
 )
+from cyberdelta.core.risk_manager import ExchangeBalance
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger
 
@@ -63,9 +64,11 @@ class PortfolioTracker:
         ] = {}  # exchange -> last reconciliation time
 
         # Reconciliation interval (5 minutes by default)
-        self.reconciliation_interval: int = config.get(
-            "portfolio.reconciliation_interval", 300
-        )  # seconds
+        interval = config.get("portfolio.reconciliation_interval", 300)
+        if isinstance(interval, int | float | str):
+            self.reconciliation_interval = int(interval)
+        else:
+            self.reconciliation_interval = 300  # seconds
 
         # Initialize data structures
         self._initialize_data_structures()
@@ -84,7 +87,9 @@ class PortfolioTracker:
 
     def _initialize_data_structures(self) -> None:
         """Initialize data structures for all configured exchanges."""
-        for exchange_id in self.config.get("exchanges", {}).keys():
+        exchanges_raw = self.config.get("exchanges", {})
+        exchanges: dict[str, Any] = exchanges_raw if isinstance(exchanges_raw, dict) else {}
+        for exchange_id in [str(k) for k in exchanges.keys()]:
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 continue
 
@@ -202,7 +207,8 @@ class PortfolioTracker:
                         continue  # Skip this item
                 processed = True
             else:
-                # Defensive: balances_data is expected to be a list by type hint; isinstance check removed.
+                # Defensive: balances_data is expected to be a list by type hint.
+                # isinstance check removed.
                 logger.debug(f"[FETCH_BALANCES:{exchange_id}] Processing LIST.")
                 for balance_item in balances_data:
                     item_asset: str | None = None
@@ -747,18 +753,26 @@ class PortfolioTracker:
 
         self._last_update_time[exchange_id] = datetime.now(UTC)
 
-    def get_exchange_balance(self, exchange_id: str, asset: str) -> Balance | None:
+    def get_exchange_balance(self, exchange: str, asset: str) -> ExchangeBalance | None:
         """
-        Get the balance object for a specific asset on an exchange.
+        Get the exchange balance for a specific asset, as required by PortfolioTrackerProtocol.
 
         Args:
-            exchange_id: Exchange identifier
+            exchange: Exchange identifier (protocol-compliant name)
             asset: Asset symbol
 
         Returns:
-            Balance object or None if not found.
+            ExchangeBalance TypedDict with at least 'available', or None if not found.
         """
-        return self._balances.get(exchange_id, {}).get(asset)
+        bal = self._balances.get(exchange, {}).get(asset)
+        if bal is None:
+            return None
+        # Protocol requires at least 'available' (Decimal)
+        return {
+            "available": bal.available
+            if hasattr(bal, "available") and bal.available is not None
+            else bal.total
+        }
 
     def get_total_capital(self, base_currency: str = "USDC") -> Decimal:
         """
@@ -800,8 +814,7 @@ class PortfolioTracker:
             size = position.size
             mark_price = position.mark_price
             # Defensive: mark_price may be None if not yet updated from exchange API.
-            # pyright: ignore[reportAlwaysTrue]
-            if size is not None and mark_price is not None:
+            if mark_price is not None:
                 exposure += abs(size) * mark_price
         return exposure
 
@@ -812,9 +825,7 @@ class PortfolioTracker:
             for position in exchange_positions.values():
                 size = position.size
                 mark_price = position.mark_price
-                # Defensive: mark_price may be None if not yet updated from exchange API.
-                # pyright: ignore[reportAlwaysTrue]
-                if size is not None and mark_price is not None:
+                if mark_price is not None:
                     total_exposure += size * mark_price
         return total_exposure
 
@@ -832,11 +843,9 @@ class PortfolioTracker:
                 mark_price = position.mark_price
                 entry_price = position.entry_price
                 size = position.size
-                # Defensive: mark_price, entry_price, and size may be None if not yet updated from exchange API.
-                # pyright: ignore[reportAlwaysTrue]
                 if unrealized_pnl is not None:
                     total_unrealized_pnl += unrealized_pnl
-                elif mark_price is not None and entry_price is not None and size is not None:
+                elif mark_price is not None:
                     pnl = (mark_price - entry_price) * size
                     if position.side == OrderSide.SELL:
                         pnl = -pnl
@@ -1110,3 +1119,21 @@ class PortfolioTracker:
         self._initialize_data_structures()
         # Optionally, log the reset event
         logger.info("PortfolioTracker state has been reset.")
+
+    async def load_state(self) -> None:
+        """
+        Placeholder for loading persisted portfolio state from storage.
+        In production, implement loading from disk or a database.
+        """
+        logger.info("PortfolioTracker.load_state called (no-op placeholder)")
+
+    async def initialize_portfolio(self) -> None:
+        """
+        Initialize the portfolio by fetching balances, positions, and orders from exchanges.
+        This is a wrapper for self.initialize() for compatibility with main.py.
+        """
+        logger.info(
+            "PortfolioTracker.initialize_portfolio called; "
+            "initializing portfolio state from exchanges."
+        )
+        await self.initialize()

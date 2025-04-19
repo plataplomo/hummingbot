@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, cast
@@ -33,7 +33,7 @@ class Engine:
         self.enabled_strategies: set[str] = set()  # Track enabled strategy names
         self.active_symbols: set[str] = set()  # Track symbols monitored by strategies
         # Must be set via set_signal_handler
-        self.signal_handler: Callable[[TradeSignal], None] | None = None
+        self.signal_handler: Callable[[TradeSignal], Awaitable[None]] | None = None
         self.is_running = False
         self.start_time: datetime | None = None
         self.last_data_time: datetime | None = None
@@ -113,20 +113,20 @@ class Engine:
         # self._refresh_active_symbols()
         logger.info(f"Disabled strategy '{strategy_name}'.")
 
-    def set_signal_handler(self, handler: Callable[[TradeSignal], None]) -> None:
+    def set_signal_handler(self, handler: Callable[[TradeSignal], Awaitable[None]]) -> None:
         """
-        Set the single handler responsible for processing generated TradeSignals.
+        Set the single async handler responsible for processing generated TradeSignals.
         This should typically be the entry point for the RiskManager or a SignalQueue.
 
         Args:
-            handler: The callable that accepts a TradeSignal.
+            handler: The async callable that accepts a TradeSignal.
         """
         self.signal_handler = handler
         # Use getattr for safe name retrieval, fallback to repr
         handler_name = getattr(handler, "__name__", repr(handler))
         logger.info(f"Signal handler set to: {handler_name}")
 
-    def process_market_data(self, data: MarketData) -> None:
+    async def process_market_data(self, data: MarketData) -> None:
         """
         Process incoming market data.
         Routes the data to relevant, enabled strategies based on symbol.
@@ -155,7 +155,7 @@ class Engine:
                 try:
                     result = strategy.process_data(data)
                     if asyncio.iscoroutine(result):
-                        result = asyncio.get_event_loop().run_until_complete(result)
+                        result = await result
                     if result is None:
                         continue
                     # Only process actual TradeSignal objects, not coroutines
@@ -179,7 +179,7 @@ class Engine:
                             f"{getattr(signal, 'signal_type', 'UNKNOWN')} for "
                             f"{getattr(signal, 'symbol', 'UNKNOWN')}."
                         )
-                        self.signal_handler(signal)
+                        await self.signal_handler(signal)
                 except Exception as e:
                     logger.error(
                         f"Error processing data in strategy '{strategy.name}': {e}",
@@ -188,7 +188,7 @@ class Engine:
                         exc_info=True,
                     )
 
-    def process_dataframe(self, df: pd.DataFrame, symbol: str) -> None:
+    async def process_dataframe(self, df: pd.DataFrame, symbol: str) -> None:
         """
         Process a pandas DataFrame of historical/batch market data.
         Expects columns: timestamp (int/str), open/high/low/close/volume (float/str/Decimal).
@@ -254,7 +254,7 @@ class Engine:
                 volume=volume_p,
             )
             # Delegate processing to the main method
-            self.process_market_data(data)
+            await self.process_market_data(data)
         logger.info(f"Finished processing DataFrame for {symbol}.")
 
     def start(self) -> None:

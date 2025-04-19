@@ -762,3 +762,20 @@ class DataHandler:
             asyncio.get_running_loop().create_task(unregister())
         except RuntimeError:
             asyncio.run(unregister())
+
+    async def run(self, cancellation_token: asyncio.Event) -> None:
+        """
+        Asynchronous run loop for the DataHandler. Periodically logs activity and checks for cancellation.
+
+        Args:
+            cancellation_token: An asyncio.Event used to signal shutdown.
+        """
+        logger.info("DataHandler run loop started.")
+        try:
+            while not cancellation_token.is_set():
+                logger.debug("DataHandler run loop heartbeat.")
+                await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            logger.info("DataHandler run loop cancelled.")
+        finally:
+            logger.info("DataHandler run loop stopped.")

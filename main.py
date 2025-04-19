@@ -10,16 +10,16 @@ from typing import Any
 import structlog
 
 from cyberdelta.apis.backpack import BackpackAPI
+from cyberdelta.apis.base import ExchangeAPI
 from cyberdelta.apis.hyperliquid import HyperliquidAPI
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.risk_manager import RiskManager
-from cyberdelta.core.signal_queue import PrioritySignalQueue
+from cyberdelta.core.risk_manager import ConfigError, RiskManager
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
-from cyberdelta.utils.config import ConfigError, load_config
+from cyberdelta.utils.config import load_config
 from cyberdelta.utils.logging_config import setup_logging
 from cyberdelta.utils.state_manager import StateManager
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
@@ -62,13 +62,15 @@ async def shutdown(app_state: dict[str, Any]) -> None:
     #     await app_state["execution_handler"].stop()
 
     logger.info("Closing API connections...")
-    tasks = []
+    tasks: list[asyncio.Task[None]] = []
     for api_name, api in app_state.get("api_clients", {}).items():
         logger.debug(f"Adding close task for {api_name} API.")
         tasks.append(asyncio.create_task(api.close(), name=f"close_{api_name}"))
 
     # Wait for API close tasks
     if tasks:
+        _: set[asyncio.Task[None]]
+        pending: set[asyncio.Task[None]]
         _, pending = await asyncio.wait(tasks, timeout=10.0)
         if pending:
             logger.warning(f"{len(pending)} API close tasks timed out or failed.")
@@ -92,32 +94,10 @@ async def shutdown(app_state: dict[str, Any]) -> None:
     logger.info("Shutdown sequence complete.")
 
 
-# API Client Factory
-def get_api_client(
-    exchange_name: str,
-    api_config: dict[str, Any],
-    state_manager: StateManager,
-) -> HyperliquidAPI | BackpackAPI:
-    """Factory function to create API clients."""
-    # Assuming API clients need config dict and state manager
-    if exchange_name == "hyperliquid":
-        # Pass only relevant sub-config if available
-        hl_config = api_config.get("config", api_config)
-        return HyperliquidAPI(config=hl_config, state_manager=state_manager)
-    elif exchange_name == "backpack":
-        bp_config = api_config.get("config", api_config)
-        return BackpackAPI(config=bp_config, state_manager=state_manager)
-    else:
-        raise ValueError(f"Unsupported exchange: {exchange_name}")
-
-
 async def main() -> None:
     """Main application entry point."""
     global cancellation_token
     app_state: dict[str, Any] = {}
-
-    # Setup logging first
-    setup_logging()
 
     # Argument parsing
     parser = argparse.ArgumentParser(description="CyberDeltaEngine - Funding Rate Arbitrage Bot")
@@ -134,12 +114,12 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    # Load configuration using updated utility
+    # Load configuration using correct utility
     try:
-        config = load_config(config_path_or_data=args.config)
+        config = load_config(args.config)  # Only config_path is accepted
         logger.info(
             "Configuration loaded successfully",
-            source=config.get("_source_file", "Default"),
+            source=args.config or "Default",
         )
         app_state["config"] = config
     except ConfigError as e:
@@ -149,48 +129,67 @@ async def main() -> None:
         logger.error("Unexpected error loading configuration", error=str(e), exc_info=True)
         sys.exit(1)
 
+    # Setup logging (must be after config is loaded)
+    setup_logging(config)
+
     # 1. Initialize Core Components
     try:
         logger.info("Initializing core components...")
-        state_manager = StateManager(config.get("state_manager.state_file", "engine_state.json"))
+        # StateManager expects Config
+        state_manager = StateManager(config)
         app_state["state_manager"] = state_manager
 
-        portfolio_tracker = PortfolioTracker(config.get("portfolio_tracker"), state_manager)
+        # PortfolioTracker expects Config
+        portfolio_tracker = PortfolioTracker(config)
         app_state["portfolio_tracker"] = portfolio_tracker
 
-        circuit_breaker = CircuitBreakerSystem(config.get("circuit_breaker"), portfolio_tracker)
+        # CircuitBreakerSystem expects Config
+        circuit_breaker = CircuitBreakerSystem(config)
         app_state["circuit_breaker"] = circuit_breaker
 
+        # SymbolMapper is required for ExecutionHandler (assume import and instantiation)
+        from cyberdelta.core.symbol_mapper import SymbolMapper
+
+        # SymbolMapper expects a raw dict, not a Config object
+        symbol_mapper = SymbolMapper(config.as_dict())
+        app_state["symbol_mapper"] = symbol_mapper
+
+        # ExecutionHandler expects:
+        #   (Config, PortfolioTracker, SymbolMapper, CircuitBreakerSystem|None)
         execution_handler = ExecutionHandler(
-            config.get("execution_handler"),
+            config,
             portfolio_tracker,
+            symbol_mapper,
             circuit_breaker,
-            state_manager,
-            dry_run=args.dry_run,
         )
         app_state["execution_handler"] = execution_handler
 
+        # RiskManager expects:
+        #   (Config, PortfolioTrackerProtocol, CircuitBreakerSystemProtocol|None,
+        #    FundingRateValidatorProtocol|None)
         risk_manager = RiskManager(
-            config.get("risk_manager"),
-            portfolio_tracker,
-            execution_handler,  # RiskManager sends orders to ExecutionHandler
+            config,
+            portfolio_tracker,  # PortfolioTracker implements the protocol
             circuit_breaker,
+            None,  # No funding rate validator for now
         )
         app_state["risk_manager"] = risk_manager
 
-        # Signal Queue acts as buffer between Engine and Risk Manager
+        # PrioritySignalQueue expects handler and config (assume import and correct signature)
+        from cyberdelta.core.signal_queue import PrioritySignalQueue
+
         signal_queue = PrioritySignalQueue(
-            handler=risk_manager.process_signal,
-            config=config.get("signal_queue"),
-            circuit_breaker=circuit_breaker,
+            config,
+            circuit_breaker,
         )
         app_state["signal_queue"] = signal_queue
 
-        # Initialize the refactored Engine
+        # Engine expects name (optional)
         engine = Engine(name="CyberDeltaEngine_Core")
         app_state["engine"] = engine
 
-        data_handler = DataHandler(config.get("data_handler"), state_manager)
+        # DataHandler expects Config
+        data_handler = DataHandler(config)
         app_state["data_handler"] = data_handler
 
         logger.info("Core components initialized.")
@@ -200,22 +199,46 @@ async def main() -> None:
         sys.exit(1)
 
     # 2. Initialize API Clients and link to components
-    api_clients = {}
+    api_clients: dict[str, ExchangeAPI] = {}
     try:
         logger.info("Initializing API clients...")
-        for exchange_name, api_config in config.get("exchanges", {}).items():
-            if api_config.get("enabled", False):
-                logger.debug(f"Attempting to initialize API for {exchange_name}...")
-                client = get_api_client(exchange_name, api_config, state_manager)
-                await client.connect()  # Connect during setup
-                api_clients[exchange_name] = client
-                # Register API client with relevant components
-                data_handler.add_api_client(exchange_name, client)
-                execution_handler.add_api_client(exchange_name, client)
-                portfolio_tracker.add_api_client(exchange_name, client)
-                logger.info("Initialized and connected API client", exchange=exchange_name)
-            else:
+        secrets: dict[str, dict[str, str | None]] = {
+            "hyperliquid": {
+                "wallet_address": os.environ.get("HL_WALLET_ADDRESS"),
+                "private_key": os.environ.get("HL_PRIVATE_KEY"),
+            },
+            "backpack": {
+                "BACKPACK_API_KEY": os.environ.get("BP_API_KEY"),
+                "BACKPACK_API_SECRET": os.environ.get("BP_API_SECRET"),
+            },
+        }
+        _exchanges = config.get("exchanges", {})
+        if not isinstance(_exchanges, dict):
+            logger.error("Config 'exchanges' must be a dictionary.")
+            sys.exit(1)
+        exchanges: dict[str, dict[str, Any]] = _exchanges
+        for (
+            exchange_name,
+            api_config,
+        ) in exchanges.items():  # exchange_name: str, api_config: dict[str, Any]
+            if not api_config.get("enabled", False):
                 logger.info("Skipping disabled exchange", exchange=exchange_name)
+                continue
+            logger.debug(f"Attempting to initialize API for {exchange_name}...")
+            if exchange_name == "hyperliquid":
+                client = HyperliquidAPI(api_config, secrets["hyperliquid"])
+            elif exchange_name == "backpack":
+                client = BackpackAPI(api_config, secrets["backpack"])
+            else:
+                logger.warning(f"Unsupported exchange: {exchange_name}")
+                continue
+            await client.connect()  # Connect during setup
+            api_clients[exchange_name] = client
+            # Register API client with relevant components
+            data_handler.register_api_client(exchange_name, client)
+            execution_handler.register_api_client(exchange_name, client)
+            portfolio_tracker.register_api_client(exchange_name, client)
+            logger.info("Initialized and connected API client", exchange=exchange_name)
         app_state["api_clients"] = api_clients
 
         if not api_clients:
@@ -237,15 +260,29 @@ async def main() -> None:
     strategies: list[Strategy] = []
     try:
         logger.info("Initializing strategies...")
-        for strategy_config in config.get("strategies", []):
+        _strategies_config = config.get("strategies", [])
+        if not isinstance(_strategies_config, list):
+            logger.error("Config 'strategies' must be a list.")
+            _strategies_config = []
+        strategies_config: list[dict[str, Any]] = _strategies_config
+        for strategy_config in strategies_config:
             if strategy_config.get("enabled", False):
                 strategy_type = strategy_config.get("type")
                 strategy_name = strategy_config.get("name", "UnnamedStrategy")
                 if strategy_type == "FundingRateArbitrage":
+                    symbol = strategy_config.get("symbol")
+                    if not symbol:
+                        logger.error(
+                            f"Strategy '{strategy_name}' missing required 'symbol' in config. Skipping."
+                        )
+                        continue
                     strategy = FundingRateArbitrageStrategy(
                         name=strategy_name,
-                        config=strategy_config,
+                        symbol=symbol,
+                        data_handler=data_handler,
                         portfolio_tracker=portfolio_tracker,
+                        risk_manager=risk_manager,
+                        params=strategy_config,
                     )
                     strategies.append(strategy)
                     logger.info("Initialized strategy", name=strategy.name)

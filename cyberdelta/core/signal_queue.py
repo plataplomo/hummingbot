@@ -912,3 +912,37 @@ class PrioritySignalQueue:
         # Clean expired signals first
         self._clean_expired_signals()
         return len(self.signal_queue) == 0
+
+    async def enqueue_signal(self, signal: TradeSignal) -> None:
+        """
+        Asynchronously enqueue a trade signal into the priority queue and notify listeners.
+
+        Args:
+            signal: TradeSignal to enqueue.
+        """
+        async with self.lock:
+            added = self.add_signal(signal)
+            if added:
+                self.new_signal_event.set()
+                self.logger.info(f"Enqueued signal for {signal.symbol} (async)")
+            else:
+                self.logger.warning(f"Failed to enqueue signal for {signal.symbol} (async)")
+
+    async def run(self, cancellation_token: asyncio.Event) -> None:
+        """
+        Asynchronous run loop for the signal queue. Waits for new signals and processes them.
+
+        Args:
+            cancellation_token: An asyncio.Event used to signal shutdown.
+        """
+        self.logger.info("PrioritySignalQueue run loop started.")
+        try:
+            while not cancellation_token.is_set():
+                await self.new_signal_event.wait()
+                # Placeholder: In a real system, process signals here
+                self.logger.debug("Signal event triggered. (Processing logic TBD)")
+                self.new_signal_event.clear()
+        except asyncio.CancelledError:
+            self.logger.info("PrioritySignalQueue run loop cancelled.")
+        finally:
+            self.logger.info("PrioritySignalQueue run loop stopped.")
