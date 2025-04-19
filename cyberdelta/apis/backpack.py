@@ -211,8 +211,7 @@ class BackpackAPI(ExchangeAPI):
             if not isinstance(raw, list):
                 return []
             result: list[tuple[str, str]] = []
-            for entry_item in raw:  # type: ignore[reportUnknownVariableType]  # entry_item is from dynamic/external data (e.g., JSON, API response); static analysis cannot infer its type. All usage is guarded by explicit type checks/casts. This ignore is required to silence the linter and is safe in this context.
-                # so we use cast(Any, ...) at the point of use
+            for entry_item in raw:
                 item = cast(Any, entry_item)
                 if isinstance(item, tuple):
                     entry_pair = cast(Sequence[Any], item)
@@ -458,7 +457,7 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return {}
             balances: dict[str, Balance] = {}
-            for asset_key, data_val in response.items():  # type: ignore[reportUnknownVariableType]  # asset_key and data_val are from dynamic/external data (e.g., JSON, API response); static analysis cannot infer their types. All usage is guarded by explicit type checks/casts. This ignore is required to silence the linter and is safe in this context.
+            for asset_key, data_val in response.items():
                 key = cast(Any, asset_key)
                 val = cast(Any, data_val)
                 asset_str = str(key)
@@ -500,7 +499,7 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return []
             positions: list[Position] = []
-            for pos_data_item in response:  # type: ignore[reportUnknownVariableType]  # pos_data_item is from dynamic/external data (e.g., JSON, API response); static analysis cannot infer its type. All usage is guarded by explicit type checks/casts. This ignore is required to silence the linter and is safe in this context.
+            for pos_data_item in response:
                 item = cast(Any, pos_data_item)
                 if not isinstance(item, dict):
                     logger.warning(
@@ -1169,19 +1168,114 @@ class BackpackAPI(ExchangeAPI):
         )
 
 
-def _parse_api_order_to_internal_order(raw_data: dict[str, object]) -> Order:
-    """
-    Parses a raw order dictionary from Backpack API into the internal Order model.
-    1. Validates raw data against BackpackRawOrder schema.
-    2. Transforms validated raw data into the CyberDeltaEngine Order model.
+class BackpackOrderMapper:
+    @staticmethod
+    def map_side_to_internal(bp_side: str) -> OrderSide:
+        side_lower = bp_side.lower() if bp_side else ""
+        if side_lower in ("buy", "bid"):
+            return OrderSide.BUY
+        elif side_lower in ("sell", "ask"):
+            return OrderSide.SELL
+        logger.warning(f"[BackpackOrderMapper] Unknown order side '{bp_side}', defaulting to BUY.")
+        return OrderSide.BUY
 
-    Args:
-        raw_data: Raw order data from Backpack API (dict)
-    Returns:
-        Order: Standardized Order object for CyberDeltaEngine
-    Raises:
-        APIError: If validation or transformation fails
-    """
+    @staticmethod
+    def map_status_to_internal(bp_status: str) -> OrderStatus:
+        status_upper = (bp_status or "").upper()
+        mapping = {
+            "NEW": OrderStatus.NEW,
+            "OPEN": OrderStatus.OPEN,
+            "PARTIALLY_FILLED": OrderStatus.PARTIALLY_FILLED,
+            "FILLED": OrderStatus.FILLED,
+            "CANCELLED": OrderStatus.CANCELED,
+            "EXPIRED": OrderStatus.EXPIRED,
+            "REJECTED": OrderStatus.REJECTED,
+            "TRIGGER_PENDING": OrderStatus.TRIGGER_PENDING,
+            "FAILED": OrderStatus.FAILED,
+        }
+        if status_upper in mapping:
+            return mapping[status_upper]
+        logger.warning(
+            f"[BackpackOrderMapper] Unknown order status '{bp_status}', mapping to UNKNOWN."
+        )
+        return OrderStatus.UNKNOWN
+
+    @staticmethod
+    def map_type_to_internal(bp_type: str) -> OrderType:
+        type_upper = (bp_type or "").upper()
+        mapping = {
+            "LIMIT": OrderType.LIMIT,
+            "MARKET": OrderType.MARKET,
+            "STOP_MARKET": OrderType.STOP_MARKET,
+            "STOP_LIMIT": OrderType.STOP_LIMIT,
+            "TAKE_PROFIT_MARKET": OrderType.TAKE_PROFIT_MARKET,
+            "TAKE_PROFIT_LIMIT": OrderType.TAKE_PROFIT_LIMIT,
+        }
+        if type_upper in mapping:
+            return mapping[type_upper]
+        logger.warning(
+            f"[BackpackOrderMapper] Unknown order type '{bp_type}', defaulting to LIMIT."
+        )
+        return OrderType.LIMIT
+
+    @staticmethod
+    def map_tif_to_internal(bp_tif: str | None) -> TimeInForce:
+        if not bp_tif:
+            return TimeInForce.GTC
+        try:
+            return TimeInForce(bp_tif.upper())
+        except Exception:
+            logger.warning(f"[BackpackOrderMapper] Unknown TIF '{bp_tif}', defaulting to GTC.")
+            return TimeInForce.GTC
+
+    @staticmethod
+    def map_trigger_by_to_internal(trigger_by: str | None) -> TriggerType | None:
+        if not trigger_by:
+            return None
+        try:
+            return TriggerType(trigger_by)
+        except Exception:
+            logger.warning(
+                f"[BackpackOrderMapper] Unknown trigger_by '{trigger_by}', returning None."
+            )
+            return None
+
+    @staticmethod
+    def map_stp_to_internal(stp: str | None) -> SelfTradePrevention | None:
+        if not stp:
+            return None
+        try:
+            return SelfTradePrevention(stp)
+        except Exception:
+            logger.warning(
+                f"[BackpackOrderMapper] Unknown self_trade_prevention '{stp}', returning None."
+            )
+            return None
+
+    @staticmethod
+    def map_expiry_reason_to_internal(reason: str | None) -> OrderExpiryReason | None:
+        if not reason:
+            return None
+        try:
+            return OrderExpiryReason(reason)
+        except Exception:
+            logger.warning(
+                f"[BackpackOrderMapper] Unknown expiry_reason '{reason}', returning None."
+            )
+            return None
+
+    @staticmethod
+    def map_origin_to_internal(origin: str | None) -> OrderUpdateOrigin | None:
+        if not origin:
+            return None
+        try:
+            return OrderUpdateOrigin(origin)
+        except Exception:
+            logger.warning(f"[BackpackOrderMapper] Unknown origin '{origin}', returning None.")
+            return None
+
+
+def _parse_api_order_to_internal_order(raw_data: dict[str, object]) -> Order:
     try:
         raw_order = BackpackRawOrder.model_validate(raw_data)
         parsed_price = parse_decimal_value(raw_order.price)
@@ -1193,33 +1287,35 @@ def _parse_api_order_to_internal_order(raw_data: dict[str, object]) -> Order:
         parsed_quantity_filled = parse_decimal_value(raw_order.quantity_filled, allow_none=False)
         if parsed_quantity is None or parsed_quantity_filled is None:
             raise ValueError("Failed parsing required quantity fields")
-        # Use mapping helpers for enums and other fields
-        api = BackpackAPI({}, {})  # Dummy instance for mapping helpers
         return Order(
             client_order_id=raw_order.client_order_id or "",
             exchange_order_id=raw_order.exchange_order_id,
             related_order_id=raw_order.related_order_id,
             exchange="backpack",
             symbol=raw_order.symbol,
-            side=api._map_side_to_internal(raw_order.side),
-            order_type=api._map_type_to_internal(raw_order.order_type),
-            status=api._map_status_to_internal(raw_order.status),
+            side=BackpackOrderMapper.map_side_to_internal(raw_order.side),
+            order_type=BackpackOrderMapper.map_type_to_internal(raw_order.order_type),
+            status=BackpackOrderMapper.map_status_to_internal(raw_order.status),
             quantity_requested=parsed_quantity,
             quantity_filled=parsed_quantity_filled,
             executed_quote_quantity=parse_decimal_value(raw_order.executed_quote_quantity),
             price=parsed_price,
             stop_price=parse_decimal_value(raw_order.stop_price),
             average_fill_price=parsed_avg_fill_price,
-            trigger_by=api._map_trigger_by_to_internal(raw_order.trigger_by),
-            time_in_force=api._map_tif_to_internal(raw_order.time_in_force),
+            trigger_by=BackpackOrderMapper.map_trigger_by_to_internal(raw_order.trigger_by),
+            time_in_force=BackpackOrderMapper.map_tif_to_internal(raw_order.time_in_force),
             reduce_only=raw_order.reduce_only or False,
             post_only=raw_order.post_only or False,
-            self_trade_prevention=api._map_stp_to_internal(raw_order.self_trade_prevention),
+            self_trade_prevention=BackpackOrderMapper.map_stp_to_internal(
+                raw_order.self_trade_prevention
+            ),
             created_at=parsed_created_at,
             updated_at=parse_datetime_utc(raw_order.updated_at),
             triggered_at=parse_datetime_utc(raw_order.triggered_at),
-            expiry_reason=api._map_expiry_reason_to_internal(raw_order.expiry_reason),
-            origin=api._map_origin_to_internal(raw_order.origin),
+            expiry_reason=BackpackOrderMapper.map_expiry_reason_to_internal(
+                raw_order.expiry_reason
+            ),
+            origin=BackpackOrderMapper.map_origin_to_internal(raw_order.origin),
             strategy_name=raw_order.strategy_name,
             signal_id=raw_order.signal_id,
             trades=raw_order.trades or [],
