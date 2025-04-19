@@ -26,7 +26,7 @@ from cyberdelta.core.models import (  # Use absolute import
     TimeInForce,
     Trade,
 )
-from cyberdelta.core.models.market import Trade
+from cyberdelta.core.models.market.trade import Trade
 
 logger = logging.getLogger(__name__)
 
@@ -631,23 +631,37 @@ class BackpackAPI(ExchangeAPI):
 
             # Ensure essential fields are present before creating Order
             order = Order(
-                client_order_id=response.get("clientId", client_order_id or ""),
-                exchange_order_id=str(response.get("id", "")),
+                id=str(response.get("id", "")),
                 symbol=response.get("symbol", symbol),
                 side=OrderSide(response.get("side", side.value)),
-                order_type=OrderType(response.get("orderType", order_type.value)),
+                type=OrderType(response.get("orderType", order_type.value)),
                 status=status,
-                quantity_requested=Decimal(str(response.get("quantity", quantity))),
-                quantity_filled=Decimal(str(response.get("executedQuantity", "0"))),
                 price=Decimal(str(response["price"]))
                 if response.get("price") is not None
                 else price,
-                average_fill_price=Decimal(str(response["avgFillPrice"]))
+                quantity=Decimal(str(response.get("quantity", quantity))),
+                filled=Decimal(str(response.get("executedQuantity", "0"))),
+                remaining=Decimal(
+                    str(
+                        Decimal(str(response.get("quantity", quantity)))
+                        - Decimal(str(response.get("executedQuantity", "0")))
+                    )
+                ),
+                avg_fill_price=Decimal(str(response["avgFillPrice"]))
                 if response.get("avgFillPrice") is not None
                 else None,
                 created_at=datetime.fromtimestamp(
                     int(response.get("createdAt", int(time.time() * 1000))) / 1000, UTC
                 ),
+                updated_at=None,
+                exchange="Backpack",
+                exchange_order_id=str(response.get("id", "")),
+                client_order_id=response.get("clientId", client_order_id or ""),
+                is_post_only=None,
+                reduce_only=None,
+                stop_price=None,
+                cost=None,
+                timestamp=None,
             )
             return order
         except ValueError as ve:
@@ -741,19 +755,32 @@ class BackpackAPI(ExchangeAPI):
                 created_at_val: Any = order_data.get("createdAt", int(time.time() * 1000))
 
                 order = Order(
-                    client_order_id=str(client_order_id_val),
-                    exchange_order_id=str(exchange_order_id_val),
+                    id=str(exchange_order_id_val),
                     symbol=str(symbol_val),
                     side=OrderSide(str(side_val)),
-                    order_type=OrderType(str(order_type_val)),
+                    type=OrderType(str(order_type_val)),
                     status=status,
-                    quantity_requested=Decimal(str(quantity_requested_val)),
-                    quantity_filled=Decimal(str(quantity_filled_val)),
                     price=Decimal(str(price_val)) if price_val is not None else None,
-                    average_fill_price=Decimal(str(avg_fill_price_val))
+                    quantity=Decimal(str(quantity_requested_val)),
+                    filled=Decimal(str(quantity_filled_val)),
+                    remaining=Decimal(
+                        str(
+                            Decimal(str(quantity_requested_val)) - Decimal(str(quantity_filled_val))
+                        )
+                    ),
+                    avg_fill_price=Decimal(str(avg_fill_price_val))
                     if avg_fill_price_val is not None
                     else None,
                     created_at=datetime.fromtimestamp(int(created_at_val) / 1000, UTC),
+                    updated_at=None,
+                    exchange="Backpack",
+                    exchange_order_id=str(exchange_order_id_val),
+                    client_order_id=str(client_order_id_val),
+                    is_post_only=None,
+                    reduce_only=None,
+                    stop_price=None,
+                    cost=None,
+                    timestamp=None,
                 )
                 if status in [OrderStatus.NEW, OrderStatus.PARTIALLY_FILLED, OrderStatus.OPEN]:
                     orders.append(order)
@@ -847,7 +874,7 @@ class BackpackAPI(ExchangeAPI):
             f"[{self.exchange_name}] get_funding_rates not fully implemented. "
             f"Fetching current rate only."
         )
-        rates = []
+        rates: list[FundingRate] = []
         if symbols:
             for symbol in symbols:
                 try:
@@ -1005,20 +1032,32 @@ class BackpackAPI(ExchangeAPI):
                 else datetime.now(UTC)
             )
             return Order(
+                id=str(data.get("id", "")),
                 symbol=data["symbol"] if "symbol" in data else "",
                 side=OrderSide(data["side"]) if "side" in data else OrderSide.BUY,
-                order_type=OrderType(data["orderType"]) if "orderType" in data else OrderType.LIMIT,
-                quantity_requested=Decimal(str(quantity)) if quantity is not None else Decimal("0"),
+                type=OrderType(data["orderType"]) if "orderType" in data else OrderType.LIMIT,
                 status=order_status,
-                client_order_id=str(data.get("clientId", "")),
                 price=Decimal(str(price)) if price is not None else None,
-                quantity_filled=Decimal(str(quantity_filled))
+                quantity=Decimal(str(quantity)) if quantity is not None else Decimal("0"),
+                filled=Decimal(str(quantity_filled))
                 if quantity_filled is not None
                 else Decimal("0"),
-                average_fill_price=Decimal(str(average_fill_price))
+                remaining=Decimal(str(Decimal(str(quantity)) - Decimal(str(quantity_filled))))
+                if quantity is not None and quantity_filled is not None
+                else Decimal("0"),
+                avg_fill_price=Decimal(str(average_fill_price))
                 if average_fill_price is not None
                 else None,
                 created_at=created_at,
+                updated_at=None,
+                exchange="Backpack",
+                exchange_order_id=str(data.get("id", "")),
+                client_order_id=str(data.get("clientId", "")),
+                is_post_only=None,
+                reduce_only=None,
+                stop_price=None,
+                cost=None,
+                timestamp=None,
             )
         except KeyError as e:
             logger.error(f"[{self.exchange_name}] Missing key {e} in order data: {data}")
