@@ -41,6 +41,101 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 logger = logging.getLogger(__name__)
 
 
+class BackpackErrorMapper:
+    """
+    Centralized error mapping utility for Backpack API errors.
+    Provides methods to map Backpack error responses to standardized APIErrorCode and APIError.
+    """
+
+    @staticmethod
+    def map_error_code(
+        error_body: str, error_data: dict[str, Any] | None = None, status_code: int | None = None
+    ) -> APIErrorCode:
+        """
+        Map Backpack error responses (body, data, status) to standardized APIErrorCode.
+
+        Args:
+            error_body: Raw error response body (string, may be JSON or plain text).
+            error_data: Parsed error data (if available, from JSON response).
+            status_code: HTTP status code (if available).
+
+        Returns:
+            APIErrorCode: Standardized error code for internal handling.
+        """
+        error_body_lower = error_body.lower() if error_body else ""
+        mapped_code = APIErrorCode.UNKNOWN
+
+        # --- Backpack-specific educated guesses ---
+        if (
+            "invalid signature" in error_body_lower
+            or "authentication failed" in error_body_lower
+            or "invalid api key" in error_body_lower
+        ):
+            mapped_code = APIErrorCode.AUTHENTICATION_FAILED
+        elif "rate limit exceeded" in error_body_lower or "too many requests" in error_body_lower:
+            mapped_code = APIErrorCode.RATE_LIMITED
+        elif "invalid symbol" in error_body_lower:
+            mapped_code = APIErrorCode.INVALID_SYMBOL
+        elif "invalid quantity" in error_body_lower or "invalid size" in error_body_lower:
+            mapped_code = APIErrorCode.INVALID_ORDER_SIZE
+        elif "invalid parameter" in error_body_lower or "bad request" in error_body_lower:
+            mapped_code = APIErrorCode.INVALID_REQUEST
+        elif "order not found" in error_body_lower:
+            mapped_code = APIErrorCode.ORDER_NOT_FOUND
+        elif "insufficient balance" in error_body_lower or "insufficient funds" in error_body_lower:
+            mapped_code = APIErrorCode.INSUFFICIENT_FUNDS
+        elif (
+            "service unavailable" in error_body_lower or "internal server error" in error_body_lower
+        ):
+            mapped_code = APIErrorCode.SERVICE_UNAVAILABLE
+        # --- End educated guesses ---
+
+        # Optionally, use error_data or status_code for further refinement in the future
+        return mapped_code
+
+    @staticmethod
+    def map_error_response(
+        status_code: int | None,
+        error_body: str,
+        error_data: dict[str, Any] | None = None,
+        request_path: str | None = None,
+        exchange_message: str | None = None,
+    ) -> APIError:
+        """
+        Map Backpack error responses to a standardized APIError, including error code mapping.
+
+        Args:
+            status_code: HTTP status code (if available).
+            error_body: Raw error response body (string, may be JSON or plain text).
+            error_data: Parsed error data (if available, from JSON response).
+            request_path: API endpoint path (for logging/debugging).
+            exchange_message: Optional override for the error message.
+
+        Returns:
+            APIError: Standardized APIError exception for internal handling.
+        """
+        mapped_code = BackpackErrorMapper.map_error_code(
+            error_body=error_body, error_data=error_data, status_code=status_code
+        )
+
+        log_message = (
+            f"Mapping Backpack error (Path: {request_path}, Status: {status_code}, "
+            f"Body: '{error_body}') to APIErrorCode.{mapped_code.name}"
+        )
+        logger.warning(log_message)
+
+        final_message = exchange_message or error_body
+
+        return APIError(
+            message=final_message,
+            code=mapped_code,
+            http_status=status_code,
+            exchange_code=str(error_data.get("code")) if error_data else None,
+            exchange_message=error_data.get("msg") if error_data else None,
+            original_exception=None,
+        )
+
+
 class BackpackAPI(ExchangeAPI):
     """API Client for Backpack Exchange."""
 
@@ -187,7 +282,7 @@ class BackpackAPI(ExchangeAPI):
             logger.error(
                 f"[{self.exchange_name}] Error getting ticker for {symbol}: {e}", exc_info=True
             )
-            raise self._map_error_response(
+            raise BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=f"Error getting ticker for {symbol}: {e}",
                 request_path=request_path,
@@ -211,8 +306,9 @@ class BackpackAPI(ExchangeAPI):
             if not isinstance(raw, list):
                 return []
             result: list[tuple[str, str]] = []
+            entry_item: Any
             for entry_item in raw:
-                item = cast(Any, entry_item)
+                item = entry_item
                 if isinstance(item, tuple):
                     entry_pair = cast(Sequence[Any], item)
                 elif isinstance(item, list):
@@ -267,7 +363,7 @@ class BackpackAPI(ExchangeAPI):
             logger.error(
                 f"[{self.exchange_name}] Error getting order book for {symbol}: {e}", exc_info=True
             )
-            raise self._map_error_response(
+            raise BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=f"Error getting order book for {symbol}: {e}",
                 request_path=request_path,
@@ -457,9 +553,11 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return {}
             balances: dict[str, Balance] = {}
+            asset_key: Any
+            data_val: Any
             for asset_key, data_val in response.items():
-                key = cast(Any, asset_key)
-                val = cast(Any, data_val)
+                key = asset_key
+                val = data_val
                 asset_str = str(key)
                 data_dict = cast(dict[str, Any], val)
                 available = Decimal(str(data_dict.get("available", "0")))
@@ -499,8 +597,9 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return []
             positions: list[Position] = []
+            pos_data_item: Any
             for pos_data_item in response:
-                item = cast(Any, pos_data_item)
+                item = pos_data_item
                 if not isinstance(item, dict):
                     logger.warning(
                         f"[backpack] Unexpected position entry type: {type(item)}. Skipping entry."
@@ -621,7 +720,7 @@ class BackpackAPI(ExchangeAPI):
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Error placing order: {e}", exc_info=True)
             # Attempt to map the error, default to generic EXCHANGE_ERROR
-            api_error = self._map_error_response(
+            api_error = BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
                 exchange_message=f"Error placing order for {symbol} (Path: {request_path}): {e}",
@@ -648,7 +747,7 @@ class BackpackAPI(ExchangeAPI):
                 f"[{self.exchange_name}] Error canceling order {order_id}: {e}", exc_info=True
             )
             # Raise APIError as per ExchangeAPI
-            api_error = self._map_error_response(
+            api_error = BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
                 exchange_message=(
@@ -674,7 +773,9 @@ class BackpackAPI(ExchangeAPI):
                 if isinstance(order_data_item, dict):
                     try:
                         raw_order = BackpackRawOrder.model_validate(order_data_item)
-                        internal_order = self._transform_raw_order_to_internal(raw_order)
+                        internal_order = BackpackOrderMapper.transform_raw_order_to_internal(
+                            raw_order
+                        )
                         if internal_order.status in [
                             OrderStatus.NEW,
                             OrderStatus.OPEN,
@@ -682,13 +783,19 @@ class BackpackAPI(ExchangeAPI):
                         ]:
                             orders.append(internal_order)
                     except ValidationError as e:
-                        logger.warning(
-                            f"[{self.exchange_name}] Skipping order due to Pydantic validation error: {e}. Data: {order_data_item}"
+                        msg = (
+                            f"[{self.exchange_name}] Skipping order due to "
+                            f"Pydantic validation error: {e}. "
+                            f"Data: {order_data_item}"
                         )
+                        logger.warning(msg)
                     except APIError as e:
-                        logger.warning(
-                            f"[{self.exchange_name}] Skipping order due to transformation error: {e}. Data: {order_data_item}"
+                        msg = (
+                            f"[{self.exchange_name}] Skipping order due to "
+                            f"transformation error: {e}. "
+                            f"Data: {order_data_item}"
                         )
+                        logger.warning(msg)
                     except Exception as e:
                         logger.error(
                             f"[{self.exchange_name}] Unexpected error processing single order: {e}",
@@ -696,7 +803,8 @@ class BackpackAPI(ExchangeAPI):
                         )
                 else:
                     logger.warning(
-                        f"[{self.exchange_name}] Skipping non-dict item in orders list: {order_data_item}"
+                        f"[{self.exchange_name}] Skipping non-dict item in orders list: "
+                        f"{order_data_item}"
                     )
             return orders
         except APIError as e:
@@ -770,7 +878,7 @@ class BackpackAPI(ExchangeAPI):
                 exc_info=True,
             )
             # Use exchange_message for context in APIError call
-            api_error = self._map_error_response(
+            api_error = BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
                 exchange_message=(
@@ -826,7 +934,7 @@ class BackpackAPI(ExchangeAPI):
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Error getting account info: {e}")
             # Raise APIError for consistency.
-            api_error = self._map_error_response(
+            api_error = BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
                 exchange_message=f"Error getting account info (Path: {request_path}): {e}",
@@ -846,89 +954,6 @@ class BackpackAPI(ExchangeAPI):
         """Withdraw funds."""
         logger.warning(f"[{self.exchange_name}] withdraw not implemented for Backpack.")
         return None
-
-    def _map_error_response(
-        self,
-        status_code: int | None,
-        error_body: str,
-        error_data: dict[str, Any] | None = None,
-        request_path: str | None = None,
-        exchange_message: str | None = None,
-    ) -> APIError:
-        """Map Backpack error responses to generic APIErrorCode."""
-        # Convert body to lower for case-insensitive matching
-        error_body_lower = error_body.lower()
-        mapped_code = APIErrorCode.UNKNOWN  # Changed Default
-
-        # --- Educated Guesses for Backpack Error Mappings ---
-        # Authentication / Signature Errors
-        if (
-            "invalid signature" in error_body_lower
-            or "authentication failed" in error_body_lower
-            or "invalid api key" in error_body_lower
-        ):
-            mapped_code = APIErrorCode.AUTHENTICATION_FAILED  # Use Enum member
-        # Rate Limits
-        elif "rate limit exceeded" in error_body_lower or "too many requests" in error_body_lower:
-            mapped_code = APIErrorCode.RATE_LIMITED  # Use Enum member
-        # Invalid Parameters / Bad Request
-        elif "invalid symbol" in error_body_lower:
-            mapped_code = APIErrorCode.INVALID_SYMBOL  # Use Enum member
-        elif "invalid quantity" in error_body_lower or "invalid size" in error_body_lower:
-            # Consider mapping to QUANTITY_OUT_OF_RANGE if more specific
-            mapped_code = APIErrorCode.INVALID_ORDER_SIZE  # Use Enum member
-        elif "invalid parameter" in error_body_lower or "bad request" in error_body_lower:
-            mapped_code = (
-                APIErrorCode.INVALID_REQUEST
-            )  # Use Enum member (more specific than BAD_REQUEST)
-        # Order specific errors
-        elif "order not found" in error_body_lower:
-            mapped_code = APIErrorCode.ORDER_NOT_FOUND  # Use Enum member
-        elif "insufficient balance" in error_body_lower or "insufficient funds" in error_body_lower:
-            mapped_code = APIErrorCode.INSUFFICIENT_FUNDS  # Use Enum member
-        # Server / Availability Errors
-        elif (
-            "service unavailable" in error_body_lower or "internal server error" in error_body_lower
-        ):
-            mapped_code = APIErrorCode.SERVICE_UNAVAILABLE  # Use Enum member
-        # --- End Guesses ---
-
-        # Log the original error for debugging
-        log_message = (
-            f"Mapping Backpack error (Path: {request_path}, Status: {status_code}, "
-            f"Body: '{error_body}') to APIErrorCode.{mapped_code.name}"
-        )
-        logger.warning(log_message)
-
-        # Construct the final error message for the exception
-        final_message = exchange_message or error_body  # Use specific message if provided
-
-        return APIError(
-            message=final_message,  # Pass refined message
-            code=mapped_code,  # Pass the mapped enum code
-            http_status=status_code,
-            # Pass original error details if available (e.g., from parsed JSON error data)
-            exchange_code=str(error_data.get("code")) if error_data else None,
-            exchange_message=error_data.get("msg") if error_data else None,
-            original_exception=None,  # Can pass original exception if caught earlier
-        )
-
-    # --- Data Parsing (Refactored to backpack/ submodules) --- #
-    # The following parser methods have been refactored into standalone modules:
-    #   - bp_parse_order:      backpack/bp_parse_order.py
-    #   - bp_parse_trade:      backpack/bp_parse_trade.py
-    #   - bp_parse_position:   backpack/bp_parse_position.py
-    #   - bp_parse_balance:    backpack/bp_parse_balance.py
-    #   - bp_parse_funding_rate: backpack/bp_parse_funding_rate.py
-    #   - bp_parse_order_book: backpack/bp_parse_order_book.py
-    # Import and use these functions from their respective modules.
-    #
-    # Example usage:
-    #   from cyberdelta.apis.backpack.bp_parse_order import bp_parse_order
-    #   order = bp_parse_order(raw_order_data)
-    #
-
-    # --- WebSocket Subscriptions (Implementations for Base Class Abstract Methods) ---
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
         """Subscribe to order book updates for a symbol."""
@@ -986,149 +1011,6 @@ class BackpackAPI(ExchangeAPI):
 
     # TODO: Implement remaining abstract methods from ExchangeAPI
     #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)
-
-    # --- MAPPING HELPERS ---
-    def _map_side_to_internal(self, bp_side: str) -> OrderSide:
-        side_lower = bp_side.lower() if bp_side else ""
-        if side_lower in ("buy", "bid"):
-            return OrderSide.BUY
-        elif side_lower in ("sell", "ask"):
-            return OrderSide.SELL
-        logger.warning(f"[{self.exchange_name}] Unknown order side '{bp_side}', defaulting to BUY.")
-        return OrderSide.BUY
-
-    def _map_status_to_internal(self, bp_status: str) -> OrderStatus:
-        status_upper = (bp_status or "").upper()
-        mapping = {
-            "NEW": OrderStatus.NEW,
-            "OPEN": OrderStatus.OPEN,
-            "PARTIALLY_FILLED": OrderStatus.PARTIALLY_FILLED,
-            "FILLED": OrderStatus.FILLED,
-            "CANCELLED": OrderStatus.CANCELED,
-            "EXPIRED": OrderStatus.EXPIRED,
-            "REJECTED": OrderStatus.REJECTED,
-            "TRIGGER_PENDING": OrderStatus.TRIGGER_PENDING,
-            "FAILED": OrderStatus.FAILED,
-        }
-        if status_upper in mapping:
-            return mapping[status_upper]
-        logger.warning(
-            f"[{self.exchange_name}] Unknown order status '{bp_status}', mapping to UNKNOWN."
-        )
-        return OrderStatus.UNKNOWN
-
-    def _map_type_to_internal(self, bp_type: str) -> OrderType:
-        type_upper = (bp_type or "").upper()
-        mapping = {
-            "LIMIT": OrderType.LIMIT,
-            "MARKET": OrderType.MARKET,
-            "STOP_MARKET": OrderType.STOP_MARKET,
-            "STOP_LIMIT": OrderType.STOP_LIMIT,
-            "TAKE_PROFIT_MARKET": OrderType.TAKE_PROFIT_MARKET,
-            "TAKE_PROFIT_LIMIT": OrderType.TAKE_PROFIT_LIMIT,
-        }
-        if type_upper in mapping:
-            return mapping[type_upper]
-        logger.warning(
-            f"[{self.exchange_name}] Unknown order type '{bp_type}', defaulting to LIMIT."
-        )
-        return OrderType.LIMIT
-
-    def _map_tif_to_internal(self, bp_tif: str | None) -> TimeInForce:
-        if not bp_tif:
-            return TimeInForce.GTC
-        try:
-            return TimeInForce(bp_tif.upper())
-        except Exception:
-            logger.warning(f"[{self.exchange_name}] Unknown TIF '{bp_tif}', defaulting to GTC.")
-            return TimeInForce.GTC
-
-    def _map_trigger_by_to_internal(self, trigger_by: str | None) -> TriggerType | None:
-        if not trigger_by:
-            return None
-        try:
-            return TriggerType(trigger_by)
-        except Exception:
-            logger.warning(
-                f"[{self.exchange_name}] Unknown trigger_by '{trigger_by}', returning None."
-            )
-            return None
-
-    def _map_stp_to_internal(self, stp: str | None) -> SelfTradePrevention | None:
-        if not stp:
-            return None
-        try:
-            return SelfTradePrevention(stp)
-        except Exception:
-            logger.warning(
-                f"[{self.exchange_name}] Unknown self_trade_prevention '{stp}', returning None."
-            )
-            return None
-
-    def _map_expiry_reason_to_internal(self, reason: str | None) -> OrderExpiryReason | None:
-        if not reason:
-            return None
-        try:
-            return OrderExpiryReason(reason)
-        except Exception:
-            logger.warning(
-                f"[{self.exchange_name}] Unknown expiry_reason '{reason}', returning None."
-            )
-            return None
-
-    def _map_origin_to_internal(self, origin: str | None) -> OrderUpdateOrigin | None:
-        if not origin:
-            return None
-        try:
-            return OrderUpdateOrigin(origin)
-        except Exception:
-            logger.warning(f"[{self.exchange_name}] Unknown origin '{origin}', returning None.")
-            return None
-
-    # --- TRANSFORMATION HELPER ---
-    def _transform_raw_order_to_internal(self, raw: BackpackRawOrder) -> Order:
-        # Defensive: ensure required fields are present and valid
-        parsed_quantity = parse_decimal_value(raw.quantity_requested, allow_none=False)
-        if parsed_quantity is None:
-            raise ValueError("quantity_requested missing/invalid in BackpackRawOrder")
-        parsed_created_at = parse_datetime_utc(raw.created_at)
-        if parsed_created_at is None:
-            raise ValueError("created_at missing/invalid in BackpackRawOrder")
-        # Optional fields
-        parsed_quantity_filled = parse_decimal_value(raw.quantity_filled) or Decimal("0.0")
-        parsed_executed_quote_quantity = parse_decimal_value(raw.executed_quote_quantity)
-        parsed_price = parse_decimal_value(raw.price)
-        parsed_stop_price = parse_decimal_value(raw.stop_price)
-        parsed_avg_fill_price = parse_decimal_value(raw.average_fill_price)
-        return Order(
-            client_order_id=raw.client_order_id or "",
-            exchange_order_id=raw.exchange_order_id,
-            related_order_id=raw.related_order_id,
-            exchange=self.exchange_name,
-            symbol=raw.symbol,
-            side=self._map_side_to_internal(raw.side),
-            order_type=self._map_type_to_internal(raw.order_type),
-            status=self._map_status_to_internal(raw.status),
-            quantity_requested=parsed_quantity,
-            quantity_filled=parsed_quantity_filled,
-            executed_quote_quantity=parsed_executed_quote_quantity,
-            price=parsed_price,
-            stop_price=parsed_stop_price,
-            average_fill_price=parsed_avg_fill_price,
-            trigger_by=self._map_trigger_by_to_internal(raw.trigger_by),
-            time_in_force=self._map_tif_to_internal(raw.time_in_force),
-            reduce_only=raw.reduce_only or False,
-            post_only=raw.post_only or False,
-            self_trade_prevention=self._map_stp_to_internal(raw.self_trade_prevention),
-            created_at=parsed_created_at,
-            updated_at=parse_datetime_utc(raw.updated_at),
-            triggered_at=parse_datetime_utc(raw.triggered_at),
-            expiry_reason=self._map_expiry_reason_to_internal(raw.expiry_reason),
-            origin=self._map_origin_to_internal(raw.origin),
-            strategy_name=raw.strategy_name,  # Not present in Backpack, but field exists for completeness
-            signal_id=raw.signal_id,  # Not present in Backpack, but field exists for completeness
-            trades=raw.trades or [],  # Not present in Backpack, but field exists for completeness
-        )
 
 
 class BackpackOrderMapper:
@@ -1240,26 +1122,26 @@ class BackpackOrderMapper:
     @staticmethod
     def transform_raw_order_to_internal(raw: BackpackRawOrder) -> Order:
         # Defensive: ensure required fields are present and valid
-        parsed_quantity = parse_decimal_value(raw.quantity_requested, allow_none=False)
+        parsed_quantity = parse_decimal_value(raw.quantity, allow_none=False)
         if parsed_quantity is None:
-            raise ValueError("quantity_requested missing/invalid in BackpackRawOrder")
-        parsed_created_at = parse_datetime_utc(raw.created_at)
+            raise ValueError("quantity missing/invalid in BackpackRawOrder")
+        parsed_created_at = parse_datetime_utc(raw.createdAt)
         if parsed_created_at is None:
-            raise ValueError("created_at missing/invalid in BackpackRawOrder")
+            raise ValueError("createdAt missing/invalid in BackpackRawOrder")
         # Optional fields
-        parsed_quantity_filled = parse_decimal_value(raw.quantity_filled) or Decimal("0.0")
-        parsed_executed_quote_quantity = parse_decimal_value(raw.executed_quote_quantity)
+        parsed_quantity_filled = parse_decimal_value(raw.executedQuantity) or Decimal("0.0")
+        parsed_executed_quote_quantity = parse_decimal_value(raw.executedQuoteQuantity)
         parsed_price = parse_decimal_value(raw.price)
-        parsed_stop_price = parse_decimal_value(raw.stop_price)
-        parsed_avg_fill_price = parse_decimal_value(raw.average_fill_price)
+        parsed_stop_price = parse_decimal_value(raw.triggerPrice)
+        parsed_avg_fill_price = parse_decimal_value(raw.avgFillPrice)
         return Order(
-            client_order_id=raw.client_order_id or "",
-            exchange_order_id=raw.exchange_order_id,
-            related_order_id=raw.related_order_id,
+            client_order_id=raw.clientId or "",
+            exchange_order_id=raw.id,
+            related_order_id=raw.relatedOrderId,
             exchange="backpack",
             symbol=raw.symbol,
             side=BackpackOrderMapper.map_side_to_internal(raw.side),
-            order_type=BackpackOrderMapper.map_type_to_internal(raw.order_type),
+            order_type=BackpackOrderMapper.map_type_to_internal(raw.orderType),
             status=BackpackOrderMapper.map_status_to_internal(raw.status),
             quantity_requested=parsed_quantity,
             quantity_filled=parsed_quantity_filled,
@@ -1267,19 +1149,17 @@ class BackpackOrderMapper:
             price=parsed_price,
             stop_price=parsed_stop_price,
             average_fill_price=parsed_avg_fill_price,
-            trigger_by=BackpackOrderMapper.map_trigger_by_to_internal(raw.trigger_by),
-            time_in_force=BackpackOrderMapper.map_tif_to_internal(raw.time_in_force),
-            reduce_only=raw.reduce_only or False,
-            post_only=raw.post_only or False,
-            self_trade_prevention=BackpackOrderMapper.map_stp_to_internal(
-                raw.self_trade_prevention
-            ),
+            trigger_by=BackpackOrderMapper.map_trigger_by_to_internal(raw.triggerBy),
+            time_in_force=BackpackOrderMapper.map_tif_to_internal(raw.timeInForce),
+            reduce_only=raw.reduceOnly or False,
+            post_only=raw.postOnly or False,
+            self_trade_prevention=BackpackOrderMapper.map_stp_to_internal(raw.selfTradePrevention),
             created_at=parsed_created_at,
-            updated_at=parse_datetime_utc(raw.updated_at),
-            triggered_at=parse_datetime_utc(raw.triggered_at),
-            expiry_reason=BackpackOrderMapper.map_expiry_reason_to_internal(raw.expiry_reason),
+            updated_at=parse_datetime_utc(raw.updatedAt),
+            triggered_at=parse_datetime_utc(raw.triggeredAt),
+            expiry_reason=BackpackOrderMapper.map_expiry_reason_to_internal(raw.expiryReason),
             origin=BackpackOrderMapper.map_origin_to_internal(raw.origin),
-            strategy_name=raw.strategy_name,
-            signal_id=raw.signal_id,
+            strategy_name=raw.strategyName,
+            signal_id=raw.signalId,
             trades=raw.trades or [],
         )
