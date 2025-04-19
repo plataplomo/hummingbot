@@ -79,7 +79,8 @@ scripts_are_modules = true  # Treat scripts as modules
 
 
 [tool.pyright]
-include = ["scripts", "cyberdelta", "tests", "examples"]
+include = ["cyberdelta/core", "cyberdelta/apis"] # tempopary because it got irresponsive with too many errors
+# include = ["scripts", "cyberdelta", "tests", "examples"] # tempopary because PC got irresponsive with too many errors
 extraPaths = ["."]
 exclude = ["**/current_workflow/**", "**/.venv/**", "**/venv/**"]
 typeCheckingMode = "strict"  # Match Pylance
