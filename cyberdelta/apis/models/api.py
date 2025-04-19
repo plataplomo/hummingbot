@@ -296,7 +296,7 @@ class APIError(Exception):
     def __init__(
         self,
         message: str,
-        code: Any = None,
+        code: int | str,
         http_status: int | None = None,
         exchange_code: str | int | None = None,
         exchange_message: str | None = None,
@@ -321,7 +321,7 @@ class APIError(Exception):
         return self.model.message
 
     @property
-    def code(self) -> Any:
+    def code(self) -> int | str:
         return self.model.code
 
     @property

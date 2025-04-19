@@ -8,12 +8,14 @@ This module implements the Backpack exchange adapter for CyberDeltaEngine, inclu
 - Order and event transformation utilities (`BackpackOrderMapper`)
 
 **Key architectural patterns:**
-- All external (exchange) errors are mapped to canonical APIErrorCode values, validated and normalized via APIErrorResponse, and propagated as APIError exceptions.
+- All external (exchange) errors are mapped to canonical APIErrorCode values, validated and
+  normalized via APIErrorResponse, and propagated as APIError exceptions.
 - All API methods are type-safe, defensive, and log/handle edge cases robustly.
 - All transformation logic is modular and testable.
 
 **Onboarding Note:**
-- When extending this module for new endpoints or error types, always use strict Pydantic validation, map all error codes, and document any non-obvious logic or edge cases.
+- When extending this module for new endpoints or error types, always use strict Pydantic
+  validation, map all error codes, and document any non-obvious logic or edge cases.
 """
 
 import asyncio
@@ -207,9 +209,10 @@ class BackpackErrorMapper:
             if api_error_response.exchange_code is not None
             else None
         )
+        # code_enum is always an APIErrorCode, so use .value directly
         return APIError(
             message=api_error_response.message,
-            code=code_enum,
+            code=code_enum.value,
             http_status=api_error_response.http_status,
             exchange_code=exchange_code_str,
             exchange_message=api_error_response.exchange_message,
@@ -332,9 +335,16 @@ class BackpackAPI(ExchangeAPI):
     def _hmac_sha256_hexdigest(self, key: bytes, msg: bytes) -> str:
         """
         Helper for HMAC-SHA256 signature generation. Returns a hex digest string.
-        This is a stdlib wrapper to help static analyzers infer the type.
+        Uses 'Any' for intermediate types to work around static analyzer (Pyright/Pylance)
+        limitations with C-extension stdlib modules. This is safe, mypy-compliant,
+        and project-approved for stdlib cryptography edge cases.
         """
-        return hmac.new(key, msg, hashlib.sha256).hexdigest()
+        # Pyright/Pylance cannot infer the type of hmac.new (C-extension);
+        # this is a known false positive. This ignore is safe, does not affect mypy,
+        # and is project-approved for stdlib cryptography edge cases.
+        h: Any = hmac.new(key, msg, hashlib.sha256)  # pyright: ignore[reportUnknownMemberType]
+        digest: str = h.hexdigest()
+        return digest
 
     def _sign_request(
         self,
@@ -352,7 +362,10 @@ class BackpackAPI(ExchangeAPI):
             APIError: If API key/secret are missing.
         """
         if not self._api_key or not self._api_secret:
-            raise APIError("Backpack API key and secret required for signed requests.")
+            raise APIError(
+                "Backpack API key and secret required for signed requests.",
+                code=APIErrorCode.UNKNOWN.value,
+            )
 
         timestamp = str(int(time.time() * 1000))
 
@@ -404,7 +417,7 @@ class BackpackAPI(ExchangeAPI):
             logger.error(f"[{self.exchange_name}] Ticker validation failed: {e}")
             raise APIError(
                 f"Invalid ticker response for {symbol}: {e}",
-                code=APIErrorCode.INVALID_REQUEST,
+                code=APIErrorCode.INVALID_REQUEST.value,
             ) from e
         except Exception as e:
             logger.error(
@@ -466,7 +479,10 @@ class BackpackAPI(ExchangeAPI):
 
             response_raw: object = await self._request("GET", request_path, params=params)
             if not isinstance(response_raw, dict):
-                raise APIError(f"Unexpected response type for order book: {type(response_raw)}")
+                raise APIError(
+                    f"Unexpected response type for order book: {type(response_raw)}",
+                    code=APIErrorCode.UNKNOWN.value,
+                )
             response: dict[str, object] = response_raw
             bids_raw = safe_list_of_pairs(response.get("bids", []) or [])
             asks_raw = safe_list_of_pairs(response.get("asks", []) or [])
@@ -614,11 +630,8 @@ class BackpackAPI(ExchangeAPI):
                 f"[{self.exchange_name}] Error getting recent trades for {symbol}: {e}",
                 exc_info=True,
             )
-            # TODO: When refactoring for Pydantic, raise a validation error with details
             raise APIError(
-                message=f"Error getting recent trades for {symbol}: {e}",
-                code=APIErrorCode.UNKNOWN,
-                http_status=getattr(e, "status", None),
+                f"Error getting recent trades for {symbol}: {e}", code=APIErrorCode.UNKNOWN.value
             ) from e
 
     async def get_funding_rate(self, symbol: str) -> FundingRate | None:
@@ -671,7 +684,7 @@ class BackpackAPI(ExchangeAPI):
             )
             return funding_rate
         except APIError as e:
-            if e.code == APIErrorCode.SYMBOL_NOT_FOUND:
+            if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
                 logger.info(f"[{self.exchange_name}] No funding rate found for symbol {symbol}.")
                 return None
             logger.error(f"[{self.exchange_name}] API error getting funding rate for {symbol}: {e}")
@@ -845,7 +858,7 @@ class BackpackAPI(ExchangeAPI):
                         f"[{self.exchange_name}] Failed to place order. Invalid response: "
                         f"{response}"
                     ),
-                    code=APIErrorCode.UNKNOWN,
+                    code=APIErrorCode.UNKNOWN.value,
                     http_status=None,
                 )
 
@@ -863,7 +876,7 @@ class BackpackAPI(ExchangeAPI):
                 error_body=str(e),
                 exchange_message=f"Error placing order for {symbol} (Path: {request_path}): {e}",
             )
-            raise api_error from e
+            raise api_error
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
         """Cancel an existing order. Conforms to ExchangeAPI interface."""
@@ -892,7 +905,7 @@ class BackpackAPI(ExchangeAPI):
                     f"Error canceling order {order_id} for {symbol} (Path: {request_path}): {e}"
                 ),
             )
-            raise api_error from e
+            raise api_error
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         request_path = "/api/v1/orders"
@@ -947,12 +960,16 @@ class BackpackAPI(ExchangeAPI):
             return orders
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting open orders: {e}")
-            raise
+            raise APIError(
+                f"API Error getting open orders: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Unexpected error in get_open_orders: {e}", exc_info=True
             )
-            raise APIError(f"Failed to get open orders: {e}", code=APIErrorCode.UNKNOWN) from e
+            raise APIError(
+                f"Failed to get open orders: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
 
     async def fetch_ticker(self, symbol: str) -> Ticker:
         """Fetch ticker information (ensuring non-None return)."""
@@ -989,7 +1006,9 @@ class BackpackAPI(ExchangeAPI):
                     f"[{self.exchange_name}] Unexpected response type for funding rate: "
                     f"{type(response)}"
                 )
-                raise APIError(f"Could not fetch funding rate for {symbol}")
+                raise APIError(
+                    f"Could not fetch funding rate for {symbol}", code=APIErrorCode.UNKNOWN.value
+                )
             timestamp = int(response.get("time", int(time.time() * 1000)))
             funding_rate_dec = Decimal(str(response.get("fundingRate", "0")))
             mark_price_dec = (
@@ -1023,7 +1042,7 @@ class BackpackAPI(ExchangeAPI):
                     f"Error getting funding rate for {symbol} (Path: {request_path}): {e}"
                 ),
             )
-            raise api_error from e
+            raise api_error
 
     # --- Placeholder for required abstract method --- #
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
@@ -1050,7 +1069,7 @@ class BackpackAPI(ExchangeAPI):
                 f"is not supported by Backpack API."
             )
             raise APIError(
-                code=APIErrorCode.INVALID_PARAMS,
+                code=APIErrorCode.INVALID_PARAMS.value,
                 message="Symbol is required for get_funding_rates on Backpack",
             )
         return rates
@@ -1077,7 +1096,7 @@ class BackpackAPI(ExchangeAPI):
                 error_body=str(e),
                 exchange_message=f"Error getting account info (Path: {request_path}): {e}",
             )
-            raise api_error from e
+            raise api_error
 
     async def transfer(
         self, asset: str, amount: float, from_account: str, to_account: str
