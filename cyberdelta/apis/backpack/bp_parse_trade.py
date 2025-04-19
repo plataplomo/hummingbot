@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.base import APIError
-from cyberdelta.apis.models.enums import APIErrorCode
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import OrderSide, Trade
 
 

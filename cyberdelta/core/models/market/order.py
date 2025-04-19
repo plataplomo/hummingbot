@@ -1,4 +1,5 @@
 import logging
+import typing
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -177,8 +178,11 @@ class Order(BaseModel):
         allow_none = False
         if field_info is not None:
             annotation = getattr(field_info, "annotation", None)
-            is_optional = annotation is not None and ("| None" in str(annotation))
-            allow_none = is_optional or not field_info.is_required()
+            origin = typing.get_origin(annotation)
+            if origin is typing.Union:
+                args = typing.get_args(annotation)
+                allow_none = type(None) in args
+            allow_none = allow_none or (not field_info.is_required())
         # Type guard for static and runtime safety
         if not isinstance(raw_value, Decimal | str | int | float) and raw_value is not None:
             raise TypeError(
@@ -221,7 +225,11 @@ class Order(BaseModel):
         allow_none = False
         if field_info is not None:
             annotation = getattr(field_info, "annotation", None)
-            allow_none = annotation is not None and ("| None" in str(annotation))
+            origin = typing.get_origin(annotation)
+            if origin is typing.Union:
+                args = typing.get_args(annotation)
+                allow_none = type(None) in args
+            allow_none = allow_none or (not field_info.is_required())
         # Type guard for static and runtime safety
         if not isinstance(raw_value, datetime | int | float | str) and raw_value is not None:
             raise TypeError(
@@ -231,7 +239,7 @@ class Order(BaseModel):
         try:
             parsed = parse_datetime_utc(raw_value, field_name=field_name)
             if parsed is None and not allow_none:
-                raise ValueError(f"Field '{field_name}' cannot be None or invalid.")
+                raise ValueError(f"Field '{field_name}' is required and cannot be None or invalid.")
             return parsed
         except ValueError:
             raise
@@ -242,24 +250,31 @@ class Order(BaseModel):
         market_types = {OrderType.MARKET, OrderType.STOP_MARKET, OrderType.TAKE_PROFIT_MARKET}
 
         if self.order_type in limit_types and self.price is None:
-            raise ValueError(f"Order type {self.order_type} requires a positive price.")
+            raise ValueError(
+                f"Order type {self.order_type} requires a positive price. Field 'price' is None."
+            )
         if self.order_type in market_types and self.price is not None:
             logger.warning(
                 f"Order {self.client_order_id} ({self.order_type}) has price {self.price}; "
-                "should be None for market types."
+                "price should be None for market order types. Check order construction logic."
             )
 
         stop_types = {OrderType.STOP_MARKET, OrderType.STOP_LIMIT}
         if self.order_type in stop_types and self.stop_price is None:
-            raise ValueError(f"Order type {self.order_type} requires a positive stop_price.")
+            raise ValueError(
+                f"Order type {self.order_type} requires a positive stop_price. "
+                "Field 'stop_price' is None."
+            )
         if self.order_type not in stop_types and self.stop_price is not None:
             logger.warning(
                 f"Order {self.client_order_id} ({self.order_type}) has stop_price "
-                f"{self.stop_price}; should be None."
+                f"{self.stop_price}; stop_price should be None for non-stop order types."
             )
 
         if self.post_only and self.order_type not in limit_types:
-            logger.warning(f"post_only=True used with non-limit order type {self.order_type}.")
+            logger.warning(
+                f"Order {self.client_order_id}: post_only=True used with non-limit order type {self.order_type}. This may be ignored by the exchange."
+            )
 
         if self.quantity_filled > self.quantity_requested:
             tolerance = Decimal("1e-9")
@@ -270,14 +285,16 @@ class Order(BaseModel):
                 )
             else:
                 logger.warning(
-                    f"Snapping slightly overfilled qty {self.quantity_filled} to requested "
-                    f"{self.quantity_requested} for {self.client_order_id}"
+                    f"Order {self.client_order_id}: Snapping slightly overfilled qty "
+                    f"{self.quantity_filled} to requested {self.quantity_requested}. "
+                    "This may indicate a rounding issue."
                 )
                 object.__setattr__(self, "quantity_filled", self.quantity_requested)
 
         if self.quantity_filled > 0 and self.average_fill_price is None and self.trades:
             logger.warning(
-                f"Order {self.client_order_id} filled > 0 but average_fill_price is None."
+                f"Order {self.client_order_id}: filled > 0 but average_fill_price is None. "
+                "Check trade fill logic."
             )
         if self.average_fill_price is not None and self.average_fill_price <= 0:
             raise ValueError("Average fill price must be positive.")

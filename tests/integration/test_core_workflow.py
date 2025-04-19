@@ -9,7 +9,7 @@ import pytest
 from _pytest.logging import LogCaptureFixture  # Added for caplog typing
 
 # from cyberdelta.apis.base import APIErrorCode, ExchangeAPI # Removed unused import
-from cyberdelta.apis.models.enums import APIErrorCode  # Updated import location
+from cyberdelta.apis.models.api_error_codes import APIErrorCode  # Updated import location
 
 # Core Components
 from cyberdelta.core.data_handler import DataHandler

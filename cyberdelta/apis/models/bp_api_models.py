@@ -29,6 +29,8 @@ Usage:
 Do not use these models for internal business logic—use your core models for that.
 """
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 # --- REST API Response Models ---
@@ -93,41 +95,83 @@ class BackpackRawPosition(BaseModel):
 class BackpackRawOrder(BaseModel):
     """
     Raw order object from `/api/v1/order` or `/api/v1/orders`.
-    Mirrors the schema in the Backpack OpenAPI spec and order update stream.
-
-    Reference: https://docs.backpack.exchange/ (see OpenAPI spec for /order, /orders)
-    Fields:
-        id: Exchange order ID (str)
-        client_id: Optional client order ID (str | None)
-        symbol: Trading symbol (str)
-        side: Order side ('buy', 'sell', 'Bid', 'Ask') (str)
-        order_type: Order type ('LIMIT', 'MARKET', etc.) (str)
-        status: Order status ('NEW', 'FILLED', etc.) (str)
-        quantity: Requested quantity (as string)
-        executed_quantity: Filled quantity (as string, optional)
-        price: Limit price (as string, optional)
-        avg_fill_price: Average fill price (as string, optional)
-        created_at: Order creation timestamp (int | str | float | None)
-        updated_at: Last update timestamp (int | str | float | None)
-        triggered_at: Triggered timestamp (int | str | float | None)
-        ...plus other fields per OpenAPI spec
+    Field names and types are synchronized with the internal Order model (order.py).
+    All fields use the internal naming as the source of truth, with API field names as aliases.
     """
 
-    id: str = Field(..., alias="id")
-    client_id: str | None = Field(None, alias="clientId")
-    symbol: str = Field(..., alias="symbol")
-    side: str = Field(..., alias="side")
-    order_type: str = Field(..., alias="orderType")
-    status: str = Field(..., alias="status")
-    quantity: str = Field(..., alias="quantity")
-    executed_quantity: str | None = Field(None, alias="executedQuantity")
-    price: str | None = Field(None, alias="price")
-    avg_fill_price: str | None = Field(None, alias="avgFillPrice")
-    created_at: int | str | float | None = Field(..., alias="createdAt")
-    updated_at: int | str | float | None = Field(None, alias="updatedAt")
-    # ... other fields ...
-    triggered_at: int | str | float | None = Field(None, alias="triggeredAt")
-    # See OpenAPI for all possible fields
+    client_order_id: str | None = Field(
+        None, alias="clientId", description="Client-generated unique order ID (UUID)."
+    )
+    exchange_order_id: str = Field(..., alias="id", description="Exchange-provided order ID.")
+    related_order_id: str | None = Field(
+        None,
+        alias="relatedOrderId",
+        description="ID of related order (e.g., parent, trigger target).",
+    )
+    exchange: str | None = Field(
+        None,
+        alias="exchange",
+        description="Name of the exchange (not present in Backpack, set in mapping).",
+    )
+    symbol: str = Field(..., alias="symbol", description="Trading symbol.")
+    side: str = Field(..., alias="side", description="Order side ('buy', 'sell', 'Bid', 'Ask').")
+    order_type: str = Field(
+        ..., alias="orderType", description="Order type ('LIMIT', 'MARKET', etc.)."
+    )
+    status: str = Field(..., alias="status", description="Order status ('NEW', 'FILLED', etc.).")
+    quantity_requested: str = Field(..., alias="quantity", description="Requested order quantity.")
+    quantity_filled: str | None = Field(
+        None, alias="executedQuantity", description="Total filled quantity."
+    )
+    executed_quote_quantity: str | None = Field(
+        None, alias="executedQuoteQuantity", description="Filled quote quantity."
+    )
+    price: str | None = Field(None, alias="price", description="Limit price.")
+    stop_price: str | None = Field(None, alias="triggerPrice", description="Stop trigger price.")
+    average_fill_price: str | None = Field(
+        None, alias="avgFillPrice", description="Weighted average fill price."
+    )
+    trigger_by: str | None = Field(
+        None, alias="triggerBy", description="Reference price type for triggers."
+    )
+    time_in_force: str | None = Field(None, alias="timeInForce", description="Time in force.")
+    reduce_only: bool | None = Field(None, alias="reduceOnly", description="Reduce-only flag.")
+    post_only: bool | None = Field(
+        None,
+        alias="postOnly",
+        description="Post-only flag (not present in Backpack REST, set in mapping if needed).",
+    )
+    self_trade_prevention: str | None = Field(
+        None, alias="selfTradePrevention", description="Self-trade prevention behavior."
+    )
+    created_at: int | str | float | None = Field(
+        ..., alias="createdAt", description="Order creation time (UTC)."
+    )
+    updated_at: int | str | float | None = Field(
+        None, alias="updatedAt", description="Last update time."
+    )
+    triggered_at: int | str | float | None = Field(
+        None, alias="triggeredAt", description="Time the conditional order was triggered."
+    )
+    expiry_reason: str | None = Field(
+        None, alias="expiryReason", description="Reason for expiry/cancellation."
+    )
+    origin: str | None = Field(None, alias="origin", description="Origin of the last update.")
+    strategy_name: str | None = Field(
+        None,
+        alias="strategyName",
+        description="Optional strategy identifier (not present in Backpack, set in mapping if needed).",
+    )
+    signal_id: str | None = Field(
+        None,
+        alias="signalId",
+        description="Optional signal identifier (not present in Backpack, set in mapping if needed).",
+    )
+    trades: list[Any] | None = Field(
+        None,
+        alias="trades",
+        description="List of associated trade fills (not present in Backpack order response).",
+    )
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 

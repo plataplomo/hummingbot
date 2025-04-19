@@ -3,6 +3,7 @@ import logging.handlers
 import os
 import sys
 from types import TracebackType
+from typing import cast
 
 from cyberdelta.utils.config import Config
 
@@ -19,6 +20,8 @@ def setup_logging(config: Config) -> None:
         config: Application configuration
     """
     log_level_str = config.get("general.log_level", "INFO")
+    if not isinstance(log_level_str, str):
+        log_level_str = "INFO"
 
     # Map string log level to logging constants
     log_level_map = {
@@ -53,9 +56,11 @@ def setup_logging(config: Config) -> None:
 
     # Add file handler if log file is configured
     log_file = config.get("general.log_file")
+    if not isinstance(log_file, str) or not log_file:
+        log_file = None
     if log_file:
         # Create the directory if it doesn't exist
-        log_dir = os.path.dirname(log_file)
+        log_dir: str = os.path.dirname(log_file)
         if log_dir and not os.path.exists(log_dir):
             try:
                 os.makedirs(log_dir)
@@ -73,7 +78,13 @@ def setup_logging(config: Config) -> None:
 
     # Apply module-specific log levels if specified
     module_levels = config.get("general.module_log_levels", {})
-    for module_name, level_str in module_levels.items():
+    if not isinstance(module_levels, dict):
+        module_levels = {}
+    # Help static analysis: treat as dict[str, str] for the loop
+    module_levels = cast(dict[str, str], module_levels)
+    for module_name_obj, level_str_obj in module_levels.items():
+        module_name: str = str(module_name_obj)
+        level_str: str = str(level_str_obj)
         try:
             module_level = log_level_map.get(level_str, logging.INFO)
             module_logger = logging.getLogger(module_name)
