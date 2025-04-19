@@ -10,8 +10,8 @@ import aiohttp
 from aiohttp import ClientTimeout
 from eth_account.messages import encode_typed_data
 from web3.auto import w3
-from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 
+# from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 from cyberdelta.core.models import (
     Balance,
@@ -195,7 +195,7 @@ class HyperliquidAPI(ExchangeAPI):
             else:
                 raise APIError(
                     "Private key not provided for signing",
-                    code=APIErrorCode.AUTHENTICATION_FAILED,
+                    code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 )
 
         async with self._nonce_lock:
@@ -244,7 +244,7 @@ class HyperliquidAPI(ExchangeAPI):
             logger.error(f"[{self.exchange_name}] Error signing message: {e}", exc_info=True)
             raise APIError(
                 "Failed to sign message",
-                code=APIErrorCode.AUTHENTICATION_FAILED,
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
 
@@ -355,7 +355,7 @@ class HyperliquidAPI(ExchangeAPI):
             if not self._session:
                 raise APIError(
                     "HTTP session not initialized. Call connect() first.",
-                    code=APIErrorCode.CONNECTION_ERROR,
+                    code=APIErrorCode.CONNECTION_ERROR.value,
                 )
 
             # Create a proper ClientTimeout object
@@ -371,7 +371,7 @@ class HyperliquidAPI(ExchangeAPI):
                     )
                     raise APIError(
                         f"API Error: {response.status} - {error_text}",
-                        code=APIErrorCode.EXCHANGE_SPECIFIC,
+                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
                     )
 
                 if response.content_type == "application/json":
@@ -386,17 +386,19 @@ class HyperliquidAPI(ExchangeAPI):
         except aiohttp.ClientError as e:
             logger.error(f"[{self.exchange_name}] HTTP error: {e}", exc_info=True)
             raise APIError(
-                f"HTTP Error: {e}", code=APIErrorCode.NETWORK_ISSUE, original_exception=e
+                f"HTTP Error: {e}", code=APIErrorCode.NETWORK_ISSUE.value, original_exception=e
             ) from e
         except json.JSONDecodeError as e:
             logger.error(f"[{self.exchange_name}] JSON decode error: {e}", exc_info=True)
             raise APIError(
-                f"JSON decode error: {e}", code=APIErrorCode.INVALID_REQUEST, original_exception=e
+                f"JSON decode error: {e}",
+                code=APIErrorCode.INVALID_REQUEST.value,
+                original_exception=e,
             ) from e
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Request error: {e}", exc_info=True)
             raise APIError(
-                f"Request error: {e}", code=APIErrorCode.SERVER_ERROR, original_exception=e
+                f"Request error: {e}", code=APIErrorCode.SERVER_ERROR.value, original_exception=e
             ) from e
 
     async def get_balances(self) -> dict[str, Balance]:
@@ -448,7 +450,9 @@ class HyperliquidAPI(ExchangeAPI):
                 exc_info=True,
             )
             raise APIError(
-                f"Failed to get balances: {e}", code=APIErrorCode.SERVER_ERROR, original_exception=e
+                f"Failed to get balances: {e}",
+                code=APIErrorCode.SERVER_ERROR.value,
+                original_exception=e,
             ) from e
 
     async def get_positions(self, symbol: str | None = None) -> list[Position]:
@@ -519,7 +523,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Failed to get positions: {e}",
-                code=APIErrorCode.SERVER_ERROR,
+                code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
 
@@ -557,7 +561,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Failed to get open orders: {e}",
-                code=APIErrorCode.SERVER_ERROR,
+                code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
 
@@ -578,7 +582,7 @@ class HyperliquidAPI(ExchangeAPI):
         if not self._account:
             raise APIError(
                 "Cannot place order without initialized account/private key",
-                code=APIErrorCode.AUTHENTICATION_FAILED,
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
         is_buy = side == OrderSide.BUY
@@ -593,7 +597,8 @@ class HyperliquidAPI(ExchangeAPI):
             order_type_hl = {"limit": {"tif": time_in_force.value}}
             if post_only:
                 logger.warning(
-                    f"[{self.exchange_name}] Post-only flag handling for limit orders needs verification."
+                    f"[{self.exchange_name}] Post-only flag handling for limit orders "
+                    f"needs verification."
                 )
 
         elif order_type == OrderType.MARKET:
@@ -640,15 +645,27 @@ class HyperliquidAPI(ExchangeAPI):
                                 return Order(
                                     client_order_id=client_order_id
                                     or str(status_dict.get("oid", "")),
+                                    exchange_order_id=str(status_dict.get("oid", "")),
+                                    related_order_id=None,
                                     symbol=symbol,
                                     side=side,
                                     order_type=order_type,
+                                    status=OrderStatus.FILLED,
                                     quantity_requested=quantity,
                                     quantity_filled=Decimal(str(status_dict.get("totalSz", "0"))),
                                     price=price,
                                     average_fill_price=avg_fill_price,
-                                    status=OrderStatus.FILLED,
                                     created_at=created_at,
+                                    exchange="hyperliquid",
+                                    executed_quote_quantity=None,
+                                    trigger_by=None,
+                                    self_trade_prevention=None,
+                                    updated_at=None,
+                                    triggered_at=None,
+                                    expiry_reason=None,
+                                    origin=None,
+                                    strategy_name=None,
+                                    signal_id=None,
                                 )
                                 if "resting" in status_dict:
                                     resting_data = status_dict["resting"]
@@ -659,36 +676,51 @@ class HyperliquidAPI(ExchangeAPI):
                                     return Order(
                                         client_order_id=client_order_id
                                         or str(resting_data.get("oid", "")),
+                                        exchange_order_id=str(resting_data.get("oid", "")),
+                                        related_order_id=None,
                                         symbol=symbol,
                                         side=side,
                                         order_type=order_type,
+                                        status=OrderStatus.OPEN,
                                         quantity_requested=quantity,
                                         quantity_filled=Decimal("0"),
                                         price=price,
                                         average_fill_price=None,
-                                        status=OrderStatus.OPEN,
                                         created_at=created_at,
+                                        exchange="hyperliquid",
+                                        executed_quote_quantity=None,
+                                        trigger_by=None,
+                                        self_trade_prevention=None,
+                                        updated_at=None,
+                                        triggered_at=None,
+                                        expiry_reason=None,
+                                        origin=None,
+                                        strategy_name=None,
+                                        signal_id=None,
                                     )
                                 elif "error" in status_dict:
                                     error_msg = str(status_dict["error"])
                                     logger.error(
-                                        f"[{self.exchange_name}] Order placement failed: {error_msg}"
+                                        f"[{self.exchange_name}] Order placement failed: "
+                                        f"{error_msg}"
                                     )
                                     raise APIError(
                                         f"Order placement failed: {error_msg}",
-                                        code=APIErrorCode.ORDER_REJECTED,
+                                        code=APIErrorCode.ORDER_REJECTED.value,
                                     )
                                 else:
                                     logger.warning(
-                                        f"[{self.exchange_name}] Unhandled order status in response: {status_dict}"
+                                        "[hyperliquid] Unhandled order status in response:"
                                     )
+                                    logger.warning(f"{status_dict}")
                                     raise APIError(
-                                        "Unhandled order status", code=APIErrorCode.UNKNOWN
+                                        "Unhandled order status", code=APIErrorCode.UNKNOWN.value
                                     )
 
             logger.error(f"[{self.exchange_name}] Failed to place order. Response: {response}")
             raise APIError(
-                "Failed to place order, unexpected response", code=APIErrorCode.EXCHANGE_SPECIFIC
+                "Failed to place order, unexpected response",
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
             )
 
         except APIError as e:
@@ -697,7 +729,9 @@ class HyperliquidAPI(ExchangeAPI):
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Error placing order: {e}", exc_info=True)
             raise APIError(
-                f"Failed to place order: {e}", code=APIErrorCode.SERVER_ERROR, original_exception=e
+                f"Failed to place order: {e}",
+                code=APIErrorCode.SERVER_ERROR.value,
+                original_exception=e,
             ) from e
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
@@ -705,7 +739,7 @@ class HyperliquidAPI(ExchangeAPI):
         if not self._account:
             raise APIError(
                 "Cannot cancel order without initialized account/private key",
-                code=APIErrorCode.AUTHENTICATION_FAILED,
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
         if symbol is None:
             raise ValueError("Symbol must be provided to cancel Hyperliquid orders")
@@ -739,9 +773,9 @@ class HyperliquidAPI(ExchangeAPI):
                         logger.error(
                             f"[{self.exchange_name}] Failed to cancel order {order_id}: {error_msg}"
                         )
-                        code = APIErrorCode.EXCHANGE_SPECIFIC
+                        code = APIErrorCode.EXCHANGE_SPECIFIC.value
                         if "Order not found" in error_msg:
-                            code = APIErrorCode.ORDER_NOT_FOUND
+                            code = APIErrorCode.ORDER_NOT_FOUND.value
                         raise APIError(f"Failed to cancel order: {error_msg}", code=code)
                     else:
                         logger.warning(
@@ -759,7 +793,8 @@ class HyperliquidAPI(ExchangeAPI):
                 f"[{self.exchange_name}] Failed to cancel order {order_id}. Response: {response}"
             )
             raise APIError(
-                "Cancel order failed, unexpected response", code=APIErrorCode.EXCHANGE_SPECIFIC
+                "Cancel order failed, unexpected response",
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
             )
 
         except APIError as e:
@@ -771,7 +806,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Failed to cancel order {order_id}: {e}",
-                code=APIErrorCode.SERVER_ERROR,
+                code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
 
@@ -801,7 +836,8 @@ class HyperliquidAPI(ExchangeAPI):
                             # mark_px is expected to be Any or None per API contract
                             mark_px = ctx.get("markPx")
                             if mark_px is not None:
-                                # Use robust Decimal parsing for all financial fields (see decimal rule)
+                                # Use robust Decimal parsing for all financial fields
+                                # (see decimal rule)
                                 bid = parse_decimal_value(mark_px, allow_none=True)
                                 ask = parse_decimal_value(mark_px, allow_none=True)
                                 # 'last' is not a valid argument for Ticker; only use valid fields
@@ -815,7 +851,7 @@ class HyperliquidAPI(ExchangeAPI):
                 f"[{self.exchange_name}] Ticker data not found for {symbol} in response: {response}"
             )
             raise APIError(
-                f"Ticker data not found for {symbol}", code=APIErrorCode.SYMBOL_NOT_FOUND
+                f"Ticker data not found for {symbol}", code=APIErrorCode.SYMBOL_NOT_FOUND.value
             )
 
         except APIError as e:
@@ -828,7 +864,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Failed to get ticker for {symbol}: {e}",
-                code=APIErrorCode.SERVER_ERROR,
+                code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
 
@@ -887,7 +923,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Order book data not found/invalid for {symbol}",
-                code=APIErrorCode.EXCHANGE_SPECIFIC,
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
             )
 
         except APIError as e:
@@ -900,7 +936,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Failed to get order book for {symbol}: {e}",
-                code=APIErrorCode.SERVER_ERROR,
+                code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
 
@@ -962,7 +998,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Failed to get recent trades for {symbol}: {e}",
-                code=APIErrorCode.SERVER_ERROR,
+                code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
 
@@ -1008,7 +1044,7 @@ class HyperliquidAPI(ExchangeAPI):
             if e.original_exception and "Funding rate not available" in str(e.original_exception):
                 raise APIError(
                     f"Funding rate unavailable for {symbol}",
-                    code=APIErrorCode.FUNDING_RATE_UNAVAILABLE,
+                    code=APIErrorCode.FUNDING_RATE_UNAVAILABLE.value,
                     original_exception=e,
                 ) from e
             raise
@@ -1019,7 +1055,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Failed to get funding rate for {symbol}: {e}",
-                code=APIErrorCode.SERVER_ERROR,
+                code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
 
@@ -1041,7 +1077,7 @@ class HyperliquidAPI(ExchangeAPI):
         if not self._account:
             raise APIError(
                 "Cannot withdraw without initialized account/private key",
-                code=APIErrorCode.AUTHENTICATION_FAILED,
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
         logger.warning(
@@ -1057,17 +1093,17 @@ class HyperliquidAPI(ExchangeAPI):
     ) -> APIError:
         """Map HTTP errors and Hyperliquid specific errors to standard APIErrorCode."""
         if status_code == 400:
-            code = APIErrorCode.INVALID_REQUEST
+            code = APIErrorCode.INVALID_REQUEST.value
         elif status_code == 401 or status_code == 403:
-            code = APIErrorCode.AUTHENTICATION_FAILED
+            code = APIErrorCode.AUTHENTICATION_FAILED.value
         elif status_code == 404:
-            code = APIErrorCode.SYMBOL_NOT_FOUND
+            code = APIErrorCode.SYMBOL_NOT_FOUND.value
         elif status_code == 429:
-            code = APIErrorCode.RATE_LIMITED
+            code = APIErrorCode.RATE_LIMITED.value
         elif 500 <= status_code < 600:
-            code = APIErrorCode.SERVER_ERROR
+            code = APIErrorCode.SERVER_ERROR.value
         else:
-            code = APIErrorCode.UNKNOWN
+            code = APIErrorCode.UNKNOWN.value
 
         message = f"HTTP error {status_code}"
         exchange_code = None
@@ -1076,11 +1112,11 @@ class HyperliquidAPI(ExchangeAPI):
         if error_data:
             exchange_message = error_data.get("error", exchange_message)
             if "Invalid order size" in exchange_message:
-                code = APIErrorCode.QUANTITY_OUT_OF_RANGE
+                code = APIErrorCode.QUANTITY_OUT_OF_RANGE.value
             elif "Order not found" in exchange_message:
-                code = APIErrorCode.ORDER_NOT_FOUND
+                code = APIErrorCode.ORDER_NOT_FOUND.value
             elif "Insufficient margin" in exchange_message:
-                code = APIErrorCode.INSUFFICIENT_FUNDS
+                code = APIErrorCode.INSUFFICIENT_FUNDS.value
 
         return APIError(
             message=message,
@@ -1176,6 +1212,7 @@ class HyperliquidAPI(ExchangeAPI):
             return Order(
                 client_order_id=data.get("cloid", order_id),
                 exchange_order_id=order_id,
+                related_order_id=None,
                 symbol=symbol,
                 side=side,
                 order_type=order_type,
@@ -1185,6 +1222,16 @@ class HyperliquidAPI(ExchangeAPI):
                 price=Decimal(str(price_str)),
                 average_fill_price=None,  # Set if available
                 created_at=datetime.fromtimestamp(timestamp / 1000, tz=UTC),
+                exchange="hyperliquid",
+                executed_quote_quantity=None,
+                trigger_by=None,
+                self_trade_prevention=None,
+                updated_at=None,
+                triggered_at=None,
+                expiry_reason=None,
+                origin=None,
+                strategy_name=None,
+                signal_id=None,
             )
         except Exception as e:
             logger.error(f"Error parsing order data: {e}")
@@ -1256,7 +1303,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Failed to get funding rates: {e}",
-                code=APIErrorCode.SERVER_ERROR,
+                code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
 
@@ -1385,7 +1432,7 @@ class HyperliquidAPI(ExchangeAPI):
         logger.warning(f"[{self.exchange_name}] parse_funding_rate_message needs WS update impl.")
         return None
 
-    async def _on_message(self, ws: WebSocketClientProtocol, message: str) -> None:
+    async def _on_message(self, ws: "aiohttp.ClientWebSocketResponse", message: str) -> None:
         """Handle WebSocket messages.
 
         Args:
@@ -1401,7 +1448,7 @@ class HyperliquidAPI(ExchangeAPI):
 
             if message_type == "ping":
                 # Respond to ping message
-                await ws.send(json.dumps({"type": "pong"}))
+                await ws.send_str(json.dumps({"type": "pong"}))
                 return
 
             if message_type == "orderbook":

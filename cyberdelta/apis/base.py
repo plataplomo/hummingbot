@@ -165,14 +165,14 @@ class ExchangeAPI(ABC):
         if not self._session:
             raise APIError(
                 "HTTP session not initialized. Call connect() first.",
-                code=APIErrorCode.CONNECTION_ERROR,
+                code=APIErrorCode.CONNECTION_ERROR.value,
             )
 
         # Check for missing endpoint configuration
         if not self.rest_endpoint:
             raise APIError(
                 f"REST endpoint not configured for {self.exchange_name}. Check configuration.",
-                code=APIErrorCode.CONNECTION_ERROR,
+                code=APIErrorCode.CONNECTION_ERROR.value,
             )
 
         # Construct full URL
@@ -284,9 +284,9 @@ class ExchangeAPI(ABC):
 
                 error = APIError(
                     message=f"Connection error: {str(e)}",
-                    code=APIErrorCode.TIMEOUT
+                    code=APIErrorCode.TIMEOUT.value
                     if isinstance(e, asyncio.TimeoutError)
-                    else APIErrorCode.CONNECTION_ERROR,
+                    else APIErrorCode.CONNECTION_ERROR.value,
                     original_exception=e,
                 )
 
@@ -310,13 +310,13 @@ class ExchangeAPI(ABC):
         if last_error:
             raise APIError(
                 message=f"Request failed after {retry_count} attempts: {str(last_error)}",
-                code=APIErrorCode.UNKNOWN,
+                code=APIErrorCode.UNKNOWN.value,
                 original_exception=last_error,
             )
 
         raise APIError(
             message=f"Request failed after {retry_count} attempts due to unknown error",
-            code=APIErrorCode.UNKNOWN,
+            code=APIErrorCode.UNKNOWN.value,
         )
 
     @abstractmethod
@@ -461,7 +461,7 @@ class ExchangeAPI(ABC):
 
         return APIError(
             message=f"API error: {message}",
-            code=code,
+            code=code.value,
             http_status=status_code,
             exchange_code=exchange_code,
             exchange_message=message,
@@ -505,12 +505,13 @@ class ExchangeAPI(ABC):
             # Some type checkers (e.g., Pylance, Pyright) may incorrectly flag this as an error
             # due to outdated or incomplete type stubs. This is a false positive; see:
             # https://docs.aiohttp.org/en/stable/client_reference.html#aiohttp.ClientSession.ws_connect
-            # Suppressing with type: ignore as this is correct and safe.
+            # Suppressing with pyright: ignore as this is correct and safe.
+            # Mypy doesnt show this error here
             self._ws_connection = await self._session.ws_connect(
                 self.ws_endpoint,
                 heartbeat=30.0,
-                timeout=ClientWSTimeout(30.0),
-            )  # type: ignore[reportCallIssue, unused-ignore, call-arg]
+                timeout=ClientWSTimeout(30.0),  # pyright: ignore[reportCallIssue]
+            )
 
             self._is_connected = True
             logger.info(f"[{self.exchange_name}] WebSocket connected successfully")
