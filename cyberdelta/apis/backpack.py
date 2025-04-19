@@ -876,7 +876,7 @@ class BackpackAPI(ExchangeAPI):
                 error_body=str(e),
                 exchange_message=f"Error placing order for {symbol} (Path: {request_path}): {e}",
             )
-            raise api_error
+            raise api_error from e
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
         """Cancel an existing order. Conforms to ExchangeAPI interface."""
@@ -905,7 +905,7 @@ class BackpackAPI(ExchangeAPI):
                     f"Error canceling order {order_id} for {symbol} (Path: {request_path}): {e}"
                 ),
             )
-            raise api_error
+            raise api_error from e
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         request_path = "/api/v1/orders"
@@ -1042,7 +1042,7 @@ class BackpackAPI(ExchangeAPI):
                     f"Error getting funding rate for {symbol} (Path: {request_path}): {e}"
                 ),
             )
-            raise api_error
+            raise api_error from e
 
     # --- Placeholder for required abstract method --- #
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
@@ -1096,7 +1096,7 @@ class BackpackAPI(ExchangeAPI):
                 error_body=str(e),
                 exchange_message=f"Error getting account info (Path: {request_path}): {e}",
             )
-            raise api_error
+            raise api_error from e
 
     async def transfer(
         self, asset: str, amount: float, from_account: str, to_account: str

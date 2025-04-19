@@ -81,12 +81,15 @@ class APIErrorResponse(BaseModel):
 
     Fields:
         message: Human-readable error message (from exchange or mapped internally).
-        code: Canonical error code (int, typically from APIErrorCode enum; may be str for raw exchange codes).
+        code: Canonical error code (int, typically from APIErrorCode enum; may be str for raw
+            exchange codes).
         http_status: HTTP status code if available (e.g., 400, 404, 500).
         exchange_code: Raw error code from the exchange, if present (str or int).
         exchange_message: Raw error message from the exchange, if present.
-        retry_after: If present, indicates how many seconds to wait before retrying (for rate limits, etc.).
-        metadata: Optional dict for additional diagnostic or context info (extensible for future use).
+        retry_after: If present, indicates how many seconds to wait before retrying
+            (for rate limits, etc.).
+        metadata: Optional dict for additional diagnostic or context info
+            (extensible for future use).
         original_exception: The original exception, if chained (optional).
 
     Usage:
@@ -122,7 +125,8 @@ class APIErrorResponse(BaseModel):
         """
         Ensure 'code' is an int if possible, otherwise leave as str.
         Args:
-            raw_code: The raw code value from the exchange or mapping logic. Accepts str, int, float, or None.
+            raw_code: The raw code value from the exchange or mapping logic. Accepts str, int,
+                float, or None.
         Returns:
             int or str: The normalized code value. If input is None, returns 'UNKNOWN'.
         """
@@ -154,7 +158,8 @@ class APIErrorResponse(BaseModel):
         original_exception: Exception | None = None,
     ) -> APIErrorResponse:
         """
-        Construct an APIErrorResponse from raw exchange error data, performing validation and normalization.
+        Construct an APIErrorResponse from raw exchange error data, performing validation and
+        normalization.
         This is the preferred way to create error responses from mapping logic.
         """
         return cls(
