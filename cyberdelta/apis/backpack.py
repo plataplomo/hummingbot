@@ -612,43 +612,10 @@ class BackpackAPI(ExchangeAPI):
                     http_status=None,
                 )
 
-            # Map API status string to OrderStatus enum
-            status_str = response.get("status", "").upper()
-            status = OrderStatus.UNKNOWN
-            if status_str == "NEW":
-                status = OrderStatus.NEW
-            elif status_str == "FILLED":
-                status = OrderStatus.FILLED
-            elif status_str == "PARTIALLY_FILLED":
-                status = OrderStatus.PARTIALLY_FILLED
-            elif status_str == "CANCELLED":
-                status = OrderStatus.CANCELED
-            elif status_str == "EXPIRED":
-                status = OrderStatus.EXPIRED
-            elif status_str == "REJECTED":
-                status = OrderStatus.REJECTED
-
-            # Ensure essential fields are present before creating Order
-            order = Order(
-                client_order_id=response.get("clientId", client_order_id or ""),
-                exchange_order_id=str(response.get("id", "")),
-                symbol=response.get("symbol", symbol),
-                side=OrderSide(response.get("side", side.value)),
-                order_type=OrderType(response.get("orderType", order_type.value)),
-                status=status,
-                quantity_requested=Decimal(str(response.get("quantity", quantity))),
-                quantity_filled=Decimal(str(response.get("executedQuantity", "0"))),
-                price=Decimal(str(response["price"]))
-                if response.get("price") is not None
-                else price,
-                average_fill_price=Decimal(str(response["avgFillPrice"]))
-                if response.get("avgFillPrice") is not None
-                else None,
-                created_at=datetime.fromtimestamp(
-                    int(response.get("createdAt", int(time.time() * 1000))) / 1000, UTC
-                ),
+            # The order creation logic has been moved to the _transform_raw_order_to_internal method
+            return BackpackOrderMapper.transform_raw_order_to_internal(
+                BackpackRawOrder.model_validate(response)
             )
-            return order
         except ValueError as ve:
             raise ve
         except Exception as e:
@@ -691,15 +658,11 @@ class BackpackAPI(ExchangeAPI):
             raise api_error from e
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """
-        Get open orders for a specific symbol or all symbols.
-        """
         request_path = "/api/v1/orders"
         try:
             params: dict[str, str] = {}
             if symbol:
                 params["symbol"] = symbol
-
             response = await self._request("GET", request_path, params=params, signed=True)
             orders: list[Order] = []
             if not isinstance(response, list):
@@ -1273,6 +1236,53 @@ class BackpackOrderMapper:
         except Exception:
             logger.warning(f"[BackpackOrderMapper] Unknown origin '{origin}', returning None.")
             return None
+
+    @staticmethod
+    def transform_raw_order_to_internal(raw: BackpackRawOrder) -> Order:
+        # Defensive: ensure required fields are present and valid
+        parsed_quantity = parse_decimal_value(raw.quantity_requested, allow_none=False)
+        if parsed_quantity is None:
+            raise ValueError("quantity_requested missing/invalid in BackpackRawOrder")
+        parsed_created_at = parse_datetime_utc(raw.created_at)
+        if parsed_created_at is None:
+            raise ValueError("created_at missing/invalid in BackpackRawOrder")
+        # Optional fields
+        parsed_quantity_filled = parse_decimal_value(raw.quantity_filled) or Decimal("0.0")
+        parsed_executed_quote_quantity = parse_decimal_value(raw.executed_quote_quantity)
+        parsed_price = parse_decimal_value(raw.price)
+        parsed_stop_price = parse_decimal_value(raw.stop_price)
+        parsed_avg_fill_price = parse_decimal_value(raw.average_fill_price)
+        return Order(
+            client_order_id=raw.client_order_id or "",
+            exchange_order_id=raw.exchange_order_id,
+            related_order_id=raw.related_order_id,
+            exchange="backpack",
+            symbol=raw.symbol,
+            side=BackpackOrderMapper.map_side_to_internal(raw.side),
+            order_type=BackpackOrderMapper.map_type_to_internal(raw.order_type),
+            status=BackpackOrderMapper.map_status_to_internal(raw.status),
+            quantity_requested=parsed_quantity,
+            quantity_filled=parsed_quantity_filled,
+            executed_quote_quantity=parsed_executed_quote_quantity,
+            price=parsed_price,
+            stop_price=parsed_stop_price,
+            average_fill_price=parsed_avg_fill_price,
+            trigger_by=BackpackOrderMapper.map_trigger_by_to_internal(raw.trigger_by),
+            time_in_force=BackpackOrderMapper.map_tif_to_internal(raw.time_in_force),
+            reduce_only=raw.reduce_only or False,
+            post_only=raw.post_only or False,
+            self_trade_prevention=BackpackOrderMapper.map_stp_to_internal(
+                raw.self_trade_prevention
+            ),
+            created_at=parsed_created_at,
+            updated_at=parse_datetime_utc(raw.updated_at),
+            triggered_at=parse_datetime_utc(raw.triggered_at),
+            expiry_reason=BackpackOrderMapper.map_expiry_reason_to_internal(raw.expiry_reason),
+            origin=BackpackOrderMapper.map_origin_to_internal(raw.origin),
+            strategy_name=raw.strategy_name,
+            signal_id=raw.signal_id,
+            trades=raw.trades or [],
+        )
 
 
 def _parse_api_order_to_internal_order(raw_data: dict[str, object]) -> Order:
