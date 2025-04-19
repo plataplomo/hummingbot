@@ -329,6 +329,13 @@ class BackpackAPI(ExchangeAPI):
         """
         return self._sign_request(method, path, params, data)
 
+    def _hmac_sha256_hexdigest(self, key: bytes, msg: bytes) -> str:
+        """
+        Helper for HMAC-SHA256 signature generation. Returns a hex digest string.
+        This is a stdlib wrapper to help static analyzers infer the type.
+        """
+        return hmac.new(key, msg, hashlib.sha256).hexdigest()
+
     def _sign_request(
         self,
         method: str,
@@ -360,12 +367,10 @@ class BackpackAPI(ExchangeAPI):
 
             signature_payload += json.dumps(data)
 
-        # Create signature
-        signature = hmac.new(
-            self._api_secret.encode("utf-8"),
-            signature_payload.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
+        # Create signature using helper for static analyzer compatibility
+        signature = self._hmac_sha256_hexdigest(
+            self._api_secret.encode("utf-8"), signature_payload.encode("utf-8")
+        )
 
         # Return headers and potentially modified params/data
         return {
