@@ -94,7 +94,7 @@ class ExchangeAPI(ABC):
         default_rate = rate_limit_config.get("default_rate", 1.0)
         default_bucket = rate_limit_config.get("default_bucket", 5)
         self._default_limiter_config = RateLimiterConfig(
-            rate=default_rate, bucket_size=default_bucket
+            rate=default_rate, bucket_size=default_bucket, tokens=None, last_refill=None
         )
         self._default_limiter = TokenBucketRateLimiterRuntime(default_rate, default_bucket)
         self._endpoint_limiter_configs: dict[str, RateLimiterConfig] = {}
@@ -104,7 +104,7 @@ class ExchangeAPI(ABC):
             rate = config.get("rate", default_rate)
             bucket = config.get("bucket", default_bucket)
             self._endpoint_limiter_configs[endpoint] = RateLimiterConfig(
-                rate=rate, bucket_size=bucket
+                rate=rate, bucket_size=bucket, tokens=None, last_refill=None
             )
             self._endpoint_limiters[endpoint] = TokenBucketRateLimiterRuntime(rate, bucket)
 
@@ -510,7 +510,7 @@ class ExchangeAPI(ABC):
                 self.ws_endpoint,
                 heartbeat=30.0,
                 timeout=ClientWSTimeout(30.0),
-            )  # type: ignore[reportCallIssue, unused-ignore]
+            )  # type: ignore[reportCallIssue, unused-ignore, call-arg]
 
             self._is_connected = True
             logger.info(f"[{self.exchange_name}] WebSocket connected successfully")

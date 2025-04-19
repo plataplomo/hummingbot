@@ -36,6 +36,52 @@ from pydantic import BaseModel, ConfigDict, Field
 # --- REST API Response Models ---
 
 
+class BackpackRawApiError(BaseModel):
+    """
+    Raw error response from Backpack API (see OpenAPI spec: https://docs.backpack.exchange/).
+    Fields:
+        code: Error code string (see OpenAPI enum for all allowed values)
+        message: Human-readable error message
+    Strictly validated (extra fields forbidden).
+    Allowed codes (2024-04-08):
+        - FORBIDDEN
+        - INVALID_CLIENT_REQUEST
+        - INVALID_SIGNATURE
+        - SERVER_ERROR
+        - UNAUTHORIZED
+        - TIMEOUT
+        - TOO_MANY_REQUESTS
+        - RESOURCE_NOT_FOUND
+        - MAINTENANCE
+        - INVALID_QUANTITY
+        - ORDER_LIMIT
+        - INVALID_ORDER
+        - INVALID_PRICE
+        - INVALID_MARKET
+        - INVALID_SOURCE
+        - INSUFFICIENT_FUNDS
+        - INSUFFICIENT_MARGIN
+        - POSITION_LIMIT
+        - ACCOUNT_LIQUIDATING
+        - TRADING_PAUSED
+        - INVALID_ASSET
+        - INVALID_SYMBOL
+        - INVALID_POSITION_ID
+        - BORROW_REQUIRES_LEND_REDEEM
+        - LEND_REQUIRES_BORROW_REPAY
+        - INSUFFICIENT_SUPPLY
+        - BORROW_LIMIT
+        - LEND_LIMIT
+        - MAX_LEVERAGE_REACHED
+        - PRECONDITION_FAILED
+        - NOT_IMPLEMENTED
+    """
+
+    code: str = Field(..., description="Backpack error code")
+    message: str = Field(..., description="Error message")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
 class BackpackRawAccount(BaseModel):
     """
     Raw account summary from `/api/v1/account`.

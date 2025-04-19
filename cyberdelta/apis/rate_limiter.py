@@ -19,7 +19,7 @@ class TokenBucketRateLimiterRuntime:
         bucket_size: int,
         tokens: float | None = None,
         last_refill: float | None = None,
-    ):
+    ) -> None:
         self.rate = rate
         self.bucket_size = bucket_size
         self.tokens = float(tokens) if tokens is not None else float(bucket_size)

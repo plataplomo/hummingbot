@@ -16,7 +16,7 @@ from cyberdelta.apis.base import (  # Use absolute import
     MessageHandler,
 )
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.bp_api_models import BackpackRawOrder
+from cyberdelta.apis.models.bp_api_models import BackpackRawApiError, BackpackRawOrder
 from cyberdelta.core.models import (  # Use absolute import
     Balance,
     FundingRate,
@@ -45,6 +45,7 @@ class BackpackErrorMapper:
     """
     Centralized error mapping utility for Backpack API errors.
     Provides methods to map Backpack error responses to standardized APIErrorCode and APIError.
+    Now uses BackpackRawApiError for strict error code extraction when possible.
     """
 
     @staticmethod
@@ -53,42 +54,45 @@ class BackpackErrorMapper:
     ) -> APIErrorCode:
         """
         Map Backpack error responses (body, data, status) to standardized APIErrorCode.
-
-        Args:
-            error_body: Raw error response body (string, may be JSON or plain text).
-            error_data: Parsed error data (if available, from JSON response).
-            status_code: HTTP status code (if available).
-
-        Returns:
-            APIErrorCode: Standardized error code for internal handling.
+        Tries to use BackpackRawApiError for strict code extraction, falls back to heuristics.
         """
         error_body_lower = error_body.lower() if error_body else ""
         mapped_code = APIErrorCode.UNKNOWN
 
-        # --- Backpack-specific educated guesses ---
-        if (
-            "invalid signature" in error_body_lower
-            or "authentication failed" in error_body_lower
-            or "invalid api key" in error_body_lower
-        ):
-            mapped_code = APIErrorCode.AUTHENTICATION_FAILED
-        elif "rate limit exceeded" in error_body_lower or "too many requests" in error_body_lower:
-            mapped_code = APIErrorCode.RATE_LIMITED
-        elif "invalid symbol" in error_body_lower:
-            mapped_code = APIErrorCode.INVALID_SYMBOL
-        elif "invalid quantity" in error_body_lower or "invalid size" in error_body_lower:
-            mapped_code = APIErrorCode.INVALID_ORDER_SIZE
-        elif "invalid parameter" in error_body_lower or "bad request" in error_body_lower:
-            mapped_code = APIErrorCode.INVALID_REQUEST
-        elif "order not found" in error_body_lower:
-            mapped_code = APIErrorCode.ORDER_NOT_FOUND
-        elif "insufficient balance" in error_body_lower or "insufficient funds" in error_body_lower:
-            mapped_code = APIErrorCode.INSUFFICIENT_FUNDS
-        elif (
-            "service unavailable" in error_body_lower or "internal server error" in error_body_lower
-        ):
-            mapped_code = APIErrorCode.SERVICE_UNAVAILABLE
-        # --- End educated guesses ---
+        # --- Prefer strict model-based mapping if possible ---
+        if error_data:
+            try:
+                raw_api_error = BackpackRawApiError.model_validate(error_data)
+                code = raw_api_error.code.upper()
+                # Map known Backpack error codes to internal APIErrorCode
+                code_map = {
+                    "INVALID_SIGNATURE": APIErrorCode.AUTHENTICATION_FAILED,
+                    "UNAUTHORIZED": APIErrorCode.AUTHENTICATION_FAILED,
+                    "FORBIDDEN": APIErrorCode.AUTHENTICATION_FAILED,
+                    "TOO_MANY_REQUESTS": APIErrorCode.RATE_LIMITED,
+                    "RATE_LIMIT_EXCEEDED": APIErrorCode.RATE_LIMITED,
+                    "INVALID_SYMBOL": APIErrorCode.INVALID_SYMBOL,
+                    "INVALID_QUANTITY": APIErrorCode.INVALID_ORDER_SIZE,
+                    "INVALID_ORDER": APIErrorCode.INVALID_REQUEST,
+                    "INVALID_PRICE": APIErrorCode.INVALID_REQUEST,
+                    "INVALID_CLIENT_REQUEST": APIErrorCode.INVALID_REQUEST,
+                    "INSUFFICIENT_FUNDS": APIErrorCode.INSUFFICIENT_FUNDS,
+                    "INSUFFICIENT_MARGIN": APIErrorCode.INSUFFICIENT_FUNDS,
+                    # Backpack ORDER_LIMIT: mapped to ORDER_REJECTED (no direct match)
+                    "ORDER_LIMIT": APIErrorCode.ORDER_REJECTED,
+                    # Backpack POSITION_LIMIT: mapped to MAX_POSITION_EXCEEDED (closest match)
+                    "POSITION_LIMIT": APIErrorCode.MAX_POSITION_EXCEEDED,
+                    "SERVER_ERROR": APIErrorCode.SERVICE_UNAVAILABLE,
+                    "MAINTENANCE": APIErrorCode.SERVICE_UNAVAILABLE,
+                    "RESOURCE_NOT_FOUND": APIErrorCode.ORDER_NOT_FOUND,
+                    # Add more mappings as needed
+                }
+                mapped_code = code_map.get(code, APIErrorCode.UNKNOWN)
+                return mapped_code
+            except Exception as e:
+                logger.warning(
+                    f"[BackpackErrorMapper] Failed to parse error_data as BackpackRawApiError: {e}. Falling back to heuristics."
+                )
 
         # Optionally, use error_data or status_code for further refinement in the future
         return mapped_code
