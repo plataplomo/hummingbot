@@ -667,55 +667,6 @@ class HyperliquidAPI(ExchangeAPI):
                                     strategy_name=None,
                                     signal_id=None,
                                 )
-                                if "resting" in status_dict:
-                                    resting_data = status_dict["resting"]
-                                    created_at_ts = resting_data.get("time", time.time() * 1000)
-                                    created_at = datetime.fromtimestamp(
-                                        float(created_at_ts) / 1000, tz=UTC
-                                    )
-                                    return Order(
-                                        client_order_id=client_order_id
-                                        or str(resting_data.get("oid", "")),
-                                        exchange_order_id=str(resting_data.get("oid", "")),
-                                        related_order_id=None,
-                                        symbol=symbol,
-                                        side=side,
-                                        order_type=order_type,
-                                        status=OrderStatus.OPEN,
-                                        quantity_requested=quantity,
-                                        quantity_filled=Decimal("0"),
-                                        price=price,
-                                        average_fill_price=None,
-                                        created_at=created_at,
-                                        exchange="hyperliquid",
-                                        executed_quote_quantity=None,
-                                        trigger_by=None,
-                                        self_trade_prevention=None,
-                                        updated_at=None,
-                                        triggered_at=None,
-                                        expiry_reason=None,
-                                        origin=None,
-                                        strategy_name=None,
-                                        signal_id=None,
-                                    )
-                                elif "error" in status_dict:
-                                    error_msg = str(status_dict["error"])
-                                    logger.error(
-                                        f"[{self.exchange_name}] Order placement failed: "
-                                        f"{error_msg}"
-                                    )
-                                    raise APIError(
-                                        f"Order placement failed: {error_msg}",
-                                        code=APIErrorCode.ORDER_REJECTED.value,
-                                    )
-                                else:
-                                    logger.warning(
-                                        "[hyperliquid] Unhandled order status in response:"
-                                    )
-                                    logger.warning(f"{status_dict}")
-                                    raise APIError(
-                                        "Unhandled order status", code=APIErrorCode.UNKNOWN.value
-                                    )
 
             logger.error(f"[{self.exchange_name}] Failed to place order. Response: {response}")
             raise APIError(
@@ -760,7 +711,8 @@ class HyperliquidAPI(ExchangeAPI):
                 response_data = response.get("data")
                 statuses = []
                 if isinstance(response_data, dict) and "statuses" in response_data:
-                    statuses = response_data["statuses"]
+                    # Explicitly cast to expected type for static analysis
+                    statuses = cast(list[dict[str, Any]], response_data["statuses"])
 
                 if isinstance(statuses, list) and statuses:
                     if isinstance(statuses[0], str) and statuses[0] == "canceled":
@@ -831,15 +783,16 @@ class HyperliquidAPI(ExchangeAPI):
                 asset_contexts = response[1]
                 if isinstance(asset_contexts, list):
                     for ctx in asset_contexts:
+                        ctx_dict = cast(dict[str, Any], ctx)  # type: ignore
                         # ctx is expected to be dict[str, Any] per API contract
-                        if ctx.get("name") == symbol:
+                        if ctx_dict.get("name") == symbol:
                             # mark_px is expected to be Any or None per API contract
-                            mark_px = ctx.get("markPx")
+                            mark_px = ctx_dict.get("markPx")
                             if mark_px is not None:
                                 # Use robust Decimal parsing for all financial fields
                                 # (see decimal rule)
-                                bid = parse_decimal_value(mark_px, allow_none=True)
-                                ask = parse_decimal_value(mark_px, allow_none=True)
+                                bid = parse_decimal_value(str(mark_px), allow_none=True)
+                                ask = parse_decimal_value(str(mark_px), allow_none=True)
                                 # 'last' is not a valid argument for Ticker; only use valid fields
                                 return Ticker(
                                     symbol=symbol,
@@ -879,27 +832,29 @@ class HyperliquidAPI(ExchangeAPI):
                 bids: list[tuple[Decimal, Decimal]] = []
                 asks: list[tuple[Decimal, Decimal]] = []
 
-                if isinstance(levels, list) and len(levels) > 1:
+                if isinstance(levels, list) and len(cast(list[Any], levels)) > 1:
                     # Process bids
-                    bid_levels: list[Any] = levels[0]  # API contract: list
+                    bid_levels = cast(list[Any], levels[0])  # type: ignore
                     if isinstance(bid_levels, list):
                         for level in bid_levels:
-                            if isinstance(level, list) and len(level) >= 2:
+                            level_list = cast(list[Any], level)  # type: ignore
+                            if isinstance(level_list, list) and len(level_list) >= 2:
                                 try:
-                                    price = Decimal(str(level[0]))
-                                    quantity = Decimal(str(level[1]))
+                                    price = Decimal(str(level_list[0]))
+                                    quantity = Decimal(str(level_list[1]))
                                     bids.append((price, quantity))
                                 except (ValueError, TypeError, IndexError) as e:
                                     logger.warning(f"Error parsing bid level {level}: {e}")
 
                     # Process asks
-                    ask_levels: list[Any] = levels[1]  # API contract: list
+                    ask_levels = cast(list[Any], levels[1])  # type: ignore
                     if isinstance(ask_levels, list):
                         for level in ask_levels:
-                            if isinstance(level, list) and len(level) >= 2:
+                            level_list = cast(list[Any], level)  # type: ignore
+                            if isinstance(level_list, list) and len(level_list) >= 2:
                                 try:
-                                    price = Decimal(str(level[0]))
-                                    quantity = Decimal(str(level[1]))
+                                    price = Decimal(str(level_list[0]))
+                                    quantity = Decimal(str(level_list[1]))
                                     asks.append((price, quantity))
                                 except (ValueError, TypeError, IndexError) as e:
                                     logger.warning(f"Error parsing ask level {level}: {e}")
@@ -951,14 +906,15 @@ class HyperliquidAPI(ExchangeAPI):
                 for trade_item in response:
                     if isinstance(trade_item, dict):
                         trade_id = str(trade_item.get("tid", ""))
-                        price_str = trade_item.get("px", "0")
-                        size_str = trade_item.get("sz", "0")
-                        timestamp_ms = trade_item.get("time", 0)
-                        side_hl = trade_item.get("side", "B")
+                        # Explicitly cast to str for type safety
+                        price_str = str(trade_item.get("px", "0"))  # type: ignore
+                        size_str = str(trade_item.get("sz", "0"))  # type: ignore
+                        timestamp_ms = int(trade_item.get("time", 0))  # type: ignore
+                        side_hl = str(trade_item.get("side", "B"))  # type: ignore
 
                         try:
-                            price = Decimal(str(price_str))
-                            quantity = Decimal(str(size_str))
+                            price = Decimal(price_str)
+                            quantity = Decimal(size_str)
                             side = OrderSide.BUY if side_hl == "B" else OrderSide.SELL
 
                             trades.append(
