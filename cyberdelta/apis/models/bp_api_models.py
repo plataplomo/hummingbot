@@ -136,11 +136,15 @@ class BackpackRawOrder(BaseModel):
     origin: str | None = Field(None, description="Origin of the last update.")
     strategyName: str | None = Field(
         None,
-        description="Optional strategy identifier (not present in Backpack, set in mapping if needed).",
+        description=(
+            "Optional strategy identifier (not present in Backpack, set in mapping if needed)."
+        ),
     )
     signalId: str | None = Field(
         None,
-        description="Optional signal identifier (not present in Backpack, set in mapping if needed).",
+        description=(
+            "Optional signal identifier (not present in Backpack, set in mapping if needed)."
+        ),
     )
     trades: list[Any] | None = Field(
         None,

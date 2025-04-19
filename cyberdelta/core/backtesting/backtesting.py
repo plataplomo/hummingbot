@@ -23,7 +23,7 @@ from cyberdelta.core.models import MarketData, SignalType, TradeSignal
 from cyberdelta.core.strategy import Strategy
 
 # Import necessary components at the top level
-from .results import BacktestResultsHandler
+from .results_1 import BacktestResultsHandler
 
 # Configure logging
 logger: logging.Logger = logging.getLogger(__name__)

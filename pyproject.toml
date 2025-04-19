@@ -79,11 +79,10 @@ scripts_are_modules = true  # Treat scripts as modules
 
 
 [tool.pyright]
-include = ["cyberdelta/core", "cyberdelta/apis"] # tempopary because it got irresponsive with too many errors
-# include = ["scripts", "cyberdelta", "tests", "examples"] # tempopary because PC got irresponsive with too many errors
-extraPaths = ["."]
-exclude = ["**/current_workflow/**", "**/.venv/**", "**/venv/**, **/cyberdelta/core/backtesting/**"]
 typeCheckingMode = "strict"  # Match Pylance
+include = ["scripts", "cyberdelta", "tests", "examples"] # tempopary because PC got irresponsive with too many errors
+extraPaths = ["./main.py"]
+exclude = ["**/current_workflow/**", "**/.venv/**", "**/venv/**"]
 pythonVersion = "3.13"
 reportMissingTypeStubs = "error"  # Enforce stubs
 reportUnknownMemberType = "error"
