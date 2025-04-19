@@ -5,7 +5,6 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     Balance,
     Order,
@@ -74,15 +73,100 @@ class WebSocketMessage(BaseModel):
 
 class APIErrorResponse(BaseModel):
     """
-    Standardized error response model for API errors.
+    Standardized error response model for API errors in CyberDeltaEngine.
+
+    This model is used to validate, normalize, and transport error information from any exchange
+    (e.g., Backpack, Hyperliquid) into a consistent internal format for business logic, logging,
+    and user-facing error handling.
+
+    Fields:
+        message: Human-readable error message (from exchange or mapped internally).
+        code: Canonical error code (int, typically from APIErrorCode enum; may be str for raw exchange codes).
+        http_status: HTTP status code if available (e.g., 400, 404, 500).
+        exchange_code: Raw error code from the exchange, if present (str or int).
+        exchange_message: Raw error message from the exchange, if present.
+        retry_after: If present, indicates how many seconds to wait before retrying (for rate limits, etc.).
+        metadata: Optional dict for additional diagnostic or context info (extensible for future use).
+        original_exception: The original exception, if chained (optional).
+
+    Usage:
+        - Use this model as the single source of truth for error handling in business logic.
+        - Construct via the classmethod 'from_exchange_error' for robust validation and mapping.
+        - All error mapping logic should produce or consume this model.
     """
 
-    message: str
-    code: int | str
-    http_status: int | None = None
-    exchange_code: str | None = None
-    exchange_message: str | None = None
-    retry_after: float | None = None
+    message: str = Field(..., description="Human-readable error message.")
+    code: int | str = Field(
+        ..., description="Canonical error code (int, or raw exchange code as str)."
+    )
+    http_status: int | None = Field(None, description="HTTP status code, if available.")
+    exchange_code: str | int | None = Field(
+        None, description="Raw error code from the exchange, if present."
+    )
+    exchange_message: str | None = Field(
+        None, description="Raw error message from the exchange, if present."
+    )
+    retry_after: float | None = Field(
+        None, description="Seconds to wait before retrying (for rate limits, etc.)."
+    )
+    metadata: dict[str, Any] | None = Field(None, description="Additional context or diagnostics.")
+    original_exception: Exception | None = Field(
+        None, description="Original exception, if chained."
+    )
+
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def validate_code(cls, raw_code: str | int | float | None) -> int | str:
+        """
+        Ensure 'code' is an int if possible, otherwise leave as str.
+        Args:
+            raw_code: The raw code value from the exchange or mapping logic. Accepts str, int, float, or None.
+        Returns:
+            int or str: The normalized code value. If input is None, returns 'UNKNOWN'.
+        """
+        if raw_code is None:
+            return "UNKNOWN"
+        if isinstance(raw_code, int):
+            return raw_code
+        if isinstance(raw_code, float):
+            # Accept floats but convert to int if possible
+            if raw_code.is_integer():
+                return int(raw_code)
+            return str(raw_code)
+        try:
+            return int(raw_code)
+        except (ValueError, TypeError):
+            return str(raw_code)
+
+    @classmethod
+    def from_exchange_error(
+        cls,
+        *,
+        message: str,
+        code: int | str,
+        http_status: int | None = None,
+        exchange_code: str | int | None = None,
+        exchange_message: str | None = None,
+        retry_after: float | None = None,
+        metadata: dict[str, Any] | None = None,
+        original_exception: Exception | None = None,
+    ) -> APIErrorResponse:
+        """
+        Construct an APIErrorResponse from raw exchange error data, performing validation and normalization.
+        This is the preferred way to create error responses from mapping logic.
+        """
+        return cls(
+            message=message,
+            code=code,
+            http_status=http_status,
+            exchange_code=exchange_code,
+            exchange_message=exchange_message,
+            retry_after=retry_after,
+            metadata=metadata,
+            original_exception=original_exception,
+        )
 
 
 T = TypeVar("T")
@@ -157,105 +241,6 @@ class TradeFillEvent(BaseModel):
     ts: int | None = None
 
 
-class APIErrorModel(BaseModel):
-    """
-    Pydantic model for API error details, used for validation and serialization.
-    """
-
-    message: str = Field(..., description="Human-readable error message.")
-    code: APIErrorCode = Field(..., description="Standardized error code enum.")
-    http_status: int | None = Field(None, description="HTTP status code, if available.")
-    exchange_code: str | None = Field(None, description="Exchange-specific error code, if any.")
-    exchange_message: str | None = Field(
-        None, description="Exchange-specific error message, if any."
-    )
-    retry_after: float | None = Field(
-        None, description="Retry-after value in seconds, if rate limited."
-    )
-    original_exception: Exception | None = Field(
-        None, description="Original exception, if chained."
-    )
-
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-
-class APIError(Exception):
-    """
-    Custom exception for API-related errors with enhanced context information
-    to enable better error handling and recovery mechanisms. Now Pydantic-compatible.
-    """
-
-    def __init__(
-        self,
-        message: str,
-        code: APIErrorCode = APIErrorCode.UNKNOWN,
-        http_status: int | None = None,
-        exchange_code: str | None = None,
-        exchange_message: str | None = None,
-        retry_after: float | None = None,
-        original_exception: Exception | None = None,
-    ) -> None:
-        self.model = APIErrorModel(
-            message=message,
-            code=code,
-            http_status=http_status,
-            exchange_code=exchange_code,
-            exchange_message=exchange_message,
-            retry_after=retry_after,
-            original_exception=original_exception,
-        )
-        super().__init__(self.model.message)
-
-    @property
-    def message(self) -> str:
-        return self.model.message
-
-    @property
-    def code(self) -> APIErrorCode:
-        return self.model.code
-
-    @property
-    def http_status(self) -> int | None:
-        return self.model.http_status
-
-    @property
-    def exchange_code(self) -> str | None:
-        return self.model.exchange_code
-
-    @property
-    def exchange_message(self) -> str | None:
-        return self.model.exchange_message
-
-    @property
-    def retry_after(self) -> float | None:
-        return self.model.retry_after
-
-    @property
-    def original_exception(self) -> Exception | None:
-        return self.model.original_exception
-
-    @property
-    def is_retryable(self) -> bool:
-        """
-        Determines if this error can be retried based on its nature.
-        Rate limits, timeouts and some server errors can be retried.
-        """
-        return (
-            self.code
-            in (
-                APIErrorCode.RATE_LIMITED,
-                APIErrorCode.TIMEOUT,
-                APIErrorCode.CONNECTION_ERROR,
-            )
-            or (
-                self.code == APIErrorCode.SERVER_ERROR
-                and self.http_status
-                and 500 <= self.http_status < 600
-            )
-            or self.code == APIErrorCode.NETWORK_ISSUE
-        )
-
-
 class RateLimiterConfig(BaseModel):
     """
     Pydantic model for configuration and (optionally) serializable state of a token bucket
@@ -299,3 +284,87 @@ class ExchangeAPIConfig(BaseModel):
     rate_limits: dict[str, Any] | None = Field(
         None, description="Optional rate limit configuration (raw dict or validated model)."
     )
+
+
+class APIError(Exception):
+    """
+    Custom exception for API-related errors with enhanced context information
+    to enable better error handling and recovery mechanisms. Now Pydantic-compatible.
+    Stores an APIErrorResponse as its model.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        code: Any = None,
+        http_status: int | None = None,
+        exchange_code: str | int | None = None,
+        exchange_message: str | None = None,
+        retry_after: float | None = None,
+        metadata: dict[str, Any] | None = None,
+        original_exception: Exception | None = None,
+    ) -> None:
+        self.model = APIErrorResponse(
+            message=message,
+            code=code,
+            http_status=http_status,
+            exchange_code=exchange_code,
+            exchange_message=exchange_message,
+            retry_after=retry_after,
+            metadata=metadata,
+            original_exception=original_exception,
+        )
+        super().__init__(self.model.message)
+
+    @property
+    def message(self) -> str:
+        return self.model.message
+
+    @property
+    def code(self) -> Any:
+        return self.model.code
+
+    @property
+    def http_status(self) -> int | None:
+        return self.model.http_status
+
+    @property
+    def exchange_code(self) -> str | int | None:
+        return self.model.exchange_code
+
+    @property
+    def exchange_message(self) -> str | None:
+        return self.model.exchange_message
+
+    @property
+    def retry_after(self) -> float | None:
+        return self.model.retry_after
+
+    @property
+    def metadata(self) -> dict[str, Any] | None:
+        return self.model.metadata
+
+    @property
+    def original_exception(self) -> Exception | None:
+        return self.model.original_exception
+
+    @property
+    def is_retryable(self) -> bool:
+        """
+        Determines if this error can be retried based on its nature.
+        Rate limits, timeouts and some server errors can be retried.
+        """
+        # Defensive: handle both int and str code
+        code_val = self.code
+        if isinstance(code_val, int):
+            return (
+                code_val
+                in (
+                    109,  # RATE_LIMITED
+                    1,  # TIMEOUT
+                    0,  # CONNECTION_ERROR
+                )
+                or (code_val == 4 and self.http_status and 500 <= self.http_status < 600)
+                or code_val == 2  # NETWORK_ISSUE
+            )
+        return False

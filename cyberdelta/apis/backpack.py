@@ -1,3 +1,21 @@
+"""
+CyberDeltaEngine: Backpack Exchange Integration
+----------------------------------------------
+
+This module implements the Backpack exchange adapter for CyberDeltaEngine, including:
+- REST and WebSocket API client (`BackpackAPI`)
+- Centralized error mapping and normalization (`BackpackErrorMapper`)
+- Order and event transformation utilities (`BackpackOrderMapper`)
+
+**Key architectural patterns:**
+- All external (exchange) errors are mapped to canonical APIErrorCode values, validated and normalized via APIErrorResponse, and propagated as APIError exceptions.
+- All API methods are type-safe, defensive, and log/handle edge cases robustly.
+- All transformation logic is modular and testable.
+
+**Onboarding Note:**
+- When extending this module for new endpoints or error types, always use strict Pydantic validation, map all error codes, and document any non-obvious logic or edge cases.
+"""
+
 import asyncio
 import hashlib
 import hmac
@@ -15,6 +33,7 @@ from cyberdelta.apis.base import (  # Use absolute import
     ExchangeAPI,
     MessageHandler,
 )
+from cyberdelta.apis.models.api import APIErrorResponse
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.bp_api_models import BackpackRawApiError, BackpackRawOrder
 from cyberdelta.core.models import (  # Use absolute import
@@ -43,9 +62,16 @@ logger = logging.getLogger(__name__)
 
 class BackpackErrorMapper:
     """
-    Centralized error mapping utility for Backpack API errors.
-    Provides methods to map Backpack error responses to standardized APIErrorCode and APIError.
-    Now uses BackpackRawApiError for strict error code extraction when possible.
+    Maps and normalizes Backpack API errors to CyberDeltaEngine's canonical error model.
+
+    Responsibilities:
+    - Map Backpack error codes (from BackpackRawApiError) to APIErrorCode.
+    - Validate and normalize all error data using APIErrorResponse.
+    - Raise APIError with all validated fields for unified error propagation.
+    - Log ambiguous/unmapped codes for diagnostics and future mapping improvements.
+
+    Usage:
+        raise BackpackErrorMapper.map_error_response(...)
     """
 
     @staticmethod
@@ -54,17 +80,24 @@ class BackpackErrorMapper:
     ) -> APIErrorCode:
         """
         Map Backpack error responses (body, data, status) to standardized APIErrorCode.
-        Tries to use BackpackRawApiError for strict code extraction, falls back to heuristics.
-        """
-        error_body_lower = error_body.lower() if error_body else ""
-        mapped_code = APIErrorCode.UNKNOWN
 
-        # --- Prefer strict model-based mapping if possible ---
+        - Uses BackpackRawApiError for strict code extraction if possible.
+        - Falls back to heuristics if parsing fails.
+        - Logs unmapped/ambiguous codes for diagnostics.
+
+        Args:
+            error_body: Raw error body as string (for fallback/logging).
+            error_data: Parsed error data as dict (if available).
+            status_code: HTTP status code (if available).
+
+        Returns:
+            APIErrorCode: Canonical error code for internal handling.
+        """
+        mapped_code = APIErrorCode.EXCHANGE_SPECIFIC
         if error_data:
             try:
                 raw_api_error = BackpackRawApiError.model_validate(error_data)
                 code = raw_api_error.code.upper()
-                # Map known Backpack error codes to internal APIErrorCode
                 code_map = {
                     "INVALID_SIGNATURE": APIErrorCode.AUTHENTICATION_FAILED,
                     "UNAUTHORIZED": APIErrorCode.AUTHENTICATION_FAILED,
@@ -78,23 +111,37 @@ class BackpackErrorMapper:
                     "INVALID_CLIENT_REQUEST": APIErrorCode.INVALID_REQUEST,
                     "INSUFFICIENT_FUNDS": APIErrorCode.INSUFFICIENT_FUNDS,
                     "INSUFFICIENT_MARGIN": APIErrorCode.INSUFFICIENT_FUNDS,
-                    # Backpack ORDER_LIMIT: mapped to ORDER_REJECTED (no direct match)
                     "ORDER_LIMIT": APIErrorCode.ORDER_REJECTED,
-                    # Backpack POSITION_LIMIT: mapped to MAX_POSITION_EXCEEDED (closest match)
                     "POSITION_LIMIT": APIErrorCode.MAX_POSITION_EXCEEDED,
-                    "SERVER_ERROR": APIErrorCode.SERVICE_UNAVAILABLE,
-                    "MAINTENANCE": APIErrorCode.SERVICE_UNAVAILABLE,
+                    "SERVER_ERROR": APIErrorCode.SERVER_ERROR,
+                    "MAINTENANCE": APIErrorCode.MAINTENANCE,
                     "RESOURCE_NOT_FOUND": APIErrorCode.ORDER_NOT_FOUND,
-                    # Add more mappings as needed
+                    "INVALID_MARKET": APIErrorCode.INVALID_SYMBOL,
+                    "INVALID_SOURCE": APIErrorCode.EXCHANGE_SPECIFIC,
+                    "ACCOUNT_LIQUIDATING": APIErrorCode.EXCHANGE_SPECIFIC,
+                    "TRADING_PAUSED": APIErrorCode.MARKET_CLOSED,
+                    "INVALID_ASSET": APIErrorCode.INVALID_SYMBOL,
+                    "INVALID_POSITION_ID": APIErrorCode.ORDER_NOT_FOUND,
+                    "BORROW_REQUIRES_LEND_REDEEM": APIErrorCode.EXCHANGE_SPECIFIC,
+                    "LEND_REQUIRES_BORROW_REPAY": APIErrorCode.EXCHANGE_SPECIFIC,
+                    "INSUFFICIENT_SUPPLY": APIErrorCode.INSUFFICIENT_FUNDS,
+                    "BORROW_LIMIT": APIErrorCode.MAX_POSITION_EXCEEDED,
+                    "LEND_LIMIT": APIErrorCode.MAX_POSITION_EXCEEDED,
+                    "MAX_LEVERAGE_REACHED": APIErrorCode.MAX_POSITION_EXCEEDED,
+                    "PRECONDITION_FAILED": APIErrorCode.INVALID_REQUEST,
+                    "NOT_IMPLEMENTED": APIErrorCode.EXCHANGE_SPECIFIC,
                 }
-                mapped_code = code_map.get(code, APIErrorCode.UNKNOWN)
+                mapped_code = code_map.get(code, APIErrorCode.EXCHANGE_SPECIFIC)
+                if mapped_code == APIErrorCode.EXCHANGE_SPECIFIC:
+                    logger.warning(
+                        f"[BackpackErrorMapper] Unmapped or ambiguous Backpack error code: {code}"
+                    )
                 return mapped_code
             except Exception as e:
                 logger.warning(
-                    f"[BackpackErrorMapper] Failed to parse error_data as BackpackRawApiError: {e}. Falling back to heuristics."
+                    f"[BackpackErrorMapper] Failed to parse error_data as "
+                    f"BackpackRawApiError: {e}. Falling back to heuristics."
                 )
-
-        # Optionally, use error_data or status_code for further refinement in the future
         return mapped_code
 
     @staticmethod
@@ -104,46 +151,95 @@ class BackpackErrorMapper:
         error_data: dict[str, Any] | None = None,
         request_path: str | None = None,
         exchange_message: str | None = None,
+        original_exception: Exception | None = None,
     ) -> APIError:
         """
-        Map Backpack error responses to a standardized APIError, including error code mapping.
+        Map Backpack error responses to a standardized APIError, including error code
+        mapping and full validation.
+
+        - Always validates and normalizes error data using APIErrorResponse.
+        - Ensures all error propagation is type-safe and consistent.
+        - Handles edge cases: unmapped codes, malformed payloads, chained exceptions.
 
         Args:
             status_code: HTTP status code (if available).
-            error_body: Raw error response body (string, may be JSON or plain text).
-            error_data: Parsed error data (if available, from JSON response).
-            request_path: API endpoint path (for logging/debugging).
-            exchange_message: Optional override for the error message.
+            error_body: Raw error body as string.
+            error_data: Parsed error data as dict (if available).
+            request_path: API endpoint path (for diagnostics).
+            exchange_message: Exchange-provided error message (if available).
+            original_exception: Chained exception (if any).
 
         Returns:
-            APIError: Standardized APIError exception for internal handling.
+            APIError: Exception ready to be raised or propagated.
         """
         mapped_code = BackpackErrorMapper.map_error_code(
             error_body=error_body, error_data=error_data, status_code=status_code
         )
-
-        log_message = (
-            f"Mapping Backpack error (Path: {request_path}, Status: {status_code}, "
-            f"Body: '{error_body}') to APIErrorCode.{mapped_code.name}"
-        )
-        logger.warning(log_message)
-
-        final_message = exchange_message or error_body
-
-        return APIError(
-            message=final_message,
-            code=mapped_code,
+        # Guarantee message is always a str
+        msg: str = error_body
+        if exchange_message is not None:
+            msg = exchange_message
+        elif error_data and isinstance(error_data.get("msg"), str):
+            msg = error_data["msg"]
+        api_error_response = APIErrorResponse.from_exchange_error(
+            message=msg,
+            code=mapped_code.value,
             http_status=status_code,
-            exchange_code=str(error_data.get("code")) if error_data else None,
-            exchange_message=error_data.get("msg") if error_data else None,
-            original_exception=None,
+            exchange_code=(
+                str(error_data.get("code")) if error_data and "code" in error_data else None
+            ),
+            exchange_message=(error_data.get("msg") if error_data else None),
+            metadata={"request_path": request_path} if request_path else None,
+        )
+        # Convert APIErrorResponse to APIErrorModel-compatible fields
+        # APIErrorModel expects code: APIErrorCode, exchange_code: str|None
+        # Defensive: ensure code is valid APIErrorCode, else EXCHANGE_SPECIFIC
+        try:
+            code_enum = (
+                APIErrorCode(api_error_response.code)
+                if isinstance(api_error_response.code, int)
+                else APIErrorCode.EXCHANGE_SPECIFIC
+            )
+        except Exception:
+            code_enum = APIErrorCode.EXCHANGE_SPECIFIC
+        exchange_code_str = (
+            str(api_error_response.exchange_code)
+            if api_error_response.exchange_code is not None
+            else None
+        )
+        return APIError(
+            message=api_error_response.message,
+            code=code_enum,
+            http_status=api_error_response.http_status,
+            exchange_code=exchange_code_str,
+            exchange_message=api_error_response.exchange_message,
+            retry_after=api_error_response.retry_after,
+            original_exception=original_exception,
         )
 
 
 class BackpackAPI(ExchangeAPI):
-    """API Client for Backpack Exchange."""
+    """
+    Asynchronous API client for Backpack Exchange (REST + WebSocket).
+
+    - Implements all required ExchangeAPI methods for order, market data, and account management.
+    - Uses strict Pydantic validation for all responses and error payloads.
+    - All error handling is routed through BackpackErrorMapper for normalization and propagation.
+    - Designed for extensibility and robust, production-grade operation.
+
+    Usage:
+        api = BackpackAPI(api_config, secrets)
+        await api.get_ticker("BTC_USDC")
+    """
 
     def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
+        """
+        Initialize the BackpackAPI client with configuration and secrets.
+
+        Args:
+            api_config: Dictionary of API configuration parameters.
+            secrets: Dictionary of secret values (API key/secret).
+        """
         super().__init__("backpack", api_config, secrets)
         self._api_key = secrets.get("BACKPACK_API_KEY")
         self._api_secret = secrets.get("BACKPACK_API_SECRET")
@@ -153,7 +249,12 @@ class BackpackAPI(ExchangeAPI):
     # --- WebSocket Implementation --- #
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
-        """Route incoming WebSocket messages."""
+        """
+        Route incoming WebSocket messages to the appropriate handler.
+
+        Args:
+            message: Parsed WebSocket message as dict.
+        """
         # Backpack messages typically have a 'topic' and 'data' field
         topic = message.get("topic")
         data = message.get("data")
@@ -174,7 +275,13 @@ class BackpackAPI(ExchangeAPI):
             logger.debug(f"[{self.exchange_name}] No handler registered for topic: {topic}")
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
-        """Subscribe to a Backpack WebSocket topic with explicit type safety and validation."""
+        """
+        Subscribe to a Backpack WebSocket topic and register a handler.
+
+        Args:
+            topic: WebSocket topic/channel name.
+            handler: Async callback to handle messages for this topic.
+        """
         if not self._ws_connection or not self.is_connected:
             logger.error(f"[{self.exchange_name}] Cannot subscribe, WebSocket not connected.")
             # Store handler for reconnection
@@ -194,7 +301,9 @@ class BackpackAPI(ExchangeAPI):
             logger.error(f"[{self.exchange_name}] Failed to subscribe to topic {topic}: {e}")
 
     async def _resubscribe(self) -> None:
-        """Resubscribe to all registered topics upon reconnection."""
+        """
+        Resubscribe to all registered WebSocket topics after reconnecting.
+        """
         logger.info(
             f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_handlers.keys())}"
         )
@@ -212,7 +321,12 @@ class BackpackAPI(ExchangeAPI):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Authenticate API request for Backpack."""
+        """
+        Authenticate and sign an API request for Backpack.
+
+        Returns:
+            Dictionary with signed headers and parameters.
+        """
         return self._sign_request(method, path, params, data)
 
     def _sign_request(
@@ -222,7 +336,14 @@ class BackpackAPI(ExchangeAPI):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Sign requests for Backpack using HMAC-SHA256."""
+        """
+        Sign a REST API request using HMAC-SHA256 as required by Backpack.
+
+        Returns:
+            Dictionary with signed headers and parameters.
+        Raises:
+            APIError: If API key/secret are missing.
+        """
         if not self._api_key or not self._api_secret:
             raise APIError("Backpack API key and secret required for signed requests.")
 
@@ -261,16 +382,14 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_ticker(self, symbol: str) -> Ticker:
         """
-        Get current ticker information for a symbol, with strict type validation.
+        Fetch the current ticker for a given symbol.
 
         Args:
-            symbol: Trading symbol
-
+            symbol: Trading symbol (e.g., 'BTC_USDC').
         Returns:
-            Ticker object.
-
+            Ticker: Validated ticker model.
         Raises:
-            APIError: If the ticker cannot be fetched or data is malformed.
+            APIError: If the ticker cannot be fetched or validated.
         """
         request_path: str = f"/api/v1/ticker/{symbol}"
         try:
@@ -293,7 +412,17 @@ class BackpackAPI(ExchangeAPI):
             ) from e
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
-        """Get order book for a symbol, with strict type validation."""
+        """
+        Fetch the order book for a given symbol, with strict type validation.
+
+        Args:
+            symbol: Trading symbol.
+            depth: Number of levels to fetch (default 20).
+        Returns:
+            OrderBook: Validated order book model.
+        Raises:
+            APIError: On error or malformed response.
+        """
         request_path: str = "/api/v1/depth"
 
         def safe_list_of_pairs(raw: object) -> list[tuple[str, str]]:
@@ -1018,6 +1147,14 @@ class BackpackAPI(ExchangeAPI):
 
 
 class BackpackOrderMapper:
+    """
+    Utility for transforming Backpack raw order/event models to CyberDeltaEngine internal models.
+
+    - Maps Backpack string enums to internal enums (OrderSide, OrderStatus, etc.).
+    - Handles defensive parsing and validation of all fields.
+    - Used by BackpackAPI for all order-related transformations.
+    """
+
     @staticmethod
     def map_side_to_internal(bp_side: str) -> OrderSide:
         side_lower = bp_side.lower() if bp_side else ""
