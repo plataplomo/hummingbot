@@ -25,36 +25,58 @@ class BackpackRawAccount(BaseModel):
     """
 
     id: str = Field(..., alias="id", max_length=128)
-    email: str = Field(..., alias="email", max_length=320)
+    email: str = Field(..., alias="email", max_length=254)
     status: str = Field(..., alias="status", max_length=32)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("id", "email", "status", mode="before", check_fields=False)
+    @field_validator("id", mode="before", check_fields=False)
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
+    def validate_id_str(cls, v: str | None) -> str | None:
         if v is None:
             raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string")
+        if len(v) > 128:
+            raise ValueError("String value too long (max 128 chars)")
         try:
-            if not v.strip():
-                raise ValueError("Must be a non-empty string")
-            if len(v) > 320:
-                raise ValueError("String value too long (max 320 chars)")
             v.encode("utf-8", "strict")
-        except (AttributeError, TypeError, UnicodeEncodeError) as err:
+        except UnicodeEncodeError as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+        return v
+
+    @field_validator("email", mode="before", check_fields=False)
+    @classmethod
+    def validate_email_str(cls, v: str | None) -> str | None:
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string")
+        if len(v) > 254:
+            raise ValueError("String value too long (max 254 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
             raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator("status", mode="before", check_fields=False)
     @classmethod
     def validate_status_enum(cls, v: str | None) -> str | None:
-        allowed = {"active", "suspended", "pending"}  # Update as per spec
+        allowed = {"active", "suspended", "pending"}
         if v is None:
-            raise ValueError("Status must be a string (got None)")
+            raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if v not in allowed:
+            raise ValueError(f"Invalid status: {v}")
         try:
-            if v not in allowed:
-                raise ValueError(f"Invalid status: {v}")
-        except TypeError as err:
-            raise ValueError(f"Status must be a string (got {type(v).__name__})") from err
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
 
@@ -81,13 +103,15 @@ class BackpackRawBalance(BaseModel):
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None:
             raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string")
+        if len(v) > 64:
+            raise ValueError("String value too long (max 64 chars)")
         try:
-            if not v.strip():
-                raise ValueError("Must be a non-empty string")
-            if len(v) > 64:
-                raise ValueError("String value too long (max 64 chars)")
             v.encode("utf-8", "strict")
-        except (AttributeError, TypeError, UnicodeEncodeError) as err:
+        except UnicodeEncodeError as err:
             raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
@@ -96,6 +120,10 @@ class BackpackRawBalance(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string")
         try:
             d = Decimal(v)
         except (InvalidOperation, TypeError, AttributeError) as err:

@@ -26,18 +26,37 @@ class BackpackRawApiError(BaseModel):
     message: str = Field(..., description="Error message", max_length=1024)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("code", "message", mode="before", check_fields=False)
+    @field_validator("code", mode="before", check_fields=False)
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
+    def validate_code_str(cls, v: str | None) -> str | None:
         if v is None:
             raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string")
+        if len(v) > 64:
+            raise ValueError("String value too long (max 64 chars)")
         try:
-            if not v.strip():
-                raise ValueError("Must be a non-empty string")
-            if len(v) > 1024:
-                raise ValueError("String value too long (max 1024 chars)")
             v.encode("utf-8", "strict")
-        except (AttributeError, TypeError, UnicodeEncodeError) as err:
+        except UnicodeEncodeError as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+        return v
+
+    @field_validator("message", mode="before", check_fields=False)
+    @classmethod
+    def validate_message_str(cls, v: str | None) -> str | None:
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string")
+        if len(v) > 1024:
+            raise ValueError("String value too long (max 1024 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
             raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 

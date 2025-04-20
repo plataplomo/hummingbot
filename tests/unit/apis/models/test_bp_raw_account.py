@@ -93,11 +93,13 @@ def test_BackpackRawAccount_wrong_type_fields(field: str, value: object) -> None
 def test_BackpackRawAccount_adversarial_strings(field: str, value: object) -> None:
     p = valid_account().copy()
     p[field] = value
-    # Only empty/whitespace strings should fail, others should pass (schema allows any string)
     if isinstance(value, str) and value.strip() == "":
         with pytest.raises(ValidationError):
             BackpackRawAccount.model_validate(p)
     elif not isinstance(value, str):
+        with pytest.raises(ValidationError):
+            BackpackRawAccount.model_validate(p)
+    elif field == "email" and len(value) > 254:
         with pytest.raises(ValidationError):
             BackpackRawAccount.model_validate(p)
     else:
@@ -230,15 +232,19 @@ def test_BackpackRawBalance_corruption_cases() -> None:
     for field, value, description in corruption_cases:
         p = base.copy()
         p[field] = value
-        try:
+        if description == "SQL injection attempt":
+            # For raw models, SQLi content should be accepted as a valid string
             BackpackRawBalance.model_validate(p)
-        except ValidationError:
-            pass  # Expected
         else:
-            pytest.fail(
-                f"Failed corruption case: {description} ("
-                f"{field}={value!r}) - ValidationError not raised"
-            )
+            try:
+                BackpackRawBalance.model_validate(p)
+            except ValidationError:
+                pass  # Expected
+            else:
+                pytest.fail(
+                    f"Failed corruption case: {description} ("
+                    f"{field}={value!r}) - ValidationError not raised"
+                )
 
 
 def test_BackpackRawAccount_real_json_example() -> None:

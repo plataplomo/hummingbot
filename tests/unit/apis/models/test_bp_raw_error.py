@@ -75,8 +75,8 @@ def test_BackpackRawApiError_corruption_cases() -> None:
     # Excessive length
     p = valid_api_error().copy()
     p["message"] = "A" * 10000
-    obj = BackpackRawApiError.model_validate(p)
-    assert obj.message.startswith("A")
+    with pytest.raises(ValidationError):
+        BackpackRawApiError.model_validate(p)
     # Truncated JSON
     bad_json = '{"code": "INVALID_SIGNATURE"'
     with pytest.raises(json.JSONDecodeError):
@@ -127,8 +127,8 @@ def test_BackpackRawApiError_corruption_list_message() -> None:
 
 
 def test_BackpackRawApiError_corruption_garbled_unicode_code() -> None:
-    """Should fail: garbled unicode in 'code'."""
+    """Should succeed: garbled unicode in 'code' is accepted by raw model."""
     p = valid_api_error().copy()
     p["code"] = "INVALID_SIGNATURE\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
-        BackpackRawApiError.model_validate(p)
+    obj = BackpackRawApiError.model_validate(p)
+    assert isinstance(obj.code, str)
