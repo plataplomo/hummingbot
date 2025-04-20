@@ -11,7 +11,7 @@ Backpack Exchange API. These models are for boundary validation only:
 
 from decimal import Decimal, InvalidOperation
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class SqrtFunction(BaseModel):
@@ -25,9 +25,12 @@ class SqrtFunction(BaseModel):
 
     @field_validator("base", "factor", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: str | None) -> str | None:
+    def validate_decimal_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "field"
         if v is None:
             return v
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         try:
             v.encode("utf-8", "strict")
         except (AttributeError, UnicodeEncodeError) as err:
@@ -51,10 +54,13 @@ class PositionImfFunction(BaseModel):
 
     @field_validator("type", mode="before")
     @classmethod
-    def validate_type_enum(cls, v: str | None) -> str | None:
+    def validate_type_enum(cls, v: str | None, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "type"
         allowed = {"sqrt"}
         if v is None or v not in allowed:
-            raise ValueError(f"Invalid type: {v}")
+            raise ValueError(f"Invalid {field_name}: {v}")
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         try:
             v.encode("utf-8", "strict")
         except (AttributeError, UnicodeEncodeError) as err:
@@ -63,9 +69,12 @@ class PositionImfFunction(BaseModel):
 
     @field_validator("base", "factor", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: str | None) -> str | None:
+    def validate_decimal_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "field"
         if v is None:
             return v
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         try:
             v.encode("utf-8", "strict")
         except (AttributeError, UnicodeEncodeError) as err:
@@ -124,9 +133,12 @@ class BackpackRawPosition(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_decimal_str(cls, v: str | None) -> str | None:
+    def validate_decimal_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "field"
         if v is None:
             return v
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         try:
             v.encode("utf-8", "strict")
         except (AttributeError, UnicodeEncodeError) as err:
@@ -139,9 +151,12 @@ class BackpackRawPosition(BaseModel):
 
     @field_validator("symbol", "position_id", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
-            raise ValueError("Must be a non-empty string")
+    def validate_non_empty_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "field"
+        if v is None:
+            return v
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if len(v) > 64:
             raise ValueError("String value too long (max 64 chars)")
         try:
@@ -190,8 +205,11 @@ class BackpackRawPositionUpdate(BaseModel):
 
     @field_validator("event_type", "symbol", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
+    def validate_non_empty_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "field"
+        if v is None:
+            return v
+        if not v.strip():
             raise ValueError("Must be a non-empty string")
         if len(v) > 64:
             raise ValueError("String value too long (max 64 chars)")

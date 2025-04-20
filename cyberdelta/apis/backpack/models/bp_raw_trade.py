@@ -69,10 +69,7 @@ class BackpackRawTrade(BaseModel):
         """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
-            raise ValueError(
-                f"{field_name}: Input must be a string representation of a number, "
-                f"got {type(v).__name__}"
-            )
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v.strip():
             raise ValueError(
                 f"{field_name}: Input decimal string cannot be empty or just whitespace."
@@ -96,14 +93,10 @@ class BackpackRawTrade(BaseModel):
     @field_validator("time", mode="before")
     @classmethod
     def validate_timestamp_format(cls, v: Any, info: ValidationInfo) -> int | float | str | None:
-        """
-        Strictly validates timestamp fields for type and format (int, float, or non-empty
-        string).
-        """
         field_name = info.field_name or "time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")
-        if not isinstance(v, int | float | str):
+        if not isinstance(v, (int, float, str)):
             raise ValueError(
                 f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
             )
@@ -111,11 +104,7 @@ class BackpackRawTrade(BaseModel):
             if not v.strip():
                 raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
         try:
-            dt = parse_datetime_utc(v, field_name=field_name)
-            if dt is None:
-                raise ValueError(
-                    f"{field_name}: Timestamp is required but received None or failed parsing."
-                )
+            parse_datetime_utc(v, field_name=field_name)
         except Exception as e:
             raise ValueError(f"{field_name}: Invalid timestamp format or value '{v}': {e}") from e
         return v
@@ -208,10 +197,7 @@ class BackpackRawTradeEvent(BaseModel):
         """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
-            raise ValueError(
-                f"{field_name}: Input must be a string representation of a number, "
-                f"got {type(v).__name__}"
-            )
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v.strip():
             raise ValueError(
                 f"{field_name}: Input decimal string cannot be empty or just whitespace."
@@ -235,14 +221,10 @@ class BackpackRawTradeEvent(BaseModel):
     @field_validator("event_time", "engine_timestamp", mode="before")
     @classmethod
     def validate_timestamp_format(cls, v: Any, info: ValidationInfo) -> int | float | str | None:
-        """
-        Strictly validates timestamp fields for type and format (int, float, or non-empty
-        string).
-        """
         field_name = info.field_name or "event_time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")
-        if not isinstance(v, int | float | str):
+        if not isinstance(v, (int, float, str)):
             raise ValueError(
                 f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
             )
@@ -250,11 +232,7 @@ class BackpackRawTradeEvent(BaseModel):
             if not v.strip():
                 raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
         try:
-            dt = parse_datetime_utc(v, field_name=field_name)
-            if dt is None:
-                raise ValueError(
-                    f"{field_name}: Timestamp is required but received None or failed parsing."
-                )
+            parse_datetime_utc(v, field_name=field_name)
         except Exception as e:
             raise ValueError(f"{field_name}: Invalid timestamp format or value '{v}': {e}") from e
         return v

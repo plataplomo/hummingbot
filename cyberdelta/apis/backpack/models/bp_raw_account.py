@@ -146,10 +146,7 @@ class BackpackRawBalance(BaseModel):
         """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
-            raise ValueError(
-                f"{field_name}: Input must be a string representation of a number, "
-                f"got {type(v).__name__}"
-            )
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v.strip():
             raise ValueError(
                 f"{field_name}: Input decimal string cannot be empty or just whitespace."

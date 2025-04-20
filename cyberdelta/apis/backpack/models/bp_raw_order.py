@@ -133,11 +133,12 @@ class BackpackRawOrder(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_decimal_str(cls, v: str | None) -> str | None:
+    def validate_decimal_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "field"
         if v is None:
             return v
-        if type(v) is not str:
-            raise ValueError("Must be a string representing a decimal value")
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v.strip():
             raise ValueError("Must be a non-empty string representing a decimal value")
         try:
@@ -150,31 +151,32 @@ class BackpackRawOrder(BaseModel):
 
     @field_validator("side", mode="before")
     @classmethod
-    def validate_side_enum(cls, v: str | None) -> str | None:
-        allowed = {"buy", "sell", "Bid", "Ask"}
+    def validate_side_enum(cls, v: str | None, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "side"
         if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
+            raise ValueError(f"{field_name}: Must be a non-empty string (got None)")
+        allowed = {"buy", "sell", "Bid", "Ask"}
         if v not in allowed:
             raise ValueError(f"Invalid side: {v}")
         return v
 
     @field_validator("orderType", mode="before")
     @classmethod
-    def validate_order_type_enum(cls, v: str | None) -> str | None:
-        allowed = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}
+    def validate_order_type_enum(cls, v: str | None, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "orderType"
         if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
+            raise ValueError(f"{field_name}: Must be a non-empty string (got None)")
+        allowed = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}
         if v not in allowed:
             raise ValueError(f"Invalid orderType: {v}")
         return v
 
     @field_validator("status", mode="before")
     @classmethod
-    def validate_status_enum(cls, v: str | None) -> str | None:
+    def validate_status_enum(cls, v: str | None, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "status"
+        if v is None:
+            raise ValueError(f"{field_name}: Must be a non-empty string (got None)")
         allowed = {
             "NEW",
             "FILLED",
@@ -183,20 +185,13 @@ class BackpackRawOrder(BaseModel):
             "REJECTED",
             "PARTIALLY_FILLED",
         }
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
         if v not in allowed:
             raise ValueError(f"Invalid status: {v}")
         return v
 
     @field_validator("symbol", "id", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: Any) -> str:
-        # This check is required for runtime safety with Pydantic 'before' validators.
-        if not isinstance(v, str):
-            raise ValueError("Must be a string")
+    def validate_non_empty_str(cls, v: Any, info: ValidationInfo) -> str:
         if not v.strip():
             raise ValueError("Must be a non-empty string")
         try:
@@ -367,26 +362,12 @@ class BackpackRawOrder(BaseModel):
     def validate_timestamp_format(
         cls, v: int | float | str | None, info: ValidationInfo
     ) -> int | float | str | None:
-        """
-        Validates that the value is an int, float, or non-empty string (ISO8601 allowed).
-        Args:
-            v: The value to validate (int, float, str, or None).
-            info: Pydantic ValidationInfo for context.
-        Returns:
-            The validated timestamp value.
-        Raises:
-            ValueError: If the value is not a valid timestamp type.
-        """
         field_name = info.field_name or "timestamp"
         if v is None:
             return v
-        if isinstance(v, int | float):
-            return v
-        if isinstance(v, str):
-            if not v.strip():
-                raise ValueError(f"{field_name}: Timestamp string cannot be empty")
-            return v
-        raise ValueError(f"{field_name}: Invalid timestamp type {type(v)}")
+        if isinstance(v, str) and v.isdigit():
+            return int(v)
+        return v
 
 
 class BackpackRawOrderBook(BaseModel):

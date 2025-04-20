@@ -5,7 +5,7 @@ Backpack API Market, Ticker, and Open Interest Models
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class BackpackRawMarket(BaseModel):
@@ -27,13 +27,14 @@ class BackpackRawMarket(BaseModel):
 
     @field_validator("symbol", "base_asset", "quote_asset", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: Any) -> str:  # noqa: ANN401
-        """
-        Ensure the value is a non-empty, valid UTF-8 string of max 64 chars.
-        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
-        """
+    def validate_non_empty_str(cls, v: Any, info: ValidationInfo) -> str:  # noqa: ANN401
+        field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
-            raise ValueError("Value must be a string")
+            field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
+            allow_none = field_info and (str(field_info.annotation).find("| None") != -1)
+            if v is None and allow_none:
+                raise ValueError(f"{field_name}: Field is required, cannot be None.")
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v:
             raise ValueError("String must be non-empty")
         if len(v) > 64:
@@ -70,13 +71,14 @@ class BackpackRawTicker(BaseModel):
 
     @field_validator("symbol", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: Any) -> str:  # noqa: ANN401
-        """
-        Ensure the value is a non-empty, valid UTF-8 string.
-        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
-        """
+    def validate_non_empty_str(cls, v: Any, info: ValidationInfo) -> str:  # noqa: ANN401
+        field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
-            raise ValueError("Value must be a string")
+            field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
+            allow_none = field_info and (str(field_info.annotation).find("| None") != -1)
+            if v is None and allow_none:
+                raise ValueError(f"{field_name}: Field is required, cannot be None.")
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v:
             raise ValueError("String must be non-empty")
         try:
@@ -87,19 +89,20 @@ class BackpackRawTicker(BaseModel):
 
     @field_validator("price", "bid", "ask", "volume", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: Any) -> str | None:  # noqa: ANN401
-        """
-        Ensure the value is a string representing a valid decimal, or None.
-        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
-        """
+    def validate_decimal_str(cls, v: Any, info: ValidationInfo) -> str | None:  # noqa: ANN401
+        field_name = getattr(info, "field_name", None) or "field"
         if v is None:
             return v
         if not isinstance(v, str):
-            raise ValueError("Value must be a string or None")
+            field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
+            allow_none = field_info and (str(field_info.annotation).find("| None") != -1)
+            if v is None and allow_none:
+                return None
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         try:
             Decimal(v)
         except Exception as err:
-            raise ValueError(f"Must be a valid decimal string (got {v!r})") from err
+            raise ValueError(f"{field_name}: Must be a valid decimal string (got {v!r})") from err
         return v
 
     @field_validator("time", mode="before")
@@ -139,30 +142,32 @@ class BackpackRawOpenInterest(BaseModel):
 
     @field_validator("symbol", "open_interest", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: Any) -> str:  # noqa: ANN401
-        """
-        Ensure the value is a non-empty string.
-        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
-        """
+    def validate_non_empty_str(cls, v: Any, info: ValidationInfo) -> str:  # noqa: ANN401
+        field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
-            raise ValueError("Value must be a string")
+            field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
+            allow_none = field_info and (str(field_info.annotation).find("| None") != -1)
+            if v is None and allow_none:
+                raise ValueError(f"{field_name}: Field is required, cannot be None.")
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v:
             raise ValueError("String must be non-empty")
         return v
 
     @field_validator("open_interest", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: Any) -> str | None:  # noqa: ANN401
-        """
-        Ensure the value is a string representing a valid decimal, or None.
-        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
-        """
+    def validate_decimal_str(cls, v: Any, info: ValidationInfo) -> str | None:  # noqa: ANN401
+        field_name = getattr(info, "field_name", None) or "field"
         if v is None:
             return v
         if not isinstance(v, str):
-            raise ValueError("Value must be a string or None")
+            field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
+            allow_none = field_info and (str(field_info.annotation).find("| None") != -1)
+            if v is None and allow_none:
+                return None
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         try:
             Decimal(v)
         except Exception as err:
-            raise ValueError(f"Must be a valid decimal string (got {v!r})") from err
+            raise ValueError(f"{field_name}: Must be a valid decimal string (got {v!r})") from err
         return v
