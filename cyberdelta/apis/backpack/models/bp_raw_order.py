@@ -10,7 +10,7 @@ This version is fully aligned with the Backpack OpenAPI spec and supports all
 REST and WebSocket field aliases, types, and validation requirements.
 """
 
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -135,25 +135,39 @@ class BackpackRawOrder(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
+        if type(v) is not str:
+            raise ValueError("Must be a string representing a decimal value")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string representing a decimal value")
         try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
+            dec_val = Decimal(v)
+        except Exception as err:
             raise ValueError("Must be a string representing a decimal value") from err
+        if not dec_val.is_finite():
+            raise ValueError("Value must be a finite decimal (not NaN or inf)")
         return v
 
     @field_validator("side", mode="before")
     @classmethod
     def validate_side_enum(cls, v: str | None) -> str | None:
-        allowed = {"buy", "sell", "Bid", "Ask"}  # Update as per spec
-        if v is None or v not in allowed:
+        allowed = {"buy", "sell", "Bid", "Ask"}
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if v not in allowed:
             raise ValueError(f"Invalid side: {v}")
         return v
 
     @field_validator("orderType", mode="before")
     @classmethod
     def validate_order_type_enum(cls, v: str | None) -> str | None:
-        allowed = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}  # Update as per spec
-        if v is None or v not in allowed:
+        allowed = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if v not in allowed:
             raise ValueError(f"Invalid orderType: {v}")
         return v
 
@@ -167,16 +181,28 @@ class BackpackRawOrder(BaseModel):
             "EXPIRED",
             "REJECTED",
             "PARTIALLY_FILLED",
-        }  # Update as per spec
-        if v is None or v not in allowed:
+        }
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if v not in allowed:
             raise ValueError(f"Invalid status: {v}")
         return v
 
     @field_validator("symbol", "id", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
             raise ValueError("Must be a non-empty string")
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator("createdAt", "updatedAt", "triggeredAt", mode="before")
@@ -317,10 +343,16 @@ class BackpackRawOrderUpdate(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
+        if type(v) is not str:
+            raise ValueError("Must be a string representing a decimal value")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string representing a decimal value")
         try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
+            dec_val = Decimal(v)
+        except Exception as err:
             raise ValueError("Must be a string representing a decimal value") from err
+        if not dec_val.is_finite():
+            raise ValueError("Value must be a finite decimal (not NaN or inf)")
         return v
 
     @field_validator("event_time", mode="before")

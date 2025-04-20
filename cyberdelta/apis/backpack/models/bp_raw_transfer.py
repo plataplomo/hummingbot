@@ -8,7 +8,7 @@ These models are used for boundary validation and transformation, not for intern
 logic.
 """
 
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -36,13 +36,17 @@ class BackpackRawWithdrawal(BaseModel):
     @field_validator("id", "asset", "amount", "status", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
             raise ValueError("Must be a non-empty string")
         if len(v) > 64:
             raise ValueError("String value too long (max 64 chars)")
         try:
             v.encode("utf-8", "strict")
-        except (AttributeError, UnicodeEncodeError) as err:
+        except UnicodeEncodeError as err:
             raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
@@ -51,10 +55,16 @@ class BackpackRawWithdrawal(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
+        if type(v) is not str:
+            raise ValueError("Must be a string representing a decimal value")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string representing a decimal value")
         try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
+            dec_val = Decimal(v)
+        except Exception as err:
             raise ValueError("Must be a string representing a decimal value") from err
+        if not dec_val.is_finite():
+            raise ValueError("Value must be a finite decimal (not NaN or inf)")
         return v
 
     @field_validator("status", mode="before")
@@ -89,13 +99,17 @@ class BackpackRawDeposit(BaseModel):
     @field_validator("id", "asset", "amount", "status", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
             raise ValueError("Must be a non-empty string")
         if len(v) > 64:
             raise ValueError("String value too long (max 64 chars)")
         try:
             v.encode("utf-8", "strict")
-        except (AttributeError, UnicodeEncodeError) as err:
+        except UnicodeEncodeError as err:
             raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
@@ -104,10 +118,16 @@ class BackpackRawDeposit(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
+        if type(v) is not str:
+            raise ValueError("Must be a string representing a decimal value")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string representing a decimal value")
         try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
+            dec_val = Decimal(v)
+        except Exception as err:
             raise ValueError("Must be a string representing a decimal value") from err
+        if not dec_val.is_finite():
+            raise ValueError("Value must be a finite decimal (not NaN or inf)")
         return v
 
     @field_validator("status", mode="before")
@@ -142,11 +162,15 @@ class BackpackRawLiquidation(BaseModel):
     @field_validator("symbol", "price", "quantity", "side", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if type(v) is not str:
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
             raise ValueError("Must be a non-empty string")
         try:
             v.encode("utf-8", "strict")
-        except (AttributeError, UnicodeEncodeError) as err:
+        except UnicodeEncodeError as err:
             raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
@@ -155,10 +179,16 @@ class BackpackRawLiquidation(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
+        if type(v) is not str:
+            raise ValueError("Must be a string representing a decimal value")
+        if not v.strip():
+            raise ValueError("Must be a non-empty string representing a decimal value")
         try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
+            dec_val = Decimal(v)
+        except Exception as err:
             raise ValueError("Must be a string representing a decimal value") from err
+        if not dec_val.is_finite():
+            raise ValueError("Value must be a finite decimal (not NaN or inf)")
         return v
 
     @field_validator("side", mode="before")
