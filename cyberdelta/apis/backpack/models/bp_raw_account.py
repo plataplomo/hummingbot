@@ -32,7 +32,11 @@ class BackpackRawAccount(BaseModel):
     @field_validator("id", "email", "status", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if not isinstance(v, str):
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
             raise ValueError("Must be a non-empty string")
         return v
 
@@ -40,7 +44,11 @@ class BackpackRawAccount(BaseModel):
     @classmethod
     def validate_status_enum(cls, v: str | None) -> str | None:
         allowed = {"active", "suspended", "pending"}  # Update as per spec
-        if v is None or v not in allowed:
+        if v is None:
+            raise ValueError("Status must be a string (got None)")
+        if not isinstance(v, str):
+            raise ValueError(f"Status must be a string (got {type(v).__name__})")
+        if v not in allowed:
             raise ValueError(f"Invalid status: {v}")
         return v
 
@@ -66,7 +74,11 @@ class BackpackRawBalance(BaseModel):
     @field_validator("asset", "available", "total", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if not isinstance(v, str):
+            raise ValueError(f"Must be a string (got {type(v).__name__})")
+        if not v.strip():
             raise ValueError("Must be a non-empty string")
         return v
 
@@ -75,8 +87,14 @@ class BackpackRawBalance(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
+        if not isinstance(v, str):
+            raise ValueError(
+                f"Must be a string representing a decimal value (got {type(v).__name__})"
+            )
         try:
-            Decimal(v)
+            d = Decimal(v)
         except (InvalidOperation, TypeError) as err:
             raise ValueError("Must be a string representing a decimal value") from err
+        if not d.is_finite():
+            raise ValueError("Value must be a finite decimal (not NaN or inf)")
         return v
