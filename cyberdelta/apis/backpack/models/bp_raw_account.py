@@ -24,32 +24,37 @@ class BackpackRawAccount(BaseModel):
         status (str): Account status (e.g., 'active', 'suspended').
     """
 
-    id: str = Field(..., alias="id")
-    email: str = Field(..., alias="email")
-    status: str = Field(..., alias="status")
+    id: str = Field(..., alias="id", max_length=128)
+    email: str = Field(..., alias="email", max_length=320)
+    status: str = Field(..., alias="status", max_length=32)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("id", "email", "status", mode="before")
+    @field_validator("id", "email", "status", mode="before", check_fields=False)
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None:
             raise ValueError("Must be a non-empty string (got None)")
-        if not isinstance(v, str):
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
-        if not v.strip():
-            raise ValueError("Must be a non-empty string")
+        try:
+            if not v.strip():
+                raise ValueError("Must be a non-empty string")
+            if len(v) > 320:
+                raise ValueError("String value too long (max 320 chars)")
+            v.encode("utf-8", "strict")
+        except (AttributeError, TypeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
-    @field_validator("status", mode="before")
+    @field_validator("status", mode="before", check_fields=False)
     @classmethod
     def validate_status_enum(cls, v: str | None) -> str | None:
         allowed = {"active", "suspended", "pending"}  # Update as per spec
         if v is None:
             raise ValueError("Status must be a string (got None)")
-        if not isinstance(v, str):
-            raise ValueError(f"Status must be a string (got {type(v).__name__})")
-        if v not in allowed:
-            raise ValueError(f"Invalid status: {v}")
+        try:
+            if v not in allowed:
+                raise ValueError(f"Invalid status: {v}")
+        except TypeError as err:
+            raise ValueError(f"Status must be a string (got {type(v).__name__})") from err
         return v
 
 
@@ -66,34 +71,34 @@ class BackpackRawBalance(BaseModel):
         total (str): Total balance (as string).
     """
 
-    asset: str = Field(..., alias="asset")
-    available: str = Field(..., alias="available")
-    total: str = Field(..., alias="total")
+    asset: str = Field(..., alias="asset", max_length=32)
+    available: str = Field(..., alias="available", max_length=64)
+    total: str = Field(..., alias="total", max_length=64)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("asset", "available", "total", mode="before")
+    @field_validator("asset", "available", "total", mode="before", check_fields=False)
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None:
             raise ValueError("Must be a non-empty string (got None)")
-        if not isinstance(v, str):
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
-        if not v.strip():
-            raise ValueError("Must be a non-empty string")
+        try:
+            if not v.strip():
+                raise ValueError("Must be a non-empty string")
+            if len(v) > 64:
+                raise ValueError("String value too long (max 64 chars)")
+            v.encode("utf-8", "strict")
+        except (AttributeError, TypeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
-    @field_validator("available", "total", mode="before")
+    @field_validator("available", "total", mode="before", check_fields=False)
     @classmethod
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        if not isinstance(v, str):
-            raise ValueError(
-                f"Must be a string representing a decimal value (got {type(v).__name__})"
-            )
         try:
             d = Decimal(v)
-        except (InvalidOperation, TypeError) as err:
+        except (InvalidOperation, TypeError, AttributeError) as err:
             raise ValueError("Must be a string representing a decimal value") from err
         if not d.is_finite():
             raise ValueError("Value must be a finite decimal (not NaN or inf)")

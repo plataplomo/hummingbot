@@ -22,15 +22,23 @@ class BackpackRawApiError(BaseModel):
         message (str): Human-readable error message.
     """
 
-    code: str = Field(..., description="Backpack error code")
-    message: str = Field(..., description="Error message")
+    code: str = Field(..., description="Backpack error code", max_length=64)
+    message: str = Field(..., description="Error message", max_length=1024)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("code", "message", mode="before")
+    @field_validator("code", "message", mode="before", check_fields=False)
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
-            raise ValueError("Must be a non-empty string")
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        try:
+            if not v.strip():
+                raise ValueError("Must be a non-empty string")
+            if len(v) > 1024:
+                raise ValueError("String value too long (max 1024 chars)")
+            v.encode("utf-8", "strict")
+        except (AttributeError, TypeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator("code", mode="before")
@@ -69,6 +77,11 @@ class BackpackRawApiError(BaseModel):
             "PRECONDITION_FAILED",
             "NOT_IMPLEMENTED",
         }  # Update as per spec
-        if v is None or v not in allowed:
-            raise ValueError(f"Invalid error code: {v}")
+        if v is None:
+            raise ValueError("Invalid error code: None")
+        try:
+            if v not in allowed:
+                raise ValueError(f"Invalid error code: {v}")
+        except TypeError as err:
+            raise ValueError(f"Invalid error code type: {type(v).__name__}") from err
         return v

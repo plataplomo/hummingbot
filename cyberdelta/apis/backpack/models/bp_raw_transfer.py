@@ -27,10 +27,10 @@ class BackpackRawWithdrawal(BaseModel):
         status (str): Withdrawal status (e.g., 'pending', 'completed').
     """
 
-    id: str = Field(..., alias="id")
-    asset: str = Field(..., alias="asset")
-    amount: str = Field(..., alias="amount")
-    status: str = Field(..., alias="status")
+    id: str = Field(..., alias="id", max_length=64)
+    asset: str = Field(..., alias="asset", max_length=32)
+    amount: str = Field(..., alias="amount", max_length=64)
+    status: str = Field(..., alias="status", max_length=32)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     @field_validator("id", "asset", "amount", "status", mode="before")
@@ -38,6 +38,12 @@ class BackpackRawWithdrawal(BaseModel):
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None or not v.strip():
             raise ValueError("Must be a non-empty string")
+        if len(v) > 64:
+            raise ValueError("String value too long (max 64 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator("amount", mode="before")
@@ -74,10 +80,10 @@ class BackpackRawDeposit(BaseModel):
         status (str): Deposit status (e.g., 'pending', 'completed').
     """
 
-    id: str = Field(..., alias="id")
-    asset: str = Field(..., alias="asset")
-    amount: str = Field(..., alias="amount")
-    status: str = Field(..., alias="status")
+    id: str = Field(..., alias="id", max_length=64)
+    asset: str = Field(..., alias="asset", max_length=32)
+    amount: str = Field(..., alias="amount", max_length=64)
+    status: str = Field(..., alias="status", max_length=32)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     @field_validator("id", "asset", "amount", "status", mode="before")
@@ -85,6 +91,12 @@ class BackpackRawDeposit(BaseModel):
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None or not v.strip():
             raise ValueError("Must be a non-empty string")
+        if len(v) > 64:
+            raise ValueError("String value too long (max 64 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator("amount", mode="before")
@@ -132,6 +144,10 @@ class BackpackRawLiquidation(BaseModel):
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None or not v.strip():
             raise ValueError("Must be a non-empty string")
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator("price", "quantity", mode="before")

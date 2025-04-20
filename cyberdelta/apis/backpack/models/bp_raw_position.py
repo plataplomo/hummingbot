@@ -29,6 +29,10 @@ class SqrtFunction(BaseModel):
         if v is None:
             return v
         try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+        try:
             Decimal(v)
         except (InvalidOperation, TypeError) as err:
             raise ValueError("Must be a string representing a decimal value") from err
@@ -51,6 +55,10 @@ class PositionImfFunction(BaseModel):
         allowed = {"sqrt"}
         if v is None or v not in allowed:
             raise ValueError(f"Invalid type: {v}")
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator("base", "factor", mode="before")
@@ -58,6 +66,10 @@ class PositionImfFunction(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         try:
             Decimal(v)
         except (InvalidOperation, TypeError) as err:
@@ -73,25 +85,25 @@ class BackpackRawPosition(BaseModel):
     All fields are required and must match the API contract. No business logic or optionality.
     """
 
-    break_even_price: str = Field(..., alias="breakEvenPrice")
-    entry_price: str = Field(..., alias="entryPrice")
-    est_liquidation_price: str = Field(..., alias="estLiquidationPrice")
-    imf: str = Field(..., alias="imf")
+    break_even_price: str = Field(..., alias="breakEvenPrice", max_length=64)
+    entry_price: str = Field(..., alias="entryPrice", max_length=64)
+    est_liquidation_price: str = Field(..., alias="estLiquidationPrice", max_length=64)
+    imf: str = Field(..., alias="imf", max_length=64)
     imf_function: PositionImfFunction = Field(..., alias="imfFunction")
-    mark_price: str = Field(..., alias="markPrice")
-    mmf: str = Field(..., alias="mmf")
+    mark_price: str = Field(..., alias="markPrice", max_length=64)
+    mmf: str = Field(..., alias="mmf", max_length=64)
     mmf_function: PositionImfFunction = Field(..., alias="mmfFunction")
-    net_cost: str = Field(..., alias="netCost")
-    net_quantity: str = Field(..., alias="netQuantity")
-    net_exposure_quantity: str = Field(..., alias="netExposureQuantity")
-    net_exposure_notional: str = Field(..., alias="netExposureNotional")
-    pnl_realized: str = Field(..., alias="pnlRealized")
-    pnl_unrealized: str = Field(..., alias="pnlUnrealized")
-    cumulative_funding_payment: str = Field(..., alias="cumulativeFundingPayment")
-    symbol: str = Field(..., alias="symbol")
+    net_cost: str = Field(..., alias="netCost", max_length=64)
+    net_quantity: str = Field(..., alias="netQuantity", max_length=64)
+    net_exposure_quantity: str = Field(..., alias="netExposureQuantity", max_length=64)
+    net_exposure_notional: str = Field(..., alias="netExposureNotional", max_length=64)
+    pnl_realized: str = Field(..., alias="pnlRealized", max_length=64)
+    pnl_unrealized: str = Field(..., alias="pnlUnrealized", max_length=64)
+    cumulative_funding_payment: str = Field(..., alias="cumulativeFundingPayment", max_length=64)
+    symbol: str = Field(..., alias="symbol", max_length=64)
     user_id: int = Field(..., alias="userId")
-    position_id: str = Field(..., alias="positionId")
-    cumulative_interest: str = Field(..., alias="cumulativeInterest")
+    position_id: str = Field(..., alias="positionId", max_length=64)
+    cumulative_interest: str = Field(..., alias="cumulativeInterest", max_length=64)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     @field_validator(
@@ -116,6 +128,10 @@ class BackpackRawPosition(BaseModel):
         if v is None:
             return v
         try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+        try:
             Decimal(v)
         except (InvalidOperation, TypeError) as err:
             raise ValueError("Must be a string representing a decimal value") from err
@@ -126,6 +142,12 @@ class BackpackRawPosition(BaseModel):
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None or not v.strip():
             raise ValueError("Must be a non-empty string")
+        if len(v) > 64:
+            raise ValueError("String value too long (max 64 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
 
@@ -171,6 +193,12 @@ class BackpackRawPositionUpdate(BaseModel):
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None or not v.strip():
             raise ValueError("Must be a non-empty string")
+        if len(v) > 64:
+            raise ValueError("String value too long (max 64 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator(
@@ -189,6 +217,10 @@ class BackpackRawPositionUpdate(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         try:
             Decimal(v)
         except (InvalidOperation, TypeError) as err:

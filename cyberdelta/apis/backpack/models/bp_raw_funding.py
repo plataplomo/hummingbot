@@ -28,32 +28,49 @@ class BackpackRawFundingRate(BaseModel):
         time (int | str | float | None): Data timestamp.
     """
 
-    symbol: str = Field(..., alias="symbol")
-    funding_rate: str = Field(..., alias="rate")
-    mark_price: str = Field(..., alias="markPrice")
-    index_price: str = Field(..., alias="indexPrice")
+    symbol: str = Field(..., alias="symbol", max_length=64)
+    funding_rate: str = Field(..., alias="rate", max_length=64)
+    mark_price: str = Field(..., alias="markPrice", max_length=64)
+    index_price: str = Field(..., alias="indexPrice", max_length=64)
     time: int | str | float | None = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("symbol", "funding_rate", "mark_price", "index_price", mode="before")
+    @field_validator("symbol", mode="before", check_fields=False)
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
-            raise ValueError("Must be a non-empty string")
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        try:
+            if not v.strip():
+                raise ValueError("Must be a non-empty string")
+            if len(v) > 64:
+                raise ValueError("String value too long (max 64 chars)")
+            v.encode("utf-8", "strict")
+        except (AttributeError, TypeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
-    @field_validator("funding_rate", "mark_price", "index_price", mode="before")
+    @field_validator("rate", "mark_price", "index_price", mode="before", check_fields=False)
     @classmethod
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
         try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
+            if not v.strip():
+                raise ValueError("Must be a non-empty string")
+            if len(v) > 64:
+                raise ValueError("String value too long (max 64 chars)")
+            v.encode("utf-8", "strict")
+            d = Decimal(v)
+        except (AttributeError, TypeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+        except (InvalidOperation, ValueError) as err:
             raise ValueError("Must be a string representing a decimal value") from err
+        if not d.is_finite():
+            raise ValueError("Value must be a finite decimal (not NaN or inf)")
         return v
 
-    @field_validator("time", mode="before")
+    @field_validator("time", mode="before", check_fields=False)
     @classmethod
     def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
         if v is None:
@@ -81,25 +98,40 @@ class BackpackRawMarkPrice(BaseModel):
         funding_rate (str): Funding rate (as string).
     """
 
-    symbol: str = Field(..., alias="symbol")
-    mark_price: str = Field(..., alias="markPrice")
-    funding_rate: str = Field(..., alias="fundingRate")
+    symbol: str = Field(..., alias="symbol", max_length=64)
+    mark_price: str = Field(..., alias="markPrice", max_length=64)
+    funding_rate: str = Field(..., alias="fundingRate", max_length=64)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("symbol", "mark_price", "funding_rate", mode="before")
+    @field_validator("symbol", mode="before", check_fields=False)
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None or not v.strip():
             raise ValueError("Must be a non-empty string")
+        if len(v) > 64:
+            raise ValueError("String value too long (max 64 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
-    @field_validator("mark_price", "funding_rate", mode="before")
+    @field_validator("mark_price", "funding_rate", mode="before", check_fields=False)
     @classmethod
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
         try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
+            if not v.strip():
+                raise ValueError("Must be a non-empty string")
+            if len(v) > 64:
+                raise ValueError("String value too long (max 64 chars)")
+            v.encode("utf-8", "strict")
+            d = Decimal(v)
+        except (AttributeError, TypeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+        except (InvalidOperation, ValueError) as err:
             raise ValueError("Must be a string representing a decimal value") from err
+        if not d.is_finite():
+            raise ValueError("Value must be a finite decimal (not NaN or inf)")
         return v

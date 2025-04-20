@@ -19,16 +19,24 @@ class BackpackRawMarket(BaseModel):
         quote_asset: Quote asset symbol (str)
     """
 
-    symbol: str = Field(..., alias="symbol")
-    base_asset: str = Field(..., alias="baseAsset")
-    quote_asset: str = Field(..., alias="quoteAsset")
+    symbol: str = Field(..., alias="symbol", max_length=64)
+    base_asset: str = Field(..., alias="baseAsset", max_length=64)
+    quote_asset: str = Field(..., alias="quoteAsset", max_length=64)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     @field_validator("symbol", "base_asset", "quote_asset", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        if not v.strip():
             raise ValueError("Must be a non-empty string")
+        if len(v) > 64:
+            raise ValueError("String value too long (max 64 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
 
@@ -58,8 +66,14 @@ class BackpackRawTicker(BaseModel):
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
-            raise ValueError("Must be a non-empty string")
+        if v is None:
+            raise ValueError("Must be a non-empty string (got None)")
+        try:
+            if not v.strip():
+                raise ValueError("Must be a non-empty string")
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator("price", "bid", "ask", "volume", mode="before")

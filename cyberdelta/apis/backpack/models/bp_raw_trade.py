@@ -29,19 +29,25 @@ class BackpackRawTrade(BaseModel):
         time (int | str | float | None): Execution timestamp.
     """
 
-    id: str = Field(..., alias="id")
-    order_id: str = Field(..., alias="orderId")
-    symbol: str = Field(..., alias="symbol")
-    price: str = Field(..., alias="price")
-    quantity: str = Field(..., alias="qty")
+    id: str = Field(..., alias="id", max_length=64)
+    order_id: str = Field(..., alias="orderId", max_length=64)
+    symbol: str = Field(..., alias="symbol", max_length=64)
+    price: str = Field(..., alias="price", max_length=64)
+    quantity: str = Field(..., alias="qty", max_length=64)
     time: int | str | float | None = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("id", "order_id", "symbol", "price", "quantity", mode="before")
+    @field_validator("id", "order_id", "symbol", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None or not v.strip():
             raise ValueError("Must be a non-empty string")
+        if len(v) > 64:
+            raise ValueError("String value too long (max 64 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator("price", "quantity", mode="before")
@@ -115,6 +121,10 @@ class BackpackRawTradeEvent(BaseModel):
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None or not v.strip():
             raise ValueError("Must be a non-empty string")
+        try:
+            v.encode("utf-8", "strict")
+        except (AttributeError, UnicodeEncodeError) as err:
+            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
         return v
 
     @field_validator("price", "quantity", mode="before")
