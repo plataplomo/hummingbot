@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, TypedDict, TypeVar, cast
+from typing import Any, TypedDict, TypeVar
 
 import aiohttp
 from aiohttp import ClientTimeout
@@ -14,6 +14,12 @@ from web3.auto import w3
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
+from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
+    HyperliquidRawWsBookUpdate,
+    HyperliquidRawWsFillEvent,
+    HyperliquidRawWsOrderUpdate,
+    HyperliquidRawWsTradeEvent,
+)
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
@@ -991,65 +997,165 @@ class HyperliquidAPI(ExchangeAPI):
         return None
 
     def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
+        """
+        Parse order book update message from WebSocket, validating with HyperliquidRawWsBookUpdate.
+        """
         if message.get("channel", "").startswith("l2Book:"):
-            logger.warning(
-                f"[{self.exchange_name}] parse_orderbook_message needs full implementation."
-            )
-            return None
+            data_raw = message.get("data", {})
+            try:
+                validated = HyperliquidRawWsBookUpdate.model_validate(data_raw)
+            except Exception as e:
+                logger.warning(
+                    f"[{self.exchange_name}] Invalid order book event (dropped): {e} | "
+                    f"Data: {data_raw}"
+                )
+                return None
+            try:
+                bids = (
+                    [(Decimal(level.px), Decimal(level.sz)) for level in validated.levels[0]]
+                    if validated.levels
+                    else []
+                )
+                asks = (
+                    [(Decimal(level.px), Decimal(level.sz)) for level in validated.levels[1]]
+                    if validated.levels and len(validated.levels) > 1
+                    else []
+                )
+                return OrderBook(
+                    symbol=validated.coin,
+                    bids=bids,
+                    asks=asks,
+                    timestamp=validated.time,
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[{self.exchange_name}] Error parsing validated order book event: {e}"
+                )
         return None
 
     def parse_trade_message(self, message: dict[str, Any]) -> Trade | None:
-        """Parse trade message from the WebSocket feed."""
+        """
+        Parse trade message from WebSocket, validating with HyperliquidRawWsTradeEvent.
+        """
         if message.get("channel") == "allMids":
             logger.warning(
                 f"[{self.exchange_name}] parse_ticker_message needs specific implementation "
                 f"for 'allMids' structure."
             )
             return None
-        # Defensive: message is already dict[str, Any]
         if "channel" in message and message["channel"] == "trades":
             data_raw = message.get("data", [])
-            data_raw_any: list[Any] = data_raw  # Explicitly typed for static analysis
-            # Defensive: ensure data_raw is a list of dicts
-            if all(isinstance(x, dict) for x in data_raw_any):
-                data = cast(list[dict[str, Any]], data_raw_any)
-                if data:
-                    first_trade: dict[str, Any] = data[0]
-                    symbol = message.get("coin", "")
-                    if symbol:
-                        try:
-                            return self.parse_trade(first_trade, symbol)
-                        except Exception as e:
-                            logger.error(f"Error parsing trade message: {e}")
+            if isinstance(data_raw, list):
+                from typing import Any, cast
+
+                for trade_dict_any in data_raw:
+                    any_obj = cast(Any, trade_dict_any)
+                    if not isinstance(any_obj, dict):
+                        continue
+                    trade_dict: dict[str, Any] = any_obj  # type: ignore[assignment]  # Safe: runtime type check above
+                    try:
+                        validated = HyperliquidRawWsTradeEvent.model_validate(trade_dict)
+                    except Exception as e:
+                        logger.warning(
+                            f"[{self.exchange_name}] Invalid trade event (dropped): {e} | "
+                            f"Data: {trade_dict}"
+                        )
+                        continue
+                    try:
+                        side = OrderSide.BUY if validated.side == "B" else OrderSide.SELL
+                        price = Decimal(validated.px)
+                        quantity = Decimal(validated.sz)
+                        return Trade(
+                            id=validated.hash,
+                            symbol=validated.coin,
+                            executed_at=datetime.fromtimestamp(validated.time / 1000, tz=UTC),
+                            side=side,
+                            order_id="",
+                            exchange="hyperliquid",
+                            client_order_id="",
+                            price=price,
+                            quantity=quantity,
+                            cost=price * quantity,
+                            fee=Decimal("0"),
+                            fee_asset="USDC",
+                            is_maker=None,
+                            timestamp=validated.time,
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"[{self.exchange_name}] Error parsing validated trade event: {e}"
+                        )
         return None
 
     def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
         """
-        Parse an order update message from the WebSocket feed.
-
-        Args:
-            message: The WebSocket message to parse
-
-        Returns:
-            An Order object or None if the message cannot be parsed
+        Parse an order update message from WebSocket, validating with HyperliquidRawWsOrderUpdate.
         """
-        # Defensive: message is already dict[str, Any]
         if "type" in message and message["type"] == "userEvent" and "userEvents" in message:
             events_raw = message.get("userEvents", [])
-            events_raw_any: list[Any] = events_raw
-            # Defensive: ensure events_raw is a list of dicts
-            if all(isinstance(x, dict) for x in events_raw_any):
-                events = cast(list[dict[str, Any]], events_raw_any)
-                for event in events:
-                    event_type = event.get("eventType", "")
-                    if event_type == "order":
-                        order_data = event.get("data", {})
-                        if order_data:
-                            try:
-                                return self.parse_order(order_data)
-                            except Exception as e:
-                                logger.error(f"Error parsing order update message: {e}")
+            for event in events_raw:
+                try:
+                    validated = HyperliquidRawWsOrderUpdate.model_validate(event)
+                except Exception as e:
+                    logger.warning(
+                        f"[{self.exchange_name}] Invalid order update event (dropped): {e} | "
+                        f"Data: {event}"
+                    )
+                    continue
+                if validated.event_type == "order":
+                    order_data = validated.data
+                    try:
+                        return self.parse_order(order_data)
+                    except Exception as e:
+                        logger.error(f"Error parsing order update message: {e}")
         return None
+
+    def parse_fill_message(self, message: dict[str, Any]) -> list[Trade]:
+        """
+        Parse a fill update message from WebSocket and convert to standard Trade objects.
+        Validates the message using HyperliquidRawWsFillEvent (Pydantic).
+        """
+        trades: list[Trade] = []
+        if message.get("type") == "userFill":
+            fill_data_raw = message.get("data", {})
+            try:
+                validated = HyperliquidRawWsFillEvent.model_validate(fill_data_raw)
+            except Exception as e:
+                logger.warning(
+                    f"[{self.exchange_name}] Invalid fill event (dropped): {e} | "
+                    f"Data: {fill_data_raw}"
+                )
+                return trades
+            coin = validated.coin
+            side_str = validated.side
+            px_str = validated.px
+            sz_str = validated.sz
+            time_ms = validated.time
+            order_id = str(validated.oid)
+            try:
+                side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
+                price = Decimal(str(px_str))
+                quantity = Decimal(str(sz_str))
+                trade = Trade(
+                    id=f"{order_id}_{time_ms}",
+                    symbol=coin,
+                    executed_at=datetime.fromtimestamp(time_ms / 1000, tz=UTC),
+                    side=side,
+                    order_id=order_id,
+                    exchange="hyperliquid",
+                    client_order_id=validated.cloid or "",
+                    price=price,
+                    quantity=quantity,
+                    cost=price * quantity,
+                    fee=Decimal("0"),
+                    fee_asset="USDC",
+                    is_maker=validated.is_maker,
+                    timestamp=time_ms,
+                )
+                trades.append(trade)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Error parsing validated fill data: {e}")
+        return trades
 
     def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
         logger.warning(f"[{self.exchange_name}] parse_funding_rate_message needs WS update impl.")
@@ -1118,56 +1224,3 @@ class HyperliquidAPI(ExchangeAPI):
             logger.error(
                 f"[{self.exchange_name}] Error processing WebSocket message: {e}", exc_info=True
             )
-
-    def parse_fill_message(self, message: dict[str, Any]) -> list[Trade]:
-        """Parse a fill update message and convert to standard Trade objects.
-
-        Args:
-            message: The message containing fill updates
-
-        Returns:
-            List of Trade objects representing the fills
-        """
-        trades: list[Trade] = []
-
-        # Defensive: message is already dict[str, Any]
-        if message.get("type") == "userFill":
-            fill_data_raw = message.get("data", {})
-            # Defensive: ensure fill_data_raw is a dict
-            if isinstance(fill_data_raw, dict):
-                fill_data: dict[str, Any] = fill_data_raw
-                coin = fill_data.get("coin", "")
-                if not coin:
-                    return trades
-
-                side_str = fill_data.get("side", "")
-                px_str = fill_data.get("px", "0")
-                sz_str = fill_data.get("sz", "0")
-                time_ms = fill_data.get("time", int(time.time() * 1000))
-                order_id = fill_data.get("oid", "")
-
-                try:
-                    side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
-                    price = Decimal(str(px_str))
-                    quantity = Decimal(str(sz_str))
-
-                    trade = Trade(
-                        id=f"{order_id}_{time_ms}",
-                        symbol=coin,
-                        executed_at=datetime.fromtimestamp(time_ms / 1000, tz=UTC),
-                        side=side,
-                        order_id=order_id,
-                        exchange="hyperliquid",
-                        client_order_id="",
-                        price=price,
-                        quantity=quantity,
-                        cost=price * quantity,
-                        fee=Decimal("0"),
-                        fee_asset="USDC",
-                        is_maker=False,  # Assuming fills are taker trades
-                        timestamp=time_ms,
-                    )
-                    trades.append(trade)
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Error parsing fill data: {e}")
-        return trades
