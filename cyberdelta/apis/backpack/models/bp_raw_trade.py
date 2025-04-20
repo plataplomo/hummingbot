@@ -45,9 +45,6 @@ class BackpackRawTrade(BaseModel):
     @field_validator("id", "order_id", "symbol", mode="before")
     @classmethod
     def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
-        """
-        Strictly validates required string fields for emptiness, length, and UTF-8.
-        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -64,9 +61,6 @@ class BackpackRawTrade(BaseModel):
     @field_validator("price", "quantity", mode="before")
     @classmethod
     def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
-        """
-        Strictly validates decimal string fields for emptiness and finite decimal value.
-        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -145,9 +139,6 @@ class BackpackRawTradeEvent(BaseModel):
     @field_validator("event_type", mode="before")
     @classmethod
     def validate_event_type_enum(cls, v: Any, info: ValidationInfo) -> str:
-        """
-        Strictly validates event_type as a string enum (only 'trade' allowed).
-        """
         field_name = info.field_name or "event_type"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -173,9 +164,6 @@ class BackpackRawTradeEvent(BaseModel):
     @field_validator("symbol", "buyer_order_id", "seller_order_id", "trade_id", mode="before")
     @classmethod
     def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
-        """
-        Strictly validates required string fields for emptiness, length, and UTF-8.
-        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -192,9 +180,6 @@ class BackpackRawTradeEvent(BaseModel):
     @field_validator("price", "quantity", mode="before")
     @classmethod
     def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
-        """
-        Strictly validates decimal string fields for emptiness and finite decimal value.
-        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")

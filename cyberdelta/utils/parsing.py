@@ -94,3 +94,59 @@ def parse_decimal_value(
         return Decimal(str_val)
     except (InvalidOperation, ValueError, TypeError) as e:
         raise ValueError(f"{prefix}Cannot convert '{value}' to Decimal: {e}") from e
+
+
+def validate_str_field(
+    value: object,
+    field_name: str = "",
+    max_length: int | None = None,
+    allow_empty: bool = False,
+) -> str:
+    """
+    Validates that a value is a string, optionally non-empty, within max_length, and valid UTF-8.
+    Args:
+        value: The value to validate.
+        field_name: Name of the field for error messages.
+        max_length: Maximum allowed length (if any).
+        allow_empty: If True, allow empty/whitespace-only strings.
+    Returns:
+        The validated string value.
+    Raises:
+        ValueError: If validation fails.
+    """
+    prefix = f"{field_name}: " if field_name else ""
+    if not isinstance(value, str):
+        raise ValueError(f"{prefix}Expected string, got {type(value).__name__}")
+    if not allow_empty and not value.strip():
+        raise ValueError(f"{prefix}String cannot be empty or whitespace.")
+    if max_length is not None and len(value) > max_length:
+        raise ValueError(f"{prefix}String value too long (max {max_length} chars)")
+    try:
+        value.encode("utf-8", "strict")
+    except UnicodeEncodeError as e:
+        raise ValueError(f"{prefix}Invalid UTF-8 sequence: {e}") from e
+    return value
+
+
+def validate_enum_field(
+    value: object,
+    allowed: set[str],
+    field_name: str = "",
+) -> str:
+    """
+    Validates that a value is a string and a member of the allowed set.
+    Args:
+        value: The value to validate.
+        allowed: Set of allowed string values.
+        field_name: Name of the field for error messages.
+    Returns:
+        The validated string value.
+    Raises:
+        ValueError: If validation fails.
+    """
+    prefix = f"{field_name}: " if field_name else ""
+    if not isinstance(value, str):
+        raise ValueError(f"{prefix}Expected string for enum, got {type(value).__name__}")
+    if value not in allowed:
+        raise ValueError(f"{prefix}Invalid value '{value}'. Expected one of {allowed}")
+    return value

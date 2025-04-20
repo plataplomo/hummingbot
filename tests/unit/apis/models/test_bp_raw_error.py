@@ -127,8 +127,9 @@ def test_BackpackRawApiError_corruption_list_message() -> None:
 
 
 def test_BackpackRawApiError_corruption_garbled_unicode_code() -> None:
-    """Should succeed: garbled unicode in 'code' is accepted by raw model."""
+    """Should fail: garbled unicode in 'code' is rejected by the raw model."""
     p = valid_api_error().copy()
-    p["code"] = "INVALID_SIGNATURE\udce2\udc28\udc00"
-    obj = BackpackRawApiError.model_validate(p)
-    assert isinstance(obj.code, str)
+    garbled = b"INVALID_SIGNATURE\\udce2\\udc28\\udc00".decode("unicode-escape")
+    p["code"] = garbled
+    with pytest.raises((ValidationError, UnicodeEncodeError)):
+        BackpackRawApiError.model_validate(p)

@@ -38,8 +38,6 @@ class BackpackRawWithdrawal(BaseModel):
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None:
             raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
         if not v.strip():
             raise ValueError("Must be a non-empty string")
         if len(v) > 64:
@@ -55,8 +53,6 @@ class BackpackRawWithdrawal(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        if type(v) is not str:
-            raise ValueError("Must be a string representing a decimal value")
         if not v.strip():
             raise ValueError("Must be a non-empty string representing a decimal value")
         try:
@@ -101,8 +97,6 @@ class BackpackRawDeposit(BaseModel):
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None:
             raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
         if not v.strip():
             raise ValueError("Must be a non-empty string")
         if len(v) > 64:
@@ -118,8 +112,6 @@ class BackpackRawDeposit(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        if type(v) is not str:
-            raise ValueError("Must be a string representing a decimal value")
         if not v.strip():
             raise ValueError("Must be a non-empty string representing a decimal value")
         try:
@@ -164,8 +156,6 @@ class BackpackRawLiquidation(BaseModel):
     def validate_non_empty_str(cls, v: str | None) -> str | None:
         if v is None:
             raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
         if not v.strip():
             raise ValueError("Must be a non-empty string")
         try:
@@ -179,8 +169,6 @@ class BackpackRawLiquidation(BaseModel):
     def validate_decimal_str(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        if type(v) is not str:
-            raise ValueError("Must be a string representing a decimal value")
         if not v.strip():
             raise ValueError("Must be a non-empty string representing a decimal value")
         try:

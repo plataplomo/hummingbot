@@ -52,9 +52,6 @@ class BackpackRawFundingRate(BaseModel):
     @field_validator("symbol", mode="before", check_fields=False)
     @classmethod
     def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
-        """
-        Strictly validates required string fields for emptiness, length, and UTF-8.
-        """
         field_name = info.field_name or "symbol"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -71,9 +68,6 @@ class BackpackRawFundingRate(BaseModel):
     @field_validator("funding_rate", "mark_price", "index_price", mode="before", check_fields=False)
     @classmethod
     def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
-        """
-        Strictly validates decimal string fields for emptiness and finite decimal value.
-        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -100,10 +94,6 @@ class BackpackRawFundingRate(BaseModel):
     @field_validator("time", mode="before", check_fields=False)
     @classmethod
     def validate_timestamp_format(cls, v: Any, info: ValidationInfo) -> int | float | str | None:
-        """
-        Strictly validates timestamp fields for type and format (int, float, or non-empty
-        string).
-        """
         field_name = info.field_name or "time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")
@@ -143,9 +133,6 @@ class BackpackRawMarkPrice(BaseModel):
     @field_validator("symbol", mode="before", check_fields=False)
     @classmethod
     def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
-        """
-        Strictly validates required string fields for emptiness, length, and UTF-8.
-        """
         field_name = info.field_name or "symbol"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -162,9 +149,6 @@ class BackpackRawMarkPrice(BaseModel):
     @field_validator("mark_price", "funding_rate", check_fields=False)
     @classmethod
     def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
-        """
-        Strictly validates decimal string fields for emptiness and finite decimal value.
-        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")

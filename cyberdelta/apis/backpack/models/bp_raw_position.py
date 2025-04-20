@@ -3,15 +3,25 @@ Backpack API Position Models (RAW)
 ----------------------------------
 
 Strict Pydantic models for validating position responses from the
-Backpack Exchange API. These models are for boundary validation only:
-- 1:1 contract with the Backpack OpenAPI schema (no optionality, no business logic)
-- All fields required, types and structure must match the OpenAPI spec exactly
-- Used only for parsing/validating raw API responses
+Backpack Exchange API.
+
+**Boundary Validation Pattern (Project Standard):**
+- All fields are strictly validated to match the OpenAPI spec (type, required/optional, max length, enum, etc.).
+- **String fields** are always validated for:
+    - Type: must be `str` (not bytes, int, list, etc.)
+    - Non-emptiness (unless explicitly allowed)
+    - Max length (per OpenAPI spec)
+    - Valid UTF-8 encoding (no lone surrogates or invalid unicode)
+- **Invalid unicode or broken types are always rejected** with `ValidationError` (if caught by the validator) or `UnicodeEncodeError` (if Python or Pydantic internals hit the error first).
+- This ensures the Raw model acts as a strict, reliable shield between external API data and internal business logic.
+- See test suite for adversarial/hostile input cases and expected outcomes.
+
+This pattern is enforced for all Raw models in the CyberDeltaEngine project.
 """
 
-from decimal import Decimal, InvalidOperation
-
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
 
 class SqrtFunction(BaseModel):
@@ -25,21 +35,13 @@ class SqrtFunction(BaseModel):
 
     @field_validator("base", "factor", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        if v is None:
-            return v
-        if not isinstance(v, str):
-            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        try:
-            v.encode("utf-8", "strict")
-        except (AttributeError, UnicodeEncodeError) as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
-        try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
-            raise ValueError("Must be a string representing a decimal value") from err
-        return v
+        s = validate_str_field(v, field_name=field_name)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
 
 class PositionImfFunction(BaseModel):
@@ -54,36 +56,20 @@ class PositionImfFunction(BaseModel):
 
     @field_validator("type", mode="before")
     @classmethod
-    def validate_type_enum(cls, v: str | None, info: ValidationInfo) -> str | None:
+    def validate_type_enum(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "type"
-        allowed = {"sqrt"}
-        if v is None or v not in allowed:
-            raise ValueError(f"Invalid {field_name}: {v}")
-        if not isinstance(v, str):
-            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        try:
-            v.encode("utf-8", "strict")
-        except (AttributeError, UnicodeEncodeError) as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
-        return v
+        s = validate_str_field(v, field_name=field_name)
+        return validate_enum_field(s, allowed={"sqrt"}, field_name=field_name)
 
     @field_validator("base", "factor", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        if v is None:
-            return v
-        if not isinstance(v, str):
-            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        try:
-            v.encode("utf-8", "strict")
-        except (AttributeError, UnicodeEncodeError) as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
-        try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
-            raise ValueError("Must be a string representing a decimal value") from err
-        return v
+        s = validate_str_field(v, field_name=field_name)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
 
 class BackpackRawPosition(BaseModel):
@@ -133,37 +119,19 @@ class BackpackRawPosition(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_decimal_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        if v is None:
-            return v
-        if not isinstance(v, str):
-            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        try:
-            v.encode("utf-8", "strict")
-        except (AttributeError, UnicodeEncodeError) as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
-        try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
-            raise ValueError("Must be a string representing a decimal value") from err
-        return v
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
     @field_validator("symbol", "position_id", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+    def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        if v is None:
-            return v
-        if not isinstance(v, str):
-            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        if len(v) > 64:
-            raise ValueError("String value too long (max 64 chars)")
-        try:
-            v.encode("utf-8", "strict")
-        except (AttributeError, UnicodeEncodeError) as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
-        return v
+        return validate_str_field(v, field_name=field_name, max_length=64)
 
 
 class BackpackRawPositionUpdate(BaseModel):
@@ -205,19 +173,9 @@ class BackpackRawPositionUpdate(BaseModel):
 
     @field_validator("event_type", "symbol", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+    def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        if v is None:
-            return v
-        if not v.strip():
-            raise ValueError("Must be a non-empty string")
-        if len(v) > 64:
-            raise ValueError("String value too long (max 64 chars)")
-        try:
-            v.encode("utf-8", "strict")
-        except (AttributeError, UnicodeEncodeError) as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
-        return v
+        return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator(
         "break_event_price",
@@ -232,18 +190,13 @@ class BackpackRawPositionUpdate(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_decimal_str(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        try:
-            v.encode("utf-8", "strict")
-        except (AttributeError, UnicodeEncodeError) as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
-        try:
-            Decimal(v)
-        except (InvalidOperation, TypeError) as err:
-            raise ValueError("Must be a string representing a decimal value") from err
-        return v
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
     @field_validator("event_time", mode="before")
     @classmethod

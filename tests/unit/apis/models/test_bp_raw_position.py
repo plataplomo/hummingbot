@@ -11,6 +11,21 @@ from cyberdelta.apis.backpack.models.bp_raw_position import (
     SqrtFunction,
 )
 
+"""
+Unit tests for BackpackRawPosition and related Raw models.
+
+**Boundary Validation Pattern (Project Standard):**
+- All string fields in Raw models are strictly validated for:
+    - Type: must be `str` (not bytes, int, list, etc.)
+    - Non-emptiness (unless explicitly allowed)
+    - Max length (per OpenAPI spec)
+    - Valid UTF-8 encoding (no lone surrogates or invalid unicode)
+- **Invalid unicode or broken types are always rejected** with `ValidationError` (if caught by the validator) or `UnicodeEncodeError` (if Python or Pydantic internals hit the error first).
+- This test suite includes adversarial/hostile input cases to ensure the Raw model boundary is robust and spec-aligned.
+
+This pattern is enforced for all Raw models in the CyberDeltaEngine project.
+"""
+
 
 # --- SqrtFunction ---
 def valid_sqrt_function() -> dict[str, Any]:

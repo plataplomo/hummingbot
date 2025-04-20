@@ -8,6 +8,8 @@ These models are used for boundary validation and error normalization, not for i
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from cyberdelta.utils.parsing import validate_enum_field, validate_str_field
+
 
 class BackpackRawApiError(BaseModel):
     """
@@ -28,41 +30,17 @@ class BackpackRawApiError(BaseModel):
 
     @field_validator("code", mode="before", check_fields=False)
     @classmethod
-    def validate_code_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
-        if not v.strip():
-            raise ValueError("Must be a non-empty string")
-        if len(v) > 64:
-            raise ValueError("String value too long (max 64 chars)")
-        try:
-            v.encode("utf-8", "strict")
-        except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
-        return v
+    def validate_code_str(cls, v: object) -> str:
+        return validate_str_field(v, field_name="code", max_length=64)
 
     @field_validator("message", mode="before", check_fields=False)
     @classmethod
-    def validate_message_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
-        if not v.strip():
-            raise ValueError("Must be a non-empty string")
-        if len(v) > 1024:
-            raise ValueError("String value too long (max 1024 chars)")
-        try:
-            v.encode("utf-8", "strict")
-        except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
-        return v
+    def validate_message_str(cls, v: object) -> str:
+        return validate_str_field(v, field_name="message", max_length=1024)
 
     @field_validator("code", mode="before")
     @classmethod
-    def validate_code_enum(cls, v: str | None) -> str | None:
+    def validate_code_enum(cls, v: object) -> str:
         allowed = {
             "FORBIDDEN",
             "INVALID_CLIENT_REQUEST",
@@ -95,12 +73,5 @@ class BackpackRawApiError(BaseModel):
             "MAX_LEVERAGE_REACHED",
             "PRECONDITION_FAILED",
             "NOT_IMPLEMENTED",
-        }  # Update as per spec
-        if v is None:
-            raise ValueError("Invalid error code: None")
-        try:
-            if v not in allowed:
-                raise ValueError(f"Invalid error code: {v}")
-        except TypeError as err:
-            raise ValueError(f"Invalid error code type: {type(v).__name__}") from err
-        return v
+        }
+        return validate_enum_field(v, allowed=allowed, field_name="code")
