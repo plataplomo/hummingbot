@@ -1,0 +1,122 @@
+"""
+Backpack API Account and Balance Models (RAW - Hardened Validation)
+--------------------------------------
+
+Strict Pydantic models for validating account and balance responses from the Backpack Exchange API.
+These models are used for boundary validation ONLY.
+- Apply strict type checks before any operation.
+- Validate required string fields for emptiness, length, and UTF-8.
+- Validate decimal strings for format and finiteness.
+- Raise ValueError consistently for Pydantic ValidationError.
+"""
+
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+# Assume this utility handles basic Decimal conversion and raises ValueError on failure
+from cyberdelta.utils.parsing import parse_decimal_value
+
+
+class BackpackRawAccount(BaseModel):
+    """
+    Pydantic model for a raw account summary from `/api/v1/account`.
+    Hardened validators ensure type safety and basic format compliance.
+    """
+
+    id: str = Field(..., alias="id", max_length=128)
+    email: str = Field(..., alias="email", max_length=254)  # Pydantic EmailStr could be used later
+    status: str = Field(..., alias="status", max_length=32)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("id", "email", "status", mode="before")
+    @classmethod
+    def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
+        """Strictly validates required string fields."""
+        field_name = info.field_name or "field"
+        # 1. Strict Type Check
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
+        # 2. Empty/Whitespace Check
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        # 3. Length Check (using Field(max_length=...)) - Pydantic handles this
+        # 4. UTF-8 Validity Check
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string: {err}") from err
+        # 5. Optional: Enum check specifically for status if needed raw
+        if field_name == "status":
+            allowed_values = {"active", "suspended", "pending"}  # Keep allowed raw values here
+            if v not in allowed_values:
+                # Check case-insensitively as fallback/warning only if desired
+                # if v.lower() in {a.lower() for a in allowed_values}:
+                #      logger.warning(...)
+                # else:
+                raise ValueError(
+                    f"{field_name}: Invalid value '{v}'. Expected one of {allowed_values}"
+                )
+        return v
+
+
+class BackpackRawBalance(BaseModel):
+    """
+    Pydantic model for a raw asset balance from `/api/v1/capital`.
+    Hardened validators ensure type safety and basic format compliance.
+    """
+
+    asset: str = Field(..., alias="asset", max_length=32)
+    available: str = Field(..., alias="available", max_length=64)
+    total: str = Field(..., alias="total", max_length=64)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("asset", mode="before")
+    @classmethod
+    def validate_asset_str(cls, v: Any, info: ValidationInfo) -> str:
+        """Strictly validates the 'asset' field."""
+        field_name = info.field_name or "asset"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        if len(v) > 32:  # Check length defined in Field
+            raise ValueError(f"{field_name}: String value too long (max 32 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string: {err}") from err
+        return v
+
+    @field_validator("available", "total", mode="before")
+    @classmethod
+    def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
+        """Strictly validates decimal string fields."""
+        field_name = info.field_name or "field"
+        # 1. Strict Type Check
+        if not isinstance(v, str):
+            raise ValueError(
+                f"{field_name}: Input must be a string representation of a number, "
+                f"got {type(v).__name__}"
+            )
+        # 2. Empty/Whitespace Check
+        if not v.strip():
+            raise ValueError(
+                f"{field_name}: Input decimal string cannot be empty or just whitespace."
+            )
+        # 3. Attempt Decimal Conversion & Finite Check (Catch ALL errors)
+        try:
+            # Use utility which should raise ValueError on any failure
+            dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
+            # parse_decimal_value should already handle None check via allow_none=False
+            # But defensive check:
+            if dec_val is None:
+                raise ValueError("Parsing returned None unexpectedly.")
+            if not dec_val.is_finite():
+                raise ValueError(f"Value must be a finite decimal (not NaN or inf): '{v}'")
+        except ValueError as e:
+            # Re-raise any error during parsing/checking as ValueError
+            raise ValueError(f"{field_name}: Invalid decimal string format '{v}': {e}") from e
+        # 4. Length Check (using Field(max_length=...)) - Pydantic handles this
+        # 5. Return the ORIGINAL validated string
+        return v

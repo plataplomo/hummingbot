@@ -1,0 +1,95 @@
+"""
+Backpack API Error Models (RAW - Hardened Validation)
+------------------------
+
+Defines strict Pydantic models for validating error responses from the Backpack Exchange API.
+"""
+
+from enum import Enum  # Keep local enum for validation if desired
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+
+class BackpackAPIErrorCode(Enum):
+    """Enum of known Backpack API error codes for validation"""
+
+    # Populate with ALL codes from your previous definition
+    FORBIDDEN = "FORBIDDEN"
+    INVALID_CLIENT_REQUEST = "INVALID_CLIENT_REQUEST"
+    INVALID_SIGNATURE = "INVALID_SIGNATURE"
+    SERVER_ERROR = "SERVER_ERROR"
+    UNAUTHORIZED = "UNAUTHORIZED"
+    TIMEOUT = "TIMEOUT"
+    TOO_MANY_REQUESTS = "TOO_MANY_REQUESTS"
+    RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
+    MAINTENANCE = "MAINTENANCE"
+    INVALID_QUANTITY = "INVALID_QUANTITY"
+    ORDER_LIMIT = "ORDER_LIMIT"
+    INVALID_ORDER = "INVALID_ORDER"
+    INVALID_PRICE = "INVALID_PRICE"
+    INVALID_MARKET = "INVALID_MARKET"
+    INVALID_SOURCE = "INVALID_SOURCE"
+    INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
+    INSUFFICIENT_MARGIN = "INSUFFICIENT_MARGIN"
+    POSITION_LIMIT = "POSITION_LIMIT"
+    ACCOUNT_LIQUIDATING = "ACCOUNT_LIQUIDATING"
+    TRADING_PAUSED = "TRADING_PAUSED"
+    INVALID_ASSET = "INVALID_ASSET"
+    INVALID_SYMBOL = "INVALID_SYMBOL"
+    INVALID_POSITION_ID = "INVALID_POSITION_ID"
+    BORROW_REQUIRES_LEND_REDEEM = "BORROW_REQUIRES_LEND_REDEEM"
+    LEND_REQUIRES_BORROW_REPAY = "LEND_REQUIRES_BORROW_REPAY"
+    INSUFFICIENT_SUPPLY = "INSUFFICIENT_SUPPLY"
+    BORROW_LIMIT = "BORROW_LIMIT"
+    LEND_LIMIT = "LEND_LIMIT"
+    MAX_LEVERAGE_REACHED = "MAX_LEVERAGE_REACHED"
+    PRECONDITION_FAILED = "PRECONDITION_FAILED"
+    NOT_IMPLEMENTED = "NOT_IMPLEMENTED"
+
+
+class BackpackRawApiError(BaseModel):
+    """
+    Pydantic model for a raw error response from Backpack.
+    Hardened validators ensure type safety and basic format compliance.
+    """
+
+    code: str = Field(..., description="Backpack error code", max_length=64)
+    message: str = Field(
+        ..., description="Error message", max_length=1024
+    )  # Renamed from 'msg' based on spec? Verify.
+    model_config = ConfigDict(
+        populate_by_name=True, extra="forbid"
+    )  # Use populate_by_name if aliases needed
+
+    @field_validator("code", "message", mode="before")
+    @classmethod
+    def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
+        """Strictly validates required string fields."""
+        field_name = info.field_name or "field"
+        max_len = 64 if field_name == "code" else 1024
+        # 1. Strict Type Check
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
+        # 2. Empty/Whitespace Check
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        # 3. Length Check
+        if len(v) > max_len:
+            raise ValueError(f"{field_name}: String value too long (max {max_len} chars)")
+        # 4. UTF-8 Validity Check
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string: {err}") from err
+        # 5. Optional: Enum check specifically for code
+        if field_name == "code":
+            # Use the locally defined Enum for validation check
+            allowed_values = {member.value for member in BackpackAPIErrorCode}
+            if v not in allowed_values:
+                # Log warning for unknown codes but allow them for forward compatibility?
+                # Or raise ValueError for strictness? Let's be strict for Raw.
+                raise ValueError(
+                    f"{field_name}: Invalid value '{v}'. Expected known Backpack code."
+                )
+        return v

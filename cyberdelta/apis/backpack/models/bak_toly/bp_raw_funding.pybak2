@@ -1,0 +1,116 @@
+"""
+Backpack API Funding and Mark Price Models (RAW - Hardened Validation)
+"""
+
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+# Assume utils are imported correctly
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+
+
+class BackpackRawFundingRate(BaseModel):
+    """Raw funding rate object from /api/v1/funding"""
+
+    symbol: str = Field(..., alias="symbol", max_length=64)
+    funding_rate: str = Field(..., alias="rate", max_length=64)
+    mark_price: str = Field(..., alias="markPrice", max_length=64)
+    index_price: str = Field(..., alias="indexPrice", max_length=64)
+    time: Any = Field(..., alias="time")  # Keep Any, validate format below
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        if len(v) > 64:
+            raise ValueError(f"{field_name}: String value too long (max 64 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8: {e}") from e
+        return v
+
+    @field_validator("funding_rate", "mark_price", "index_price", mode="before")
+    @classmethod
+    def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be string, got {type(v).__name__}")
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input cannot be empty.")
+        try:
+            dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
+            if dec_val is None:
+                raise ValueError("Parsing returned None.")  # Should be caught by allow_none=False
+            if not dec_val.is_finite():
+                raise ValueError(f"Value must be finite: '{v}'")
+        except ValueError as e:
+            raise ValueError(f"{field_name}: Invalid decimal string '{v}': {e}") from e
+        return v
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def validate_timestamp_format(cls, v: Any, info: ValidationInfo) -> Any:
+        field_name = info.field_name or "timestamp"
+        if not isinstance(v, (int, float, str)):
+            raise ValueError(f"{field_name}: Invalid type {type(v)}, expected int/float/str")
+        if isinstance(v, str) and not v.strip():
+            raise ValueError(f"{field_name}: Timestamp string cannot be empty")
+        try:
+            # Use parsing utility just to check format validity
+            _ = parse_datetime_utc(v, field_name=field_name)
+        except ValueError as e:
+            raise ValueError(f"{field_name}: Invalid timestamp format or value '{v}': {e}") from e
+        return v  # Return original valid raw type
+
+
+class BackpackRawMarkPrice(BaseModel):
+    """Raw mark price object from /api/v1/markPrice"""
+
+    symbol: str = Field(..., alias="symbol", max_length=64)
+    mark_price: str = Field(..., alias="markPrice", max_length=64)
+    funding_rate: str = Field(..., alias="fundingRate", max_length=64)
+    # Add index_price, nextFundingTimestamp if present in API response and needed
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
+        # (Same implementation as above)
+        field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty.")
+        if len(v) > 64:
+            raise ValueError(f"{field_name}: String value too long (max 64 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8: {e}") from e
+        return v
+
+    @field_validator("mark_price", "funding_rate", mode="before")
+    @classmethod
+    def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
+        # (Same implementation as above)
+        field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be string, got {type(v).__name__}")
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input cannot be empty.")
+        try:
+            dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
+            if dec_val is None:
+                raise ValueError("Parsing returned None.")
+            if not dec_val.is_finite():
+                raise ValueError(f"Value must be finite: '{v}'")
+        except ValueError as e:
+            raise ValueError(f"{field_name}: Invalid decimal string '{v}': {e}") from e
+        return v

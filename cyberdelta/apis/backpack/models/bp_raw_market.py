@@ -2,7 +2,8 @@
 Backpack API Market, Ticker, and Open Interest Models
 """
 
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -26,19 +27,21 @@ class BackpackRawMarket(BaseModel):
 
     @field_validator("symbol", "base_asset", "quote_asset", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
-        if not v.strip():
-            raise ValueError("Must be a non-empty string")
+    def validate_non_empty_str(cls, v: Any) -> str:  # noqa: ANN401
+        """
+        Ensure the value is a non-empty, valid UTF-8 string of max 64 chars.
+        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
+        """
+        if not isinstance(v, str):
+            raise ValueError("Value must be a string")
+        if not v:
+            raise ValueError("String must be non-empty")
         if len(v) > 64:
-            raise ValueError("String value too long (max 64 chars)")
+            raise ValueError("String exceeds max length of 64")
         try:
-            v.encode("utf-8", "strict")
-        except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+            v.encode("utf-8")
+        except UnicodeError as err:
+            raise ValueError("String must be valid UTF-8") from err
         return v
 
 
@@ -67,39 +70,56 @@ class BackpackRawTicker(BaseModel):
 
     @field_validator("symbol", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
-        if not v.strip():
-            raise ValueError("Must be a non-empty string")
-        v.encode("utf-8", "strict")
+    def validate_non_empty_str(cls, v: Any) -> str:  # noqa: ANN401
+        """
+        Ensure the value is a non-empty, valid UTF-8 string.
+        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
+        """
+        if not isinstance(v, str):
+            raise ValueError("Value must be a string")
+        if not v:
+            raise ValueError("String must be non-empty")
+        try:
+            v.encode("utf-8")
+        except UnicodeError as err:
+            raise ValueError("String must be valid UTF-8") from err
         return v
 
     @field_validator("price", "bid", "ask", "volume", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: str | None) -> str | None:
+    def validate_decimal_str(cls, v: Any) -> str | None:  # noqa: ANN401
+        """
+        Ensure the value is a string representing a valid decimal, or None.
+        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
+        """
         if v is None:
             return v
+        if not isinstance(v, str):
+            raise ValueError("Value must be a string or None")
         try:
             Decimal(v)
-        except (InvalidOperation, TypeError) as err:
-            raise ValueError("Must be a string representing a decimal value") from err
+        except Exception as err:
+            raise ValueError(f"Must be a valid decimal string (got {v!r})") from err
         return v
 
     @field_validator("time", mode="before")
     @classmethod
-    def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
-        if v is None:
+    def validate_timestamp(cls, v: Any) -> int | float | str:  # noqa: ANN401
+        """
+        Accepts int, float, or digit-only string. Returns as int/float if possible, else string.
+        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
+        """
+        if isinstance(v, (int, float)):
             return v
-        if isinstance(v, int | float):
-            return v
-        # If not int or float, treat as string
-        if v.isdigit():
+        if isinstance(v, str) and v.isdigit():
             return int(v)
-        # Accept ISO8601, but do not parse here
-        return v
+        if isinstance(v, str):
+            try:
+                float_v = float(v)
+                return float_v
+            except Exception:
+                return v
+        raise ValueError("Invalid timestamp format")
 
 
 class BackpackRawOpenInterest(BaseModel):
@@ -119,22 +139,30 @@ class BackpackRawOpenInterest(BaseModel):
 
     @field_validator("symbol", "open_interest", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
-        if not v.strip():
-            raise ValueError("Must be a non-empty string")
+    def validate_non_empty_str(cls, v: Any) -> str:  # noqa: ANN401
+        """
+        Ensure the value is a non-empty string.
+        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
+        """
+        if not isinstance(v, str):
+            raise ValueError("Value must be a string")
+        if not v:
+            raise ValueError("String must be non-empty")
         return v
 
     @field_validator("open_interest", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: str | None) -> str | None:
+    def validate_decimal_str(cls, v: Any) -> str | None:  # noqa: ANN401
+        """
+        Ensure the value is a string representing a valid decimal, or None.
+        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
+        """
         if v is None:
             return v
+        if not isinstance(v, str):
+            raise ValueError("Value must be a string or None")
         try:
             Decimal(v)
-        except (InvalidOperation, TypeError) as err:
-            raise ValueError("Must be a string representing a decimal value") from err
+        except Exception as err:
+            raise ValueError(f"Must be a valid decimal string (got {v!r})") from err
         return v
