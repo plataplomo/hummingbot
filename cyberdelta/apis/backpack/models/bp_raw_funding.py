@@ -2,8 +2,10 @@
 Backpack API Funding and Mark Price Models
 -----------------------------------------
 
-Strict Pydantic models for validating funding rate and mark price responses from the Backpack Exchange API.
-These models are used for boundary validation and transformation, not for internal business logic.
+Strict Pydantic models for validating funding rate and mark price responses from the
+Backpack Exchange API.
+These models are used for boundary validation and transformation, not for internal business
+logic.
 """
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,7 +36,8 @@ class BackpackRawFundingRate(BaseModel):
 
 class BackpackRawMarkPrice(BaseModel):
     """
-    Pydantic model for a raw mark price and funding info object from `/api/v1/markPrice` (Backpack REST API).
+    Pydantic model for a raw mark price and funding info object from `/api/v1/markPrice`
+    (Backpack REST API).
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse mark price payloads received from the exchange.

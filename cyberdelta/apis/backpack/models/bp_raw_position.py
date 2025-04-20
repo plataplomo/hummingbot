@@ -2,8 +2,10 @@
 Backpack API Position Models
 --------------------------
 
-Strict Pydantic models for validating position and position update responses from the Backpack Exchange API.
-These models are used for boundary validation and transformation, not for internal business logic.
+Strict Pydantic models for validating position and position update responses from the
+Backpack Exchange API.
+These models are used for boundary validation and transformation, not for internal business
+logic.
 """
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -32,7 +34,8 @@ class BackpackRawPosition(BaseModel):
 
 class BackpackRawPositionUpdate(BaseModel):
     """
-    Pydantic model for a raw position update event from the Backpack WebSocket stream (`positionUpdate`).
+    Pydantic model for a raw position update event from the Backpack WebSocket stream
+    (`positionUpdate`).
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse position update events received from the exchange.

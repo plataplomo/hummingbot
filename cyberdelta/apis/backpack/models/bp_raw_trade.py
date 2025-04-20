@@ -2,8 +2,10 @@
 Backpack API Trade Models
 ------------------------
 
-Strict Pydantic models for validating trade and trade event responses from the Backpack Exchange API.
-These models are used for boundary validation and transformation, not for internal business logic.
+Strict Pydantic models for validating trade and trade event responses from the Backpack
+Exchange API.
+These models are used for boundary validation and transformation, not for internal business
+logic.
 """
 
 from pydantic import BaseModel, ConfigDict, Field

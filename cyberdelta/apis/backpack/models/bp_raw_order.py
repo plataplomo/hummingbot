@@ -2,8 +2,10 @@
 Backpack API Order Models
 ------------------------
 
-Strict Pydantic models for validating order, order book, and order update responses from the Backpack Exchange API.
-These models are used for boundary validation and transformation, not for internal business logic.
+Strict Pydantic models for validating order, order book, and order update responses from the
+Backpack Exchange API.
+These models are used for boundary validation and transformation, not for internal business
+logic.
 """
 
 from typing import Any
@@ -13,7 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class BackpackRawOrder(BaseModel):
     """
-    Pydantic model for a raw order object from `/api/v1/order` or `/api/v1/orders` (Backpack REST API).
+    Pydantic model for a raw order object from `/api/v1/order` or `/api/v1/orders`
+    (Backpack REST API).
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse order payloads received from the exchange.
@@ -36,16 +39,20 @@ class BackpackRawOrder(BaseModel):
         triggerBy (str | None): Reference price type for triggers.
         timeInForce (str | None): Time in force.
         reduceOnly (bool | None): Reduce-only flag.
-        postOnly (bool | None): Post-only flag (not present in Backpack REST, set in mapping if needed).
+        postOnly (bool | None): Post-only flag (not present in Backpack REST, set in mapping
+            if needed).
         selfTradePrevention (str | None): Self-trade prevention behavior.
         createdAt (int | str | float | None): Order creation time (UTC).
         updatedAt (int | str | float | None): Last update time.
         triggeredAt (int | str | float | None): Time the conditional order was triggered.
         expiryReason (str | None): Reason for expiry/cancellation.
         origin (str | None): Origin of the last update.
-        strategyName (str | None): Optional strategy identifier (not present in Backpack, set in mapping if needed).
-        signalId (str | None): Optional signal identifier (not present in Backpack, set in mapping if needed).
-        trades (list[Any] | None): List of associated trade fills (not present in Backpack order response).
+        strategyName (str | None): Optional strategy identifier (not present in Backpack,
+            set in mapping if needed).
+        signalId (str | None): Optional signal identifier (not present in Backpack, set in
+            mapping if needed).
+        trades (list[Any] | None): List of associated trade fills (not present in Backpack
+            order response).
     """
 
     clientId: str | None = Field(None, description="Client-generated unique order ID (UUID).")
