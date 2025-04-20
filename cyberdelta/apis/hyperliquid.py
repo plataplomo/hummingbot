@@ -417,21 +417,24 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            # --- User State (clearinghouseState) ---
             from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
-                HyperliquidRawUserStateResponse,
+                HyperliquidRawClearinghouseState,
             )
 
-            validated = HyperliquidRawUserStateResponse.model_validate(response)
-            state_data = validated.clearinghouse_state
+            # Validate and parse the clearinghouse state response
+            validated = HyperliquidRawClearinghouseState.model_validate(response)
+            state_data = validated  # The validated object is the clearinghouse state
             balances: dict[str, Balance] = {}
             if state_data and state_data.asset_positions:
                 for asset_pos in state_data.asset_positions:
                     if asset_pos.asset == "USDC" and asset_pos.position:
-                        total_balance = asset_pos.position.value
+                        total_balance = asset_pos.position.position_value
+                        total_balance_dec = Decimal(total_balance)
                         balances["USDC"] = Balance(
                             asset="USDC",
-                            total=total_balance,
-                            available=total_balance,
+                            total=total_balance_dec,
+                            available=total_balance_dec,
                         )
             return balances
         except APIError as e:
@@ -453,12 +456,13 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            # --- User State (clearinghouseState) ---
             from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
-                HyperliquidRawUserStateResponse,
+                HyperliquidRawClearinghouseState,
             )
 
-            validated = HyperliquidRawUserStateResponse.model_validate(response)
-            state_data = validated.clearinghouse_state
+            validated = HyperliquidRawClearinghouseState.model_validate(response)
+            state_data = validated
             positions_list: list[Position] = []
             if state_data and state_data.asset_positions:
                 for asset_pos in state_data.asset_positions:
@@ -470,20 +474,29 @@ class HyperliquidAPI(ExchangeAPI):
                         size = position_data.szi
                         entry_price = position_data.entry_px
                         unrealized_pnl = position_data.unrealized_pnl
-                        if size != Decimal(0) and pos_symbol and entry_price is not None:
-                            side: OrderSide = OrderSide.BUY if size > 0 else OrderSide.SELL
-                            leverage_placeholder: Decimal = Decimal("1")
-                            positions_list.append(
-                                Position(
-                                    symbol=pos_symbol,
-                                    side=side,
-                                    size=abs(size),
-                                    entry_price=entry_price,
-                                    leverage=leverage_placeholder,
-                                    unrealized_pnl=unrealized_pnl,
-                                    timestamp=int(time.time() * 1000),
+                        # Defensive conversion to Decimal for all numeric fields
+                        if entry_price is not None:
+                            try:
+                                size_dec = Decimal(size)
+                                entry_price_dec = Decimal(entry_price)
+                                unrealized_pnl_dec = Decimal(unrealized_pnl)
+                            except Exception:
+                                # Log or handle conversion error, skip this position
+                                continue
+                            if size_dec != 0 and pos_symbol:
+                                side: OrderSide = OrderSide.BUY if size_dec > 0 else OrderSide.SELL
+                                leverage_placeholder: Decimal = Decimal("1")
+                                positions_list.append(
+                                    Position(
+                                        symbol=pos_symbol,
+                                        side=side,
+                                        size=abs(size_dec),
+                                        entry_price=entry_price_dec,
+                                        leverage=leverage_placeholder,
+                                        unrealized_pnl=unrealized_pnl_dec,
+                                        timestamp=int(time.time() * 1000),
+                                    )
                                 )
-                            )
             return positions_list
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting positions: {e}")
@@ -504,14 +517,16 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             payload = {"type": "openOrders", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            # --- Open Orders ---
             from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
-                HyperliquidRawOpenOrders,
+                HyperliquidRawOpenOrdersResponse,
             )
 
-            validated = HyperliquidRawOpenOrders.model_validate(response)
+            validated = HyperliquidRawOpenOrdersResponse.model_validate(response)
             open_orders: list[Order] = []
-            for order_data in validated.orders:
-                order_symbol = order_data.coin
+            for order_obj in validated.__root__:
+                order_data = order_obj.order
+                order_symbol = order_data.asset
                 if symbol is None or order_symbol == symbol:
                     order_status_str = order_data.status
                     if order_status_str == "open":
