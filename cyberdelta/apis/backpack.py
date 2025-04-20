@@ -30,14 +30,15 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
+from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
+from cyberdelta.apis.backpack.models.bp_api_models import BackpackRawOrder
 from cyberdelta.apis.base import (  # Use absolute import
     APIError,
     ExchangeAPI,
     MessageHandler,
 )
-from cyberdelta.apis.models.api import APIErrorResponse
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.bp_api_models import BackpackRawApiError, BackpackRawOrder
 from cyberdelta.core.models import (  # Use absolute import
     Balance,
     FundingRate,
@@ -51,174 +52,8 @@ from cyberdelta.core.models import (  # Use absolute import
     TimeInForce,
     Trade,
 )
-from cyberdelta.core.models.enums import (
-    OrderExpiryReason,
-    OrderUpdateOrigin,
-    SelfTradePrevention,
-    TriggerType,
-)
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
-
-
-class BackpackErrorMapper:
-    """
-    Maps and normalizes Backpack API errors to CyberDeltaEngine's canonical error model.
-
-    Responsibilities:
-    - Map Backpack error codes (from BackpackRawApiError) to APIErrorCode.
-    - Validate and normalize all error data using APIErrorResponse.
-    - Raise APIError with all validated fields for unified error propagation.
-    - Log ambiguous/unmapped codes for diagnostics and future mapping improvements.
-
-    Usage:
-        raise BackpackErrorMapper.map_error_response(...)
-    """
-
-    @staticmethod
-    def map_error_code(
-        error_body: str, error_data: dict[str, Any] | None = None, status_code: int | None = None
-    ) -> APIErrorCode:
-        """
-        Map Backpack error responses (body, data, status) to standardized APIErrorCode.
-
-        - Uses BackpackRawApiError for strict code extraction if possible.
-        - Falls back to heuristics if parsing fails.
-        - Logs unmapped/ambiguous codes for diagnostics.
-
-        Args:
-            error_body: Raw error body as string (for fallback/logging).
-            error_data: Parsed error data as dict (if available).
-            status_code: HTTP status code (if available).
-
-        Returns:
-            APIErrorCode: Canonical error code for internal handling.
-        """
-        mapped_code = APIErrorCode.EXCHANGE_SPECIFIC
-        if error_data:
-            try:
-                raw_api_error = BackpackRawApiError.model_validate(error_data)
-                code = raw_api_error.code.upper()
-                code_map = {
-                    "INVALID_SIGNATURE": APIErrorCode.AUTHENTICATION_FAILED,
-                    "UNAUTHORIZED": APIErrorCode.AUTHENTICATION_FAILED,
-                    "FORBIDDEN": APIErrorCode.AUTHENTICATION_FAILED,
-                    "TOO_MANY_REQUESTS": APIErrorCode.RATE_LIMITED,
-                    "RATE_LIMIT_EXCEEDED": APIErrorCode.RATE_LIMITED,
-                    "INVALID_SYMBOL": APIErrorCode.INVALID_SYMBOL,
-                    "INVALID_QUANTITY": APIErrorCode.INVALID_ORDER_SIZE,
-                    "INVALID_ORDER": APIErrorCode.INVALID_REQUEST,
-                    "INVALID_PRICE": APIErrorCode.INVALID_REQUEST,
-                    "INVALID_CLIENT_REQUEST": APIErrorCode.INVALID_REQUEST,
-                    "INSUFFICIENT_FUNDS": APIErrorCode.INSUFFICIENT_FUNDS,
-                    "INSUFFICIENT_MARGIN": APIErrorCode.INSUFFICIENT_FUNDS,
-                    "ORDER_LIMIT": APIErrorCode.ORDER_REJECTED,
-                    "POSITION_LIMIT": APIErrorCode.MAX_POSITION_EXCEEDED,
-                    "SERVER_ERROR": APIErrorCode.SERVER_ERROR,
-                    "MAINTENANCE": APIErrorCode.MAINTENANCE,
-                    "RESOURCE_NOT_FOUND": APIErrorCode.ORDER_NOT_FOUND,
-                    "INVALID_MARKET": APIErrorCode.INVALID_SYMBOL,
-                    "INVALID_SOURCE": APIErrorCode.EXCHANGE_SPECIFIC,
-                    "ACCOUNT_LIQUIDATING": APIErrorCode.EXCHANGE_SPECIFIC,
-                    "TRADING_PAUSED": APIErrorCode.MARKET_CLOSED,
-                    "INVALID_ASSET": APIErrorCode.INVALID_SYMBOL,
-                    "INVALID_POSITION_ID": APIErrorCode.ORDER_NOT_FOUND,
-                    "BORROW_REQUIRES_LEND_REDEEM": APIErrorCode.EXCHANGE_SPECIFIC,
-                    "LEND_REQUIRES_BORROW_REPAY": APIErrorCode.EXCHANGE_SPECIFIC,
-                    "INSUFFICIENT_SUPPLY": APIErrorCode.INSUFFICIENT_FUNDS,
-                    "BORROW_LIMIT": APIErrorCode.MAX_POSITION_EXCEEDED,
-                    "LEND_LIMIT": APIErrorCode.MAX_POSITION_EXCEEDED,
-                    "MAX_LEVERAGE_REACHED": APIErrorCode.MAX_POSITION_EXCEEDED,
-                    "PRECONDITION_FAILED": APIErrorCode.INVALID_REQUEST,
-                    "NOT_IMPLEMENTED": APIErrorCode.EXCHANGE_SPECIFIC,
-                }
-                mapped_code = code_map.get(code, APIErrorCode.EXCHANGE_SPECIFIC)
-                if mapped_code == APIErrorCode.EXCHANGE_SPECIFIC:
-                    logger.warning(
-                        f"[BackpackErrorMapper] Unmapped or ambiguous Backpack error code: {code}"
-                    )
-                return mapped_code
-            except Exception as e:
-                logger.warning(
-                    f"[BackpackErrorMapper] Failed to parse error_data as "
-                    f"BackpackRawApiError: {e}. Falling back to heuristics."
-                )
-        return mapped_code
-
-    @staticmethod
-    def map_error_response(
-        status_code: int | None,
-        error_body: str,
-        error_data: dict[str, Any] | None = None,
-        request_path: str | None = None,
-        exchange_message: str | None = None,
-        original_exception: Exception | None = None,
-    ) -> APIError:
-        """
-        Map Backpack error responses to a standardized APIError, including error code
-        mapping and full validation.
-
-        - Always validates and normalizes error data using APIErrorResponse.
-        - Ensures all error propagation is type-safe and consistent.
-        - Handles edge cases: unmapped codes, malformed payloads, chained exceptions.
-
-        Args:
-            status_code: HTTP status code (if available).
-            error_body: Raw error body as string.
-            error_data: Parsed error data as dict (if available).
-            request_path: API endpoint path (for diagnostics).
-            exchange_message: Exchange-provided error message (if available).
-            original_exception: Chained exception (if any).
-
-        Returns:
-            APIError: Exception ready to be raised or propagated.
-        """
-        mapped_code = BackpackErrorMapper.map_error_code(
-            error_body=error_body, error_data=error_data, status_code=status_code
-        )
-        # Guarantee message is always a str
-        msg: str = error_body
-        if exchange_message is not None:
-            msg = exchange_message
-        elif error_data and isinstance(error_data.get("msg"), str):
-            msg = error_data["msg"]
-        api_error_response = APIErrorResponse.from_exchange_error(
-            message=msg,
-            code=mapped_code.value,
-            http_status=status_code,
-            exchange_code=(
-                str(error_data.get("code")) if error_data and "code" in error_data else None
-            ),
-            exchange_message=(error_data.get("msg") if error_data else None),
-            metadata={"request_path": request_path} if request_path else None,
-        )
-        # Convert APIErrorResponse to APIErrorModel-compatible fields
-        # APIErrorModel expects code: APIErrorCode, exchange_code: str|None
-        # Defensive: ensure code is valid APIErrorCode, else EXCHANGE_SPECIFIC
-        try:
-            code_enum = (
-                APIErrorCode(api_error_response.code)
-                if isinstance(api_error_response.code, int)
-                else APIErrorCode.EXCHANGE_SPECIFIC
-            )
-        except Exception:
-            code_enum = APIErrorCode.EXCHANGE_SPECIFIC
-        exchange_code_str = (
-            str(api_error_response.exchange_code)
-            if api_error_response.exchange_code is not None
-            else None
-        )
-        # code_enum is always an APIErrorCode, so use .value directly
-        return APIError(
-            message=api_error_response.message,
-            code=code_enum.value,
-            http_status=api_error_response.http_status,
-            exchange_code=exchange_code_str,
-            exchange_message=api_error_response.exchange_message,
-            retry_after=api_error_response.retry_after,
-            original_exception=original_exception,
-        )
 
 
 class BackpackAPI(ExchangeAPI):
@@ -457,19 +292,14 @@ class BackpackAPI(ExchangeAPI):
             if not isinstance(raw, list):
                 return []
             result: list[tuple[str, str]] = []
-            entry_item: Any
             for entry_item in raw:
-                item = entry_item
-                if isinstance(item, tuple):
-                    entry_pair = cast(Sequence[Any], item)
-                elif isinstance(item, list):
-                    entry_pair = cast(Sequence[Any], item)
-                else:
-                    continue
-                if len(entry_pair) == 2:
-                    a0: Any = entry_pair[0]
-                    a1: Any = entry_pair[1]
-                    result.append((str(a0), str(a1)))
+                entry: Any = entry_item
+                if isinstance(entry, tuple) or isinstance(entry, list):
+                    entry_pair = cast(Sequence[Any], entry)
+                    if len(entry_pair) == 2:
+                        a0: Any = entry_pair[0]
+                        a1: Any = entry_pair[1]
+                        result.append((str(a0), str(a1)))
             return result
 
         try:
@@ -555,7 +385,7 @@ class BackpackAPI(ExchangeAPI):
                         f"[{self.exchange_name}] Skipping malformed trade data: {trade_data_raw}"
                     )
                     continue
-                trade_data = cast(dict[str, Any], trade_data_raw)
+                trade_data: dict[str, Any] = cast(dict[str, Any], trade_data_raw)
                 try:
                     trade_id: str = str(trade_data.get("id", ""))
                     order_id: str = str(trade_data.get("orderId", ""))
@@ -704,12 +534,11 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return {}
             balances: dict[str, Balance] = {}
-            asset_key: Any
-            data_val: Any
             for asset_key, data_val in response.items():
-                key = asset_key
-                val = data_val
-                asset_str = str(key)
+                asset_key = str(asset_key)
+                val: Any = data_val
+                key: str = asset_key
+                asset_str = key
                 data_dict = cast(dict[str, Any], val)
                 available = Decimal(str(data_dict.get("available", "0")))
                 total = Decimal(str(data_dict.get("total", "0")))
@@ -750,29 +579,23 @@ class BackpackAPI(ExchangeAPI):
             positions: list[Position] = []
             pos_data_item: Any
             for pos_data_item in response:
-                item = pos_data_item
-                if not isinstance(item, dict):
-                    logger.warning(
-                        f"[backpack] Unexpected position entry type: {type(item)}. Skipping entry."
-                    )
-                    continue
-                pos_data: dict[str, Any] = cast(dict[str, Any], item)
-                symbol_from_data = pos_data.get("symbol")
+                item: dict[str, Any] = cast(dict[str, Any], pos_data_item)
+                symbol_from_data = item.get("symbol")
                 if not isinstance(symbol_from_data, str) or not symbol_from_data:
-                    logger.warning(f"[backpack] Position missing or invalid 'symbol': {pos_data}")
+                    logger.warning(f"[backpack] Position missing or invalid 'symbol': {item}")
                     continue
                 try:
-                    size_dec = Decimal(str(pos_data.get("positionSize", "0")))
-                    entry_price_dec = Decimal(str(pos_data.get("entryPrice", "0")))
-                    mark_price_dec = Decimal(str(pos_data.get("markPrice", "0")))
-                    liq_price_str = pos_data.get("liquidationPrice")
+                    size_dec = Decimal(str(item.get("positionSize", "0")))
+                    entry_price_dec = Decimal(str(item.get("entryPrice", "0")))
+                    mark_price_dec = Decimal(str(item.get("markPrice", "0")))
+                    liq_price_str = item.get("liquidationPrice")
                     liq_price_dec = (
                         Decimal(str(liq_price_str))
                         if liq_price_str is not None and liq_price_str != "0"
                         else Decimal("0.0")
                     )
-                    pnl_dec = Decimal(str(pos_data.get("unrealizedPnl", "0")))
-                    leverage_float = float(pos_data.get("leverage", "1.0"))
+                    pnl_dec = Decimal(str(item.get("unrealizedPnl", "0")))
+                    leverage_float = float(item.get("leverage", "1.0"))
                     leverage_dec = Decimal(str(leverage_float))
                     position = Position(
                         symbol=symbol_from_data,
@@ -786,7 +609,7 @@ class BackpackAPI(ExchangeAPI):
                     )
                     positions.append(position)
                 except Exception as e:
-                    logger.warning(f"[backpack] Error processing position: {e} | Data: {pos_data}")
+                    logger.warning(f"[backpack] Error processing position: {e} | Data: {item}")
             return positions
         except Exception as e:
             logger.error(f"[backpack] Error getting positions: {e}")
@@ -1168,163 +991,3 @@ class BackpackAPI(ExchangeAPI):
 
     # TODO: Implement remaining abstract methods from ExchangeAPI
     #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)
-
-
-class BackpackOrderMapper:
-    """
-    Utility for transforming Backpack raw order/event models to CyberDeltaEngine internal models.
-
-    - Maps Backpack string enums to internal enums (OrderSide, OrderStatus, etc.).
-    - Handles defensive parsing and validation of all fields.
-    - Used by BackpackAPI for all order-related transformations.
-    """
-
-    @staticmethod
-    def map_side_to_internal(bp_side: str) -> OrderSide:
-        side_lower = bp_side.lower() if bp_side else ""
-        if side_lower in ("buy", "bid"):
-            return OrderSide.BUY
-        elif side_lower in ("sell", "ask"):
-            return OrderSide.SELL
-        logger.warning(f"[BackpackOrderMapper] Unknown order side '{bp_side}', defaulting to BUY.")
-        return OrderSide.BUY
-
-    @staticmethod
-    def map_status_to_internal(bp_status: str) -> OrderStatus:
-        status_upper = (bp_status or "").upper()
-        mapping = {
-            "NEW": OrderStatus.NEW,
-            "OPEN": OrderStatus.OPEN,
-            "PARTIALLY_FILLED": OrderStatus.PARTIALLY_FILLED,
-            "FILLED": OrderStatus.FILLED,
-            "CANCELLED": OrderStatus.CANCELED,
-            "EXPIRED": OrderStatus.EXPIRED,
-            "REJECTED": OrderStatus.REJECTED,
-            "TRIGGER_PENDING": OrderStatus.TRIGGER_PENDING,
-            "FAILED": OrderStatus.FAILED,
-        }
-        if status_upper in mapping:
-            return mapping[status_upper]
-        logger.warning(
-            f"[BackpackOrderMapper] Unknown order status '{bp_status}', mapping to UNKNOWN."
-        )
-        return OrderStatus.UNKNOWN
-
-    @staticmethod
-    def map_type_to_internal(bp_type: str) -> OrderType:
-        type_upper = (bp_type or "").upper()
-        mapping = {
-            "LIMIT": OrderType.LIMIT,
-            "MARKET": OrderType.MARKET,
-            "STOP_MARKET": OrderType.STOP_MARKET,
-            "STOP_LIMIT": OrderType.STOP_LIMIT,
-            "TAKE_PROFIT_MARKET": OrderType.TAKE_PROFIT_MARKET,
-            "TAKE_PROFIT_LIMIT": OrderType.TAKE_PROFIT_LIMIT,
-        }
-        if type_upper in mapping:
-            return mapping[type_upper]
-        logger.warning(
-            f"[BackpackOrderMapper] Unknown order type '{bp_type}', defaulting to LIMIT."
-        )
-        return OrderType.LIMIT
-
-    @staticmethod
-    def map_tif_to_internal(bp_tif: str | None) -> TimeInForce:
-        if not bp_tif:
-            return TimeInForce.GTC
-        try:
-            return TimeInForce(bp_tif.upper())
-        except Exception:
-            logger.warning(f"[BackpackOrderMapper] Unknown TIF '{bp_tif}', defaulting to GTC.")
-            return TimeInForce.GTC
-
-    @staticmethod
-    def map_trigger_by_to_internal(trigger_by: str | None) -> TriggerType | None:
-        if not trigger_by:
-            return None
-        try:
-            return TriggerType(trigger_by)
-        except Exception:
-            logger.warning(
-                f"[BackpackOrderMapper] Unknown trigger_by '{trigger_by}', returning None."
-            )
-            return None
-
-    @staticmethod
-    def map_stp_to_internal(stp: str | None) -> SelfTradePrevention | None:
-        if not stp:
-            return None
-        try:
-            return SelfTradePrevention(stp)
-        except Exception:
-            logger.warning(
-                f"[BackpackOrderMapper] Unknown self_trade_prevention '{stp}', returning None."
-            )
-            return None
-
-    @staticmethod
-    def map_expiry_reason_to_internal(reason: str | None) -> OrderExpiryReason | None:
-        if not reason:
-            return None
-        try:
-            return OrderExpiryReason(reason)
-        except Exception:
-            logger.warning(
-                f"[BackpackOrderMapper] Unknown expiry_reason '{reason}', returning None."
-            )
-            return None
-
-    @staticmethod
-    def map_origin_to_internal(origin: str | None) -> OrderUpdateOrigin | None:
-        if not origin:
-            return None
-        try:
-            return OrderUpdateOrigin(origin)
-        except Exception:
-            logger.warning(f"[BackpackOrderMapper] Unknown origin '{origin}', returning None.")
-            return None
-
-    @staticmethod
-    def transform_raw_order_to_internal(raw: BackpackRawOrder) -> Order:
-        # Defensive: ensure required fields are present and valid
-        parsed_quantity = parse_decimal_value(raw.quantity, allow_none=False)
-        if parsed_quantity is None:
-            raise ValueError("quantity missing/invalid in BackpackRawOrder")
-        parsed_created_at = parse_datetime_utc(raw.createdAt)
-        if parsed_created_at is None:
-            raise ValueError("createdAt missing/invalid in BackpackRawOrder")
-        # Optional fields
-        parsed_quantity_filled = parse_decimal_value(raw.executedQuantity) or Decimal("0.0")
-        parsed_executed_quote_quantity = parse_decimal_value(raw.executedQuoteQuantity)
-        parsed_price = parse_decimal_value(raw.price)
-        parsed_stop_price = parse_decimal_value(raw.triggerPrice)
-        parsed_avg_fill_price = parse_decimal_value(raw.avgFillPrice)
-        return Order(
-            client_order_id=raw.clientId or "",
-            exchange_order_id=raw.id,
-            related_order_id=raw.relatedOrderId,
-            exchange="backpack",
-            symbol=raw.symbol,
-            side=BackpackOrderMapper.map_side_to_internal(raw.side),
-            order_type=BackpackOrderMapper.map_type_to_internal(raw.orderType),
-            status=BackpackOrderMapper.map_status_to_internal(raw.status),
-            quantity_requested=parsed_quantity,
-            quantity_filled=parsed_quantity_filled,
-            executed_quote_quantity=parsed_executed_quote_quantity,
-            price=parsed_price,
-            stop_price=parsed_stop_price,
-            average_fill_price=parsed_avg_fill_price,
-            trigger_by=BackpackOrderMapper.map_trigger_by_to_internal(raw.triggerBy),
-            time_in_force=BackpackOrderMapper.map_tif_to_internal(raw.timeInForce),
-            reduce_only=raw.reduceOnly or False,
-            post_only=raw.postOnly or False,
-            self_trade_prevention=BackpackOrderMapper.map_stp_to_internal(raw.selfTradePrevention),
-            created_at=parsed_created_at,
-            updated_at=parse_datetime_utc(raw.updatedAt),
-            triggered_at=parse_datetime_utc(raw.triggeredAt),
-            expiry_reason=BackpackOrderMapper.map_expiry_reason_to_internal(raw.expiryReason),
-            origin=BackpackOrderMapper.map_origin_to_internal(raw.origin),
-            strategy_name=raw.strategyName,
-            signal_id=raw.signalId,
-            trades=raw.trades or [],
-        )
