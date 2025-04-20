@@ -11,6 +11,7 @@ REST and WebSocket field aliases, types, and validation requirements.
 """
 
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -192,11 +193,10 @@ class BackpackRawOrder(BaseModel):
 
     @field_validator("symbol", "id", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
+    def validate_non_empty_str(cls, v: Any) -> str:
+        # This check is required for runtime safety with Pydantic 'before' validators.
+        if not isinstance(v, str):
+            raise ValueError("Must be a string")
         if not v.strip():
             raise ValueError("Must be a non-empty string")
         try:
@@ -411,7 +411,10 @@ class BackpackRawOrderBook(BaseModel):
 
     @field_validator("symbol", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str) -> str:
+    def validate_non_empty_str(cls, v: Any) -> str:
+        # This check is required for runtime safety with Pydantic 'before' validators.
+        if not isinstance(v, str):
+            raise ValueError("Must be a string")
         if not v.strip():
             raise ValueError("Must be a non-empty string")
         return v

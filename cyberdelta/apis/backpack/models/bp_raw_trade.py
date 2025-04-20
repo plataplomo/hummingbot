@@ -8,9 +8,14 @@ These models are used for boundary validation and transformation, not for intern
 logic.
 """
 
-from decimal import Decimal
+import logging
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from .bp_raw_order import parse_datetime_utc, parse_decimal_value
+
+logger = logging.getLogger("cyberdelta.models.raw")
 
 
 class BackpackRawTrade(BaseModel):
@@ -39,49 +44,80 @@ class BackpackRawTrade(BaseModel):
 
     @field_validator("id", "order_id", "symbol", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
+    def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
+        """
+        Strictly validates required string fields for emptiness, length, and UTF-8.
+        """
+        field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v.strip():
-            raise ValueError("Must be a non-empty string")
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
         if len(v) > 64:
-            raise ValueError("String value too long (max 64 chars)")
+            raise ValueError(f"{field_name}: String value too long (max 64 chars)")
         try:
             v.encode("utf-8", "strict")
-        except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+        except UnicodeEncodeError as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
         return v
 
     @field_validator("price", "quantity", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        if type(v) is not str:
-            raise ValueError("Must be a string representing a decimal value")
+    def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
+        """
+        Strictly validates decimal string fields for emptiness and finite decimal value.
+        """
+        field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(
+                f"{field_name}: Input must be a string representation of a number, "
+                f"got {type(v).__name__}"
+            )
         if not v.strip():
-            raise ValueError("Must be a non-empty string representing a decimal value")
+            raise ValueError(
+                f"{field_name}: Input decimal string cannot be empty or just whitespace."
+            )
         try:
-            dec_val = Decimal(v)
-        except Exception as err:
-            raise ValueError("Must be a string representing a decimal value") from err
+            dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
+        except Exception as e:
+            raise ValueError(
+                f"{field_name}: Must be a string representing a decimal value: {e}"
+            ) from e
+        if dec_val is None:
+            raise ValueError(
+                f"{field_name}: Parsing returned None unexpectedly for non-optional field."
+            )
         if not dec_val.is_finite():
-            raise ValueError("Value must be a finite decimal (not NaN or inf)")
+            raise ValueError(
+                f"{field_name}: Input must be a finite number, got '{v}' (parsed as {dec_val})."
+            )
         return v
 
     @field_validator("time", mode="before")
     @classmethod
-    def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
+    def validate_timestamp_format(cls, v: Any, info: ValidationInfo) -> int | float | str | None:
+        """
+        Strictly validates timestamp fields for type and format (int, float, or non-empty
+        string).
+        """
+        field_name = info.field_name or "time"
         if v is None:
-            return v
-        if isinstance(v, int | float):
-            return v
-        # If not int or float, treat as string
-        if v.isdigit():
-            return int(v)
-        # Accept ISO8601, but do not parse here
+            raise ValueError(f"{field_name}: Value cannot be None.")
+        if not isinstance(v, int | float | str):
+            raise ValueError(
+                f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
+            )
+        if isinstance(v, str):
+            if not v.strip():
+                raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        try:
+            dt = parse_datetime_utc(v, field_name=field_name)
+            if dt is None:
+                raise ValueError(
+                    f"{field_name}: Timestamp is required but received None or failed parsing."
+                )
+        except Exception as e:
+            raise ValueError(f"{field_name}: Invalid timestamp format or value '{v}': {e}") from e
         return v
 
 
@@ -117,56 +153,108 @@ class BackpackRawTradeEvent(BaseModel):
     is_buyer_the_maker: bool = Field(..., alias="m")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator(
-        "event_type",
-        "symbol",
-        "price",
-        "quantity",
-        "buyer_order_id",
-        "seller_order_id",
-        "trade_id",
-        mode="before",
-    )
+    @field_validator("event_type", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
+    def validate_event_type_enum(cls, v: Any, info: ValidationInfo) -> str:
+        """
+        Strictly validates event_type as a string enum (only 'trade' allowed).
+        """
+        field_name = info.field_name or "event_type"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v.strip():
-            raise ValueError("Must be a non-empty string")
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        allowed_values = {"trade"}
+        if v not in allowed_values:
+            if v.lower() in allowed_values:
+                logger.warning(
+                    f"[{cls.__name__}] {field_name}: Received value '{v}' with incorrect case, "
+                    f"expected one of {allowed_values}. Allowing but may indicate API change."
+                )
+            else:
+                raise ValueError(
+                    f"{field_name}: Invalid value '{v}'. Expected one of {allowed_values}"
+                )
         try:
             v.encode("utf-8", "strict")
-        except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+        except UnicodeEncodeError as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+        return v
+
+    @field_validator("symbol", "buyer_order_id", "seller_order_id", "trade_id", mode="before")
+    @classmethod
+    def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
+        """
+        Strictly validates required string fields for emptiness, length, and UTF-8.
+        """
+        field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        if len(v) > 64:
+            raise ValueError(f"{field_name}: String value too long (max 64 chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
         return v
 
     @field_validator("price", "quantity", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        if type(v) is not str:
-            raise ValueError("Must be a string representing a decimal value")
+    def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
+        """
+        Strictly validates decimal string fields for emptiness and finite decimal value.
+        """
+        field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(
+                f"{field_name}: Input must be a string representation of a number, "
+                f"got {type(v).__name__}"
+            )
         if not v.strip():
-            raise ValueError("Must be a non-empty string representing a decimal value")
+            raise ValueError(
+                f"{field_name}: Input decimal string cannot be empty or just whitespace."
+            )
         try:
-            dec_val = Decimal(v)
-        except Exception as err:
-            raise ValueError("Must be a string representing a decimal value") from err
+            dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
+        except Exception as e:
+            raise ValueError(
+                f"{field_name}: Must be a string representing a decimal value: {e}"
+            ) from e
+        if dec_val is None:
+            raise ValueError(
+                f"{field_name}: Parsing returned None unexpectedly for non-optional field."
+            )
         if not dec_val.is_finite():
-            raise ValueError("Value must be a finite decimal (not NaN or inf)")
+            raise ValueError(
+                f"{field_name}: Input must be a finite number, got '{v}' (parsed as {dec_val})."
+            )
         return v
 
     @field_validator("event_time", "engine_timestamp", mode="before")
     @classmethod
-    def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
+    def validate_timestamp_format(cls, v: Any, info: ValidationInfo) -> int | float | str | None:
+        """
+        Strictly validates timestamp fields for type and format (int, float, or non-empty
+        string).
+        """
+        field_name = info.field_name or "event_time"
         if v is None:
-            return v
-        if isinstance(v, int | float):
-            return v
-        # If not int or float, treat as string
-        if v.isdigit():
-            return int(v)
-        # Accept ISO8601, but do not parse here
+            raise ValueError(f"{field_name}: Value cannot be None.")
+        if not isinstance(v, int | float | str):
+            raise ValueError(
+                f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
+            )
+        if isinstance(v, str):
+            if not v.strip():
+                raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        try:
+            dt = parse_datetime_utc(v, field_name=field_name)
+            if dt is None:
+                raise ValueError(
+                    f"{field_name}: Timestamp is required but received None or failed parsing."
+                )
+        except Exception as e:
+            raise ValueError(f"{field_name}: Invalid timestamp format or value '{v}': {e}") from e
         return v

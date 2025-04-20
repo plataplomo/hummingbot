@@ -7,8 +7,9 @@ These models are used for boundary validation and transformation, not for intern
 """
 
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class BackpackRawAccount(BaseModel):
@@ -31,52 +32,69 @@ class BackpackRawAccount(BaseModel):
 
     @field_validator("id", mode="before", check_fields=False)
     @classmethod
-    def validate_id_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
+    def validate_id_str(cls, v: Any, info: ValidationInfo) -> str:
+        """
+        Strictly validates the 'id' field as a required string with max length 128 and valid
+        UTF-8.
+        """
+        field_name = info.field_name or "id"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v.strip():
-            raise ValueError("Must be a non-empty string")
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
         if len(v) > 128:
-            raise ValueError("String value too long (max 128 chars)")
+            raise ValueError(f"{field_name}: String value too long (max 128 chars)")
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+            raise ValueError(
+                f"{field_name}: Invalid UTF-8 sequence in string '{v}': {err}"
+            ) from err
         return v
 
     @field_validator("email", mode="before", check_fields=False)
     @classmethod
-    def validate_email_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
+    def validate_email_str(cls, v: Any, info: ValidationInfo) -> str:
+        """
+        Strictly validates the 'email' field as a required string with max length 254 and valid
+        UTF-8.
+        """
+        field_name = info.field_name or "email"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v.strip():
-            raise ValueError("Must be a non-empty string")
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
         if len(v) > 254:
-            raise ValueError("String value too long (max 254 chars)")
+            raise ValueError(f"{field_name}: String value too long (max 254 chars)")
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+            raise ValueError(
+                f"{field_name}: Invalid UTF-8 sequence in string '{v}': {err}"
+            ) from err
         return v
 
     @field_validator("status", mode="before", check_fields=False)
     @classmethod
-    def validate_status_enum(cls, v: str | None) -> str | None:
-        allowed = {"active", "suspended", "pending"}
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
-        if v not in allowed:
-            raise ValueError(f"Invalid status: {v}")
+    def validate_status_string_and_enum(cls, v: Any, info: ValidationInfo) -> str:
+        """
+        Strictly validates the 'status' field as a required string enum with allowed values and
+        valid UTF-8.
+        """
+        field_name = info.field_name or "status"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        allowed_values = {"active", "suspended", "pending"}
+        if v not in allowed_values:
+            raise ValueError(f"{field_name}: Invalid value '{v}'. Expected one of {allowed_values}")
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+            raise ValueError(
+                f"{field_name}: Invalid UTF-8 sequence in string '{v}': {err}"
+            ) from err
         return v
 
 
@@ -98,36 +116,50 @@ class BackpackRawBalance(BaseModel):
     total: str = Field(..., alias="total", max_length=64)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("asset", "available", "total", mode="before", check_fields=False)
+    @field_validator("asset", mode="before", check_fields=False)
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
+    def validate_asset_str(cls, v: Any, info: ValidationInfo) -> str:
+        """
+        Strictly validates the 'asset' field as a required string with max length 32 and valid
+        UTF-8.
+        """
+        field_name = info.field_name or "asset"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
         if not v.strip():
-            raise ValueError("Must be a non-empty string")
-        if len(v) > 64:
-            raise ValueError("String value too long (max 64 chars)")
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        if len(v) > 32:
+            raise ValueError(f"{field_name}: String value too long (max 32 chars)")
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+            raise ValueError(
+                f"{field_name}: Invalid UTF-8 sequence in string '{v}': {err}"
+            ) from err
         return v
 
     @field_validator("available", "total", mode="before", check_fields=False)
     @classmethod
-    def validate_decimal_str(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        if type(v) is not str:
-            raise ValueError(f"Must be a string (got {type(v).__name__})")
+    def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
+        """
+        Strictly validates decimal string fields for emptiness and finite decimal value.
+        """
+        field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(
+                f"{field_name}: Input must be a string representation of a number, "
+                f"got {type(v).__name__}"
+            )
         if not v.strip():
-            raise ValueError("Must be a non-empty string")
+            raise ValueError(
+                f"{field_name}: Input decimal string cannot be empty or just whitespace."
+            )
         try:
             d = Decimal(v)
         except (InvalidOperation, TypeError, AttributeError) as err:
-            raise ValueError("Must be a string representing a decimal value") from err
+            raise ValueError(
+                f"{field_name}: Must be a string representing a decimal value"
+            ) from err
         if not d.is_finite():
-            raise ValueError("Value must be a finite decimal (not NaN or inf)")
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
         return v
