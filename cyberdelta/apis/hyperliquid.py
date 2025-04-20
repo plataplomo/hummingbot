@@ -13,6 +13,11 @@ from web3.auto import w3
 
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
+from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+    HyperliquidRawExchangeResponseData,
+    HyperliquidRawExchangeStatusObject,
+)
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
@@ -27,7 +32,6 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
-from cyberdelta.utils.parsing import parse_decimal_value
 
 logger = logging.getLogger(__name__)
 
@@ -708,20 +712,29 @@ class HyperliquidAPI(ExchangeAPI):
             response = await self._request("POST", "/exchange", data=action_payload, signed=True)
 
             if isinstance(response, dict) and response.get("status") == "ok":
+                # Use the Pydantic model for strict validation and type safety
                 response_data = response.get("data")
-                statuses = []
-                if isinstance(response_data, dict) and "statuses" in response_data:
-                    # Explicitly cast to expected type for static analysis
-                    statuses = cast(list[dict[str, Any]], response_data["statuses"])
-
-                if isinstance(statuses, list) and statuses:
-                    if isinstance(statuses[0], str) and statuses[0] == "canceled":
+                if response_data is None:
+                    logger.error(f"[{self.exchange_name}] No data in cancel order response.")
+                    raise APIError(
+                        "Cancel order failed, missing data in response",
+                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                    )
+                # Validate and parse using Pydantic
+                parsed_data = HyperliquidRawExchangeResponseData.model_validate(response_data)
+                statuses = parsed_data.statuses
+                if statuses:
+                    first_status = statuses[0]
+                    if isinstance(first_status, str) and first_status == "canceled":
                         logger.info(
                             f"[{self.exchange_name}] Canceled order {order_id} for {symbol}"
                         )
                         return {"status": "canceled", "order_id": order_id, "symbol": symbol}
-                    elif isinstance(statuses[0], dict) and "error" in statuses[0]:
-                        error_msg = str(statuses[0]["error"])
+                    elif (
+                        isinstance(first_status, HyperliquidRawExchangeStatusObject)
+                        and first_status.error is not None
+                    ):
+                        error_msg = str(first_status.error)
                         logger.error(
                             f"[{self.exchange_name}] Failed to cancel order {order_id}: {error_msg}"
                         )
@@ -766,6 +779,9 @@ class HyperliquidAPI(ExchangeAPI):
         """
         Get current ticker information for a symbol.
 
+        - Validates the raw API response using HyperliquidRawMetaAndAssetCtxsResponse.
+        - Maps the validated asset context to a Ticker using HyperliquidMapper.
+
         Args:
             symbol: The trading symbol to fetch ticker data for.
 
@@ -778,35 +794,23 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             payload = {"type": "metaAndAssetCtxs"}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            # Validate response structure
+            from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+                HyperliquidRawMetaAndAssetCtxsResponse,
+            )
 
-            if isinstance(response, list) and len(response) > 1:
-                asset_contexts = response[1]
-                if isinstance(asset_contexts, list):
-                    for ctx in asset_contexts:
-                        ctx_dict = cast(dict[str, Any], ctx)  # type: ignore
-                        # ctx is expected to be dict[str, Any] per API contract
-                        if ctx_dict.get("name") == symbol:
-                            # mark_px is expected to be Any or None per API contract
-                            mark_px = ctx_dict.get("markPx")
-                            if mark_px is not None:
-                                # Use robust Decimal parsing for all financial fields
-                                # (see decimal rule)
-                                bid = parse_decimal_value(str(mark_px), allow_none=True)
-                                ask = parse_decimal_value(str(mark_px), allow_none=True)
-                                # 'last' is not a valid argument for Ticker; only use valid fields
-                                return Ticker(
-                                    symbol=symbol,
-                                    bid=bid,
-                                    ask=ask,
-                                    timestamp=int(time.time() * 1000),
-                                )
+            validated = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response)
+            for asset_ctx in validated.asset_ctxs:
+                if asset_ctx.name == symbol:
+                    # Convert Pydantic model to dict for the mapper
+                    return HyperliquidMapper.map_raw_ctx_to_ticker(asset_ctx.model_dump())
             logger.warning(
                 f"[{self.exchange_name}] Ticker data not found for {symbol} in response: {response}"
             )
             raise APIError(
-                f"Ticker data not found for {symbol}", code=APIErrorCode.SYMBOL_NOT_FOUND.value
+                f"Ticker data not found for {symbol}",
+                code=APIErrorCode.SYMBOL_NOT_FOUND.value,
             )
-
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting ticker for {symbol}: {e}")
             raise
@@ -822,65 +826,32 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e
 
     async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
-        """Get order book for a symbol."""
+        """
+        Get order book for a symbol.
+
+        - Validates the raw API response using HyperliquidRawL2Book.
+        - Maps the validated order book to an OrderBook using HyperliquidMapper.
+
+        Args:
+            symbol: The trading symbol to fetch the order book for.
+            depth: Optional depth limit for the order book.
+
+        Returns:
+            OrderBook: The validated and mapped order book.
+
+        Raises:
+            APIError: If order book data is not found or response is malformed.
+        """
         try:
             payload = {"type": "l2Book", "coin": symbol}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
-
-            if response and isinstance(response, dict) and "levels" in response:
-                levels = response.get("levels")
-                bids: list[tuple[Decimal, Decimal]] = []
-                asks: list[tuple[Decimal, Decimal]] = []
-
-                if isinstance(levels, list) and len(cast(list[Any], levels)) > 1:
-                    # Process bids
-                    bid_levels = cast(list[Any], levels[0])  # type: ignore
-                    if isinstance(bid_levels, list):
-                        for level in bid_levels:
-                            level_list = cast(list[Any], level)  # type: ignore
-                            if isinstance(level_list, list) and len(level_list) >= 2:
-                                try:
-                                    price = Decimal(str(level_list[0]))
-                                    quantity = Decimal(str(level_list[1]))
-                                    bids.append((price, quantity))
-                                except (ValueError, TypeError, IndexError) as e:
-                                    logger.warning(f"Error parsing bid level {level}: {e}")
-
-                    # Process asks
-                    ask_levels = cast(list[Any], levels[1])  # type: ignore
-                    if isinstance(ask_levels, list):
-                        for level in ask_levels:
-                            level_list = cast(list[Any], level)  # type: ignore
-                            if isinstance(level_list, list) and len(level_list) >= 2:
-                                try:
-                                    price = Decimal(str(level_list[0]))
-                                    quantity = Decimal(str(level_list[1]))
-                                    asks.append((price, quantity))
-                                except (ValueError, TypeError, IndexError) as e:
-                                    logger.warning(f"Error parsing ask level {level}: {e}")
-
-                bids.sort(key=lambda x: x[0], reverse=True)
-                asks.sort(key=lambda x: x[0])
-
-                if depth is not None and depth > 0:
-                    bids = bids[:depth]
-                    asks = asks[:depth]
-
-                timestamp = int(response.get("time", int(time.time() * 1000)))
-                return OrderBook(
-                    symbol=symbol,
-                    bids=bids,
-                    asks=asks,
-                    timestamp=timestamp,
-                )
-            logger.warning(
-                f"[{self.exchange_name}] Order book data not found/invalid for {symbol}: {response}"
-            )
-            raise APIError(
-                f"Order book data not found/invalid for {symbol}",
-                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+            from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
+                HyperliquidRawL2Book,
             )
 
+            validated = HyperliquidRawL2Book.model_validate(response)
+            # Convert Pydantic model to dict for the mapper
+            return HyperliquidMapper.map_raw_order_book(symbol, validated.model_dump(), depth)
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting order book for {symbol}: {e}")
             raise
@@ -896,52 +867,30 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e
 
     async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
-        """Get recent trades for a symbol."""
+        """
+        Get recent trades for a symbol.
+
+        - Validates the raw API response using HyperliquidRawRecentTradesResponse.
+        - Maps the validated trades to a list of Trade using HyperliquidMapper.
+
+        Args:
+            symbol: The trading symbol to fetch recent trades for.
+            limit: Optional limit for the number of trades returned.
+
+        Returns:
+            list[Trade]: The validated and mapped trades.
+        """
         try:
             payload = {"type": "recentTrades", "coin": symbol}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
+                HyperliquidRawRecentTradesResponse,
+            )
 
-            trades: list[Trade] = []
-            if isinstance(response, list):
-                for trade_item in response:
-                    if isinstance(trade_item, dict):
-                        trade_id = str(trade_item.get("tid", ""))
-                        # Explicitly cast to str for type safety
-                        price_str = str(trade_item.get("px", "0"))  # type: ignore
-                        size_str = str(trade_item.get("sz", "0"))  # type: ignore
-                        timestamp_ms = int(trade_item.get("time", 0))  # type: ignore
-                        side_hl = str(trade_item.get("side", "B"))  # type: ignore
-
-                        try:
-                            price = Decimal(price_str)
-                            quantity = Decimal(size_str)
-                            side = OrderSide.BUY if side_hl == "B" else OrderSide.SELL
-
-                            trades.append(
-                                Trade(
-                                    id=trade_id,
-                                    symbol=symbol,
-                                    executed_at=datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC),
-                                    side=side,
-                                    order_id=trade_id,
-                                    exchange="hyperliquid",
-                                    client_order_id="",
-                                    price=price,
-                                    quantity=quantity,
-                                    cost=price * quantity,
-                                    fee=Decimal("0"),
-                                    fee_asset="USDC",
-                                    is_maker=False,
-                                    timestamp=timestamp_ms,
-                                )
-                            )
-                        except (ValueError, TypeError) as e:
-                            logger.warning(f"Error parsing trade data {trade_item}: {e}")
-
-                if limit is not None and limit > 0:
-                    trades = trades[:limit]
-            return trades
-
+            # Validate the batch response
+            validated = HyperliquidRawRecentTradesResponse.model_validate(response)
+            trade_dicts = [t.model_dump() for t in validated.__root__]
+            return HyperliquidMapper.map_raw_trades(symbol, trade_dicts, limit)
         except APIError as e:
             logger.error(
                 f"[{self.exchange_name}] API Error getting recent trades for {symbol}: {e}"
@@ -959,50 +908,38 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e
 
     async def get_funding_rate(self, symbol: str) -> FundingRate | None:
-        """Get funding rate for a symbol."""
+        """
+        Get funding rate for a symbol.
+
+        - Validates the raw API response using HyperliquidRawMetaAndAssetCtxsResponse.
+        - Maps the validated asset context to a FundingRate using HyperliquidMapper.
+
+        Args:
+            symbol: The trading symbol to fetch the funding rate for.
+
+        Returns:
+            FundingRate | None: The validated and mapped funding rate, or None if not found.
+        """
         try:
             payload = {"type": "metaAndAssetCtxs"}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
-
-            if isinstance(response, list) and len(response) > 1:
-                asset_contexts = response[1]
-                if isinstance(asset_contexts, list):
-                    for ctx in asset_contexts:
-                        if isinstance(ctx, dict) and ctx.get("name") == symbol:
-                            funding_rate_str = ctx.get("funding", "0")
-                            mark_px_str = ctx.get("markPx", "0")
-
-                            try:
-                                funding_rate = Decimal(str(funding_rate_str))
-                                mark_price = Decimal(str(mark_px_str))
-
-                                now_ms = int(time.time() * 1000)
-                                next_funding_time_ms = (now_ms // 3600000 + 1) * 3600000
-
-                                funding_info = FundingRate(
-                                    symbol=symbol,
-                                    funding_rate=funding_rate,
-                                    mark_price=mark_price,
-                                    next_funding_time=next_funding_time_ms,
-                                )
-                                return funding_info
-                            except (ValueError, TypeError) as e:
-                                logger.warning(f"Error parsing funding rate data for {symbol}: {e}")
-                                break
-
-            logger.warning(
-                f"[{self.exchange_name}] Funding rate data not found for {symbol} "
-                f"in response: {response}"
+            from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+                HyperliquidRawMetaAndAssetCtxsResponse,
             )
-            return None
+
+            validated = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response)
+            asset_ctx = next((ctx for ctx in validated.asset_ctxs if ctx.name == symbol), None)
+            if asset_ctx is None:
+                logger.warning(f"[{self.exchange_name}] No asset context found for {symbol}.")
+                return None
+            return HyperliquidMapper.map_raw_ctx_to_funding_rate(
+                symbol, asset_ctx.model_dump(by_alias=True)
+            )
         except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error getting funding rate for {symbol}: {e}")
-            if e.original_exception and "Funding rate not available" in str(e.original_exception):
-                raise APIError(
-                    f"Funding rate unavailable for {symbol}",
-                    code=APIErrorCode.FUNDING_RATE_UNAVAILABLE.value,
-                    original_exception=e,
-                ) from e
+            logger.error(
+                f"[{self.exchange_name}] API Error getting funding rate for {symbol}: {e}",
+                exc_info=True,
+            )
             raise
         except Exception as e:
             logger.error(
@@ -1210,10 +1147,10 @@ class HyperliquidAPI(ExchangeAPI):
         Get current funding rates, optionally filtering by symbol.
 
         Args:
-            symbol: If provided, only return funding rate for this symbol
+            symbols: If provided, only return funding rate for these symbols.
 
         Returns:
-            List of FundingRate objects
+            List of FundingRate objects.
         """
         try:
             # Get all market information which includes funding rates
@@ -1225,19 +1162,19 @@ class HyperliquidAPI(ExchangeAPI):
 
             # Extract funding rates from response
             if response and isinstance(response, list) and len(response) > 0:
-                universe_data = response[0].get("universe", [])
+                universe_data: list[dict[str, Any]] = response[0].get("universe", [])
 
                 for market in universe_data:
-                    market_symbol = market.get("name")
+                    market_symbol: str = market.get("name", "")
                     # If symbols list is provided, only include markets from that list
                     if symbols is not None and market_symbol not in symbols:
                         continue
 
-                    funding_info = market.get("funding")
-                    if funding_info and isinstance(funding_info, dict):
-                        rate_str = funding_info.get("fundingRate", "0")
+                    funding_info: dict[str, Any] | None = market.get("funding")
+                    if funding_info is not None:
+                        rate_str: str = str(funding_info.get("fundingRate", "0"))
                         # Convert from percentage to decimal (e.g., 0.01% -> 0.0001)
-                        rate_decimal = Decimal(str(rate_str)) / Decimal(100)
+                        rate_decimal = Decimal(rate_str) / Decimal(100)
                         timestamp = int(time.time() * 1000)  # Current time in milliseconds
 
                         funding_rate = FundingRate(
@@ -1273,7 +1210,8 @@ class HyperliquidAPI(ExchangeAPI):
     async def connect_websocket(self) -> None:
         await self._connect_ws()
 
-    async def _handle_websocket_message(self, message: dict[str, Any] | list | str) -> None:
+    async def _handle_websocket_message(self, message: dict[str, Any] | list[Any] | str) -> None:
+        # Accepts dict, list, or str; list[Any] is explicit for linter
         if isinstance(message, dict):
             await self._route_ws_message(message)
         else:
@@ -1331,30 +1269,28 @@ class HyperliquidAPI(ExchangeAPI):
         return None
 
     def parse_trade_message(self, message: dict[str, Any]) -> Trade | None:
-        """
-        Parse a trade message from the WebSocket feed.
-
-        Args:
-            message: The WebSocket message to parse
-
-        Returns:
-            A Trade object or None if the message cannot be parsed
-        """
-        if not message or not isinstance(message, dict):
+        """Parse trade message from the WebSocket feed."""
+        if message.get("channel") == "allMids":
+            logger.warning(
+                f"[{self.exchange_name}] parse_ticker_message needs specific implementation "
+                f"for 'allMids' structure."
+            )
             return None
-
-        # Check if it's a trades update message
+        # Defensive: message is already dict[str, Any]
         if "channel" in message and message["channel"] == "trades":
-            data = message.get("data", [])
-            if data and isinstance(data, list) and len(data) > 0:
-                # Just return the first trade for now
-                first_trade = data[0]
-                symbol = message.get("coin", "")
-                if symbol and isinstance(first_trade, dict):
-                    try:
-                        return self.parse_trade(first_trade, symbol)
-                    except Exception as e:
-                        logger.error(f"Error parsing trade message: {e}")
+            data_raw = message.get("data", [])
+            data_raw_any: list[Any] = data_raw  # Explicitly typed for static analysis
+            # Defensive: ensure data_raw is a list of dicts
+            if all(isinstance(x, dict) for x in data_raw_any):
+                data = cast(list[dict[str, Any]], data_raw_any)
+                if data:
+                    first_trade: dict[str, Any] = data[0]
+                    symbol = message.get("coin", "")
+                    if symbol:
+                        try:
+                            return self.parse_trade(first_trade, symbol)
+                        except Exception as e:
+                            logger.error(f"Error parsing trade message: {e}")
         return None
 
     def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
@@ -1367,21 +1303,22 @@ class HyperliquidAPI(ExchangeAPI):
         Returns:
             An Order object or None if the message cannot be parsed
         """
-        if not message or not isinstance(message, dict):
-            return None
-
-        # Check if it's an order update message
+        # Defensive: message is already dict[str, Any]
         if "type" in message and message["type"] == "userEvent" and "userEvents" in message:
-            events = message.get("userEvents", [])
-            for event in events:
-                event_type = event.get("eventType", "")
-                if event_type == "order":
-                    order_data = event.get("data", {})
-                    if order_data:
-                        try:
-                            return self.parse_order(order_data)
-                        except Exception as e:
-                            logger.error(f"Error parsing order update message: {e}")
+            events_raw = message.get("userEvents", [])
+            events_raw_any: list[Any] = events_raw
+            # Defensive: ensure events_raw is a list of dicts
+            if all(isinstance(x, dict) for x in events_raw_any):
+                events = cast(list[dict[str, Any]], events_raw_any)
+                for event in events:
+                    event_type = event.get("eventType", "")
+                    if event_type == "order":
+                        order_data = event.get("data", {})
+                        if order_data:
+                            try:
+                                return self.parse_order(order_data)
+                            except Exception as e:
+                                logger.error(f"Error parsing order update message: {e}")
         return None
 
     def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
@@ -1463,48 +1400,44 @@ class HyperliquidAPI(ExchangeAPI):
         """
         trades: list[Trade] = []
 
-        if not message or not isinstance(message, dict):
-            return trades
-
-        # Process fills
+        # Defensive: message is already dict[str, Any]
         if message.get("type") == "userFill":
-            fill_data = message.get("data", {})
-            if not fill_data:
-                return trades
+            fill_data_raw = message.get("data", {})
+            # Defensive: ensure fill_data_raw is a dict
+            if isinstance(fill_data_raw, dict):
+                fill_data: dict[str, Any] = fill_data_raw
+                coin = fill_data.get("coin", "")
+                if not coin:
+                    return trades
 
-            coin = fill_data.get("coin", "")
-            if not coin:
-                return trades
+                side_str = fill_data.get("side", "")
+                px_str = fill_data.get("px", "0")
+                sz_str = fill_data.get("sz", "0")
+                time_ms = fill_data.get("time", int(time.time() * 1000))
+                order_id = fill_data.get("oid", "")
 
-            side_str = fill_data.get("side", "")
-            px_str = fill_data.get("px", "0")
-            sz_str = fill_data.get("sz", "0")
-            time_ms = fill_data.get("time", int(time.time() * 1000))
-            order_id = fill_data.get("oid", "")
+                try:
+                    side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
+                    price = Decimal(str(px_str))
+                    quantity = Decimal(str(sz_str))
 
-            try:
-                side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
-                price = Decimal(str(px_str))
-                quantity = Decimal(str(sz_str))
-
-                trade = Trade(
-                    id=f"{order_id}_{time_ms}",
-                    symbol=coin,
-                    executed_at=datetime.fromtimestamp(time_ms / 1000, tz=UTC),
-                    side=side,
-                    order_id=order_id,
-                    exchange="hyperliquid",
-                    client_order_id="",
-                    price=price,
-                    quantity=quantity,
-                    cost=price * quantity,
-                    fee=Decimal("0"),
-                    fee_asset="USDC",
-                    is_maker=False,  # Assuming fills are taker trades
-                    timestamp=time_ms,
-                )
-                trades.append(trade)
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Error parsing fill data: {e}")
-
+                    trade = Trade(
+                        id=f"{order_id}_{time_ms}",
+                        symbol=coin,
+                        executed_at=datetime.fromtimestamp(time_ms / 1000, tz=UTC),
+                        side=side,
+                        order_id=order_id,
+                        exchange="hyperliquid",
+                        client_order_id="",
+                        price=price,
+                        quantity=quantity,
+                        cost=price * quantity,
+                        fee=Decimal("0"),
+                        fee_asset="USDC",
+                        is_maker=False,  # Assuming fills are taker trades
+                        timestamp=time_ms,
+                    )
+                    trades.append(trade)
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Error parsing fill data: {e}")
         return trades

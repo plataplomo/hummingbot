@@ -2,7 +2,8 @@
 Backpack API Error Codes Enum
 ----------------------------
 
-Defines all error codes returned by the Backpack Exchange API, as enumerated in the official OpenAPI spec (see openapi_backpack.json, ApiErrorCode schema).
+Defines all error codes returned by the Backpack Exchange API,
+as enumerated in the official OpenAPI spec (see openapi_backpack.json, ApiErrorCode schema).
 
 Reference:
     - https://docs.backpack.exchange/
