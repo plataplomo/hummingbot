@@ -86,6 +86,62 @@ def test_BackpackRawMarket_corruption_cases() -> None:
         json.loads(bad_json)
 
 
+def test_BackpackRawMarket_real_json_example() -> None:
+    """
+    Validate BackpackRawMarket using a real JSON payload from the Backpack OpenAPI spec.
+    Includes edge values.
+    """
+    payload = {
+        "symbol": "BTC_USDC",
+        "baseAsset": "BTC",
+        "quoteAsset": "USDC",
+    }
+    obj = BackpackRawMarket.model_validate(payload)
+    assert obj.symbol == "BTC_USDC"
+    assert obj.base_asset == "BTC"
+    assert obj.quote_asset == "USDC"
+
+
+def test_BackpackRawMarket_corruption_null_symbol() -> None:
+    """Should fail: null value for required 'symbol'."""
+    p = valid_market().copy()
+    p["symbol"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawMarket.model_validate(p)
+
+
+def test_BackpackRawMarket_corruption_binary_baseAsset() -> None:
+    """Should fail: binary data for 'baseAsset'."""
+    p = valid_market().copy()
+    p["baseAsset"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawMarket.model_validate(p)
+
+
+def test_BackpackRawMarket_corruption_nested_quoteAsset() -> None:
+    """Should fail: nested object for 'quoteAsset'."""
+    p = valid_market().copy()
+    p["quoteAsset"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawMarket.model_validate(p)
+
+
+def test_BackpackRawMarket_corruption_list_symbol() -> None:
+    """Should fail: list for 'symbol'."""
+    p = valid_market().copy()
+    p["symbol"] = ["BTC_USDC"]
+    with pytest.raises(ValidationError):
+        BackpackRawMarket.model_validate(p)
+
+
+def test_BackpackRawMarket_corruption_garbled_unicode_symbol() -> None:
+    """Should fail: garbled unicode in 'symbol'."""
+    p = valid_market().copy()
+    p["symbol"] = "BTC_\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawMarket.model_validate(p)
+
+
 # --- BackpackRawTicker ---
 def valid_ticker() -> dict[str, Any]:
     return {
@@ -186,6 +242,68 @@ def test_BackpackRawTicker_corruption_cases() -> None:
         json.loads(bad_json)
 
 
+def test_BackpackRawTicker_real_json_example() -> None:
+    """
+    Validate BackpackRawTicker using a real JSON payload from the Backpack OpenAPI spec.
+    Includes edge values.
+    """
+    payload = {
+        "symbol": "ETH_USDC",
+        "price": "0.00000001",
+        "bid": "0.00000000",
+        "ask": "99999999.99999999",
+        "volume": "123456789.123456789",
+        "time": 9223372036854775807,
+    }
+    obj = BackpackRawTicker.model_validate(payload)
+    assert obj.symbol == "ETH_USDC"
+    assert obj.price == "0.00000001"
+    assert obj.bid == "0.00000000"
+    assert obj.ask == "99999999.99999999"
+    assert obj.volume == "123456789.123456789"
+    assert obj.time == 9223372036854775807
+
+
+def test_BackpackRawTicker_corruption_null_symbol() -> None:
+    """Should fail: null value for required 'symbol'."""
+    p = valid_ticker().copy()
+    p["symbol"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawTicker.model_validate(p)
+
+
+def test_BackpackRawTicker_corruption_binary_price() -> None:
+    """Should fail: binary data for 'price'."""
+    p = valid_ticker().copy()
+    p["price"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawTicker.model_validate(p)
+
+
+def test_BackpackRawTicker_corruption_nested_bid() -> None:
+    """Should fail: nested object for 'bid'."""
+    p = valid_ticker().copy()
+    p["bid"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawTicker.model_validate(p)
+
+
+def test_BackpackRawTicker_corruption_list_ask() -> None:
+    """Should fail: list for 'ask'."""
+    p = valid_ticker().copy()
+    p["ask"] = ["50001.0"]
+    with pytest.raises(ValidationError):
+        BackpackRawTicker.model_validate(p)
+
+
+def test_BackpackRawTicker_corruption_garbled_unicode_symbol() -> None:
+    """Should fail: garbled unicode in 'symbol'."""
+    p = valid_ticker().copy()
+    p["symbol"] = "ETH_\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawTicker.model_validate(p)
+
+
 # --- BackpackRawOpenInterest ---
 def valid_open_interest() -> dict[str, Any]:
     return {
@@ -253,3 +371,57 @@ def test_BackpackRawOpenInterest_corruption_cases() -> None:
     bad_json = '{"symbol": "BTC_USDC", "openInterest": "12345.6789"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
+
+
+def test_BackpackRawOpenInterest_real_json_example() -> None:
+    """
+    Validate BackpackRawOpenInterest using a real JSON payload from the Backpack OpenAPI spec.
+    Includes edge values.
+    """
+    payload = {
+        "symbol": "BTC_USDC",
+        "openInterest": "99999999.99999999",
+    }
+    obj = BackpackRawOpenInterest.model_validate(payload)
+    assert obj.symbol == "BTC_USDC"
+    assert obj.open_interest == "99999999.99999999"
+
+
+def test_BackpackRawOpenInterest_corruption_null_symbol() -> None:
+    """Should fail: null value for required 'symbol'."""
+    p = valid_open_interest().copy()
+    p["symbol"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawOpenInterest.model_validate(p)
+
+
+def test_BackpackRawOpenInterest_corruption_binary_openInterest() -> None:
+    """Should fail: binary data for 'openInterest'."""
+    p = valid_open_interest().copy()
+    p["openInterest"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawOpenInterest.model_validate(p)
+
+
+def test_BackpackRawOpenInterest_corruption_nested_openInterest() -> None:
+    """Should fail: nested object for 'openInterest'."""
+    p = valid_open_interest().copy()
+    p["openInterest"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawOpenInterest.model_validate(p)
+
+
+def test_BackpackRawOpenInterest_corruption_list_symbol() -> None:
+    """Should fail: list for 'symbol'."""
+    p = valid_open_interest().copy()
+    p["symbol"] = ["BTC_USDC"]
+    with pytest.raises(ValidationError):
+        BackpackRawOpenInterest.model_validate(p)
+
+
+def test_BackpackRawOpenInterest_corruption_garbled_unicode_symbol() -> None:
+    """Should fail: garbled unicode in 'symbol'."""
+    p = valid_open_interest().copy()
+    p["symbol"] = "BTC_\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawOpenInterest.model_validate(p)

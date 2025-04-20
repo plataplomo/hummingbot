@@ -239,3 +239,109 @@ def test_BackpackRawBalance_corruption_cases() -> None:
                 f"Failed corruption case: {description} ("
                 f"{field}={value!r}) - ValidationError not raised"
             )
+
+
+def test_BackpackRawAccount_real_json_example() -> None:
+    """Validate BackpackRawAccount using a real JSON payload with edge values."""
+    payload = {
+        "id": "user_Ωmega",
+        "email": "user_😀@example.com",
+        "status": "active",
+    }
+    obj = BackpackRawAccount.model_validate(payload)
+    assert obj.id == "user_Ωmega"
+    assert obj.email == "user_😀@example.com"
+    assert obj.status == "active"
+
+
+def test_BackpackRawAccount_corruption_null_id() -> None:
+    """Should fail: null value for required 'id'."""
+    p = valid_account().copy()
+    p["id"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawAccount.model_validate(p)
+
+
+def test_BackpackRawAccount_corruption_binary_email() -> None:
+    """Should fail: binary data for 'email'."""
+    p = valid_account().copy()
+    p["email"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawAccount.model_validate(p)
+
+
+def test_BackpackRawAccount_corruption_nested_status() -> None:
+    """Should fail: nested object for 'status'."""
+    p = valid_account().copy()
+    p["status"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawAccount.model_validate(p)
+
+
+def test_BackpackRawAccount_corruption_list_id() -> None:
+    """Should fail: list for 'id'."""
+    p = valid_account().copy()
+    p["id"] = ["user_123"]
+    with pytest.raises(ValidationError):
+        BackpackRawAccount.model_validate(p)
+
+
+def test_BackpackRawAccount_corruption_garbled_unicode_email() -> None:
+    """Should fail: garbled unicode in 'email'."""
+    p = valid_account().copy()
+    p["email"] = "user\udce2\udc28\udc00@example.com"
+    with pytest.raises(ValidationError):
+        BackpackRawAccount.model_validate(p)
+
+
+def test_BackpackRawBalance_real_json_example() -> None:
+    """Validate BackpackRawBalance using a real JSON payload with edge values."""
+    payload = {
+        "asset": "USDC_😀",
+        "available": "0.00000001",
+        "total": "99999999.99999999",
+    }
+    obj = BackpackRawBalance.model_validate(payload)
+    assert obj.asset == "USDC_😀"
+    assert obj.available == "0.00000001"
+    assert obj.total == "99999999.99999999"
+
+
+def test_BackpackRawBalance_corruption_null_asset() -> None:
+    """Should fail: null value for required 'asset'."""
+    p = valid_balance().copy()
+    p["asset"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawBalance.model_validate(p)
+
+
+def test_BackpackRawBalance_corruption_binary_available() -> None:
+    """Should fail: binary data for 'available'."""
+    p = valid_balance().copy()
+    p["available"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawBalance.model_validate(p)
+
+
+def test_BackpackRawBalance_corruption_nested_total() -> None:
+    """Should fail: nested object for 'total'."""
+    p = valid_balance().copy()
+    p["total"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawBalance.model_validate(p)
+
+
+def test_BackpackRawBalance_corruption_list_asset() -> None:
+    """Should fail: list for 'asset'."""
+    p = valid_balance().copy()
+    p["asset"] = ["USDC"]
+    with pytest.raises(ValidationError):
+        BackpackRawBalance.model_validate(p)
+
+
+def test_BackpackRawBalance_corruption_garbled_unicode_asset() -> None:
+    """Should fail: garbled unicode in 'asset'."""
+    p = valid_balance().copy()
+    p["asset"] = "USDC\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawBalance.model_validate(p)

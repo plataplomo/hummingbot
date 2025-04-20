@@ -338,3 +338,166 @@ def test_BackpackRawLiquidation_corruption_cases() -> None:
     bad_json = '{"symbol": "BTC_USDC", "price": "45000.0"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
+
+
+def test_BackpackRawWithdrawal_real_json_edge_case() -> None:
+    """Validate BackpackRawWithdrawal using a real JSON payload with edge values."""
+    payload = {
+        "id": "wd_999999999999999999",
+        "asset": "USDC_😀",
+        "amount": "0.00000001",
+        "status": "completed",
+    }
+    obj = BackpackRawWithdrawal.model_validate(payload)
+    assert obj.asset == "USDC_😀"
+    assert obj.amount == "0.00000001"
+    assert obj.status == "completed"
+
+
+def test_BackpackRawWithdrawal_corruption_null_id() -> None:
+    """Should fail: null value for required 'id'."""
+    p = valid_withdrawal().copy()
+    p["id"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawWithdrawal.model_validate(p)
+
+
+def test_BackpackRawWithdrawal_corruption_binary_asset() -> None:
+    """Should fail: binary data for 'asset'."""
+    p = valid_withdrawal().copy()
+    p["asset"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawWithdrawal.model_validate(p)
+
+
+def test_BackpackRawWithdrawal_corruption_nested_amount() -> None:
+    """Should fail: nested object for 'amount'."""
+    p = valid_withdrawal().copy()
+    p["amount"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawWithdrawal.model_validate(p)
+
+
+def test_BackpackRawWithdrawal_corruption_list_status() -> None:
+    """Should fail: list for 'status'."""
+    p = valid_withdrawal().copy()
+    p["status"] = ["pending"]
+    with pytest.raises(ValidationError):
+        BackpackRawWithdrawal.model_validate(p)
+
+
+def test_BackpackRawWithdrawal_corruption_garbled_unicode_asset() -> None:
+    """Should fail: garbled unicode in 'asset'."""
+    p = valid_withdrawal().copy()
+    p["asset"] = "USDC\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawWithdrawal.model_validate(p)
+
+
+def test_BackpackRawDeposit_real_json_edge_case() -> None:
+    """Validate BackpackRawDeposit using a real JSON payload with edge values."""
+    payload = {
+        "id": "dp_999999999999999999",
+        "asset": "BTC_😀",
+        "amount": "99999999.99999999",
+        "status": "pending",
+    }
+    obj = BackpackRawDeposit.model_validate(payload)
+    assert obj.asset == "BTC_😀"
+    assert obj.amount == "99999999.99999999"
+    assert obj.status == "pending"
+
+
+def test_BackpackRawDeposit_corruption_null_id() -> None:
+    """Should fail: null value for required 'id'."""
+    p = valid_deposit().copy()
+    p["id"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawDeposit.model_validate(p)
+
+
+def test_BackpackRawDeposit_corruption_binary_asset() -> None:
+    """Should fail: binary data for 'asset'."""
+    p = valid_deposit().copy()
+    p["asset"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawDeposit.model_validate(p)
+
+
+def test_BackpackRawDeposit_corruption_nested_amount() -> None:
+    """Should fail: nested object for 'amount'."""
+    p = valid_deposit().copy()
+    p["amount"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawDeposit.model_validate(p)
+
+
+def test_BackpackRawDeposit_corruption_list_status() -> None:
+    """Should fail: list for 'status'."""
+    p = valid_deposit().copy()
+    p["status"] = ["completed"]
+    with pytest.raises(ValidationError):
+        BackpackRawDeposit.model_validate(p)
+
+
+def test_BackpackRawDeposit_corruption_garbled_unicode_asset() -> None:
+    """Should fail: garbled unicode in 'asset'."""
+    p = valid_deposit().copy()
+    p["asset"] = "BTC\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawDeposit.model_validate(p)
+
+
+def test_BackpackRawLiquidation_real_json_edge_case() -> None:
+    """Validate BackpackRawLiquidation using a real JSON payload with edge values."""
+    payload = {
+        "symbol": "BTC_USDC_😀",
+        "price": "0.00000001",
+        "quantity": "99999999.99999999",
+        "side": "buy",
+    }
+    obj = BackpackRawLiquidation.model_validate(payload)
+    assert obj.symbol == "BTC_USDC_😀"
+    assert obj.price == "0.00000001"
+    assert obj.quantity == "99999999.99999999"
+    assert obj.side == "buy"
+
+
+def test_BackpackRawLiquidation_corruption_null_symbol() -> None:
+    """Should fail: null value for required 'symbol'."""
+    p = valid_liquidation().copy()
+    p["symbol"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawLiquidation.model_validate(p)
+
+
+def test_BackpackRawLiquidation_corruption_binary_price() -> None:
+    """Should fail: binary data for 'price'."""
+    p = valid_liquidation().copy()
+    p["price"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawLiquidation.model_validate(p)
+
+
+def test_BackpackRawLiquidation_corruption_nested_quantity() -> None:
+    """Should fail: nested object for 'quantity'."""
+    p = valid_liquidation().copy()
+    p["quantity"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawLiquidation.model_validate(p)
+
+
+def test_BackpackRawLiquidation_corruption_list_side() -> None:
+    """Should fail: list for 'side'."""
+    p = valid_liquidation().copy()
+    p["side"] = ["buy"]
+    with pytest.raises(ValidationError):
+        BackpackRawLiquidation.model_validate(p)
+
+
+def test_BackpackRawLiquidation_corruption_garbled_unicode_symbol() -> None:
+    """Should fail: garbled unicode in 'symbol'."""
+    p = valid_liquidation().copy()
+    p["symbol"] = "BTC_USDC\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawLiquidation.model_validate(p)

@@ -171,6 +171,63 @@ def test_BackpackRawTrade_creative_corruption_cases() -> None:
             )
 
 
+def test_BackpackRawTrade_real_json_edge_case() -> None:
+    """Validate BackpackRawTrade using a real JSON payload with edge values."""
+    payload = {
+        "id": "trade_999999999999999999",
+        "orderId": "order_Ωmega",
+        "symbol": "BTC_😀",
+        "price": "0.00000001",
+        "qty": "1000000000",
+        "time": 9999999999999,
+    }
+    obj = BackpackRawTrade.model_validate(payload)
+    assert obj.symbol == "BTC_😀"
+    assert obj.price == "0.00000001"
+    assert obj.quantity == "1000000000"
+    assert obj.time == 9999999999999
+
+
+def test_BackpackRawTrade_corruption_null_id() -> None:
+    """Should fail: null value for required 'id'."""
+    p = valid_trade().copy()
+    p["id"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawTrade.model_validate(p)
+
+
+def test_BackpackRawTrade_corruption_binary_orderId() -> None:
+    """Should fail: binary data for 'orderId'."""
+    p = valid_trade().copy()
+    p["orderId"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawTrade.model_validate(p)
+
+
+def test_BackpackRawTrade_corruption_nested_symbol() -> None:
+    """Should fail: nested object for 'symbol'."""
+    p = valid_trade().copy()
+    p["symbol"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawTrade.model_validate(p)
+
+
+def test_BackpackRawTrade_corruption_list_price() -> None:
+    """Should fail: list for 'price'."""
+    p = valid_trade().copy()
+    p["price"] = ["50000.0"]
+    with pytest.raises(ValidationError):
+        BackpackRawTrade.model_validate(p)
+
+
+def test_BackpackRawTrade_corruption_garbled_unicode_symbol() -> None:
+    """Should fail: garbled unicode in 'symbol'."""
+    p = valid_trade().copy()
+    p["symbol"] = "BTC_\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawTrade.model_validate(p)
+
+
 # --- BackpackRawTradeEvent ---
 def valid_trade_event() -> dict[str, Any]:
     return {
@@ -261,3 +318,63 @@ def test_BackpackRawTradeEvent_corruption_cases() -> None:
     bad_json = '{"e": "trade", "E": 1234567890, "s": "BTC_USDC"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
+
+
+def test_BackpackRawTradeEvent_real_json_edge_case() -> None:
+    """Validate BackpackRawTradeEvent using a real JSON payload with edge values."""
+    payload = {
+        "e": "trade",
+        "E": 9223372036854775807,
+        "s": "BTC_😀",
+        "p": "0.00000001",
+        "q": "1000000000",
+        "b": "orderB",
+        "a": "orderA",
+        "t": "trade999999999999999999",
+        "T": 9223372036854775807,
+        "m": True,
+    }
+    obj = BackpackRawTradeEvent.model_validate(payload)
+    assert obj.symbol == "BTC_😀"
+    assert obj.price == "0.00000001"
+    assert obj.is_buyer_the_maker is True
+
+
+def test_BackpackRawTradeEvent_corruption_null_e() -> None:
+    """Should fail: null value for required 'e'."""
+    p = valid_trade_event().copy()
+    p["e"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawTradeEvent.model_validate(p)
+
+
+def test_BackpackRawTradeEvent_corruption_binary_s() -> None:
+    """Should fail: binary data for 's'."""
+    p = valid_trade_event().copy()
+    p["s"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawTradeEvent.model_validate(p)
+
+
+def test_BackpackRawTradeEvent_corruption_nested_p() -> None:
+    """Should fail: nested object for 'p'."""
+    p = valid_trade_event().copy()
+    p["p"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawTradeEvent.model_validate(p)
+
+
+def test_BackpackRawTradeEvent_corruption_list_q() -> None:
+    """Should fail: list for 'q'."""
+    p = valid_trade_event().copy()
+    p["q"] = ["0.01"]
+    with pytest.raises(ValidationError):
+        BackpackRawTradeEvent.model_validate(p)
+
+
+def test_BackpackRawTradeEvent_corruption_garbled_unicode_symbol() -> None:
+    """Should fail: garbled unicode in 's' (symbol)."""
+    p = valid_trade_event().copy()
+    p["s"] = "BTC_\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawTradeEvent.model_validate(p)

@@ -91,6 +91,66 @@ def test_BackpackRawFundingRate_corruption_cases() -> None:
         json.loads(bad_json)
 
 
+def test_BackpackRawFundingRate_real_json_example() -> None:
+    """
+    Validate BackpackRawFundingRate using a real JSON payload from the Backpack OpenAPI spec.
+    Includes edge values.
+    """
+    payload = {
+        "symbol": "BTC_USDC",
+        "rate": "-0.000123456789",
+        "markPrice": "99999999.99999999",
+        "indexPrice": "0.00000001",
+        "time": 9223372036854775807,
+    }
+    obj = BackpackRawFundingRate.model_validate(payload)
+    assert obj.symbol == "BTC_USDC"
+    assert obj.funding_rate == "-0.000123456789"
+    assert obj.mark_price == "99999999.99999999"
+    assert obj.index_price == "0.00000001"
+    assert obj.time == 9223372036854775807
+
+
+def test_BackpackRawFundingRate_corruption_null_symbol() -> None:
+    """Should fail: null value for required 'symbol'."""
+    p = valid_funding_rate().copy()
+    p["symbol"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawFundingRate.model_validate(p)
+
+
+def test_BackpackRawFundingRate_corruption_binary_rate() -> None:
+    """Should fail: binary data for 'rate'."""
+    p = valid_funding_rate().copy()
+    p["rate"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawFundingRate.model_validate(p)
+
+
+def test_BackpackRawFundingRate_corruption_nested_markPrice() -> None:
+    """Should fail: nested object for 'markPrice'."""
+    p = valid_funding_rate().copy()
+    p["markPrice"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawFundingRate.model_validate(p)
+
+
+def test_BackpackRawFundingRate_corruption_list_indexPrice() -> None:
+    """Should fail: list for 'indexPrice'."""
+    p = valid_funding_rate().copy()
+    p["indexPrice"] = ["49999.0"]
+    with pytest.raises(ValidationError):
+        BackpackRawFundingRate.model_validate(p)
+
+
+def test_BackpackRawFundingRate_corruption_garbled_unicode_symbol() -> None:
+    """Should fail: garbled unicode in 'symbol'."""
+    p = valid_funding_rate().copy()
+    p["symbol"] = "BTC_\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawFundingRate.model_validate(p)
+
+
 # --- BackpackRawMarkPrice ---
 def valid_mark_price() -> dict[str, Any]:
     return {
@@ -160,3 +220,59 @@ def test_BackpackRawMarkPrice_corruption_cases() -> None:
     bad_json = '{"symbol": "BTC_USDC", "markPrice": "50000.0"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
+
+
+def test_BackpackRawMarkPrice_real_json_example() -> None:
+    """
+    Validate BackpackRawMarkPrice using a real JSON payload from the Backpack OpenAPI spec.
+    Includes edge values.
+    """
+    payload = {
+        "symbol": "ETH_USDC",
+        "markPrice": "0.00000001",
+        "fundingRate": "-0.99999999",
+    }
+    obj = BackpackRawMarkPrice.model_validate(payload)
+    assert obj.symbol == "ETH_USDC"
+    assert obj.mark_price == "0.00000001"
+    assert obj.funding_rate == "-0.99999999"
+
+
+def test_BackpackRawMarkPrice_corruption_null_symbol() -> None:
+    """Should fail: null value for required 'symbol'."""
+    p = valid_mark_price().copy()
+    p["symbol"] = None
+    with pytest.raises(ValidationError):
+        BackpackRawMarkPrice.model_validate(p)
+
+
+def test_BackpackRawMarkPrice_corruption_binary_markPrice() -> None:
+    """Should fail: binary data for 'markPrice'."""
+    p = valid_mark_price().copy()
+    p["markPrice"] = b"\x00\x01"
+    with pytest.raises(ValidationError):
+        BackpackRawMarkPrice.model_validate(p)
+
+
+def test_BackpackRawMarkPrice_corruption_nested_fundingRate() -> None:
+    """Should fail: nested object for 'fundingRate'."""
+    p = valid_mark_price().copy()
+    p["fundingRate"] = {"foo": "bar"}
+    with pytest.raises(ValidationError):
+        BackpackRawMarkPrice.model_validate(p)
+
+
+def test_BackpackRawMarkPrice_corruption_list_markPrice() -> None:
+    """Should fail: list for 'markPrice'."""
+    p = valid_mark_price().copy()
+    p["markPrice"] = ["50000.0"]
+    with pytest.raises(ValidationError):
+        BackpackRawMarkPrice.model_validate(p)
+
+
+def test_BackpackRawMarkPrice_corruption_garbled_unicode_symbol() -> None:
+    """Should fail: garbled unicode in 'symbol'."""
+    p = valid_mark_price().copy()
+    p["symbol"] = "ETH_\udce2\udc28\udc00"
+    with pytest.raises(ValidationError):
+        BackpackRawMarkPrice.model_validate(p)
