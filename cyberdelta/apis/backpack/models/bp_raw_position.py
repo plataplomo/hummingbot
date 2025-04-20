@@ -190,7 +190,10 @@ class BackpackRawPositionUpdate(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        # Allow None for optional fields
+        if v is None:
+            return None
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -200,13 +203,21 @@ class BackpackRawPositionUpdate(BaseModel):
 
     @field_validator("event_time", mode="before")
     @classmethod
-    def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
+    def validate_timestamp(cls, v: object) -> int | float | str | None:
+        # Allow None for optional timestamp
         if v is None:
+            return None
+        # Accept int or float directly
+        if isinstance(v, (int, float)):
             return v
-        if isinstance(v, int | float):
-            return v
-        # If not int or float, treat as string
-        if v.isdigit():
-            return int(v)
-        # Accept ISO8601, but do not parse here
-        return v
+        # Accept non-empty string that is all digits as int
+        if isinstance(v, str):
+            if not v.strip():
+                raise ValueError("event_time: Input string cannot be empty or just whitespace.")
+            if v.isdigit():
+                return int(v)
+            # Accept ISO8601-like strings (basic check)
+            if "T" in v or "-" in v or ":" in v:
+                return v
+            raise ValueError(f"event_time: Invalid timestamp string '{v}' (not numeric or ISO8601)")
+        raise ValueError(f"event_time: Invalid type {type(v)}, expected int, float, or ISO string")

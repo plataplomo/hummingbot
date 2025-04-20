@@ -76,8 +76,9 @@ def test_SqrtFunction_corruption_cases() -> None:
     # Unicode/control chars
     p = valid_sqrt_function().copy()
     p["base"] = "1.0\x00"
-    obj = SqrtFunction.model_validate(p)
-    assert "1.0" in obj.base
+    # This should now raise a ValidationError, as control chars are not valid in decimal fields
+    with pytest.raises(ValidationError):
+        SqrtFunction.model_validate(p)
     # Truncated JSON
     bad_json = '{"base": "1.0"'
     with pytest.raises(json.JSONDecodeError):
