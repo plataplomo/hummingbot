@@ -2,10 +2,12 @@
 Backpack API Order Models (Spec-Accurate, Full Alias & Validation)
 ------------------------
 
-Strict Pydantic models for validating order, order book, and order update responses from the
-Backpack Exchange API. These models are used for boundary validation and transformation, not for internal business logic.
+Strict Pydantic models for validating order, order book, and order update
+responses from the Backpack Exchange API. These models are used for boundary
+validation and transformation, not for internal business logic.
 
-This version is fully aligned with the Backpack OpenAPI spec and supports all REST and WebSocket field aliases, types, and validation requirements.
+This version is fully aligned with the Backpack OpenAPI spec and supports all
+REST and WebSocket field aliases, types, and validation requirements.
 """
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -13,7 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 class BackpackRawOrder(BaseModel):
     """
-    Pydantic model for a raw order object from `/api/v1/order`, `/api/v1/orders`, or WebSocket order update events.
+    Pydantic model for a raw order object from `/api/v1/order`, `/api/v1/orders`,
+    or WebSocket order update events.
 
     - All REST and WebSocket field names/aliases are supported.
     - Types and optionality are enforced per the Backpack OpenAPI spec.
@@ -31,8 +34,7 @@ class BackpackRawOrder(BaseModel):
         description="ID of related order (e.g., parent, trigger target). Alias: 'I'",
     )
     exchange: str | None = Field(
-        None,
-        description="Name of the exchange (not present in Backpack, set in mapping).",
+        None, description="Name of the exchange (not present in Backpack, set in mapping)."
     )
     symbol: str = Field(..., alias="symbol", description="Trading symbol. Alias: 's'")
     side: str = Field(
@@ -89,17 +91,21 @@ class BackpackRawOrder(BaseModel):
     strategyName: str | None = Field(
         None,
         alias="strategyName",
-        description="Optional strategy identifier (not present in Backpack, set in mapping if needed).",
+        description=(
+            "Optional strategy identifier (not present in Backpack, set in mapping if needed)."
+        ),
     )
     signalId: str | None = Field(
         None,
         alias="signalId",
-        description="Optional signal identifier (not present in Backpack, set in mapping if needed).",
+        description=(
+            "Optional signal identifier (not present in Backpack, set in mapping if needed)."
+        ),
     )
-    trades: list[dict] | None = Field(
+    trades: list[dict[str, object]] | None = Field(
         None,
         alias="trades",
-        description="List of associated trade fills (not present in Backpack order response).",
+        description=("List of associated trade fills (not present in Backpack order response)."),
     )
 
     # --- WebSocket/REST field aliases mapping ---
