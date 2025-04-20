@@ -10,6 +10,8 @@ This version is fully aligned with the Backpack OpenAPI spec and supports all
 REST and WebSocket field aliases, types, and validation requirements.
 """
 
+from decimal import Decimal, InvalidOperation
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
@@ -134,15 +136,46 @@ class BackpackRawOrder(BaseModel):
         if v is None:
             return v
         try:
-            str(v)
-        except Exception as err:
-            raise ValueError("Must be a string representing a decimal") from err
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
         return v
 
-    @field_validator("side", "orderType", "status", mode="before")
+    @field_validator("side", mode="before")
     @classmethod
-    def validate_enum_str(cls, v: str) -> str:
-        if not v or not v.strip():
+    def validate_side_enum(cls, v: str | None) -> str | None:
+        allowed = {"buy", "sell", "Bid", "Ask"}  # Update as per spec
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid side: {v}")
+        return v
+
+    @field_validator("orderType", mode="before")
+    @classmethod
+    def validate_order_type_enum(cls, v: str | None) -> str | None:
+        allowed = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}  # Update as per spec
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid orderType: {v}")
+        return v
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status_enum(cls, v: str | None) -> str | None:
+        allowed = {
+            "NEW",
+            "FILLED",
+            "CANCELLED",
+            "EXPIRED",
+            "REJECTED",
+            "PARTIALLY_FILLED",
+        }  # Update as per spec
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid status: {v}")
+        return v
+
+    @field_validator("symbol", "id", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
             raise ValueError("Must be a non-empty string")
         return v
 
@@ -151,6 +184,12 @@ class BackpackRawOrder(BaseModel):
     def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
         if v is None:
             return v
+        if isinstance(v, int | float):
+            return v
+        # If not int or float, treat as string
+        if v.isdigit():
+            return int(v)
+        # Accept ISO8601, but do not parse here
         return v
 
 
@@ -173,6 +212,34 @@ class BackpackRawOrderBook(BaseModel):
     asks: list[list[str]] = Field(..., alias="asks")
     time: int | str | float | None = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("bids", "asks", mode="before")
+    @classmethod
+    def validate_bids_asks(cls, v: list[list[str]]) -> list[list[str]]:
+        for entry in v:
+            if not (len(entry) == 2 and all(x for x in entry)):
+                raise ValueError("Each bid/ask must be a [str, str] pair")
+        return v
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
+        if v is None:
+            return v
+        if isinstance(v, int | float):
+            return v
+        # If not int or float, treat as string
+        if v.isdigit():
+            return int(v)
+        # Accept ISO8601, but do not parse here
+        return v
 
 
 class BackpackRawOrderUpdate(BaseModel):
@@ -206,3 +273,65 @@ class BackpackRawOrderUpdate(BaseModel):
     price: str | None = Field(None, alias="p")
     order_status: str = Field(..., alias="X")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("event_type", "symbol", "side", "order_type", "order_status", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("side", mode="before")
+    @classmethod
+    def validate_side_enum(cls, v: str | None) -> str | None:
+        allowed = {"Bid", "Ask"}  # Update as per spec
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid side: {v}")
+        return v
+
+    @field_validator("order_type", mode="before")
+    @classmethod
+    def validate_order_type_enum(cls, v: str | None) -> str | None:
+        allowed = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}  # Update as per spec
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid order_type: {v}")
+        return v
+
+    @field_validator("order_status", mode="before")
+    @classmethod
+    def validate_status_enum(cls, v: str | None) -> str | None:
+        allowed = {
+            "NEW",
+            "FILLED",
+            "CANCELLED",
+            "EXPIRED",
+            "REJECTED",
+            "PARTIALLY_FILLED",
+        }  # Update as per spec
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid order_status: {v}")
+        return v
+
+    @field_validator("quantity", "price", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
+
+    @field_validator("event_time", mode="before")
+    @classmethod
+    def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
+        if v is None:
+            return v
+        if isinstance(v, int | float):
+            return v
+        # If not int or float, treat as string
+        if v.isdigit():
+            return int(v)
+        # Accept ISO8601, but do not parse here
+        return v

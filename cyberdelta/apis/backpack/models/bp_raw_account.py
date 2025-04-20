@@ -6,7 +6,9 @@ Strict Pydantic models for validating account and balance responses from the Bac
 These models are used for boundary validation and transformation, not for internal business logic.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from decimal import Decimal, InvalidOperation
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BackpackRawAccount(BaseModel):
@@ -27,6 +29,21 @@ class BackpackRawAccount(BaseModel):
     status: str = Field(..., alias="status")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("id", "email", "status", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status_enum(cls, v: str | None) -> str | None:
+        allowed = {"active", "suspended", "pending"}  # Update as per spec
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid status: {v}")
+        return v
+
 
 class BackpackRawBalance(BaseModel):
     """
@@ -45,3 +62,21 @@ class BackpackRawBalance(BaseModel):
     available: str = Field(..., alias="available")
     total: str = Field(..., alias="total")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("asset", "available", "total", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("available", "total", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v

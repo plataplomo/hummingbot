@@ -2,7 +2,9 @@
 Backpack API Market, Ticker, and Open Interest Models
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from decimal import Decimal, InvalidOperation
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BackpackRawMarket(BaseModel):
@@ -21,6 +23,13 @@ class BackpackRawMarket(BaseModel):
     base_asset: str = Field(..., alias="baseAsset")
     quote_asset: str = Field(..., alias="quoteAsset")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("symbol", "base_asset", "quote_asset", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
 
 
 class BackpackRawTicker(BaseModel):
@@ -46,6 +55,37 @@ class BackpackRawTicker(BaseModel):
     time: int | str | float | None = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("price", "bid", "ask", "volume", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
+        if v is None:
+            return v
+        if isinstance(v, int | float):
+            return v
+        # If not int or float, treat as string
+        if v.isdigit():
+            return int(v)
+        # Accept ISO8601, but do not parse here
+        return v
+
 
 class BackpackRawOpenInterest(BaseModel):
     """
@@ -61,3 +101,21 @@ class BackpackRawOpenInterest(BaseModel):
     symbol: str = Field(..., alias="symbol")
     open_interest: str = Field(..., alias="openInterest")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("symbol", "open_interest", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("open_interest", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v

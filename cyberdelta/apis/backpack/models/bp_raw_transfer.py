@@ -8,7 +8,9 @@ These models are used for boundary validation and transformation, not for intern
 logic.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from decimal import Decimal, InvalidOperation
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BackpackRawWithdrawal(BaseModel):
@@ -31,6 +33,32 @@ class BackpackRawWithdrawal(BaseModel):
     status: str = Field(..., alias="status")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("id", "asset", "amount", "status", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status_enum(cls, v: str | None) -> str | None:
+        allowed = {"pending", "completed", "failed", "cancelled"}  # Update as per spec
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid status: {v}")
+        return v
+
 
 class BackpackRawDeposit(BaseModel):
     """
@@ -52,6 +80,32 @@ class BackpackRawDeposit(BaseModel):
     status: str = Field(..., alias="status")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("id", "asset", "amount", "status", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status_enum(cls, v: str | None) -> str | None:
+        allowed = {"pending", "completed", "failed", "cancelled"}  # Update as per spec
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid status: {v}")
+        return v
+
 
 class BackpackRawLiquidation(BaseModel):
     """
@@ -72,3 +126,29 @@ class BackpackRawLiquidation(BaseModel):
     quantity: str = Field(..., alias="quantity")
     side: str = Field(..., alias="side")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("symbol", "price", "quantity", "side", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("price", "quantity", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
+
+    @field_validator("side", mode="before")
+    @classmethod
+    def validate_side_enum(cls, v: str | None) -> str | None:
+        allowed = {"buy", "sell"}  # Update as per spec
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid side: {v}")
+        return v

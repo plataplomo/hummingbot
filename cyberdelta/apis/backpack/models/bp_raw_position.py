@@ -9,7 +9,9 @@ Backpack Exchange API. These models are for boundary validation only:
 - Used only for parsing/validating raw API responses
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from decimal import Decimal, InvalidOperation
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SqrtFunction(BaseModel):
@@ -21,6 +23,17 @@ class SqrtFunction(BaseModel):
     factor: str = Field(..., alias="factor")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("base", "factor", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
+
 
 class PositionImfFunction(BaseModel):
     """
@@ -31,6 +44,25 @@ class PositionImfFunction(BaseModel):
     base: str = Field(..., alias="base")
     factor: str = Field(..., alias="factor")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type_enum(cls, v: str | None) -> str | None:
+        allowed = {"sqrt"}
+        if v is None or v not in allowed:
+            raise ValueError(f"Invalid type: {v}")
+        return v
+
+    @field_validator("base", "factor", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
 
 
 class BackpackRawPosition(BaseModel):
@@ -61,6 +93,40 @@ class BackpackRawPosition(BaseModel):
     position_id: str = Field(..., alias="positionId")
     cumulative_interest: str = Field(..., alias="cumulativeInterest")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator(
+        "break_even_price",
+        "entry_price",
+        "est_liquidation_price",
+        "imf",
+        "mark_price",
+        "mmf",
+        "net_cost",
+        "net_quantity",
+        "net_exposure_quantity",
+        "net_exposure_notional",
+        "pnl_realized",
+        "pnl_unrealized",
+        "cumulative_funding_payment",
+        "cumulative_interest",
+        mode="before",
+    )
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
+
+    @field_validator("symbol", "position_id", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
 
 
 class BackpackRawPositionUpdate(BaseModel):
@@ -99,3 +165,45 @@ class BackpackRawPositionUpdate(BaseModel):
     net_exposure_quantity: str | None = Field(None, alias="Q")
     net_exposure_notional: str | None = Field(None, alias="n")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("event_type", "symbol", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator(
+        "break_event_price",
+        "entry_price",
+        "liquidation_price",
+        "initial_margin_fraction",
+        "mark_price",
+        "maintenance_margin_fraction",
+        "net_quantity",
+        "net_exposure_quantity",
+        "net_exposure_notional",
+        mode="before",
+    )
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
+
+    @field_validator("event_time", mode="before")
+    @classmethod
+    def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
+        if v is None:
+            return v
+        if isinstance(v, int | float):
+            return v
+        # If not int or float, treat as string
+        if v.isdigit():
+            return int(v)
+        # Accept ISO8601, but do not parse here
+        return v

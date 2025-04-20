@@ -8,7 +8,9 @@ These models are used for boundary validation and transformation, not for intern
 logic.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from decimal import Decimal, InvalidOperation
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BackpackRawTrade(BaseModel):
@@ -34,6 +36,37 @@ class BackpackRawTrade(BaseModel):
     quantity: str = Field(..., alias="qty")
     time: int | str | float | None = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("id", "order_id", "symbol", "price", "quantity", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("price", "quantity", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
+        if v is None:
+            return v
+        if isinstance(v, int | float):
+            return v
+        # If not int or float, treat as string
+        if v.isdigit():
+            return int(v)
+        # Accept ISO8601, but do not parse here
+        return v
 
 
 class BackpackRawTradeEvent(BaseModel):
@@ -67,3 +100,43 @@ class BackpackRawTradeEvent(BaseModel):
     engine_timestamp: int | str | float | None = Field(..., alias="T")
     is_buyer_the_maker: bool = Field(..., alias="m")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator(
+        "event_type",
+        "symbol",
+        "price",
+        "quantity",
+        "buyer_order_id",
+        "seller_order_id",
+        "trade_id",
+        mode="before",
+    )
+    @classmethod
+    def validate_non_empty_str(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            raise ValueError("Must be a non-empty string")
+        return v
+
+    @field_validator("price", "quantity", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            Decimal(v)
+        except (InvalidOperation, TypeError) as err:
+            raise ValueError("Must be a string representing a decimal value") from err
+        return v
+
+    @field_validator("event_time", "engine_timestamp", mode="before")
+    @classmethod
+    def validate_timestamp(cls, v: int | float | str | None) -> int | float | str | None:
+        if v is None:
+            return v
+        if isinstance(v, int | float):
+            return v
+        # If not int or float, treat as string
+        if v.isdigit():
+            return int(v)
+        # Accept ISO8601, but do not parse here
+        return v
