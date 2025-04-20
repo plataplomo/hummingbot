@@ -12,7 +12,7 @@ REST and WebSocket field aliases, types, and validation requirements.
 
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 
 class BackpackRawOrder(BaseModel):
@@ -218,6 +218,176 @@ class BackpackRawOrder(BaseModel):
         # Accept ISO8601, but do not parse here
         return v
 
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status_string_and_enum(cls, v: str, info: ValidationInfo) -> str:
+        """
+        Validates that status is a non-empty string and a valid enum value.
+        Args:
+            v: The value to validate (should be a string).
+            info: Pydantic ValidationInfo for context.
+        Returns:
+            The validated string value.
+        Raises:
+            ValueError: If the value is not a valid enum value.
+        """
+        field_name = info.field_name or "status"
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        allowed_values = {
+            "NEW",
+            "PARTIALLY_FILLED",
+            "FILLED",
+            "CANCELED",
+            "REJECTED",
+            "EXPIRED",
+            "OPEN",
+            "FAILED",
+            "UNKNOWN",
+        }
+        if v not in allowed_values:
+            raise ValueError(f"{field_name}: Invalid value '{v}'. Expected one of {allowed_values}")
+        try:
+            v.encode("utf-8", "strict")
+        except Exception as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+        return v
+
+    @field_validator("side", mode="before")
+    @classmethod
+    def validate_side_string_and_enum(cls, v: str, info: ValidationInfo) -> str:
+        """
+        Validates that side is a non-empty string and a valid enum value.
+        Args:
+            v: The value to validate (should be a string).
+            info: Pydantic ValidationInfo for context.
+        Returns:
+            The validated string value.
+        Raises:
+            ValueError: If the value is not a valid enum value.
+        """
+        field_name = info.field_name or "side"
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        allowed_values = {"buy", "sell", "Bid", "Ask"}
+        if v not in allowed_values:
+            raise ValueError(f"{field_name}: Invalid value '{v}'. Expected one of {allowed_values}")
+        try:
+            v.encode("utf-8", "strict")
+        except Exception as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+        return v
+
+    @field_validator("orderType", mode="before")
+    @classmethod
+    def validate_order_type_string_and_enum(cls, v: str, info: ValidationInfo) -> str:
+        """
+        Validates that orderType is a non-empty string and a valid enum value.
+        Args:
+            v: The value to validate (should be a string).
+            info: Pydantic ValidationInfo for context.
+        Returns:
+            The validated string value.
+        Raises:
+            ValueError: If the value is not a valid enum value.
+        """
+        field_name = info.field_name or "orderType"
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        allowed_values = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}
+        if v not in allowed_values:
+            raise ValueError(f"{field_name}: Invalid value '{v}'. Expected one of {allowed_values}")
+        try:
+            v.encode("utf-8", "strict")
+        except Exception as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+        return v
+
+    @field_validator(
+        "quantity",
+        "executedQuantity",
+        "executedQuoteQuantity",
+        "price",
+        "triggerPrice",
+        "avgFillPrice",
+        mode="before",
+    )
+    @classmethod
+    def validate_decimal_string_format(cls, v: str, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal.
+        Args:
+            v: The value to validate (should be a string).
+            info: Pydantic ValidationInfo for context.
+        Returns:
+            The validated string value.
+        Raises:
+            ValueError: If the value is not a valid, finite decimal string.
+        """
+        field_name = info.field_name or "field"
+        if not v.strip():
+            raise ValueError(
+                f"{field_name}: Input decimal string cannot be empty or just whitespace."
+            )
+        dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
+        assert dec_val is not None  # For type checkers; guaranteed by allow_none=False
+        if not dec_val.is_finite():
+            raise ValueError(
+                f"{field_name}: Input must be a finite number, got '{v}' (parsed as {dec_val})."
+            )
+        return v
+
+    @field_validator("symbol", "id", mode="before")
+    @classmethod
+    def validate_required_string(cls, v: str, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty string of max 64 chars and valid UTF-8.
+        Args:
+            v: The value to validate (should be a string).
+            info: Pydantic ValidationInfo for context.
+        Returns:
+            The validated string value.
+        Raises:
+            ValueError: If the value is not a valid string or exceeds max length.
+        """
+        field_name = info.field_name or "field"
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        max_len = 64
+        if len(v) > max_len:
+            raise ValueError(f"{field_name}: String value too long (max {max_len} chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except Exception as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+        return v
+
+    @field_validator("createdAt", "updatedAt", "triggeredAt", mode="before")
+    @classmethod
+    def validate_timestamp_format(
+        cls, v: int | float | str | None, info: ValidationInfo
+    ) -> int | float | str | None:
+        """
+        Validates that the value is an int, float, or non-empty string (ISO8601 allowed).
+        Args:
+            v: The value to validate (int, float, str, or None).
+            info: Pydantic ValidationInfo for context.
+        Returns:
+            The validated timestamp value.
+        Raises:
+            ValueError: If the value is not a valid timestamp type.
+        """
+        field_name = info.field_name or "timestamp"
+        if v is None:
+            return v
+        if isinstance(v, int | float):
+            return v
+        if isinstance(v, str):
+            if not v.strip():
+                raise ValueError(f"{field_name}: Timestamp string cannot be empty")
+            return v
+        raise ValueError(f"{field_name}: Invalid timestamp type {type(v)}")
+
 
 class BackpackRawOrderBook(BaseModel):
     """
@@ -241,8 +411,8 @@ class BackpackRawOrderBook(BaseModel):
 
     @field_validator("symbol", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
+    def validate_non_empty_str(cls, v: str) -> str:
+        if not v.strip():
             raise ValueError("Must be a non-empty string")
         return v
 
@@ -261,10 +431,9 @@ class BackpackRawOrderBook(BaseModel):
             return v
         if isinstance(v, int | float):
             return v
-        # If not int or float, treat as string
-        if v.isdigit():
-            return int(v)
-        # Accept ISO8601, but do not parse here
+        # v is str by type hint if not int or float
+        if not v.strip():
+            raise ValueError("Timestamp string cannot be empty")
         return v
 
 
@@ -302,8 +471,8 @@ class BackpackRawOrderUpdate(BaseModel):
 
     @field_validator("event_type", "symbol", "side", "order_type", "order_status", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
+    def validate_non_empty_str(cls, v: str) -> str:
+        if not v.strip():
             raise ValueError("Must be a non-empty string")
         return v
 
@@ -362,8 +531,60 @@ class BackpackRawOrderUpdate(BaseModel):
             return v
         if isinstance(v, int | float):
             return v
-        # If not int or float, treat as string
-        if v.isdigit():
-            return int(v)
-        # Accept ISO8601, but do not parse here
+        # v is str by type hint if not int or float
+        if not v.strip():
+            raise ValueError("Timestamp string cannot be empty")
         return v
+
+
+# Utility for decimal parsing
+
+
+def parse_decimal_value(
+    v: str | None, allow_none: bool = False, field_name: str = "field"
+) -> Decimal | None:
+    """
+    Parses a string as a Decimal. If allow_none is True, returns None for None input.
+    Otherwise, always returns Decimal or raises ValueError.
+    Never returns None if allow_none is False.
+
+    Args:
+        v: The value to parse (string or None).
+        allow_none: If True, allows None and returns None. If False, raises on None.
+        field_name: Name of the field for error messages.
+    Returns:
+        Decimal or None (if allow_none and v is None).
+    Raises:
+        ValueError: If input is invalid or cannot be parsed as Decimal.
+    """
+    if v is None:
+        if allow_none:
+            return None
+        raise ValueError(f"{field_name}: Value is required and cannot be None")
+    if not v.strip():
+        raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+    try:
+        dec_val = Decimal(v)
+    except Exception as e:
+        raise ValueError(f"{field_name}: Could not parse decimal from '{v}': {e}") from e
+    return dec_val
+
+
+def parse_datetime_utc(v: int | float | str, field_name: str = "field") -> int | float | str:
+    """
+    Accepts int, float, or non-empty string as a timestamp. Raises ValueError otherwise.
+
+    Args:
+        v: The value to parse (int, float, or str).
+        field_name: Name of the field for error messages.
+    Returns:
+        The parsed timestamp value.
+    Raises:
+        ValueError: If input is not a valid timestamp type.
+    """
+    if isinstance(v, int | float):
+        return v
+    # v is str by type hint if not int or float
+    if not v.strip():
+        raise ValueError(f"{field_name}: Timestamp string cannot be empty")
+    return v
