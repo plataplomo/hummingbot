@@ -1,16 +1,17 @@
 """
-CyberDeltaEngine: Hyperliquid API Raw Models
--------------------------------------------
+CyberDeltaEngine: Hyperliquid API Raw Models (User Fills Group)
+--------------------------------------------------------------
 
 This module defines Pydantic models for validating the *raw* structure of all major
-Hyperliquid Exchange API (REST and WebSocket) responses.
+Hyperliquid Exchange API (REST and WebSocket) responses related to user fills.
 
+- All models are defined locally in this file to avoid cross-file imports between model files.
 - Each `HyperliquidRaw*` model mirrors the official Hyperliquid OpenAPI spec, SDK,
   or WebSocket event payloads as closely as possible.
 - All fields use `Field(..., alias=...)` to match the exact key names in Hyperliquid's JSON.
 - Timestamp fields are typed as `int | str | float | None` to accept ISO8601 strings, epoch
   ms/µs/seconds, or null, per the spec.
-- All models use `extra=\"forbid\"` to ensure strict schema validation—any unexpected field
+- All models use `extra="forbid"` to ensure strict schema validation—any unexpected field
   will raise a validation error.
 - These models are the *first step* in the "validate first, then transform" pattern:
   validate external data at the boundary, then map to internal models with type conversions
@@ -23,8 +24,8 @@ Hyperliquid Exchange API (REST and WebSocket) responses.
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
 Usage:
-    raw = HyperliquidRawOrder.model_validate(api_response_dict)
-    # ...then transform to internal Order model
+    raw = HyperliquidRawUserFill.model_validate(api_response_dict)
+    # ...then transform to internal fill model
 
 Do not use these models for internal business logic—use your core models for that.
 """
@@ -32,6 +33,7 @@ Do not use these models for internal business logic—use your core models for t
 from pydantic import BaseModel, ConfigDict, Field
 
 
+# --- Core User Fill Model ---
 class HyperliquidRawUserFill(BaseModel):
     """
     User fill/trade details from userFills response.
@@ -66,4 +68,30 @@ class HyperliquidRawUserFill(BaseModel):
     is_maker: bool = Field(..., alias="isMaker")
     liquidation_mark_px: str | None = Field(None, alias="liquidationMarkPx")
     cloid: str | None = Field(None, alias="cloid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+# --- Batch/Array Response ---
+class HyperliquidRawUserFillsResponse(BaseModel):
+    """
+    Array of user fills from userFills response.
+    Fields:
+        __root__: List of HyperliquidRawUserFill
+    """
+
+    __root__: list[HyperliquidRawUserFill]
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+# --- Request Payload ---
+class HyperliquidRawUserFillsRequestPayload(BaseModel):
+    """
+    Request payload for 'userFills' info type.
+    Fields:
+        type: Must be 'userFills'
+        user: Wallet address (str)
+    """
+
+    type: str = Field("userFills", alias="type")
+    user: str = Field(..., alias="user")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")

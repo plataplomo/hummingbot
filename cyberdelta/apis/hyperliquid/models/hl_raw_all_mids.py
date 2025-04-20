@@ -1,10 +1,11 @@
 """
-CyberDeltaEngine: Hyperliquid API Raw Models
--------------------------------------------
+CyberDeltaEngine: Hyperliquid API Raw Models (AllMids Group)
+-----------------------------------------------------------
 
 This module defines Pydantic models for validating the *raw* structure of all major
-Hyperliquid Exchange API (REST and WebSocket) responses.
+Hyperliquid Exchange API (REST and WebSocket) responses related to the 'allMids' endpoint.
 
+- All models are defined locally in this file to avoid cross-file imports between model files.
 - Each `HyperliquidRaw*` model mirrors the official Hyperliquid OpenAPI spec, SDK,
   or WebSocket event payloads as closely as possible.
 - All fields use `Field(..., alias=...)` to match the exact key names in Hyperliquid's JSON.
@@ -23,8 +24,8 @@ Hyperliquid Exchange API (REST and WebSocket) responses.
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
 Usage:
-    raw = HyperliquidRawOrder.model_validate(api_response_dict)
-    # ...then transform to internal Order model
+    raw = HyperliquidRawAllMids.model_validate(api_response_dict)
+    # ...then transform to internal model
 
 Do not use these models for internal business logic—use your core models for that.
 """
@@ -32,18 +33,23 @@ Do not use these models for internal business logic—use your core models for t
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class HyperliquidRawMarginSummary(BaseModel):
+class HyperliquidRawAllMidsRequestPayload(BaseModel):
     """
-    Margin summary for user state.
+    Request payload for 'allMids' info type.
     Fields:
-        account_value: Account value (str)
-        total_margin_used: Total margin used (str)
-        total_ntl_pos: Total notional position (str)
-        total_raw_usd: Total raw USD (str)
+        type: Must be 'allMids'
     """
 
-    account_value: str = Field(..., alias="accountValue")
-    total_margin_used: str = Field(..., alias="totalMarginUsed")
-    total_ntl_pos: str = Field(..., alias="totalNtlPos")
-    total_raw_usd: str = Field(..., alias="totalRawUsd")
+    type: str = Field("allMids", alias="type")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class HyperliquidRawAllMids(BaseModel):
+    """
+    AllMids response: mapping of asset symbol to mid price (as string).
+    Fields:
+        __root__: Dict[str, str]
+    """
+
+    __root__: dict[str, str]
     model_config = ConfigDict(populate_by_name=True, extra="forbid")

@@ -1,15 +1,14 @@
 """
-CyberDeltaEngine: Hyperliquid API Raw Models
--------------------------------------------
+CyberDeltaEngine: Hyperliquid API Raw Models (API Error Group)
+-------------------------------------------------------------
 
 This module defines Pydantic models for validating the *raw* structure of all major
-Hyperliquid Exchange API (REST and WebSocket) responses.
+Hyperliquid Exchange API (REST and WebSocket) error responses.
 
+- All models are defined locally in this file to avoid cross-file imports between model files.
 - Each `HyperliquidRaw*` model mirrors the official Hyperliquid OpenAPI spec, SDK,
   or WebSocket event payloads as closely as possible.
 - All fields use `Field(..., alias=...)` to match the exact key names in Hyperliquid's JSON.
-- Timestamp fields are typed as `int | str | float | None` to accept ISO8601 strings, epoch
-  ms/µs/seconds, or null, per the spec.
 - All models use `extra=\"forbid\"` to ensure strict schema validation—any unexpected field
   will raise a validation error.
 - These models are the *first step* in the "validate first, then transform" pattern:
@@ -23,8 +22,8 @@ Hyperliquid Exchange API (REST and WebSocket) responses.
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
 Usage:
-    raw = HyperliquidRawOrder.model_validate(api_response_dict)
-    # ...then transform to internal Order model
+    raw = HyperliquidRawApiError.model_validate(api_response_dict)
+    # ...then transform to internal error model
 
 Do not use these models for internal business logic—use your core models for that.
 """
@@ -32,12 +31,13 @@ Do not use these models for internal business logic—use your core models for t
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class HyperliquidRawMetaRequestPayload(BaseModel):
+class HyperliquidRawApiError(BaseModel):
     """
-    Request payload for 'meta' info type.
+    Raw error response from Hyperliquid API.
     Fields:
-        type: Must be 'meta'
+        error: Error message string
+    Strictly validated (extra fields forbidden).
     """
 
-    type: str = Field("meta", alias="type")
+    error: str = Field(..., alias="error")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
