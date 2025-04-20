@@ -2,30 +2,35 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (Meta & Asset Context Group)
 -----------------------------------------------------------------------
 
-This module defines Pydantic models for validating the *raw* structure of all major
-Hyperliquid Exchange API (REST and WebSocket) responses related to meta information,
-asset context, and related request/response payloads.
+This module provides **strict Pydantic models** for validating the *raw* structure of all major
+Hyperliquid Exchange API (REST and WebSocket) responses related to meta information, asset context,
+and related request/response payloads. It is a core part of CyberDeltaEngine's boundary validation
+layer.
 
-- Each `HyperliquidRaw*` model mirrors the official Hyperliquid OpenAPI spec, SDK,
-  or WebSocket event payloads as closely as possible.
-- All fields use `Field(..., alias=...)` to match the exact key names in Hyperliquid's JSON.
-- All models use `extra=\"forbid\"` to ensure strict schema validation—any unexpected field
-  will raise a validation error.
-- These models are the *first step* in the "validate first, then transform" pattern:
-  validate external data at the boundary, then map to internal models with type conversions
-  and business logic.
-- See the Hyperliquid OpenAPI spec, SDK, and docs for field details and allowed values.
+**Scope & Rationale:**
+- Models in this file are used to validate and parse the *external* data structures returned by
+  Hyperliquid's 'meta' and 'metaAndAssetCtxs' endpoints, as well as related request payloads and
+  leverage/margin updates.
+- All models enforce strict schema validation (`extra="forbid"`), ensuring that any unexpected or
+  malformed fields in upstream data are immediately rejected. This is critical for robust, secure,
+  and predictable operation in a financial system.
+- These models are the *first step* in the "validate first, then transform" pattern: validate
+  external data at the boundary, then map to internal business models with type conversions and
+  business logic.
 
-**Authoritative Reference:**
-- Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+**References:**
+- Official Hyperliquid API documentation:
+  https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
-Usage:
+**Usage Example:**
     raw = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(api_response)
     # ...then transform to internal models
 
-Do not use these models for internal business logic—use your core models for that.
+**Note:**
+Do not use these models for internal business logic—use your core models for that. These are for
+boundary validation only.
 """
 
 from typing import Self
@@ -35,12 +40,17 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class HyperliquidRawAssetDefinition(BaseModel):
     """
-    Asset/market definition from 'meta' response.
+    Represents a single asset/market definition as returned in the 'meta' endpoint response.
+
+    This model is used to validate the structure of each asset entry in the Hyperliquid universe.
+    It is a strict mirror of the upstream API schema and should not be used for internal business
+    logic.
+
     Fields:
-        name: Asset symbol (str)
-        sz_decimals: Size decimals (int)
-        max_leverage: Max leverage (int)
-        only_isolated: Only isolated margin allowed (bool)
+        name (str): Asset symbol (e.g., 'ETH', 'BTC').
+        sz_decimals (int): Number of decimals for size/quantity precision.
+        max_leverage (int): Maximum leverage allowed for this asset.
+        only_isolated (bool): If True, only isolated margin is allowed for this asset.
     """
 
     name: str = Field(..., alias="name")
@@ -52,14 +62,20 @@ class HyperliquidRawAssetDefinition(BaseModel):
 
 class HyperliquidRawAssetCtx(BaseModel):
     """
-    Contextual info for an asset from 'metaAndAssetCtxs'.
+    Represents contextual information for a single asset as returned in the 'metaAndAssetCtxs'
+    endpoint.
+
+    This model is used to validate the structure of each asset context entry, which includes
+    funding rates, mark price, previous day price, daily notional volume, and (optionally) impact
+    price.
+
     Fields:
-        name: Asset symbol (str)
-        funding: Hourly funding rate string (str)
-        mark_px: Mark price (str)
-        prev_day_px: Previous day price (str)
-        day_ntl_vlm: Daily notional volume (str)
-        impact_px: Impact price (str | None)
+        name (str): Asset symbol (e.g., 'ETH', 'BTC').
+        funding (str): Hourly funding rate as a string (precise decimal, not float).
+        mark_px (str): Mark price as a string.
+        prev_day_px (str): Previous day's price as a string.
+        day_ntl_vlm (str): Daily notional volume as a string.
+        impact_px (Optional[str]): Impact price as a string, or None if not present.
     """
 
     name: str = Field(..., alias="name")
@@ -73,9 +89,15 @@ class HyperliquidRawAssetCtx(BaseModel):
 
 class HyperliquidRawMetaResponse(BaseModel):
     """
-    Meta response: universe/market metadata.
+    Represents the top-level 'meta' response from the Hyperliquid API, containing the universe of
+    tradable assets.
+
+    This model is used to validate the structure of the 'meta' endpoint response, which is a
+    dictionary with a single key 'universe' mapping to a list of asset definitions.
+
     Fields:
-        universe: List of HyperliquidRawAssetDefinition
+        universe (List[HyperliquidRawAssetDefinition]): List of asset definitions for all tradable
+            markets.
     """
 
     universe: list[HyperliquidRawAssetDefinition] = Field(..., alias="universe")
@@ -84,10 +106,18 @@ class HyperliquidRawMetaResponse(BaseModel):
 
 class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
     """
-    MetaAndAssetCtxs response: strict 2-tuple [meta, assetCtxs].
+    Represents the strict 2-tuple response [meta, assetCtxs] from the 'metaAndAssetCtxs' endpoint.
+
+    This model is used to validate the structure of the 'metaAndAssetCtxs' endpoint response, which
+    is a list containing two elements: the meta response (as a dict) and a list of asset context
+    dicts.
+
     Fields:
-        meta: HyperliquidRawMetaResponse
-        asset_ctxs: List of HyperliquidRawAssetCtx
+        meta (HyperliquidRawMetaResponse): The meta/universe information.
+        asset_ctxs (List[HyperliquidRawAssetCtx]): List of asset context objects for each asset.
+
+    Usage:
+        Use the custom classmethod `model_validate` to parse and validate a raw list response.
     """
 
     meta: HyperliquidRawMetaResponse
@@ -105,8 +135,19 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         by_name: bool | None = None,
     ) -> Self:
         """
-        Validate a MetaAndAssetCtxs response from a list [meta, assetCtxs].
-        Expects obj to be a list of [MetaResponse (dict), List[AssetCtx (dict)]].
+        Validates a MetaAndAssetCtxs response from a list [meta, assetCtxs].
+
+        Args:
+            obj (object): The raw response object, expected to be a list of [MetaResponse (dict),
+                List[AssetCtx (dict)]].
+            strict, from_attributes, context, by_alias, by_name: Passed through to Pydantic
+                validation (optional).
+
+        Returns:
+            HyperliquidRawMetaAndAssetCtxsResponse: The validated and parsed response object.
+
+        Raises:
+            ValueError: If the input structure does not match the expected 2-tuple format.
         """
         if not (isinstance(obj, list) and len(obj) == 2):  # pyright: ignore[reportUnknownArgumentType]
             raise ValueError("Invalid MetaAndAssetCtxs response structure: not a 2-element list")
@@ -128,9 +169,13 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
 
 class HyperliquidRawMetaRequestPayload(BaseModel):
     """
-    Request payload for 'meta' info type.
+    Represents the request payload for the 'meta' info type.
+
+    This model is used to construct and validate the payload sent to the Hyperliquid API when
+    requesting meta/universe information.
+
     Fields:
-        type: Must be 'meta'
+        type (str): Must be 'meta'.
     """
 
     type: str = Field("meta", alias="type")
@@ -139,9 +184,13 @@ class HyperliquidRawMetaRequestPayload(BaseModel):
 
 class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
     """
-    Request payload for 'metaAndAssetCtxs' info type.
+    Represents the request payload for the 'metaAndAssetCtxs' info type.
+
+    This model is used to construct and validate the payload sent to the Hyperliquid API when
+    requesting both meta and asset context information.
+
     Fields:
-        type: Must be 'metaAndAssetCtxs'
+        type (str): Must be 'metaAndAssetCtxs'.
     """
 
     type: str = Field("metaAndAssetCtxs", alias="type")
@@ -150,11 +199,15 @@ class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
 
 class HyperliquidRawUpdateLeverageRequest(BaseModel):
     """
-    Update leverage request payload.
+    Represents the request payload for updating leverage settings for a specific asset.
+
+    This model is used to construct and validate the payload sent to the Hyperliquid API when
+    updating leverage for an asset, specifying whether cross margin is used and the leverage value.
+
     Fields:
-        asset: Asset index (int)
-        is_cross: Is cross margin (bool)
-        leverage: Leverage value (int)
+        asset (int): Asset index (as used by the API).
+        is_cross (bool): True if cross margin is to be used, False for isolated.
+        leverage (int): The leverage value to set.
     """
 
     asset: int = Field(..., alias="asset")
@@ -165,11 +218,15 @@ class HyperliquidRawUpdateLeverageRequest(BaseModel):
 
 class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
     """
-    Update isolated margin request payload.
+    Represents the request payload for updating isolated margin for a specific asset.
+
+    This model is used to construct and validate the payload sent to the Hyperliquid API when
+    updating isolated margin for an asset, specifying buy/sell and the notional amount.
+
     Fields:
-        asset: Asset index (int)
-        is_buy: Is buy (bool)
-        ntli: Amount (int)
+        asset (int): Asset index (as used by the API).
+        is_buy (bool): True if the operation is a buy, False for sell.
+        ntli (int): The notional amount to update.
     """
 
     asset: int = Field(..., alias="asset")

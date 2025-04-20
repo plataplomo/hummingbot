@@ -259,11 +259,32 @@ class TestExecutionHandler:
     ) -> None:
         mock_order = Order(
             client_order_id="HL-Success",
+            exchange_order_id="EX123",
+            related_order_id=None,
+            exchange="hyperliquid",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity_requested=Decimal("0.1"),
             status=OrderStatus.NEW,
+            quantity_requested=Decimal("0.1"),
+            quantity_filled=Decimal("0.0"),
+            executed_quote_quantity=None,
+            price=None,
+            stop_price=None,
+            average_fill_price=None,
+            trigger_by=None,
+            time_in_force=TimeInForce.IOC,
+            reduce_only=False,
+            post_only=False,
+            self_trade_prevention=None,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            expiry_reason=None,
+            origin=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
         )
         mock_hl_api.place_order.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
@@ -286,7 +307,7 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
-        mock_hl_api.place_order.side_effect = APIError("Timeout", APIErrorCode.TIMEOUT)
+        mock_hl_api.place_order.side_effect = APIError("Timeout", APIErrorCode.TIMEOUT.value)
         execution = TradeExecution(sized_opportunity)
         with pytest.raises(APIError):
             await execution_handler._place_order_with_retry(  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
@@ -309,11 +330,32 @@ class TestExecutionHandler:
     ) -> None:
         mock_order = Order(
             client_order_id="HL-Status",
+            exchange_order_id="EX124",
+            related_order_id=None,
+            exchange="hyperliquid",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity_requested=Decimal("0.1"),
             status=OrderStatus.FILLED,
+            quantity_requested=Decimal("0.1"),
+            quantity_filled=Decimal("0.0"),
+            executed_quote_quantity=None,
+            price=None,
+            stop_price=None,
+            average_fill_price=None,
+            trigger_by=None,
+            time_in_force=TimeInForce.IOC,
+            reduce_only=False,
+            post_only=False,
+            self_trade_prevention=None,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            expiry_reason=None,
+            origin=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
         )
         mock_hl_api.get_order_status.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
@@ -331,7 +373,7 @@ class TestExecutionHandler:
         sized_opportunity: SizedOpportunity,
     ) -> None:
         mock_hl_api.get_order_status.side_effect = APIError(
-            "Not Found", APIErrorCode.ORDER_NOT_FOUND
+            "Not Found", APIErrorCode.ORDER_NOT_FOUND.value
         )
         execution = TradeExecution(sized_opportunity)
         result_status = await execution_handler._get_order_status(  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
@@ -365,12 +407,32 @@ class TestExecutionHandler:
 
         mock_comp_order = Order(
             client_order_id="COMP-HL",
+            exchange_order_id="EX125",
+            related_order_id=None,
+            exchange="hyperliquid",
             symbol="BTC-PERP",
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("0.1"),
             status=OrderStatus.NEW,
+            quantity_requested=Decimal("0.1"),
+            quantity_filled=Decimal("0.0"),
+            executed_quote_quantity=None,
             price=comp_price,
+            stop_price=None,
+            average_fill_price=None,
+            trigger_by=None,
+            time_in_force=TimeInForce.IOC,
+            reduce_only=False,
+            post_only=False,
+            self_trade_prevention=None,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            expiry_reason=None,
+            origin=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
         )
         execution = TradeExecution(sized_opportunity)
 
@@ -458,19 +520,61 @@ class TestExecutionHandler:
 
         long_order = Order(
             client_order_id="HL-1",
+            exchange_order_id="EX126",
+            related_order_id=None,
+            exchange="hyperliquid",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity_requested=sized_opportunity.long_size,
             status=OrderStatus.NEW,
+            quantity_requested=sized_opportunity.long_size,
+            quantity_filled=Decimal("0.0"),
+            executed_quote_quantity=None,
+            price=None,
+            stop_price=None,
+            average_fill_price=None,
+            trigger_by=None,
+            time_in_force=TimeInForce.IOC,
+            reduce_only=False,
+            post_only=False,
+            self_trade_prevention=None,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            expiry_reason=None,
+            origin=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
         )
         short_order = Order(
             client_order_id="BP-1",
+            exchange_order_id="EX127",
+            related_order_id=None,
+            exchange="backpack",
             symbol="BTC_USDC",
             side=OrderSide.SELL,
             order_type=OrderType.MARKET,
-            quantity_requested=sized_opportunity.short_size,
             status=OrderStatus.NEW,
+            quantity_requested=sized_opportunity.short_size,
+            quantity_filled=Decimal("0.0"),
+            executed_quote_quantity=None,
+            price=None,
+            stop_price=None,
+            average_fill_price=None,
+            trigger_by=None,
+            time_in_force=TimeInForce.IOC,
+            reduce_only=False,
+            post_only=False,
+            self_trade_prevention=None,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            expiry_reason=None,
+            origin=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
         )
 
         # Added type hints and correct return type
@@ -572,13 +676,34 @@ class TestExecutionHandler:
 
         long_order = Order(
             client_order_id="HL-COMP-L",
+            exchange_order_id="EX128",
+            related_order_id=None,
+            exchange="hyperliquid",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity_requested=sized_opportunity.long_size,
             status=OrderStatus.NEW,
+            quantity_requested=sized_opportunity.long_size,
+            quantity_filled=Decimal("0.0"),
+            executed_quote_quantity=None,
+            price=None,
+            stop_price=None,
+            average_fill_price=None,
+            trigger_by=None,
+            time_in_force=TimeInForce.IOC,
+            reduce_only=False,
+            post_only=False,
+            self_trade_prevention=None,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            expiry_reason=None,
+            origin=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
         )
-        short_order_failure = APIError("Insufficient funds", APIErrorCode.INSUFFICIENT_FUNDS)
+        short_order_failure = APIError("Insufficient funds", APIErrorCode.INSUFFICIENT_FUNDS.value)
 
         # Calculate comp_price with None checks
         comp_price: Decimal | None = None
@@ -596,12 +721,32 @@ class TestExecutionHandler:
         )
         comp_order = Order(
             client_order_id="HL-COMP-C",
+            exchange_order_id="EX129",
+            related_order_id=None,
+            exchange="hyperliquid",
             symbol="BTC-PERP",
             side=OrderSide.SELL,
             order_type=comp_order_type,
-            price=comp_price,
-            quantity_requested=sized_opportunity.long_size,
             status=OrderStatus.NEW,
+            quantity_requested=sized_opportunity.long_size,
+            quantity_filled=Decimal("0.0"),
+            executed_quote_quantity=None,
+            price=comp_price,
+            stop_price=None,
+            average_fill_price=None,
+            trigger_by=None,
+            time_in_force=TimeInForce.IOC,
+            reduce_only=False,
+            post_only=False,
+            self_trade_prevention=None,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            expiry_reason=None,
+            origin=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
         )
 
         # Add type hints and correct return type

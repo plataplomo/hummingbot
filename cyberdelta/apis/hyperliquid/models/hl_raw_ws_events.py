@@ -2,30 +2,34 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (WebSocket Events Group)
 --------------------------------------------------------------------
 
-This module defines Pydantic models for validating the *raw* structure of all major
-Hyperliquid Exchange WebSocket event payloads.
+This module provides strict Pydantic models for validating the *raw* structure of all major
+Hyperliquid Exchange WebSocket event payloads. It is a core part of CyberDeltaEngine's boundary
+validation layer for real-time data.
 
-- All models are defined locally in this file to avoid cross-file imports between model files.
-- Each `HyperliquidRaw*` model mirrors the official Hyperliquid OpenAPI spec, SDK,
-  or WebSocket event payloads as closely as possible.
-- All fields use `Field(..., alias=...)` to match the exact key names in Hyperliquid's JSON.
-- All models use `extra=\"forbid\"` to ensure strict schema validation—any unexpected field
-  will raise a validation error.
-- These models are the *first step* in the "validate first, then transform" pattern:
-  validate external data at the boundary, then map to internal models with type conversions
-  and business logic.
-- See the Hyperliquid OpenAPI spec, SDK, and docs for field details and allowed values.
+**Scope & Rationale:**
+- Models in this file are used to validate and parse the *external* data structures received from
+  Hyperliquid's WebSocket channels, including user fills, order book updates, trades, and position
+  updates.
+- All models enforce strict schema validation (`extra="forbid"`), ensuring that any unexpected or
+  malformed fields in upstream data are immediately rejected. This is critical for robust, secure,
+  and predictable operation in a financial system.
+- These models are the *first step* in the "validate first, then transform" pattern: validate
+  external data at the boundary, then map to internal business models with type conversions and
+  business logic.
 
-**Authoritative Reference:**
-- Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+**References:**
+- Official Hyperliquid API documentation:
+  https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
-Usage:
+**Usage Example:**
     raw = HyperliquidRawWsFillEvent.model_validate(ws_event_dict)
     # ...then transform to internal event model
 
-Do not use these models for internal business logic—use your core models for that.
+**Note:**
+Do not use these models for internal business logic—use your core models for that. These are for
+boundary validation only.
 """
 
 from typing import Any
@@ -35,17 +39,23 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class HyperliquidRawWsFillEvent(BaseModel):
     """
-    WebSocket fill event (user fill/execution).
+    Represents a WebSocket fill event (user fill/execution) as received from the Hyperliquid user
+    channel.
+
+    This model is used to validate the structure of fill events, which indicate a user's order has
+    been executed. It is a strict mirror of the upstream API schema and should not be used for
+    internal business logic.
+
     Fields:
-        coin: Asset symbol (str)
-        px: Price (str)
-        sz: Size (str)
-        side: Side ('B' or 'A')
-        time: Timestamp (int)
-        hash: Trade hash (str)
-        oid: Order ID (int)
-        cloid: Client order ID (str | None)
-        is_maker: Is maker (bool)
+        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
+        px (str): Price at which the fill occurred.
+        sz (str): Size of the fill.
+        side (str): Side of the trade ('B' for buy, 'A' for ask/sell).
+        time (int): Timestamp of the fill event (epoch ms).
+        hash (str): Unique trade hash.
+        oid (int): Order ID associated with the fill.
+        cloid (Optional[str]): Client order ID, if present.
+        is_maker (bool): True if the user was the maker in this trade.
     """
 
     coin: str = Field(..., alias="coin")
@@ -62,11 +72,15 @@ class HyperliquidRawWsFillEvent(BaseModel):
 
 class HyperliquidRawBookLevel(BaseModel):
     """
-    A single price level in the order book.
+    Represents a single price level in the order book as received via WebSocket updates.
+
+    This model is used to validate the structure of each price level entry in order book update
+    events.
+
     Fields:
-        px: Price (str)
-        sz: Size (str)
-        n: Number of orders (int)
+        px (str): Price at this level.
+        sz (str): Size available at this price level.
+        n (int): Number of orders at this price level.
     """
 
     px: str = Field(..., alias="px")
@@ -77,11 +91,15 @@ class HyperliquidRawBookLevel(BaseModel):
 
 class HyperliquidRawWsBookUpdate(BaseModel):
     """
-    WebSocket order book update event (l2Book channel).
+    Represents a WebSocket order book update event (l2Book channel).
+
+    This model is used to validate the structure of order book update events, which provide the
+    latest bids and asks for an asset.
+
     Fields:
-        coin: Asset symbol (str)
-        levels: [bids, asks] (list[list[HyperliquidRawBookLevel]])
-        time: Snapshot timestamp (int)
+        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
+        levels (List[List[HyperliquidRawBookLevel]]): Nested list of price levels [bids, asks].
+        time (int): Snapshot timestamp (epoch ms).
     """
 
     coin: str = Field(..., alias="coin")
@@ -92,14 +110,19 @@ class HyperliquidRawWsBookUpdate(BaseModel):
 
 class HyperliquidRawWsTradeEvent(BaseModel):
     """
-    WebSocket trade event (trades channel).
+    Represents a WebSocket trade event (trades channel) as received from the Hyperliquid public
+    stream.
+
+    This model is used to validate the structure of public trade events, which provide real-time
+    trade data for an asset.
+
     Fields:
-        coin: Asset symbol (str)
-        px: Price (str)
-        sz: Size (str)
-        side: Side ('B' or 'A')
-        time: Timestamp (int)
-        hash: Trade hash (str)
+        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
+        px (str): Price at which the trade occurred.
+        sz (str): Size of the trade.
+        side (str): Side of the trade ('B' for buy, 'A' for ask/sell).
+        time (int): Timestamp of the trade event (epoch ms).
+        hash (str): Unique trade hash.
     """
 
     coin: str = Field(..., alias="coin")
@@ -113,10 +136,15 @@ class HyperliquidRawWsTradeEvent(BaseModel):
 
 class HyperliquidRawWsOrderUpdate(BaseModel):
     """
-    WebSocket order update event (user channel).
+    Represents a WebSocket order update event (user channel) as received from the Hyperliquid
+    private stream.
+
+    This model is used to validate the structure of order update events, which notify the user of
+    changes to their orders (e.g., open, filled, canceled).
+
     Fields:
-        event_type: Event type (str)
-        data: Event data (dict)
+        event_type (str): Type of the event (e.g., 'orderUpdate').
+        data (dict): Event data payload (structure may vary by event type).
     """
 
     event_type: str = Field(..., alias="eventType")
@@ -126,10 +154,14 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
 
 class HyperliquidRawLeverage(BaseModel):
     """
-    Leverage settings for a position.
+    Represents leverage settings for a position as received in WebSocket position updates.
+
+    This model is used as a submodel in position update events to describe the leverage type and
+    value.
+
     Fields:
-        type: Leverage type ('cross' or 'isolated')
-        value: Leverage value (int)
+        type (str): Leverage type ('cross' or 'isolated').
+        value (int): Leverage value.
     """
 
     type: str = Field(..., alias="type")
@@ -139,18 +171,23 @@ class HyperliquidRawLeverage(BaseModel):
 
 class HyperliquidRawPositionInfo(BaseModel):
     """
-    Detailed info about a user position.
+    Represents detailed information about a user position as received in WebSocket position
+    updates.
+
+    This model is used as a submodel in position update events to describe the user's position for
+    a given asset.
+
     Fields:
-        coin: Asset symbol (str)
-        entry_px: Entry price (str | None)
-        leverage: Leverage settings (HyperliquidRawLeverage)
-        liquidation_px: Liquidation price (str | None)
-        margin_used: Margin used (str)
-        max_leverage: Max leverage (int)
-        position_value: Position value (str)
-        return_on_equity: ROE (str)
-        szi: Size (str)
-        unrealized_pnl: Unrealized PnL (str)
+        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
+        entry_px (Optional[str]): Entry price, if present.
+        leverage (HyperliquidRawLeverage): Leverage settings for this position.
+        liquidation_px (Optional[str]): Liquidation price, if present.
+        margin_used (str): Margin used for this position.
+        max_leverage (int): Maximum leverage allowed for this asset.
+        position_value (str): Value of the position.
+        return_on_equity (str): Return on equity (ROE) for this position.
+        szi (str): Size of the position.
+        unrealized_pnl (str): Unrealized profit and loss for this position.
     """
 
     coin: str = Field(..., alias="coin")
@@ -168,11 +205,16 @@ class HyperliquidRawPositionInfo(BaseModel):
 
 class HyperliquidRawWsPositionUpdateEvent(BaseModel):
     """
-    WebSocket position update event (user position change).
+    Represents a WebSocket position update event (user position change) as received from the
+    Hyperliquid private stream.
+
+    This model is used to validate the structure of position update events, which notify the user
+    of changes to their open positions.
+
     Fields:
-        asset: Asset symbol (str)
-        position: Position info (HyperliquidRawPositionInfo)
-        time: Timestamp (int)
+        asset (str): Asset symbol (e.g., 'ETH', 'BTC').
+        position (HyperliquidRawPositionInfo): Detailed position information.
+        time (int): Timestamp of the position update event (epoch ms).
     """
 
     asset: str = Field(..., alias="asset")

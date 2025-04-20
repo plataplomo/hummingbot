@@ -2,32 +2,35 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (Candles Group)
 -----------------------------------------------------------
 
-This module defines Pydantic models for validating the *raw* structure of all major
+This module provides strict Pydantic models for validating the *raw* structure of all major
 Hyperliquid Exchange API (REST and WebSocket) responses related to candlestick (candle) data.
+It is a core part of CyberDeltaEngine's boundary validation layer for historical and real-time
+price series.
 
-- All models are defined locally in this file to avoid cross-file imports between model files.
-- Each `HyperliquidRaw*` model mirrors the official Hyperliquid OpenAPI spec, SDK,
-  or WebSocket event payloads as closely as possible.
-- All fields use `Field(..., alias=...)` to match the exact key names in Hyperliquid's JSON.
-- Timestamp fields are typed as `int | str | float | None` to accept ISO8601 strings, epoch
-  ms/µs/seconds, or null, per the spec.
-- All models use `extra=\"forbid\"` to ensure strict schema validation—any unexpected field
-  will raise a validation error.
-- These models are the *first step* in the "validate first, then transform" pattern:
-  validate external data at the boundary, then map to internal models with type conversions
-  and business logic.
-- See the Hyperliquid OpenAPI spec, SDK, and docs for field details and allowed values.
+**Scope & Rationale:**
+- Models in this file are used to validate and parse the *external* data structures returned by
+  Hyperliquid's 'candleSnapshot' endpoint, which provides OHLCV (open, high, low, close, volume)
+  data for assets.
+- All models enforce strict schema validation (`extra="forbid"`), ensuring that any unexpected or
+  malformed fields in upstream data are immediately rejected. This is critical for robust, secure,
+  and predictable operation in a financial system.
+- These models are the *first step* in the "validate first, then transform" pattern: validate
+  external data at the boundary, then map to internal business models with type conversions and
+  business logic.
 
-**Authoritative Reference:**
-- Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+**References:**
+- Official Hyperliquid API documentation:
+  https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
-Usage:
+**Usage Example:**
     raw = HyperliquidRawCandleSnapshot.model_validate(api_response_dict)
     # ...then transform to internal candle model
 
+**Note:**
 Do not use these models for internal business logic—use your core models for that.
+These are for boundary validation only.
 """
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -35,15 +38,20 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class HyperliquidRawCandleSnapshot(BaseModel):
     """
-    Candle snapshot response from candleSnapshot.
+    Represents a candle snapshot response from the 'candleSnapshot' endpoint, containing OHLCV
+    data for an asset.
+
+    This model is used to validate the structure of the 'candleSnapshot' endpoint response, which
+    provides lists of timestamps, open, high, low, close prices, volumes, and a status string.
+
     Fields:
-        t: List of timestamps (list[int])
-        o: List of open prices (list[str])
-        h: List of high prices (list[str])
-        low: List of low prices (list[str]), field alias 'l'
-        c: List of close prices (list[str])
-        v: List of volumes (list[str])
-        s: Status string (str)
+        t (List[int]): List of timestamps (epoch ms).
+        o (List[str]): List of open prices as strings.
+        h (List[str]): List of high prices as strings.
+        low (List[str]): List of low prices as strings (field alias 'l').
+        c (List[str]): List of close prices as strings.
+        v (List[str]): List of volumes as strings.
+        s (str): Status string for the response.
     """
 
     t: list[int] = Field(..., alias="t")
@@ -58,13 +66,17 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
 class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
     """
-    Request payload for 'candleSnapshot' info type.
+    Represents the request payload for the 'candleSnapshot' info type.
+
+    This model is used to construct and validate the payload sent to the Hyperliquid API when
+    requesting candlestick data for a specific asset and interval.
+
     Fields:
-        type: Must be 'candleSnapshot'
-        coin: Asset symbol (str)
-        interval: Interval string (e.g., '1m', '1h', '1d')
-        start_time: Start timestamp (int)
-        end_time: End timestamp (int)
+        type (str): Must be 'candleSnapshot'.
+        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
+        interval (str): Interval string (e.g., '1m', '1h', '1d').
+        start_time (int): Start timestamp (epoch ms).
+        end_time (int): End timestamp (epoch ms).
     """
 
     type: str = Field("candleSnapshot", alias="type")

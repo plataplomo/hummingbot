@@ -2,32 +2,34 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (User Fills Group)
 --------------------------------------------------------------
 
-This module defines Pydantic models for validating the *raw* structure of all major
-Hyperliquid Exchange API (REST and WebSocket) responses related to user fills.
+This module provides strict Pydantic models for validating the *raw* structure of all major
+Hyperliquid Exchange API (REST and WebSocket) responses related to user fills. It is a core part of
+CyberDeltaEngine's boundary validation layer for user trade execution and fill data.
 
-- All models are defined locally in this file to avoid cross-file imports between model files.
-- Each `HyperliquidRaw*` model mirrors the official Hyperliquid OpenAPI spec, SDK,
-  or WebSocket event payloads as closely as possible.
-- All fields use `Field(..., alias=...)` to match the exact key names in Hyperliquid's JSON.
-- Timestamp fields are typed as `int | str | float | None` to accept ISO8601 strings, epoch
-  ms/µs/seconds, or null, per the spec.
-- All models use `extra="forbid"` to ensure strict schema validation—any unexpected field
-  will raise a validation error.
-- These models are the *first step* in the "validate first, then transform" pattern:
-  validate external data at the boundary, then map to internal models with type conversions
-  and business logic.
-- See the Hyperliquid OpenAPI spec, SDK, and docs for field details and allowed values.
+**Scope & Rationale:**
+- Models in this file are used to validate and parse the *external* data structures returned by
+  Hyperliquid's user fills endpoints, including individual fills, batch fill responses, and fill
+  request payloads.
+- All models enforce strict schema validation (`extra="forbid"`), ensuring that any unexpected or
+  malformed fields in upstream data are immediately rejected. This is critical for robust, secure,
+  and predictable operation in a financial system.
+- These models are the *first step* in the "validate first, then transform" pattern: validate
+  external data at the boundary, then map to internal business models with type conversions and
+  business logic.
 
-**Authoritative Reference:**
-- Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+**References:**
+- Official Hyperliquid API documentation:
+  https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
-Usage:
+**Usage Example:**
     raw = HyperliquidRawUserFill.model_validate(api_response_dict)
     # ...then transform to internal fill model
 
-Do not use these models for internal business logic—use your core models for that.
+**Note:**
+Do not use these models for internal business logic—use your core models for that. These are for
+boundary validation only.
 """
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -36,22 +38,27 @@ from pydantic import BaseModel, ConfigDict, Field
 # --- Core User Fill Model ---
 class HyperliquidRawUserFill(BaseModel):
     """
-    User fill/trade details from userFills response.
+    Represents a user fill/trade object as returned in user fills endpoints.
+
+    This model is used to validate the structure of individual user fill entries, including trade
+    ID, asset symbol, price, size, timestamp, side, order ID, start position, direction, hash, fee,
+    maker/taker status, liquidation mark price, and client order ID.
+
     Fields:
-        tid: Trade ID (int)
-        coin: Asset symbol (str)
-        px: Price (str)
-        sz: Size (str)
-        time: Timestamp (int)
-        side: Side ('B' or 'A')
-        oid: Order ID (int)
-        start_position: Start position (str)
-        dir: Direction (str)
-        hash: Trade hash (str)
-        fee: Fee (str)
-        is_maker: Is maker (bool)
-        liquidation_mark_px: Liquidation mark price (str | None)
-        cloid: Client order ID (str | None)
+        tid (int): Trade ID.
+        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
+        px (str): Price at which the fill occurred.
+        sz (str): Size of the fill.
+        time (int): Timestamp of the fill event (epoch ms).
+        side (str): Side of the trade ('B' for buy, 'A' for ask/sell).
+        oid (int): Order ID associated with the fill.
+        start_position (str): Start position before the fill.
+        dir (str): Direction of the fill.
+        hash (str): Unique trade hash.
+        fee (str): Fee paid for the fill.
+        is_maker (bool): True if the user was the maker in this trade.
+        liquidation_mark_px (Optional[str]): Liquidation mark price, if present.
+        cloid (Optional[str]): Client order ID, if present.
     """
 
     tid: int = Field(..., alias="tid")
@@ -74,9 +81,13 @@ class HyperliquidRawUserFill(BaseModel):
 # --- Batch/Array Response ---
 class HyperliquidRawUserFillsResponse(BaseModel):
     """
-    Array of user fills from userFills response.
+    Represents an array of user fills as returned in the 'userFills' endpoint response.
+
+    This model is used to validate the structure of the batch response, which is a list of
+    HyperliquidRawUserFill objects.
+
     Fields:
-        __root__: List of HyperliquidRawUserFill
+        __root__ (List[HyperliquidRawUserFill]): List of user fill objects.
     """
 
     __root__: list[HyperliquidRawUserFill]
@@ -86,10 +97,14 @@ class HyperliquidRawUserFillsResponse(BaseModel):
 # --- Request Payload ---
 class HyperliquidRawUserFillsRequestPayload(BaseModel):
     """
-    Request payload for 'userFills' info type.
+    Represents the request payload for the 'userFills' info type.
+
+    This model is used to construct and validate the payload sent to the Hyperliquid API when
+    requesting user fills for a specific wallet address.
+
     Fields:
-        type: Must be 'userFills'
-        user: Wallet address (str)
+        type (str): Must be 'userFills'.
+        user (str): Wallet address of the user.
     """
 
     type: str = Field("userFills", alias="type")
