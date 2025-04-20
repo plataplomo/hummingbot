@@ -29,12 +29,7 @@ class BackpackRawOrder(BaseModel):
     )
     id: str = Field(..., alias="id", description="Exchange-provided order ID. Alias: 'i'")
     relatedOrderId: str | None = Field(
-        None,
-        alias="relatedOrderId",
-        description="ID of related order (e.g., parent, trigger target). Alias: 'I'",
-    )
-    exchange: str | None = Field(
-        None, description="Name of the exchange (not present in Backpack, set in mapping)."
+        None, alias="relatedOrderId", description="ID of related order. Alias: 'I'"
     )
     symbol: str = Field(..., alias="symbol", description="Trading symbol. Alias: 's'")
     side: str = Field(
@@ -88,27 +83,7 @@ class BackpackRawOrder(BaseModel):
     origin: str | None = Field(
         None, alias="origin", description="Origin of the last update. Alias: 'O'"
     )
-    strategyName: str | None = Field(
-        None,
-        alias="strategyName",
-        description=(
-            "Optional strategy identifier (not present in Backpack, set in mapping if needed)."
-        ),
-    )
-    signalId: str | None = Field(
-        None,
-        alias="signalId",
-        description=(
-            "Optional signal identifier (not present in Backpack, set in mapping if needed)."
-        ),
-    )
-    trades: list[dict[str, object]] | None = Field(
-        None,
-        alias="trades",
-        description=("List of associated trade fills (not present in Backpack order response)."),
-    )
 
-    # --- WebSocket/REST field aliases mapping ---
     class Config:
         extra = "forbid"
         allow_population_by_field_name = True

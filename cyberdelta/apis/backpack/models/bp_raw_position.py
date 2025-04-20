@@ -1,34 +1,65 @@
 """
-Backpack API Position Models
---------------------------
+Backpack API Position Models (RAW)
+----------------------------------
 
-Strict Pydantic models for validating position and position update responses from the
-Backpack Exchange API.
-These models are used for boundary validation and transformation, not for internal business
-logic.
+Strict Pydantic models for validating position responses from the
+Backpack Exchange API. These models are for boundary validation only:
+- 1:1 contract with the Backpack OpenAPI schema (no optionality, no business logic)
+- All fields required, types and structure must match the OpenAPI spec exactly
+- Used only for parsing/validating raw API responses
 """
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class SqrtFunction(BaseModel):
+    """
+    Pydantic model for the 'SqrtFunction' used in PositionImfFunction.
+    """
+
+    base: str = Field(..., alias="base")
+    factor: str = Field(..., alias="factor")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class PositionImfFunction(BaseModel):
+    """
+    Pydantic model for the 'PositionImfFunction' (currently only supports 'sqrt').
+    """
+
+    type: str = Field(..., alias="type")  # Must be 'sqrt'
+    base: str = Field(..., alias="base")
+    factor: str = Field(..., alias="factor")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
 class BackpackRawPosition(BaseModel):
     """
-    Pydantic model for a raw open position from `/api/v1/positions` (Backpack REST API).
+    Strict Pydantic model for a raw open position from `/api/v1/positions` (Backpack REST API).
 
-    Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
-    Use this model to validate and parse position payloads received from the exchange.
-
-    Attributes:
-        symbol (str): Trading symbol (e.g., 'BTC_USDC_PERP').
-        size (str): Net position size (as string).
-        entry_price (str): Average entry price (as string).
-        mark_price (str): Current mark price (as string).
+    This model mirrors the Backpack OpenAPI 'FuturePositionWithMargin' schema exactly.
+    All fields are required and must match the API contract. No business logic or optionality.
     """
 
-    symbol: str = Field(..., alias="symbol")
-    size: str = Field(..., alias="positionSize")
+    break_even_price: str = Field(..., alias="breakEvenPrice")
     entry_price: str = Field(..., alias="entryPrice")
+    est_liquidation_price: str = Field(..., alias="estLiquidationPrice")
+    imf: str = Field(..., alias="imf")
+    imf_function: PositionImfFunction = Field(..., alias="imfFunction")
     mark_price: str = Field(..., alias="markPrice")
+    mmf: str = Field(..., alias="mmf")
+    mmf_function: PositionImfFunction = Field(..., alias="mmfFunction")
+    net_cost: str = Field(..., alias="netCost")
+    net_quantity: str = Field(..., alias="netQuantity")
+    net_exposure_quantity: str = Field(..., alias="netExposureQuantity")
+    net_exposure_notional: str = Field(..., alias="netExposureNotional")
+    pnl_realized: str = Field(..., alias="pnlRealized")
+    pnl_unrealized: str = Field(..., alias="pnlUnrealized")
+    cumulative_funding_payment: str = Field(..., alias="cumulativeFundingPayment")
+    symbol: str = Field(..., alias="symbol")
+    user_id: int = Field(..., alias="userId")
+    position_id: str = Field(..., alias="positionId")
+    cumulative_interest: str = Field(..., alias="cumulativeInterest")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
