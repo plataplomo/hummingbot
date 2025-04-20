@@ -358,7 +358,8 @@ class HyperliquidMapper:
     def categorize_hyperliquid_error(error_message: str) -> HyperliquidAPIErrorCategory:
         """
         Map a Hyperliquid error message to a known error category, ERROR, or UNKNOWN.
-        Uses canonical error substrings from hl_api_error.py for initial matching, then regex for variants.
+        Uses canonical error substrings from hl_api_error.py for initial matching,
+        then regex for variants.
         """
         if not error_message:
             return HyperliquidAPIErrorCategory.UNKNOWN

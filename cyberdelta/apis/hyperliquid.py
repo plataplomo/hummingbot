@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import time
-from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, TypedDict, TypeVar
 
@@ -14,12 +13,7 @@ from web3.auto import w3
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
-from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
-    HyperliquidRawWsBookUpdate,
-    HyperliquidRawWsFillEvent,
-    HyperliquidRawWsOrderUpdate,
-    HyperliquidRawWsTradeEvent,
-)
+from cyberdelta.apis.hyperliquid.hl_ws_mapper import HyperliquidWebsocketMapper
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
@@ -27,8 +21,6 @@ from cyberdelta.core.models import (
     Order,
     OrderBook,
     OrderSide,
-    OrderStatus,
-    OrderType,
     Position,
     Ticker,
     Trade,
@@ -153,7 +145,6 @@ class HyperliquidAPI(ExchangeAPI):
                 logger.error(f"Error initializing Ethereum account: {e}")
                 raise ValueError(f"Invalid private key: {e}") from e
 
-        self.session: aiohttp.ClientSession | None = None
         self.ws_connection: aiohttp.ClientWebSocketResponse | None = None
         self.ws_lock = asyncio.Lock()
         self._symbol_map: dict[str, str] = {}
@@ -755,127 +746,188 @@ class HyperliquidAPI(ExchangeAPI):
             exchange_message=exchange_message,
         )
 
-    # --- WebSocket Subscription Helpers --- #
+    async def connect_websocket(self) -> None:
+        await self._connect_ws()
 
-    async def subscribe_to_order_updates(self, handler: MessageHandler) -> None:
-        """Subscribe to user order updates."""
-        await self.subscribe("user", handler)
+    async def _handle_websocket_message(self, message: dict[str, Any] | list[Any] | str) -> None:
+        # Accepts dict, list, or str; list[Any] is explicit for linter
+        if isinstance(message, dict):
+            await self._route_ws_message(message)
+        else:
+            logger.debug(f"[{self.exchange_name}] Received non-dict WS message: {type(message)}")
 
-    async def subscribe_to_trades(self, symbol: str, handler: MessageHandler | None = None) -> None:
-        """Subscribe to trades for a symbol."""
-        # In the implementation we can maintain our own handler registry
-        if not hasattr(self, "_trade_handlers"):
-            self._trade_handlers: dict[str, list[MessageHandler]] = {}
+    async def subscribe_to_account_updates(self) -> None:
+        raise NotImplementedError("subscribe_to_account_updates needs handler implementation")
 
-        # Actual subscription logic would go here
-        logger.info(f"Subscribed to trades for {symbol}")
-
-    async def subscribe_to_ticker(self, symbol: str, handler: MessageHandler | None = None) -> None:
-        """Subscribe to ticker updates for a symbol."""
-        # In the implementation we can maintain our own handler registry
-        if not hasattr(self, "_ticker_handlers"):
-            self._ticker_handlers: dict[str, list[MessageHandler]] = {}
-
-        # Actual subscription logic would go here
-        logger.info(f"Subscribed to ticker updates for {symbol}")
-
-    async def subscribe_to_order_book(
-        self, symbol: str, handler: MessageHandler | None = None
-    ) -> None:
-        """Subscribe to order book updates for a symbol."""
-        # In the implementation we can maintain our own handler registry
-        if not hasattr(self, "_orderbook_handlers"):
-            self._orderbook_handlers: dict[str, list[MessageHandler]] = {}
-
-        # Actual subscription logic would go here
-        logger.info(f"Subscribed to order book updates for {symbol}")
-
-    # --- Helper Methods (Parsing, etc.) ---
-
-    def parse_order(self, data: dict[str, Any]) -> Order:
+    def parse_ticker(self, data: dict[str, Any], symbol: str) -> Ticker:
         """
-        Parse exchange-specific order format to standard Order object.
+        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        """
+        raise NotImplementedError("parse_ticker is not implemented for HyperliquidAPI.")
+
+    def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
+        """
+        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        """
+        raise NotImplementedError("parse_order_book is not implemented for HyperliquidAPI.")
+
+    def parse_trade(self, data: dict[str, Any], symbol: str) -> Trade:
+        """
+        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        """
+        raise NotImplementedError("parse_trade is not implemented for HyperliquidAPI.")
+
+    def parse_balance(self, data: dict[str, Any]) -> Balance:
+        """
+        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        """
+        raise NotImplementedError("parse_balance is not implemented for HyperliquidAPI.")
+
+    def parse_position(self, data: dict[str, Any]) -> Position:
+        """
+        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        """
+        raise NotImplementedError("parse_position is not implemented for HyperliquidAPI.")
+
+    def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate:
+        """
+        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        """
+        raise NotImplementedError("parse_funding_rate is not implemented for HyperliquidAPI.")
+
+    async def ping_websocket(self) -> None:
+        if self._ws_connection and not self._ws_connection.closed:
+            try:
+                await self._ws_connection.ping()
+                logger.debug(f"[{self.exchange_name}] Sent WebSocket ping")
+            except Exception as e:
+                logger.warning(f"[{self.exchange_name}] Failed to send WebSocket ping: {e}")
+
+    def get_message_type(self, message: dict[str, Any]) -> str:
+        channel = message.get("channel", "unknown")
+        return str(channel) if channel is not None else "unknown"
+
+    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None:
+        """Parse ticker message from WebSocket."""
+        if message.get("channel") == "allMids":
+            logger.warning(
+                f"[{self.exchange_name}] parse_ticker_message needs specific implementation "
+                f"for 'allMids' structure."
+            )
+            return None
+        return None
+
+    def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
+        logger.warning(f"[{self.exchange_name}] parse_funding_rate_message needs WS update impl.")
+        return None
+
+    async def _on_message(self, ws: "aiohttp.ClientWebSocketResponse", message: str) -> None:
+        """Handle WebSocket messages.
 
         Args:
-            data: Exchange-specific order data (dictionary)
-
-        Returns:
-            Standardized Order object
+            ws: The WebSocket connection
+            message: The message received from the WebSocket
         """
-        if not data:
-            raise ValueError("Invalid order data provided")
+        if not message:
+            return
+
         try:
-            order_id = str(data.get("oid", ""))
-            if not order_id:
-                raise ValueError("Order ID missing from order data")
-            symbol = data.get("coin", "")
-            if not symbol:
-                raise ValueError("Symbol missing from order data")
-            side_str = data.get("side", "B")
-            type_str = data.get("orderType", "limit").lower()
-            status_str = data.get("status", "open").lower()
-            price_str = data.get("limitPx", "0")
-            size_str = data.get("sz", "0")
-            remaining_str = data.get("remainingSz", size_str)
-            filled_qty = (
-                Decimal(str(size_str)) - Decimal(str(remaining_str))
-                if remaining_str
-                else Decimal("0")
-            )
-            timestamp = data.get("time", int(time.time() * 1000))
-            side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
-            order_type = OrderType.LIMIT
-            if type_str == "market":
-                order_type = OrderType.MARKET
-            elif type_str == "postonly":
-                order_type = OrderType.LIMIT  # Post-only is a flag, not an order type
-            status = OrderStatus.OPEN
-            if status_str == "filled":
-                status = OrderStatus.FILLED
-            elif status_str in ["cancelled", "canceled"]:
-                status = OrderStatus.CANCELED
-            elif status_str == "rejected":
-                status = OrderStatus.REJECTED
-            elif Decimal(str(remaining_str)) < Decimal(str(size_str)):
-                status = OrderStatus.PARTIALLY_FILLED
-            return Order(
-                client_order_id=data.get("cloid", order_id),
-                exchange_order_id=order_id,
-                related_order_id=None,
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                status=status,
-                quantity_requested=Decimal(str(size_str)),
-                quantity_filled=filled_qty,
-                price=Decimal(str(price_str)),
-                average_fill_price=None,  # Set if available
-                created_at=datetime.fromtimestamp(timestamp / 1000, tz=UTC),
-                exchange="hyperliquid",
-                executed_quote_quantity=None,
-                trigger_by=None,
-                self_trade_prevention=None,
-                updated_at=None,
-                triggered_at=None,
-                expiry_reason=None,
-                origin=None,
-                strategy_name=None,
-                signal_id=None,
+            data = json.loads(message)
+            message_type = self.get_message_type(data)
+
+            if message_type == "ping":
+                # Respond to ping message
+                await ws.send_str(json.dumps({"type": "pong"}))
+                return
+
+            if message_type == "orderbook":
+                # Parse and forward orderbook updates
+                orderbook = HyperliquidWebsocketMapper.parse_orderbook_message(data, logger)
+                if orderbook and self.orderbook_callback:
+                    # Convert OrderBook to dict to match callback signature
+                    await self.orderbook_callback({"orderbook": orderbook})
+                elif orderbook and not self.orderbook_callback:
+                    logger.warning(
+                        f"[{self.exchange_name}] Received orderbook update but no "
+                        f"orderbook_callback is set."
+                    )
+                return
+
+            if message_type == "trade":
+                # Parse and forward trade updates
+                trade = HyperliquidWebsocketMapper.parse_trade_message(data, logger)
+                if trade and self.trade_callback:
+                    # Convert Trade to dict to match callback signature
+                    await self.trade_callback({"trade": trade})
+                elif trade and not self.trade_callback:
+                    logger.warning(
+                        f"[{self.exchange_name}] Received trade update but no "
+                        f"trade_callback is set."
+                    )
+                return
+
+            if message_type == "order_update":
+                # Parse and forward order updates
+                order = HyperliquidWebsocketMapper.parse_order_update_message(
+                    data, logger, self.parse_order
+                )
+                if order and self.order_update_callback:
+                    # Convert Order to dict to match callback signature
+                    await self.order_update_callback({"order": order})
+                elif order and not self.order_update_callback:
+                    logger.warning(
+                        f"[{self.exchange_name}] Received order update but no "
+                        f"order_update_callback is set."
+                    )
+                return
+
+            if message_type == "fill":
+                # Parse and forward fill updates (trade executions)
+                fill_trades = HyperliquidWebsocketMapper.parse_fill_message(data, logger)
+                if fill_trades and self.fill_callback:
+                    for trade in fill_trades:
+                        # Convert Trade to dict to match callback signature
+                        await self.fill_callback({"trade": trade})
+                elif fill_trades and not self.fill_callback:
+                    logger.warning(
+                        f"[{self.exchange_name}] Received fill update but no fill_callback is set."
+                    )
+                return
+
+            # Log unhandled message types
+            logger.debug(f"[{self.exchange_name}] Unhandled WebSocket message type: {message_type}")
+
+        except json.JSONDecodeError:
+            logger.warning(
+                f"[{self.exchange_name}] Received invalid JSON message: {message[:100]}..."
             )
         except Exception as e:
-            logger.error(f"Error parsing order data: {e}")
-            raise ValueError(f"Failed to parse order: {e}") from e
+            logger.error(
+                f"[{self.exchange_name}] Error processing WebSocket message: {e}", exc_info=True
+            )
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
+        """
+        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        """
         raise NotImplementedError("get_order not implemented for HyperliquidAPI")
 
     async def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]:
+        """
+        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        """
         raise NotImplementedError("cancel_all_orders not implemented for HyperliquidAPI")
 
     async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]:
+        """
+        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        """
         raise NotImplementedError("get_order_history not implemented for HyperliquidAPI")
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
+        """
+        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        """
         raise NotImplementedError("get_trade_history not implemented for HyperliquidAPI")
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
@@ -942,285 +994,3 @@ class HyperliquidAPI(ExchangeAPI):
         raise NotImplementedError(
             "get_market_data (kline/OHLCV) not implemented for HyperliquidAPI"
         )
-
-    async def connect_websocket(self) -> None:
-        await self._connect_ws()
-
-    async def _handle_websocket_message(self, message: dict[str, Any] | list[Any] | str) -> None:
-        # Accepts dict, list, or str; list[Any] is explicit for linter
-        if isinstance(message, dict):
-            await self._route_ws_message(message)
-        else:
-            logger.debug(f"[{self.exchange_name}] Received non-dict WS message: {type(message)}")
-
-    async def subscribe_to_account_updates(self) -> None:
-        raise NotImplementedError("subscribe_to_account_updates needs handler implementation")
-
-    def parse_ticker(self, data: dict[str, Any], symbol: str) -> Ticker:
-        raise NotImplementedError("parse_ticker needs implementation")
-
-    def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
-        raise NotImplementedError("parse_order_book needs implementation")
-
-    def parse_trade(self, data: dict[str, Any], symbol: str) -> Trade:
-        raise NotImplementedError("parse_trade needs implementation")
-
-    def parse_balance(self, data: dict[str, Any]) -> Balance:
-        raise NotImplementedError("parse_balance needs implementation")
-
-    def parse_position(self, data: dict[str, Any]) -> Position:
-        raise NotImplementedError("parse_position needs implementation")
-
-    def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate:
-        raise NotImplementedError("parse_funding_rate needs implementation")
-
-    async def ping_websocket(self) -> None:
-        if self._ws_connection and not self._ws_connection.closed:
-            try:
-                await self._ws_connection.ping()
-                logger.debug(f"[{self.exchange_name}] Sent WebSocket ping")
-            except Exception as e:
-                logger.warning(f"[{self.exchange_name}] Failed to send WebSocket ping: {e}")
-
-    def get_message_type(self, message: dict[str, Any]) -> str:
-        channel = message.get("channel", "unknown")
-        return str(channel) if channel is not None else "unknown"
-
-    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None:
-        """Parse ticker message from WebSocket."""
-        if message.get("channel") == "allMids":
-            logger.warning(
-                f"[{self.exchange_name}] parse_ticker_message needs specific implementation "
-                f"for 'allMids' structure."
-            )
-            return None
-        return None
-
-    def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
-        """
-        Parse order book update message from WebSocket, validating with HyperliquidRawWsBookUpdate.
-        """
-        if message.get("channel", "").startswith("l2Book:"):
-            data_raw = message.get("data", {})
-            try:
-                validated = HyperliquidRawWsBookUpdate.model_validate(data_raw)
-            except Exception as e:
-                logger.warning(
-                    f"[{self.exchange_name}] Invalid order book event (dropped): {e} | "
-                    f"Data: {data_raw}"
-                )
-                return None
-            try:
-                bids = (
-                    [(Decimal(level.px), Decimal(level.sz)) for level in validated.levels[0]]
-                    if validated.levels
-                    else []
-                )
-                asks = (
-                    [(Decimal(level.px), Decimal(level.sz)) for level in validated.levels[1]]
-                    if validated.levels and len(validated.levels) > 1
-                    else []
-                )
-                return OrderBook(
-                    symbol=validated.coin,
-                    bids=bids,
-                    asks=asks,
-                    timestamp=validated.time,
-                )
-            except Exception as e:
-                logger.warning(
-                    f"[{self.exchange_name}] Error parsing validated order book event: {e}"
-                )
-        return None
-
-    def parse_trade_message(self, message: dict[str, Any]) -> Trade | None:
-        """
-        Parse trade message from WebSocket, validating with HyperliquidRawWsTradeEvent.
-        """
-        if message.get("channel") == "allMids":
-            logger.warning(
-                f"[{self.exchange_name}] parse_ticker_message needs specific implementation "
-                f"for 'allMids' structure."
-            )
-            return None
-        if "channel" in message and message["channel"] == "trades":
-            data_raw = message.get("data", [])
-            if isinstance(data_raw, list):
-                from typing import Any, cast
-
-                for trade_dict_any in data_raw:
-                    any_obj = cast(Any, trade_dict_any)
-                    if not isinstance(any_obj, dict):
-                        continue
-                    trade_dict: dict[str, Any] = any_obj  # type: ignore[assignment]  # Safe: runtime type check above
-                    try:
-                        validated = HyperliquidRawWsTradeEvent.model_validate(trade_dict)
-                    except Exception as e:
-                        logger.warning(
-                            f"[{self.exchange_name}] Invalid trade event (dropped): {e} | "
-                            f"Data: {trade_dict}"
-                        )
-                        continue
-                    try:
-                        side = OrderSide.BUY if validated.side == "B" else OrderSide.SELL
-                        price = Decimal(validated.px)
-                        quantity = Decimal(validated.sz)
-                        return Trade(
-                            id=validated.hash,
-                            symbol=validated.coin,
-                            executed_at=datetime.fromtimestamp(validated.time / 1000, tz=UTC),
-                            side=side,
-                            order_id="",
-                            exchange="hyperliquid",
-                            client_order_id="",
-                            price=price,
-                            quantity=quantity,
-                            cost=price * quantity,
-                            fee=Decimal("0"),
-                            fee_asset="USDC",
-                            is_maker=None,
-                            timestamp=validated.time,
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            f"[{self.exchange_name}] Error parsing validated trade event: {e}"
-                        )
-        return None
-
-    def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
-        """
-        Parse an order update message from WebSocket, validating with HyperliquidRawWsOrderUpdate.
-        """
-        if "type" in message and message["type"] == "userEvent" and "userEvents" in message:
-            events_raw = message.get("userEvents", [])
-            for event in events_raw:
-                try:
-                    validated = HyperliquidRawWsOrderUpdate.model_validate(event)
-                except Exception as e:
-                    logger.warning(
-                        f"[{self.exchange_name}] Invalid order update event (dropped): {e} | "
-                        f"Data: {event}"
-                    )
-                    continue
-                if validated.event_type == "order":
-                    order_data = validated.data
-                    try:
-                        return self.parse_order(order_data)
-                    except Exception as e:
-                        logger.error(f"Error parsing order update message: {e}")
-        return None
-
-    def parse_fill_message(self, message: dict[str, Any]) -> list[Trade]:
-        """
-        Parse a fill update message from WebSocket and convert to standard Trade objects.
-        Validates the message using HyperliquidRawWsFillEvent (Pydantic).
-        """
-        trades: list[Trade] = []
-        if message.get("type") == "userFill":
-            fill_data_raw = message.get("data", {})
-            try:
-                validated = HyperliquidRawWsFillEvent.model_validate(fill_data_raw)
-            except Exception as e:
-                logger.warning(
-                    f"[{self.exchange_name}] Invalid fill event (dropped): {e} | "
-                    f"Data: {fill_data_raw}"
-                )
-                return trades
-            coin = validated.coin
-            side_str = validated.side
-            px_str = validated.px
-            sz_str = validated.sz
-            time_ms = validated.time
-            order_id = str(validated.oid)
-            try:
-                side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
-                price = Decimal(str(px_str))
-                quantity = Decimal(str(sz_str))
-                trade = Trade(
-                    id=f"{order_id}_{time_ms}",
-                    symbol=coin,
-                    executed_at=datetime.fromtimestamp(time_ms / 1000, tz=UTC),
-                    side=side,
-                    order_id=order_id,
-                    exchange="hyperliquid",
-                    client_order_id=validated.cloid or "",
-                    price=price,
-                    quantity=quantity,
-                    cost=price * quantity,
-                    fee=Decimal("0"),
-                    fee_asset="USDC",
-                    is_maker=validated.is_maker,
-                    timestamp=time_ms,
-                )
-                trades.append(trade)
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Error parsing validated fill data: {e}")
-        return trades
-
-    def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
-        logger.warning(f"[{self.exchange_name}] parse_funding_rate_message needs WS update impl.")
-        return None
-
-    async def _on_message(self, ws: "aiohttp.ClientWebSocketResponse", message: str) -> None:
-        """Handle WebSocket messages.
-
-        Args:
-            ws: The WebSocket connection
-            message: The message received from the WebSocket
-        """
-        if not message:
-            return
-
-        try:
-            data = json.loads(message)
-            message_type = self.get_message_type(data)
-
-            if message_type == "ping":
-                # Respond to ping message
-                await ws.send_str(json.dumps({"type": "pong"}))
-                return
-
-            if message_type == "orderbook":
-                # Parse and forward orderbook updates
-                orderbook = self.parse_orderbook_message(data)
-                if orderbook and self.orderbook_callback:
-                    # Convert OrderBook to dict to match callback signature
-                    await self.orderbook_callback({"orderbook": orderbook})
-                return
-
-            if message_type == "trade":
-                # Parse and forward trade updates
-                trade = self.parse_trade_message(data)
-                if trade and self.trade_callback:
-                    # Convert Trade to dict to match callback signature
-                    await self.trade_callback({"trade": trade})
-                return
-
-            if message_type == "order_update":
-                # Parse and forward order updates
-                order = self.parse_order_update_message(data)
-                if order and self.order_update_callback:
-                    # Convert Order to dict to match callback signature
-                    await self.order_update_callback({"order": order})
-                return
-
-            if message_type == "fill":
-                # Parse and forward fill updates (trade executions)
-                fill_trades = self.parse_fill_message(data)
-                if fill_trades and self.fill_callback:
-                    for trade in fill_trades:
-                        # Convert Trade to dict to match callback signature
-                        await self.fill_callback({"trade": trade})
-                return
-
-            # Log unhandled message types
-            logger.debug(f"[{self.exchange_name}] Unhandled WebSocket message type: {message_type}")
-
-        except json.JSONDecodeError:
-            logger.warning(
-                f"[{self.exchange_name}] Received invalid JSON message: {message[:100]}..."
-            )
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Error processing WebSocket message: {e}", exc_info=True
-            )
