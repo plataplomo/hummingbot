@@ -4,11 +4,18 @@ CyberDeltaEngine's internal Order model.
 """
 
 import logging
+import re
 import time
 from decimal import Decimal
 from typing import Any, cast
 
-from cyberdelta.apis.hyperliquid.hl_api_error import HyperliquidAPIErrorCategory
+from pydantic import ValidationError
+
+from cyberdelta.apis.hyperliquid.hl_api_error import (
+    HYPERLIQUID_ERROR_STRINGS,
+    HyperliquidAPIErrorCategory,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_api_error import HyperliquidRawApiError
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
@@ -24,6 +31,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsFillEvent,
     HyperliquidRawWsTradeEvent,
 )
+from cyberdelta.apis.models.api import APIError, APIErrorResponse
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
@@ -336,54 +345,139 @@ class HyperliquidMapper:
             return None
 
     @staticmethod
+    def _regex_match(msg: str, patterns: str | list[str]) -> bool:
+        """
+        Helper for regex-based error message matching.
+        Accepts a single pattern or a list of patterns.
+        """
+        if isinstance(patterns, str):
+            patterns = [patterns]
+        return any(re.search(p, msg, re.IGNORECASE) for p in patterns)
+
+    @staticmethod
     def categorize_hyperliquid_error(error_message: str) -> HyperliquidAPIErrorCategory:
         """
         Map a Hyperliquid error message to a known error category, ERROR, or UNKNOWN.
-
-        Args:
-            error_message (str): The error message from the API.
-
-        Returns:
-            HyperliquidAPIErrorCategory: The mapped error category.
+        Uses canonical error substrings from hl_api_error.py for initial matching, then regex for variants.
         """
         if not error_message:
             return HyperliquidAPIErrorCategory.UNKNOWN
         msg = error_message.strip().lower()
         if msg == "error":
             return HyperliquidAPIErrorCategory.ERROR
-        if "insufficient balance" in msg:
+        # Canonical string check (from hl_api_error.py)
+        for canonical, category in HYPERLIQUID_ERROR_STRINGS.items():
+            if canonical in msg:
+                return category
+        # Fallback to regex/robust matching for variants
+        if HyperliquidMapper._regex_match(msg, r"insufficient balance"):
             return HyperliquidAPIErrorCategory.INSUFFICIENT_BALANCE
-        if "invalid signature" in msg:
+        if HyperliquidMapper._regex_match(msg, r"invalid signature"):
             return HyperliquidAPIErrorCategory.INVALID_SIGNATURE
-        if "invalid asset" in msg:
+        if HyperliquidMapper._regex_match(msg, r"invalid asset"):
             return HyperliquidAPIErrorCategory.INVALID_ASSET
-        if "invalid order type" in msg:
+        if HyperliquidMapper._regex_match(msg, r"invalid order type"):
             return HyperliquidAPIErrorCategory.INVALID_ORDER_TYPE
-        if "order size too small" in msg:
+        if HyperliquidMapper._regex_match(msg, r"order size too small"):
             return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL
-        if "order size too large" in msg:
+        if HyperliquidMapper._regex_match(msg, r"order size too large"):
             return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE
-        if "price out of bounds" in msg:
+        if HyperliquidMapper._regex_match(msg, r"price out of bounds"):
             return HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS
-        if "rate limit exceeded" in msg:
+        if HyperliquidMapper._regex_match(msg, r"rate limit exceeded"):
             return HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED
-        if "unauthorized" in msg:
+        if HyperliquidMapper._regex_match(msg, r"unauthorized"):
             return HyperliquidAPIErrorCategory.UNAUTHORIZED
-        if "internal server error" in msg:
+        if HyperliquidMapper._regex_match(msg, r"internal server error"):
             return HyperliquidAPIErrorCategory.INTERNAL_SERVER_ERROR
-        if "order must have minimum value" in msg:
+        if HyperliquidMapper._regex_match(msg, r"order must have minimum value"):
             return HyperliquidAPIErrorCategory.ORDER_MIN_VALUE
-        if "order was never placed" in msg or "already canceled" in msg or "already filled" in msg:
+        if HyperliquidMapper._regex_match(
+            msg, [r"order was never placed", r"already canceled", r"already filled"]
+        ):
             return HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED
-        if "invalid twap duration" in msg:
+        if HyperliquidMapper._regex_match(msg, r"invalid twap duration"):
             return HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION
-        if (
-            "twap was never placed" in msg
-            or "twap already canceled" in msg
-            or "twap already filled" in msg
+        if HyperliquidMapper._regex_match(
+            msg, [r"twap was never placed", r"twap already canceled", r"twap already filled"]
         ):
             return HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED
         return HyperliquidAPIErrorCategory.UNKNOWN
+
+    @staticmethod
+    def map_category_to_api_error_code(
+        category_or_message: HyperliquidAPIErrorCategory | str,
+    ) -> APIErrorCode:
+        """
+        Map a HyperliquidAPIErrorCategory or raw error message (str) to APIErrorCode.
+        If a string is provided, it is first categorized using regex logic.
+        """
+        if isinstance(category_or_message, str):
+            category = HyperliquidMapper.categorize_hyperliquid_error(category_or_message)
+        else:
+            category = category_or_message
+        mapping = {
+            HyperliquidAPIErrorCategory.INSUFFICIENT_BALANCE: APIErrorCode.INSUFFICIENT_FUNDS,
+            HyperliquidAPIErrorCategory.INVALID_SIGNATURE: APIErrorCode.AUTHENTICATION_FAILED,
+            HyperliquidAPIErrorCategory.INVALID_ASSET: APIErrorCode.INVALID_SYMBOL,
+            HyperliquidAPIErrorCategory.INVALID_ORDER_TYPE: APIErrorCode.INVALID_REQUEST,
+            HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL: APIErrorCode.INVALID_ORDER_SIZE,
+            HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE: APIErrorCode.INVALID_ORDER_SIZE,
+            HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS: APIErrorCode.PRICE_OUT_OF_RANGE,
+            HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED: APIErrorCode.RATE_LIMITED,
+            HyperliquidAPIErrorCategory.UNAUTHORIZED: APIErrorCode.AUTHENTICATION_FAILED,
+            HyperliquidAPIErrorCategory.INTERNAL_SERVER_ERROR: APIErrorCode.SERVER_ERROR,
+            HyperliquidAPIErrorCategory.ORDER_MIN_VALUE: APIErrorCode.MIN_NOTIONAL_NOT_MET,
+            HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED: APIErrorCode.ORDER_NOT_FOUND,
+            HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION: APIErrorCode.INVALID_REQUEST,
+            HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED: APIErrorCode.ORDER_NOT_FOUND,
+            HyperliquidAPIErrorCategory.UNKNOWN: APIErrorCode.EXCHANGE_SPECIFIC,
+            HyperliquidAPIErrorCategory.ERROR: APIErrorCode.EXCHANGE_SPECIFIC,
+        }
+        return mapping.get(category, APIErrorCode.EXCHANGE_SPECIFIC)
+
+    @staticmethod
+    def map_error_response(
+        response: dict[str, Any],
+        http_status: int | None = None,
+        original_exception: Exception | None = None,
+    ) -> APIError:
+        """
+        Transform a raw Hyperliquid error response into a standardized APIError.
+        This is the single entry point for mapping/categorizing/normalizing Hyperliquid errors.
+        Args:
+            response: The raw error response dict from Hyperliquid (should contain 'error').
+            http_status: Optional HTTP status code from the response.
+            original_exception: Optional original exception for chaining.
+        Returns:
+            APIError: The standardized internal error model for business logic.
+        """
+        try:
+            error_obj = HyperliquidRawApiError.model_validate(response)
+            category = HyperliquidMapper.categorize_hyperliquid_error(error_obj.error)
+        except ValidationError:
+            category = HyperliquidAPIErrorCategory.UNKNOWN
+            error_obj = None
+
+        code = HyperliquidMapper.map_category_to_api_error_code(category)
+        message = getattr(error_obj, "error", str(response))
+        error_response = APIErrorResponse.from_exchange_error(
+            message=message,
+            code=code.value,
+            http_status=http_status,
+            exchange_code=None,
+            exchange_message=message,
+            original_exception=original_exception,
+        )
+        return APIError(
+            message=error_response.message,
+            code=error_response.code,
+            http_status=error_response.http_status,
+            exchange_code=error_response.exchange_code,
+            exchange_message=error_response.exchange_message,
+            retry_after=error_response.retry_after,
+            original_exception=error_response.original_exception,
+        )
 
 
 # --- Additional Hyperliquid Mappers ---

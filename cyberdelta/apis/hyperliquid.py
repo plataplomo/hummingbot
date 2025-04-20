@@ -14,10 +14,6 @@ from web3.auto import w3
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
-from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
-    HyperliquidRawExchangeResponseData,
-    HyperliquidRawExchangeStatusObject,
-)
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
@@ -29,7 +25,6 @@ from cyberdelta.core.models import (
     OrderType,
     Position,
     Ticker,
-    TimeInForce,
     Trade,
 )
 
@@ -373,6 +368,18 @@ class HyperliquidAPI(ExchangeAPI):
                     logger.error(
                         f"[{self.exchange_name}] API error: {response.status} - {error_text}"
                     )
+                    # Try to parse as JSON and use HyperliquidMapper.map_error_response if possible
+                    try:
+                        error_json: dict[str, Any] = json.loads(error_text)
+                        if "error" in error_json:
+                            from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
+
+                            raise HyperliquidMapper.map_error_response(
+                                error_json, http_status=response.status
+                            )
+                    except Exception:
+                        pass
+                    # Fallback: raise generic APIError
                     raise APIError(
                         f"API Error: {response.status} - {error_text}",
                         code=APIErrorCode.EXCHANGE_SPECIFIC.value,
@@ -410,41 +417,23 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
-
-            state_data: dict[str, Any] | None = (
-                None  # API response is expected to be dict[str, Any] or None
+            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+                HyperliquidRawUserStateResponse,
             )
-            if isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict):
-                # API contract: response[0] is dict[str, Any]
-                response0: dict[str, Any] = cast(dict[str, Any], response[0])
-                state_data = response0.get("clearinghouseState")
-            elif isinstance(response, dict):
-                state_data = response.get("clearinghouseState")
 
-            if state_data and "assetPositions" in state_data:
-                balances: dict[str, Balance] = {}
-                # API contract: state_data["assetPositions"] is list[dict[str, Any]]
-                asset_positions: list[dict[str, Any]] = cast(
-                    list[dict[str, Any]], state_data["assetPositions"]
-                )
-                for asset_pos in asset_positions:
-                    if asset_pos.get("asset") == "USDC" and isinstance(
-                        asset_pos.get("position"), dict
-                    ):
-                        position_raw = asset_pos["position"]
-                        position: dict[str, Any] = cast(dict[str, Any], position_raw)
-                        total_balance_str: str = str(position.get("value", "0"))
-                        total_balance: Decimal = Decimal(total_balance_str)
+            validated = HyperliquidRawUserStateResponse.model_validate(response)
+            state_data = validated.clearinghouse_state
+            balances: dict[str, Balance] = {}
+            if state_data and state_data.asset_positions:
+                for asset_pos in state_data.asset_positions:
+                    if asset_pos.asset == "USDC" and asset_pos.position:
+                        total_balance = asset_pos.position.value
                         balances["USDC"] = Balance(
                             asset="USDC",
                             total=total_balance,
                             available=total_balance,
                         )
-                return balances
-            else:
-                logger.warning(f"[{self.exchange_name}] Unexpected balance response format.")
-                return {}
-
+            return balances
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting balances: {e}")
             raise
@@ -464,43 +453,23 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
-
-            positions_list: list[Position] = []
-            state_data: dict[str, Any] | None = (
-                None  # API response is expected to be dict[str, Any] or None
+            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+                HyperliquidRawUserStateResponse,
             )
 
-            if isinstance(response, list) and len(response) > 0 and isinstance(response[0], dict):
-                # API contract: response[0] is dict[str, Any]
-                response0: dict[str, Any] = cast(dict[str, Any], response[0])
-                state_data = response0.get("clearinghouseState")
-            elif isinstance(response, dict):
-                state_data = response.get("clearinghouseState")
-
-            if state_data and "assetPositions" in state_data:
-                # API contract: state_data["assetPositions"] is list[dict[str, Any]]
-                asset_positions: list[dict[str, Any]] = cast(
-                    list[dict[str, Any]], state_data["assetPositions"]
-                )
-                for asset_pos in asset_positions:
-                    position_data_raw = asset_pos.get("position")
-                    position_data: dict[str, Any] | None = (
-                        cast(dict[str, Any], position_data_raw)
-                        if isinstance(position_data_raw, dict)
-                        else None
-                    )
+            validated = HyperliquidRawUserStateResponse.model_validate(response)
+            state_data = validated.clearinghouse_state
+            positions_list: list[Position] = []
+            if state_data and state_data.asset_positions:
+                for asset_pos in state_data.asset_positions:
+                    position_data = asset_pos.position
                     if position_data:
-                        pos_symbol: str | None = asset_pos.get("asset")
+                        pos_symbol: str | None = asset_pos.asset
                         if symbol is not None and pos_symbol != symbol:
                             continue
-                        size_str: str = str(position_data.get("szi", "0"))
-                        entry_price_str: str = str(position_data.get("entryPx", "0"))
-                        unrealized_pnl_str: str = str(position_data.get("unrealizedPnl", "0"))
-                        size: Decimal = Decimal(size_str)
-                        entry_price: Decimal | None = (
-                            Decimal(entry_price_str) if entry_price_str else None
-                        )
-                        unrealized_pnl: Decimal = Decimal(unrealized_pnl_str)
+                        size = position_data.szi
+                        entry_price = position_data.entry_px
+                        unrealized_pnl = position_data.unrealized_pnl
                         if size != Decimal(0) and pos_symbol and entry_price is not None:
                             side: OrderSide = OrderSide.BUY if size > 0 else OrderSide.SELL
                             leverage_placeholder: Decimal = Decimal("1")
@@ -516,7 +485,6 @@ class HyperliquidAPI(ExchangeAPI):
                                 )
                             )
             return positions_list
-
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting positions: {e}")
             raise
@@ -536,25 +504,26 @@ class HyperliquidAPI(ExchangeAPI):
         try:
             payload = {"type": "openOrders", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+                HyperliquidRawOpenOrders,
+            )
 
+            validated = HyperliquidRawOpenOrders.model_validate(response)
             open_orders: list[Order] = []
-            if isinstance(response, list):
-                for order_data in response:
-                    order_symbol = order_data.get("coin")
-                    if symbol is None or order_symbol == symbol:
-                        order_status_str = order_data.get("status")
-                        if order_status_str == "open":
-                            pass
-                        elif order_status_str == "filled":
-                            continue
-                        elif order_status_str == "canceled":
-                            continue
-
-                        order = self.parse_order(order_data)
-                        if order:
-                            open_orders.append(order)
+            for order_data in validated.orders:
+                order_symbol = order_data.coin
+                if symbol is None or order_symbol == symbol:
+                    order_status_str = order_data.status
+                    if order_status_str == "open":
+                        pass
+                    elif order_status_str == "filled":
+                        continue
+                    elif order_status_str == "canceled":
+                        continue
+                    order = self.parse_order(order_data.model_dump())
+                    if order:
+                        open_orders.append(order)
             return open_orders
-
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting open orders: {e}")
             raise
@@ -569,232 +538,13 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    # Add **kwargs and keep type ignore for override due to base class signature
-    async def place_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: Decimal,
-        time_in_force: TimeInForce,
-        price: Decimal | None = None,
-        client_order_id: str | None = None,
-        reduce_only: bool = False,
-        post_only: bool = False,
-    ) -> Order:
-        """Place a new order."""
-        if not self._account:
-            raise APIError(
-                "Cannot place order without initialized account/private key",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
-
-        is_buy = side == OrderSide.BUY
-        sz = float(quantity)
-
-        order_type_hl: dict[str, Any]
-        limit_px_str: str = "0"  # Ensure always initialized
-        if order_type == OrderType.LIMIT:
-            if price is None:
-                raise ValueError("Price must be specified for LIMIT orders")
-            limit_px_str = f"{price:.{8}f}"
-            order_type_hl = {"limit": {"tif": time_in_force.value}}
-            if post_only:
-                logger.warning(
-                    f"[{self.exchange_name}] Post-only flag handling for limit orders "
-                    f"needs verification."
-                )
-
-        elif order_type == OrderType.MARKET:
-            order_type_hl = {"market": {}}
-            if post_only:
-                logger.warning(
-                    f"[{self.exchange_name}] Post-only typically not applicable to market orders."
-                )
-        else:
-            raise NotImplementedError(f"Order type {order_type} not supported yet.")
-
-        order_payload = {
-            "asset": symbol,
-            "isBuy": is_buy,
-            "limitPx": limit_px_str,
-            "sz": sz,
-            "reduceOnly": reduce_only,
-            "orderType": order_type_hl,
-        }
-
-        action_payload = {
-            "type": "order",
-            "orders": [order_payload],
-        }
-
-        try:
-            response = await self._request("POST", "/exchange", data=action_payload, signed=True)
-
-            if isinstance(response, dict) and response.get("status") == "ok":
-                response_data = response.get("data")
-                if isinstance(response_data, dict) and "statuses" in response_data:
-                    statuses = cast(list[dict[str, Any]], response_data["statuses"])
-                    if statuses:
-                        for status in statuses:
-                            status_dict: dict[str, Any] = status
-                            if status_dict.get("symbol") == symbol:
-                                # Robust, type-safe replacements for missing utility functions
-                                avg_px = status_dict.get("avgPx", "0")
-                                avg_fill_price = Decimal(str(avg_px))
-                                created_at_ts = status_dict.get("time", time.time() * 1000)
-                                created_at = datetime.fromtimestamp(
-                                    float(created_at_ts) / 1000, tz=UTC
-                                )
-                                return Order(
-                                    client_order_id=client_order_id
-                                    or str(status_dict.get("oid", "")),
-                                    exchange_order_id=str(status_dict.get("oid", "")),
-                                    related_order_id=None,
-                                    symbol=symbol,
-                                    side=side,
-                                    order_type=order_type,
-                                    status=OrderStatus.FILLED,
-                                    quantity_requested=quantity,
-                                    quantity_filled=Decimal(str(status_dict.get("totalSz", "0"))),
-                                    price=price,
-                                    average_fill_price=avg_fill_price,
-                                    created_at=created_at,
-                                    exchange="hyperliquid",
-                                    executed_quote_quantity=None,
-                                    trigger_by=None,
-                                    self_trade_prevention=None,
-                                    updated_at=None,
-                                    triggered_at=None,
-                                    expiry_reason=None,
-                                    origin=None,
-                                    strategy_name=None,
-                                    signal_id=None,
-                                )
-
-            logger.error(f"[{self.exchange_name}] Failed to place order. Response: {response}")
-            raise APIError(
-                "Failed to place order, unexpected response",
-                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-            )
-
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error placing order: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error placing order: {e}", exc_info=True)
-            raise APIError(
-                f"Failed to place order: {e}",
-                code=APIErrorCode.SERVER_ERROR.value,
-                original_exception=e,
-            ) from e
-
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
-        """Cancel an existing order."""
-        if not self._account:
-            raise APIError(
-                "Cannot cancel order without initialized account/private key",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
-        if symbol is None:
-            raise ValueError("Symbol must be provided to cancel Hyperliquid orders")
-
-        cancel_payload = {
-            "asset": symbol,
-            "oid": int(order_id),
-        }
-        action_payload = {
-            "type": "cancel",
-            "cancels": [cancel_payload],
-        }
-
-        try:
-            response = await self._request("POST", "/exchange", data=action_payload, signed=True)
-
-            if isinstance(response, dict) and response.get("status") == "ok":
-                # Use the Pydantic model for strict validation and type safety
-                response_data = response.get("data")
-                if response_data is None:
-                    logger.error(f"[{self.exchange_name}] No data in cancel order response.")
-                    raise APIError(
-                        "Cancel order failed, missing data in response",
-                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-                    )
-                # Validate and parse using Pydantic
-                parsed_data = HyperliquidRawExchangeResponseData.model_validate(response_data)
-                statuses = parsed_data.statuses
-                if statuses:
-                    first_status = statuses[0]
-                    if isinstance(first_status, str) and first_status == "canceled":
-                        logger.info(
-                            f"[{self.exchange_name}] Canceled order {order_id} for {symbol}"
-                        )
-                        return {"status": "canceled", "order_id": order_id, "symbol": symbol}
-                    elif (
-                        isinstance(first_status, HyperliquidRawExchangeStatusObject)
-                        and first_status.error is not None
-                    ):
-                        error_msg = str(first_status.error)
-                        logger.error(
-                            f"[{self.exchange_name}] Failed to cancel order {order_id}: {error_msg}"
-                        )
-                        code = APIErrorCode.EXCHANGE_SPECIFIC.value
-                        if "Order not found" in error_msg:
-                            code = APIErrorCode.ORDER_NOT_FOUND.value
-                        raise APIError(f"Failed to cancel order: {error_msg}", code=code)
-                    else:
-                        logger.warning(
-                            f"[{self.exchange_name}] Order {order_id} cancel response status OK, "
-                            f"but data unexpected: {statuses}"
-                        )
-                        return {
-                            "status": "unknown",
-                            "order_id": order_id,
-                            "symbol": symbol,
-                            "response": statuses,
-                        }
-
-            logger.error(
-                f"[{self.exchange_name}] Failed to cancel order {order_id}. Response: {response}"
-            )
-            raise APIError(
-                "Cancel order failed, unexpected response",
-                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-            )
-
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error canceling order: {e}")
-            raise
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Error canceling order {order_id}: {e}", exc_info=True
-            )
-            raise APIError(
-                f"Failed to cancel order {order_id}: {e}",
-                code=APIErrorCode.SERVER_ERROR.value,
-                original_exception=e,
-            ) from e
-
     async def get_ticker(self, symbol: str) -> Ticker:
         """
         Get current ticker information for a symbol.
-
-        - Validates the raw API response using HyperliquidRawMetaAndAssetCtxsResponse.
-        - Maps the validated asset context to a Ticker using HyperliquidMapper.
-
-        Args:
-            symbol: The trading symbol to fetch ticker data for.
-
-        Returns:
-            Ticker: The current ticker data with Decimal-typed financial fields.
-
-        Raises:
-            APIError: If ticker data is not found or response is malformed.
         """
         try:
             payload = {"type": "metaAndAssetCtxs"}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
-            # Validate response structure
             from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
                 HyperliquidRawMetaAndAssetCtxsResponse,
             )
@@ -802,7 +552,6 @@ class HyperliquidAPI(ExchangeAPI):
             validated = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response)
             for asset_ctx in validated.asset_ctxs:
                 if asset_ctx.name == symbol:
-                    # Convert Pydantic model to dict for the mapper
                     return HyperliquidMapper.map_raw_ctx_to_ticker(asset_ctx.model_dump())
             logger.warning(
                 f"[{self.exchange_name}] Ticker data not found for {symbol} in response: {response}"
@@ -828,19 +577,6 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
         """
         Get order book for a symbol.
-
-        - Validates the raw API response using HyperliquidRawL2Book.
-        - Maps the validated order book to an OrderBook using HyperliquidMapper.
-
-        Args:
-            symbol: The trading symbol to fetch the order book for.
-            depth: Optional depth limit for the order book.
-
-        Returns:
-            OrderBook: The validated and mapped order book.
-
-        Raises:
-            APIError: If order book data is not found or response is malformed.
         """
         try:
             payload = {"type": "l2Book", "coin": symbol}
@@ -850,7 +586,6 @@ class HyperliquidAPI(ExchangeAPI):
             )
 
             validated = HyperliquidRawL2Book.model_validate(response)
-            # Convert Pydantic model to dict for the mapper
             return HyperliquidMapper.map_raw_order_book(symbol, validated.model_dump(), depth)
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting order book for {symbol}: {e}")
@@ -869,16 +604,6 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
         """
         Get recent trades for a symbol.
-
-        - Validates the raw API response using HyperliquidRawRecentTradesResponse.
-        - Maps the validated trades to a list of Trade using HyperliquidMapper.
-
-        Args:
-            symbol: The trading symbol to fetch recent trades for.
-            limit: Optional limit for the number of trades returned.
-
-        Returns:
-            list[Trade]: The validated and mapped trades.
         """
         try:
             payload = {"type": "recentTrades", "coin": symbol}
@@ -887,7 +612,6 @@ class HyperliquidAPI(ExchangeAPI):
                 HyperliquidRawRecentTradesResponse,
             )
 
-            # Validate the batch response
             validated = HyperliquidRawRecentTradesResponse.model_validate(response)
             trade_dicts = [t.model_dump() for t in validated.__root__]
             return HyperliquidMapper.map_raw_trades(symbol, trade_dicts, limit)
@@ -910,15 +634,6 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_funding_rate(self, symbol: str) -> FundingRate | None:
         """
         Get funding rate for a symbol.
-
-        - Validates the raw API response using HyperliquidRawMetaAndAssetCtxsResponse.
-        - Maps the validated asset context to a FundingRate using HyperliquidMapper.
-
-        Args:
-            symbol: The trading symbol to fetch the funding rate for.
-
-        Returns:
-            FundingRate | None: The validated and mapped funding rate, or None if not found.
         """
         try:
             payload = {"type": "metaAndAssetCtxs"}

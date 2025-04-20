@@ -41,3 +41,25 @@ class HyperliquidAPIErrorCategory(Enum):
     TWAP_NOT_FOUND_OR_FILLED = "TWAP was never placed, already canceled, or filled"
     UNKNOWN = "Unknown error"
     ERROR = "error"  # Most common generic error string in Hyperliquid responses
+
+
+HYPERLIQUID_ERROR_STRINGS = {
+    "insufficient balance": HyperliquidAPIErrorCategory.INSUFFICIENT_BALANCE,
+    "invalid signature": HyperliquidAPIErrorCategory.INVALID_SIGNATURE,
+    "invalid asset": HyperliquidAPIErrorCategory.INVALID_ASSET,
+    "invalid order type": HyperliquidAPIErrorCategory.INVALID_ORDER_TYPE,
+    "order size too small": HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL,
+    "order size too large": HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE,
+    "price out of bounds": HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS,
+    "rate limit exceeded": HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED,
+    "unauthorized": HyperliquidAPIErrorCategory.UNAUTHORIZED,
+    "internal server error": HyperliquidAPIErrorCategory.INTERNAL_SERVER_ERROR,
+    "order must have minimum value": HyperliquidAPIErrorCategory.ORDER_MIN_VALUE,
+    "order was never placed": HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED,
+    "already canceled": HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED,
+    "already filled": HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED,
+    "invalid twap duration": HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION,
+    "twap was never placed": HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED,
+    "twap already canceled": HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED,
+    "twap already filled": HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED,
+}
