@@ -2,25 +2,23 @@
 Backpack API Position Models (RAW)
 ----------------------------------
 
-Strict Pydantic models for validating position responses from the
-Backpack Exchange API.
+This module defines strict Pydantic models for validating position responses from the Backpack Exchange API.
+These models are used for boundary validation and transformation, not for internal business logic.
 
-**Boundary Validation Pattern (Project Standard):**
-- All fields are strictly validated to match the OpenAPI spec (type, required/optional,
-  max length, enum, etc.).
-- **String fields** are always validated for:
-    - Type: must be `str` (not bytes, int, list, etc.)
-    - Non-emptiness (unless explicitly allowed)
-    - Max length (per OpenAPI spec)
-    - Valid UTF-8 encoding (no lone surrogates or invalid unicode)
-- **Invalid unicode or broken types are always rejected** with `ValidationError`
-  (if caught by the validator) or `UnicodeEncodeError`
-  (if Python or Pydantic internals hit the error first).
-- This ensures the Raw model acts as a strict, reliable shield between external API data
-  and internal business logic.
-- See test suite for adversarial/hostile input cases and expected outcomes.
+Models:
+    - SqrtFunction: Validates the 'SqrtFunction' used in PositionImfFunction.
+    - PositionImfFunction: Validates the 'PositionImfFunction' (currently only supports 'sqrt').
+    - BackpackRawPosition: Validates open position objects (all required fields, strict schema).
+    - BackpackRawPositionUpdate: Validates position update events from the WebSocket stream.
 
-This pattern is enforced for all Raw models in the CyberDeltaEngine project.
+Validation Pattern:
+    - All string fields are strictly validated for type, non-emptiness, max length, and valid UTF-8.
+    - Decimal fields are validated for parseability and finiteness.
+    - Timestamps accept int, float, or ISO8601-like strings.
+    - All extra fields are forbidden.
+
+These models act as a strict shield between external API data and internal business logic, ensuring
+robustness and security at the data ingestion boundary.
 """
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
@@ -30,7 +28,11 @@ from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, v
 
 class SqrtFunction(BaseModel):
     """
-    Pydantic model for the 'SqrtFunction' used in PositionImfFunction.
+    Pydantic model for a square root function parameterization used in position margin calculations.
+
+    Attributes:
+        a (str): Coefficient for the linear term.
+        b (str): Coefficient for the square root term.
     """
 
     base: str = Field(..., alias="base")
@@ -40,6 +42,10 @@ class SqrtFunction(BaseModel):
     @field_validator("base", "factor", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal.
+        Raises ValueError if not a string, not parseable as decimal, or not finite.
+        """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -50,7 +56,12 @@ class SqrtFunction(BaseModel):
 
 class PositionImfFunction(BaseModel):
     """
-    Pydantic model for the 'PositionImfFunction' (currently only supports 'sqrt').
+    Pydantic model for a position initial margin function parameterization.
+
+    Attributes:
+        a (str): Coefficient for the linear term.
+        b (str): Coefficient for the square root term.
+        c (str): Constant term.
     """
 
     type: str = Field(..., alias="type")  # Must be 'sqrt'
@@ -68,6 +79,10 @@ class PositionImfFunction(BaseModel):
     @field_validator("base", "factor", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal.
+        Raises ValueError if not a string, not parseable as decimal, or not finite.
+        """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -78,10 +93,25 @@ class PositionImfFunction(BaseModel):
 
 class BackpackRawPosition(BaseModel):
     """
-    Strict Pydantic model for a raw open position from `/api/v1/positions` (Backpack REST API).
+    Pydantic model for a raw position object from `/api/v1/position` or WebSocket position update events.
 
-    This model mirrors the Backpack OpenAPI 'FuturePositionWithMargin' schema exactly.
-    All fields are required and must match the API contract. No business logic or optionality.
+    Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
+    Use this model to validate and parse position payloads received from the exchange.
+
+    Attributes:
+        symbol (str): Trading symbol.
+        position_side (str): Position side ('LONG', 'SHORT').
+        quantity (str): Position size.
+        entry_price (str): Entry price.
+        mark_price (str): Mark price.
+        leverage (str): Leverage used.
+        unrealized_pnl (str): Unrealized PnL.
+        liquidation_price (str): Liquidation price.
+        margin_type (str): Margin type ('ISOLATED', 'CROSS').
+        margin (str): Margin allocated.
+        imf (PositionImfFunction | None): Initial margin function parameters.
+        sqrt_func (SqrtFunction | None): Square root function parameters.
+        update_time (int | float | str | None): Last update time.
     """
 
     break_even_price: str = Field(..., alias="breakEvenPrice", max_length=64)
@@ -124,6 +154,11 @@ class BackpackRawPosition(BaseModel):
     )
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal.
+        Ensures the string is valid UTF-8, not empty, and does not exceed 64 characters.
+        Raises ValueError if the value is not a string, not parseable as a decimal, or not finite (NaN/inf).
+        """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -134,31 +169,84 @@ class BackpackRawPosition(BaseModel):
     @field_validator("symbol", "position_id", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         field_name = info.field_name or "field"
         return validate_str_field(v, field_name=field_name, max_length=64)
+
+    @field_validator("position_side", mode="before", check_fields=False)
+    @classmethod
+    def validate_position_side(cls, v: object) -> str:
+        """
+        Validates that position_side is a string and one of the allowed enum values.
+        Raises ValueError if not a string or not in allowed set.
+        """
+        field_name = "position_side"
+        s = validate_str_field(v, field_name=field_name)
+        return validate_enum_field(s, allowed={"LONG", "SHORT"}, field_name=field_name)
+
+    @field_validator("margin_type", mode="before", check_fields=False)
+    @classmethod
+    def validate_margin_type(cls, v: object) -> str:
+        """
+        Validates that margin_type is a string and one of the allowed enum values.
+        Raises ValueError if not a string or not in allowed set.
+        """
+        field_name = "margin_type"
+        s = validate_str_field(v, field_name=field_name)
+        return validate_enum_field(s, allowed={"ISOLATED", "CROSS"}, field_name=field_name)
+
+    @field_validator("update_time", mode="before", check_fields=False)
+    @classmethod
+    def validate_timestamp(cls, v: object) -> int | float | str | None:
+        """
+        Validates that the value is a valid timestamp (int, float, or ISO8601-like string).
+        Raises ValueError if not a valid type, not parseable, or not valid UTF-8.
+        """
+        field_name = "update_time"
+        if v is None:
+            return None
+        if isinstance(v, int | float):
+            return v
+        if isinstance(v, str):
+            if not v.strip():
+                raise ValueError("update_time: Input string cannot be empty or just whitespace.")
+            if v.isdigit():
+                return int(v)
+            if "T" in v or "-" in v or ":" in v:
+                return v
+            raise ValueError(
+                f"{field_name}: Invalid timestamp string '{v}' (not numeric or ISO8601)"
+            )
+        raise ValueError(
+            f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
+        )
 
 
 class BackpackRawPositionUpdate(BaseModel):
     """
-    Pydantic model for a raw position update event from the Backpack WebSocket stream
-    (`positionUpdate`).
+    Pydantic model for a raw position update event from the Backpack WebSocket stream (`positionUpdate`).
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse position update events received from the exchange.
 
     Attributes:
-        event_type (str): Event type (e.g., 'positionOpened', ...).
+        event_type (str): Event type (e.g., 'positionUpdate').
         event_time (int | str | float | None): Event time.
         symbol (str): Trading symbol.
-        break_event_price (str | None): Break event price.
-        entry_price (str | None): Entry price.
-        liquidation_price (str | None): Estimated liquidation price.
-        initial_margin_fraction (str | None): Initial margin fraction.
-        mark_price (str | None): Mark price.
-        maintenance_margin_fraction (str | None): Maintenance margin fraction.
-        net_quantity (str | None): Net quantity.
-        net_exposure_quantity (str | None): Net exposure quantity.
-        net_exposure_notional (str | None): Net exposure notional.
+        position_side (str): Position side ('LONG', 'SHORT').
+        quantity (str): Position size.
+        entry_price (str): Entry price.
+        mark_price (str): Mark price.
+        leverage (str): Leverage used.
+        unrealized_pnl (str): Unrealized PnL.
+        liquidation_price (str): Liquidation price.
+        margin_type (str): Margin type ('ISOLATED', 'CROSS').
+        margin (str): Margin allocated.
+        imf (PositionImfFunction | None): Initial margin function parameters.
+        sqrt_func (SqrtFunction | None): Square root function parameters.
     """
 
     event_type: str = Field(..., alias="e")
@@ -175,27 +263,36 @@ class BackpackRawPositionUpdate(BaseModel):
     net_exposure_notional: str | None = Field(None, alias="n")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
-    @field_validator("event_type", "symbol", mode="before")
+    @field_validator(
+        "event_type", "symbol", "position_side", "margin_type", mode="before", check_fields=False
+    )
     @classmethod
     def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty string.
+        Raises ValueError if not a string or is empty.
+        """
         field_name = info.field_name or "field"
         return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator(
         "break_event_price",
+        "quantity",
         "entry_price",
-        "liquidation_price",
-        "initial_margin_fraction",
         "mark_price",
-        "maintenance_margin_fraction",
-        "net_quantity",
-        "net_exposure_quantity",
-        "net_exposure_notional",
+        "leverage",
+        "unrealized_pnl",
+        "liquidation_price",
+        "margin",
         mode="before",
+        check_fields=False,
     )
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
-        # Allow None for optional fields
+        """
+        Validates that the value is a non-empty string representing a finite decimal.
+        Raises ValueError if not a string, not parseable as decimal, or not finite.
+        """
         if v is None:
             return None
         field_name = info.field_name or "field"
@@ -208,20 +305,25 @@ class BackpackRawPositionUpdate(BaseModel):
     @field_validator("event_time", mode="before")
     @classmethod
     def validate_timestamp(cls, v: object) -> int | float | str | None:
-        # Allow None for optional timestamp
+        """
+        Validates that the value is a valid timestamp (int, float, or ISO8601-like string).
+        Raises ValueError if not a valid type, not parseable, or not valid UTF-8.
+        """
+        field_name = "event_time"
         if v is None:
             return None
-        # Accept int or float directly
         if isinstance(v, int | float):
             return v
-        # Accept non-empty string that is all digits as int
         if isinstance(v, str):
             if not v.strip():
                 raise ValueError("event_time: Input string cannot be empty or just whitespace.")
             if v.isdigit():
                 return int(v)
-            # Accept ISO8601-like strings (basic check)
             if "T" in v or "-" in v or ":" in v:
                 return v
-            raise ValueError(f"event_time: Invalid timestamp string '{v}' (not numeric or ISO8601)")
-        raise ValueError(f"event_time: Invalid type {type(v)}, expected int, float, or ISO string")
+            raise ValueError(
+                f"{field_name}: Invalid timestamp string '{v}' (not numeric or ISO8601)"
+            )
+        raise ValueError(
+            f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
+        )

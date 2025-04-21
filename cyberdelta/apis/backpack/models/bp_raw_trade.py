@@ -2,10 +2,22 @@
 Backpack API Trade Models
 ------------------------
 
-Strict Pydantic models for validating trade and trade event responses from the Backpack
-Exchange API.
-These models are used for boundary validation and transformation, not for internal business
-logic.
+This module defines strict Pydantic models for validating trade and trade event responses from the
+Backpack Exchange API. These models are used for boundary validation and transformation, not for
+internal business logic.
+
+Models:
+    - BackpackRawTrade: Validates REST trade/fill objects (id, order_id, symbol, price, quantity, time).
+    - BackpackRawTradeEvent: Validates WebSocket trade event objects (event_type, event_time, symbol, price, quantity, buyer/seller order IDs, trade_id, engine_timestamp, is_buyer_the_maker).
+
+Validation Pattern:
+    - All string fields are strictly validated for type, non-emptiness, max length, and valid UTF-8.
+    - Decimal fields are validated for parseability and finiteness.
+    - Timestamps accept int, float, or ISO8601-like strings.
+    - All extra fields are forbidden.
+
+These models act as a strict shield between external API data and internal business logic, ensuring
+robustness and security at the data ingestion boundary.
 """
 
 import logging
@@ -21,7 +33,7 @@ class BackpackRawTrade(BaseModel):
     """
     Pydantic model for a raw trade/fill from `/api/v1/trades` (Backpack REST API).
 
-    Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
+    This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse trade payloads received from the exchange.
 
     Attributes:
@@ -44,6 +56,10 @@ class BackpackRawTrade(BaseModel):
     @field_validator("id", "order_id", "symbol", mode="before")
     @classmethod
     def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -60,6 +76,10 @@ class BackpackRawTrade(BaseModel):
     @field_validator("price", "quantity", mode="before")
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
+        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max length.
+        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -90,6 +110,10 @@ class BackpackRawTrade(BaseModel):
     @field_validator("time", mode="before")
     @classmethod
     def validate_timestamp_format(cls, v: object, info: ValidationInfo) -> int | float | str | None:
+        """
+        Validates that the value is a valid timestamp (int, float, or ISO8601-like string).
+        Raises ValueError if not a valid type, not parseable, or not valid UTF-8.
+        """
         field_name = info.field_name or "time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")
@@ -122,7 +146,7 @@ class BackpackRawTradeEvent(BaseModel):
     """
     Pydantic model for a raw trade event from the Backpack WebSocket stream (`trade`).
 
-    Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
+    This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse trade event payloads received from the exchange.
 
     Attributes:
@@ -153,6 +177,10 @@ class BackpackRawTradeEvent(BaseModel):
     @field_validator("event_type", mode="before")
     @classmethod
     def validate_event_type_enum(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that event_type is a non-empty UTF-8 string and matches allowed values.
+        Raises ValueError if not a string, is empty, not valid UTF-8, or not in allowed set.
+        """
         field_name = info.field_name or "event_type"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -178,6 +206,10 @@ class BackpackRawTradeEvent(BaseModel):
     @field_validator("symbol", "buyer_order_id", "seller_order_id", "trade_id", mode="before")
     @classmethod
     def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -194,6 +226,10 @@ class BackpackRawTradeEvent(BaseModel):
     @field_validator("price", "quantity", mode="before")
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
+        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max length.
+        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -224,6 +260,10 @@ class BackpackRawTradeEvent(BaseModel):
     @field_validator("event_time", "engine_timestamp", mode="before")
     @classmethod
     def validate_timestamp_format(cls, v: object, info: ValidationInfo) -> int | float | str | None:
+        """
+        Validates that the value is a valid timestamp (int, float, or ISO8601-like string).
+        Raises ValueError if not a valid type, not parseable, or not valid UTF-8.
+        """
         field_name = info.field_name or "event_time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")

@@ -1,5 +1,24 @@
 """
 Backpack API Market, Ticker, and Open Interest Models
+----------------------------------------------------
+
+This module defines strict Pydantic models for validating market metadata, ticker, and open interest
+responses from the Backpack Exchange API. These models are used for boundary validation and transformation,
+not for internal business logic.
+
+Models:
+    - BackpackRawMarket: Validates market metadata (symbol, base/quote asset).
+    - BackpackRawTicker: Validates ticker data (symbol, price, bid, ask, volume, time).
+    - BackpackRawOpenInterest: Validates open interest data (symbol, open interest).
+
+Validation Pattern:
+    - All string fields are strictly validated for type, non-emptiness, max length, and valid UTF-8.
+    - Decimal fields are validated for parseability and finiteness.
+    - Timestamps accept int, float, or ISO8601-like strings.
+    - All extra fields are forbidden.
+
+These models act as a strict shield between external API data and internal business logic, ensuring
+robustness and security at the data ingestion boundary.
 """
 
 from decimal import Decimal
@@ -9,14 +28,15 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 
 class BackpackRawMarket(BaseModel):
     """
-    Raw market metadata object from `/api/v1/markets`.
-    Mirrors the schema in the Backpack OpenAPI spec.
+    Pydantic model for a raw market metadata object from `/api/v1/markets` (Backpack REST API).
 
-    Reference: https://docs.backpack.exchange/ (see OpenAPI spec for /markets)
-    Fields:
-        symbol: Trading symbol (str)
-        base_asset: Base asset symbol (str)
-        quote_asset: Quote asset symbol (str)
+    This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
+    Use this model to validate and parse market metadata payloads received from the exchange.
+
+    Attributes:
+        symbol (str): Trading symbol.
+        base_asset (str): Base asset symbol.
+        quote_asset (str): Quote asset symbol.
     """
 
     symbol: str = Field(..., alias="symbol", max_length=64)
@@ -27,6 +47,10 @@ class BackpackRawMarket(BaseModel):
     @field_validator("symbol", "base_asset", "quote_asset", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -43,17 +67,18 @@ class BackpackRawMarket(BaseModel):
 
 class BackpackRawTicker(BaseModel):
     """
-    Raw ticker object from `/api/v1/ticker`.
-    Mirrors the schema in the Backpack OpenAPI spec.
+    Pydantic model for a raw ticker object from `/api/v1/ticker` (Backpack REST API).
 
-    Reference: https://docs.backpack.exchange/ (see OpenAPI spec for /ticker)
-    Fields:
-        symbol: Trading symbol (str)
-        price: Last traded price (as string, optional)
-        bid: Best bid price (as string, optional)
-        ask: Best ask price (as string, optional)
-        volume: 24h trading volume (as string, optional)
-        time: Ticker timestamp (int | str | float | None)
+    This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
+    Use this model to validate and parse ticker payloads received from the exchange.
+
+    Attributes:
+        symbol (str): Trading symbol.
+        price (str | None): Last traded price (as string, optional).
+        bid (str | None): Best bid price (as string, optional).
+        ask (str | None): Best ask price (as string, optional).
+        volume (str | None): 24h trading volume (as string, optional).
+        time (int | str | float | None): Ticker timestamp.
     """
 
     symbol: str = Field(..., alias="symbol")
@@ -67,6 +92,10 @@ class BackpackRawTicker(BaseModel):
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the symbol is a non-empty UTF-8 string.
+        Raises ValueError if not a string, is empty, or is not valid UTF-8.
+        """
         field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
             field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
@@ -85,6 +114,10 @@ class BackpackRawTicker(BaseModel):
     @field_validator("price", "bid", "ask", "volume", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        """
+        Validates that the value is a non-empty string representing a finite decimal.
+        Raises ValueError if not a string, not parseable as decimal, or not finite.
+        """
         field_name = getattr(info, "field_name", None) or "field"
         if v is None:
             return v
@@ -109,6 +142,10 @@ class BackpackRawTicker(BaseModel):
     @field_validator("time", mode="before")
     @classmethod
     def validate_timestamp(cls, v: object) -> int | float | str:
+        """
+        Validates that the value is a valid timestamp (int, float, or ISO8601-like string).
+        Raises ValueError if not a valid type, not parseable, or not valid UTF-8.
+        """
         if isinstance(v, int | float):
             return v
         if isinstance(v, str):
@@ -134,13 +171,14 @@ class BackpackRawTicker(BaseModel):
 
 class BackpackRawOpenInterest(BaseModel):
     """
-    Raw open interest data from `/api/v1/openInterest`.
-    Mirrors the schema in the Backpack OpenAPI spec.
+    Pydantic model for a raw open interest object from `/api/v1/openInterest` (Backpack REST API).
 
-    Reference: https://docs.backpack.exchange/ (see OpenAPI spec for /openInterest)
-    Fields:
-        symbol: Trading symbol (str)
-        open_interest: Open interest (as string)
+    This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
+    Use this model to validate and parse open interest payloads received from the exchange.
+
+    Attributes:
+        symbol (str): Trading symbol.
+        open_interest (str): Open interest (as string).
     """
 
     symbol: str = Field(..., alias="symbol")
@@ -150,6 +188,10 @@ class BackpackRawOpenInterest(BaseModel):
     @field_validator("symbol", "open_interest", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -166,6 +208,10 @@ class BackpackRawOpenInterest(BaseModel):
     @field_validator("open_interest", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        """
+        Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
+        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max length.
+        """
         field_name = getattr(info, "field_name", None) or "field"
         if v is None:
             return v

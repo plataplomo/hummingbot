@@ -1,13 +1,22 @@
 """
-Backpack API Order Models (Spec-Accurate, Full Alias & Validation)
-------------------------
+Backpack API Order, Order Book, and Order Update Models
+------------------------------------------------------
 
-Strict Pydantic models for validating order, order book, and order update
-responses from the Backpack Exchange API. These models are used for boundary
-validation and transformation, not for internal business logic.
+This module defines strict Pydantic models for validating order, order book, and order update responses from the Backpack Exchange API. These models are used for boundary validation and transformation, not for internal business logic.
 
-This version is fully aligned with the Backpack OpenAPI spec and supports all
-REST and WebSocket field aliases, types, and validation requirements.
+Models:
+    - BackpackRawOrder: Validates REST/WebSocket order objects (all aliases, strict schema).
+    - BackpackRawOrderBook: Validates order book snapshots (symbol, bids, asks, time).
+    - BackpackRawOrderUpdate: Validates order update events from the WebSocket stream.
+
+Validation Pattern:
+    - All string fields are strictly validated for type, non-emptiness, max length, and valid UTF-8.
+    - Decimal fields are validated for parseability and finiteness.
+    - Timestamps accept int, float, or ISO8601-like strings.
+    - All extra fields are forbidden.
+    - Enum fields are strictly validated against allowed values.
+
+These models act as a strict shield between external API data and internal business logic, ensuring robustness and security at the data ingestion boundary.
 """
 
 from decimal import Decimal
@@ -23,10 +32,33 @@ class BackpackRawOrder(BaseModel):
     Pydantic model for a raw order object from `/api/v1/order`, `/api/v1/orders`,
     or WebSocket order update events.
 
-    - All REST and WebSocket field names/aliases are supported.
-    - Types and optionality are enforced per the Backpack OpenAPI spec.
-    - No business logic or enum mapping is performed here.
-    - All extra fields are forbidden.
+    This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
+    Use this model to validate and parse order payloads received from the exchange.
+
+    Attributes:
+        clientId (str | None): Client-generated unique order ID (UUID).
+        id (str): Exchange-provided order ID.
+        relatedOrderId (str | None): ID of related order.
+        symbol (str): Trading symbol.
+        side (str): Order side ('buy', 'sell', 'Bid', 'Ask').
+        orderType (str): Order type ('LIMIT', 'MARKET', etc.).
+        status (str): Order status ('NEW', 'FILLED', etc.).
+        quantity (str): Requested order quantity.
+        executedQuantity (str | None): Total filled quantity.
+        executedQuoteQuantity (str | None): Filled quote quantity.
+        price (str | None): Limit price.
+        triggerPrice (str | None): Stop/trigger price.
+        avgFillPrice (str | None): Weighted average fill price.
+        triggerBy (str | None): Reference price type for triggers.
+        timeInForce (str | None): Time in force.
+        reduceOnly (bool | None): Reduce-only flag.
+        postOnly (bool | None): Post-only flag (REST only).
+        selfTradePrevention (str | None): Self-trade prevention behavior.
+        createdAt (int | float | str): Order creation time (UTC).
+        updatedAt (int | float | str | None): Last update time.
+        triggeredAt (int | float | str | None): Time the conditional order was triggered.
+        expiryReason (str | None): Reason for expiry/cancellation.
+        origin (str | None): Origin of the last update.
     """
 
     clientId: str | None = Field(
@@ -94,6 +126,10 @@ class BackpackRawOrder(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def support_all_aliases(cls, values: dict[str, object]) -> dict[str, object]:
+        """
+        Normalizes all supported field aliases to canonical field names before validation.
+        Ensures compatibility with both REST and WebSocket payloads.
+        """
         alias_map: dict[str, list[str]] = {
             "id": ["id", "i"],
             "clientId": ["clientId", "c"],
@@ -134,6 +170,10 @@ class BackpackRawOrder(BaseModel):
     )
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        """
+        Validates that the value is a non-empty string representing a finite decimal.
+        Raises ValueError if not a string, not parseable as decimal, or not finite.
+        """
         field_name = info.field_name or "field"
         if v is None:
             return None
@@ -148,6 +188,10 @@ class BackpackRawOrder(BaseModel):
     @field_validator("side", mode="before")
     @classmethod
     def validate_side_enum(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that side is a non-empty string and a valid enum value.
+        Raises ValueError if not a string or not in allowed set.
+        """
         field_name = info.field_name or "side"
         if v is None or not isinstance(v, str):
             raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
@@ -157,6 +201,10 @@ class BackpackRawOrder(BaseModel):
     @field_validator("orderType", mode="before")
     @classmethod
     def validate_order_type_enum(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that orderType is a non-empty string and a valid enum value.
+        Raises ValueError if not a string or not in allowed set.
+        """
         field_name = info.field_name or "orderType"
         if v is None or not isinstance(v, str):
             raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
@@ -170,6 +218,10 @@ class BackpackRawOrder(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def validate_status_enum(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that status is a non-empty string and a valid enum value.
+        Raises ValueError if not a string or not in allowed set.
+        """
         field_name = info.field_name or "status"
         if v is None or not isinstance(v, str):
             raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
@@ -190,14 +242,31 @@ class BackpackRawOrder(BaseModel):
     @field_validator("symbol", "id", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         field_name = info.field_name or "field"
         if v is None or not isinstance(v, str):
             raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
-        return validate_str_field(v, field_name=field_name)
+        if not v.strip():
+            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
+        max_len = 64
+        if len(v) > max_len:
+            raise ValueError(f"{field_name}: String value too long (max {max_len} chars)")
+        try:
+            v.encode("utf-8", "strict")
+        except Exception as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+        return v
 
     @field_validator("createdAt", "updatedAt", "triggeredAt", mode="before")
     @classmethod
     def validate_timestamp(cls, v: object) -> int | float | str | None:
+        """
+        Validates that the value is a valid timestamp (int, float, or ISO8601-like string).
+        Raises ValueError if not a valid type, not parseable, or not valid UTF-8.
+        """
         if v is None:
             return None
         if isinstance(v, int | float):
@@ -218,6 +287,10 @@ class BackpackRawOrder(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def validate_status_string_and_enum(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that status is a non-empty string and a valid enum value, and valid UTF-8.
+        Raises ValueError if not a string, is empty, not in allowed set, or not valid UTF-8.
+        """
         field_name = info.field_name or "status"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
@@ -246,14 +319,8 @@ class BackpackRawOrder(BaseModel):
     @classmethod
     def validate_side_string_and_enum(cls, v: object, info: ValidationInfo) -> str:
         """
-        Validates that side is a non-empty string and a valid enum value.
-        Args:
-            v: The value to validate (should be a string).
-            info: Pydantic ValidationInfo for context.
-        Returns:
-            The validated string value.
-        Raises:
-            ValueError: If the value is not a valid enum value.
+        Validates that side is a non-empty string and a valid enum value, and valid UTF-8.
+        Raises ValueError if not a string, is empty, not in allowed set, or not valid UTF-8.
         """
         field_name = info.field_name or "side"
         if not isinstance(v, str):
@@ -273,14 +340,8 @@ class BackpackRawOrder(BaseModel):
     @classmethod
     def validate_order_type_string_and_enum(cls, v: object, info: ValidationInfo) -> str:
         """
-        Validates that orderType is a non-empty string and a valid enum value.
-        Args:
-            v: The value to validate (should be a string).
-            info: Pydantic ValidationInfo for context.
-        Returns:
-            The validated string value.
-        Raises:
-            ValueError: If the value is not a valid enum value.
+        Validates that orderType is a non-empty string and a valid enum value, and valid UTF-8.
+        Raises ValueError if not a string, is empty, not in allowed set, or not valid UTF-8.
         """
         field_name = info.field_name or "orderType"
         if not isinstance(v, str):
@@ -307,6 +368,10 @@ class BackpackRawOrder(BaseModel):
     )
     @classmethod
     def validate_optional_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        """
+        Validates that the value is a non-empty string representing a finite decimal, or None.
+        Raises ValueError if not a string, not parseable as decimal, or not finite.
+        """
         field_name = info.field_name or "field"
         if v is None:
             return None
@@ -323,13 +388,7 @@ class BackpackRawOrder(BaseModel):
     def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
         """
         Validates that the value is a non-empty string of max 64 chars and valid UTF-8.
-        Args:
-            v: The value to validate (should be a string).
-            info: Pydantic ValidationInfo for context.
-        Returns:
-            The validated string value.
-        Raises:
-            ValueError: If the value is not a valid string or exceeds max length.
+        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
         """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
@@ -348,6 +407,10 @@ class BackpackRawOrder(BaseModel):
     @field_validator("createdAt", "updatedAt", "triggeredAt", mode="before")
     @classmethod
     def validate_timestamp_format(cls, v: object, info: ValidationInfo) -> int | float | str | None:
+        """
+        Validates that the value is a valid timestamp (int, float, or ISO8601-like string).
+        Raises ValueError if not a valid type, not parseable, or not valid UTF-8.
+        """
         if v is None:
             return v
         if isinstance(v, str) and v.isdigit():
@@ -386,6 +449,10 @@ class BackpackRawOrderBook(BaseModel):
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object) -> str:
+        """
+        Validates that the symbol is a non-empty string.
+        Raises ValueError if not a string or is empty.
+        """
         if v is None or not isinstance(v, str):
             raise ValueError("symbol: Must be a string")
         if not v.strip():
@@ -395,6 +462,10 @@ class BackpackRawOrderBook(BaseModel):
     @field_validator("bids", "asks", mode="before")
     @classmethod
     def validate_bids_asks(cls, v: object) -> list[list[str]]:
+        """
+        Validates that bids/asks are lists of [str, str] pairs representing price and quantity.
+        Raises ValueError if not a list, not pairs, or not valid decimals.
+        """
         if not isinstance(v, list):
             raise ValueError("bids/asks: Must be a list of [str, str] pairs")
         result: list[list[str]] = []
@@ -424,6 +495,10 @@ class BackpackRawOrderBook(BaseModel):
     @field_validator("time", mode="before")
     @classmethod
     def validate_timestamp(cls, v: object) -> int | float | str | None:
+        """
+        Validates that the value is a valid timestamp (int, float, or ISO8601-like string).
+        Raises ValueError if not a valid type, not parseable, or not valid UTF-8.
+        """
         if v is None:
             return None
         if isinstance(v, int | float):
@@ -474,6 +549,10 @@ class BackpackRawOrderUpdate(BaseModel):
     @field_validator("event_type", "symbol", "side", "order_type", "order_status", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object) -> str:
+        """
+        Validates that the value is a non-empty string.
+        Raises ValueError if not a string or is empty.
+        """
         if v is None or not isinstance(v, str):
             raise ValueError("event_type/symbol/side/order_type/order_status: Must be a string")
         if not v.strip():
@@ -485,6 +564,10 @@ class BackpackRawOrderUpdate(BaseModel):
     @field_validator("side", mode="before")
     @classmethod
     def validate_side_enum(cls, v: object) -> str:
+        """
+        Validates that side is a string and one of the allowed enum values.
+        Raises ValueError if not a string or not in allowed set.
+        """
         if v is None or not isinstance(v, str):
             raise ValueError("side: Must be a string")
         allowed = {"Bid", "Ask"}  # Update as per spec
@@ -495,6 +578,10 @@ class BackpackRawOrderUpdate(BaseModel):
     @field_validator("order_type", mode="before")
     @classmethod
     def validate_order_type_enum(cls, v: object) -> str:
+        """
+        Validates that order_type is a string and one of the allowed enum values.
+        Raises ValueError if not a string or not in allowed set.
+        """
         if v is None or not isinstance(v, str):
             raise ValueError("order_type: Must be a string")
         allowed = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}  # Update as per spec
@@ -505,6 +592,10 @@ class BackpackRawOrderUpdate(BaseModel):
     @field_validator("order_status", mode="before")
     @classmethod
     def validate_status_enum(cls, v: object) -> str:
+        """
+        Validates that order_status is a string and one of the allowed enum values.
+        Raises ValueError if not a string or not in allowed set.
+        """
         if v is None or not isinstance(v, str):
             raise ValueError("order_status: Must be a string")
         allowed = {
@@ -522,6 +613,10 @@ class BackpackRawOrderUpdate(BaseModel):
     @field_validator("quantity", "price", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object) -> str | None:
+        """
+        Validates that the value is a non-empty string representing a finite decimal.
+        Raises ValueError if not a string, not parseable as decimal, or not finite.
+        """
         if v is None:
             return None
         if not isinstance(v, str):
@@ -543,6 +638,10 @@ class BackpackRawOrderUpdate(BaseModel):
     @field_validator("event_time", mode="before")
     @classmethod
     def validate_timestamp(cls, v: object) -> int | float | str | None:
+        """
+        Validates that the value is a valid timestamp (int, float, or ISO8601-like string).
+        Raises ValueError if not a valid type, not parseable, or not valid UTF-8.
+        """
         if v is None:
             return None
         if isinstance(v, int | float):

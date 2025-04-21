@@ -2,10 +2,20 @@
 Backpack API Transfer, Deposit, and Liquidation Models
 -----------------------------------------------------
 
-Strict Pydantic models for validating withdrawal, deposit, and liquidation responses from
-the Backpack Exchange API.
-These models are used for boundary validation and transformation, not for internal business
-logic.
+This module defines strict Pydantic models for validating withdrawal, deposit, and liquidation responses from the Backpack Exchange API. These models are used for boundary validation and transformation, not for internal business logic.
+
+Models:
+    - BackpackRawWithdrawal: Validates withdrawal objects (id, asset, amount, status).
+    - BackpackRawDeposit: Validates deposit objects (id, asset, amount, status).
+    - BackpackRawLiquidation: Validates liquidation event objects (symbol, price, quantity, side).
+
+Validation Pattern:
+    - All string fields are strictly validated for type, non-emptiness, max length, and valid UTF-8.
+    - Decimal fields are validated for parseability and finiteness.
+    - Enum fields (e.g., status, side) are strictly validated against allowed values.
+    - All extra fields are forbidden.
+
+These models act as a strict shield between external API data and internal business logic, ensuring robustness and security at the data ingestion boundary.
 """
 
 from decimal import Decimal
@@ -36,6 +46,10 @@ class BackpackRawWithdrawal(BaseModel):
     @field_validator("id", "asset", "status", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object) -> str:
+        """
+        Validates that the value is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if the value is not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         if not isinstance(v, str):
             raise ValueError(f"Must be a string, got {type(v).__name__}")
         if not v.strip():
@@ -51,6 +65,10 @@ class BackpackRawWithdrawal(BaseModel):
     @field_validator("amount", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal.
+        Raises ValueError if not a string, not parseable as decimal, or not finite.
+        """
         if not isinstance(v, str):
             raise ValueError(
                 f"Must be a string representing a decimal value, got {type(v).__name__}"
@@ -68,6 +86,10 @@ class BackpackRawWithdrawal(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def validate_status_enum(cls, v: object) -> str:
+        """
+        Validates that the status is a string and one of the allowed enum values.
+        Raises ValueError if not a string or not in the allowed set.
+        """
         allowed = {"pending", "completed", "failed", "cancelled"}
         if not isinstance(v, str):
             raise ValueError(f"Status must be a string, got {type(v).__name__}")
@@ -99,6 +121,10 @@ class BackpackRawDeposit(BaseModel):
     @field_validator("id", "asset", "status", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object) -> str:
+        """
+        Validates that the value is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if the value is not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         if not isinstance(v, str):
             raise ValueError(f"Must be a string, got {type(v).__name__}")
         if not v.strip():
@@ -114,6 +140,10 @@ class BackpackRawDeposit(BaseModel):
     @field_validator("amount", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal.
+        Raises ValueError if not a string, not parseable as decimal, or not finite.
+        """
         if not isinstance(v, str):
             raise ValueError(
                 f"Must be a string representing a decimal value, got {type(v).__name__}"
@@ -131,6 +161,10 @@ class BackpackRawDeposit(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def validate_status_enum(cls, v: object) -> str:
+        """
+        Validates that the status is a string and one of the allowed enum values.
+        Raises ValueError if not a string or not in the allowed set.
+        """
         allowed = {"pending", "completed", "failed", "cancelled"}
         if not isinstance(v, str):
             raise ValueError(f"Status must be a string, got {type(v).__name__}")
@@ -162,6 +196,10 @@ class BackpackRawLiquidation(BaseModel):
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_symbol(cls, v: object) -> str:
+        """
+        Validates that the symbol is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         if not isinstance(v, str):
             raise ValueError(f"symbol: Must be a string, got {type(v).__name__}")
         if not v.strip():
@@ -177,6 +215,10 @@ class BackpackRawLiquidation(BaseModel):
     @field_validator("price", "quantity", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo | None = None) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
+        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max length.
+        """
         field_name = getattr(info, "field_name", None) if info is not None else "field"
         if not isinstance(v, str):
             raise ValueError(
@@ -202,6 +244,10 @@ class BackpackRawLiquidation(BaseModel):
     @field_validator("side", mode="before")
     @classmethod
     def validate_side_enum(cls, v: object) -> str:
+        """
+        Validates that the side is a string and one of the allowed enum values ('buy', 'sell').
+        Raises ValueError if not a string, exceeds max length, or not in the allowed set.
+        """
         allowed = {"buy", "sell"}
         if not isinstance(v, str):
             raise ValueError(f"side: Side must be a string, got {type(v).__name__}")

@@ -2,10 +2,21 @@
 Backpack API Funding and Mark Price Models
 -----------------------------------------
 
-Strict Pydantic models for validating funding rate and mark price responses from the
-Backpack Exchange API.
-These models are used for boundary validation and transformation, not for internal business
-logic.
+This module defines strict Pydantic models for validating funding rate and mark price responses from the
+Backpack Exchange API. These models are used for boundary validation and transformation, not for internal business logic.
+
+Models:
+    - BackpackRawFundingRate: Validates funding rate objects (symbol, funding_rate, mark_price, index_price, time).
+    - BackpackRawMarkPrice: Validates mark price and funding info objects (symbol, mark_price, funding_rate).
+
+Validation Pattern:
+    - All string fields are strictly validated for type, non-emptiness, max length, and valid UTF-8.
+    - Decimal fields are validated for parseability and finiteness.
+    - Timestamps accept int, float, or ISO8601-like strings.
+    - All extra fields are forbidden.
+
+These models act as a strict shield between external API data and internal business logic, ensuring
+robustness and security at the data ingestion boundary.
 """
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
@@ -17,7 +28,7 @@ class BackpackRawFundingRate(BaseModel):
     """
     Pydantic model for a raw funding rate object from `/api/v1/funding` (Backpack REST API).
 
-    Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
+    This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse funding rate payloads received from the exchange.
 
     Attributes:
@@ -38,12 +49,20 @@ class BackpackRawFundingRate(BaseModel):
     @field_validator("symbol", mode="before", check_fields=False)
     @classmethod
     def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the symbol is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         field_name = info.field_name or "symbol"
         return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator("funding_rate", "mark_price", "index_price", mode="before", check_fields=False)
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
+        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max length.
+        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(
@@ -67,6 +86,10 @@ class BackpackRawFundingRate(BaseModel):
     @field_validator("time", mode="before", check_fields=False)
     @classmethod
     def validate_timestamp_format(cls, v: object, info: ValidationInfo) -> int | float | str | None:
+        """
+        Validates that the value is a valid timestamp (int, float, or ISO8601-like string).
+        Raises ValueError if not a valid type, not parseable, or not valid UTF-8.
+        """
         field_name = info.field_name or "time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")
@@ -86,10 +109,9 @@ class BackpackRawFundingRate(BaseModel):
 
 class BackpackRawMarkPrice(BaseModel):
     """
-    Pydantic model for a raw mark price and funding info object from `/api/v1/markPrice`
-    (Backpack REST API).
+    Pydantic model for a raw mark price and funding info object from `/api/v1/markPrice` (Backpack REST API).
 
-    Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
+    This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse mark price payloads received from the exchange.
 
     Attributes:
@@ -106,12 +128,20 @@ class BackpackRawMarkPrice(BaseModel):
     @field_validator("symbol", mode="before", check_fields=False)
     @classmethod
     def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the symbol is a non-empty UTF-8 string of max 64 chars.
+        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        """
         field_name = info.field_name or "symbol"
         return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator("mark_price", "funding_rate", check_fields=False)
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
+        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max length.
+        """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(
