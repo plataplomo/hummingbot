@@ -33,7 +33,7 @@ Do not use these models for internal business logic—use your core models for t
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
@@ -202,15 +202,14 @@ class HyperliquidRawOpenOrder(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
-class HyperliquidRawOpenOrdersResponse(BaseModel):
+class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]]):
     """
     Array of open orders from openOrders response.
     Fields:
         __root__: List of HyperliquidRawOpenOrder
     """
 
-    __root__: list[HyperliquidRawOpenOrder]
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    pass
 
 
 class HyperliquidRawOpenOrdersRequestPayload(BaseModel):

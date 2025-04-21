@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.backpack import BackpackAPI
+from cyberdelta.apis.backpack_api import BackpackAPI
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.core.models import (
     Balance,

@@ -23,7 +23,7 @@ Hyperliquid Exchange API (REST and WebSocket) responses related to public trades
 Do not use these models for internal business logic—use your core models for that. These are for boundary validation only.
 """
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
@@ -74,7 +74,7 @@ class HyperliquidRawPublicTrade(BaseModel):
 
 
 # --- Batch/Array Response ---
-class HyperliquidRawRecentTradesResponse(BaseModel):
+class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrade]]):
     """
     Represents an array of public trades as returned in the 'recentTrades' endpoint response.
 
@@ -84,8 +84,7 @@ class HyperliquidRawRecentTradesResponse(BaseModel):
         __root__ (List[HyperliquidRawPublicTrade]): List of public trade objects.
     """
 
-    __root__: list[HyperliquidRawPublicTrade]
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    pass
 
 
 # --- Request Payload ---

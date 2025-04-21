@@ -32,7 +32,9 @@ Do not use these models for internal business logic—use your core models for t
 These are for boundary validation only.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, PydanticUndefined, RootModel
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
@@ -52,7 +54,7 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
-class HyperliquidRawAllMids(BaseModel):
+class HyperliquidRawAllMids(RootModel[dict[str, str]]):
     """
     Represents the response from the 'allMids' endpoint, mapping asset symbols to mid prices.
 
@@ -64,21 +66,23 @@ class HyperliquidRawAllMids(BaseModel):
         (as a string).
     """
 
-    __root__: dict[str, str]
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    def __init__(self, __root__: dict[str, str] = PydanticUndefined, **data: Any) -> None:
+        """
+        Custom __init__ to perform strict validation on the root dict before model initialization.
 
-    @classmethod
-    def _validate_root(cls, value: dict[str, str]) -> dict[str, str]:
-        for symbol, price in value.items():
+        Args:
+            __root__: The root dictionary mapping asset symbols to mid prices (as strings).
+        Raises:
+            ValueError: If any symbol or price is invalid or not a finite decimal.
+        """
+        if __root__ is PydanticUndefined:
+            raise TypeError("__root__ argument is required for HyperliquidRawAllMids")
+        for symbol, price in __root__.items():
             validate_str_field(symbol, field_name="symbol", max_length=64)
-            s = validate_str_field(price, field_name=f"price[{symbol}]", max_length=64)
+            s: str = validate_str_field(price, field_name=f"price[{symbol}]", max_length=64)
             d = parse_decimal_value(s, allow_none=False, field_name=f"price[{symbol}]")
             if d is None or not d.is_finite():
                 raise ValueError(
                     f"price[{symbol}]: Value must be a finite decimal (not NaN or inf)"
                 )
-        return value
-
-    def __init__(self, **data) -> None:
-        data["__root__"] = self._validate_root(data.get("__root__", {}))
-        super().__init__(**data)
+        super().__init__(__root__=__root__)

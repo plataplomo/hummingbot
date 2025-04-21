@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from cyberdelta.apis.base import MessageHandler
-from cyberdelta.apis.hyperliquid import HyperliquidAPI
+from cyberdelta.apis.hyperliquid_api import HyperliquidAPI
 from cyberdelta.core.models import (
     Balance,
     FundingRate,

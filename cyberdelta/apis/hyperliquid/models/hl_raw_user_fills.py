@@ -32,7 +32,7 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
@@ -115,7 +115,7 @@ class HyperliquidRawUserFill(BaseModel):
 
 
 # --- Batch/Array Response ---
-class HyperliquidRawUserFillsResponse(BaseModel):
+class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
     """
     Represents an array of user fills as returned in the 'userFills' endpoint response.
 
@@ -126,8 +126,7 @@ class HyperliquidRawUserFillsResponse(BaseModel):
         __root__ (List[HyperliquidRawUserFill]): List of user fill objects.
     """
 
-    __root__: list[HyperliquidRawUserFill]
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    pass
 
 
 # --- Request Payload ---
