@@ -69,6 +69,10 @@ class BackpackRawTrade(BaseModel):
                 f"{field_name}: Input decimal string cannot be empty or just whitespace."
             )
         try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+        try:
             dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
         except Exception as e:
             raise ValueError(
@@ -187,6 +191,10 @@ class BackpackRawTradeEvent(BaseModel):
             raise ValueError(
                 f"{field_name}: Input decimal string cannot be empty or just whitespace."
             )
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as e:
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
         try:
             dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
         except Exception as e:

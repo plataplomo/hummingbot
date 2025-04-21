@@ -177,7 +177,6 @@ class BackpackRawLiquidation(BaseModel):
     @field_validator("price", "quantity", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo | None = None) -> str:
-        # info: ValidationInfo is provided by Pydantic v2 for field context; may be None in some cases
         field_name = getattr(info, "field_name", None) if info is not None else "field"
         if not isinstance(v, str):
             raise ValueError(

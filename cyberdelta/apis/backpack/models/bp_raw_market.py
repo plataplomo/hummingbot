@@ -30,19 +30,15 @@ class BackpackRawMarket(BaseModel):
     def validate_non_empty_str(cls, v: Any, info: ValidationInfo) -> str:  # noqa: ANN401
         field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
-            field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
-            allow_none = field_info and (str(field_info.annotation).find("| None") != -1)
-            if v is None and allow_none:
-                raise ValueError(f"{field_name}: Field is required, cannot be None.")
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        if not v:
-            raise ValueError("String must be non-empty")
+        if not v.strip():
+            raise ValueError(f"{field_name}: String must be non-empty and not just whitespace")
         if len(v) > 64:
-            raise ValueError("String exceeds max length of 64")
+            raise ValueError(f"{field_name}: String exceeds max length of 64")
         try:
-            v.encode("utf-8")
-        except UnicodeError as err:
-            raise ValueError("String must be valid UTF-8") from err
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
+            raise ValueError(f"{field_name}: String must be valid UTF-8: {err}") from err
         return v
 
 
@@ -94,15 +90,21 @@ class BackpackRawTicker(BaseModel):
         if v is None:
             return v
         if not isinstance(v, str):
-            field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
-            allow_none = field_info and (str(field_info.annotation).find("| None") != -1)
-            if v is None and allow_none:
-                return None
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
+        if not v.strip():
+            raise ValueError(
+                f"{field_name}: Input decimal string cannot be empty or just whitespace."
+            )
         try:
-            Decimal(v)
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
+            raise ValueError(f"{field_name}: String must be valid UTF-8: {err}") from err
+        try:
+            dec_val = Decimal(v)
         except Exception as err:
             raise ValueError(f"{field_name}: Must be a valid decimal string (got {v!r})") from err
+        if not dec_val.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
         return v
 
     @field_validator("time", mode="before")
@@ -161,13 +163,19 @@ class BackpackRawOpenInterest(BaseModel):
         if v is None:
             return v
         if not isinstance(v, str):
-            field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
-            allow_none = field_info and (str(field_info.annotation).find("| None") != -1)
-            if v is None and allow_none:
-                return None
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
+        if not v.strip():
+            raise ValueError(
+                f"{field_name}: Input decimal string cannot be empty or just whitespace."
+            )
         try:
-            Decimal(v)
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
+            raise ValueError(f"{field_name}: String must be valid UTF-8: {err}") from err
+        try:
+            dec_val = Decimal(v)
         except Exception as err:
             raise ValueError(f"{field_name}: Must be a valid decimal string (got {v!r})") from err
+        if not dec_val.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
         return v

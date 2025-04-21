@@ -137,7 +137,6 @@ class BackpackRawOrder(BaseModel):
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
         field_name = info.field_name or "field"
-        # Allow None for optional fields
         if v is None:
             return None
         if not isinstance(v, str):
@@ -408,7 +407,6 @@ class BackpackRawOrderBook(BaseModel):
             entry: list[Any] = entry_any  # Safe: runtime check above ensures this is a list
             if len(entry) != 2:
                 raise ValueError("Each bid/ask must be a [str, str] pair (length 2)")
-            # Validate both elements are strings and valid decimals
             validated: list[str] = []
             for idx, val in enumerate(entry):
                 if not isinstance(val, str):

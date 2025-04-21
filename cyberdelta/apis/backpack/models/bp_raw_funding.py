@@ -8,23 +8,9 @@ These models are used for boundary validation and transformation, not for intern
 logic.
 """
 
-from decimal import Decimal, InvalidOperation
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-# If available, import parse_decimal_value and parse_datetime_utc from the order module for consistency
-try:
-    from .bp_raw_order import parse_datetime_utc, parse_decimal_value
-except ImportError:
-
-    def parse_decimal_value(
-        v: str | None, allow_none: bool = False, field_name: str = "field"
-    ) -> Decimal | None:
-        raise NotImplementedError("parse_decimal_value is not available")
-
-    def parse_datetime_utc(v: int | float | str, field_name: str = "field") -> int | float | str:
-        raise NotImplementedError("parse_datetime_utc is not available")
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
 class BackpackRawFundingRate(BaseModel):
@@ -51,53 +37,27 @@ class BackpackRawFundingRate(BaseModel):
 
     @field_validator("symbol", mode="before", check_fields=False)
     @classmethod
-    def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "symbol"
-        if not isinstance(v, str):
-            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        if not v.strip():
-            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
-        if len(v) > 64:
-            raise ValueError(f"{field_name}: String value too long (max 64 chars)")
-        try:
-            v.encode("utf-8", "strict")
-        except UnicodeEncodeError as e:
-            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
-        return v
+        return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator("funding_rate", "mark_price", "index_price", mode="before", check_fields=False)
     @classmethod
-    def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        if not isinstance(v, str):
-            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        if not v.strip():
-            raise ValueError(
-                f"{field_name}: Input decimal string cannot be empty or just whitespace."
-            )
-        try:
-            dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
-        except (InvalidOperation, ValueError, TypeError, AttributeError, NotImplementedError) as e:
-            raise ValueError(
-                f"{field_name}: Must be a string representing a decimal value: {e}"
-            ) from e
-        if dec_val is None:
-            raise ValueError(
-                f"{field_name}: Parsing returned None unexpectedly for non-optional field."
-            )
-        if not dec_val.is_finite():
-            raise ValueError(
-                f"{field_name}: Input must be a finite number, got '{v}' (parsed as {dec_val})."
-            )
-        return v
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(value=s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
     @field_validator("time", mode="before", check_fields=False)
     @classmethod
-    def validate_timestamp_format(cls, v: Any, info: ValidationInfo) -> int | float | str | None:
+    def validate_timestamp_format(cls, v: object, info: ValidationInfo) -> int | float | str | None:
         field_name = info.field_name or "time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")
-        if not isinstance(v, (int, float, str)):
+        if not isinstance(v, int | float | str):
             raise ValueError(
                 f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
             )
@@ -132,42 +92,16 @@ class BackpackRawMarkPrice(BaseModel):
 
     @field_validator("symbol", mode="before", check_fields=False)
     @classmethod
-    def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "symbol"
-        if not isinstance(v, str):
-            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        if not v.strip():
-            raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
-        if len(v) > 64:
-            raise ValueError(f"{field_name}: String value too long (max 64 chars)")
-        try:
-            v.encode("utf-8", "strict")
-        except UnicodeEncodeError as e:
-            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
-        return v
+        return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator("mark_price", "funding_rate", check_fields=False)
     @classmethod
-    def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        if not isinstance(v, str):
-            raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        if not v.strip():
-            raise ValueError(
-                f"{field_name}: Input decimal string cannot be empty or just whitespace."
-            )
-        try:
-            dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
-        except (InvalidOperation, ValueError, TypeError, AttributeError, NotImplementedError) as e:
-            raise ValueError(
-                f"{field_name}: Must be a string representing a decimal value: {e}"
-            ) from e
-        if dec_val is None:
-            raise ValueError(
-                f"{field_name}: Parsing returned None unexpectedly for non-optional field."
-            )
-        if not dec_val.is_finite():
-            raise ValueError(
-                f"{field_name}: Input must be a finite number, got '{v}' (parsed as {dec_val})."
-            )
-        return v
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(value=s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s

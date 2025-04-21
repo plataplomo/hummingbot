@@ -80,9 +80,7 @@ class BackpackRawBalance(BaseModel):
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        # Use validate_str_field for type, non-empty, encoding, and max_length
         s = validate_str_field(v, field_name=field_name, max_length=64)
-        # Use parse_decimal_value for format and finiteness
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
         if d is None or not d.is_finite():
             raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
