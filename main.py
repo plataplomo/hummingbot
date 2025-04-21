@@ -9,9 +9,10 @@ from typing import Any
 
 import structlog
 
-from cyberdelta.apis.backpack import BackpackAPI
+import cyberdelta.apis.backpack
+import cyberdelta.apis.hyperliquid
 from cyberdelta.apis.base import ExchangeAPI
-from cyberdelta.apis.hyperliquid import HyperliquidAPI
+from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
 from cyberdelta.core.execution_handler import ExecutionHandler
@@ -203,11 +204,11 @@ async def main() -> None:
     try:
         logger.info("Initializing API clients...")
         secrets: dict[str, dict[str, str | None]] = {
-            "hyperliquid": {
+            ExchangeName.HYPERLIQUID: {
                 "wallet_address": os.environ.get("HL_WALLET_ADDRESS"),
                 "private_key": os.environ.get("HL_PRIVATE_KEY"),
             },
-            "backpack": {
+            ExchangeName.BACKPACK: {
                 "BACKPACK_API_KEY": os.environ.get("BP_API_KEY"),
                 "BACKPACK_API_SECRET": os.environ.get("BP_API_SECRET"),
             },
@@ -225,10 +226,14 @@ async def main() -> None:
                 logger.info("Skipping disabled exchange", exchange=exchange_name)
                 continue
             logger.debug(f"Attempting to initialize API for {exchange_name}...")
-            if exchange_name == "hyperliquid":
-                client = HyperliquidAPI(api_config, secrets["hyperliquid"])
-            elif exchange_name == "backpack":
-                client = BackpackAPI(api_config, secrets["backpack"])
+            if exchange_name == ExchangeName.HYPERLIQUID:
+                client = cyberdelta.apis.hyperliquid.HyperliquidAPI(
+                    api_config, secrets[ExchangeName.HYPERLIQUID]
+                )
+            elif exchange_name == ExchangeName.BACKPACK:
+                client = cyberdelta.apis.backpack.BackpackAPI(
+                    api_config, secrets[ExchangeName.BACKPACK]
+                )
             else:
                 logger.warning(f"Unsupported exchange: {exchange_name}")
                 continue

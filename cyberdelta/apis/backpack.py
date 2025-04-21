@@ -32,12 +32,10 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
-from cyberdelta.apis.backpack.models.bp_api_models import BackpackRawOrder
-from cyberdelta.apis.base import (  # Use absolute import
-    APIError,
-    ExchangeAPI,
-    MessageHandler,
-)
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.base import ExchangeAPI, MessageHandler
+from cyberdelta.apis.exchange_names import ExchangeName
+from cyberdelta.apis.models.api import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (  # Use absolute import
     Balance,
@@ -78,7 +76,7 @@ class BackpackAPI(ExchangeAPI):
             api_config: Dictionary of API configuration parameters.
             secrets: Dictionary of secret values (API key/secret).
         """
-        super().__init__("backpack", api_config, secrets)
+        super().__init__(ExchangeName.BACKPACK, api_config, secrets)
         self._api_key = secrets.get("BACKPACK_API_KEY")
         self._api_secret = secrets.get("BACKPACK_API_SECRET")
         if not self._api_key or not self._api_secret:
@@ -292,10 +290,15 @@ class BackpackAPI(ExchangeAPI):
             if not isinstance(raw, list):
                 return []
             result: list[tuple[str, str]] = []
+            # Explicitly declare type for static analysis
+            entry_item: Any
             for entry_item in raw:
-                entry: Any = entry_item
+                entry_item = cast(
+                    Sequence[Any], entry_item
+                )  # Pyright false positive: entry_item is always Sequence[Any] after cast
+                entry: Sequence[Any] = entry_item
                 if isinstance(entry, tuple) or isinstance(entry, list):
-                    entry_pair = cast(Sequence[Any], entry)
+                    entry_pair: Sequence[Any] = entry
                     if len(entry_pair) == 2:
                         a0: Any = entry_pair[0]
                         a1: Any = entry_pair[1]
@@ -464,65 +467,6 @@ class BackpackAPI(ExchangeAPI):
                 f"Error getting recent trades for {symbol}: {e}", code=APIErrorCode.UNKNOWN.value
             ) from e
 
-    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
-        """
-        Get funding rate information for a symbol.
-
-        Args:
-            symbol: Trading symbol
-
-        Returns:
-            FundingRate object or None if error
-        """
-        try:
-            # Backpack Funding rate endpoint (assuming perpetuals/futures)
-            # Example: Adjust path and params based on actual Backpack API
-            params = {"symbol": symbol}
-            response = await self._request("GET", "/api/v1/funding", params=params)
-
-            # Check if response is a list and take the first element if needed
-            if isinstance(response, list) and response:
-                funding_data = response[0]
-            elif isinstance(response, dict):
-                funding_data = response
-            else:
-                logger.warning(
-                    f"[{self.exchange_name}] Unexpected funding rate data format for {symbol}: "
-                    f"{response}"
-                )
-                return None
-
-            # Ensure fields exist before accessing
-            if not all(k in funding_data for k in ["rate", "markPrice", "indexPrice", "time"]):
-                logger.warning(
-                    f"[{self.exchange_name}] Missing keys in funding rate data for {symbol}: "
-                    f"{funding_data}"
-                )
-                return None
-
-            # Create FundingRate object using Decimal and int
-            funding_rate = FundingRate(
-                symbol=symbol,
-                funding_rate=Decimal(str(funding_data["rate"])),  # Corrected field name
-                mark_price=Decimal(
-                    str(funding_data["markPrice"])
-                ),  # Convert string/float to Decimal
-                index_price=Decimal(
-                    str(funding_data["indexPrice"])
-                ),  # Convert string/float to Decimal
-                timestamp=int(funding_data["time"]),  # Ensure timestamp is int
-            )
-            return funding_rate
-        except APIError as e:
-            if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
-                logger.info(f"[{self.exchange_name}] No funding rate found for symbol {symbol}.")
-                return None
-            logger.error(f"[{self.exchange_name}] API error getting funding rate for {symbol}: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error getting funding rate for {symbol}: {e}")
-            return None
-
     async def get_balances(self) -> dict[str, Balance]:
         """Get account balances."""
         try:
@@ -534,14 +478,20 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return {}
             balances: dict[str, Balance] = {}
+            # Explicitly declare type for static analysis
+            asset_key: Any
+            data_val: Any
             for asset_key, data_val in response.items():
-                asset_key = str(asset_key)
-                val: Any = data_val
+                asset_key = cast(
+                    str, asset_key
+                )  # Pyright false positive: asset_key is always str after cast
+                data_val = cast(
+                    dict[str, Any], data_val
+                )  # Pyright false positive: data_val is always dict[str, Any] after cast
                 key: str = asset_key
                 asset_str = key
-                data_dict = cast(dict[str, Any], val)
-                available = Decimal(str(data_dict.get("available", "0")))
-                total = Decimal(str(data_dict.get("total", "0")))
+                available = Decimal(str(data_val.get("available", "0")))
+                total = Decimal(str(data_val.get("total", "0")))
                 balances[asset_str] = Balance(
                     asset=asset_str,
                     available=available,
@@ -572,7 +522,7 @@ class BackpackAPI(ExchangeAPI):
             response: Any = await self._request("GET", "/api/v1/positions", signed=True)
             if not isinstance(response, list):
                 logger.warning(
-                    f"[backpack] Unexpected response type for positions: "
+                    f"[{ExchangeName.BACKPACK}] Unexpected response type for positions: "
                     f"{type(response)}. Returning empty list."
                 )
                 return []
@@ -582,7 +532,9 @@ class BackpackAPI(ExchangeAPI):
                 item: dict[str, Any] = cast(dict[str, Any], pos_data_item)
                 symbol_from_data = item.get("symbol")
                 if not isinstance(symbol_from_data, str) or not symbol_from_data:
-                    logger.warning(f"[backpack] Position missing or invalid 'symbol': {item}")
+                    logger.warning(
+                        f"[{ExchangeName.BACKPACK}] Position missing or invalid 'symbol': {item}"
+                    )
                     continue
                 try:
                     size_dec = Decimal(str(item.get("positionSize", "0")))
@@ -609,10 +561,12 @@ class BackpackAPI(ExchangeAPI):
                     )
                     positions.append(position)
                 except Exception as e:
-                    logger.warning(f"[backpack] Error processing position: {e} | Data: {item}")
+                    logger.warning(
+                        f"[{ExchangeName.BACKPACK}] Error processing position: {e} | Data: {item}"
+                    )
             return positions
         except Exception as e:
-            logger.error(f"[backpack] Error getting positions: {e}")
+            logger.error(f"[{ExchangeName.BACKPACK}] Error getting positions: {e}")
             return []
 
     async def place_order(
@@ -685,10 +639,8 @@ class BackpackAPI(ExchangeAPI):
                     http_status=None,
                 )
 
-            # The order creation logic has been moved to the _transform_raw_order_to_internal method
-            return BackpackOrderMapper.transform_raw_order_to_internal(
-                BackpackRawOrder.model_validate(response)
-            )
+            raw_order: BackpackRawOrder = BackpackRawOrder.model_validate(response)
+            return BackpackOrderMapper.transform_raw_order_to_internal(raw_order)
         except ValueError as ve:
             raise ve
         except Exception as e:
@@ -746,8 +698,10 @@ class BackpackAPI(ExchangeAPI):
             for order_data_item in response:
                 if isinstance(order_data_item, dict):
                     try:
-                        raw_order = BackpackRawOrder.model_validate(order_data_item)
-                        internal_order = BackpackOrderMapper.transform_raw_order_to_internal(
+                        raw_order: BackpackRawOrder = BackpackRawOrder.model_validate(
+                            order_data_item
+                        )
+                        internal_order: Order = BackpackOrderMapper.transform_raw_order_to_internal(
                             raw_order
                         )
                         if internal_order.status in [
@@ -794,22 +748,7 @@ class BackpackAPI(ExchangeAPI):
                 f"Failed to get open orders: {e}", code=APIErrorCode.UNKNOWN.value
             ) from e
 
-    async def fetch_ticker(self, symbol: str) -> Ticker:
-        """Fetch ticker information (ensuring non-None return)."""
-        ticker = await self.get_ticker(symbol)
-        return ticker
-
-    async def fetch_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
-        """Fetch order book (ensuring non-None return)."""
-        order_book = await self.get_order_book(symbol, depth if depth is not None else 20)
-        return order_book
-
-    async def fetch_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
-        """Fetch recent trades (ensuring non-None return)."""
-        trades = await self.get_recent_trades(symbol, limit)
-        return trades
-
-    async def fetch_funding_rate(self, symbol: str) -> FundingRate:
+    async def get_funding_rate(self, symbol: str) -> FundingRate:
         """Fetch funding rate for a symbol.
         Note: Base class ExchangeAPI expects get_funding_rates (plural).
 
@@ -878,7 +817,7 @@ class BackpackAPI(ExchangeAPI):
         if symbols:
             for symbol in symbols:
                 try:
-                    current_rate: FundingRate = await self.fetch_funding_rate(symbol)
+                    current_rate: FundingRate = await self.get_funding_rate(symbol)
                     rates.append(current_rate)
                 except APIError as e:
                     logger.error(
@@ -922,7 +861,7 @@ class BackpackAPI(ExchangeAPI):
             raise api_error from e
 
     async def transfer(
-        self, asset: str, amount: float, from_account: str, to_account: str
+        self, asset: str, amount: Decimal, from_account: str, to_account: str
     ) -> dict[str, Any]:
         """Transfer funds between accounts."""
         logger.warning("Backpack API might not support internal transfers.")

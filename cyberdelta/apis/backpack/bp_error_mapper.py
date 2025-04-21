@@ -1,10 +1,9 @@
 import logging
 from typing import Any
 
+from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
 from cyberdelta.apis.models.api import APIError, APIErrorResponse
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-
-from .models.bp_api_models import BackpackRawApiError
 
 logger = logging.getLogger(__name__)
 

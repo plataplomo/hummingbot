@@ -1,6 +1,8 @@
 import logging
 from decimal import Decimal
 
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     OrderExpiryReason,
@@ -13,8 +15,6 @@ from cyberdelta.core.models.enums import (
     TriggerType,
 )
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
-
-from .models.bp_api_models import BackpackRawOrder
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +152,7 @@ class BackpackOrderMapper:
             client_order_id=raw.clientId or "",
             exchange_order_id=raw.id,
             related_order_id=raw.relatedOrderId,
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             symbol=raw.symbol,
             side=BackpackOrderMapper.map_side_to_internal(raw.side),
             order_type=BackpackOrderMapper.map_type_to_internal(raw.orderType),
@@ -173,7 +173,8 @@ class BackpackOrderMapper:
             triggered_at=parse_datetime_utc(raw.triggeredAt),
             expiry_reason=BackpackOrderMapper.map_expiry_reason_to_internal(raw.expiryReason),
             origin=BackpackOrderMapper.map_origin_to_internal(raw.origin),
-            strategy_name=raw.strategyName,
-            signal_id=raw.signalId,
-            trades=raw.trades or [],
+            # The following fields are not present in BackpackRawOrder; set to None/[] explicitly.
+            strategy_name=None,  # Not present in BackpackRawOrder
+            signal_id=None,  # Not present in BackpackRawOrder
+            trades=[],  # Not present in BackpackRawOrder
         )
