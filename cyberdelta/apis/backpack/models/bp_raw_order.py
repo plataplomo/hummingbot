@@ -300,40 +300,26 @@ class BackpackRawOrder(BaseModel):
         return v
 
     @field_validator(
-        "quantity",
         "executedQuantity",
         "executedQuoteQuantity",
         "price",
         "triggerPrice",
         "avgFillPrice",
         mode="before",
+        check_fields=False,
     )
     @classmethod
-    def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates that the value is a non-empty string representing a finite decimal.
-        Args:
-            v: The value to validate (should be a string).
-            info: Pydantic ValidationInfo for context.
-        Returns:
-            The validated string value.
-        Raises:
-            ValueError: If the value is not a valid, finite decimal string.
-        """
+    def validate_optional_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
         field_name = info.field_name or "field"
+        if v is None:
+            return None
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
-        if not v.strip():
-            raise ValueError(
-                f"{field_name}: Input decimal string cannot be empty or just whitespace."
-            )
-        dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
-        assert dec_val is not None  # For type checkers; guaranteed by allow_none=False
-        if not dec_val.is_finite():
-            raise ValueError(
-                f"{field_name}: Input must be a finite number, got '{v}' (parsed as {dec_val})."
-            )
-        return v
+        s = validate_str_field(v, field_name=field_name)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
     @field_validator("symbol", "id", mode="before")
     @classmethod
