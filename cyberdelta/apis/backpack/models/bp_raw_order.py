@@ -89,9 +89,7 @@ class BackpackRawOrder(BaseModel):
         None, alias="origin", description="Origin of the last update. Alias: 'O'"
     )
 
-    class Config:
-        extra = "forbid"
-        allow_population_by_field_name = True
+    model_config = ConfigDict(extra="forbid", validate_by_name=True)
 
     @model_validator(mode="before")
     @classmethod

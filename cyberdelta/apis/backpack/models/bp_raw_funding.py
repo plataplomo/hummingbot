@@ -33,7 +33,7 @@ class BackpackRawFundingRate(BaseModel):
     mark_price: str = Field(..., alias="markPrice", max_length=64)
     index_price: str = Field(..., alias="indexPrice", max_length=64)
     time: int | str | float | None = Field(..., alias="time")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("symbol", mode="before", check_fields=False)
     @classmethod
@@ -47,7 +47,8 @@ class BackpackRawFundingRate(BaseModel):
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(
-                f"{field_name}: Must be a string representing a decimal value, got {type(v).__name__}"
+                f"{field_name}: Must be a string representing a decimal value, "
+                f"got {type(v).__name__}"
             )
         if not v.strip():
             raise ValueError(
@@ -100,7 +101,7 @@ class BackpackRawMarkPrice(BaseModel):
     symbol: str = Field(..., alias="symbol", max_length=64)
     mark_price: str = Field(..., alias="markPrice", max_length=64)
     funding_rate: str = Field(..., alias="fundingRate", max_length=64)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("symbol", mode="before", check_fields=False)
     @classmethod
@@ -114,7 +115,8 @@ class BackpackRawMarkPrice(BaseModel):
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(
-                f"{field_name}: Must be a string representing a decimal value, got {type(v).__name__}"
+                f"{field_name}: Must be a string representing a decimal value, "
+                f"got {type(v).__name__}"
             )
         if not v.strip():
             raise ValueError(

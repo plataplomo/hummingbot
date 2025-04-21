@@ -31,7 +31,7 @@ class BackpackRawWithdrawal(BaseModel):
     asset: str = Field(..., alias="asset", max_length=32)
     amount: str = Field(..., alias="amount", max_length=64)
     status: str = Field(..., alias="status", max_length=32)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("id", "asset", "status", mode="before")
     @classmethod
@@ -94,7 +94,7 @@ class BackpackRawDeposit(BaseModel):
     asset: str = Field(..., alias="asset", max_length=32)
     amount: str = Field(..., alias="amount", max_length=64)
     status: str = Field(..., alias="status", max_length=32)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("id", "asset", "status", mode="before")
     @classmethod
@@ -157,7 +157,7 @@ class BackpackRawLiquidation(BaseModel):
     price: str = Field(..., alias="price", max_length=64)
     quantity: str = Field(..., alias="quantity", max_length=64)
     side: str = Field(..., alias="side", max_length=16)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("symbol", mode="before")
     @classmethod

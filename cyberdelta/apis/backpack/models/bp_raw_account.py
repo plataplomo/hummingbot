@@ -27,7 +27,7 @@ class BackpackRawAccount(BaseModel):
     id: str = Field(..., alias="id", max_length=128)
     email: str = Field(..., alias="email", max_length=254)
     status: str = Field(..., alias="status", max_length=32)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("id", mode="before", check_fields=False)
     @classmethod
@@ -68,7 +68,7 @@ class BackpackRawBalance(BaseModel):
     asset: str = Field(..., alias="asset", max_length=32)
     available: str = Field(..., alias="available", max_length=64)
     total: str = Field(..., alias="total", max_length=64)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("asset", mode="before", check_fields=False)
     @classmethod

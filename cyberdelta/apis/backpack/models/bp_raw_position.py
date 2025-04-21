@@ -6,14 +6,18 @@ Strict Pydantic models for validating position responses from the
 Backpack Exchange API.
 
 **Boundary Validation Pattern (Project Standard):**
-- All fields are strictly validated to match the OpenAPI spec (type, required/optional, max length, enum, etc.).
+- All fields are strictly validated to match the OpenAPI spec (type, required/optional,
+  max length, enum, etc.).
 - **String fields** are always validated for:
     - Type: must be `str` (not bytes, int, list, etc.)
     - Non-emptiness (unless explicitly allowed)
     - Max length (per OpenAPI spec)
     - Valid UTF-8 encoding (no lone surrogates or invalid unicode)
-- **Invalid unicode or broken types are always rejected** with `ValidationError` (if caught by the validator) or `UnicodeEncodeError` (if Python or Pydantic internals hit the error first).
-- This ensures the Raw model acts as a strict, reliable shield between external API data and internal business logic.
+- **Invalid unicode or broken types are always rejected** with `ValidationError`
+  (if caught by the validator) or `UnicodeEncodeError`
+  (if Python or Pydantic internals hit the error first).
+- This ensures the Raw model acts as a strict, reliable shield between external API data
+  and internal business logic.
 - See test suite for adversarial/hostile input cases and expected outcomes.
 
 This pattern is enforced for all Raw models in the CyberDeltaEngine project.
@@ -31,7 +35,7 @@ class SqrtFunction(BaseModel):
 
     base: str = Field(..., alias="base")
     factor: str = Field(..., alias="factor")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("base", "factor", mode="before")
     @classmethod
@@ -52,7 +56,7 @@ class PositionImfFunction(BaseModel):
     type: str = Field(..., alias="type")  # Must be 'sqrt'
     base: str = Field(..., alias="base")
     factor: str = Field(..., alias="factor")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("type", mode="before")
     @classmethod
@@ -99,7 +103,7 @@ class BackpackRawPosition(BaseModel):
     user_id: int = Field(..., alias="userId")
     position_id: str = Field(..., alias="positionId", max_length=64)
     cumulative_interest: str = Field(..., alias="cumulativeInterest", max_length=64)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator(
         "break_even_price",
@@ -169,7 +173,7 @@ class BackpackRawPositionUpdate(BaseModel):
     net_quantity: str | None = Field(None, alias="q")
     net_exposure_quantity: str | None = Field(None, alias="Q")
     net_exposure_notional: str | None = Field(None, alias="n")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("event_type", "symbol", mode="before")
     @classmethod

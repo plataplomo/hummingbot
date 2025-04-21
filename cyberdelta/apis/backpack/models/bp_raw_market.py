@@ -3,7 +3,6 @@ Backpack API Market, Ticker, and Open Interest Models
 """
 
 from decimal import Decimal
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -23,11 +22,11 @@ class BackpackRawMarket(BaseModel):
     symbol: str = Field(..., alias="symbol", max_length=64)
     base_asset: str = Field(..., alias="baseAsset", max_length=64)
     quote_asset: str = Field(..., alias="quoteAsset", max_length=64)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("symbol", "base_asset", "quote_asset", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: Any, info: ValidationInfo) -> str:  # noqa: ANN401
+    def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
         field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -63,11 +62,11 @@ class BackpackRawTicker(BaseModel):
     ask: str | None = Field(None, alias="ask")
     volume: str | None = Field(None, alias="volume")
     time: int | str | float | None = Field(..., alias="time")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("symbol", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: Any, info: ValidationInfo) -> str:  # noqa: ANN401
+    def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
         field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
             field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
@@ -85,7 +84,7 @@ class BackpackRawTicker(BaseModel):
 
     @field_validator("price", "bid", "ask", "volume", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: Any, info: ValidationInfo) -> str | None:  # noqa: ANN401
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
         field_name = getattr(info, "field_name", None) or "field"
         if v is None:
             return v
@@ -109,11 +108,7 @@ class BackpackRawTicker(BaseModel):
 
     @field_validator("time", mode="before")
     @classmethod
-    def validate_timestamp(cls, v: Any) -> int | float | str:  # noqa: ANN401
-        """
-        Accepts int, float, or digit-only string. Returns as int/float if possible, else string.
-        Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
-        """
+    def validate_timestamp(cls, v: object) -> int | float | str:
         if isinstance(v, int | float):
             return v
         if isinstance(v, str):
@@ -124,16 +119,16 @@ class BackpackRawTicker(BaseModel):
                 if v.isdigit():
                     return int(v)
                 return float(v)
-            except Exception:
+            except Exception as err:
                 # If not parseable as a number, treat as ISO8601 or raise
                 try:
                     v.encode("utf-8", "strict")
-                except UnicodeEncodeError as err:
-                    raise ValueError(f"String must be valid UTF-8: {err}") from err
+                except UnicodeEncodeError as err2:
+                    raise ValueError(f"String must be valid UTF-8: {err2}") from err2
                 # Accept as string if it looks like ISO8601 (basic check)
                 if ("T" in v or "-" in v or ":" in v) and any(c.isdigit() for c in v):
                     return v
-                raise ValueError("Invalid timestamp format")
+                raise ValueError("Invalid timestamp format") from err
         raise ValueError("Invalid timestamp format")
 
 
@@ -150,11 +145,11 @@ class BackpackRawOpenInterest(BaseModel):
 
     symbol: str = Field(..., alias="symbol")
     open_interest: str = Field(..., alias="openInterest")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("symbol", "open_interest", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: Any, info: ValidationInfo) -> str:  # noqa: ANN401
+    def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
         field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -170,7 +165,7 @@ class BackpackRawOpenInterest(BaseModel):
 
     @field_validator("open_interest", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: Any, info: ValidationInfo) -> str | None:  # noqa: ANN401
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
         field_name = getattr(info, "field_name", None) or "field"
         if v is None:
             return v

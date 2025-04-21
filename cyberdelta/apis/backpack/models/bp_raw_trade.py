@@ -9,7 +9,6 @@ logic.
 """
 
 import logging
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -40,11 +39,11 @@ class BackpackRawTrade(BaseModel):
     price: str = Field(..., alias="price", max_length=64)
     quantity: str = Field(..., alias="qty", max_length=64)
     time: int | str | float | None = Field(..., alias="time")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("id", "order_id", "symbol", mode="before")
     @classmethod
-    def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -60,7 +59,7 @@ class BackpackRawTrade(BaseModel):
 
     @field_validator("price", "quantity", mode="before")
     @classmethod
-    def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -90,7 +89,7 @@ class BackpackRawTrade(BaseModel):
 
     @field_validator("time", mode="before")
     @classmethod
-    def validate_timestamp_format(cls, v: Any, info: ValidationInfo) -> int | float | str | None:
+    def validate_timestamp_format(cls, v: object, info: ValidationInfo) -> int | float | str | None:
         field_name = info.field_name or "time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")
@@ -104,16 +103,16 @@ class BackpackRawTrade(BaseModel):
                 if v.isdigit():
                     return int(v)
                 return float(v)
-            except Exception:
+            except Exception as err:
                 # If not parseable as a number, treat as ISO8601 or raise
                 try:
                     v.encode("utf-8", "strict")
-                except UnicodeEncodeError as err:
-                    raise ValueError(f"{field_name}: String must be valid UTF-8: {err}") from err
+                except UnicodeEncodeError as err2:
+                    raise ValueError(f"{field_name}: String must be valid UTF-8: {err2}") from err2
                 # Accept as string if it looks like ISO8601 (basic check)
                 if ("T" in v or "-" in v or ":" in v) and any(c.isdigit() for c in v):
                     return v
-                raise ValueError(f"{field_name}: Invalid timestamp format")
+                raise ValueError(f"{field_name}: Invalid timestamp format") from err
         raise ValueError(
             f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
         )
@@ -149,11 +148,11 @@ class BackpackRawTradeEvent(BaseModel):
     trade_id: str = Field(..., alias="t")
     engine_timestamp: int | str | float | None = Field(..., alias="T")
     is_buyer_the_maker: bool = Field(..., alias="m")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("event_type", mode="before")
     @classmethod
-    def validate_event_type_enum(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_event_type_enum(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "event_type"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -178,7 +177,7 @@ class BackpackRawTradeEvent(BaseModel):
 
     @field_validator("symbol", "buyer_order_id", "seller_order_id", "trade_id", mode="before")
     @classmethod
-    def validate_required_string(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -194,7 +193,7 @@ class BackpackRawTradeEvent(BaseModel):
 
     @field_validator("price", "quantity", mode="before")
     @classmethod
-    def validate_decimal_string_format(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
@@ -224,7 +223,7 @@ class BackpackRawTradeEvent(BaseModel):
 
     @field_validator("event_time", "engine_timestamp", mode="before")
     @classmethod
-    def validate_timestamp_format(cls, v: Any, info: ValidationInfo) -> int | float | str | None:
+    def validate_timestamp_format(cls, v: object, info: ValidationInfo) -> int | float | str | None:
         field_name = info.field_name or "event_time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")
@@ -238,16 +237,16 @@ class BackpackRawTradeEvent(BaseModel):
                 if v.isdigit():
                     return int(v)
                 return float(v)
-            except Exception:
+            except Exception as err:
                 # If not parseable as a number, treat as ISO8601 or raise
                 try:
                     v.encode("utf-8", "strict")
-                except UnicodeEncodeError as err:
-                    raise ValueError(f"{field_name}: String must be valid UTF-8: {err}") from err
+                except UnicodeEncodeError as err2:
+                    raise ValueError(f"{field_name}: String must be valid UTF-8: {err2}") from err2
                 # Accept as string if it looks like ISO8601 (basic check)
                 if ("T" in v or "-" in v or ":" in v) and any(c.isdigit() for c in v):
                     return v
-                raise ValueError(f"{field_name}: Invalid timestamp format")
+                raise ValueError(f"{field_name}: Invalid timestamp format") from err
         raise ValueError(
             f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
         )

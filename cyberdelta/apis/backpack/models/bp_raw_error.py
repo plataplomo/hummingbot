@@ -26,7 +26,7 @@ class BackpackRawApiError(BaseModel):
 
     code: str = Field(..., description="Backpack error code", max_length=64)
     message: str = Field(..., description="Error message", max_length=1024)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
     @field_validator("code", mode="before", check_fields=False)
     @classmethod
