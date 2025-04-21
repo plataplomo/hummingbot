@@ -2,7 +2,9 @@
 Backpack API Order, Order Book, and Order Update Models
 ------------------------------------------------------
 
-This module defines strict Pydantic models for validating order, order book, and order update responses from the Backpack Exchange API. These models are used for boundary validation and transformation, not for internal business logic.
+This module defines strict Pydantic models for validating order, order book, and order update
+responses from the Backpack Exchange API. These models are used for boundary validation and
+transformation, not for internal business logic.
 
 Models:
     - BackpackRawOrder: Validates REST/WebSocket order objects (all aliases, strict schema).
@@ -16,7 +18,8 @@ Validation Pattern:
     - All extra fields are forbidden.
     - Enum fields are strictly validated against allowed values.
 
-These models act as a strict shield between external API data and internal business logic, ensuring robustness and security at the data ingestion boundary.
+These models act as a strict shield between external API data and internal business logic,
+ensuring robustness and security at the data ingestion boundary.
 """
 
 from decimal import Decimal

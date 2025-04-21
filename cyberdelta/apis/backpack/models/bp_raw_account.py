@@ -2,7 +2,9 @@
 Backpack API Account and Balance Models
 --------------------------------------
 
-This module defines strict Pydantic models for validating account and balance responses from the Backpack Exchange API. These models are used for boundary validation and transformation, not for internal business logic.
+This module defines strict Pydantic models for validating account and balance responses from the
+Backpack Exchange API. These models are used for boundary validation and transformation, not for
+internal business logic.
 
 Models:
     - BackpackRawAccount: Validates account summary objects (id, email, status).
@@ -14,7 +16,8 @@ Validation Pattern:
     - Enum fields (e.g., status) are strictly validated against allowed values.
     - All extra fields are forbidden.
 
-These models act as a strict shield between external API data and internal business logic, ensuring robustness and security at the data ingestion boundary.
+These models act as a strict shield between external API data and internal business logic,
+ensuring robustness and security at the data ingestion boundary.
 """
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
@@ -64,8 +67,10 @@ class BackpackRawAccount(BaseModel):
     @classmethod
     def validate_status_string_and_enum(cls, v: object, info: ValidationInfo) -> str:
         """
-        Validates that the status is a string, non-empty, max 32 chars, valid UTF-8, and in allowed enum values.
-        Raises ValueError if not a string, is empty, exceeds max length, not valid UTF-8, or not in allowed set.
+        Validates that the status is a string, non-empty, max 32 chars, valid UTF-8, and in allowed
+        enum values.
+        Raises ValueError if not a string, is empty, exceeds max length, not valid UTF-8, or not in
+        allowed set.
         """
         field_name = info.field_name or "status"
         allowed_values = {"active", "suspended", "pending"}
@@ -108,7 +113,8 @@ class BackpackRawBalance(BaseModel):
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         """
         Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
-        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max length.
+        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max
+        length.
         """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)

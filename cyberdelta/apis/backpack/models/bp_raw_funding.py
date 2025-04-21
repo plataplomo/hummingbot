@@ -61,7 +61,8 @@ class BackpackRawFundingRate(BaseModel):
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         """
         Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
-        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max length.
+        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max
+        length.
         """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
@@ -140,7 +141,8 @@ class BackpackRawMarkPrice(BaseModel):
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         """
         Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
-        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max length.
+        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max
+        length.
         """
         field_name = info.field_name or "field"
         if not isinstance(v, str):
