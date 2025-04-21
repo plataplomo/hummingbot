@@ -10,10 +10,8 @@ This version is fully aligned with the Backpack OpenAPI spec and supports all
 REST and WebSocket field aliases, types, and validation requirements.
 """
 
-import typing
-from collections.abc import Iterable
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -139,10 +137,8 @@ class BackpackRawOrder(BaseModel):
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
         field_name = info.field_name or "field"
-        # Optional fields: allow None
         if v is None:
             return None
-        # Required fields: must be string
         if not isinstance(v, str):
             raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         s = validate_str_field(v, field_name=field_name)
@@ -398,19 +394,29 @@ class BackpackRawOrderBook(BaseModel):
     def validate_bids_asks(cls, v: object) -> list[list[str]]:
         if not isinstance(v, list):
             raise ValueError("bids/asks: Must be a list of [str, str] pairs")
-        # v is expected to be an iterable of [str, str] pairs, but may be Any at runtime
-        v_iter: Iterable[Any] = v
         result: list[list[str]] = []
-        for entry_any in v_iter:
-            # entry_any is expected to be a list of two elements; cast for static analysis
-            entry_list = typing.cast(list[Any], entry_any)
-            if len(entry_list) != 2:
-                raise ValueError("Each bid/ask must be a [str, str] pair")
-            left = entry_list[0]
-            right = entry_list[1]
-            if not (isinstance(left, str) and isinstance(right, str)):
-                raise ValueError("Each element of bid/ask must be a string")
-            result.append([left, right])
+        for entry_any in cast(list[Any], v):
+            entry_any: Any  # Explicitly annotate for static analysis
+            if not isinstance(entry_any, list):
+                raise ValueError("Each bid/ask must be a list of two strings (not a list)")
+            entry: list[Any] = entry_any  # Safe: runtime check above ensures this is a list
+            if len(entry) != 2:
+                raise ValueError("Each bid/ask must be a [str, str] pair (length 2)")
+            # Validate both elements are strings and valid decimals
+            validated: list[str] = []
+            for idx, val in enumerate(entry):
+                if not isinstance(val, str):
+                    raise ValueError(
+                        f"Each element of bid/ask must be a string (got {type(val).__name__})"
+                    )
+                s = validate_str_field(val, field_name=f"bids/asks[{idx}]", max_length=64)
+                d = parse_decimal_value(s, allow_none=False, field_name=f"bids/asks[{idx}]")
+                if d is None or not d.is_finite():
+                    raise ValueError(
+                        f"bids/asks[{idx}]: Value must be a finite decimal (not NaN or inf)"
+                    )
+                validated.append(s)
+            result.append(validated)
         return result
 
     @field_validator("time", mode="before")
