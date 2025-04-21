@@ -112,7 +112,7 @@ class BackpackRawTicker(BaseModel):
         Accepts int, float, or digit-only string. Returns as int/float if possible, else string.
         Accepts any type due to Pydantic's mode="before"; type is checked at runtime.
         """
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return v
         if isinstance(v, str) and v.isdigit():
             return int(v)

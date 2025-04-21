@@ -208,7 +208,7 @@ class BackpackRawPositionUpdate(BaseModel):
         if v is None:
             return None
         # Accept int or float directly
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return v
         # Accept non-empty string that is all digits as int
         if isinstance(v, str):

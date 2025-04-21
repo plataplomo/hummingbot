@@ -10,7 +10,10 @@ This version is fully aligned with the Backpack OpenAPI spec and supports all
 REST and WebSocket field aliases, types, and validation requirements.
 """
 
+import typing
+from collections.abc import Iterable
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -135,13 +138,13 @@ class BackpackRawOrder(BaseModel):
     )
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "field"
+        # Optional fields: allow None
         if v is None:
             return None
+        # Required fields: must be string
         if not isinstance(v, str):
-            raise ValueError(
-                f"{info.field_name or 'field'}: Expected string, got {type(v).__name__}"
-            )
-        field_name = info.field_name or "field"
+            raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         s = validate_str_field(v, field_name=field_name)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
         if d is None or not d.is_finite():
@@ -151,22 +154,18 @@ class BackpackRawOrder(BaseModel):
     @field_validator("side", mode="before")
     @classmethod
     def validate_side_enum(cls, v: object, info: ValidationInfo) -> str:
-        if not isinstance(v, str):
-            raise ValueError(
-                f"{info.field_name or 'side'}: Expected string, got {type(v).__name__}"
-            )
         field_name = info.field_name or "side"
+        if v is None or not isinstance(v, str):
+            raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         s = validate_str_field(v, field_name=field_name)
         return validate_enum_field(s, allowed={"buy", "sell", "Bid", "Ask"}, field_name=field_name)
 
     @field_validator("orderType", mode="before")
     @classmethod
     def validate_order_type_enum(cls, v: object, info: ValidationInfo) -> str:
-        if not isinstance(v, str):
-            raise ValueError(
-                f"{info.field_name or 'orderType'}: Expected string, got {type(v).__name__}"
-            )
         field_name = info.field_name or "orderType"
+        if v is None or not isinstance(v, str):
+            raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         s = validate_str_field(v, field_name=field_name)
         return validate_enum_field(
             s,
@@ -177,11 +176,9 @@ class BackpackRawOrder(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def validate_status_enum(cls, v: object, info: ValidationInfo) -> str:
-        if not isinstance(v, str):
-            raise ValueError(
-                f"{info.field_name or 'status'}: Expected string, got {type(v).__name__}"
-            )
         field_name = info.field_name or "status"
+        if v is None or not isinstance(v, str):
+            raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         s = validate_str_field(v, field_name=field_name)
         return validate_enum_field(
             s,
@@ -199,11 +196,9 @@ class BackpackRawOrder(BaseModel):
     @field_validator("symbol", "id", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
-        if not isinstance(v, str):
-            raise ValueError(
-                f"{info.field_name or 'field'}: Expected string, got {type(v).__name__}"
-            )
         field_name = info.field_name or "field"
+        if v is None or not isinstance(v, str):
+            raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         return validate_str_field(v, field_name=field_name)
 
     @field_validator("createdAt", "updatedAt", "triggeredAt", mode="before")
@@ -211,7 +206,7 @@ class BackpackRawOrder(BaseModel):
     def validate_timestamp(cls, v: object) -> int | float | str | None:
         if v is None:
             return None
-        if isinstance(v, int | float):
+        if isinstance(v, (int, float)):
             return v
         if isinstance(v, str):
             if not v.strip():
@@ -392,7 +387,7 @@ class BackpackRawOrderBook(BaseModel):
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object) -> str:
-        if not isinstance(v, str):
+        if v is None or not isinstance(v, str):
             raise ValueError("symbol: Must be a string")
         if not v.strip():
             raise ValueError("symbol: Must be a non-empty string")
@@ -402,19 +397,28 @@ class BackpackRawOrderBook(BaseModel):
     @classmethod
     def validate_bids_asks(cls, v: object) -> list[list[str]]:
         if not isinstance(v, list):
-            raise ValueError("bids/asks: Must be a list of [price, quantity] pairs")
-        typed_v: list[list[str]] = v
-        for entry in typed_v:
-            if len(entry) != 2 or not all(x for x in entry):
+            raise ValueError("bids/asks: Must be a list of [str, str] pairs")
+        # v is expected to be an iterable of [str, str] pairs, but may be Any at runtime
+        v_iter: Iterable[Any] = v
+        result: list[list[str]] = []
+        for entry_any in v_iter:
+            # entry_any is expected to be a list of two elements; cast for static analysis
+            entry_list = typing.cast(list[Any], entry_any)
+            if len(entry_list) != 2:
                 raise ValueError("Each bid/ask must be a [str, str] pair")
-        return typed_v
+            left = entry_list[0]
+            right = entry_list[1]
+            if not (isinstance(left, str) and isinstance(right, str)):
+                raise ValueError("Each element of bid/ask must be a string")
+            result.append([left, right])
+        return result
 
     @field_validator("time", mode="before")
     @classmethod
     def validate_timestamp(cls, v: object) -> int | float | str | None:
         if v is None:
             return None
-        if isinstance(v, int | float):
+        if isinstance(v, (int, float)):
             return v
         if isinstance(v, str):
             if not v.strip():
@@ -462,7 +466,7 @@ class BackpackRawOrderUpdate(BaseModel):
     @field_validator("event_type", "symbol", "side", "order_type", "order_status", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object) -> str:
-        if not isinstance(v, str):
+        if v is None or not isinstance(v, str):
             raise ValueError("event_type/symbol/side/order_type/order_status: Must be a string")
         if not v.strip():
             raise ValueError(
@@ -473,7 +477,7 @@ class BackpackRawOrderUpdate(BaseModel):
     @field_validator("side", mode="before")
     @classmethod
     def validate_side_enum(cls, v: object) -> str:
-        if not isinstance(v, str):
+        if v is None or not isinstance(v, str):
             raise ValueError("side: Must be a string")
         allowed = {"Bid", "Ask"}  # Update as per spec
         if v not in allowed:
@@ -483,7 +487,7 @@ class BackpackRawOrderUpdate(BaseModel):
     @field_validator("order_type", mode="before")
     @classmethod
     def validate_order_type_enum(cls, v: object) -> str:
-        if not isinstance(v, str):
+        if v is None or not isinstance(v, str):
             raise ValueError("order_type: Must be a string")
         allowed = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}  # Update as per spec
         if v not in allowed:
@@ -493,7 +497,7 @@ class BackpackRawOrderUpdate(BaseModel):
     @field_validator("order_status", mode="before")
     @classmethod
     def validate_status_enum(cls, v: object) -> str:
-        if not isinstance(v, str):
+        if v is None or not isinstance(v, str):
             raise ValueError("order_status: Must be a string")
         allowed = {
             "NEW",
@@ -533,7 +537,7 @@ class BackpackRawOrderUpdate(BaseModel):
     def validate_timestamp(cls, v: object) -> int | float | str | None:
         if v is None:
             return None
-        if isinstance(v, int | float):
+        if isinstance(v, (int, float)):
             return v
         if isinstance(v, str):
             if not v.strip():
