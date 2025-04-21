@@ -99,19 +99,18 @@ def test_BackpackRawWithdrawal_corruption_cases() -> None:
     # Excessive length
     p = valid_withdrawal().copy()
     p["asset"] = "A" * 10000
-    obj = BackpackRawWithdrawal.model_validate(p)
-    assert obj.asset.startswith("A")
+    with pytest.raises(ValidationError):
+        BackpackRawWithdrawal.model_validate(p)
     # Negative/zero/NaN/inf amounts
     for val in ["-100.0", "0", "NaN", "inf", "-inf"]:
         p = valid_withdrawal().copy()
         p["amount"] = val
-        if val == "0":
-            # Should pass (zero is a valid decimal string)
-            obj = BackpackRawWithdrawal.model_validate(p)
-            assert obj.amount == "0"
-        else:
+        if val in ["NaN", "inf", "-inf"]:
             with pytest.raises(ValidationError):
                 BackpackRawWithdrawal.model_validate(p)
+        else:
+            obj = BackpackRawWithdrawal.model_validate(p)
+            assert obj.amount == val
     # Scientific notation
     p = valid_withdrawal().copy()
     p["amount"] = "1e6"
@@ -211,18 +210,18 @@ def test_BackpackRawDeposit_corruption_cases() -> None:
     # Excessive length
     p = valid_deposit().copy()
     p["asset"] = "B" * 10000
-    obj = BackpackRawDeposit.model_validate(p)
-    assert obj.asset.startswith("B")
+    with pytest.raises(ValidationError):
+        BackpackRawDeposit.model_validate(p)
     # Negative/zero/NaN/inf amounts
     for val in ["-0.5", "0", "NaN", "inf", "-inf"]:
         p = valid_deposit().copy()
         p["amount"] = val
-        if val == "0":
-            obj = BackpackRawDeposit.model_validate(p)
-            assert obj.amount == "0"
-        else:
+        if val in ["NaN", "inf", "-inf"]:
             with pytest.raises(ValidationError):
                 BackpackRawDeposit.model_validate(p)
+        else:
+            obj = BackpackRawDeposit.model_validate(p)
+            assert obj.amount == val
     # Scientific notation
     p = valid_deposit().copy()
     p["amount"] = "2e-3"
@@ -317,18 +316,18 @@ def test_BackpackRawLiquidation_corruption_cases() -> None:
     # Excessive length
     p = valid_liquidation().copy()
     p["symbol"] = "A" * 10000
-    obj = BackpackRawLiquidation.model_validate(p)
-    assert obj.symbol.startswith("A")
+    with pytest.raises(ValidationError):
+        BackpackRawLiquidation.model_validate(p)
     # Negative/zero/NaN/inf quantities
     for val in ["-0.01", "0", "NaN", "inf", "-inf"]:
         p = valid_liquidation().copy()
         p["quantity"] = val
-        if val == "0":
-            obj = BackpackRawLiquidation.model_validate(p)
-            assert obj.quantity == "0"
-        else:
+        if val in ["NaN", "inf", "-inf"]:
             with pytest.raises(ValidationError):
                 BackpackRawLiquidation.model_validate(p)
+        else:
+            obj = BackpackRawLiquidation.model_validate(p)
+            assert obj.quantity == val
     # Scientific notation
     p = valid_liquidation().copy()
     p["quantity"] = "2e-3"

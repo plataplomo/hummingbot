@@ -10,7 +10,7 @@ logic.
 
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class BackpackRawWithdrawal(BaseModel):
@@ -33,11 +33,9 @@ class BackpackRawWithdrawal(BaseModel):
     status: str = Field(..., alias="status", max_length=32)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("id", "asset", "amount", "status", mode="before")
+    @field_validator("id", "asset", "status", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object) -> str:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
         if not isinstance(v, str):
             raise ValueError(f"Must be a string, got {type(v).__name__}")
         if not v.strip():
@@ -47,14 +45,12 @@ class BackpackRawWithdrawal(BaseModel):
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+            raise ValueError(f"Invalid UTF-8 sequence: {err}") from err
         return v
 
     @field_validator("amount", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object) -> str:
-        if v is None:
-            raise ValueError("Must be a non-empty string representing a decimal value (got None)")
         if not isinstance(v, str):
             raise ValueError(
                 f"Must be a string representing a decimal value, got {type(v).__name__}"
@@ -62,7 +58,7 @@ class BackpackRawWithdrawal(BaseModel):
         if not v.strip():
             raise ValueError("Must be a non-empty string representing a decimal value")
         try:
-            dec_val = Decimal(v)
+            dec_val = Decimal(v.strip())
         except Exception as err:
             raise ValueError("Must be a string representing a decimal value") from err
         if not dec_val.is_finite():
@@ -72,9 +68,7 @@ class BackpackRawWithdrawal(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def validate_status_enum(cls, v: object) -> str:
-        allowed = {"pending", "completed", "failed", "cancelled"}  # Update as per spec
-        if v is None:
-            raise ValueError("Status must be a non-empty string (got None)")
+        allowed = {"pending", "completed", "failed", "cancelled"}
         if not isinstance(v, str):
             raise ValueError(f"Status must be a string, got {type(v).__name__}")
         if v not in allowed:
@@ -102,11 +96,9 @@ class BackpackRawDeposit(BaseModel):
     status: str = Field(..., alias="status", max_length=32)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("id", "asset", "amount", "status", mode="before")
+    @field_validator("id", "asset", "status", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object) -> str:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
         if not isinstance(v, str):
             raise ValueError(f"Must be a string, got {type(v).__name__}")
         if not v.strip():
@@ -116,14 +108,12 @@ class BackpackRawDeposit(BaseModel):
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+            raise ValueError(f"Invalid UTF-8 sequence: {err}") from err
         return v
 
     @field_validator("amount", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object) -> str:
-        if v is None:
-            raise ValueError("Must be a non-empty string representing a decimal value (got None)")
         if not isinstance(v, str):
             raise ValueError(
                 f"Must be a string representing a decimal value, got {type(v).__name__}"
@@ -131,7 +121,7 @@ class BackpackRawDeposit(BaseModel):
         if not v.strip():
             raise ValueError("Must be a non-empty string representing a decimal value")
         try:
-            dec_val = Decimal(v)
+            dec_val = Decimal(v.strip())
         except Exception as err:
             raise ValueError("Must be a string representing a decimal value") from err
         if not dec_val.is_finite():
@@ -141,9 +131,7 @@ class BackpackRawDeposit(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def validate_status_enum(cls, v: object) -> str:
-        allowed = {"pending", "completed", "failed", "cancelled"}  # Update as per spec
-        if v is None:
-            raise ValueError("Status must be a non-empty string (got None)")
+        allowed = {"pending", "completed", "failed", "cancelled"}
         if not isinstance(v, str):
             raise ValueError(f"Status must be a string, got {type(v).__name__}")
         if v not in allowed:
@@ -159,60 +147,67 @@ class BackpackRawLiquidation(BaseModel):
     Use this model to validate and parse liquidation event payloads received from the exchange.
 
     Attributes:
-        symbol (str): Trading symbol.
+        symbol (str): Trading symbol. (max_length=64, per OpenAPI spec)
         price (str): Liquidation price (as string).
         quantity (str): Liquidated quantity (as string).
         side (str): Side ('buy', 'sell', etc.).
     """
 
-    symbol: str = Field(..., alias="symbol")
-    price: str = Field(..., alias="price")
-    quantity: str = Field(..., alias="quantity")
-    side: str = Field(..., alias="side")
+    symbol: str = Field(..., alias="symbol", max_length=64)
+    price: str = Field(..., alias="price", max_length=64)
+    quantity: str = Field(..., alias="quantity", max_length=64)
+    side: str = Field(..., alias="side", max_length=16)
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("symbol", "price", "quantity", "side", mode="before")
+    @field_validator("symbol", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: object) -> str:
-        if v is None:
-            raise ValueError("Must be a non-empty string (got None)")
+    def validate_symbol(cls, v: object) -> str:
         if not isinstance(v, str):
-            raise ValueError(f"Must be a string, got {type(v).__name__}")
+            raise ValueError(f"symbol: Must be a string, got {type(v).__name__}")
         if not v.strip():
-            raise ValueError("Must be a non-empty string")
+            raise ValueError("symbol: Must be a non-empty string")
+        if len(v) > 64:
+            raise ValueError("symbol: String value too long (max 64 chars)")
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as err:
-            raise ValueError(f"Must be a valid unicode string (got {type(v).__name__})") from err
+            raise ValueError(f"symbol: Invalid UTF-8 sequence: {err}") from err
         return v
 
     @field_validator("price", "quantity", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: object) -> str:
-        if v is None:
-            raise ValueError("Must be a non-empty string representing a decimal value (got None)")
+    def validate_decimal_str(cls, v: object, info: ValidationInfo | None = None) -> str:
+        # info: ValidationInfo is provided by Pydantic v2 for field context; may be None in some cases
+        field_name = getattr(info, "field_name", None) if info is not None else "field"
         if not isinstance(v, str):
             raise ValueError(
-                f"Must be a string representing a decimal value, got {type(v).__name__}"
+                f"{field_name}: Must be a string representing a decimal value, "
+                f"got {type(v).__name__}"
             )
         if not v.strip():
-            raise ValueError("Must be a non-empty string representing a decimal value")
+            raise ValueError(
+                f"{field_name}: Must be a non-empty string representing a decimal value"
+            )
+        if len(v) > 64:
+            raise ValueError(f"{field_name}: String value too long (max 64 chars)")
         try:
-            dec_val = Decimal(v)
+            dec_val = Decimal(v.strip())
         except Exception as err:
-            raise ValueError("Must be a string representing a decimal value") from err
+            raise ValueError(
+                f"{field_name}: Must be a string representing a decimal value"
+            ) from err
         if not dec_val.is_finite():
-            raise ValueError("Value must be a finite decimal (not NaN or inf)")
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
         return v
 
     @field_validator("side", mode="before")
     @classmethod
     def validate_side_enum(cls, v: object) -> str:
-        allowed = {"buy", "sell"}  # Update as per spec
-        if v is None:
-            raise ValueError("Side must be a non-empty string (got None)")
+        allowed = {"buy", "sell"}
         if not isinstance(v, str):
-            raise ValueError(f"Side must be a string, got {type(v).__name__}")
+            raise ValueError(f"side: Side must be a string, got {type(v).__name__}")
+        if len(v) > 16:
+            raise ValueError("side: String value too long (max 16 chars)")
         if v not in allowed:
-            raise ValueError(f"Invalid side: {v}")
+            raise ValueError(f"side: Invalid side: {v}")
         return v
