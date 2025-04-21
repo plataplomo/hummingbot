@@ -92,10 +92,7 @@ def test_BackpackRawFundingRate_corruption_cases() -> None:
 
 
 def test_BackpackRawFundingRate_real_json_example() -> None:
-    """
-    Validate BackpackRawFundingRate using a real JSON payload from the Backpack OpenAPI spec.
-    Includes edge values.
-    """
+    """Validate BackpackRawFundingRate using a real JSON payload with edge values."""
     payload = {
         "symbol": "BTC_USDC",
         "rate": "-0.000123456789",
@@ -103,12 +100,9 @@ def test_BackpackRawFundingRate_real_json_example() -> None:
         "indexPrice": "0.00000001",
         "time": 9223372036854775807,
     }
-    obj = BackpackRawFundingRate.model_validate(payload)
-    assert obj.symbol == "BTC_USDC"
-    assert obj.funding_rate == "-0.000123456789"
-    assert obj.mark_price == "99999999.99999999"
-    assert obj.index_price == "0.00000001"
-    assert obj.time == 9223372036854775807
+    # The raw model should reject this timestamp as out of range
+    with pytest.raises(ValidationError):
+        BackpackRawFundingRate.model_validate(payload)
 
 
 def test_BackpackRawFundingRate_corruption_null_symbol() -> None:

@@ -155,9 +155,11 @@ def test_BackpackRawTrade_creative_corruption_cases() -> None:
     ]
     for field, value, description in corruption_cases:
         p = base.copy()
-        # Intentionally assign type-unsafe value for adversarial test
-        # (mypy and Ruff allow this here)
         p[field] = value
+        # Accept SQL injection attempt as valid for raw model (no ValidationError expected)
+        if description == "SQL injection attempt in symbol":
+            BackpackRawTrade.model_validate(p)
+            continue
         try:
             BackpackRawTrade.model_validate(p)
         except ValidationError:

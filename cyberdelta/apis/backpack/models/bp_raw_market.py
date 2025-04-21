@@ -116,14 +116,24 @@ class BackpackRawTicker(BaseModel):
         """
         if isinstance(v, int | float):
             return v
-        if isinstance(v, str) and v.isdigit():
-            return int(v)
         if isinstance(v, str):
+            if not v.strip():
+                raise ValueError("String must be non-empty")
             try:
-                float_v = float(v)
-                return float_v
+                # Try parsing as int or float
+                if v.isdigit():
+                    return int(v)
+                return float(v)
             except Exception:
-                return v
+                # If not parseable as a number, treat as ISO8601 or raise
+                try:
+                    v.encode("utf-8", "strict")
+                except UnicodeEncodeError as err:
+                    raise ValueError(f"String must be valid UTF-8: {err}") from err
+                # Accept as string if it looks like ISO8601 (basic check)
+                if ("T" in v or "-" in v or ":" in v) and any(c.isdigit() for c in v):
+                    return v
+                raise ValueError("Invalid timestamp format")
         raise ValueError("Invalid timestamp format")
 
 
@@ -147,13 +157,15 @@ class BackpackRawOpenInterest(BaseModel):
     def validate_non_empty_str(cls, v: Any, info: ValidationInfo) -> str:  # noqa: ANN401
         field_name = getattr(info, "field_name", None) or "field"
         if not isinstance(v, str):
-            field_info = getattr(cls, "model_fields", {}).get(field_name) if field_name else None
-            allow_none = field_info and (str(field_info.annotation).find("| None") != -1)
-            if v is None and allow_none:
-                raise ValueError(f"{field_name}: Field is required, cannot be None.")
             raise ValueError(f"{field_name}: Input must be a string, got {type(v).__name__}")
-        if not v:
-            raise ValueError("String must be non-empty")
+        if not v.strip():
+            raise ValueError(f"{field_name}: String must be non-empty and not just whitespace")
+        if len(v) > 64:
+            raise ValueError(f"{field_name}: String exceeds max length of 64")
+        try:
+            v.encode("utf-8", "strict")
+        except UnicodeEncodeError as err:
+            raise ValueError(f"{field_name}: String must be valid UTF-8: {err}") from err
         return v
 
     @field_validator("open_interest", mode="before")

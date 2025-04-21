@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from .bp_raw_order import parse_datetime_utc, parse_decimal_value
+from .bp_raw_order import parse_decimal_value
 
 logger = logging.getLogger("cyberdelta.models.raw")
 
@@ -55,7 +55,7 @@ class BackpackRawTrade(BaseModel):
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as e:
-            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string: {e}") from None
         return v
 
     @field_validator("price", "quantity", mode="before")
@@ -71,13 +71,13 @@ class BackpackRawTrade(BaseModel):
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as e:
-            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string: {e}") from None
         try:
             dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
         except Exception as e:
             raise ValueError(
                 f"{field_name}: Must be a string representing a decimal value: {e}"
-            ) from e
+            ) from None
         if dec_val is None:
             raise ValueError(
                 f"{field_name}: Parsing returned None unexpectedly for non-optional field."
@@ -94,18 +94,29 @@ class BackpackRawTrade(BaseModel):
         field_name = info.field_name or "time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")
-        if not isinstance(v, (int, float, str)):
-            raise ValueError(
-                f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
-            )
+        if isinstance(v, int | float):
+            return v
         if isinstance(v, str):
             if not v.strip():
                 raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
-        try:
-            parse_datetime_utc(v, field_name=field_name)
-        except Exception as e:
-            raise ValueError(f"{field_name}: Invalid timestamp format or value '{v}': {e}") from e
-        return v
+            try:
+                # Try parsing as int or float
+                if v.isdigit():
+                    return int(v)
+                return float(v)
+            except Exception:
+                # If not parseable as a number, treat as ISO8601 or raise
+                try:
+                    v.encode("utf-8", "strict")
+                except UnicodeEncodeError as err:
+                    raise ValueError(f"{field_name}: String must be valid UTF-8: {err}") from err
+                # Accept as string if it looks like ISO8601 (basic check)
+                if ("T" in v or "-" in v or ":" in v) and any(c.isdigit() for c in v):
+                    return v
+                raise ValueError(f"{field_name}: Invalid timestamp format")
+        raise ValueError(
+            f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
+        )
 
 
 class BackpackRawTradeEvent(BaseModel):
@@ -162,7 +173,7 @@ class BackpackRawTradeEvent(BaseModel):
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as e:
-            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string: {e}") from None
         return v
 
     @field_validator("symbol", "buyer_order_id", "seller_order_id", "trade_id", mode="before")
@@ -178,7 +189,7 @@ class BackpackRawTradeEvent(BaseModel):
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as e:
-            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string: {e}") from None
         return v
 
     @field_validator("price", "quantity", mode="before")
@@ -194,13 +205,13 @@ class BackpackRawTradeEvent(BaseModel):
         try:
             v.encode("utf-8", "strict")
         except UnicodeEncodeError as e:
-            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string '{v}': {e}") from e
+            raise ValueError(f"{field_name}: Invalid UTF-8 sequence in string: {e}") from None
         try:
             dec_val = parse_decimal_value(v, allow_none=False, field_name=field_name)
         except Exception as e:
             raise ValueError(
                 f"{field_name}: Must be a string representing a decimal value: {e}"
-            ) from e
+            ) from None
         if dec_val is None:
             raise ValueError(
                 f"{field_name}: Parsing returned None unexpectedly for non-optional field."
@@ -217,15 +228,26 @@ class BackpackRawTradeEvent(BaseModel):
         field_name = info.field_name or "event_time"
         if v is None:
             raise ValueError(f"{field_name}: Value cannot be None.")
-        if not isinstance(v, (int, float, str)):
-            raise ValueError(
-                f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
-            )
+        if isinstance(v, int | float):
+            return v
         if isinstance(v, str):
             if not v.strip():
                 raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
-        try:
-            parse_datetime_utc(v, field_name=field_name)
-        except Exception as e:
-            raise ValueError(f"{field_name}: Invalid timestamp format or value '{v}': {e}") from e
-        return v
+            try:
+                # Try parsing as int or float
+                if v.isdigit():
+                    return int(v)
+                return float(v)
+            except Exception:
+                # If not parseable as a number, treat as ISO8601 or raise
+                try:
+                    v.encode("utf-8", "strict")
+                except UnicodeEncodeError as err:
+                    raise ValueError(f"{field_name}: String must be valid UTF-8: {err}") from err
+                # Accept as string if it looks like ISO8601 (basic check)
+                if ("T" in v or "-" in v or ":" in v) and any(c.isdigit() for c in v):
+                    return v
+                raise ValueError(f"{field_name}: Invalid timestamp format")
+        raise ValueError(
+            f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
+        )

@@ -78,8 +78,8 @@ def test_BackpackRawMarket_corruption_cases() -> None:
     # Excessive length
     p = valid_market().copy()
     p["symbol"] = "BTC_USDC" * 1000
-    obj = BackpackRawMarket.model_validate(p)
-    assert obj.symbol.startswith("BTC_USDC")
+    with pytest.raises(ValidationError):
+        BackpackRawMarket.model_validate(p)
     # Truncated JSON
     bad_json = '{"symbol": "BTC_USDC", "baseAsset": "BTC"'
     with pytest.raises(json.JSONDecodeError):

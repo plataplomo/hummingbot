@@ -45,11 +45,23 @@ class BackpackRawFundingRate(BaseModel):
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(value=s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
+        if not isinstance(v, str):
+            raise ValueError(
+                f"{field_name}: Must be a string representing a decimal value, got {type(v).__name__}"
+            )
+        if not v.strip():
+            raise ValueError(
+                f"{field_name}: Must be a non-empty string representing a decimal value"
+            )
+        try:
+            dec_val = parse_decimal_value(v.strip(), allow_none=False, field_name=field_name)
+        except Exception as err:
+            raise ValueError(
+                f"{field_name}: Must be a string representing a decimal value: {err}"
+            ) from err
+        if dec_val is None or not dec_val.is_finite():
             raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
+        return v
 
     @field_validator("time", mode="before", check_fields=False)
     @classmethod
@@ -100,8 +112,20 @@ class BackpackRawMarkPrice(BaseModel):
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(value=s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
+        if not isinstance(v, str):
+            raise ValueError(
+                f"{field_name}: Must be a string representing a decimal value, got {type(v).__name__}"
+            )
+        if not v.strip():
+            raise ValueError(
+                f"{field_name}: Must be a non-empty string representing a decimal value"
+            )
+        try:
+            dec_val = parse_decimal_value(v.strip(), allow_none=False, field_name=field_name)
+        except Exception as err:
+            raise ValueError(
+                f"{field_name}: Must be a string representing a decimal value: {err}"
+            ) from err
+        if dec_val is None or not dec_val.is_finite():
             raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
+        return v
