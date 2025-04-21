@@ -34,6 +34,8 @@ These are for boundary validation only.
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+
 
 class HyperliquidRawAllMidsRequestPayload(BaseModel):
     """
@@ -64,3 +66,19 @@ class HyperliquidRawAllMids(BaseModel):
 
     __root__: dict[str, str]
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @classmethod
+    def _validate_root(cls, value: dict[str, str]) -> dict[str, str]:
+        for symbol, price in value.items():
+            validate_str_field(symbol, field_name="symbol", max_length=64)
+            s = validate_str_field(price, field_name=f"price[{symbol}]", max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=f"price[{symbol}]")
+            if d is None or not d.is_finite():
+                raise ValueError(
+                    f"price[{symbol}]: Value must be a finite decimal (not NaN or inf)"
+                )
+        return value
+
+    def __init__(self, **data) -> None:
+        data["__root__"] = self._validate_root(data.get("__root__", {}))
+        super().__init__(**data)

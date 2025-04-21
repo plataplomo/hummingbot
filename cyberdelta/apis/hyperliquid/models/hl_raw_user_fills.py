@@ -32,7 +32,9 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
 
 # --- Core User Fill Model ---
@@ -77,6 +79,40 @@ class HyperliquidRawUserFill(BaseModel):
     cloid: str | None = Field(None, alias="cloid")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="coin", max_length=64)
+
+    @field_validator("px", "sz", "fee", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
+    @field_validator("side", mode="before")
+    @classmethod
+    def validate_side(cls, v: object, info: ValidationInfo) -> str:
+        return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
+
+    @field_validator("start_position", "dir", "hash", mode="before")
+    @classmethod
+    def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        return validate_str_field(v, field_name=field_name, max_length=64)
+
+    @field_validator("liquidation_mark_px", "cloid", mode="before")
+    @classmethod
+    def validate_optional_str(cls, v: object, info: ValidationInfo) -> str | None:
+        if v is None:
+            return v
+        field_name = info.field_name or "field"
+        return validate_str_field(v, field_name=field_name, max_length=64)
+
 
 # --- Batch/Array Response ---
 class HyperliquidRawUserFillsResponse(BaseModel):
@@ -110,3 +146,8 @@ class HyperliquidRawUserFillsRequestPayload(BaseModel):
     type: str = Field("userFills", alias="type")
     user: str = Field(..., alias="user")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("user", mode="before")
+    @classmethod
+    def validate_user(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="user", max_length=64)

@@ -33,7 +33,9 @@ Do not use these models for internal business logic—use your core models for t
 These are for boundary validation only.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 
 # --- Leverage Submodel ---
@@ -52,6 +54,11 @@ class HyperliquidRawLeverage(BaseModel):
     type: str = Field(..., alias="type")
     value: int = Field(..., alias="value")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="type", max_length=16)
 
 
 # --- Position Info Submodel ---
@@ -87,6 +94,35 @@ class HyperliquidRawPositionInfo(BaseModel):
     unrealized_pnl: str = Field(..., alias="unrealizedPnl")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="coin", max_length=64)
+
+    @field_validator("entry_px", "liquidation_px", mode="before")
+    @classmethod
+    def validate_optional_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        if v is None:
+            return v
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
+    @field_validator(
+        "margin_used", "position_value", "return_on_equity", "szi", "unrealized_pnl", mode="before"
+    )
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
 
 # --- Asset Position Submodel ---
 class HyperliquidRawAssetPosition(BaseModel):
@@ -104,6 +140,11 @@ class HyperliquidRawAssetPosition(BaseModel):
     asset: str = Field(..., alias="asset")
     position: HyperliquidRawPositionInfo = Field(..., alias="position")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("asset", mode="before")
+    @classmethod
+    def validate_asset(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="asset", max_length=64)
 
 
 # --- Margin Summary Submodel ---
@@ -126,6 +167,18 @@ class HyperliquidRawMarginSummary(BaseModel):
     total_ntl_pos: str = Field(..., alias="totalNtlPos")
     total_raw_usd: str = Field(..., alias="totalRawUsd")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator(
+        "account_value", "total_margin_used", "total_ntl_pos", "total_raw_usd", mode="before"
+    )
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
 
 # --- Clearinghouse State Model ---
@@ -156,6 +209,21 @@ class HyperliquidRawClearinghouseState(BaseModel):
     withdrawable: str = Field(..., alias="withdrawable")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator(
+        "cross_maintenance_margin_used",
+        "isolated_maintenance_margin_used",
+        "withdrawable",
+        mode="before",
+    )
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
 
 # --- Request Payload ---
 class HyperliquidRawUserStateRequestPayload(BaseModel):
@@ -173,3 +241,8 @@ class HyperliquidRawUserStateRequestPayload(BaseModel):
     type: str = Field("clearinghouseState", alias="type")
     user: str = Field(..., alias="user")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("user", mode="before")
+    @classmethod
+    def validate_user(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="user", max_length=64)

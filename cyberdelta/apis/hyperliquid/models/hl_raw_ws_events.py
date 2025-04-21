@@ -34,7 +34,9 @@ boundary validation only.
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
 
 class HyperliquidRawWsFillEvent(BaseModel):
@@ -69,6 +71,38 @@ class HyperliquidRawWsFillEvent(BaseModel):
     is_maker: bool = Field(..., alias="isMaker")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="coin", max_length=64)
+
+    @field_validator("px", "sz", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
+    @field_validator("side", mode="before")
+    @classmethod
+    def validate_side(cls, v: object, info: ValidationInfo) -> str:
+        return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
+
+    @field_validator("hash", mode="before")
+    @classmethod
+    def validate_hash(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="hash", max_length=64)
+
+    @field_validator("cloid", mode="before")
+    @classmethod
+    def validate_cloid(cls, v: object, info: ValidationInfo) -> str | None:
+        if v is None:
+            return v
+        return validate_str_field(v, field_name="cloid", max_length=64)
+
 
 class HyperliquidRawBookLevel(BaseModel):
     """
@@ -88,6 +122,16 @@ class HyperliquidRawBookLevel(BaseModel):
     n: int = Field(..., alias="n")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("px", "sz", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
 
 class HyperliquidRawWsBookUpdate(BaseModel):
     """
@@ -106,6 +150,11 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     levels: list[list[HyperliquidRawBookLevel]] = Field(..., alias="levels")
     time: int = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="coin", max_length=64)
 
 
 class HyperliquidRawWsTradeEvent(BaseModel):
@@ -133,6 +182,31 @@ class HyperliquidRawWsTradeEvent(BaseModel):
     hash: str = Field(..., alias="hash")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="coin", max_length=64)
+
+    @field_validator("px", "sz", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
+    @field_validator("side", mode="before")
+    @classmethod
+    def validate_side(cls, v: object, info: ValidationInfo) -> str:
+        return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
+
+    @field_validator("hash", mode="before")
+    @classmethod
+    def validate_hash(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="hash", max_length=64)
+
 
 class HyperliquidRawWsOrderUpdate(BaseModel):
     """
@@ -151,6 +225,11 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
     data: dict[str, Any] = Field(..., alias="data")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("event_type", mode="before")
+    @classmethod
+    def validate_event_type(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="event_type", max_length=32)
+
 
 class HyperliquidRawLeverage(BaseModel):
     """
@@ -167,6 +246,11 @@ class HyperliquidRawLeverage(BaseModel):
     type: str = Field(..., alias="type")
     value: int = Field(..., alias="value")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="type", max_length=16)
 
 
 class HyperliquidRawPositionInfo(BaseModel):
@@ -202,6 +286,35 @@ class HyperliquidRawPositionInfo(BaseModel):
     unrealized_pnl: str = Field(..., alias="unrealizedPnl")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="coin", max_length=64)
+
+    @field_validator("entry_px", "liquidation_px", mode="before")
+    @classmethod
+    def validate_optional_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        if v is None:
+            return v
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
+    @field_validator(
+        "margin_used", "position_value", "return_on_equity", "szi", "unrealized_pnl", mode="before"
+    )
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
 
 class HyperliquidRawWsPositionUpdateEvent(BaseModel):
     """
@@ -221,3 +334,8 @@ class HyperliquidRawWsPositionUpdateEvent(BaseModel):
     position: HyperliquidRawPositionInfo = Field(..., alias="position")
     time: int = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("asset", mode="before")
+    @classmethod
+    def validate_asset(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="asset", max_length=64)

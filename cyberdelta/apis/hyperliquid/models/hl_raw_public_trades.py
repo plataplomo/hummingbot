@@ -23,7 +23,9 @@ Hyperliquid Exchange API (REST and WebSocket) responses related to public trades
 Do not use these models for internal business logic—use your core models for that. These are for boundary validation only.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
 
 # --- Core Public Trade Model ---
@@ -49,6 +51,26 @@ class HyperliquidRawPublicTrade(BaseModel):
     time: int = Field(..., alias="time")
     hash: str = Field(..., alias="hash")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="coin", max_length=64)
+
+    @field_validator("side", mode="before")
+    @classmethod
+    def validate_side(cls, v: object, info: ValidationInfo) -> str:
+        return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
+
+    @field_validator("px", "sz", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
 
 # --- Batch/Array Response ---
@@ -81,3 +103,8 @@ class HyperliquidRawRecentTradesRequestPayload(BaseModel):
     type: str = Field("recentTrades", alias="type")
     coin: str = Field(..., alias="coin")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="coin", max_length=64)

@@ -35,7 +35,9 @@ boundary validation only.
 
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 
 class HyperliquidRawAssetDefinition(BaseModel):
@@ -58,6 +60,11 @@ class HyperliquidRawAssetDefinition(BaseModel):
     max_leverage: int = Field(..., alias="maxLeverage")
     only_isolated: bool = Field(..., alias="onlyIsolated")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def validate_name(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="name", max_length=64)
 
 
 class HyperliquidRawAssetCtx(BaseModel):
@@ -85,6 +92,33 @@ class HyperliquidRawAssetCtx(BaseModel):
     day_ntl_vlm: str = Field(..., alias="dayNtlVlm")
     impact_px: str | None = Field(None, alias="impactPx")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def validate_name(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="name", max_length=64)
+
+    @field_validator("funding", "mark_px", "prev_day_px", "day_ntl_vlm", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
+    @field_validator("impact_px", mode="before")
+    @classmethod
+    def validate_impact_px(cls, v: object, info: ValidationInfo) -> str | None:
+        if v is None:
+            return v
+        field_name = info.field_name or "impact_px"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
 
 class HyperliquidRawMetaResponse(BaseModel):

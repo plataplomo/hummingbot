@@ -33,7 +33,9 @@ Do not use these models for internal business logic—use your core models for t
 These are for boundary validation only.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 
 class HyperliquidRawCandleSnapshot(BaseModel):
@@ -62,6 +64,26 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     v: list[str] = Field(..., alias="v")
     s: str = Field(..., alias="s")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("o", "h", "low", "c", "v", mode="before")
+    @classmethod
+    def validate_price_volume_list(cls, v: object, info: ValidationInfo) -> list[str]:
+        field_name = getattr(info, "field_name", None) or "field"
+        if not isinstance(v, list):
+            raise ValueError(f"{field_name}: Must be a list of strings.")
+        for i, item in enumerate(v):
+            s = validate_str_field(item, field_name=f"{field_name}[{i}]", max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=f"{field_name}[{i}]")
+            if d is None or not d.is_finite():
+                raise ValueError(
+                    f"{field_name}[{i}]: Value must be a finite decimal (not NaN or inf)"
+                )
+        return v
+
+    @field_validator("s", mode="before")
+    @classmethod
+    def validate_status_str(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="s", max_length=32)
 
 
 class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):

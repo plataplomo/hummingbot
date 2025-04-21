@@ -33,7 +33,9 @@ Do not use these models for internal business logic—use your core models for t
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
 
 # --- Trigger Info/Spec ---
@@ -50,6 +52,20 @@ class HyperliquidRawTriggerInfo(BaseModel):
     is_market: bool = Field(..., alias="isMarket")
     tpsl: str = Field(..., alias="tpsl")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("trigger_px", mode="before")
+    @classmethod
+    def validate_trigger_px(cls, v: object, info: ValidationInfo) -> str:
+        s = validate_str_field(v, field_name="trigger_px", max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name="trigger_px")
+        if d is None or not d.is_finite():
+            raise ValueError("trigger_px: Value must be a finite decimal (not NaN or inf)")
+        return s
+
+    @field_validator("tpsl", mode="before")
+    @classmethod
+    def validate_tpsl(cls, v: object, info: ValidationInfo) -> str:
+        return validate_enum_field(v, allowed={"tp", "sl"}, field_name="tpsl")
 
 
 class HyperliquidRawTriggerSpec(BaseModel):
@@ -77,6 +93,11 @@ class HyperliquidRawTifLimit(BaseModel):
 
     tif: str = Field(..., alias="tif")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("tif", mode="before")
+    @classmethod
+    def validate_tif(cls, v: object, info: ValidationInfo) -> str:
+        return validate_enum_field(v, allowed={"Gtc", "Ioc", "Alo"}, field_name="tif")
 
 
 # --- Order Types ---
@@ -134,6 +155,38 @@ class HyperliquidRawOrder(BaseModel):
     status: str = Field(..., alias="status")
     status_timestamp: int = Field(..., alias="statusTimestamp")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("asset", mode="before")
+    @classmethod
+    def validate_asset(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="asset", max_length=64)
+
+    @field_validator("side", mode="before")
+    @classmethod
+    def validate_side(cls, v: object, info: ValidationInfo) -> str:
+        return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
+
+    @field_validator("limit_px", "sz", "remaining_sz", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
+    @field_validator("cloid", mode="before")
+    @classmethod
+    def validate_cloid(cls, v: object, info: ValidationInfo) -> str | None:
+        if v is None:
+            return v
+        return validate_str_field(v, field_name="cloid", max_length=64)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status(cls, v: object, info: ValidationInfo) -> str:
+        return validate_enum_field(v, allowed={"open"}, field_name="status")
 
 
 class HyperliquidRawOpenOrder(BaseModel):

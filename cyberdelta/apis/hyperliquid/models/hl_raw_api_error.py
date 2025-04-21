@@ -31,7 +31,9 @@ Do not use these models for internal business logic—use your core models for t
 These are for boundary validation only.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawApiError(BaseModel):
@@ -48,3 +50,9 @@ class HyperliquidRawApiError(BaseModel):
 
     error: str = Field(..., alias="error")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @staticmethod
+    def _validate_error_str(v: object) -> str:
+        return validate_str_field(v, field_name="error", max_length=1024)
+
+    _validate_error = field_validator("error", mode="before")(_validate_error_str)

@@ -30,7 +30,9 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 
 # --- Price Level Submodel ---
@@ -50,6 +52,16 @@ class HyperliquidRawBookLevel(BaseModel):
     sz: str = Field(..., alias="sz")
     n: int = Field(..., alias="n")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("px", "sz", mode="before")
+    @classmethod
+    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
 
 # --- L2 Order Book Model ---
@@ -71,6 +83,11 @@ class HyperliquidRawL2Book(BaseModel):
     time: int = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="coin", max_length=64)
+
 
 # --- Request Payload ---
 class HyperliquidRawL2BookRequestPayload(BaseModel):
@@ -88,3 +105,8 @@ class HyperliquidRawL2BookRequestPayload(BaseModel):
     type: str = Field("l2Book", alias="type")
     coin: str = Field(..., alias="coin")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="coin", max_length=64)
