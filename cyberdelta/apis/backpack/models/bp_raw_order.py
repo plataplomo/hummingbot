@@ -11,7 +11,7 @@ REST and WebSocket field aliases, types, and validation requirements.
 """
 
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -137,6 +137,7 @@ class BackpackRawOrder(BaseModel):
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
         field_name = info.field_name or "field"
+        # Allow None for optional fields
         if v is None:
             return None
         if not isinstance(v, str):
@@ -202,22 +203,27 @@ class BackpackRawOrder(BaseModel):
     def validate_timestamp(cls, v: object) -> int | float | str | None:
         if v is None:
             return None
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return v
-        if isinstance(v, str):
-            if not v.strip():
-                raise ValueError("timestamp: Input string cannot be empty or just whitespace.")
-            if v.isdigit():
-                return int(v)
-            if "T" in v or "-" in v or ":" in v:
-                return v
-            raise ValueError(f"timestamp: Invalid timestamp string '{v}' (not numeric or ISO8601)")
-        raise ValueError(f"timestamp: Invalid type {type(v)}, expected int, float, or ISO string")
+        if not isinstance(v, str):
+            raise ValueError(f"timestamp: Expected string, int, or float, got {type(v).__name__}")
+        s = v.strip()
+        if not s:
+            raise ValueError("timestamp: Input string cannot be empty or just whitespace.")
+        # Accept only all-digit (int), or ISO8601-like (must contain T, and at least one digit)
+        if s.isdigit():
+            return int(s)
+        if ("T" in s or "-" in s or ":" in s) and any(c.isdigit() for c in s):
+            # Very basic ISO8601 check: must contain at least one digit and a separator
+            return s
+        raise ValueError(f"timestamp: Invalid timestamp string '{v}' (not numeric or ISO8601)")
 
     @field_validator("status", mode="before")
     @classmethod
-    def validate_status_string_and_enum(cls, v: str, info: ValidationInfo) -> str:
+    def validate_status_string_and_enum(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "status"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         if not v.strip():
             raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
         allowed_values = {
@@ -241,7 +247,7 @@ class BackpackRawOrder(BaseModel):
 
     @field_validator("side", mode="before")
     @classmethod
-    def validate_side_string_and_enum(cls, v: str, info: ValidationInfo) -> str:
+    def validate_side_string_and_enum(cls, v: object, info: ValidationInfo) -> str:
         """
         Validates that side is a non-empty string and a valid enum value.
         Args:
@@ -253,6 +259,8 @@ class BackpackRawOrder(BaseModel):
             ValueError: If the value is not a valid enum value.
         """
         field_name = info.field_name or "side"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         if not v.strip():
             raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
         allowed_values = {"buy", "sell", "Bid", "Ask"}
@@ -266,7 +274,7 @@ class BackpackRawOrder(BaseModel):
 
     @field_validator("orderType", mode="before")
     @classmethod
-    def validate_order_type_string_and_enum(cls, v: str, info: ValidationInfo) -> str:
+    def validate_order_type_string_and_enum(cls, v: object, info: ValidationInfo) -> str:
         """
         Validates that orderType is a non-empty string and a valid enum value.
         Args:
@@ -278,6 +286,8 @@ class BackpackRawOrder(BaseModel):
             ValueError: If the value is not a valid enum value.
         """
         field_name = info.field_name or "orderType"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         if not v.strip():
             raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
         allowed_values = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}
@@ -299,7 +309,7 @@ class BackpackRawOrder(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_decimal_string_format(cls, v: str, info: ValidationInfo) -> str:
+    def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         """
         Validates that the value is a non-empty string representing a finite decimal.
         Args:
@@ -311,6 +321,8 @@ class BackpackRawOrder(BaseModel):
             ValueError: If the value is not a valid, finite decimal string.
         """
         field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         if not v.strip():
             raise ValueError(
                 f"{field_name}: Input decimal string cannot be empty or just whitespace."
@@ -325,7 +337,7 @@ class BackpackRawOrder(BaseModel):
 
     @field_validator("symbol", "id", mode="before")
     @classmethod
-    def validate_required_string(cls, v: str, info: ValidationInfo) -> str:
+    def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
         """
         Validates that the value is a non-empty string of max 64 chars and valid UTF-8.
         Args:
@@ -337,6 +349,8 @@ class BackpackRawOrder(BaseModel):
             ValueError: If the value is not a valid string or exceeds max length.
         """
         field_name = info.field_name or "field"
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: Expected string, got {type(v).__name__}")
         if not v.strip():
             raise ValueError(f"{field_name}: Input string cannot be empty or just whitespace.")
         max_len = 64
@@ -350,14 +364,20 @@ class BackpackRawOrder(BaseModel):
 
     @field_validator("createdAt", "updatedAt", "triggeredAt", mode="before")
     @classmethod
-    def validate_timestamp_format(
-        cls, v: int | float | str | None, info: ValidationInfo
-    ) -> int | float | str | None:
+    def validate_timestamp_format(cls, v: object, info: ValidationInfo) -> int | float | str | None:
         if v is None:
             return v
         if isinstance(v, str) and v.isdigit():
             return int(v)
-        return v
+        if isinstance(v, int | float):
+            return v
+        if not isinstance(v, str):
+            raise ValueError(f"timestamp: Expected string, int, or float, got {type(v).__name__}")
+        if not v.strip():
+            raise ValueError("timestamp: Input string cannot be empty or just whitespace.")
+        if "T" in v or "-" in v or ":" in v:
+            return v
+        raise ValueError(f"timestamp: Invalid timestamp string '{v}' (not numeric or ISO8601)")
 
 
 class BackpackRawOrderBook(BaseModel):
@@ -395,8 +415,8 @@ class BackpackRawOrderBook(BaseModel):
         if not isinstance(v, list):
             raise ValueError("bids/asks: Must be a list of [str, str] pairs")
         result: list[list[str]] = []
-        for entry_any in cast(list[Any], v):
-            entry_any: Any  # Explicitly annotate for static analysis
+        entry_any: Any  # For static analysis
+        for entry_any in v:
             if not isinstance(entry_any, list):
                 raise ValueError("Each bid/ask must be a list of two strings (not a list)")
             entry: list[Any] = entry_any  # Safe: runtime check above ensures this is a list
@@ -424,7 +444,7 @@ class BackpackRawOrderBook(BaseModel):
     def validate_timestamp(cls, v: object) -> int | float | str | None:
         if v is None:
             return None
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return v
         if isinstance(v, str):
             if not v.strip():
@@ -543,7 +563,7 @@ class BackpackRawOrderUpdate(BaseModel):
     def validate_timestamp(cls, v: object) -> int | float | str | None:
         if v is None:
             return None
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return v
         if isinstance(v, str):
             if not v.strip():
