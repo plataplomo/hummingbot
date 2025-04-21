@@ -24,7 +24,7 @@ import hmac
 import logging
 import time
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -50,6 +50,7 @@ from cyberdelta.core.models import (  # Use absolute import
     TimeInForce,
     Trade,
 )
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
 
@@ -394,8 +395,22 @@ class BackpackAPI(ExchangeAPI):
                     order_id: str = str(trade_data.get("orderId", ""))
                     client_order_id: str = str(trade_data.get("clientOrderId", ""))
                     try:
-                        price: Decimal = Decimal(str(trade_data.get("price", "0")))
-                        quantity: Decimal = Decimal(str(trade_data.get("qty", "0")))
+                        price_val = parse_decimal_value(
+                            trade_data.get("price", "0"), allow_none=False, field_name="price"
+                        )
+                        if price_val is None:
+                            raise ValueError(
+                                "price is None after parse_decimal_value with allow_none=False"
+                            )
+                        price: Decimal = price_val
+                        quantity_val = parse_decimal_value(
+                            trade_data.get("qty", "0"), allow_none=False, field_name="qty"
+                        )
+                        if quantity_val is None:
+                            raise ValueError(
+                                "quantity is None after parse_decimal_value with allow_none=False"
+                            )
+                        quantity: Decimal = quantity_val
                     except Exception as e:
                         logger.warning(
                             f"[{self.exchange_name}] Invalid price/qty in trade: {trade_data} ({e})"
@@ -406,7 +421,14 @@ class BackpackAPI(ExchangeAPI):
                         logger.warning(f"[{self.exchange_name}] Trade missing 'time': {trade_data}")
                         continue
                     try:
-                        executed_at: datetime = datetime.fromtimestamp(float(raw_time) / 1000, UTC)
+                        executed_at_input = raw_time  # raw_time must not be None here
+                        if executed_at_input is None:
+                            raise ValueError(
+                                "executed_at (raw_time) cannot be None for this assignment"
+                            )
+                        executed_at: datetime = parse_datetime_utc(
+                            executed_at_input, field_name="time"
+                        )  # type: ignore[assignment]
                     except Exception as e:
                         logger.warning(
                             f"[{self.exchange_name}] Invalid 'time' in trade: {trade_data} ({e})"
@@ -490,12 +512,16 @@ class BackpackAPI(ExchangeAPI):
                 )  # Pyright false positive: data_val is always dict[str, Any] after cast
                 key: str = asset_key
                 asset_str = key
-                available = Decimal(str(data_val.get("available", "0")))
-                total = Decimal(str(data_val.get("total", "0")))
+                available = parse_decimal_value(
+                    data_val.get("available", "0"), allow_none=False, field_name="available"
+                )
+                total = parse_decimal_value(
+                    data_val.get("total", "0"), allow_none=False, field_name="total"
+                )
                 balances[asset_str] = Balance(
                     asset=asset_str,
-                    available=available,
-                    total=total,
+                    available=available if available is not None else Decimal("0"),
+                    total=total if total is not None else Decimal("0"),
                 )
             return balances
         except Exception as e:
@@ -537,25 +563,62 @@ class BackpackAPI(ExchangeAPI):
                     )
                     continue
                 try:
-                    size_dec = Decimal(str(item.get("positionSize", "0")))
-                    entry_price_dec = Decimal(str(item.get("entryPrice", "0")))
-                    mark_price_dec = Decimal(str(item.get("markPrice", "0")))
+                    size_dec = parse_decimal_value(
+                        item.get("positionSize", "0"), allow_none=False, field_name="positionSize"
+                    )
+                    entry_price_dec = parse_decimal_value(
+                        item.get("entryPrice", "0"), allow_none=False, field_name="entryPrice"
+                    )
+                    mark_price_dec = parse_decimal_value(
+                        item.get("markPrice", "0"), allow_none=False, field_name="markPrice"
+                    )
                     liq_price_str = item.get("liquidationPrice")
                     liq_price_dec = (
-                        Decimal(str(liq_price_str))
+                        parse_decimal_value(
+                            liq_price_str, allow_none=True, field_name="liquidationPrice"
+                        )
                         if liq_price_str is not None and liq_price_str != "0"
-                        else Decimal("0.0")
+                        else parse_decimal_value(
+                            "0.0", allow_none=False, field_name="liquidationPrice"
+                        )
                     )
-                    pnl_dec = Decimal(str(item.get("unrealizedPnl", "0")))
-                    leverage_float = float(item.get("leverage", "1.0"))
-                    leverage_dec = Decimal(str(leverage_float))
+                    pnl_dec = parse_decimal_value(
+                        item.get("unrealizedPnl", "0"), allow_none=False, field_name="unrealizedPnl"
+                    )
+                    leverage_float = parse_decimal_value(
+                        item.get("leverage", "1.0"), allow_none=False, field_name="leverage"
+                    )
+                    # Defensive: ensure required decimals are not None
+                    if size_dec is None:
+                        raise ValueError(
+                            "Position size is None after parse_decimal_value with allow_none=False"
+                        )
+                    if entry_price_dec is None:
+                        raise ValueError(
+                            "Entry price is None after parse_decimal_value with allow_none=False"
+                        )
+                    if mark_price_dec is None:
+                        raise ValueError(
+                            "Mark price is None after parse_decimal_value with allow_none=False"
+                        )
+                    if pnl_dec is None:
+                        raise ValueError(
+                            "Unrealized PnL is None after parse_decimal_value with allow_none=False"
+                        )
+                    if leverage_float is None:
+                        raise ValueError(
+                            "Leverage is None after parse_decimal_value with allow_none=False"
+                        )
+                    leverage_dec = leverage_float
                     position = Position(
                         symbol=symbol_from_data,
                         size=size_dec,
                         entry_price=entry_price_dec,
                         mark_price=mark_price_dec,
                         side=OrderSide.BUY if size_dec > Decimal("0") else OrderSide.SELL,
-                        liquidation_price=liq_price_dec,
+                        liquidation_price=liq_price_dec
+                        if liq_price_dec is not None
+                        else Decimal("0"),
                         unrealized_pnl=pnl_dec,
                         leverage=leverage_dec,
                     )
@@ -771,23 +834,23 @@ class BackpackAPI(ExchangeAPI):
                 raise APIError(
                     f"Could not fetch funding rate for {symbol}", code=APIErrorCode.UNKNOWN.value
                 )
-            timestamp = int(response.get("time", int(time.time() * 1000)))
-            funding_rate_dec = Decimal(str(response.get("fundingRate", "0")))
-            mark_price_dec = (
-                Decimal(str(response.get("markPrice", "0"))) if response.get("markPrice") else None
+            timestamp = parse_decimal_value(
+                response.get("time", int(time.time() * 1000)), allow_none=False, field_name="time"
             )
-
-            if mark_price_dec is None:
-                logger.warning(
-                    f"[{self.exchange_name}] Mark price not found in funding rate "
-                    f"response for {symbol}."
+            funding_rate_dec = parse_decimal_value(
+                response.get("fundingRate", "0"), allow_none=False, field_name="fundingRate"
+            )
+            mark_price_dec = (
+                parse_decimal_value(
+                    response.get("markPrice", "0"), allow_none=True, field_name="markPrice"
                 )
-                # Handle missing mark price appropriately, e.g., raise or use a default
-                # For now, let's create the object but log the warning.
+                if response.get("markPrice")
+                else None
+            )
 
             return FundingRate(
                 symbol=symbol,
-                timestamp=timestamp,
+                timestamp=int(timestamp) if isinstance(timestamp, Decimal) else timestamp,
                 funding_rate=funding_rate_dec,
                 mark_price=mark_price_dec,
             )
