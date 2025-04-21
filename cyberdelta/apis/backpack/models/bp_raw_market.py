@@ -2,9 +2,9 @@
 Backpack API Market, Ticker, and Open Interest Models
 ----------------------------------------------------
 
-This module defines strict Pydantic models for validating market metadata, ticker, and open interest
-responses from the Backpack Exchange API. These models are used for boundary validation and transformation,
-not for internal business logic.
+This module defines strict Pydantic models for validating market metadata, ticker, and open
+interest responses from the Backpack Exchange API. These models are used for boundary validation
+and transformation, not for internal business logic.
 
 Models:
     - BackpackRawMarket: Validates market metadata (symbol, base/quote asset).
@@ -210,7 +210,8 @@ class BackpackRawOpenInterest(BaseModel):
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
         """
         Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
-        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max length.
+        Raises ValueError if not a string, not parseable as decimal, not finite, or
+        exceeds max length.
         """
         field_name = getattr(info, "field_name", None) or "field"
         if v is None:

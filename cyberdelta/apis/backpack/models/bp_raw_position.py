@@ -2,8 +2,9 @@
 Backpack API Position Models (RAW)
 ----------------------------------
 
-This module defines strict Pydantic models for validating position responses from the Backpack Exchange API.
-These models are used for boundary validation and transformation, not for internal business logic.
+This module defines strict Pydantic models for validating position responses from the Backpack
+Exchange API. These models are used for boundary validation and transformation, not for internal
+business logic.
 
 Models:
     - SqrtFunction: Validates the 'SqrtFunction' used in PositionImfFunction.
@@ -93,7 +94,8 @@ class PositionImfFunction(BaseModel):
 
 class BackpackRawPosition(BaseModel):
     """
-    Pydantic model for a raw position object from `/api/v1/position` or WebSocket position update events.
+    Pydantic model for a raw position object from `/api/v1/position` or WebSocket position
+    update events.
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse position payloads received from the exchange.
@@ -157,7 +159,8 @@ class BackpackRawPosition(BaseModel):
         """
         Validates that the value is a non-empty string representing a finite decimal.
         Ensures the string is valid UTF-8, not empty, and does not exceed 64 characters.
-        Raises ValueError if the value is not a string, not parseable as a decimal, or not finite (NaN/inf).
+        Raises ValueError if the value is not a string, not parseable as a decimal, or not
+        finite (NaN/inf).
         """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)
@@ -227,7 +230,8 @@ class BackpackRawPosition(BaseModel):
 
 class BackpackRawPositionUpdate(BaseModel):
     """
-    Pydantic model for a raw position update event from the Backpack WebSocket stream (`positionUpdate`).
+    Pydantic model for a raw position update event from the Backpack WebSocket stream
+    (`positionUpdate`).
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse position update events received from the exchange.
