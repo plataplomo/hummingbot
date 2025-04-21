@@ -1,3 +1,9 @@
+# pyright: reportUnknownMemberType=false
+# NOTE: The default value for __root__ (PydanticUndefined) is required for Pydantic v2 RootModel
+# compatibility, but will trigger a type checker warning because its type is 'object', not 'dict[str, str]'.
+# This is a known, accepted exception and is safe due to the runtime check below.
+# See: https://docs.pydantic.dev/latest/concepts/models/#rootmodel
+
 """
 CyberDeltaEngine: Hyperliquid API Raw Models (AllMids Group)
 -----------------------------------------------------------
@@ -66,7 +72,12 @@ class HyperliquidRawAllMids(RootModel[dict[str, str]]):
         (as a string).
     """
 
-    def __init__(self, __root__: dict[str, str] = PydanticUndefined, **data: Any) -> None:
+    # NOTE: The default value for __root__ (PydanticUndefined) is required for Pydantic v2 RootModel
+    # compatibility, but will trigger a type checker warning because its type is 'object', not 'dict[str, str]'.
+    # This is a known, accepted exception and is safe due to the runtime check below.
+    # See: https://docs.pydantic.dev/latest/concepts/models/#rootmodel
+    # pyright: ignore[reportArgumentType]
+    def __init__(self, __root__: dict[str, str] = PydanticUndefined, **data: Any) -> None:  # type: ignore[assignment]  # pyright: ignore[reportArgumentType]
         """
         Custom __init__ to perform strict validation on the root dict before model initialization.
 
@@ -85,4 +96,4 @@ class HyperliquidRawAllMids(RootModel[dict[str, str]]):
                 raise ValueError(
                     f"price[{symbol}]: Value must be a finite decimal (not NaN or inf)"
                 )
-        super().__init__(__root__=__root__)
+        super().__init__(__root__=__root__)  # pyright: ignore[reportArgumentType]

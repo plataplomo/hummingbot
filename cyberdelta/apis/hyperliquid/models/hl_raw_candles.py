@@ -72,7 +72,8 @@ class HyperliquidRawCandleSnapshot(BaseModel):
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Must be a list of strings.")
         for i, item in enumerate(v):
-            s = validate_str_field(item, field_name=f"{field_name}[{i}]", max_length=64)
+            item_str: str = item  # type: ignore
+            s = validate_str_field(item_str, field_name=f"{field_name}[{i}]", max_length=64)
             d = parse_decimal_value(s, allow_none=False, field_name=f"{field_name}[{i}]")
             if d is None or not d.is_finite():
                 raise ValueError(
