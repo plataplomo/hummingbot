@@ -141,6 +141,31 @@ def test_leverage_type_adversarial() -> None:
         HyperliquidRawLeverage.model_validate(d)
 
 
+def test_leverage_type_mixed_scripts_and_emoji() -> None:
+    # Should fail for non-enum, but test mixed scripts and emoji for type
+    d = valid_leverage().copy()
+    d["type"] = "cross💹"
+    with pytest.raises(ValidationError):
+        HyperliquidRawLeverage.model_validate(d)
+    d["type"] = "крест"  # Cyrillic for 'cross'
+    with pytest.raises(ValidationError):
+        HyperliquidRawLeverage.model_validate(d)
+
+
+def test_leverage_value_boundaries() -> None:
+    # Accept 0, large int; reject negative
+    d = valid_leverage().copy()
+    d["value"] = 0
+    obj = HyperliquidRawLeverage.model_validate(d)
+    assert obj.value == 0
+    d["value"] = 2**31 - 1
+    obj = HyperliquidRawLeverage.model_validate(d)
+    assert obj.value == 2**31 - 1
+    d["value"] = -999999
+    with pytest.raises(ValidationError):
+        HyperliquidRawLeverage.model_validate(d)
+
+
 # --- HyperliquidRawPositionInfo ---
 def test_position_info_happy_path() -> None:
     obj = HyperliquidRawPositionInfo.model_validate(valid_position_info())
@@ -248,6 +273,50 @@ def test_position_info_adversarial_strings() -> None:
     assert obj.coin == "💣"
 
 
+def test_position_info_coin_edge_cases() -> None:
+    # Accept coin with emoji, excessive whitespace, symbols, bidirectional text
+    for coin in [
+        "ETH 💎",
+        "   BTC   ",
+        "COIN-123!@#",
+        "\u202eABC\u202c",  # mirrored
+    ]:
+        d = valid_position_info().copy()
+        d["coin"] = coin
+        obj = HyperliquidRawPositionInfo.model_validate(d)
+        assert obj.coin == coin
+
+
+def test_position_info_decimal_leading_trailing_zeros() -> None:
+    # Accept decimals with leading/trailing zeros and scientific notation
+    d = valid_position_info().copy()
+    d["entryPx"] = "000123.4500"
+    obj = HyperliquidRawPositionInfo.model_validate(d)
+    assert obj.entry_px == "000123.4500"
+    # Scientific notation is allowed (Decimal accepts it and it's finite)
+    d["entryPx"] = "1.23e2"
+    obj = HyperliquidRawPositionInfo.model_validate(d)
+    assert obj.entry_px == "1.23e2"
+
+
+def test_position_info_optional_fields_empty_or_whitespace() -> None:
+    # Should fail for empty/whitespace, pass for None
+    # Use correct snake_case attribute names for assertions
+    field_map = {"entryPx": "entry_px", "liquidationPx": "liquidation_px"}
+    for field in ["entryPx", "liquidationPx"]:
+        d = valid_position_info().copy()
+        d[field] = ""
+        with pytest.raises(ValidationError):
+            HyperliquidRawPositionInfo.model_validate(d)
+        d[field] = "   "
+        with pytest.raises(ValidationError):
+            HyperliquidRawPositionInfo.model_validate(d)
+        d[field] = None
+        obj = HyperliquidRawPositionInfo.model_validate(d)
+        # Use the correct attribute name for the model
+        assert getattr(obj, field_map[field]) is None
+
+
 # --- HyperliquidRawAssetPosition ---
 def test_asset_position_happy_path() -> None:
     obj = HyperliquidRawAssetPosition.model_validate(valid_asset_position())
@@ -296,6 +365,20 @@ def test_asset_position_adversarial() -> None:
     d["asset"] = "💣"
     obj = HyperliquidRawAssetPosition.model_validate(d)
     assert obj.asset == "💣"
+
+
+def test_asset_position_asset_symbols_and_punctuation() -> None:
+    # Accept asset with symbols, punctuation, emoji
+    for asset in [
+        "BTC-USD",
+        "ASSET!@#",
+        "COIN💰",
+        "\u202eASSET\u202c",
+    ]:
+        d = valid_asset_position().copy()
+        d["asset"] = asset
+        obj = HyperliquidRawAssetPosition.model_validate(d)
+        assert obj.asset == asset
 
 
 # --- HyperliquidRawMarginSummary ---
@@ -348,6 +431,23 @@ def test_margin_summary_adversarial() -> None:
     with pytest.raises(ValidationError):
         HyperliquidRawMarginSummary.model_validate(d)
     d["accountValue"] = "💣"
+    with pytest.raises(ValidationError):
+        HyperliquidRawMarginSummary.model_validate(d)
+
+
+def test_margin_summary_extreme_values() -> None:
+    # Accept very large/small decimals, reject NaN/inf
+    d = valid_margin_summary().copy()
+    d["accountValue"] = "0.00000001"
+    obj = HyperliquidRawMarginSummary.model_validate(d)
+    assert obj.account_value == "0.00000001"
+    d["accountValue"] = str(10**50)
+    obj = HyperliquidRawMarginSummary.model_validate(d)
+    assert obj.account_value == str(10**50)
+    d["accountValue"] = "NaN"
+    with pytest.raises(ValidationError):
+        HyperliquidRawMarginSummary.model_validate(d)
+    d["accountValue"] = "inf"
     with pytest.raises(ValidationError):
         HyperliquidRawMarginSummary.model_validate(d)
 
@@ -437,3 +537,32 @@ def test_clearinghouse_state_adversarial() -> None:
     d["withdrawable"] = "💣"
     with pytest.raises(ValidationError):
         HyperliquidRawClearinghouseState.model_validate(d)
+
+
+def test_clearinghouse_state_empty_and_excessive_lists() -> None:
+    # Accept empty assetPositions, single-item, and long lists
+    d = valid_clearinghouse_state().copy()
+    d["assetPositions"] = []
+    obj = HyperliquidRawClearinghouseState.model_validate(d)
+    assert obj.asset_positions == []
+    d["assetPositions"] = [valid_asset_position()]
+    obj = HyperliquidRawClearinghouseState.model_validate(d)
+    assert len(obj.asset_positions) == 1
+    d["assetPositions"] = [valid_asset_position()] * 1000
+    obj = HyperliquidRawClearinghouseState.model_validate(d)
+    assert len(obj.asset_positions) == 1000
+
+
+def test_position_info_all_optional_missing_and_all_edge_cases() -> None:
+    # All optional fields missing
+    d = valid_position_info().copy()
+    del d["entryPx"]
+    del d["liquidationPx"]
+    obj = HyperliquidRawPositionInfo.model_validate(d)
+    assert obj.entry_px is None and obj.liquidation_px is None
+    # All present, set to edge-case values
+    d2 = valid_position_info().copy()
+    d2["entryPx"] = "0.0"
+    d2["liquidationPx"] = "0.0"
+    obj2 = HyperliquidRawPositionInfo.model_validate(d2)
+    assert obj2.entry_px == "0.0" and obj2.liquidation_px == "0.0"
