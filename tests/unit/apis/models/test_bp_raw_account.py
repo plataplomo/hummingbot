@@ -147,17 +147,18 @@ def test_BackpackRawBalance_missing_required_fields(missing_field: str) -> None:
         ("available", "-1.0", True),
         ("available", "NaN", False),
         ("available", "inf", False),
-        ("available", "1e6", True),
+        ("available", "1e6", True),  # Scientific notation is allowed
         ("available", "1..0", False),
         ("total", "0", True),
         ("total", "-1.0", True),
         ("total", "NaN", False),
         ("total", "inf", False),
-        ("total", "1e6", True),
+        ("total", "1e6", True),  # Scientific notation is allowed
         ("total", "1..0", False),
     ],
 )
 def test_BackpackRawBalance_decimal_edge_cases(field: str, value: str, should_pass: bool) -> None:
+    # Scientific notation is allowed for decimal fields (project policy)
     p = valid_balance().copy()
     p[field] = value
     if should_pass:

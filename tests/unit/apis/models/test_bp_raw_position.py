@@ -58,6 +58,11 @@ def test_SqrtFunction_invalid_format_fields() -> None:
     p["base"] = "notanumber"
     with pytest.raises(ValidationError):
         SqrtFunction.model_validate(p)
+    # Scientific notation is allowed (project policy)
+    p = valid_sqrt_function().copy()
+    p["base"] = "2.5e-3"
+    obj = SqrtFunction.model_validate(p)
+    assert obj.base == "2.5e-3"
 
 
 def test_SqrtFunction_extra_field() -> None:
@@ -170,6 +175,11 @@ def test_PositionImfFunction_invalid_format_fields() -> None:
     p["base"] = "notanumber"
     with pytest.raises(ValidationError):
         PositionImfFunction.model_validate(p)
+    # Scientific notation is allowed (project policy)
+    p = valid_imf_function().copy()
+    p["base"] = "1e6"
+    obj = PositionImfFunction.model_validate(p)
+    assert obj.base == "1e6"
 
 
 def test_PositionImfFunction_extra_field() -> None:
@@ -335,6 +345,11 @@ def test_BackpackRawPosition_invalid_format_fields() -> None:
     p["imfFunction"] = {"type": "notasupportedtype", "base": "1.0", "factor": "0.5"}
     with pytest.raises(ValidationError):
         BackpackRawPosition.model_validate(p)
+    # Scientific notation is allowed (project policy)
+    p = valid_position().copy()
+    p["breakEvenPrice"] = "1e6"
+    obj = BackpackRawPosition.model_validate(p)
+    assert obj.break_even_price == "1e6"
 
 
 def test_BackpackRawPosition_extra_field() -> None:

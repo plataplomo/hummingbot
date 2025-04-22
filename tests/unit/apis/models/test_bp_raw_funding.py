@@ -60,6 +60,11 @@ def test_BackpackRawFundingRate_invalid_format_fields() -> None:
     p["symbol"] = ""
     with pytest.raises(ValidationError):
         BackpackRawFundingRate.model_validate(p)
+    # Scientific notation is allowed (project policy)
+    p = valid_funding_rate().copy()
+    p["rate"] = "1e-3"
+    obj = BackpackRawFundingRate.model_validate(p)
+    assert obj.funding_rate == "1e-3"
 
 
 def test_BackpackRawFundingRate_extra_field() -> None:

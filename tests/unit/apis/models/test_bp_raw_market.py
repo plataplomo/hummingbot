@@ -192,6 +192,11 @@ def test_BackpackRawTicker_invalid_format_fields() -> None:
     p["symbol"] = ""
     with pytest.raises(ValidationError):
         BackpackRawTicker.model_validate(p)
+    # Scientific notation is allowed (project policy)
+    p = valid_ticker().copy()
+    p["price"] = "1e6"
+    obj = BackpackRawTicker.model_validate(p)
+    assert obj.price == "1e6"
 
 
 def test_BackpackRawTicker_extra_field() -> None:

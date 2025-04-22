@@ -332,7 +332,7 @@ def test_BackpackRawLiquidation_corruption_cases() -> None:
     p = valid_liquidation().copy()
     p["quantity"] = "2e-3"
     obj = BackpackRawLiquidation.model_validate(p)
-    assert obj.quantity == "2e-3"
+    assert obj.quantity == "2e-3"  # Scientific notation is allowed (project policy)
     # Truncated JSON
     bad_json = '{"symbol": "BTC_USDC", "price": "45000.0"'
     with pytest.raises(json.JSONDecodeError):

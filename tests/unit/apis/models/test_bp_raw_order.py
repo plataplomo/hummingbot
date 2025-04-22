@@ -100,6 +100,11 @@ def test_BackpackRawOrder_invalid_decimal_quantity() -> None:
     p["quantity"] = "1..0"
     with pytest.raises(ValidationError):
         BackpackRawOrder.model_validate(p)
+    # Scientific notation is allowed (project policy)
+    p = valid_order()
+    p["quantity"] = "1e3"
+    obj = BackpackRawOrder.model_validate(p)
+    assert obj.quantity == "1e3"
 
 
 def test_BackpackRawOrder_invalid_enum_side() -> None:
