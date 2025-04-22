@@ -35,7 +35,7 @@ These are for boundary validation only.
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
 
 # --- Leverage Submodel ---
@@ -58,7 +58,22 @@ class HyperliquidRawLeverage(BaseModel):
     @field_validator("type", mode="before")
     @classmethod
     def validate_type(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="type", max_length=16)
+        field_name = info.field_name or "type"
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=16)
+            return validate_enum_field(s, allowed={"cross", "isolated"}, field_name=field_name)
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def validate_value(cls, v: object, info: ValidationInfo) -> int:
+        field_name = info.field_name or "value"
+        if not isinstance(v, int):
+            raise ValueError(f"{field_name}: Expected int, got {type(v).__name__}")
+        if v < 0:
+            raise ValueError(f"{field_name}: Leverage value must be non-negative")
+        return v
 
 
 # --- Position Info Submodel ---
@@ -97,19 +112,26 @@ class HyperliquidRawPositionInfo(BaseModel):
     @field_validator("coin", mode="before")
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="coin", max_length=64)
+        field_name = info.field_name or "coin"
+        try:
+            return validate_str_field(v, field_name=field_name, max_length=64)
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
 
     @field_validator("entry_px", "liquidation_px", mode="before")
     @classmethod
     def validate_optional_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or "field"
         if v is None:
             return v
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():
+                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+            return s
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
 
     @field_validator(
         "margin_used", "position_value", "return_on_equity", "szi", "unrealized_pnl", mode="before"
@@ -117,11 +139,24 @@ class HyperliquidRawPositionInfo(BaseModel):
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():
+                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+            return s
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+
+    @field_validator("max_leverage", mode="before")
+    @classmethod
+    def validate_max_leverage(cls, v: object, info: ValidationInfo) -> int:
+        field_name = info.field_name or "max_leverage"
+        if not isinstance(v, int):
+            raise ValueError(f"{field_name}: Expected int, got {type(v).__name__}")
+        if v < 0:
+            raise ValueError(f"{field_name}: max_leverage must be non-negative")
+        return v
 
 
 # --- Asset Position Submodel ---
@@ -144,7 +179,11 @@ class HyperliquidRawAssetPosition(BaseModel):
     @field_validator("asset", mode="before")
     @classmethod
     def validate_asset(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="asset", max_length=64)
+        field_name = info.field_name or "asset"
+        try:
+            return validate_str_field(v, field_name=field_name, max_length=64)
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
 
 
 # --- Margin Summary Submodel ---
@@ -168,17 +207,57 @@ class HyperliquidRawMarginSummary(BaseModel):
     total_raw_usd: str = Field(..., alias="totalRawUsd")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator(
-        "account_value", "total_margin_used", "total_ntl_pos", "total_raw_usd", mode="before"
-    )
+    @field_validator("account_value", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
+    def validate_account_value(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "account_value"
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():
+                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+            return s
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+
+    @field_validator("total_margin_used", mode="before")
+    @classmethod
+    def validate_total_margin_used(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "total_margin_used"
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():
+                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+            return s
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+
+    @field_validator("total_ntl_pos", mode="before")
+    @classmethod
+    def validate_total_ntl_pos(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "total_ntl_pos"
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():
+                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+            return s
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+
+    @field_validator("total_raw_usd", mode="before")
+    @classmethod
+    def validate_total_raw_usd(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "total_raw_usd"
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():
+                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+            return s
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
 
 
 # --- Clearinghouse State Model ---
@@ -209,20 +288,44 @@ class HyperliquidRawClearinghouseState(BaseModel):
     withdrawable: str = Field(..., alias="withdrawable")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator(
-        "cross_maintenance_margin_used",
-        "isolated_maintenance_margin_used",
-        "withdrawable",
-        mode="before",
-    )
+    @field_validator("cross_maintenance_margin_used", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
+    def validate_cross_maintenance_margin_used(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "cross_maintenance_margin_used"
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():
+                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+            return s
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+
+    @field_validator("isolated_maintenance_margin_used", mode="before")
+    @classmethod
+    def validate_isolated_maintenance_margin_used(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "isolated_maintenance_margin_used"
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():
+                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+            return s
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+
+    @field_validator("withdrawable", mode="before")
+    @classmethod
+    def validate_withdrawable(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "withdrawable"
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=64)
+            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():
+                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+            return s
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
 
 
 # --- Request Payload ---
