@@ -51,8 +51,10 @@ class HyperliquidRawApiError(BaseModel):
     error: str = Field(..., alias="error")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @staticmethod
-    def _validate_error_str(v: object) -> str:
-        return validate_str_field(v, field_name="error", max_length=1024)
-
-    _validate_error = field_validator("error", mode="before")(_validate_error_str)
+    @field_validator("error", mode="before")
+    @classmethod
+    def validate_error(cls, v: object) -> str:
+        try:
+            return validate_str_field(v, field_name="error", max_length=1024)
+        except Exception as e:
+            raise ValueError(f"error: Validation failed - {e}") from e
