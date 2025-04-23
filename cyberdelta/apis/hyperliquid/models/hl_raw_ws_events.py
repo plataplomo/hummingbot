@@ -122,7 +122,7 @@ def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, Any]]]
     if not isinstance(obj, list):
         return False
 
-    # Single strategic cast for Pyright
+    # Strategic cast for Pyright type narrowing
     list_obj = cast(list[Any], obj)
 
     # Check the list length
@@ -130,12 +130,17 @@ def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, Any]]]
         return False
 
     # Check each sub-list
-    for sub in list_obj:
-        if not isinstance(sub, list):
+    for sub_obj in list_obj:
+        if not isinstance(sub_obj, list):
             return False
 
+        # Cast the sublist for Pyright type narrowing
+        sub = cast(list[Any], sub_obj)
+
         # Check each dictionary in the sub-list
-        for entry in sub:
+        for entry_obj in sub:
+            # Cast each entry for Pyright type narrowing
+            entry = entry_obj  # This helps Pyright in isinstance check
             if not isinstance(entry, dict):
                 return False
 
@@ -178,7 +183,7 @@ class HyperliquidRawWsBookUpdate(BaseModel):
         if not isinstance(v, list):
             raise ValueError("levels: Must be a list of two lists (bids, asks)")
 
-        # Single strategic cast for Pyright
+        # Strategic cast for Pyright type narrowing
         list_v = cast(list[Any], v)
 
         # Check the list length
@@ -188,20 +193,28 @@ class HyperliquidRawWsBookUpdate(BaseModel):
         result: list[list[HyperliquidRawBookLevel]] = []
 
         # Process each side (bids, asks)
-        for i, side in enumerate(list_v):
-            if not isinstance(side, list):
+        for i, side_obj in enumerate(list_v):
+            if not isinstance(side_obj, list):
                 raise ValueError(f"levels[{i}]: Must be a list of book levels")
+
+            # Cast to help Pyright with type narrowing
+            side = cast(list[Any], side_obj)
 
             side_result: list[HyperliquidRawBookLevel] = []
 
             # Process each entry in this side
-            for j, entry in enumerate(side):
+            for j, entry_obj in enumerate(side):
+                # Use entry_obj instead of entry to help Pyright
+                entry = entry_obj  # This helps Pyright with type narrowing
+
                 if isinstance(entry, HyperliquidRawBookLevel):
                     side_result.append(entry)
                 elif isinstance(entry, dict):
                     try:
                         # Model validation handles the typing
-                        level = HyperliquidRawBookLevel.model_validate(entry)
+                        # Cast to Dict to help Pyright
+                        dict_entry = cast(dict[str, Any], entry)
+                        level = HyperliquidRawBookLevel.model_validate(dict_entry)
                         side_result.append(level)
                     except Exception as e:
                         raise ValueError(f"levels[{i}][{j}]: Invalid book level: {e}") from e
