@@ -33,7 +33,7 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from typing import Self
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -65,6 +65,31 @@ class HyperliquidRawAssetDefinition(BaseModel):
     @classmethod
     def validate_name(cls, v: object, info: ValidationInfo) -> str:
         return validate_str_field(v, field_name="name", max_length=64)
+
+    @field_validator("sz_decimals", mode="before")
+    @classmethod
+    def validate_sz_decimals(cls, v: object, info: ValidationInfo) -> int:
+        if not isinstance(v, int):
+            raise ValueError("sz_decimals: Expected int")
+        if v < 0 or v > 18:
+            raise ValueError("sz_decimals: Must be between 0 and 18")
+        return v
+
+    @field_validator("max_leverage", mode="before")
+    @classmethod
+    def validate_max_leverage(cls, v: object, info: ValidationInfo) -> int:
+        if not isinstance(v, int):
+            raise ValueError("max_leverage: Expected int")
+        if v < 0 or v > 1000:
+            raise ValueError("max_leverage: Must be between 0 and 1000")
+        return v
+
+    @field_validator("only_isolated", mode="before")
+    @classmethod
+    def validate_only_isolated(cls, v: object, info: ValidationInfo) -> bool:
+        if not isinstance(v, bool):
+            raise ValueError("only_isolated: Expected bool")
+        return v
 
 
 class HyperliquidRawAssetCtx(BaseModel):
@@ -136,6 +161,15 @@ class HyperliquidRawMetaResponse(BaseModel):
 
     universe: list[HyperliquidRawAssetDefinition] = Field(..., alias="universe")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("universe", mode="before")
+    @classmethod
+    def validate_universe(cls, v: object, info: ValidationInfo) -> list[Any]:
+        if not isinstance(v, list):
+            raise ValueError("universe: Expected list")
+        if not v:
+            raise ValueError("universe: List cannot be empty")
+        return v
 
 
 class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
@@ -215,6 +249,14 @@ class HyperliquidRawMetaRequestPayload(BaseModel):
     type: str = Field("meta", alias="type")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type(cls, v: object, info: ValidationInfo) -> str:
+        s = validate_str_field(v, field_name="type", max_length=32)
+        if s != "meta":
+            raise ValueError("type: Must be 'meta'")
+        return s
+
 
 class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
     """
@@ -229,6 +271,14 @@ class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
 
     type: str = Field("metaAndAssetCtxs", alias="type")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type(cls, v: object, info: ValidationInfo) -> str:
+        s = validate_str_field(v, field_name="type", max_length=32)
+        if s != "metaAndAssetCtxs":
+            raise ValueError("type: Must be 'metaAndAssetCtxs'")
+        return s
 
 
 class HyperliquidRawUpdateLeverageRequest(BaseModel):
@@ -249,6 +299,31 @@ class HyperliquidRawUpdateLeverageRequest(BaseModel):
     leverage: int = Field(..., alias="leverage")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
+    @field_validator("asset", mode="before")
+    @classmethod
+    def validate_asset(cls, v: object, info: ValidationInfo) -> int:
+        if not isinstance(v, int):
+            raise ValueError("asset: Expected int")
+        if v < 0:
+            raise ValueError("asset: Must be non-negative")
+        return v
+
+    @field_validator("is_cross", mode="before")
+    @classmethod
+    def validate_is_cross(cls, v: object, info: ValidationInfo) -> bool:
+        if not isinstance(v, bool):
+            raise ValueError("is_cross: Expected bool")
+        return v
+
+    @field_validator("leverage", mode="before")
+    @classmethod
+    def validate_leverage(cls, v: object, info: ValidationInfo) -> int:
+        if not isinstance(v, int):
+            raise ValueError("leverage: Expected int")
+        if v < 0 or v > 1000:
+            raise ValueError("leverage: Must be between 0 and 1000")
+        return v
+
 
 class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
     """
@@ -267,3 +342,28 @@ class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
     is_buy: bool = Field(..., alias="isBuy")
     ntli: int = Field(..., alias="ntli")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("asset", mode="before")
+    @classmethod
+    def validate_asset(cls, v: object, info: ValidationInfo) -> int:
+        if not isinstance(v, int):
+            raise ValueError("asset: Expected int")
+        if v < 0:
+            raise ValueError("asset: Must be non-negative")
+        return v
+
+    @field_validator("is_buy", mode="before")
+    @classmethod
+    def validate_is_buy(cls, v: object, info: ValidationInfo) -> bool:
+        if not isinstance(v, bool):
+            raise ValueError("is_buy: Expected bool")
+        return v
+
+    @field_validator("ntli", mode="before")
+    @classmethod
+    def validate_ntli(cls, v: object, info: ValidationInfo) -> int:
+        if not isinstance(v, int):
+            raise ValueError("ntli: Expected int")
+        if v < 0:
+            raise ValueError("ntli: Must be non-negative")
+        return v
