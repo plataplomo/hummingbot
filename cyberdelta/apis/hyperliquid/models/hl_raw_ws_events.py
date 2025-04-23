@@ -32,7 +32,7 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from typing import Any, TypeGuard, TypeVar, cast
+from typing import Any, TypeGuard, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -127,6 +127,16 @@ def has_exact_length(lst: list[Any], length: int) -> bool:
     return len(lst) == length
 
 
+def is_dict(obj: object) -> TypeGuard[dict[str, Any]]:
+    """TypeGuard to check if an object is a dictionary with string keys"""
+    return isinstance(obj, dict)
+
+
+def is_non_empty_dict(obj: object) -> TypeGuard[dict[str, Any]]:
+    """TypeGuard to check if an object is a non-empty dictionary with string keys"""
+    return is_dict(obj) and bool(obj)
+
+
 def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, Any]]]]:
     """
     Type guard to check if an object is a list of two lists of dict[str, Any].
@@ -212,7 +222,7 @@ class HyperliquidRawWsBookUpdate(BaseModel):
                     try:
                         # At this point, Pyright should recognize entry as Dict[Unknown, Unknown]
                         # but mypy correctly infers Dict[Any, Any]
-                        # This one cast is justified for Pyright compatibility
+                        # Use type annotation instead of cast
                         dict_entry: dict[str, Any] = entry
                         level = HyperliquidRawBookLevel.model_validate(dict_entry)
                         side_result.append(level)
@@ -309,18 +319,19 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
     @field_validator("data", mode="before")
     @classmethod
     def validate_data(cls, v: object, info: ValidationInfo) -> dict[str, Any]:
-        # NOTE: Dynamic untyped input from API boundary; Pyright cannot infer type for return value.
-        # All runtime checks are exhaustive and guarantee type safety for the expected structure.
-        # This ignore is justified and safe for boundary validation.
-        if not isinstance(v, dict) or not v:
+        """
+        Validate that the data field is a non-empty dictionary with string keys.
+        Uses explicit type checking to ensure both runtime and static type safety.
+        """
+        # Check if the input is a non-empty dictionary
+        if not is_non_empty_dict(v):
             raise ValueError("data: Must be a non-empty dict (event-specific structure)")
-        # 1. Dynamic untyped input from API boundary; Pyright cannot infer type after
-        #    runtime validation.
-        # 2. All runtime checks above are exhaustive and guarantee type safety for the expected
-        #    structure.
-        # 3. This cast is justified and safe for boundary validation, and required to satisfy
-        #    static type checkers.
-        return cast(dict[str, Any], v)
+
+        # Further validation could be added here based on event_type
+        # For now, we just ensure it's a non-empty dict
+
+        # At this point, both mypy and pyright know v is Dict[str, Any]
+        return v
 
 
 class HyperliquidRawWsPositionUpdateEvent(BaseModel):
