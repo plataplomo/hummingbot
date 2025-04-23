@@ -2,25 +2,21 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (Meta & Asset Context Group)
 -----------------------------------------------------------------------
 
-This module provides **strict Pydantic models** for validating the *raw* structure of all major
+This module provides strict, security-focused Pydantic models for validating the *raw* structure of all major
 Hyperliquid Exchange API (REST and WebSocket) responses related to meta information, asset context,
-and related request/response payloads. It is a core part of CyberDeltaEngine's boundary validation
-layer.
+and related request/response payloads. It is a core part of CyberDeltaEngine's boundary validation layer.
 
-**Scope & Rationale:**
-- Models in this file are used to validate and parse the *external* data structures returned by
+**Boundary Validation Policy:**
+- Models in this file are used exclusively to validate and parse the *external* data structures returned by
   Hyperliquid's 'meta' and 'metaAndAssetCtxs' endpoints, as well as related request payloads and
   leverage/margin updates.
-- All models enforce strict schema validation (`extra="forbid"`), ensuring that any unexpected or
-  malformed fields in upstream data are immediately rejected. This is critical for robust, secure,
-  and predictable operation in a financial system.
-- These models are the *first step* in the "validate first, then transform" pattern: validate
-  external data at the boundary, then map to internal business models with type conversions and
-  business logic.
+- All models enforce strict schema validation (`extra="forbid"`), strict type checking, and robust format validation (e.g., max length, finite decimals, valid UTF-8).
+- Any unexpected, malformed, or ambiguous fields in upstream data are immediately rejected. This is critical for robust, secure, and predictable operation in a financial system.
+- These models are the *first step* in the "validate first, then transform" pattern: validate external data at the boundary, then map to internal business models with type conversions and business logic.
+- **Never use these models for internal business logic.**
 
 **References:**
-- Official Hyperliquid API documentation:
-  https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+- Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 

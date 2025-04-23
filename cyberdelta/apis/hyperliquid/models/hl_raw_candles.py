@@ -2,35 +2,28 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (Candles Group)
 -----------------------------------------------------------
 
-This module provides strict Pydantic models for validating the *raw* structure of all major
+This module provides strict, security-focused Pydantic models for validating the *raw* structure of all major
 Hyperliquid Exchange API (REST and WebSocket) responses related to candlestick (candle) data.
 It is a core part of CyberDeltaEngine's boundary validation layer for historical and real-time
 price series.
 
-**Scope & Rationale:**
-- Models in this file are used to validate and parse the *external* data structures returned by
+**Boundary Validation Policy:**
+- Models in this file are used exclusively to validate and parse the *external* data structures returned by
   Hyperliquid's 'candleSnapshot' endpoint, which provides OHLCV (open, high, low, close, volume)
   data for assets.
-- All models enforce strict schema validation (`extra="forbid"`), ensuring that any unexpected or
-  malformed fields in upstream data are immediately rejected. This is critical for robust, secure,
-  and predictable operation in a financial system.
-- These models are the *first step* in the "validate first, then transform" pattern: validate
-  external data at the boundary, then map to internal business models with type conversions and
-  business logic.
+- All models enforce strict schema validation (`extra="forbid"`), strict type checking, and robust format validation (e.g., max length, finite decimals, valid UTF-8).
+- Any unexpected, malformed, or ambiguous fields in upstream data are immediately rejected. This is critical for robust, secure, and predictable operation in a financial system.
+- These models are the *first step* in the "validate first, then transform" pattern: validate external data at the boundary, then map to internal business models with type conversions and business logic.
+- **Never use these models for internal business logic.**
 
 **References:**
-- Official Hyperliquid API documentation:
-  https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+- Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
 **Usage Example:**
     raw = HyperliquidRawCandleSnapshot.model_validate(api_response_dict)
     # ...then transform to internal candle model
-
-**Note:**
-Do not use these models for internal business logic—use your core models for that.
-These are for boundary validation only.
 """
 
 from typing import Any, TypeGuard
@@ -137,3 +130,24 @@ class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
     start_time: int = Field(..., alias="startTime")
     end_time: int = Field(..., alias="endTime")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("coin", mode="before")
+    @classmethod
+    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        # Enforce max_length=64 and valid UTF-8 for asset symbol
+        return validate_str_field(v, field_name="coin", max_length=64)
+
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def validate_int_strict(cls, v: object, info: ValidationInfo) -> int:
+        # Enforce strict int type (no float or str coercion)
+        field_name = info.field_name or "field"
+        if not isinstance(v, int):
+            raise ValueError(f"{field_name}: Must be an integer (no coercion allowed)")
+        return v
+
+    @field_validator("interval", mode="before")
+    @classmethod
+    def validate_interval(cls, v: object, info: ValidationInfo) -> str:
+        # Enforce max_length=16 and valid UTF-8 for interval string
+        return validate_str_field(v, field_name="interval", max_length=16)

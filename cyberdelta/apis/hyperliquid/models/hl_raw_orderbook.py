@@ -2,19 +2,17 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (Order Book Group)
 --------------------------------------------------------------
 
-This module provides strict Pydantic models for validating the *raw* structure of all major
+This module provides strict, security-focused Pydantic models for validating the *raw* structure of all major
 Hyperliquid Exchange API (REST and WebSocket) responses related to the L2 order book. It is a core
 part of CyberDeltaEngine's boundary validation layer for real-time and historical order book data.
 
-**Scope & Rationale:**
-- Models in this file are used to validate and parse the *external* data structures returned by
+**Boundary Validation Policy:**
+- Models in this file are used exclusively to validate and parse the *external* data structures returned by
   Hyperliquid's order book endpoints, including price levels and full L2 book snapshots.
-- All models enforce strict schema validation (`extra="forbid"`), ensuring that any unexpected or
-  malformed fields in upstream data are immediately rejected. This is critical for robust, secure,
-  and predictable operation in a financial system.
-- These models are the *first step* in the "validate first, then transform" pattern: validate
-  external data at the boundary, then map to internal business models with type conversions and
-  business logic.
+- All models enforce strict schema validation (`extra="forbid"`), strict type checking, and robust format validation (e.g., max length, finite decimals, valid UTF-8).
+- Any unexpected, malformed, or ambiguous fields in upstream data are immediately rejected. This is critical for robust, secure, and predictable operation in a financial system.
+- These models are the *first step* in the "validate first, then transform" pattern: validate external data at the boundary, then map to internal business models with type conversions and business logic.
+- **Never use these models for internal business logic.**
 
 **References:**
 - Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
@@ -24,10 +22,6 @@ part of CyberDeltaEngine's boundary validation layer for real-time and historica
 **Usage Example:**
     raw = HyperliquidRawL2Book.model_validate(api_response_dict)
     # ...then transform to internal order book model
-
-**Note:**
-Do not use these models for internal business logic—use your core models for that. These are for
-boundary validation only.
 """
 
 from typing import Any, TypeGuard
