@@ -50,7 +50,7 @@ def is_list_of_dict_str_any(obj: object) -> TypeGuard[list[dict[str, Any]]]:
     """
     if not isinstance(obj, list):
         return False
-    # This loop processes untyped external input (object) from Pydantic boundary validation.
+    # NOTE: This loop processes untyped external input (object) from Pydantic boundary validation.
     # All runtime checks below are exhaustive: only list[dict[str, Any]] with str keys can pass.
     # The TypeGuard enables Pyright to safely narrow the type for downstream static analysis.
     for item_any in obj:  # pyright: ignore[reportUnknownVariableType]
@@ -248,9 +248,15 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         Raises:
             ValueError: If the input structure does not match the expected 2-tuple format.
         """
+        # NOTE: Dynamic untyped input from API boundary; Pyright cannot infer type for len(obj).
+        # All runtime checks are exhaustive and guarantee type safety for the expected structure.
+        # This ignore is justified and safe for boundary validation.
         if not (isinstance(obj, list) and len(obj) == 2):  # pyright: ignore[reportUnknownArgumentType]
             raise ValueError("Invalid MetaAndAssetCtxs response structure: not a 2-element list")
         obj_list: list[object] = obj
+        # NOTE:Dynamic untyped input from API boundary; Pyright cannot infer type for obj_list[1] iteration.
+        # All runtime checks are exhaustive and guarantee type safety for the expected structure.
+        # This ignore is justified and safe for boundary validation.
         if (
             isinstance(obj_list[0], dict)
             and isinstance(obj_list[1], list)
