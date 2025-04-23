@@ -141,25 +141,30 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     def validate_levels_structure(
         cls, v: object, info: ValidationInfo
     ) -> list[list[HyperliquidRawBookLevel]]:
-        # NOTE: Dynamic untyped input from API boundary; Pyright cannot infer type for len(v).
-        # All runtime checks are exhaustive and guarantee type safety for the expected structure.
-        # This ignore is justified and safe for boundary validation.
-        if not (isinstance(v, list) and len(v) == 2):  # pyright: ignore[reportUnknownArgumentType]
+        """
+        Validates and converts the 'levels' field to a list of two lists of HyperliquidRawBookLevel.
+        Ensures full runtime and type safety: no casts, no type ignores, no unchecked assumptions.
+        Raises ValueError if the structure or any element is invalid.
+        """
+        if not (isinstance(v, list) and len(v) == 2):
             raise ValueError("levels: Must be a list of two lists (bids, asks)")
-        # 1. Dynamic untyped input from API boundary; Pyright cannot infer element type for iteration.
-        # 2. All runtime checks above are exhaustive and guarantee type safety for the expected structure.
-        # 3. No cast is used here to comply with strict Mypy enforcement; Mypy is authoritative in this project.
-        #    Pyright/Pylance may still warn about unknown type; this is accepted per project policy.
-        for sub in v:  # pyright: ignore[reportUnknownArgumentType]
-            if not isinstance(sub, list):
-                raise ValueError("levels: Each element must be a list (bids, asks)")
-        # NOTE: Dynamic untyped input from API boundary; Pyright cannot infer type after
-        #    runtime validation.
-        #    All runtime checks above are exhaustive and guarantee type safety for the expected
-        #    structure.
-        #    This cast is justified and safe for boundary validation, and required to satisfy
-        #    static type checkers.
-        return cast(list[list[HyperliquidRawBookLevel]], v)
+        result: list[list[HyperliquidRawBookLevel]] = []
+        for i, side in enumerate(v):
+            if not isinstance(side, list):
+                raise ValueError(f"levels[{i}]: Must be a list of book levels")
+            side_result: list[HyperliquidRawBookLevel] = []
+            for j, entry in enumerate(side):
+                if isinstance(entry, HyperliquidRawBookLevel):
+                    side_result.append(entry)
+                elif isinstance(entry, dict):
+                    try:
+                        side_result.append(HyperliquidRawBookLevel.model_validate(entry))
+                    except Exception as e:
+                        raise ValueError(f"levels[{i}][{j}]: Invalid book level: {e}") from e
+                else:
+                    raise ValueError(f"levels[{i}][{j}]: Must be dict or HyperliquidRawBookLevel")
+            result.append(side_result)
+        return result
 
     @field_validator("time", mode="before")
     @classmethod
