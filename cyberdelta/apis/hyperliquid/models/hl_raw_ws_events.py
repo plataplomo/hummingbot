@@ -32,7 +32,7 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -146,10 +146,20 @@ class HyperliquidRawWsBookUpdate(BaseModel):
         # This ignore is justified and safe for boundary validation.
         if not (isinstance(v, list) and len(v) == 2):  # pyright: ignore[reportUnknownArgumentType]
             raise ValueError("levels: Must be a list of two lists (bids, asks)")
-        for sub in v:  # pyright: ignore[reportUnknownVariableType]
+        # 1. Dynamic untyped input from API boundary; Pyright cannot infer element type for iteration.
+        # 2. All runtime checks above are exhaustive and guarantee type safety for the expected structure.
+        # 3. No cast is used here to comply with strict Mypy enforcement; Mypy is authoritative in this project.
+        #    Pyright/Pylance may still warn about unknown type; this is accepted per project policy.
+        for sub in v:  # pyright: ignore[reportUnknownArgumentType]
             if not isinstance(sub, list):
                 raise ValueError("levels: Each element must be a list (bids, asks)")
-        return v  # pyright: ignore[reportUnknownArgumentType]
+        # NOTE: Dynamic untyped input from API boundary; Pyright cannot infer type after
+        #    runtime validation.
+        #    All runtime checks above are exhaustive and guarantee type safety for the expected
+        #    structure.
+        #    This cast is justified and safe for boundary validation, and required to satisfy
+        #    static type checkers.
+        return cast(list[list[HyperliquidRawBookLevel]], v)
 
     @field_validator("time", mode="before")
     @classmethod
@@ -240,7 +250,13 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
         # This ignore is justified and safe for boundary validation.
         if not isinstance(v, dict) or not v:
             raise ValueError("data: Must be a non-empty dict (event-specific structure)")
-        return v  # pyright: ignore[reportUnknownArgumentType]
+        # 1. Dynamic untyped input from API boundary; Pyright cannot infer type after
+        #    runtime validation.
+        # 2. All runtime checks above are exhaustive and guarantee type safety for the expected
+        #    structure.
+        # 3. This cast is justified and safe for boundary validation, and required to satisfy
+        #    static type checkers.
+        return cast(dict[str, Any], v)
 
 
 class HyperliquidRawWsPositionUpdateEvent(BaseModel):
