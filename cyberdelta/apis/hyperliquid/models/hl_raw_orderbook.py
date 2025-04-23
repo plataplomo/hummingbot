@@ -30,6 +30,8 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
+from typing import Any, cast
+
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
@@ -63,6 +65,18 @@ class HyperliquidRawBookLevel(BaseModel):
             raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
         return s
 
+    @field_validator("n", mode="before")
+    @classmethod
+    def validate_n_non_negative(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Enforce that n (number of orders at this price level) is non-negative.
+        """
+        if not isinstance(v, int):
+            raise ValueError(f"n: Expected int, got {type(v).__name__}")
+        if v < 0:
+            raise ValueError("n: Number of orders must be non-negative")
+        return v
+
 
 # --- L2 Order Book Model ---
 class HyperliquidRawL2Book(BaseModel):
@@ -87,6 +101,24 @@ class HyperliquidRawL2Book(BaseModel):
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
         return validate_str_field(v, field_name="coin", max_length=64)
+
+    @field_validator("levels", mode="before")
+    @classmethod
+    def validate_levels_structure(
+        cls, v: object, info: ValidationInfo
+    ) -> list[list[HyperliquidRawBookLevel]]:
+        # Type: v is expected to be a list of two lists (bids, asks), but may be Any at this point
+        v_list: list[Any] = v  # type: ignore
+        """
+        Enforce that levels is a list of length 2 (bids, asks), and each element is a list.
+        """
+        # No need to check isinstance(v_list, list): v_list is always a list[Any] due to the cast above
+        if len(v_list) != 2:
+            raise ValueError("levels: Must be a list of two lists (bids, asks)")
+        if not all(isinstance(sub, list) for sub in v_list):
+            raise ValueError("levels: Each element must be a list (bids, asks)")
+        # At this point, v_list is a list[list[Any]], but we expect list[list[HyperliquidRawBookLevel]]
+        return cast(list[list[HyperliquidRawBookLevel]], v_list)
 
 
 # --- Request Payload ---

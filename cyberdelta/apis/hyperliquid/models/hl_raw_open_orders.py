@@ -67,6 +67,16 @@ class HyperliquidRawTriggerInfo(BaseModel):
     def validate_tpsl(cls, v: object, info: ValidationInfo) -> str:
         return validate_enum_field(v, allowed={"tp", "sl"}, field_name="tpsl")
 
+    @field_validator("is_market", mode="before")
+    @classmethod
+    def validate_is_market_bool(cls, v: object, info: ValidationInfo) -> bool:
+        """
+        Strictly enforce that is_market is a bool (no coercion). This is required by the raw model policy.
+        """
+        if not isinstance(v, bool):
+            raise ValueError(f"is_market: Expected bool, got {type(v).__name__}")
+        return v
+
 
 class HyperliquidRawTriggerSpec(BaseModel):
     """

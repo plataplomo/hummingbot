@@ -347,5 +347,13 @@ class HyperliquidRawUserStateRequestPayload(BaseModel):
 
     @field_validator("user", mode="before")
     @classmethod
-    def validate_user(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="user", max_length=64)
+    def validate_user_eth_address(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Enforce Ethereum address pattern ^0x[0-9a-fA-F]{40}$ for user field.
+        """
+        s = validate_str_field(v, field_name="user", max_length=64)
+        import re
+
+        if not re.fullmatch(r"^0x[0-9a-fA-F]{40}$", s):
+            raise ValueError("user: Must be a valid Ethereum address (0x + 40 hex chars)")
+        return s

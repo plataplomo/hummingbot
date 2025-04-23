@@ -113,6 +113,43 @@ class HyperliquidRawUserFill(BaseModel):
         field_name = info.field_name or "field"
         return validate_str_field(v, field_name=field_name, max_length=64)
 
+    @field_validator("is_maker", mode="before")
+    @classmethod
+    def validate_is_maker_bool(cls, v: object, info: ValidationInfo) -> bool:
+        """
+        Strictly enforce that is_maker is a bool (no coercion). This is required by the raw model policy.
+        """
+        if not isinstance(v, bool):
+            raise ValueError(f"is_maker: Expected bool, got {type(v).__name__}")
+        return v
+
+    @field_validator("cloid", "hash", mode="before")
+    @classmethod
+    def validate_no_null_bytes(cls, v: object, info: ValidationInfo) -> str | None:
+        """
+        Reject null bytes (\x00) in cloid and hash fields for safety and robustness.
+        """
+        if v is None:
+            return v
+        s = validate_str_field(v, field_name=info.field_name or "field", max_length=64)
+        if "\x00" in s:
+            raise ValueError(f"{info.field_name}: Null byte (\\x00) not allowed in string")
+        return s
+
+    @field_validator("liquidation_mark_px", mode="before")
+    @classmethod
+    def validate_optional_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        """
+        Ensure optional decimal string is valid if present (finite decimal, not NaN/inf).
+        """
+        if v is None:
+            return v
+        s = validate_str_field(v, field_name=info.field_name or "field", max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=info.field_name or "field")
+        if d is None or not d.is_finite():
+            raise ValueError(f"{info.field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
+
 
 # --- Batch/Array Response ---
 class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
@@ -148,5 +185,13 @@ class HyperliquidRawUserFillsRequestPayload(BaseModel):
 
     @field_validator("user", mode="before")
     @classmethod
-    def validate_user(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="user", max_length=64)
+    def validate_user_eth_address(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Enforce Ethereum address pattern ^0x[0-9a-fA-F]{40}$ for user field.
+        """
+        s = validate_str_field(v, field_name="user", max_length=64)
+        import re
+
+        if not re.fullmatch(r"^0x[0-9a-fA-F]{40}$", s):
+            raise ValueError("user: Must be a valid Ethereum address (0x + 40 hex chars)")
+        return s

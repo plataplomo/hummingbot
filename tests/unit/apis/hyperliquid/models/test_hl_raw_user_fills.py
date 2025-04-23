@@ -39,7 +39,9 @@ def valid_user_fills_response() -> list[dict[str, object]]:
 
 
 def valid_user_fills_request_payload() -> dict[str, object]:
-    return {"type": "userFills", "user": "0xabc"}
+    # Use a valid Ethereum address (0x + 40 hex chars) for strict validation
+    # Example: 0xabcdefabcdefabcdefabcdefabcdefabcdefabcd (40 hex chars)
+    return {"type": "userFills", "user": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"}
 
 
 # --- Tests for HyperliquidRawUserFill ---
@@ -154,13 +156,14 @@ def test_user_fill_numeric_string_edge_cases() -> None:
         d = valid_user_fill().copy()
         d[field] = "000123.4500"
         obj = HyperliquidRawUserFill.model_validate(d)
-        assert obj.model_dump()[field] == "000123.4500"
+        # Use by_alias=True to check original field names as in input dict
+        assert obj.model_dump(by_alias=True)[field] == "000123.4500"
         d[field] = "1.23e2"
         obj = HyperliquidRawUserFill.model_validate(d)
-        assert obj.model_dump()[field] == "1.23e2"
+        assert obj.model_dump(by_alias=True)[field] == "1.23e2"
         d[field] = "-123.45"
         obj = HyperliquidRawUserFill.model_validate(d)
-        assert obj.model_dump()[field] == "-123.45"
+        assert obj.model_dump(by_alias=True)[field] == "-123.45"
         d[field] = "1" * 65
         with pytest.raises(ValidationError):
             HyperliquidRawUserFill.model_validate(d)
@@ -234,7 +237,8 @@ def test_user_fills_request_payload_user_edge_cases() -> None:
     d["user"] = "0x" + "a" * 41
     with pytest.raises(ValidationError):
         HyperliquidRawUserFillsRequestPayload.model_validate(d)
-    d["user"] = "0xABCDEFabcdef1234567890abcdefABCDEF1234"
+    # Use a valid Ethereum address for the valid case (exactly 40 hex chars)
+    d["user"] = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
     obj = HyperliquidRawUserFillsRequestPayload.model_validate(d)
     assert obj.user == d["user"]
     d["user"] = "0xGHIJKL1234567890abcdefABCDEF1234567890"
@@ -280,9 +284,10 @@ def test_user_fills_response_extra_field() -> None:
 
 
 def test_user_fills_request_payload_happy_path() -> None:
+    # Use a valid Ethereum address for the happy path (exactly 40 hex chars)
     obj = HyperliquidRawUserFillsRequestPayload.model_validate(valid_user_fills_request_payload())
     assert obj.type == "userFills"
-    assert obj.user == "0xabc"
+    assert obj.user == "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
 
 
 def test_user_fills_request_payload_type_errors() -> None:
