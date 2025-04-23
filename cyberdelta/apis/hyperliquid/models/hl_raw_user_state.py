@@ -34,14 +34,14 @@ from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, v
 # --- Leverage Submodel ---
 class HyperliquidRawLeverage(BaseModel):
     """
-    Represents leverage settings for a position as returned in user state endpoints.
+    Strict boundary model for leverage settings as returned in user state endpoints.
 
-    This model is used as a submodel in position and clearinghouse state responses to describe
-    the leverage type and value.
+    This model validates the leverage type and value for a position, enforcing strict type and
+    format constraints. Never use for internal business logic.
 
     Fields:
         type (str): Leverage type ('cross' or 'isolated').
-        value (int): Leverage value.
+        value (int): Leverage value (must be non-negative integer).
     """
 
     type: str = Field(..., alias="type")
@@ -51,6 +51,17 @@ class HyperliquidRawLeverage(BaseModel):
     @field_validator("type", mode="before")
     @classmethod
     def validate_type(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'type' field to ensure it is either 'cross' or 'isolated' and a string of max length 16.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated leverage type string.
+        Raises:
+            ValueError: If the input is not a valid leverage type string.
+        """
         field_name = info.field_name or "type"
         try:
             s = validate_str_field(v, field_name=field_name, max_length=16)
@@ -61,6 +72,17 @@ class HyperliquidRawLeverage(BaseModel):
     @field_validator("value", mode="before")
     @classmethod
     def validate_value(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Validates the 'value' field to ensure it is a non-negative integer.
+
+        Args:
+            v (object): The value to validate (should be an integer).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            int: The validated leverage value.
+        Raises:
+            ValueError: If the input is not a non-negative integer.
+        """
         field_name = info.field_name or "value"
         if not isinstance(v, int):
             raise ValueError(f"{field_name}: Expected int, got {type(v).__name__}")
@@ -72,22 +94,22 @@ class HyperliquidRawLeverage(BaseModel):
 # --- Position Info Submodel ---
 class HyperliquidRawPositionInfo(BaseModel):
     """
-    Represents detailed information about a user position as returned in user state endpoints.
+    Strict boundary model for detailed user position information as returned in user state endpoints.
 
-    This model is used as a submodel in asset position and clearinghouse state responses to
-    describe the user's position for a given asset.
+    This model validates the structure and content of a user's position for a given asset, enforcing
+    strict type and format constraints for all fields. Never use for internal business logic.
 
     Fields:
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
-        entry_px (Optional[str]): Entry price, if present.
+        entry_px (Optional[str]): Entry price as a decimal string, if present.
         leverage (HyperliquidRawLeverage): Leverage settings for this position.
-        liquidation_px (Optional[str]): Liquidation price, if present.
-        margin_used (str): Margin used for this position.
+        liquidation_px (Optional[str]): Liquidation price as a decimal string, if present.
+        margin_used (str): Margin used for this position as a decimal string.
         max_leverage (int): Maximum leverage allowed for this asset.
-        position_value (str): Value of the position.
-        return_on_equity (str): Return on equity (ROE) for this position.
-        szi (str): Size of the position.
-        unrealized_pnl (str): Unrealized profit and loss for this position.
+        position_value (str): Value of the position as a decimal string.
+        return_on_equity (str): Return on equity (ROE) as a decimal string.
+        szi (str): Size of the position as a decimal string.
+        unrealized_pnl (str): Unrealized profit and loss as a decimal string.
     """
 
     coin: str = Field(..., alias="coin")
@@ -105,6 +127,17 @@ class HyperliquidRawPositionInfo(BaseModel):
     @field_validator("coin", mode="before")
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'coin' field to ensure it is a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated asset symbol string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         field_name = info.field_name or "coin"
         try:
             return validate_str_field(v, field_name=field_name, max_length=64)
@@ -114,6 +147,18 @@ class HyperliquidRawPositionInfo(BaseModel):
     @field_validator("entry_px", "liquidation_px", mode="before")
     @classmethod
     def validate_optional_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+        """
+        Validates an optional decimal string field (entry_px or liquidation_px).
+        Ensures the value is either None or a valid decimal string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string or None).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            Optional[str]: The validated decimal string or None.
+        Raises:
+            ValueError: If the input is not a valid decimal string or None.
+        """
         field_name = info.field_name or "field"
         if v is None:
             return v
@@ -131,6 +176,17 @@ class HyperliquidRawPositionInfo(BaseModel):
     )
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates a required decimal string field, ensuring it is a valid decimal string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated decimal string.
+        Raises:
+            ValueError: If the input is not a valid decimal string.
+        """
         field_name = info.field_name or "field"
         try:
             s = validate_str_field(v, field_name=field_name, max_length=64)
@@ -144,6 +200,17 @@ class HyperliquidRawPositionInfo(BaseModel):
     @field_validator("max_leverage", mode="before")
     @classmethod
     def validate_max_leverage(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Validates the 'max_leverage' field to ensure it is a non-negative integer.
+
+        Args:
+            v (object): The value to validate (should be an integer).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            int: The validated max leverage value.
+        Raises:
+            ValueError: If the input is not a non-negative integer.
+        """
         field_name = info.field_name or "max_leverage"
         if not isinstance(v, int):
             raise ValueError(f"{field_name}: Expected int, got {type(v).__name__}")
@@ -155,10 +222,10 @@ class HyperliquidRawPositionInfo(BaseModel):
 # --- Asset Position Submodel ---
 class HyperliquidRawAssetPosition(BaseModel):
     """
-    Represents a user's position details for a specific asset as returned in user state endpoints.
+    Strict boundary model for a user's position details for a specific asset as returned in user state endpoints.
 
-    This model is used as a submodel in clearinghouse state responses to describe the user's
-    position for a given asset.
+    This model validates the structure and content of a user's asset position, enforcing strict type and
+    format constraints. Never use for internal business logic.
 
     Fields:
         asset (str): Asset symbol (e.g., 'ETH', 'BTC').
@@ -172,6 +239,17 @@ class HyperliquidRawAssetPosition(BaseModel):
     @field_validator("asset", mode="before")
     @classmethod
     def validate_asset(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'asset' field to ensure it is a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated asset symbol string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         field_name = info.field_name or "asset"
         try:
             return validate_str_field(v, field_name=field_name, max_length=64)
@@ -182,16 +260,16 @@ class HyperliquidRawAssetPosition(BaseModel):
 # --- Margin Summary Submodel ---
 class HyperliquidRawMarginSummary(BaseModel):
     """
-    Represents a margin summary for user state as returned in user state endpoints.
+    Strict boundary model for a margin summary as returned in user state endpoints.
 
-    This model is used as a submodel in clearinghouse state responses to describe margin usage
-    and account value.
+    This model validates the structure and content of a user's margin summary, enforcing strict type and
+    format constraints for all fields. Never use for internal business logic.
 
     Fields:
-        account_value (str): Account value for the user.
-        total_margin_used (str): Total margin used across all positions.
-        total_ntl_pos (str): Total notional position size.
-        total_raw_usd (str): Total raw USD value.
+        account_value (str): Account value for the user as a decimal string.
+        total_margin_used (str): Total margin used across all positions as a decimal string.
+        total_ntl_pos (str): Total notional position size as a decimal string.
+        total_raw_usd (str): Total raw USD value as a decimal string.
     """
 
     account_value: str = Field(..., alias="accountValue")
@@ -203,6 +281,17 @@ class HyperliquidRawMarginSummary(BaseModel):
     @field_validator("account_value", mode="before")
     @classmethod
     def validate_account_value(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'account_value' field to ensure it is a valid decimal string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated account value string.
+        Raises:
+            ValueError: If the input is not a valid decimal string.
+        """
         field_name = info.field_name or "account_value"
         try:
             s = validate_str_field(v, field_name=field_name, max_length=64)
@@ -216,6 +305,17 @@ class HyperliquidRawMarginSummary(BaseModel):
     @field_validator("total_margin_used", mode="before")
     @classmethod
     def validate_total_margin_used(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'total_margin_used' field to ensure it is a valid decimal string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated total margin used string.
+        Raises:
+            ValueError: If the input is not a valid decimal string.
+        """
         field_name = info.field_name or "total_margin_used"
         try:
             s = validate_str_field(v, field_name=field_name, max_length=64)
@@ -229,6 +329,17 @@ class HyperliquidRawMarginSummary(BaseModel):
     @field_validator("total_ntl_pos", mode="before")
     @classmethod
     def validate_total_ntl_pos(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'total_ntl_pos' field to ensure it is a valid decimal string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated total notional position string.
+        Raises:
+            ValueError: If the input is not a valid decimal string.
+        """
         field_name = info.field_name or "total_ntl_pos"
         try:
             s = validate_str_field(v, field_name=field_name, max_length=64)
@@ -242,6 +353,17 @@ class HyperliquidRawMarginSummary(BaseModel):
     @field_validator("total_raw_usd", mode="before")
     @classmethod
     def validate_total_raw_usd(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'total_raw_usd' field to ensure it is a valid decimal string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated total raw USD string.
+        Raises:
+            ValueError: If the input is not a valid decimal string.
+        """
         field_name = info.field_name or "total_raw_usd"
         try:
             s = validate_str_field(v, field_name=field_name, max_length=64)

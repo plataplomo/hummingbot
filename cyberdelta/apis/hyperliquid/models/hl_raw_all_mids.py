@@ -65,10 +65,11 @@ def is_str_to_str_dict(obj: object) -> TypeGuard[dict[str, str]]:
 
 class HyperliquidRawAllMidsRequestPayload(BaseModel):
     """
-    Represents the request payload for the 'allMids' info type.
+    Strict boundary model for the request payload for the 'allMids' info type.
 
     This model is used to construct and validate the payload sent to the Hyperliquid API when
-    requesting all mid prices for tradable assets.
+    requesting all mid prices for tradable assets. Enforces strict type and format constraints for all
+    fields. Never use for internal business logic.
 
     Fields:
         type (str): Must be 'allMids'.
@@ -80,6 +81,16 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
     @field_validator("type", mode="before")
     @classmethod
     def validate_type(cls, v: object) -> str:
+        """
+        Validates the 'type' field to ensure it is exactly 'allMids' and a string of max length 32.
+
+        Args:
+            v (object): The value to validate (should be a string).
+        Returns:
+            str: The validated type string.
+        Raises:
+            ValueError: If the input is not 'allMids' or not a valid string.
+        """
         s = validate_str_field(v, field_name="type", max_length=32)
         if s != "allMids":
             raise ValueError("type: Must be 'allMids'")
@@ -88,19 +99,29 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
 
 class HyperliquidRawAllMids(RootModel[dict[str, str]]):
     """
-    Represents the response from the 'allMids' endpoint, mapping asset symbols to mid prices.
+    Strict boundary model for the response from the 'allMids' endpoint, mapping asset symbols to mid prices.
 
-    This model is used to validate the structure of the 'allMids' endpoint response, which is a
-    dictionary mapping asset symbols to their current mid prices as strings.
+    This model validates the structure and content of the 'allMids' endpoint response, enforcing strict
+    type and format constraints for all fields. Never use for internal business logic.
 
     Fields:
-        __root__ (Dict[str, str]): Mapping from asset symbol (e.g., 'ETH', 'BTC') to mid price
-        (as a string).
+        root (Dict[str, str]): Mapping from asset symbol (e.g., 'ETH', 'BTC') to mid price (as a string).
     """
 
     @model_validator(mode="before")
     @classmethod
     def validate_all_mids(cls, value: object) -> dict[str, str]:
+        """
+        Validates the root dictionary to ensure it maps string asset symbols to string mid prices.
+        Each symbol and price is validated for type, length, and decimal format.
+
+        Args:
+            value (object): The value to validate (should be a dict[str, str]).
+        Returns:
+            dict[str, str]: The validated mapping of asset symbols to mid prices.
+        Raises:
+            ValueError: If the input is not a valid mapping or contains invalid values.
+        """
         if not is_str_to_str_dict(value):
             raise ValueError("__root__ must be a dict mapping string keys to string values")
 

@@ -41,11 +41,15 @@ from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, v
 # --- Trigger Info/Spec ---
 class HyperliquidRawTriggerInfo(BaseModel):
     """
-    Trigger details if present (for conditional orders).
+    Strict boundary model for trigger details if present (for conditional orders).
+
+    This model validates the structure and content of trigger information, enforcing strict type and
+    format constraints for all fields. Never use for internal business logic.
+
     Fields:
-        trigger_px: Trigger price (str)
-        is_market: Is market order (bool)
-        tpsl: Trigger type ('tp' or 'sl')
+        trigger_px (str): Trigger price as a decimal string.
+        is_market (bool): True if the trigger is for a market order.
+        tpsl (str): Trigger type ('tp' for take-profit, 'sl' for stop-loss).
     """
 
     trigger_px: str = Field(..., alias="triggerPx")
@@ -56,6 +60,18 @@ class HyperliquidRawTriggerInfo(BaseModel):
     @field_validator("trigger_px", mode="before")
     @classmethod
     def validate_trigger_px(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'trigger_px' field to ensure it is a string representing a finite decimal (not NaN/inf),
+        with a maximum length of 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated trigger price string.
+        Raises:
+            ValueError: If the input is not a valid decimal string.
+        """
         s = validate_str_field(v, field_name="trigger_px", max_length=64)
         d = parse_decimal_value(s, allow_none=False, field_name="trigger_px")
         if d is None or not d.is_finite():
@@ -65,6 +81,17 @@ class HyperliquidRawTriggerInfo(BaseModel):
     @field_validator("tpsl", mode="before")
     @classmethod
     def validate_tpsl(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'tpsl' field to ensure it is either 'tp' or 'sl'.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated trigger type string.
+        Raises:
+            ValueError: If the input is not 'tp' or 'sl'.
+        """
         return validate_enum_field(v, allowed={"tp", "sl"}, field_name="tpsl")
 
     @field_validator("is_market", mode="before")
@@ -72,6 +99,14 @@ class HyperliquidRawTriggerInfo(BaseModel):
     def validate_is_market_bool(cls, v: object, info: ValidationInfo) -> bool:
         """
         Strictly enforce that is_market is a bool (no coercion). This is required by the raw model policy.
+
+        Args:
+            v (object): The value to validate (should be a bool).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            bool: The validated boolean value.
+        Raises:
+            ValueError: If the input is not a bool.
         """
         if not isinstance(v, bool):
             raise ValueError(f"is_market: Expected bool, got {type(v).__name__}")

@@ -31,14 +31,13 @@ from cyberdelta.utils.parsing import validate_str_field
 
 class HyperliquidRawApiError(BaseModel):
     """
-    Represents a raw error response from the Hyperliquid API (REST or WebSocket).
+    Strict boundary model for a raw error response from the Hyperliquid API (REST or WebSocket).
 
-    This model is used to validate the structure of error responses, which typically include an
-    error message string. It is a strict mirror of the upstream API schema and should not be used
-    for internal business logic.
+    This model validates the structure and content of error responses, enforcing strict type and format
+    constraints for all fields. Never use for internal business logic.
 
     Fields:
-        error (str): Error message string returned by the API.
+        error (str): Error message string returned by the API (max length 1024).
     """
 
     error: str = Field(..., alias="error")
@@ -47,6 +46,16 @@ class HyperliquidRawApiError(BaseModel):
     @field_validator("error", mode="before")
     @classmethod
     def validate_error(cls, v: object) -> str:
+        """
+        Validates the 'error' field to ensure it is a string of max length 1024.
+
+        Args:
+            v (object): The value to validate (should be a string).
+        Returns:
+            str: The validated error message string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         try:
             return validate_str_field(v, field_name="error", max_length=1024)
         except Exception as e:

@@ -34,31 +34,46 @@ from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 
 def is_list(obj: object) -> TypeGuard[list[Any]]:
-    """TypeGuard to check if an object is a list"""
+    """
+    TypeGuard to check if an object is a list.
+
+    Args:
+        obj (object): The object to check.
+    Returns:
+        bool: True if obj is a list, False otherwise.
+    """
     return isinstance(obj, list)
 
 
 def is_string(obj: object) -> TypeGuard[str]:
-    """TypeGuard to check if an object is a string"""
+    """
+    TypeGuard to check if an object is a string.
+
+    Args:
+        obj (object): The object to check.
+    Returns:
+        bool: True if obj is a string, False otherwise.
+    """
     return isinstance(obj, str)
 
 
 class HyperliquidRawCandleSnapshot(BaseModel):
     """
-    Represents a candle snapshot response from the 'candleSnapshot' endpoint, containing OHLCV
-    data for an asset.
+    Strict boundary model for a candle snapshot response from the 'candleSnapshot' endpoint.
 
-    This model is used to validate the structure of the 'candleSnapshot' endpoint response, which
-    provides lists of timestamps, open, high, low, close prices, volumes, and a status string.
+    This model validates the structure of the 'candleSnapshot' endpoint response, which provides
+    OHLCV (open, high, low, close, volume) data for an asset. It enforces strict type and format
+    constraints for all fields, ensuring robust and secure boundary validation. Never use for
+    internal business logic.
 
     Fields:
         t (List[int]): List of timestamps (epoch ms).
-        o (List[str]): List of open prices as strings.
-        h (List[str]): List of high prices as strings.
-        low (List[str]): List of low prices as strings (field alias 'l').
-        c (List[str]): List of close prices as strings.
-        v (List[str]): List of volumes as strings.
-        s (str): Status string for the response.
+        o (List[str]): List of open prices as decimal strings.
+        h (List[str]): List of high prices as decimal strings.
+        low (List[str]): List of low prices as decimal strings (field alias 'l').
+        c (List[str]): List of close prices as decimal strings.
+        v (List[str]): List of volumes as decimal strings.
+        s (str): Status string for the response (e.g., 'ok').
     """
 
     t: list[int] = Field(..., alias="t")
@@ -73,6 +88,18 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     @field_validator("o", "h", "low", "c", "v", mode="before")
     @classmethod
     def validate_price_volume_list(cls, v: object, info: ValidationInfo) -> list[str]:
+        """
+        Validates that the field is a list of strings, each representing a finite decimal value.
+        Enforces maximum string length and decimal validity for all price/volume lists.
+
+        Args:
+            v (object): The value to validate (should be a list of strings).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            list[str]: The validated list of decimal strings.
+        Raises:
+            ValueError: If the input is not a list of valid decimal strings.
+        """
         field_name = getattr(info, "field_name", None) or "field"
 
         # Check if input is a list using TypeGuard
@@ -106,15 +133,27 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     @field_validator("s", mode="before")
     @classmethod
     def validate_status_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the status string field 's'. Enforces maximum length and valid UTF-8.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated status string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="s", max_length=32)
 
 
 class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
     """
-    Represents the request payload for the 'candleSnapshot' info type.
+    Strict boundary model for the request payload for the 'candleSnapshot' info type.
 
     This model is used to construct and validate the payload sent to the Hyperliquid API when
-    requesting candlestick data for a specific asset and interval.
+    requesting candlestick data for a specific asset and interval. Enforces strict type and format
+    constraints for all fields. Never use for internal business logic.
 
     Fields:
         type (str): Must be 'candleSnapshot'.
@@ -134,13 +173,33 @@ class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
     @field_validator("coin", mode="before")
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
-        # Enforce max_length=64 and valid UTF-8 for asset symbol
+        """
+        Validates the 'coin' field to ensure it is a string of max length 64 and valid UTF-8.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated asset symbol string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="coin", max_length=64)
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
     def validate_int_strict(cls, v: object, info: ValidationInfo) -> int:
-        # Enforce strict int type (no float or str coercion)
+        """
+        Validates that the field is a strict integer (no float or string coercion allowed).
+
+        Args:
+            v (object): The value to validate (should be an integer).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            int: The validated integer value.
+        Raises:
+            ValueError: If the input is not an integer.
+        """
         field_name = info.field_name or "field"
         if not isinstance(v, int):
             raise ValueError(f"{field_name}: Must be an integer (no coercion allowed)")
@@ -149,5 +208,15 @@ class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
     @field_validator("interval", mode="before")
     @classmethod
     def validate_interval(cls, v: object, info: ValidationInfo) -> str:
-        # Enforce max_length=16 and valid UTF-8 for interval string
+        """
+        Validates the 'interval' field to ensure it is a string of max length 16 and valid UTF-8.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated interval string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="interval", max_length=16)

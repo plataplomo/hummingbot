@@ -31,15 +31,16 @@ from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, v
 # --- Core Public Trade Model ---
 class HyperliquidRawPublicTrade(BaseModel):
     """
-    Represents a public trade object as returned in recent trades endpoints.
+    Strict boundary model for a public trade object as returned in recent trades endpoints.
 
-    This model is used to validate the structure of individual public trade entries, including asset symbol, side, price, size, timestamp, and trade hash.
+    This model validates the structure and content of individual public trade entries, enforcing strict
+    type and format constraints for all fields. Never use for internal business logic.
 
     Fields:
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
         side (str): Side of the trade ('B' for buy, 'A' for ask/sell).
-        px (str): Price at which the trade occurred.
-        sz (str): Size of the trade.
+        px (str): Price at which the trade occurred as a decimal string.
+        sz (str): Size of the trade as a decimal string.
         time (int): Timestamp of the trade event (epoch ms).
         hash (str): Unique trade hash.
     """
@@ -55,16 +56,50 @@ class HyperliquidRawPublicTrade(BaseModel):
     @field_validator("coin", mode="before")
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'coin' field to ensure it is a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated asset symbol string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="coin", max_length=64)
 
     @field_validator("side", mode="before")
     @classmethod
     def validate_side(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'side' field to ensure it is either 'B' (buy) or 'A' (ask/sell).
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated side string.
+        Raises:
+            ValueError: If the input is not a valid side value.
+        """
         return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
 
     @field_validator("px", "sz", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the field is a string representing a finite decimal (not NaN/inf),
+        with a maximum length of 64. This is critical for financial data integrity.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated decimal string.
+        Raises:
+            ValueError: If the input is not a valid decimal string.
+        """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -76,12 +111,13 @@ class HyperliquidRawPublicTrade(BaseModel):
 # --- Batch/Array Response ---
 class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrade]]):
     """
-    Represents an array of public trades as returned in the 'recentTrades' endpoint response.
+    Strict boundary model for an array of public trades as returned in the 'recentTrades' endpoint response.
 
-    This model is used to validate the structure of the batch response, which is a list of HyperliquidRawPublicTrade objects.
+    This model validates the structure and content of the batch response, enforcing strict type and
+    format constraints for all fields. Never use for internal business logic.
 
     Fields:
-        __root__ (List[HyperliquidRawPublicTrade]): List of public trade objects.
+        root (List[HyperliquidRawPublicTrade]): List of public trade objects.
     """
 
     @property
@@ -89,6 +125,9 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
         """
         Returns the validated list of public trades with full type safety.
         This is the preferred way to access the root data in Pydantic v2.
+
+        Returns:
+            list[HyperliquidRawPublicTrade]: The validated list of public trade objects.
         """
         return self.root
 
@@ -96,9 +135,11 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
 # --- Request Payload ---
 class HyperliquidRawRecentTradesRequestPayload(BaseModel):
     """
-    Represents the request payload for the 'recentTrades' info type.
+    Strict boundary model for the request payload for the 'recentTrades' info type.
 
-    This model is used to construct and validate the payload sent to the Hyperliquid API when requesting recent public trades for a specific asset.
+    This model is used to construct and validate the payload sent to the Hyperliquid API when requesting
+    recent public trades for a specific asset. Enforces strict type and format constraints for all fields.
+    Never use for internal business logic.
 
     Fields:
         type (str): Must be 'recentTrades'.
@@ -112,4 +153,15 @@ class HyperliquidRawRecentTradesRequestPayload(BaseModel):
     @field_validator("coin", mode="before")
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'coin' field to ensure it is a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated asset symbol string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="coin", max_length=64)

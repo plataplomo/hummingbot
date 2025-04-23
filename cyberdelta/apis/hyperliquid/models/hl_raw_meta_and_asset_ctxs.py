@@ -41,15 +41,22 @@ from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 # Type guard to check if an object is a list of dict[str, Any].
 def is_list_of_dict_str_any(obj: object) -> TypeGuard[list[dict[str, Any]]]:
     """
-    Type guard to check if an object is a list of dict[str, Any].
-    Used to enable static type narrowing for Pyright and maximize type safety.
+    TypeGuard for boundary validation: Checks if the input is a list of dictionaries with string keys.
+    This is used to ensure that untrusted external data (e.g., from API responses) conforms to the expected
+    structure before further processing. Enables static type narrowing for Pyright and Mypy, and is critical
+    for robust, secure schema enforcement at the boundary of CyberDeltaEngine.
+
+    Args:
+        obj (object): The object to check (typically untyped API response data).
+    Returns:
+        bool: True if obj is a list of dict[str, Any], False otherwise.
     """
     if not isinstance(obj, list):
         return False
     # NOTE: This loop processes untyped external input (object) from Pydantic boundary validation.
     # All runtime checks below are exhaustive: only list[dict[str, Any]] with str keys can pass.
     # The TypeGuard enables Pyright to safely narrow the type for downstream static analysis.
-    for item_any in obj:  # pyright: ignore[reportUnknownVariableType]
+    for item_any in obj:
         if not isinstance(item_any, dict):
             return False
         item: dict[Any, Any] = item_any
@@ -62,17 +69,17 @@ def is_list_of_dict_str_any(obj: object) -> TypeGuard[list[dict[str, Any]]]:
 
 class HyperliquidRawAssetDefinition(BaseModel):
     """
-    Represents a single asset/market definition as returned in the 'meta' endpoint response.
+    Strict boundary model for a single asset/market definition from the Hyperliquid 'meta' endpoint.
 
-    This model is used to validate the structure of each asset entry in the Hyperliquid universe.
-    It is a strict mirror of the upstream API schema and should not be used for internal business
-    logic.
+    This model is used exclusively for validating the raw structure of asset entries in the upstream
+    API response. It enforces strict type and format constraints to prevent malformed or ambiguous
+    data from entering the system. Never use for internal business logic.
 
     Fields:
         name (str): Asset symbol (e.g., 'ETH', 'BTC').
-        sz_decimals (int): Number of decimals for size/quantity precision.
-        max_leverage (int): Maximum leverage allowed for this asset.
-        only_isolated (bool): If True, only isolated margin is allowed for this asset.
+        sz_decimals (int): Number of decimals for size/quantity precision (0-18).
+        max_leverage (int): Maximum leverage allowed (0-1000).
+        only_isolated (bool): True if only isolated margin is allowed for this asset.
     """
 
     name: str = Field(..., alias="name")
@@ -84,11 +91,19 @@ class HyperliquidRawAssetDefinition(BaseModel):
     @field_validator("name", mode="before")
     @classmethod
     def validate_name(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'name' field to ensure it is a string of max length 64.
+        This prevents malformed or excessively long asset symbols from passing boundary validation.
+        """
         return validate_str_field(v, field_name="name", max_length=64)
 
     @field_validator("sz_decimals", mode="before")
     @classmethod
     def validate_sz_decimals(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Validates the 'sz_decimals' field to ensure it is an integer in [0, 18].
+        This enforces correct precision constraints for asset sizes.
+        """
         if not isinstance(v, int):
             raise ValueError("sz_decimals: Expected int")
         if v < 0 or v > 18:
@@ -98,6 +113,10 @@ class HyperliquidRawAssetDefinition(BaseModel):
     @field_validator("max_leverage", mode="before")
     @classmethod
     def validate_max_leverage(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Validates the 'max_leverage' field to ensure it is an integer in [0, 1000].
+        This prevents unsafe leverage values from entering the system.
+        """
         if not isinstance(v, int):
             raise ValueError("max_leverage: Expected int")
         if v < 0 or v > 1000:
@@ -107,6 +126,10 @@ class HyperliquidRawAssetDefinition(BaseModel):
     @field_validator("only_isolated", mode="before")
     @classmethod
     def validate_only_isolated(cls, v: object, info: ValidationInfo) -> bool:
+        """
+        Validates the 'only_isolated' field to ensure it is a boolean.
+        This enforces strict type safety for margin mode flags.
+        """
         if not isinstance(v, bool):
             raise ValueError("only_isolated: Expected bool")
         return v
@@ -114,20 +137,19 @@ class HyperliquidRawAssetDefinition(BaseModel):
 
 class HyperliquidRawAssetCtx(BaseModel):
     """
-    Represents contextual information for a single asset as returned in the 'metaAndAssetCtxs'
-    endpoint.
+    Strict boundary model for contextual information about a single asset from the 'metaAndAssetCtxs' endpoint.
 
-    This model is used to validate the structure of each asset context entry, which includes
-    funding rates, mark price, previous day price, daily notional volume, and (optionally) impact
-    price.
+    Used only for validating the raw structure of asset context entries (funding, mark price, etc.)
+    as received from the upstream API. Enforces strict type and format constraints for all fields.
+    Never use for internal business logic.
 
     Fields:
-        name (str): Asset symbol (e.g., 'ETH', 'BTC').
-        funding (str): Hourly funding rate as a string (precise decimal, not float).
-        mark_px (str): Mark price as a string.
-        prev_day_px (str): Previous day's price as a string.
-        day_ntl_vlm (str): Daily notional volume as a string.
-        impact_px (Optional[str]): Impact price as a string, or None if not present.
+        name (str): Asset symbol (max 64 chars).
+        funding (str): Hourly funding rate as a decimal string.
+        mark_px (str): Mark price as a decimal string.
+        prev_day_px (str): Previous day's price as a decimal string.
+        day_ntl_vlm (str): Daily notional volume as a decimal string.
+        impact_px (Optional[str]): Impact price as a decimal string, or None.
     """
 
     name: str = Field(..., alias="name")
@@ -141,11 +163,18 @@ class HyperliquidRawAssetCtx(BaseModel):
     @field_validator("name", mode="before")
     @classmethod
     def validate_name(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'name' field to ensure it is a string of max length 64.
+        """
         return validate_str_field(v, field_name="name", max_length=64)
 
     @field_validator("funding", "mark_px", "prev_day_px", "day_ntl_vlm", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the field is a string representing a finite decimal (not NaN/inf),
+        with a maximum length of 64. This is critical for financial data integrity.
+        """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -156,6 +185,9 @@ class HyperliquidRawAssetCtx(BaseModel):
     @field_validator("impact_px", mode="before")
     @classmethod
     def validate_impact_px(cls, v: object, info: ValidationInfo) -> str | None:
+        """
+        Validates the optional 'impact_px' field to ensure it is either None or a valid decimal string.
+        """
         if v is None:
             return v
         field_name = info.field_name or "impact_px"
@@ -168,15 +200,13 @@ class HyperliquidRawAssetCtx(BaseModel):
 
 class HyperliquidRawMetaResponse(BaseModel):
     """
-    Represents the top-level 'meta' response from the Hyperliquid API, containing the universe of
-    tradable assets.
+    Strict boundary model for the top-level 'meta' response from the Hyperliquid API.
 
-    This model is used to validate the structure of the 'meta' endpoint response, which is a
-    dictionary with a single key 'universe' mapping to a list of asset definitions.
+    Used only for validating the raw structure of the 'meta' endpoint response, which contains
+    the universe of tradable assets. Never use for internal business logic.
 
     Fields:
-        universe (List[HyperliquidRawAssetDefinition]): List of asset definitions for all tradable
-            markets.
+        universe (List[HyperliquidRawAssetDefinition]): List of asset definitions.
     """
 
     universe: list[HyperliquidRawAssetDefinition] = Field(..., alias="universe")
@@ -186,12 +216,8 @@ class HyperliquidRawMetaResponse(BaseModel):
     @classmethod
     def validate_universe(cls, v: object, info: ValidationInfo) -> list[dict[str, Any]]:
         """
-        Validates the 'universe' field to ensure it is a list of dicts (raw asset definitions).
-        Uses a TypeGuard helper to guarantee both runtime and static type safety.
-        Returns:
-            list[dict[str, Any]]: The validated list of asset definition dicts.
-        Raises:
-            ValueError: If the input is not a list of dicts with str keys.
+        Validates the 'universe' field to ensure it is a list of dicts with string keys.
+        This is a critical boundary check to prevent malformed asset lists from entering the system.
         """
         if not is_list_of_dict_str_any(v):
             raise ValueError("universe: Expected a list of dict[str, Any] with str keys")
@@ -201,15 +227,14 @@ class HyperliquidRawMetaResponse(BaseModel):
 
 class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
     """
-    Represents the strict 2-tuple response [meta, assetCtxs] from the 'metaAndAssetCtxs' endpoint.
+    Strict boundary model for the [meta, assetCtxs] tuple response from the 'metaAndAssetCtxs' endpoint.
 
-    This model is used to validate the structure of the 'metaAndAssetCtxs' endpoint response, which
-    is a list containing two elements: the meta response (as a dict) and a list of asset context
-    dicts.
+    Used only for validating the raw structure of the 2-tuple response: meta info and asset contexts.
+    Never use for internal business logic.
 
     Fields:
-        meta (HyperliquidRawMetaResponse): The meta/universe information.
-        asset_ctxs (List[HyperliquidRawAssetCtx]): List of asset context objects for each asset.
+        meta (HyperliquidRawMetaResponse): Meta/universe information.
+        asset_ctxs (List[HyperliquidRawAssetCtx]): List of asset context objects.
 
     Usage:
         Use the custom classmethod `model_validate` to parse and validate a raw list response.
@@ -230,24 +255,14 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         by_name: bool | None = None,
     ) -> Self:
         """
-        Validates a MetaAndAssetCtxs response from a list [meta, assetCtxs].
-
-        Args:
-            obj (object): The raw response object, expected to be a list of [MetaResponse (dict),
-                List[AssetCtx (dict)]].
-            strict, from_attributes, context, by_alias, by_name: Passed through to Pydantic
-                validation (optional).
-
-        Returns:
-            HyperliquidRawMetaAndAssetCtxsResponse: The validated and parsed response object.
-
-        Raises:
-            ValueError: If the input structure does not match the expected 2-tuple format.
+        Custom validator for the [meta, assetCtxs] tuple response. Ensures the input is a list of length 2,
+        with the first element a dict (meta) and the second a list of dicts (asset contexts). Raises ValueError
+        if the structure is not as expected. This is essential for robust boundary validation of upstream API data.
         """
         # NOTE: Dynamic untyped input from API boundary; Pyright cannot infer type for len(obj).
         # All runtime checks are exhaustive and guarantee type safety for the expected structure.
         # This ignore is justified and safe for boundary validation.
-        if not (isinstance(obj, list) and len(obj) == 2):  # pyright: ignore[reportUnknownArgumentType]
+        if not (isinstance(obj, list) and len(obj) == 2):
             raise ValueError("Invalid MetaAndAssetCtxs response structure: not a 2-element list")
         obj_list: list[object] = obj
         # NOTE:Dynamic untyped input from API boundary; Pyright cannot infer type for obj_list[1] iteration.
@@ -256,7 +271,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         if (
             isinstance(obj_list[0], dict)
             and isinstance(obj_list[1], list)
-            and all(isinstance(x, dict) for x in obj_list[1])  # pyright: ignore[reportUnknownVariableType]
+            and all(isinstance(x, dict) for x in obj_list[1])
         ):
             meta_dict: dict[str, object] = obj_list[0]
             asset_ctxs_list: list[dict[str, object]] = obj_list[1]
@@ -270,10 +285,10 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
 
 class HyperliquidRawMetaRequestPayload(BaseModel):
     """
-    Represents the request payload for the 'meta' info type.
+    Strict boundary model for the request payload for the 'meta' info type.
 
-    This model is used to construct and validate the payload sent to the Hyperliquid API when
-    requesting meta/universe information.
+    Used only for constructing and validating the payload sent to the Hyperliquid API when requesting
+    meta/universe information. Never use for internal business logic.
 
     Fields:
         type (str): Must be 'meta'.
@@ -285,6 +300,9 @@ class HyperliquidRawMetaRequestPayload(BaseModel):
     @field_validator("type", mode="before")
     @classmethod
     def validate_type(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'type' field to ensure it is exactly 'meta'.
+        """
         s = validate_str_field(v, field_name="type", max_length=32)
         if s != "meta":
             raise ValueError("type: Must be 'meta'")
@@ -293,10 +311,10 @@ class HyperliquidRawMetaRequestPayload(BaseModel):
 
 class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
     """
-    Represents the request payload for the 'metaAndAssetCtxs' info type.
+    Strict boundary model for the request payload for the 'metaAndAssetCtxs' info type.
 
-    This model is used to construct and validate the payload sent to the Hyperliquid API when
-    requesting both meta and asset context information.
+    Used only for constructing and validating the payload sent to the Hyperliquid API when requesting
+    both meta and asset context information. Never use for internal business logic.
 
     Fields:
         type (str): Must be 'metaAndAssetCtxs'.
@@ -308,6 +326,9 @@ class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
     @field_validator("type", mode="before")
     @classmethod
     def validate_type(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'type' field to ensure it is exactly 'metaAndAssetCtxs'.
+        """
         s = validate_str_field(v, field_name="type", max_length=32)
         if s != "metaAndAssetCtxs":
             raise ValueError("type: Must be 'metaAndAssetCtxs'")
@@ -316,15 +337,15 @@ class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
 
 class HyperliquidRawUpdateLeverageRequest(BaseModel):
     """
-    Represents the request payload for updating leverage settings for a specific asset.
+    Strict boundary model for the request payload for updating leverage settings for a specific asset.
 
-    This model is used to construct and validate the payload sent to the Hyperliquid API when
-    updating leverage for an asset, specifying whether cross margin is used and the leverage value.
+    Used only for constructing and validating the payload sent to the Hyperliquid API when updating
+    leverage for an asset. Never use for internal business logic.
 
     Fields:
-        asset (int): Asset index (as used by the API).
-        is_cross (bool): True if cross margin is to be used, False for isolated.
-        leverage (int): The leverage value to set.
+        asset (int): Asset index (API-defined).
+        is_cross (bool): True for cross margin, False for isolated.
+        leverage (int): Leverage value to set.
     """
 
     asset: int = Field(..., alias="asset")
@@ -335,6 +356,9 @@ class HyperliquidRawUpdateLeverageRequest(BaseModel):
     @field_validator("asset", mode="before")
     @classmethod
     def validate_asset(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Validates the 'asset' field to ensure it is an integer (asset index).
+        """
         if not isinstance(v, int):
             raise ValueError("asset: Expected int")
         if v < 0:
@@ -344,6 +368,9 @@ class HyperliquidRawUpdateLeverageRequest(BaseModel):
     @field_validator("is_cross", mode="before")
     @classmethod
     def validate_is_cross(cls, v: object, info: ValidationInfo) -> bool:
+        """
+        Validates the 'is_cross' field to ensure it is a boolean.
+        """
         if not isinstance(v, bool):
             raise ValueError("is_cross: Expected bool")
         return v
@@ -351,6 +378,9 @@ class HyperliquidRawUpdateLeverageRequest(BaseModel):
     @field_validator("leverage", mode="before")
     @classmethod
     def validate_leverage(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Validates the 'leverage' field to ensure it is an integer (leverage value).
+        """
         if not isinstance(v, int):
             raise ValueError("leverage: Expected int")
         if v < 0 or v > 1000:
@@ -360,15 +390,15 @@ class HyperliquidRawUpdateLeverageRequest(BaseModel):
 
 class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
     """
-    Represents the request payload for updating isolated margin for a specific asset.
+    Strict boundary model for the request payload for updating isolated margin for a specific asset.
 
-    This model is used to construct and validate the payload sent to the Hyperliquid API when
-    updating isolated margin for an asset, specifying buy/sell and the notional amount.
+    Used only for constructing and validating the payload sent to the Hyperliquid API when updating
+    isolated margin for an asset. Never use for internal business logic.
 
     Fields:
-        asset (int): Asset index (as used by the API).
-        is_buy (bool): True if the operation is a buy, False for sell.
-        ntli (int): The notional amount to update.
+        asset (int): Asset index (API-defined).
+        is_buy (bool): True for buy, False for sell.
+        ntli (int): Notional amount to update.
     """
 
     asset: int = Field(..., alias="asset")
@@ -379,6 +409,9 @@ class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
     @field_validator("asset", mode="before")
     @classmethod
     def validate_asset(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Validates the 'asset' field to ensure it is an integer (asset index).
+        """
         if not isinstance(v, int):
             raise ValueError("asset: Expected int")
         if v < 0:
@@ -388,6 +421,9 @@ class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
     @field_validator("is_buy", mode="before")
     @classmethod
     def validate_is_buy(cls, v: object, info: ValidationInfo) -> bool:
+        """
+        Validates the 'is_buy' field to ensure it is a boolean.
+        """
         if not isinstance(v, bool):
             raise ValueError("is_buy: Expected bool")
         return v
@@ -395,6 +431,9 @@ class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
     @field_validator("ntli", mode="before")
     @classmethod
     def validate_ntli(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Validates the 'ntli' field to ensure it is an integer (notional amount).
+        """
         if not isinstance(v, int):
             raise ValueError("ntli: Expected int")
         if v < 0:

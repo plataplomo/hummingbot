@@ -49,14 +49,15 @@ def all_are_lists(items: list[Any]) -> bool:
 # --- Price Level Submodel ---
 class HyperliquidRawBookLevel(BaseModel):
     """
-    Represents a single price level in the order book as returned in L2 book endpoints.
+    Strict boundary model for a single price level in the order book as returned in L2 book endpoints.
 
-    This model is used to validate the structure of each price level entry in order book responses.
+    This model validates the structure and content of each price level entry, enforcing strict type and
+    format constraints for all fields. Never use for internal business logic.
 
     Fields:
-        px (str): Price at this level.
-        sz (str): Size available at this price level.
-        n (int): Number of orders at this price level.
+        px (str): Price at this level as a decimal string.
+        sz (str): Size available at this price level as a decimal string.
+        n (int): Number of orders at this price level (must be non-negative integer).
     """
 
     px: str = Field(..., alias="px")
@@ -67,6 +68,18 @@ class HyperliquidRawBookLevel(BaseModel):
     @field_validator("px", "sz", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the field is a string representing a finite decimal (not NaN/inf),
+        with a maximum length of 64. This is critical for financial data integrity.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated decimal string.
+        Raises:
+            ValueError: If the input is not a valid decimal string.
+        """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -78,7 +91,15 @@ class HyperliquidRawBookLevel(BaseModel):
     @classmethod
     def validate_n_non_negative(cls, v: object, info: ValidationInfo) -> int:
         """
-        Enforce that n (number of orders at this price level) is non-negative.
+        Validates that 'n' (number of orders at this price level) is a non-negative integer.
+
+        Args:
+            v (object): The value to validate (should be an integer).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            int: The validated number of orders.
+        Raises:
+            ValueError: If the input is not a non-negative integer.
         """
         if not isinstance(v, int):
             raise ValueError(f"n: Expected int, got {type(v).__name__}")
@@ -90,10 +111,10 @@ class HyperliquidRawBookLevel(BaseModel):
 # --- L2 Order Book Model ---
 class HyperliquidRawL2Book(BaseModel):
     """
-    Represents a full L2 order book snapshot as returned in order book endpoints.
+    Strict boundary model for a full L2 order book snapshot as returned in order book endpoints.
 
-    This model is used to validate the structure of the L2 book response, which includes the asset
-    symbol, nested lists of price levels for bids and asks, and a snapshot timestamp.
+    This model validates the structure and content of the L2 book response, enforcing strict type and
+    format constraints for all fields. Never use for internal business logic.
 
     Fields:
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
@@ -109,6 +130,17 @@ class HyperliquidRawL2Book(BaseModel):
     @field_validator("coin", mode="before")
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'coin' field to ensure it is a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated asset symbol string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="coin", max_length=64)
 
     @field_validator("levels", mode="before")
@@ -117,8 +149,17 @@ class HyperliquidRawL2Book(BaseModel):
         cls, v: object, info: ValidationInfo
     ) -> list[list[HyperliquidRawBookLevel]]:
         """
-        Enforce that levels is a list of length 2 (bids, asks), and each element is a list.
-        Uses TypeGuard pattern to ensure both runtime and type-checker safety.
+        Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
+        Uses TypeGuard pattern to ensure both runtime and type-checker safety. Each entry is validated
+        as a HyperliquidRawBookLevel.
+
+        Args:
+            v (object): The value to validate (should be a list of two lists).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            list[list[HyperliquidRawBookLevel]]: The validated nested list of book levels.
+        Raises:
+            ValueError: If the input is not a valid structure for order book levels.
         """
         # Verify v is a list
         if not is_list(v):
@@ -162,6 +203,17 @@ class HyperliquidRawL2Book(BaseModel):
     @field_validator("time", mode="before")
     @classmethod
     def validate_time(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Validates the 'time' field to ensure it is an integer (epoch ms).
+
+        Args:
+            v (object): The value to validate (should be an integer).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            int: The validated timestamp.
+        Raises:
+            ValueError: If the input is not an integer.
+        """
         if not isinstance(v, int):
             raise ValueError("time: Expected int (epoch ms)")
         return v
@@ -170,10 +222,11 @@ class HyperliquidRawL2Book(BaseModel):
 # --- Request Payload ---
 class HyperliquidRawL2BookRequestPayload(BaseModel):
     """
-    Represents the request payload for the 'l2Book' info type.
+    Strict boundary model for the request payload for the 'l2Book' info type.
 
     This model is used to construct and validate the payload sent to the Hyperliquid API when
-    requesting a full L2 order book snapshot for a specific asset.
+    requesting a full L2 order book snapshot for a specific asset. Enforces strict type and format
+    constraints for all fields. Never use for internal business logic.
 
     Fields:
         type (str): Must be 'l2Book'.
@@ -187,4 +240,15 @@ class HyperliquidRawL2BookRequestPayload(BaseModel):
     @field_validator("coin", mode="before")
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'coin' field to ensure it is a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated asset symbol string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="coin", max_length=64)

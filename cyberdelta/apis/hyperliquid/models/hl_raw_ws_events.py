@@ -49,17 +49,16 @@ U = TypeVar("U")
 
 class HyperliquidRawWsFillEvent(BaseModel):
     """
-    Represents a WebSocket fill event (user fill/execution) as received from the Hyperliquid user
-    channel.
+    Strict boundary model for a WebSocket fill event (user fill/execution) as received from the
+    Hyperliquid user channel.
 
-    This model is used to validate the structure of fill events, which indicate a user's order has
-    been executed. It is a strict mirror of the upstream API schema and should not be used for
-    internal business logic.
+    This model validates the structure and content of fill events, enforcing strict type and format
+    constraints for all fields. Never use for internal business logic.
 
     Fields:
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
-        px (str): Price at which the fill occurred.
-        sz (str): Size of the fill.
+        px (str): Price at which the fill occurred as a decimal string.
+        sz (str): Size of the fill as a decimal string.
         side (str): Side of the trade ('B' for buy, 'A' for ask/sell).
         time (int): Timestamp of the fill event (epoch ms).
         hash (str): Unique trade hash.
@@ -82,11 +81,34 @@ class HyperliquidRawWsFillEvent(BaseModel):
     @field_validator("coin", mode="before")
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'coin' field to ensure it is a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated asset symbol string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="coin", max_length=64)
 
     @field_validator("px", "sz", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the field is a string representing a finite decimal (not NaN/inf),
+        with a maximum length of 64. This is critical for financial data integrity.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated decimal string.
+        Raises:
+            ValueError: If the input is not a valid decimal string.
+        """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -97,16 +119,49 @@ class HyperliquidRawWsFillEvent(BaseModel):
     @field_validator("side", mode="before")
     @classmethod
     def validate_side(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'side' field to ensure it is either 'B' (buy) or 'A' (ask/sell).
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated side string.
+        Raises:
+            ValueError: If the input is not a valid side value.
+        """
         return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
 
     @field_validator("hash", mode="before")
     @classmethod
     def validate_hash(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'hash' field to ensure it is a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated hash string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="hash", max_length=64)
 
     @field_validator("cloid", mode="before")
     @classmethod
     def validate_cloid(cls, v: object, info: ValidationInfo) -> str | None:
+        """
+        Validates the optional 'cloid' field to ensure it is either None or a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string or None).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            Optional[str]: The validated client order ID string or None.
+        Raises:
+            ValueError: If the input is not a valid string or None.
+        """
         if v is None:
             return v
         return validate_str_field(v, field_name="cloid", max_length=64)
@@ -161,10 +216,10 @@ def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, Any]]]
 
 class HyperliquidRawWsBookUpdate(BaseModel):
     """
-    Represents a WebSocket order book update event (l2Book channel).
+    Strict boundary model for a WebSocket order book update event (l2Book channel).
 
-    This model is used to validate the structure of order book update events, which provide the
-    latest bids and asks for an asset.
+    This model validates the structure and content of order book update events, enforcing strict type
+    and format constraints for all fields. Never use for internal business logic.
 
     Fields:
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
@@ -180,6 +235,17 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     @field_validator("coin", mode="before")
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'coin' field to ensure it is a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated asset symbol string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="coin", max_length=64)
 
     @field_validator("levels", mode="before")
@@ -190,6 +256,14 @@ class HyperliquidRawWsBookUpdate(BaseModel):
         """
         Validates and converts the 'levels' field to a list of two lists of HyperliquidRawBookLevel.
         Uses explicit type checking patterns that satisfy both Mypy and Pyright.
+
+        Args:
+            v (object): The value to validate (should be a list of two lists).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            list[list[HyperliquidRawBookLevel]]: The validated nested list of book levels.
+        Raises:
+            ValueError: If the input is not a valid structure for order book levels.
         """
         # First validate it's a list
         if not is_list(v):

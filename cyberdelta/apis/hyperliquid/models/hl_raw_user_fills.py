@@ -36,26 +36,25 @@ from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, v
 # --- Core User Fill Model ---
 class HyperliquidRawUserFill(BaseModel):
     """
-    Represents a user fill/trade object as returned in user fills endpoints.
+    Strict boundary model for a user fill/trade object as returned in user fills endpoints.
 
-    This model is used to validate the structure of individual user fill entries, including trade
-    ID, asset symbol, price, size, timestamp, side, order ID, start position, direction, hash, fee,
-    maker/taker status, liquidation mark price, and client order ID.
+    This model validates the structure and content of individual user fill entries, enforcing strict
+    type and format constraints for all fields. Never use for internal business logic.
 
     Fields:
         tid (int): Trade ID.
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
-        px (str): Price at which the fill occurred.
-        sz (str): Size of the fill.
+        px (str): Price at which the fill occurred as a decimal string.
+        sz (str): Size of the fill as a decimal string.
         time (int): Timestamp of the fill event (epoch ms).
         side (str): Side of the trade ('B' for buy, 'A' for ask/sell).
         oid (int): Order ID associated with the fill.
         start_position (str): Start position before the fill.
         dir (str): Direction of the fill.
         hash (str): Unique trade hash.
-        fee (str): Fee paid for the fill.
+        fee (str): Fee paid for the fill as a decimal string.
         is_maker (bool): True if the user was the maker in this trade.
-        liquidation_mark_px (Optional[str]): Liquidation mark price, if present.
+        liquidation_mark_px (Optional[str]): Liquidation mark price as a decimal string, if present.
         cloid (Optional[str]): Client order ID, if present.
     """
 
@@ -78,11 +77,34 @@ class HyperliquidRawUserFill(BaseModel):
     @field_validator("coin", mode="before")
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'coin' field to ensure it is a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated asset symbol string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         return validate_str_field(v, field_name="coin", max_length=64)
 
     @field_validator("px", "sz", "fee", mode="before")
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the field is a string representing a finite decimal (not NaN/inf),
+        with a maximum length of 64. This is critical for financial data integrity.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated decimal string.
+        Raises:
+            ValueError: If the input is not a valid decimal string.
+        """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -93,17 +115,50 @@ class HyperliquidRawUserFill(BaseModel):
     @field_validator("side", mode="before")
     @classmethod
     def validate_side(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates the 'side' field to ensure it is either 'B' (buy) or 'A' (ask/sell).
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated side string.
+        Raises:
+            ValueError: If the input is not a valid side value.
+        """
         return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
 
     @field_validator("start_position", "dir", "hash", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the field is a non-empty string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated string.
+        Raises:
+            ValueError: If the input is not a valid string.
+        """
         field_name = info.field_name or "field"
         return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator("liquidation_mark_px", "cloid", mode="before")
     @classmethod
     def validate_optional_str(cls, v: object, info: ValidationInfo) -> str | None:
+        """
+        Validates that the field is either None or a string of max length 64.
+
+        Args:
+            v (object): The value to validate (should be a string or None).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            Optional[str]: The validated string or None.
+        Raises:
+            ValueError: If the input is not a valid string or None.
+        """
         if v is None:
             return v
         field_name = info.field_name or "field"
@@ -114,6 +169,14 @@ class HyperliquidRawUserFill(BaseModel):
     def validate_is_maker_bool(cls, v: object, info: ValidationInfo) -> bool:
         """
         Strictly enforce that is_maker is a bool (no coercion). This is required by the raw model policy.
+
+        Args:
+            v (object): The value to validate (should be a bool).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            bool: The validated boolean value.
+        Raises:
+            ValueError: If the input is not a bool.
         """
         if not isinstance(v, bool):
             raise ValueError(f"is_maker: Expected bool, got {type(v).__name__}")
@@ -124,6 +187,14 @@ class HyperliquidRawUserFill(BaseModel):
     def validate_no_null_bytes(cls, v: object, info: ValidationInfo) -> str | None:
         """
         Reject null bytes (\x00) in cloid and hash fields for safety and robustness.
+
+        Args:
+            v (object): The value to validate (should be a string or None).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            Optional[str]: The validated string or None.
+        Raises:
+            ValueError: If the input contains null bytes or is not a valid string or None.
         """
         if v is None:
             return v
@@ -137,6 +208,14 @@ class HyperliquidRawUserFill(BaseModel):
     def validate_optional_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
         """
         Ensure optional decimal string is valid if present (finite decimal, not NaN/inf).
+
+        Args:
+            v (object): The value to validate (should be a string or None).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            Optional[str]: The validated decimal string or None.
+        Raises:
+            ValueError: If the input is not a valid decimal string or None.
         """
         if v is None:
             return v
@@ -150,13 +229,13 @@ class HyperliquidRawUserFill(BaseModel):
 # --- Batch/Array Response ---
 class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
     """
-    Represents an array of user fills as returned in the 'userFills' endpoint response.
+    Strict boundary model for an array of user fills as returned in the 'userFills' endpoint response.
 
-    This model is used to validate the structure of the batch response, which is a list of
-    HyperliquidRawUserFill objects.
+    This model validates the structure and content of the batch response, enforcing strict type and
+    format constraints for all fields. Never use for internal business logic.
 
     Fields:
-        __root__ (List[HyperliquidRawUserFill]): List of user fill objects.
+        root (List[HyperliquidRawUserFill]): List of user fill objects.
     """
 
     pass
@@ -165,10 +244,11 @@ class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
 # --- Request Payload ---
 class HyperliquidRawUserFillsRequestPayload(BaseModel):
     """
-    Represents the request payload for the 'userFills' info type.
+    Strict boundary model for the request payload for the 'userFills' info type.
 
     This model is used to construct and validate the payload sent to the Hyperliquid API when
-    requesting user fills for a specific wallet address.
+    requesting user fills for a specific wallet address. Enforces strict type and format constraints for
+    all fields. Never use for internal business logic.
 
     Fields:
         type (str): Must be 'userFills'.
@@ -184,6 +264,14 @@ class HyperliquidRawUserFillsRequestPayload(BaseModel):
     def validate_user_eth_address(cls, v: object, info: ValidationInfo) -> str:
         """
         Enforce Ethereum address pattern ^0x[0-9a-fA-F]{40}$ for user field.
+
+        Args:
+            v (object): The value to validate (should be a string).
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str: The validated Ethereum address string.
+        Raises:
+            ValueError: If the input is not a valid Ethereum address string.
         """
         s = validate_str_field(v, field_name="user", max_length=64)
         import re
