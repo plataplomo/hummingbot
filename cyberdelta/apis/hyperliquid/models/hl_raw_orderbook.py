@@ -30,11 +30,26 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from typing import Any, cast
+from typing import Any, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+
+
+def is_list(obj: object) -> TypeGuard[list[Any]]:
+    """TypeGuard to check if an object is a list"""
+    return isinstance(obj, list)
+
+
+def has_exact_length(lst: list[Any], length: int) -> bool:
+    """Check if a list has exactly the specified length"""
+    return len(lst) == length
+
+
+def all_are_lists(items: list[Any]) -> bool:
+    """Check if all items in a list are themselves lists"""
+    return all(isinstance(sub, list) for sub in items)
 
 
 # --- Price Level Submodel ---
@@ -107,18 +122,55 @@ class HyperliquidRawL2Book(BaseModel):
     def validate_levels_structure(
         cls, v: object, info: ValidationInfo
     ) -> list[list[HyperliquidRawBookLevel]]:
-        # Type: v is expected to be a list of two lists (bids, asks), but may be Any at this point
-        v_list: list[Any] = v  # type: ignore
         """
         Enforce that levels is a list of length 2 (bids, asks), and each element is a list.
+        Uses TypeGuard pattern to ensure both runtime and type-checker safety.
         """
-        # No need to check isinstance(v_list, list): v_list is always a list[Any] due to the cast above
-        if len(v_list) != 2:
+        # Verify v is a list
+        if not is_list(v):
             raise ValueError("levels: Must be a list of two lists (bids, asks)")
-        if not all(isinstance(sub, list) for sub in v_list):
+
+        # Check it has exactly 2 elements
+        if not has_exact_length(v, 2):
+            raise ValueError("levels: Must be a list of two lists (bids, asks)")
+
+        # Verify all elements are lists
+        if not all_are_lists(v):
             raise ValueError("levels: Each element must be a list (bids, asks)")
-        # At this point, v_list is a list[list[Any]], but we expect list[list[HyperliquidRawBookLevel]]
-        return cast(list[list[HyperliquidRawBookLevel]], v_list)
+
+        # Create the result list
+        result: list[list[HyperliquidRawBookLevel]] = []
+
+        # Process each side (bids, asks)
+        for i, side in enumerate(v):
+            side_levels: list[HyperliquidRawBookLevel] = []
+
+            # Process each entry in the side
+            for j, level in enumerate(side):
+                # Validate the book level
+                if isinstance(level, HyperliquidRawBookLevel):
+                    side_levels.append(level)
+                elif isinstance(level, dict):
+                    try:
+                        # Use type annotation instead of cast
+                        level_dict: dict[str, Any] = level
+                        book_level = HyperliquidRawBookLevel.model_validate(level_dict)
+                        side_levels.append(book_level)
+                    except Exception as e:
+                        raise ValueError(f"levels[{i}][{j}]: Invalid book level: {e}") from e
+                else:
+                    raise ValueError(f"levels[{i}][{j}]: Must be a dict or HyperliquidRawBookLevel")
+
+            result.append(side_levels)
+
+        return result
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def validate_time(cls, v: object, info: ValidationInfo) -> int:
+        if not isinstance(v, int):
+            raise ValueError("time: Expected int (epoch ms)")
+        return v
 
 
 # --- Request Payload ---

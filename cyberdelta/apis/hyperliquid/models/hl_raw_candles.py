@@ -33,9 +33,21 @@ Do not use these models for internal business logic—use your core models for t
 These are for boundary validation only.
 """
 
+from typing import Any, TypeGuard
+
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+
+
+def is_list(obj: object) -> TypeGuard[list[Any]]:
+    """TypeGuard to check if an object is a list"""
+    return isinstance(obj, list)
+
+
+def is_string(obj: object) -> TypeGuard[str]:
+    """TypeGuard to check if an object is a string"""
+    return isinstance(obj, str)
 
 
 class HyperliquidRawCandleSnapshot(BaseModel):
@@ -69,17 +81,34 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     @classmethod
     def validate_price_volume_list(cls, v: object, info: ValidationInfo) -> list[str]:
         field_name = getattr(info, "field_name", None) or "field"
-        if not isinstance(v, list):
+
+        # Check if input is a list using TypeGuard
+        if not is_list(v):
             raise ValueError(f"{field_name}: Must be a list of strings.")
-        for i, item in enumerate(v):
-            item_str: str = item
-            s = validate_str_field(item_str, field_name=f"{field_name}[{i}]", max_length=64)
+
+        # At this point, mypy and pyright know v is a List[Any]
+        result: list[str] = []
+
+        # Process each item in the list
+        for i, item_obj in enumerate(v):
+            # Verify the item is a string
+            if not is_string(item_obj):
+                raise ValueError(f"{field_name}[{i}]: Must be a string.")
+
+            # Now item_obj is known to be a string
+            s = validate_str_field(item_obj, field_name=f"{field_name}[{i}]", max_length=64)
+
+            # Validate it's a valid decimal
             d = parse_decimal_value(s, allow_none=False, field_name=f"{field_name}[{i}]")
             if d is None or not d.is_finite():
                 raise ValueError(
                     f"{field_name}[{i}]: Value must be a finite decimal (not NaN or inf)"
                 )
-        return v
+
+            # Add the validated string to our result list
+            result.append(s)
+
+        return result
 
     @field_validator("s", mode="before")
     @classmethod

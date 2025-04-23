@@ -38,11 +38,31 @@ Do not use these models for internal business logic—use your core models for t
 These are for boundary validation only.
 """
 
-from typing import Any
+from typing import Any, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, PydanticUndefined, RootModel, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+
+
+def is_dict(obj: object) -> TypeGuard[dict[str, Any]]:
+    """TypeGuard to check if an object is a dictionary"""
+    return isinstance(obj, dict)
+
+
+def is_str_to_str_dict(obj: object) -> TypeGuard[dict[str, str]]:
+    """
+    TypeGuard to check if an object is a dictionary with string keys and string values
+    """
+    if not is_dict(obj):
+        return False
+
+    # Check if all keys are strings and all values are strings
+    for k, v in obj.items():
+        if not isinstance(k, str) or not isinstance(v, str):
+            return False
+
+    return True
 
 
 class HyperliquidRawAllMidsRequestPayload(BaseModel):
@@ -80,28 +100,45 @@ class HyperliquidRawAllMids(RootModel[dict[str, str]]):
         (as a string).
     """
 
-    # NOTE: The default value for __root__ (PydanticUndefined) is required for Pydantic v2 RootModel
-    # compatibility, but will trigger a type checker warning because its type is 'object', not 'dict[str, str]'.
-    # This is a known, accepted exception and is safe due to the runtime check below.
-    # See: https://docs.pydantic.dev/latest/concepts/models/#rootmodel
-    # pyright: ignore[reportArgumentType]
-    def __init__(self, __root__: dict[str, str] = PydanticUndefined, **data: Any) -> None:  # type: ignore[assignment]  # pyright: ignore[reportArgumentType]
+    # Override __init__ to provide better validation while maintaining type safety
+    def __init__(self, __root__: Any = PydanticUndefined, **data: Any) -> None:
         """
         Custom __init__ to perform strict validation on the root dict before model initialization.
+
+        Uses explicit type checking with TypeGuards to ensure both runtime and type safety.
 
         Args:
             __root__: The root dictionary mapping asset symbols to mid prices (as strings).
         Raises:
+            TypeError: If __root__ is not provided.
             ValueError: If any symbol or price is invalid or not a finite decimal.
         """
+        # Check if __root__ is provided
         if __root__ is PydanticUndefined:
             raise TypeError("__root__ argument is required for HyperliquidRawAllMids")
+
+        # Validate it's a dictionary with string keys and values
+        if not is_str_to_str_dict(__root__):
+            raise ValueError("__root__ must be a dict mapping string keys to string values")
+
+        # Validate each symbol and price
+        validated_data: dict[str, str] = {}
         for symbol, price in __root__.items():
-            validate_str_field(symbol, field_name="symbol", max_length=64)
-            s: str = validate_str_field(price, field_name=f"price[{symbol}]", max_length=64)
-            d = parse_decimal_value(s, allow_none=False, field_name=f"price[{symbol}]")
+            # Validate symbol
+            valid_symbol = validate_str_field(symbol, field_name="symbol", max_length=64)
+
+            # Validate price
+            valid_price = validate_str_field(price, field_name=f"price[{symbol}]", max_length=64)
+
+            # Check price is a valid decimal
+            d = parse_decimal_value(valid_price, allow_none=False, field_name=f"price[{symbol}]")
             if d is None or not d.is_finite():
                 raise ValueError(
                     f"price[{symbol}]: Value must be a finite decimal (not NaN or inf)"
                 )
-        super().__init__(__root__=__root__)  # pyright: ignore[reportArgumentType]
+
+            # Add to validated data
+            validated_data[valid_symbol] = valid_price
+
+        # Initialize with validated data - at this point, we know it's Dict[str, str]
+        super().__init__(root=validated_data)
