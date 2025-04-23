@@ -84,7 +84,13 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
         __root__ (List[HyperliquidRawPublicTrade]): List of public trade objects.
     """
 
-    pass
+    @property
+    def items(self) -> list[HyperliquidRawPublicTrade]:
+        """
+        Returns the validated list of public trades with full type safety.
+        This is the preferred way to access the root data in Pydantic v2.
+        """
+        return self.root
 
 
 # --- Request Payload ---

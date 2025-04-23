@@ -517,15 +517,18 @@ class HyperliquidAPI(ExchangeAPI):
             # --- Open Orders ---
             from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
                 HyperliquidRawOpenOrdersResponse,
+                HyperliquidRawOrder,
             )
 
-            validated = HyperliquidRawOpenOrdersResponse.model_validate(response)
+            validated: HyperliquidRawOpenOrdersResponse = (
+                HyperliquidRawOpenOrdersResponse.model_validate(response)
+            )
             open_orders: list[Order] = []
-            for order_obj in validated.__root__:
-                order_data = order_obj.order
-                order_symbol = order_data.asset
+            for order_obj in validated.items:
+                order_data: HyperliquidRawOrder = order_obj.order
+                order_symbol: str = order_data.asset
                 if symbol is None or order_symbol == symbol:
-                    order_status_str = order_data.status
+                    order_status_str: str = order_data.status
                     if order_status_str == "open":
                         pass
                     elif order_status_str == "filled":
@@ -624,8 +627,10 @@ class HyperliquidAPI(ExchangeAPI):
                 HyperliquidRawRecentTradesResponse,
             )
 
-            validated = HyperliquidRawRecentTradesResponse.model_validate(response)
-            trade_dicts = [t.model_dump() for t in validated.__root__]
+            validated: HyperliquidRawRecentTradesResponse = (
+                HyperliquidRawRecentTradesResponse.model_validate(response)
+            )
+            trade_dicts: list[dict[str, Any]] = [t.model_dump() for t in validated.items]
             return HyperliquidMapper.map_raw_trades(symbol, trade_dicts, limit)
         except APIError as e:
             logger.error(

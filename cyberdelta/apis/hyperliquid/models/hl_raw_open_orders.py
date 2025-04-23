@@ -219,7 +219,13 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]])
         __root__: List of HyperliquidRawOpenOrder
     """
 
-    pass
+    @property
+    def items(self) -> list[HyperliquidRawOpenOrder]:
+        """
+        Returns the validated list of open orders with full type safety.
+        This is the preferred way to access the root data in Pydantic v2.
+        """
+        return self.root
 
 
 class HyperliquidRawOpenOrdersRequestPayload(BaseModel):
