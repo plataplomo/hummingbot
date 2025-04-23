@@ -36,6 +36,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+# Import canonical BookLevel
+from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawBookLevel
+
 # --- Centralized Raw User State Models ---
 # The following models are imported from hl_raw_user_state.py to ensure a single
 # source of truth for validation logic.
@@ -110,35 +113,6 @@ class HyperliquidRawWsFillEvent(BaseModel):
         return validate_str_field(v, field_name="cloid", max_length=64)
 
 
-class HyperliquidRawBookLevel(BaseModel):
-    """
-    Represents a single price level in the order book as received via WebSocket updates.
-
-    This model is used to validate the structure of each price level entry in order book update
-    events.
-
-    Fields:
-        px (str): Price at this level.
-        sz (str): Size available at this price level.
-        n (int): Number of orders at this price level.
-    """
-
-    px: str = Field(..., alias="px")
-    sz: str = Field(..., alias="sz")
-    n: int = Field(..., alias="n")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    @field_validator("px", "sz", mode="before")
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
-
-
 class HyperliquidRawWsBookUpdate(BaseModel):
     """
     Represents a WebSocket order book update event (l2Book channel).
@@ -161,6 +135,28 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     @classmethod
     def validate_coin(cls, v: object, info: ValidationInfo) -> str:
         return validate_str_field(v, field_name="coin", max_length=64)
+
+    @field_validator("levels", mode="before")
+    @classmethod
+    def validate_levels_structure(
+        cls, v: object, info: ValidationInfo
+    ) -> list[list[HyperliquidRawBookLevel]]:
+        # NOTE: Dynamic untyped input from API boundary; Pyright cannot infer type for len(v).
+        # All runtime checks are exhaustive and guarantee type safety for the expected structure.
+        # This ignore is justified and safe for boundary validation.
+        if not (isinstance(v, list) and len(v) == 2):  # pyright: ignore[reportUnknownArgumentType]
+            raise ValueError("levels: Must be a list of two lists (bids, asks)")
+        for sub in v:  # pyright: ignore[reportUnknownVariableType]
+            if not isinstance(sub, list):
+                raise ValueError("levels: Each element must be a list (bids, asks)")
+        return v  # pyright: ignore[reportUnknownArgumentType]
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def validate_time(cls, v: object, info: ValidationInfo) -> int:
+        if not isinstance(v, int):
+            raise ValueError("time: Expected int (epoch ms)")
+        return v
 
 
 class HyperliquidRawWsTradeEvent(BaseModel):
@@ -236,6 +232,16 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
     def validate_event_type(cls, v: object, info: ValidationInfo) -> str:
         return validate_str_field(v, field_name="event_type", max_length=32)
 
+    @field_validator("data", mode="before")
+    @classmethod
+    def validate_data(cls, v: object, info: ValidationInfo) -> dict[str, Any]:
+        # NOTE: Dynamic untyped input from API boundary; Pyright cannot infer type for return value.
+        # All runtime checks are exhaustive and guarantee type safety for the expected structure.
+        # This ignore is justified and safe for boundary validation.
+        if not isinstance(v, dict) or not v:
+            raise ValueError("data: Must be a non-empty dict (event-specific structure)")
+        return v  # pyright: ignore[reportUnknownArgumentType]
+
 
 class HyperliquidRawWsPositionUpdateEvent(BaseModel):
     """
@@ -260,3 +266,10 @@ class HyperliquidRawWsPositionUpdateEvent(BaseModel):
     @classmethod
     def validate_asset(cls, v: object, info: ValidationInfo) -> str:
         return validate_str_field(v, field_name="asset", max_length=64)
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def validate_time(cls, v: object, info: ValidationInfo) -> int:
+        if not isinstance(v, int):
+            raise ValueError("time: Expected int (epoch ms)")
+        return v

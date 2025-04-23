@@ -40,7 +40,7 @@ These are for boundary validation only.
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, PydanticUndefined, RootModel
+from pydantic import BaseModel, ConfigDict, Field, PydanticUndefined, RootModel, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
@@ -58,6 +58,14 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
 
     type: str = Field("allMids", alias="type")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type(cls, v: object) -> str:
+        s = validate_str_field(v, field_name="type", max_length=32)
+        if s != "allMids":
+            raise ValueError("type: Must be 'allMids'")
+        return s
 
 
 class HyperliquidRawAllMids(RootModel[dict[str, str]]):
