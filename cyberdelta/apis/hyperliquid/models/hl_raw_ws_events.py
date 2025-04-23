@@ -32,7 +32,7 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from typing import Any, TypeGuard, cast
+from typing import Any, TypeGuard, TypeVar, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -46,6 +46,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawPositionInfo,
 )
 from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
+
+# Type variables for TypeGuard functions
+T = TypeVar("T")
+U = TypeVar("U")
 
 
 class HyperliquidRawWsFillEvent(BaseModel):
@@ -113,37 +117,40 @@ class HyperliquidRawWsFillEvent(BaseModel):
         return validate_str_field(v, field_name="cloid", max_length=64)
 
 
+def is_list(obj: object) -> TypeGuard[list[Any]]:
+    """TypeGuard to check if an object is a list"""
+    return isinstance(obj, list)
+
+
+def has_exact_length(lst: list[Any], length: int) -> bool:
+    """Check if a list has exactly the specified length"""
+    return len(lst) == length
+
+
 def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, Any]]]]:
     """
     Type guard to check if an object is a list of two lists of dict[str, Any].
     Enables static type narrowing for both Mypy and Pyright.
     """
     # Check if it's a list
-    if not isinstance(obj, list):
+    if not is_list(obj):
         return False
 
-    # Strategic cast for Pyright type narrowing
-    list_obj = cast(list[Any], obj)
-
-    # Check the list length
-    if len(list_obj) != 2:
+    # Now mypy and pyright know obj is List[Any]
+    if not has_exact_length(obj, 2):
         return False
 
     # Check each sub-list
-    for sub_obj in list_obj:
-        if not isinstance(sub_obj, list):
+    for sub_obj in obj:
+        if not is_list(sub_obj):
             return False
 
-        # Cast the sublist for Pyright type narrowing
-        sub = cast(list[Any], sub_obj)
-
-        # Check each dictionary in the sub-list
-        for entry_obj in sub:
-            # Cast each entry for Pyright type narrowing
-            entry = entry_obj  # This helps Pyright in isinstance check
-            if not isinstance(entry, dict):
+        # Now mypy and pyright know sub_obj is List[Any]
+        for item in sub_obj:
+            if not isinstance(item, dict):
                 return False
 
+    # If we made it here, obj is a List[List[Dict[str, Any]]]
     return True
 
 
@@ -177,43 +184,36 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     ) -> list[list[HyperliquidRawBookLevel]]:
         """
         Validates and converts the 'levels' field to a list of two lists of HyperliquidRawBookLevel.
-        Uses minimal type annotation to satisfy both Mypy and Pyright.
+        Uses explicit type checking patterns that satisfy both Mypy and Pyright.
         """
         # First validate it's a list
-        if not isinstance(v, list):
+        if not is_list(v):
             raise ValueError("levels: Must be a list of two lists (bids, asks)")
 
-        # Strategic cast for Pyright type narrowing
-        list_v = cast(list[Any], v)
-
-        # Check the list length
-        if len(list_v) != 2:
+        # At this point, both mypy and pyright know v is a List[Any]
+        if not has_exact_length(v, 2):
             raise ValueError("levels: Must be a list of two lists (bids, asks)")
 
         result: list[list[HyperliquidRawBookLevel]] = []
 
         # Process each side (bids, asks)
-        for i, side_obj in enumerate(list_v):
-            if not isinstance(side_obj, list):
+        for i, side_obj in enumerate(v):
+            if not is_list(side_obj):
                 raise ValueError(f"levels[{i}]: Must be a list of book levels")
 
-            # Cast to help Pyright with type narrowing
-            side = cast(list[Any], side_obj)
-
+            # At this point, both mypy and pyright know side_obj is a List[Any]
             side_result: list[HyperliquidRawBookLevel] = []
 
             # Process each entry in this side
-            for j, entry_obj in enumerate(side):
-                # Use entry_obj instead of entry to help Pyright
-                entry = entry_obj  # This helps Pyright with type narrowing
-
+            for j, entry in enumerate(side_obj):
                 if isinstance(entry, HyperliquidRawBookLevel):
                     side_result.append(entry)
                 elif isinstance(entry, dict):
                     try:
-                        # Model validation handles the typing
-                        # Cast to Dict to help Pyright
-                        dict_entry = cast(dict[str, Any], entry)
+                        # At this point, Pyright should recognize entry as Dict[Unknown, Unknown]
+                        # but mypy correctly infers Dict[Any, Any]
+                        # This one cast is justified for Pyright compatibility
+                        dict_entry: dict[str, Any] = entry
                         level = HyperliquidRawBookLevel.model_validate(dict_entry)
                         side_result.append(level)
                     except Exception as e:
