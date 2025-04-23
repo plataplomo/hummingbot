@@ -36,6 +36,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+# --- Centralized Raw User State Models ---
+# The following models are imported from hl_raw_user_state.py to ensure a single
+# source of truth for validation logic.
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+    HyperliquidRawPositionInfo,
+)
 from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
 
@@ -229,91 +235,6 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
     @classmethod
     def validate_event_type(cls, v: object, info: ValidationInfo) -> str:
         return validate_str_field(v, field_name="event_type", max_length=32)
-
-
-class HyperliquidRawLeverage(BaseModel):
-    """
-    Represents leverage settings for a position as received in WebSocket position updates.
-
-    This model is used as a submodel in position update events to describe the leverage type and
-    value.
-
-    Fields:
-        type (str): Leverage type ('cross' or 'isolated').
-        value (int): Leverage value.
-    """
-
-    type: str = Field(..., alias="type")
-    value: int = Field(..., alias="value")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def validate_type(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="type", max_length=16)
-
-
-class HyperliquidRawPositionInfo(BaseModel):
-    """
-    Represents detailed information about a user position as received in WebSocket position
-    updates.
-
-    This model is used as a submodel in position update events to describe the user's position for
-    a given asset.
-
-    Fields:
-        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
-        entry_px (Optional[str]): Entry price, if present.
-        leverage (HyperliquidRawLeverage): Leverage settings for this position.
-        liquidation_px (Optional[str]): Liquidation price, if present.
-        margin_used (str): Margin used for this position.
-        max_leverage (int): Maximum leverage allowed for this asset.
-        position_value (str): Value of the position.
-        return_on_equity (str): Return on equity (ROE) for this position.
-        szi (str): Size of the position.
-        unrealized_pnl (str): Unrealized profit and loss for this position.
-    """
-
-    coin: str = Field(..., alias="coin")
-    entry_px: str | None = Field(None, alias="entryPx")
-    leverage: HyperliquidRawLeverage = Field(..., alias="leverage")
-    liquidation_px: str | None = Field(None, alias="liquidationPx")
-    margin_used: str = Field(..., alias="marginUsed")
-    max_leverage: int = Field(..., alias="maxLeverage")
-    position_value: str = Field(..., alias="positionValue")
-    return_on_equity: str = Field(..., alias="returnOnEquity")
-    szi: str = Field(..., alias="szi")
-    unrealized_pnl: str = Field(..., alias="unrealizedPnl")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    @field_validator("coin", mode="before")
-    @classmethod
-    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="coin", max_length=64)
-
-    @field_validator("entry_px", "liquidation_px", mode="before")
-    @classmethod
-    def validate_optional_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
-        if v is None:
-            return v
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
-
-    @field_validator(
-        "margin_used", "position_value", "return_on_equity", "szi", "unrealized_pnl", mode="before"
-    )
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
 
 
 class HyperliquidRawWsPositionUpdateEvent(BaseModel):
