@@ -32,7 +32,7 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from typing import Any, cast
+from typing import Any, TypeGuard, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -113,6 +113,22 @@ class HyperliquidRawWsFillEvent(BaseModel):
         return validate_str_field(v, field_name="cloid", max_length=64)
 
 
+def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, Any]]]]:
+    """
+    Type guard to check if an object is a list of two lists of dict[str, Any].
+    Enables static type narrowing for both Mypy and Pyright.
+    """
+    if not isinstance(obj, list) or len(obj) != 2:
+        return False
+    for sub in obj:
+        if not isinstance(sub, list):
+            return False
+        for entry in sub:
+            if not isinstance(entry, dict):
+                return False
+    return True
+
+
 class HyperliquidRawWsBookUpdate(BaseModel):
     """
     Represents a WebSocket order book update event (l2Book channel).
@@ -143,8 +159,7 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     ) -> list[list[HyperliquidRawBookLevel]]:
         """
         Validates and converts the 'levels' field to a list of two lists of HyperliquidRawBookLevel.
-        Ensures full runtime and type safety: no casts, no type ignores, no unchecked assumptions.
-        Raises ValueError if the structure or any element is invalid.
+        No casts, no ignores, no type tricks—just explicit, robust validation and conversion.
         """
         if not (isinstance(v, list) and len(v) == 2):
             raise ValueError("levels: Must be a list of two lists (bids, asks)")
