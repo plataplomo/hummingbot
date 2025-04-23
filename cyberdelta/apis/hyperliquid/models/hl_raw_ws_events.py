@@ -118,14 +118,27 @@ def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, Any]]]
     Type guard to check if an object is a list of two lists of dict[str, Any].
     Enables static type narrowing for both Mypy and Pyright.
     """
-    if not isinstance(obj, list) or len(obj) != 2:
+    # Check if it's a list
+    if not isinstance(obj, list):
         return False
-    for sub in obj:
+
+    # Single strategic cast for Pyright
+    list_obj = cast(list[Any], obj)
+
+    # Check the list length
+    if len(list_obj) != 2:
+        return False
+
+    # Check each sub-list
+    for sub in list_obj:
         if not isinstance(sub, list):
             return False
+
+        # Check each dictionary in the sub-list
         for entry in sub:
             if not isinstance(entry, dict):
                 return False
+
     return True
 
 
@@ -159,26 +172,44 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     ) -> list[list[HyperliquidRawBookLevel]]:
         """
         Validates and converts the 'levels' field to a list of two lists of HyperliquidRawBookLevel.
-        No casts, no ignores, no type tricks—just explicit, robust validation and conversion.
+        Uses minimal type annotation to satisfy both Mypy and Pyright.
         """
-        if not (isinstance(v, list) and len(v) == 2):
+        # First validate it's a list
+        if not isinstance(v, list):
             raise ValueError("levels: Must be a list of two lists (bids, asks)")
+
+        # Single strategic cast for Pyright
+        list_v = cast(list[Any], v)
+
+        # Check the list length
+        if len(list_v) != 2:
+            raise ValueError("levels: Must be a list of two lists (bids, asks)")
+
         result: list[list[HyperliquidRawBookLevel]] = []
-        for i, side in enumerate(v):
+
+        # Process each side (bids, asks)
+        for i, side in enumerate(list_v):
             if not isinstance(side, list):
                 raise ValueError(f"levels[{i}]: Must be a list of book levels")
+
             side_result: list[HyperliquidRawBookLevel] = []
+
+            # Process each entry in this side
             for j, entry in enumerate(side):
                 if isinstance(entry, HyperliquidRawBookLevel):
                     side_result.append(entry)
                 elif isinstance(entry, dict):
                     try:
-                        side_result.append(HyperliquidRawBookLevel.model_validate(entry))
+                        # Model validation handles the typing
+                        level = HyperliquidRawBookLevel.model_validate(entry)
+                        side_result.append(level)
                     except Exception as e:
                         raise ValueError(f"levels[{i}][{j}]: Invalid book level: {e}") from e
                 else:
                     raise ValueError(f"levels[{i}][{j}]: Must be dict or HyperliquidRawBookLevel")
+
             result.append(side_result)
+
         return result
 
     @field_validator("time", mode="before")
