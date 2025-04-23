@@ -33,7 +33,9 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from typing import Any, Self
+from __future__ import annotations
+
+from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -164,7 +166,9 @@ class HyperliquidRawMetaResponse(BaseModel):
 
     @field_validator("universe", mode="before")
     @classmethod
-    def validate_universe(cls, v: object, info: ValidationInfo) -> list[Any]:
+    def validate_universe(
+        cls, v: object, info: ValidationInfo
+    ) -> list[HyperliquidRawAssetDefinition]:
         if not isinstance(v, list):
             raise ValueError("universe: Expected list")
         if not v:
