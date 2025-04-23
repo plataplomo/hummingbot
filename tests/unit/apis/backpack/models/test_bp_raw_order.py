@@ -1,4 +1,5 @@
-# (Full test suite for BackpackRawOrder, BackpackRawOrderBook, BackpackRawOrderUpdate will be written here.)
+# (Full test suite for BackpackRawOrder, BackpackRawOrderBook,
+# BackpackRawOrderUpdate will be written here.)
 
 import json
 

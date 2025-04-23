@@ -20,8 +20,11 @@ Unit tests for BackpackRawPosition and related Raw models.
     - Non-emptiness (unless explicitly allowed)
     - Max length (per OpenAPI spec)
     - Valid UTF-8 encoding (no lone surrogates or invalid unicode)
-- **Invalid unicode or broken types are always rejected** with `ValidationError` (if caught by the validator) or `UnicodeEncodeError` (if Python or Pydantic internals hit the error first).
-- This test suite includes adversarial/hostile input cases to ensure the Raw model boundary is robust and spec-aligned.
+    - **Invalid unicode or broken types are always rejected** with `ValidationError`
+      (if caught by the validator) or `UnicodeEncodeError`
+      (if Python or Pydantic internals hit the error first).
+- This test suite includes adversarial/hostile input cases to ensure the Raw model
+  boundary is robust and spec-aligned.
 
 This pattern is enforced for all Raw models in the CyberDeltaEngine project.
 """
