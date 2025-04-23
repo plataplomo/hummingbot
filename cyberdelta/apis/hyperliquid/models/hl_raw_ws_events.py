@@ -2,19 +2,27 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (WebSocket Events Group)
 --------------------------------------------------------------------
 
-This module provides strict, security-focused Pydantic models for validating the *raw* structure of all major
-Hyperliquid Exchange WebSocket event payloads. It is a core part of CyberDeltaEngine's boundary validation layer for real-time data.
+This module provides strict, security-focused Pydantic models for validating the *raw*
+structure of all major Hyperliquid Exchange WebSocket event payloads. It is a core part of
+CyberDeltaEngine's boundary validation layer for real-time data.
 
 **Boundary Validation Policy:**
-- Models in this file are used exclusively to validate and parse the *external* data structures received from
-  Hyperliquid's WebSocket channels, including user fills, order book updates, trades, and position updates.
-- All models enforce strict schema validation (`extra="forbid"`), strict type checking, and robust format validation (e.g., max length, finite decimals, valid UTF-8).
-- Any unexpected, malformed, or ambiguous fields in upstream data are immediately rejected. This is critical for robust, secure, and predictable operation in a financial system.
-- These models are the *first step* in the "validate first, then transform" pattern: validate external data at the boundary, then map to internal business models with type conversions and business logic.
+- Models in this file are used exclusively to validate and parse the *external* data
+  structures received from Hyperliquid's WebSocket channels, including user fills, order
+  book updates, trades, and position updates.
+- All models enforce strict schema validation (`extra="forbid"`), strict type checking,
+  and robust format validation (e.g., max length, finite decimals, valid UTF-8).
+- Any unexpected, malformed, or ambiguous fields in upstream data are immediately
+  rejected. This is critical for robust, secure, and predictable operation in a financial
+  system.
+- These models are the *first step* in the "validate first, then transform" pattern:
+  validate external data at the boundary, then map to internal business models with type
+  conversions and business logic.
 - **Never use these models for internal business logic.**
 
 **References:**
-- Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+- Official Hyperliquid API documentation:
+  https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
@@ -23,8 +31,8 @@ Hyperliquid Exchange WebSocket event payloads. It is a core part of CyberDeltaEn
     # ...then transform to internal event model
 
 **Note:**
-Do not use these models for internal business logic—use your core models for that. These are for
-boundary validation only.
+Do not use these models for internal business logic—use your core models for that. These are
+for boundary validation only.
 """
 
 from typing import Any, TypeGuard, TypeVar
@@ -152,7 +160,8 @@ class HyperliquidRawWsFillEvent(BaseModel):
     @classmethod
     def validate_cloid(cls, v: object, info: ValidationInfo) -> str | None:
         """
-        Validates the optional 'cloid' field to ensure it is either None or a string of max length 64.
+        Validates the optional 'cloid' field to ensure
+        it is either None or a string of max length 64.
 
         Args:
             v (object): The value to validate (should be a string or None).
@@ -205,7 +214,7 @@ def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, Any]]]
         if not is_list(sub_obj):
             return False
 
-        # Now mypy and pyright know sub_obj is List[Any]
+        # At this point, both mypy and pyright know sub_obj is a List[Any]
         for item in sub_obj:
             if not isinstance(item, dict):
                 return False
@@ -218,8 +227,9 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     """
     Strict boundary model for a WebSocket order book update event (l2Book channel).
 
-    This model validates the structure and content of order book update events, enforcing strict type
-    and format constraints for all fields. Never use for internal business logic.
+    This model validates the structure and content of order
+    book update events, enforcing strict type and format
+    constraints for all fields. Never use for internal business logic.
 
     Fields:
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').

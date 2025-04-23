@@ -38,33 +38,29 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 
-# Type guard to check if an object is a list of dict[str, Any].
-def is_list_of_dict_str_any(obj: object) -> TypeGuard[list[dict[str, Any]]]:
+def _validated_list_of_dict_str_any(obj: object) -> list[dict[str, Any]] | None:
     """
-    TypeGuard for boundary validation: Checks if the input is a list of dictionaries with string keys.
-    This is used to ensure that untrusted external data (e.g., from API responses) conforms to the expected
-    structure before further processing. Enables static type narrowing for Pyright and Mypy, and is critical
-    for robust, secure schema enforcement at the boundary of CyberDeltaEngine.
-
-    Args:
-        obj (object): The object to check (typically untyped API response data).
-    Returns:
-        bool: True if obj is a list of dict[str, Any], False otherwise.
+    Helper for runtime validation and static type narrowing: returns a list of dict[str, Any] if valid,
+    else None. This is the only way to satisfy both runtime and static type safety without cast.
     """
     if not isinstance(obj, list):
-        return False
-    # NOTE: This loop processes untyped external input (object) from Pydantic boundary validation.
-    # All runtime checks below are exhaustive: only list[dict[str, Any]] with str keys can pass.
-    # The TypeGuard enables Pyright to safely narrow the type for downstream static analysis.
-    for item_any in obj:
-        if not isinstance(item_any, dict):
-            return False
-        item: dict[Any, Any] = item_any
-        for k_any in item.keys():
-            k: Any = k_any
+        return None
+    obj_list: list[Any] = obj
+    result: list[dict[str, Any]] = []
+    for item_obj in obj_list:
+        if not isinstance(item_obj, dict):
+            return None
+        item: dict[str, Any] = item_obj
+        keys: list[Any] = list(item.keys())
+        for k in keys:
             if not isinstance(k, str):
-                return False
-    return True
+                return None
+        result.append(item)
+    return result
+
+
+def is_list_of_dict_str_any(obj: object) -> TypeGuard[list[dict[str, Any]]]:
+    return _validated_list_of_dict_str_any(obj) is not None
 
 
 class HyperliquidRawAssetDefinition(BaseModel):
@@ -255,30 +251,36 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         by_name: bool | None = None,
     ) -> Self:
         """
-        Custom validator for the [meta, assetCtxs] tuple response. Ensures the input is a list of length 2,
-        with the first element a dict (meta) and the second a list of dicts (asset contexts). Raises ValueError
-        if the structure is not as expected. This is essential for robust boundary validation of upstream API data.
+        Custom validator for the [meta, assetCtxs] tuple response. Ensures the input is a
+        list of length 2, with the first element a dict (meta) and the second a list of
+        dicts (asset contexts). Raises ValueError if the structure is not as expected. This
+        is essential for robust boundary validation of upstream API data.
         """
-        # NOTE: Dynamic untyped input from API boundary; Pyright cannot infer type for len(obj).
-        # All runtime checks are exhaustive and guarantee type safety for the expected structure.
-        # This ignore is justified and safe for boundary validation.
-        if not (isinstance(obj, list) and len(obj) == 2):
+        if not isinstance(obj, list):
+            raise ValueError("Invalid MetaAndAssetCtxs response structure: not a list")
+        obj_list: list[Any] = obj
+        if len(obj_list) != 2:
             raise ValueError("Invalid MetaAndAssetCtxs response structure: not a 2-element list")
-        obj_list: list[object] = obj
-        # NOTE:Dynamic untyped input from API boundary; Pyright cannot infer type for obj_list[1] iteration.
-        # All runtime checks are exhaustive and guarantee type safety for the expected structure.
-        # This ignore is justified and safe for boundary validation.
-        if (
-            isinstance(obj_list[0], dict)
-            and isinstance(obj_list[1], list)
-            and all(isinstance(x, dict) for x in obj_list[1])
-        ):
-            meta_dict: dict[str, object] = obj_list[0]
-            asset_ctxs_list: list[dict[str, object]] = obj_list[1]
-            meta = HyperliquidRawMetaResponse.model_validate(meta_dict)
-            asset_ctxs = [HyperliquidRawAssetCtx.model_validate(x) for x in asset_ctxs_list]
-            return cls(meta=meta, asset_ctxs=asset_ctxs)
-        raise ValueError("Invalid MetaAndAssetCtxs response structure: element types incorrect")
+        meta_obj_raw = obj_list[0]
+        asset_ctxs_obj_raw = obj_list[1]
+        if not isinstance(meta_obj_raw, dict):
+            raise ValueError(
+                "Invalid MetaAndAssetCtxs response structure: first element must be dict"
+            )
+        if not isinstance(asset_ctxs_obj_raw, list):
+            raise ValueError(
+                "Invalid MetaAndAssetCtxs response structure: second element must be list"
+            )
+        meta_obj: dict[str, Any] = meta_obj_raw
+        asset_ctxs_obj: list[Any] = asset_ctxs_obj_raw
+        asset_ctxs_checked = _validated_list_of_dict_str_any(asset_ctxs_obj)
+        if asset_ctxs_checked is None:
+            raise ValueError(
+                "Invalid MetaAndAssetCtxs response structure: asset_ctxs must be list[dict[str, Any]]"
+            )
+        meta = HyperliquidRawMetaResponse.model_validate(meta_obj)
+        asset_ctxs = [HyperliquidRawAssetCtx.model_validate(x) for x in asset_ctxs_checked]
+        return cls(meta=meta, asset_ctxs=asset_ctxs)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
