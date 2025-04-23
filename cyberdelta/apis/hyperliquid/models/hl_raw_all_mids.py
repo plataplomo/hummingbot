@@ -1,6 +1,7 @@
 # pyright: reportUnknownMemberType=false
 # NOTE: The default value for __root__ (PydanticUndefined) is required for Pydantic v2 RootModel
-# compatibility, but will trigger a type checker warning because its type is 'object', not 'dict[str, str]'.
+# compatibility, but will trigger a type checker warning because its type is 'object',
+# not 'dict[str, str]'.
 # This is a known, accepted exception and is safe due to the runtime check below.
 # See: https://docs.pydantic.dev/latest/concepts/models/#rootmodel
 
@@ -40,7 +41,7 @@ These are for boundary validation only.
 
 from typing import Any, TypeGuard
 
-from pydantic import BaseModel, ConfigDict, Field, PydanticUndefined, RootModel, field_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
@@ -52,17 +53,22 @@ def is_dict(obj: object) -> TypeGuard[dict[str, Any]]:
 
 def is_str_to_str_dict(obj: object) -> TypeGuard[dict[str, str]]:
     """
-    TypeGuard to check if an object is a dictionary with string keys and string values
+    TypeGuard to check if an object is a dictionary with string keys and string values.
+    This is robust for both runtime and static type checking,
+    and avoids unnecessary isinstance warnings.
     """
-    if not is_dict(obj):
+    if not isinstance(obj, dict):
         return False
 
-    # Check if all keys are strings and all values are strings
-    for k, v in obj.items():
-        if not isinstance(k, str) or not isinstance(v, str):
-            return False
+    d: dict[Any, Any] = obj
 
-    return True
+    def all_str_keys_and_values(d: dict[Any, Any]) -> bool:
+        for k, v in d.items():
+            if not isinstance(k, str) or not isinstance(v, str):
+                return False
+        return True
+
+    return all_str_keys_and_values(d)
 
 
 class HyperliquidRawAllMidsRequestPayload(BaseModel):
@@ -100,8 +106,7 @@ class HyperliquidRawAllMids(RootModel[dict[str, str]]):
         (as a string).
     """
 
-    # Override __init__ to provide better validation while maintaining type safety
-    def __init__(self, __root__: Any = PydanticUndefined, **data: Any) -> None:
+    def __init__(self, __root__: dict[str, str] | None = None) -> None:
         """
         Custom __init__ to perform strict validation on the root dict before model initialization.
 
@@ -113,8 +118,7 @@ class HyperliquidRawAllMids(RootModel[dict[str, str]]):
             TypeError: If __root__ is not provided.
             ValueError: If any symbol or price is invalid or not a finite decimal.
         """
-        # Check if __root__ is provided
-        if __root__ is PydanticUndefined:
+        if __root__ is None:
             raise TypeError("__root__ argument is required for HyperliquidRawAllMids")
 
         # Validate it's a dictionary with string keys and values
