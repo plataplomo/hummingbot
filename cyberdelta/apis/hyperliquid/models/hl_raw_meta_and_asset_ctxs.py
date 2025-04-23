@@ -35,11 +35,33 @@ boundary validation only.
 
 from __future__ import annotations
 
-from typing import Self
+from typing import Any, Self, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+
+
+# Type guard to check if an object is a list of dict[str, Any].
+def is_list_of_dict_str_any(obj: object) -> TypeGuard[list[dict[str, Any]]]:
+    """
+    Type guard to check if an object is a list of dict[str, Any].
+    Used to enable static type narrowing for Pyright and maximize type safety.
+    """
+    if not isinstance(obj, list):
+        return False
+    # This loop processes untyped external input (object) from Pydantic boundary validation.
+    # All runtime checks below are exhaustive: only list[dict[str, Any]] with str keys can pass.
+    # The TypeGuard enables Pyright to safely narrow the type for downstream static analysis.
+    for item_any in obj:  # pyright: ignore[reportUnknownVariableType]
+        if not isinstance(item_any, dict):
+            return False
+        item: dict[Any, Any] = item_any
+        for k_any in item.keys():
+            k: Any = k_any
+            if not isinstance(k, str):
+                return False
+    return True
 
 
 class HyperliquidRawAssetDefinition(BaseModel):
@@ -166,13 +188,18 @@ class HyperliquidRawMetaResponse(BaseModel):
 
     @field_validator("universe", mode="before")
     @classmethod
-    def validate_universe(
-        cls, v: object, info: ValidationInfo
-    ) -> list[HyperliquidRawAssetDefinition]:
-        if not isinstance(v, list):
-            raise ValueError("universe: Expected list")
-        if not v:
-            raise ValueError("universe: List cannot be empty")
+    def validate_universe(cls, v: object, info: ValidationInfo) -> list[dict[str, Any]]:
+        """
+        Validates the 'universe' field to ensure it is a list of dicts (raw asset definitions).
+        Uses a TypeGuard helper to guarantee both runtime and static type safety.
+        Returns:
+            list[dict[str, Any]]: The validated list of asset definition dicts.
+        Raises:
+            ValueError: If the input is not a list of dicts with str keys.
+        """
+        if not is_list_of_dict_str_any(v):
+            raise ValueError("universe: Expected a list of dict[str, Any] with str keys")
+        # At this point, Pyright knows v is list[dict[str, Any]]
         return v
 
 
