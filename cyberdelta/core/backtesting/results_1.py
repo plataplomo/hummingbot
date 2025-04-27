@@ -49,7 +49,7 @@ class BacktestResultsHandler:
         self.metrics: dict[str, Any] = {}
 
         # Performance metrics
-        self.returns_series: pd.Series[float] | None = None
+        self.returns_series: pd.Series | None = None
 
     def add_trade(self, trade: dict[str, Any]) -> None:
         """

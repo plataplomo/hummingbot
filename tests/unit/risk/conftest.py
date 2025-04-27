@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 from pytest import fixture
 
-from cyberdelta.core.models import ArbitrageOpportunity
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem

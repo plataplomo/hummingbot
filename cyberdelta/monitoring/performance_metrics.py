@@ -18,7 +18,7 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_sharpe_ratio(
-        returns: pd.Series[float],
+        returns: pd.Series,
         risk_free_rate: Decimal = Decimal("0.0"),
         periods_per_year: int = 252,
     ) -> Decimal:
@@ -57,7 +57,7 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_sortino_ratio(
-        returns: pd.Series[float],
+        returns: pd.Series,
         risk_free_rate: Decimal = Decimal("0.0"),
         periods_per_year: int = 252,
     ) -> Decimal:
@@ -103,7 +103,7 @@ class PerformanceMetricsCalculator:
         return annualized_sortino_ratio
 
     @staticmethod
-    def calculate_max_drawdown(returns: pd.Series[float]) -> Decimal:
+    def calculate_max_drawdown(returns: pd.Series) -> Decimal:
         """
         Calculate the maximum drawdown.
 
@@ -120,7 +120,7 @@ class PerformanceMetricsCalculator:
         return Decimal(str(max_drawdown))  # Convert to Decimal
 
     @staticmethod
-    def calculate_calmar_ratio(returns: pd.Series[float], periods_per_year: int = 252) -> Decimal:
+    def calculate_calmar_ratio(returns: pd.Series, periods_per_year: int = 252) -> Decimal:
         """
         Calculate the Calmar ratio (Annualized Return / Abs(Max Drawdown)).
 
@@ -201,7 +201,7 @@ class PerformanceMetricsCalculator:
 
     def calculate_all_metrics(
         self,
-        returns: pd.Series[float],
+        returns: pd.Series,
         trades: pd.DataFrame | None = None,
         risk_free_rate: Decimal = Decimal("0.0"),
         periods_per_year: int = 252,

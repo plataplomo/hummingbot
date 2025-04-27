@@ -4,7 +4,7 @@
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
-from cyberdelta.core.models import ArbitrageOpportunity
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 
 # Note: Fixtures risk_manager, mock_config, mock_circuit_breaker,

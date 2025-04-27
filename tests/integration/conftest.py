@@ -7,7 +7,7 @@ import pytest
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.models import ArbitrageOpportunity, Ticker
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import FundingRateValidatorProtocol, PortfolioTrackerProtocol
 from cyberdelta.core.signal_generator import SignalGenerator
@@ -27,11 +27,11 @@ def create_mock_ticker(
     ask: float,
     price: float,
     timestamp: int,
-) -> Ticker:
+) -> ArbitrageOpportunity:
     """Helper to create a Ticker object with Decimal conversion."""
     # This should ideally be moved from test_core_workflow.py
     # For now, defining it here if not already moved.
-    return Ticker(
+    return ArbitrageOpportunity(
         symbol=symbol,
         bid=Decimal(str(bid)),  # Ensure conversion from potential float/int
         ask=Decimal(str(ask)),

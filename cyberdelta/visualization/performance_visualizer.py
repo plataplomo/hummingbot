@@ -656,7 +656,7 @@ class PerformanceMetricsCalculator:
 
     def calculate_sharpe_ratio(
         self,
-        returns: pd.Series[float],
+        returns: pd.Series,
         risk_free_rate: float = 0.0,
     ) -> float:
         """
@@ -686,7 +686,7 @@ class PerformanceMetricsCalculator:
         return sharpe * np.sqrt(self.annualization_factor)
 
     def calculate_sortino_ratio(
-        self, returns: pd.Series[float], risk_free_rate: float = 0.0, target_return: float = 0.0
+        self, returns: pd.Series, risk_free_rate: float = 0.0, target_return: float = 0.0
     ) -> float:
         """
         Calculate the Sortino ratio.
@@ -722,7 +722,7 @@ class PerformanceMetricsCalculator:
         # Annualize
         return sortino * np.sqrt(self.annualization_factor)
 
-    def calculate_max_drawdown(self, returns: pd.Series[float]) -> float:
+    def calculate_max_drawdown(self, returns: pd.Series) -> float:
         """
         Calculate the maximum drawdown percentage.
 
@@ -749,7 +749,7 @@ class PerformanceMetricsCalculator:
 
         return max_drawdown
 
-    def calculate_calmar_ratio(self, returns: pd.Series[float], period: int = 36) -> float:
+    def calculate_calmar_ratio(self, returns: pd.Series, period: int = 36) -> float:
         """
         Calculate the Calmar ratio.
 
@@ -775,7 +775,7 @@ class PerformanceMetricsCalculator:
         # Calmar ratio
         return ann_return / max_dd
 
-    def calculate_annualized_return(self, returns: pd.Series[float]) -> float:
+    def calculate_annualized_return(self, returns: pd.Series) -> float:
         """
         Calculate the annualized return.
 
@@ -801,7 +801,7 @@ class PerformanceMetricsCalculator:
 
         return annualized_return
 
-    def calculate_annualized_volatility(self, returns: pd.Series[float]) -> float:
+    def calculate_annualized_volatility(self, returns: pd.Series) -> float:
         """
         Calculate the annualized volatility.
 
@@ -890,7 +890,7 @@ class PerformanceMetricsCalculator:
         return filtered_trades["pnl"].mean()
 
     def calculate_all_metrics(
-        self, returns: pd.Series[float], trades: pd.DataFrame | None = None
+        self, returns: pd.Series, trades: pd.DataFrame | None = None
     ) -> dict[str, float]:
         """
         Calculate all performance metrics.

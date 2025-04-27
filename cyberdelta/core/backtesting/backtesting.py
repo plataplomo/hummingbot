@@ -53,12 +53,12 @@ class BacktestStrategy(ABC):
         return True  # Add placeholder return for ABC
 
     @abstractmethod
-    def update(self, current_data: pd.Series[Any] | pd.DataFrame) -> dict[str, Any]:
+    def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
         """
         Update the strategy with new data and return trade signals
 
         Args:
-            current_data: Current market data (Series[Any] or DataFrame)
+            current_data: Current market data (Series or DataFrame)
 
         Returns:
             Dict with trade signals and other information
@@ -493,12 +493,12 @@ class StrategyAdapter(BacktestStrategy):
         # The following return statement is unreachable because all paths in the
         # preceding try/except block already return. Removing it.
 
-    def update(self, current_data: pd.Series[Any] | pd.DataFrame) -> dict[str, Any]:
+    def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
         """
         Update the strategy with new data
 
         Args:
-            current_data: Current market data (Series[Any] or DataFrame)
+            current_data: Current market data (Series or DataFrame)
 
         Returns:
             Dict with signals and other information
@@ -513,7 +513,7 @@ class StrategyAdapter(BacktestStrategy):
         )
 
         try:
-            # 1. Convert backtesting data (pd.Series[Any]/DataFrame) to MarketData list
+            # 1. Convert backtesting data (pd.Series/DataFrame) to MarketData list
             market_data_list: list[MarketData] = self._convert_to_market_data(current_data)
 
             if not market_data_list:
@@ -550,9 +550,9 @@ class StrategyAdapter(BacktestStrategy):
             )
             return {"signals": []}  # Return empty signals on error
 
-    def _convert_to_market_data(self, data: pd.Series[Any] | pd.DataFrame) -> list[MarketData]:
+    def _convert_to_market_data(self, data: pd.Series | pd.DataFrame) -> list[MarketData]:
         """
-        Convert pandas Series[Any] or DataFrame row(s) to a list of MarketData objects.
+        Convert pandas Series or DataFrame row(s) to a list of MarketData objects.
         Handles MultiIndex (symbol, field) DataFrames common in backtesting.
         """
         market_data_list: list[MarketData] = []
@@ -633,7 +633,7 @@ class StrategyAdapter(BacktestStrategy):
         return market_data_list
 
     def _convert_signals(
-        self, signals: list[TradeSignal], current_data: pd.Series[Any] | pd.DataFrame
+        self, signals: list[TradeSignal], current_data: pd.Series | pd.DataFrame
     ) -> list[dict[str, Any]]:
         """
         Convert TradeSignal objects to the dictionary format expected by BacktestEngine.
@@ -650,7 +650,7 @@ class StrategyAdapter(BacktestStrategy):
         if isinstance(timestamp, pd.Timestamp):
             timestamp = timestamp.to_pydatetime()  # Ensure datetime object
 
-        def get_current_price(symbol: str, data: pd.Series[Any] | pd.DataFrame) -> Decimal | None:
+        def get_current_price(symbol: str, data: pd.Series | pd.DataFrame) -> Decimal | None:
             """Helper to get current price (close) for a symbol."""
             price_val = None
             try:

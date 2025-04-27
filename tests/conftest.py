@@ -19,6 +19,7 @@ from cyberdelta.core.models import (
 
 # Import the classes we need to test
 from cyberdelta.utils.config import Config
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 # Mock aiohttp ClientSession and Response for API testing
@@ -369,8 +370,6 @@ def mock_data_handler():
 @pytest.fixture
 def mock_arbitrage_opportunity():
     """Create a mock ArbitrageOpportunity for testing."""
-    from cyberdelta.core.signal_generator import ArbitrageOpportunity
-
     opportunity = MagicMock(spec=ArbitrageOpportunity)
     opportunity.symbol = "BTC"
     opportunity.long_exchange = "hyperliquid"

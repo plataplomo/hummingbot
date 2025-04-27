@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
+
 from cyberdelta.core.models import (
-    ArbitrageOpportunity,
     Order,
     OrderSide,
     OrderStatus,
