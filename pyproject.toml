@@ -8,22 +8,51 @@ build-backend = "setuptools.build_meta"    # Backend used for building the packa
 [project]
 name = "CyberDeltaEngine"  # Name of the project
 version = "0.0.1"   # Current version of the project
-description = ""  # Brief description of the project
+description = "CyberDeltaEngine: An automated, asyncio-based Python trading engine for delta-neutral arbitrage strategies (initially funding rate arbitrage between Hyperliquid and Backpack perpetuals)."  # Brief description of the project
 readme = { file = "README.md", content-type = "text/markdown" }  # Readme file and its content type
 requires-python = ">=3.13"  # Minimum required Python version
 license = { text = "MIT" }  # License information for the project
 authors = [  # List of authors with their names and emails
     {name = "plataplomo", email = "bizonum@gmail.com"},
 ]
+
 classifiers = [  # Classifiers for the project to help users find it
     "Development Status :: 2 - Pre-Alpha",  # Current development status
-    "Intended Audience :: Developers",    # Intended audience for the project
-    "License :: OSI Approved :: MIT License",  # License type
-    "Programming Language :: Python",      # Programming language used
-    "Programming Language :: Python :: 3",  # Specific Python version
-    "Programming Language :: Python :: 3.13",  # Specific Python version
-    "Topic :: Software Development :: Libraries",  # Topic classification
-    "Topic :: Text Processing :: Linguistic"  # Topic classification
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Operating System :: OS Independent"
+]
+
+dependencies = [
+    "aiohttp>=3.11.18",
+    "websockets>=15.0.1",
+    "numpy>=2.2.5",
+    "PyYAML>=6.0.2",
+    "python-dotenv>=1.1.0",
+    "matplotlib>=3.10.1",
+    "simplejson>=3.20.1",
+    "pydantic>=2.11.3",
+    "eth_account>=0.13.7",
+    "web3>=7.10.0",
+    "structlog>=25.3.0",
+    "pandas>=2.2.3",
+    "plotly>=6.0.1",
+    "dash>=3.0.4",
+    "dash-bootstrap-components>=2.0.2"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "mypy>=1.15.0",
+    "ruff>=0.11.7"
 ]
 
 [tool.pytest.ini_options]
