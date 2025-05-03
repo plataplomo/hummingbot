@@ -15,25 +15,7 @@ logger = logging.getLogger(__name__)
 
 class MarketData(BaseModel):
     """
-    MarketData represents a snapshot of market information for a specific trading symbol,
-    including OHLCV (Open, High, Low, Close, Volume) and optional ticker data. This model is
-    immutable (frozen=True) to ensure that once market data is captured from an exchange or data
-    provider, it cannot be altered, preserving auditability and data integrity.
-
-    Fields:
-        symbol (str): The trading symbol (e.g., 'BTC-PERP').
-        timestamp (datetime): The UTC timestamp of the data snapshot.
-        open (Decimal): Opening price for the period.
-        high (Decimal): Highest price for the period.
-        low (Decimal): Lowest price for the period.
-        close (Decimal): Closing price for the period.
-        volume (Decimal): Trading volume for the period (default 0.0).
-        ticker_data (dict[str, dict[str, Ticker]] | None): Optional nested ticker data for advanced
-            analytics or multi-venue aggregation.
-
-    Notes:
-        - All price and volume fields use Decimal for precision (see Decimal usage rule).
-        - This model is not intended for mutation after creation; use a new instance for new data.
+    DEPRECATED: This class is deprecated and replaced by Candle. Remove all usage and delete this file when migration is complete.
     """
 
     symbol: str

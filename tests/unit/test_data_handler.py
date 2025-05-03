@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.models import FundingRate, MarketData, Ticker
+from cyberdelta.core.models import FundingRate, Ticker
+from cyberdelta.core.models.market.candle import Candle
 
 
 class TestDataHandler:
@@ -138,7 +139,7 @@ class TestDataHandler:
         self, data_handler: DataHandler, mock_exchange_api: AsyncMock
     ) -> None:
         """Test collecting ticker data."""
-        test_ticker = MarketData(
+        test_ticker = Candle(
             symbol="BTC",
             timestamp=datetime.now(UTC),
             open=Decimal("40000.0"),
@@ -218,7 +219,7 @@ class TestDataHandler:
     def test_get_ticker(self, data_handler: DataHandler) -> None:
         """Test retrieving ticker data."""
         # Set up a test ticker with UTC timestamp
-        test_ticker = MarketData(
+        test_ticker = Candle(
             symbol="BTC",
             timestamp=datetime.now(UTC),
             open=Decimal("40000.0"),
@@ -389,19 +390,17 @@ class TestDataHandler:
             assert call_args[0] == "hyperliquid"  # exchange_id
             assert call_args[1] == "ticker"  # data_type
             assert call_args[2] == "BTC"  # symbol (unpacked)
-            # Verify the MarketData object passed
-            passed_market_data = call_args[3]  # data
-            assert isinstance(passed_market_data, MarketData)
-            assert passed_market_data.symbol == test_ticker.symbol
-            assert (
-                passed_market_data.close == test_ticker.price
-            )  # MarketData.close uses Ticker.price
-            assert passed_market_data.open == test_ticker.price  # MarketData.open uses Ticker.price
-            assert passed_market_data.high == test_ticker.price
-            assert passed_market_data.low == test_ticker.price
-            assert passed_market_data.volume == test_ticker.volume
+            # Verify the Candle object passed
+            passed_candle = call_args[3]  # data
+            assert isinstance(passed_candle, Candle)
+            assert passed_candle.symbol == test_ticker.symbol
+            assert passed_candle.close == test_ticker.price
+            assert passed_candle.open == test_ticker.price
+            assert passed_candle.high == test_ticker.price
+            assert passed_candle.low == test_ticker.price
+            assert passed_candle.volume == test_ticker.volume
             assert test_ticker.timestamp is not None  # Ensure not None for division
-            assert passed_market_data.timestamp == datetime.fromtimestamp(
+            assert passed_candle.timestamp == datetime.fromtimestamp(
                 float(test_ticker.timestamp) / 1000, UTC
             )
 

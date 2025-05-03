@@ -11,7 +11,6 @@ from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
-    MarketData,
     Order,
     OrderBook,
     OrderSide,
@@ -22,6 +21,7 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
+from cyberdelta.core.models.market.candle import Candle
 
 # Correct the import to use the new typing module
 # REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
@@ -919,13 +919,11 @@ class MockExchangeAPI(ExchangeAPI):
             return [self._mock_funding_rates[s] for s in symbols if s in self._mock_funding_rates]
         return list(self._mock_funding_rates.values())
 
-    async def get_market_data(  # Corrected signature and return type
-        self, symbol: str, timeframe: str, limit: int = 100
-    ) -> list[MarketData]:
-        """Return mock market data."""
+    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
+        """Return mock market data as Candle objects."""
         self._check_error("get_market_data")
         await self._simulate_latency()
-        # Placeholder: Return empty list matching list[MarketData]
+        # Placeholder: Return empty list matching list[Candle]
         # Real implementation would fetch OHLCV data.
         return []
 

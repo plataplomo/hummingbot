@@ -9,13 +9,13 @@ import pytest
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
-    MarketData,
     Order,
     OrderSide,
     OrderStatus,
     OrderType,
     Position,
 )
+from cyberdelta.core.models.market.candle import Candle
 
 # Import the classes we need to test
 from cyberdelta.utils.config import Config
@@ -288,9 +288,10 @@ def mock_exchange_api():
         )
     }
 
-    mock_api.get_ticker.return_value = MarketData(
+    mock_api.get_ticker.return_value = Candle(
         symbol="BTC",
-        timestamp=datetime.now(),
+        interval="1m",
+        open_time=datetime.now(),
         open=Decimal("40000.0"),
         high=Decimal("42000.0"),
         low=Decimal("39000.0"),
@@ -352,9 +353,10 @@ def mock_data_handler():
     mock_handler = MagicMock()
 
     # Configure mock methods
-    mock_handler.get_ticker.return_value = MarketData(
+    mock_handler.get_ticker.return_value = Candle(
         symbol="BTC",
-        timestamp=datetime.now(),
+        interval="1m",
+        open_time=datetime.now(),
         open=Decimal("40000.0"),
         high=Decimal("42000.0"),
         low=Decimal("39000.0"),

@@ -10,7 +10,8 @@ import pandas as pd
 import structlog
 
 if TYPE_CHECKING:
-    from cyberdelta.core.models import MarketData, TradeSignal
+    from cyberdelta.core.models import TradeSignal
+    from cyberdelta.core.models.market.candle import Candle
 
 from .strategy import Strategy
 
@@ -126,7 +127,7 @@ class Engine:
         handler_name = getattr(handler, "__name__", repr(handler))
         logger.info(f"Signal handler set to: {handler_name}")
 
-    async def process_market_data(self, data: MarketData) -> None:
+    async def process_market_data(self, data: Candle) -> None:
         """
         Process incoming market data.
         Routes the data to relevant, enabled strategies based on symbol.
@@ -243,10 +244,11 @@ class Engine:
                 )
                 continue  # Skip this row if conversion fails
 
-            # Create MarketData instance
-            data = MarketData(
+            # Create Candle instance
+            candle = Candle(
                 symbol=symbol,
-                timestamp=ts,
+                interval="1m",  # TODO: Use actual interval if available
+                open_time=ts,
                 open=open_p,
                 high=high_p,
                 low=low_p,
@@ -254,7 +256,7 @@ class Engine:
                 volume=volume_p,
             )
             # Delegate processing to the main method
-            await self.process_market_data(data)
+            await self.process_market_data(candle)
         logger.info(f"Finished processing DataFrame for {symbol}.")
 
     def start(self) -> None:

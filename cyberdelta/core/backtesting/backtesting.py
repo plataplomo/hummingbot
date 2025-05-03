@@ -19,7 +19,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from cyberdelta.core.models import MarketData, SignalType, TradeSignal
+from cyberdelta.core.models import TradeSignal
+from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.strategy import Strategy
 
 # Import necessary components at the top level
@@ -514,15 +515,15 @@ class StrategyAdapter(BacktestStrategy):
 
         try:
             # 1. Convert backtesting data (pd.Series/DataFrame) to MarketData list
-            market_data_list: list[MarketData] = self._convert_to_market_data(current_data)
+            candle_list: list[Candle] = self._convert_to_candles(current_data)
 
-            if not market_data_list:
-                self._logger.warning("No MarketData converted from input, cannot update strategy.")
+            if not candle_list:
+                self._logger.warning("No Candle converted from input, cannot update strategy.")
                 return {"signals": []}
 
             # 2. Call the core strategy's process_data method for each MarketData object
             trade_signals: list[TradeSignal] = []
-            for md in market_data_list:
+            for md in candle_list:
                 result = self.strategy.process_data(md)
                 # If process_data is a coroutine (async), run it synchronously for now
                 if hasattr(result, "__await__"):
@@ -550,12 +551,12 @@ class StrategyAdapter(BacktestStrategy):
             )
             return {"signals": []}  # Return empty signals on error
 
-    def _convert_to_market_data(self, data: pd.Series | pd.DataFrame) -> list[MarketData]:
+    def _convert_to_candles(self, data: pd.Series | pd.DataFrame) -> list[Candle]:
         """
-        Convert pandas Series or DataFrame row(s) to a list of MarketData objects.
+        Convert pandas Series or DataFrame row(s) to a list of Candle objects.
         Handles MultiIndex (symbol, field) DataFrames common in backtesting.
         """
-        market_data_list: list[MarketData] = []
+        candle_list: list[Candle] = []
         # Default timestamp if not available in data (should not happen with time series)
         default_ts = pd.Timestamp.utcnow().to_pydatetime()
 
@@ -578,20 +579,20 @@ class StrategyAdapter(BacktestStrategy):
                 for symbol in symbols:
                     row = data.loc[symbol]  # Get data for this symbol
                     try:
-                        # Use .get with defaults and ensure type conversion
-                        md = MarketData(
+                        candle = Candle(
                             symbol=str(symbol),
-                            timestamp=timestamp,
+                            interval="1m",  # TODO: Use actual interval if available
+                            open_time=timestamp,
                             open=Decimal(str(row.get("open", "NaN"))),
                             high=Decimal(str(row.get("high", "NaN"))),
                             low=Decimal(str(row.get("low", "NaN"))),
                             close=Decimal(str(row.get("close", "NaN"))),
                             volume=Decimal(str(row.get("volume", "NaN"))),
                         )
-                        market_data_list.append(md)
+                        candle_list.append(candle)
                     except Exception as e:
                         self._logger.error(
-                            f"Error converting row to MarketData for symbol {symbol} "
+                            f"Error converting row to Candle for symbol {symbol} "
                             f"at {timestamp}: {e} - Row data: {row.to_dict()}"
                         )
 
@@ -599,38 +600,33 @@ class StrategyAdapter(BacktestStrategy):
                 # Assuming single index represents symbol or just one instrument
                 symbol = data.index.name if data.index.name else "UNKNOWN_SYMBOL"
                 try:
-                    # Simple case: Series fields map directly
-                    md = MarketData(
+                    candle = Candle(
                         symbol=str(symbol),
-                        timestamp=timestamp,
+                        interval="1m",  # TODO: Use actual interval if available
+                        open_time=timestamp,
                         open=Decimal(str(data.get("open", "NaN"))),
                         high=Decimal(str(data.get("high", "NaN"))),
                         low=Decimal(str(data.get("low", "NaN"))),
                         close=Decimal(str(data.get("close", "NaN"))),
                         volume=Decimal(str(data.get("volume", "NaN"))),
                     )
-                    market_data_list.append(md)
+                    candle_list.append(candle)
                 except Exception as e:
                     self._logger.error(
-                        f"Error converting Series to MarketData for symbol {symbol} "
+                        f"Error converting Series to Candle for symbol {symbol} "
                         f"at {timestamp}: {e} - Series data: {data.to_dict()}"
                     )
 
         elif isinstance(data, pd.DataFrame):
             # Handle DataFrame - less common for single updates
             self._logger.warning(
-                "Received DataFrame in _convert_to_market_data, processing row by row."
+                "Received DataFrame in _convert_to_candles, processing row by row."
             )
             for _timestamp, row_series in data.iterrows():  # B007: Rename unused timestamp
                 # Recursively call with the Series for this row
-                market_data_list.extend(self._convert_to_market_data(row_series))
+                candle_list.extend(self._convert_to_candles(row_series))
 
-        # The following else block was removed as it was unreachable due to the
-        # function signature's type hint for 'data' (pd.Series | pd.DataFrame).
-        # else:
-        #     self._logger.error(f"Unsupported data type for MarketData conversion: {type(data)}")
-
-        return market_data_list
+        return candle_list
 
     def _convert_signals(
         self, signals: list[TradeSignal], current_data: pd.Series | pd.DataFrame

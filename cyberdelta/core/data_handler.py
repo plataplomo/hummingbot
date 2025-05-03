@@ -7,7 +7,8 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any  # Added TYPE_CHECKING
 
 from cyberdelta.apis.base import ExchangeAPI
-from cyberdelta.core.models import FundingRate, MarketData, OrderBook, Ticker
+from cyberdelta.core.models import FundingRate, OrderBook, Ticker
+from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.utils.config import Config
 
 if TYPE_CHECKING:
@@ -35,7 +36,7 @@ class DataHandler:
     """
 
     ws_tasks: dict[str, asyncio.Task[Any]]
-    observers: list[Callable[[MarketData], Coroutine[Any, Any, None]]]
+    observers: list[Callable[[Candle], Coroutine[Any, Any, None]]]
 
     def __init__(self, config: Config) -> None:
         """
@@ -48,7 +49,7 @@ class DataHandler:
         self.api_clients: dict[str, ExchangeAPI] = {}
 
         # Market data storage
-        self.tickers: dict[str, dict[str, MarketData]] = {}  # Changed hint
+        self.tickers: dict[str, dict[str, Candle]] = {}
         self.funding_rates: dict[
             str, dict[str, tuple[Decimal | None, int | None]]
         ] = {}  # exchange -> symbol -> (rate, timestamp)
@@ -283,10 +284,11 @@ class DataHandler:
                     )
                     return
 
-                # Convert Ticker to MarketData before updating and notifying
-                market_data = MarketData(
+                # Convert Ticker to Candle before updating and notifying
+                candle = Candle(
                     symbol=symbol,  # symbol is guaranteed to be str here
-                    timestamp=datetime.fromtimestamp(ticker_obj.timestamp / 1000, UTC)
+                    interval="1m",  # TODO: Use actual interval if available
+                    open_time=datetime.fromtimestamp(ticker_obj.timestamp / 1000, UTC)
                     if ticker_obj.timestamp
                     else datetime.now(UTC),
                     open=ticker_obj.price,  # Use last price for OHLC if not available
@@ -296,7 +298,7 @@ class DataHandler:
                     volume=ticker_obj.volume or Decimal("0"),  # Use 0 if volume is None
                 )
                 # Correct argument order: exchange_id, symbol, data_type, data
-                await self._update_and_notify(exchange_id, symbol, "ticker", market_data)
+                await self._update_and_notify(exchange_id, symbol, "ticker", candle)
             elif message_type == "orderbook":
                 parsed_orderbook = client.parse_orderbook_message(message)
                 if parsed_orderbook:
@@ -344,7 +346,7 @@ class DataHandler:
         exchange_id: str,
         data_type: str,
         symbol: str,
-        data: MarketData | OrderBook | FundingRate,
+        data: Candle | OrderBook | FundingRate,
     ) -> None:
         """
         Update internal cache for a given data type and notify observers if it's MarketData.
@@ -362,20 +364,20 @@ class DataHandler:
                 if exchange_id not in self.tickers:
                     self.tickers[exchange_id] = {}
                 self.tickers[exchange_id][symbol] = data  # type: ignore[assignment]
-                # Notify observers only for MarketData updates
+                # Notify observers only for Candle updates
                 await self._notify_observers(data)  # type: ignore[arg-type]
             elif data_type == "orderbook":
                 if exchange_id not in self.orderbooks:
                     self.orderbooks[exchange_id] = {}
                 if isinstance(data, OrderBook):
                     self.orderbooks[exchange_id][symbol] = data  # Store raw OrderBook
-                # Optional: Convert OrderBook to MarketData snapshot and notify?
+                # Optional: Convert OrderBook to Candle snapshot and notify?
             elif data_type == "funding_rate":
                 if exchange_id not in self.funding_rates:
                     self.funding_rates[exchange_id] = {}
                 # Store as tuple (rate, timestamp)
                 self.funding_rates[exchange_id][symbol] = (data.funding_rate, data.timestamp)  # type: ignore[attr-defined]
-                # Optional: Create MarketData-like object for funding and notify?
+                # Optional: Create Candle-like object for funding and notify?
             else:
                 logger.warning(f"Attempted to update with unsupported data type: {data_type}")
                 return
@@ -461,17 +463,18 @@ class DataHandler:
 
                     # Update the ticker data
                     if ticker:
-                        # Convert Ticker to MarketData before notifying
+                        # Convert Ticker to Candle before notifying
                         if ticker.price is None:
                             logger.warning(
                                 f"Initial ticker price is None for {symbol} on {exchange_id}. "
-                                "Cannot create MarketData."
+                                "Cannot create Candle."
                             )
                             continue  # Skip this symbol if price is None
 
-                        market_data = MarketData(
+                        candle = Candle(
                             symbol=symbol,
-                            timestamp=datetime.fromtimestamp(ticker.timestamp / 1000, UTC)
+                            interval="1m",  # TODO: Use actual interval if available
+                            open_time=datetime.fromtimestamp(ticker.timestamp / 1000, UTC)
                             if ticker.timestamp
                             else datetime.now(UTC),
                             open=ticker.price,
@@ -480,7 +483,7 @@ class DataHandler:
                             close=ticker.price,
                             volume=ticker.volume or Decimal("0"),
                         )
-                        await self._update_and_notify(exchange_id, "ticker", symbol, market_data)
+                        await self._update_and_notify(exchange_id, "ticker", symbol, candle)
                 except Exception as e:
                     logger.error(
                         f"Error collecting ticker for {symbol} from {exchange_id}: {str(e)}",
@@ -563,7 +566,7 @@ class DataHandler:
 
         logger.debug("Updated all market data")
 
-    def get_ticker(self, exchange_id: str, symbol: str) -> MarketData | None:
+    def get_ticker(self, exchange_id: str, symbol: str) -> Candle | None:
         """
         Get the latest ticker data for a specific symbol from an exchange.
 
@@ -710,7 +713,7 @@ class DataHandler:
 
         logger.info("DataHandler shutdown complete")
 
-    async def _notify_observers(self, market_data: MarketData) -> None:
+    async def _notify_observers(self, market_data: Candle) -> None:
         """Notify all registered observers about a market data update."""
         async with self.observer_lock:  # Ensure observer list isn't modified during iteration
             if not self.observers:
@@ -719,9 +722,7 @@ class DataHandler:
             tasks = [asyncio.create_task(observer(market_data)) for observer in self.observers]
             logger.debug(f"Scheduled {len(tasks)} observer notifications for {market_data.symbol}")
 
-    def register_observer(
-        self, observer: Callable[[MarketData], Coroutine[Any, Any, None]]
-    ) -> None:
+    def register_observer(self, observer: Callable[[Candle], Coroutine[Any, Any, None]]) -> None:
         """Register an observer (async callable) to receive MarketData updates."""
 
         async def register() -> None:
@@ -740,9 +741,7 @@ class DataHandler:
         except RuntimeError:
             asyncio.run(register())
 
-    def unregister_observer(
-        self, observer: Callable[[MarketData], Coroutine[Any, Any, None]]
-    ) -> None:
+    def unregister_observer(self, observer: Callable[[Candle], Coroutine[Any, Any, None]]) -> None:
         """Unregister an observer."""
 
         async def unregister() -> None:

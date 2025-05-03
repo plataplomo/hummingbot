@@ -23,7 +23,6 @@ from cyberdelta.core.execution_handler import (  # Added TradeExecution
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
-    MarketData,  # Added MarketData import
     Order,
     OrderBook,
     OrderSide,
@@ -31,6 +30,7 @@ from cyberdelta.core.models import (
     OrderType,
     Ticker,
 )
+from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_generator import SignalGenerator
@@ -130,22 +130,20 @@ def populate_data_handler(
 
     # Populate data using exchange-specific symbol
     if ticker:
-        # Create MarketData from Ticker before storing
-        market_data = MarketData(
+        # Create Candle from Ticker before storing
+        candle = Candle(
             symbol=exchange_symbol,
-            timestamp=datetime.fromtimestamp(ticker.timestamp / 1000, UTC)
+            interval="1m",
+            open_time=datetime.fromtimestamp(ticker.timestamp / 1000, UTC)
             if ticker.timestamp
             else timestamp,
-            open=ticker.price or Decimal("0"),  # Assuming price is open/high/low/close for mock
+            open=ticker.price or Decimal("0"),
             high=ticker.price or Decimal("0"),
             low=ticker.price or Decimal("0"),
             close=ticker.price or Decimal("0"),
-            # volume=Decimal("0"), # Default in MarketData
-            ticker_data={
-                exchange_name: {exchange_symbol: ticker}
-            },  # Store original ticker if needed
+            volume=ticker.volume or Decimal("0"),
         )
-        dh.tickers[exchange_name][exchange_symbol] = market_data
+        dh.tickers[exchange_name][exchange_symbol] = candle
         dh.last_update_time[exchange_name]["ticker"][exchange_symbol] = timestamp
     if funding_rate:
         # Store funding rate and NEXT_FUNDING_TIME in DH

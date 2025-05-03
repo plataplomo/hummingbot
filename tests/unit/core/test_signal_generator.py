@@ -21,6 +21,7 @@ from cyberdelta.core.models import (
     Ticker,
     # Position, # Removed unused Position import
 )
+from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config
@@ -107,20 +108,22 @@ class TestSignalGenerator:
 
         now_dt = datetime.now(UTC)
         # Ensure all required fields for MarketData are provided
-        market_data_mocks: dict[str, dict[str, MarketData]] = {
+        market_data_mocks: dict[str, dict[str, Candle]] = {
             "hyperliquid": {
-                "BTC-PERP": MarketData(
+                "BTC-PERP": Candle(
                     symbol="BTC-PERP",
-                    timestamp=now_dt,
+                    interval="1m",
+                    open_time=now_dt,
                     open=Decimal("29950"),
                     high=Decimal("30050"),
                     low=Decimal("29900"),
                     close=Decimal("30000"),
                     volume=Decimal("100"),
                 ),
-                "ETH-PERP": MarketData(
+                "ETH-PERP": Candle(
                     symbol="ETH-PERP",
-                    timestamp=now_dt,
+                    interval="1m",
+                    open_time=now_dt,
                     open=Decimal("1995"),
                     high=Decimal("2005"),
                     low=Decimal("1990"),
@@ -129,18 +132,20 @@ class TestSignalGenerator:
                 ),
             },
             "backpack": {
-                "BTC_USDC": MarketData(
+                "BTC_USDC": Candle(
                     symbol="BTC_USDC",
-                    timestamp=now_dt,
+                    interval="1m",
+                    open_time=now_dt,
                     open=Decimal("30005"),
                     high=Decimal("30015"),
                     low=Decimal("30000"),
                     close=Decimal("30010"),
                     volume=Decimal("120"),
                 ),
-                "ETH_USDC": MarketData(
+                "ETH_USDC": Candle(
                     symbol="ETH_USDC",
-                    timestamp=now_dt,
+                    interval="1m",
+                    open_time=now_dt,
                     open=Decimal("2003"),
                     high=Decimal("2007"),
                     low=Decimal("2002"),

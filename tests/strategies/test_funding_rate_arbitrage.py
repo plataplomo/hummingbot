@@ -10,12 +10,12 @@ import pytest
 
 from cyberdelta.core.models import (
     FundingRate,
-    MarketData,
     OrderSide,
     Position,
     Ticker,
     TradeSignal,
 )
+from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 
 if TYPE_CHECKING:
@@ -101,7 +101,7 @@ def fake_get_param(k: str, d: Any = None) -> Any:
 async def test_process_data_scheduling(
     mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
 ) -> None:
-    mock_data: MarketData = create_mock_market_data()
+    mock_data: Candle = create_mock_candle()
     strategy.last_opportunity_check = None
     with patch.object(strategy.portfolio_tracker, "get_position", return_value=None):
         with patch.object(
@@ -117,7 +117,7 @@ async def test_process_data_scheduling(
 async def test_process_data_rebalance(
     mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
 ) -> None:
-    mock_data: MarketData = create_mock_market_data()
+    mock_data: Candle = create_mock_candle()
     strategy.last_opportunity_check = datetime.now(UTC)
     strategy.rebalance_threshold = Decimal("0.00001")
     with patch.object(strategy.portfolio_tracker, "get_position", side_effect=fake_get_position):
@@ -148,9 +148,10 @@ async def test_process_data_rebalance(
 async def test_opportunity_check_scheduling(
     mock_create_task: MagicMock, strategy: FundingRateArbitrageStrategy
 ) -> None:
-    data: MarketData = MarketData(
+    data: Candle = Candle(
         symbol="BTC-PERP",
-        timestamp=datetime.now(UTC),
+        interval="1m",
+        open_time=datetime.now(UTC),
         open=Decimal("30000.0"),
         high=Decimal("30100.0"),
         low=Decimal("29900.0"),
@@ -217,10 +218,11 @@ async def test_calculate_basis_volatility(strategy: Any, **kwargs: Any) -> None:
 # Helper functions
 
 
-def create_mock_market_data(**kwargs: Any) -> MarketData:
-    return MarketData(
+def create_mock_candle(**kwargs: Any) -> Candle:
+    return Candle(
         symbol=kwargs.get("symbol", "BTC-PERP"),
-        timestamp=kwargs.get("timestamp", datetime.now(UTC)),
+        interval=kwargs.get("interval", "1m"),
+        open_time=kwargs.get("open_time", datetime.now(UTC)),
         open=kwargs.get("open", Decimal("30000.0")),
         high=kwargs.get("high", Decimal("30100.0")),
         low=kwargs.get("low", Decimal("29900.0")),
