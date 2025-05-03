@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from ..core.models import (
         Balance,
         FundingRate,
-        MarketData,
         Order,
         OrderBook,
         OrderSide,  # Moved back
@@ -32,6 +31,7 @@ if TYPE_CHECKING:
         TimeInForce,  # Moved back
         Trade,  # Use Trade instead of Fill
     )
+    from ..core.models.market import Candle  # Correct import
 
 logger = logging.getLogger(__name__)
 
@@ -718,7 +718,7 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def get_market_data(
         self, symbol: str, timeframe: str, limit: int = 100
-    ) -> list[MarketData]:
+    ) -> list[Candle]:  # Type hint should now work
         """Fetch historical market data (OHLCV/Kline) for a specific symbol and timeframe."""
         raise NotImplementedError
 

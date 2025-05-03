@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, TypedDict, TypeVar
 
@@ -11,13 +12,14 @@ from eth_account.messages import encode_typed_data
 from web3.auto import w3
 
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
-from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI, MessageHandler
+from cyberdelta.apis.base import ExchangeAPI, MessageHandler
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
 from cyberdelta.apis.hyperliquid.hl_ws_mapper import HyperliquidWebsocketMapper
+from cyberdelta.apis.models.api import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
-    MarketData,
     Order,
     OrderBook,
     OrderSide,
@@ -25,6 +27,7 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
+from cyberdelta.core.models.market import Candle
 
 logger = logging.getLogger(__name__)
 
@@ -968,12 +971,13 @@ class HyperliquidAPI(ExchangeAPI):
                         rate_str: str = str(funding_info.get("fundingRate", "0"))
                         # Convert from percentage to decimal (e.g., 0.01% -> 0.0001)
                         rate_decimal = Decimal(rate_str) / Decimal(100)
-                        timestamp = int(time.time() * 1000)  # Current time in milliseconds
+                        # timestamp = int(time.time() * 1000)  # Current time in milliseconds
+                        timestamp_dt = datetime.now(UTC)  # Use current UTC time
 
                         funding_rate = FundingRate(
                             symbol=market_symbol,
                             funding_rate=rate_decimal,
-                            timestamp=timestamp,
+                            timestamp=timestamp_dt,  # Use datetime object
                         )
                         result.append(funding_rate)
 
@@ -995,7 +999,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_market_data(
         self, symbol: str, timeframe: str, limit: int = 100
-    ) -> list[MarketData]:
+    ) -> list[Candle]:  # Type hint should now work
         raise NotImplementedError(
             "get_market_data (kline/OHLCV) not implemented for HyperliquidAPI"
         )

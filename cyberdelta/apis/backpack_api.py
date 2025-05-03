@@ -24,7 +24,7 @@ import hmac
 import logging
 import time
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -338,14 +338,26 @@ class BackpackAPI(ExchangeAPI):
                     continue
             timestamp_raw = response.get("time", int(time.time() * 1000))
             if isinstance(timestamp_raw, int | float | str):
-                timestamp = int(float(timestamp_raw))
+                # timestamp = int(float(timestamp_raw)) # Keep as raw for parsing
+                pass
             else:
-                timestamp = int(time.time() * 1000)
+                timestamp_raw = int(time.time() * 1000)  # Fallback if type is weird
+
+            # Parse timestamp to datetime
+            timestamp_dt = parse_datetime_utc(timestamp_raw, field_name="time")
+            if timestamp_dt is None:
+                # DEFENSIVE CHECK: API response missing mandatory 'time' field.
+                logger.error(
+                    f"[{self.exchange_name}] Order book response missing 'time'. "
+                    f"Using current time."
+                )
+                timestamp_dt = datetime.now(UTC)  # Use current UTC time as fallback
+
             return OrderBook(
                 symbol=symbol,
                 bids=bids,
                 asks=asks,
-                timestamp=timestamp,
+                timestamp=timestamp_dt,  # Use datetime object
             )
         except Exception as e:
             logger.error(
@@ -434,13 +446,6 @@ class BackpackAPI(ExchangeAPI):
                             f"[{self.exchange_name}] Invalid 'time' in trade: {trade_data} ({e})"
                         )
                         continue
-                    try:
-                        cost: Decimal = price * quantity
-                    except Exception as e:
-                        logger.warning(
-                            f"[{self.exchange_name}] Error calculating cost: {trade_data} ({e})"
-                        )
-                        continue
                     side: OrderSide | None = None
                     if "isBuyerMaker" in trade_data:
                         side = (
@@ -468,11 +473,9 @@ class BackpackAPI(ExchangeAPI):
                         client_order_id=client_order_id,
                         price=price,
                         quantity=quantity,
-                        cost=cost,
                         fee=fee,
                         fee_asset=fee_asset,
                         is_maker=is_maker,
-                        timestamp=int(float(raw_time)),
                     )
                     trades.append(trade)
                 except Exception as e:
@@ -834,9 +837,21 @@ class BackpackAPI(ExchangeAPI):
                 raise APIError(
                     f"Could not fetch funding rate for {symbol}", code=APIErrorCode.UNKNOWN.value
                 )
-            timestamp = parse_decimal_value(
-                response.get("time", int(time.time() * 1000)), allow_none=False, field_name="time"
+            # Parse timestamp to datetime
+            timestamp_raw = response.get("time")
+            # Use current UTC time if API doesn't provide one
+            timestamp_dt = (
+                parse_datetime_utc(timestamp_raw, field_name="time")
+                if timestamp_raw
+                else datetime.now(UTC)
             )
+            if timestamp_dt is None:  # Should not happen with fallback, but defensive check
+                logger.error(
+                    f"[{self.exchange_name}] Failed to parse or get timestamp for funding rate. "
+                    f"Using current UTC time."
+                )
+                timestamp_dt = datetime.now(UTC)
+
             funding_rate_dec = parse_decimal_value(
                 response.get("fundingRate", "0"), allow_none=False, field_name="fundingRate"
             )
@@ -847,10 +862,12 @@ class BackpackAPI(ExchangeAPI):
                 if response.get("markPrice")
                 else None
             )
+            if funding_rate_dec is None:  # Defensive check
+                raise ValueError("fundingRate parsed to None unexpectedly")
 
             return FundingRate(
                 symbol=symbol,
-                timestamp=int(timestamp) if isinstance(timestamp, Decimal) else timestamp,
+                timestamp=timestamp_dt,  # Use datetime object
                 funding_rate=funding_rate_dec,
                 mark_price=mark_price_dec,
             )

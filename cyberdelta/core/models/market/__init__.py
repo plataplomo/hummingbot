@@ -1,5 +1,6 @@
 from cyberdelta.core.models.portfolio import Position
 
+from .candle import Candle
 from .funding_rate import FundingRate
 from .order import Order
 from .order_book import OrderBook
@@ -13,4 +14,5 @@ __all__ = [
     "FundingRate",
     "OrderBook",
     "Ticker",
+    "Candle",
 ]
