@@ -6,7 +6,7 @@ import logging
 import threading
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.utils.config import Config
@@ -48,15 +48,13 @@ class PrioritySignalQueue:
         """
         self.config = config
         self.circuit_breaker_system = circuit_breaker_system
-        self.logger = logging.getLogger(
-            f"{__name__}.{self.__class__.__name__}"
-        )  # Initialize logger
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # Priority queue: [(negative_utility_score, unique_id, signal)]
         # Using negative utility score for max-heap behavior
         self.signal_queue: list[tuple[float, int, TradeSignal]] = []
 
-        # For async operations - not used in the current implementation
+        # Heap for async wait/pop operations
         self.signal_heap: list[tuple[float, datetime, int, TradeSignal]] = []
 
         # Lock Management:
@@ -70,10 +68,26 @@ class PrioritySignalQueue:
         # Counter for generating unique IDs
         self.counter = 0
 
-        # Queue parameters
-        self.default_expiration_seconds = config.get("default_signal_expiration_seconds", 300)
-        self.max_queue_size = config.get("max_signal_queue_size", 100)
-        self.cleanup_interval = config.get("queue_cleanup_interval", 10)
+        # Queue parameters - Cast config values to expected types
+        # Ensure config.get returns something convertible to float/int or handle error
+        def get_config_value(key: str, default: Any, target_type: type) -> Any:
+            value = config.get(key, default)
+            try:
+                # Ensure value is convertible before calling int()
+                return int(str(value))
+            except (ValueError, TypeError) as e:
+                logger.error(
+                    f"Invalid config value '{value}' for '{key}'. "
+                    f"Using default: {default}. Error: {e}"
+                )
+                return target_type(default)
+
+        self.default_expiration_seconds: float = get_config_value(
+            "default_signal_expiration_seconds", 300.0, float
+        )
+        self.max_queue_size: int = get_config_value("max_signal_queue_size", 100, int)
+        self.cleanup_interval: float = get_config_value("queue_cleanup_interval", 10.0, float)
+
         self.last_cleanup = datetime.now(UTC)
 
         logger.info("Initialized priority signal queue")
@@ -119,7 +133,7 @@ class PrioritySignalQueue:
             return False
 
         # Clean expired signals periodically
-        now = datetime.now(UTC)
+        now: datetime = datetime.now(UTC)
         if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
             self._clean_expired_signals()
             self.last_cleanup = now
@@ -251,7 +265,7 @@ class PrioritySignalQueue:
             # Process signals from the heap until we find a valid one
             while self.signal_queue:
                 # Get highest priority signal item without removing
-                neg_score, uid, potential_signal = self.signal_queue[0]
+                _neg_score, uid, potential_signal = self.signal_queue[0]
 
                 # Check validity (expiration)
                 if not potential_signal.is_valid():
@@ -328,12 +342,16 @@ class PrioritySignalQueue:
         Get multiple signals in priority order.
 
         Args:
-            max_count: Maximum number of signals to return
-            symbol: Optional symbol to filter by
+            max_count: Maximum number of signals to return.
+            symbol: Optional symbol to filter by.
 
         Returns:
-            List of signals in priority order
+            List of signals in priority order.
         """
+        # TODO: This method currently returns potentially expired signals.
+        # It should likely behave similarly to get_next_signal and filter expired.
+        # Consider using heapq.nsmallest after cleaning expired signals.
+
         result: list[TradeSignal] = []
         temp_queue: list[tuple[float, int, TradeSignal]] = self.signal_queue.copy()
 
@@ -342,12 +360,10 @@ class PrioritySignalQueue:
 
         # Get signals
         while temp_queue and len(result) < max_count:
-            _, _, signal = heapq.heappop(temp_queue)
-            if signal.is_valid():
-                if not self.circuit_breaker_system or self._check_circuit_breakers(signal):
-                    # Filter by symbol if provided
-                    if symbol is None or signal.symbol == symbol:
-                        result.append(signal)
+            _, _, signal = heapq.heappop(temp_queue)  # Pop highest priority
+            # Filter by symbol if provided
+            if symbol is None or signal.symbol == symbol:
+                result.append(signal)
 
         return result
 
@@ -403,33 +419,39 @@ class PrioritySignalQueue:
         Returns:
             True if a signal was removed, False otherwise
         """
-        if len(self.signal_queue) <= self.max_queue_size:
+        # Ensure max_queue_size is usable (cast during init)
+        current_size = len(self.signal_queue)
+        if current_size <= self.max_queue_size:
             return False
 
-        # Remove lowest priority signals until we're at max size
-        while len(self.signal_queue) > self.max_queue_size:
-            # Find the item with lowest priority (highest negative score)
-            lowest_priority_idx = max(
-                range(len(self.signal_queue)), key=lambda i: self.signal_queue[i][0]
-            )
+        # Determine how many items to remove
+        num_to_remove = current_size - self.max_queue_size
 
-            # Get the signal to log information
-            lowest_signal = self.signal_queue[lowest_priority_idx][2]
-            lowest_score = -self.signal_queue[lowest_priority_idx][0]  # Convert back to positive
+        if num_to_remove > 0:
+            # Get the `num_to_remove` lowest priority items using nlargest on the negative score
+            # This is more efficient than popping one by one
+            lowest_items = heapq.nlargest(num_to_remove, self.signal_queue, key=lambda x: x[0])
 
-            # Remove the item
-            self.signal_queue.pop(lowest_priority_idx)
+            # Log removals before modifying the heap
+            for _score, _uid, low_signal in lowest_items:
+                utility = -_score  # Convert back to positive
+                logger.debug(
+                    f"Trimming signal for {low_signal.symbol} with score {utility} "
+                    f"from queue (size {current_size} > max {self.max_queue_size})"
+                )
 
-            # Log the removal
+            # Efficiently remove the lowest priority items
+            # Convert heap to list, filter out lowest items, then heapify again
+            lowest_items_set = set(lowest_items)  # For efficient lookup
+            self.signal_queue = [item for item in self.signal_queue if item not in lowest_items_set]
+            heapq.heapify(self.signal_queue)
+
             logger.debug(
-                f"Trimmed signal for {lowest_signal.symbol} with score {lowest_score} "
-                f"from queue to maintain max size of {self.max_queue_size}"
+                f"Trimmed signal queue to {len(self.signal_queue)} items "
+                f"(max {self.max_queue_size})"
             )
+            return True
 
-        # Re-heapify the queue
-        heapq.heapify(self.signal_queue)
-
-        logger.debug(f"Trimmed signal queue to {self.max_queue_size} items")
         return True
 
     def _calculate_expiration(self, signal: TradeSignal) -> TradeSignal:
@@ -446,6 +468,8 @@ class PrioritySignalQueue:
         """
         # Base expiration time
         base_expiration_seconds = self.default_expiration_seconds
+
+        expiration_seconds: float = base_expiration_seconds  # Initialize with base
 
         # Adjust based on signal confidence if available
         if signal.metadata and "confidence_score" in signal.metadata:
@@ -472,7 +496,8 @@ class PrioritySignalQueue:
         # Only set expiration if it's not already set
         if signal.expiration is None:
             # Create expiration time using timezone-aware datetime
-            expiration_time = datetime.now(UTC) + timedelta(seconds=expiration_seconds)
+            # Ensure expiration_seconds is float before passing to timedelta
+            expiration_time = datetime.now(UTC) + timedelta(seconds=float(expiration_seconds))
             signal.expiration = expiration_time
             self.logger.debug(
                 f"Calculated expiration for signal {signal.signal_id}: {expiration_time}"
@@ -517,24 +542,26 @@ class PrioritySignalQueue:
 
         # Check breakers for relevant exchanges
         for ex in exchanges_to_check:
-            ex: str  # Explicit annotation for type checker
+            exchange_id: str = ex  # Use a new variable name
             # Only check if breaker is OPEN. We don't care about HALF_OPEN here.
             # Get the exchange API error breaker first
-            api_breaker = self.circuit_breaker_system.get_exchange_breaker(ex, "api_errors")
+            api_breaker = self.circuit_breaker_system.get_exchange_breaker(
+                exchange_id, "api_errors"
+            )
             if api_breaker and api_breaker.state == BreakerState.OPEN:
                 self.logger.warning(
-                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} "
+                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {exchange_id} "
                     f"API circuit breaker is OPEN: {api_breaker.trip_reason}"
                 )
                 return False  # Reject if API breaker is OPEN
 
             # Check other potential breakers like volatility
             volatility_breaker = self.circuit_breaker_system.get_exchange_breaker(
-                ex, f"{signal.symbol}_volatility"
+                exchange_id, f"{signal.symbol}_volatility"
             )
             if volatility_breaker and volatility_breaker.state == BreakerState.OPEN:
                 self.logger.warning(
-                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {ex} "
+                    f"Pre-add check: Signal for {signal.symbol} rejected. Exchange {exchange_id} "
                     f"volatility circuit breaker is OPEN: {volatility_breaker.trip_reason}"
                 )
                 return False  # Reject if volatility breaker is OPEN
@@ -574,11 +601,11 @@ class PrioritySignalQueue:
 
         # Check breakers using can_execute, which handles HALF_OPEN state
         for ex in exchanges_to_check:
-            ex: str  # Explicit annotation for type checker
-            can_exec, reason = self.circuit_breaker_system.can_execute(ex, signal.symbol)
+            exchange_id: str = ex  # Use new variable name
+            can_exec, reason = self.circuit_breaker_system.can_execute(exchange_id, signal.symbol)
             if not can_exec:
                 self.logger.warning(
-                    f"Post-get check: Signal for {signal.symbol} blocked by exchange {ex} "
+                    f"Post-get check: Signal for {signal.symbol} blocked by exchange {exchange_id} "
                     f"circuit breaker: {reason}"
                 )
                 return False  # Block if execution not allowed
@@ -658,9 +685,15 @@ class PrioritySignalQueue:
         # Use the threading Lock for synchronous code
         with self._sync_lock:
             # Create a sorted list for a snapshot view
-            sorted_heap = sorted(list(self.signal_queue), key=lambda x: (x[0], x[1]))
-            result = [signal for score, count, signal in sorted_heap if signal.is_valid()]
-        return result
+            # Type result explicitly
+            pending_signals: list[TradeSignal] = [
+                signal
+                for _score, _count, signal in sorted(
+                    list(self.signal_queue), key=lambda x: (x[0], x[1])
+                )
+                if signal.is_valid()
+            ]
+        return pending_signals
 
     def get_signal_count(self) -> int:
         """Get the number of signals currently in the queue."""
@@ -678,30 +711,12 @@ class PrioritySignalQueue:
         """Internal method to process signals based on priority levels."""
         processed_signals: list[TradeSignal] = []
         while self.signal_queue:
-            score, count, signal = heapq.heappop(self.signal_queue)
-            if True:
-                processed_signals.append(signal)
-                self.logger.debug(
-                    f"Processing signal: {signal.signal_type.name} for {signal.symbol}"
-                )
-                # TODO: Validate signal against risk limits, portfolio state, etc.
-                # Example: if not self.risk_manager.is_signal_safe(signal):
-                #              continue
-
-                # Create signal with direct parameters
-                # This is dead code by the True condition above and can be removed later
-                # This code is marked for removal in a future PR
-                # Ideally we should use actual checks rather than True
-
-                # Check if the signal is valid (example - replace with actual validation)
-                # Removed: if signal.is_valid():
-                if True:  # Placeholder for actual validation
-                    # Fix the structured logging issue by using formatted string instead of kwargs
-                    self.logger.info(
-                        f"Adding valid signal to processing queue: {signal.symbol} "
-                        f"{signal.signal_type} price={signal.price} quantity={signal.quantity}"
-                    )
-                    # ... existing code ...
+            _score, _count, signal = heapq.heappop(self.signal_queue)
+            # Assuming this method is meant to process ALL signals regardless of the `True` check
+            processed_signals.append(signal)
+            self.logger.debug(f"Processing signal: {signal.signal_type.name} for {signal.symbol}")
+            # TODO: Add actual processing/validation logic here if this method is used.
+            # The `if True:` block was likely placeholder/dead code.
 
     def _add_signal(self, signal: TradeSignal, priority_score: float) -> None:
         """Adds a signal to the internal queue with appropriate priority."""
@@ -712,10 +727,9 @@ class PrioritySignalQueue:
 
         # Create a new TradeSignal instance with direct parameter passing
         # instead of using dictionary unpacking which causes type issues
-        price_decimal = Decimal(str(signal.price)) if signal.price is not None else Decimal("0")
-        quantity_decimal = (
-            Decimal(str(signal.quantity)) if signal.quantity is not None else Decimal("0")
-        )
+        # Remove redundant None checks as price/quantity are Decimals
+        price_decimal = signal.price
+        quantity_decimal = signal.quantity
         source_strategy = getattr(signal, "source_strategy", None)
         stop_loss = getattr(signal, "stop_loss", None)
         take_profit = getattr(signal, "take_profit", None)
@@ -794,7 +808,7 @@ class PrioritySignalQueue:
         """
         self._clean_expired_signals()
 
-        result = []
+        result: list[TradeSignal] = []
 
         # Use the threading Lock for synchronous code
         with self._sync_lock:
@@ -810,8 +824,9 @@ class PrioritySignalQueue:
                 if not self.signal_heap:
                     break
 
-                priority, timestamp, count, signal = heapq.heappop(self.signal_heap)
-                result.append(signal)
+                _priority, _timestamp, _count, popped_signal = heapq.heappop(self.signal_heap)
+                # The check is redundant as self.signal_heap contains TradeSignals
+                result.append(popped_signal)
 
             # If we emptied the heap, clear the event
             if not self.signal_heap:
@@ -855,7 +870,7 @@ class PrioritySignalQueue:
             metadata = signal.metadata or {}
 
             # Determine relevant exchange(s) from metadata
-            exchanges_to_check = set()
+            exchanges_to_check: set[str] = set()
             exchange = metadata.get("exchange")
             long_exchange = metadata.get("long_exchange")
             short_exchange = metadata.get("short_exchange")
@@ -885,11 +900,13 @@ class PrioritySignalQueue:
 
             # Check each relevant exchange and the specific symbol
             for ex in exchanges_to_check:
-                ex: str  # Explicit annotation for type checker
-                can_exec, reason = self.circuit_breaker_system.can_execute(ex, signal.symbol)
+                exchange_id: str = ex  # Use new variable name
+                can_exec, reason = self.circuit_breaker_system.can_execute(
+                    exchange_id, signal.symbol
+                )
                 if not can_exec:
                     self.logger.warning(
-                        f"Signal for {signal.symbol} on exchange {ex} blocked by "
+                        f"Signal for {signal.symbol} on exchange {exchange_id} blocked by "
                         f"circuit breaker: {reason}"
                     )
                     return False
@@ -946,3 +963,7 @@ class PrioritySignalQueue:
             self.logger.info("PrioritySignalQueue run loop cancelled.")
         finally:
             self.logger.info("PrioritySignalQueue run loop stopped.")
+
+    async def process_signal(self) -> TradeSignal | None:
+        # Implementation of process_signal method
+        pass

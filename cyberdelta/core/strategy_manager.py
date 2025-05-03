@@ -6,7 +6,8 @@ from typing import Any
 import structlog
 
 from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.models import MarketData, TradeSignal
+from cyberdelta.core.models import TradeSignal
+from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
@@ -124,14 +125,15 @@ class StrategyManager:
         logger.info(f"Disabled strategy '{strategy_name}'")
         return True
 
-    async def process_market_data(self, data: MarketData) -> list[TradeSignal]:
+    async def process_market_data(self, data: Candle) -> list[TradeSignal]:
         """
         Asynchronously process market data through all enabled strategies that match the symbol.
         Robustly handles exceptions and filters invalid signals.
-        For v0.0.1 safety: If any strategy's update_historical_data fails, the whole process fails (fail-fast, all-or-nothing).
+        For v0.0.1 safety: If any strategy's update_historical_data fails,
+        the whole process fails (fail-fast, all-or-nothing).
 
         Args:
-            data: Market data to process
+            data: Candle object containing market information.
 
         Returns:
             List of valid trade signals generated from strategies (may be empty if no signals)
@@ -194,10 +196,10 @@ class StrategyManager:
                 signals.append(sized_signal)  # type: ignore[assignment]
         return signals
 
-    async def on_market_data(self, market_data: MarketData) -> list[TradeSignal]:
+    async def on_market_data(self, market_data: Candle) -> list[TradeSignal]:
         """
-        Asynchronously called when new market data is available. Returns a list of valid TradeSignals (may be empty).
-        Robustly handles exceptions and filters invalid signals.
+        Asynchronously called when new market data is available. Returns a list of valid
+        TradeSignals (may be empty). Robustly handles exceptions and filters invalid signals.
         """
         signals: list[TradeSignal] = []
         strategies = self.get_strategies_for_symbol(market_data.symbol)

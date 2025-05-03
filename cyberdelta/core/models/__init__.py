@@ -14,7 +14,7 @@ from .enums import (
     SignalType,
     TimeInForce,
 )
-from .market import FundingRate, MarketData, Order, OrderBook, Ticker, Trade
+from .market import FundingRate, Order, OrderBook, Ticker, Trade
 from .portfolio import Balance, Position
 from .strategy import TradeSignal
 
@@ -30,7 +30,6 @@ __all__ = [
     "Trade",
     "Position",
     "TradeSignal",
-    "MarketData",
     "Ticker",
     "OrderBook",
     "FundingRate",

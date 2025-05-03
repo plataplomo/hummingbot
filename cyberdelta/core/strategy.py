@@ -3,10 +3,12 @@ from __future__ import annotations  # Enable postponed evaluation
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, TypeVar  # Added TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
+
+from cyberdelta.core.models.market.candle import Candle
 
 if TYPE_CHECKING:
-    from cyberdelta.core.models import MarketData, TradeSignal
+    from cyberdelta.core.models import TradeSignal
 
 logger = logging.getLogger(__name__)
 
@@ -34,29 +36,29 @@ class Strategy(ABC):
         self.enabled = False
         self.last_signal_time: datetime | None = None
         self.signals_generated = 0
-        self._historical_data: list[MarketData] = []  # Changed
+        self._historical_data: list[Candle] = []
 
         logger.info(f"Initialized strategy '{name}' for {symbol}")
 
     @abstractmethod
-    async def process_data(self, data: MarketData) -> TradeSignal | list[TradeSignal] | None:
+    async def process_data(self, data: Candle) -> TradeSignal | list[TradeSignal] | None:
         """
         Asynchronously process new market data and optionally generate one or more trading signals.
 
         Args:
-            data: Market data to process
+            data: Candle object containing market information.
 
         Returns:
             Optional TradeSignal, list of TradeSignals, or None if no trade should be executed
         """
         pass
 
-    def update_historical_data(self, data: MarketData, max_bars: int = 1000) -> None:  # Changed
+    def update_historical_data(self, data: Candle, max_bars: int = 1000) -> None:
         """
         Update the strategy's historical data cache
 
         Args:
-            data: New market data to add
+            data: New Candle object to add.
             max_bars: Maximum number of data points to keep
         """
         # Only store data for the symbol this strategy is configured for
@@ -88,7 +90,7 @@ class Strategy(ABC):
         logger.info(f"Strategy '{self.name}' stopped")
 
     # Ensure correct indentation for methods within the class
-    def get_param(self, name: str, default: object | None = None) -> object | None:
+    def get_param(self, name: str, default: Any | None = None) -> Any | None:
         """
         Get a strategy parameter.
 
@@ -101,7 +103,7 @@ class Strategy(ABC):
         """
         return self.params.get(name, default)
 
-    def set_param(self, name: str, value: object) -> None:
+    def set_param(self, name: str, value: Any) -> None:
         """
         Set a strategy parameter.
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging  # Use standard logging
+from typing import Any, cast  # Add Any and cast imports
 
 # Assuming a config structure like:
 # config = {
@@ -36,7 +37,7 @@ class SymbolMapper:
     Includes basic validation during initialization.
     """
 
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:
         """
         Initializes the SymbolMapper and loads mappings from the provided config.
 
@@ -54,14 +55,13 @@ class SymbolMapper:
         ] = {}  # {exchange: {exchange_symbol: internal}}
         self._all_internal_symbols: set[str] = set()
 
-        if not isinstance(config, dict) or "exchanges" not in config:
+        if "exchanges" not in config:
             raise SymbolMappingError("Invalid configuration structure: 'exchanges' key missing.")
 
         exchanges_config = config["exchanges"]
-        if not isinstance(exchanges_config, dict):
-            raise SymbolMappingError("Invalid configuration: 'exchanges' must be a dictionary.")
+        exchanges_config_dict: dict[str, Any] = cast(dict[str, Any], exchanges_config)
 
-        for exchange_id, exchange_data in exchanges_config.items():
+        for exchange_id, exchange_data in exchanges_config_dict.items():
             if not isinstance(exchange_data, dict) or "symbols" not in exchange_data:
                 logger.warning(
                     f"Skipping exchange '{exchange_id}': Missing 'symbols' configuration."
@@ -75,8 +75,11 @@ class SymbolMapper:
                 )
                 continue
 
+            symbol_map_dict: dict[str, Any] = cast(dict[str, Any], symbol_map)
+
             self._exchange_to_internal[exchange_id] = {}
-            for internal_symbol, exchange_symbol in symbol_map.items():
+            for internal_symbol, exchange_symbol in symbol_map_dict.items():
+                # Ensure keys and values are strings before using them
                 if not isinstance(internal_symbol, str) or not isinstance(exchange_symbol, str):
                     logger.warning(
                         f"Invalid symbol mapping entry for exchange '{exchange_id}': "
