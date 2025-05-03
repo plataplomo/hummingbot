@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Self
 
 from pydantic import (
     BaseModel,
@@ -113,7 +114,7 @@ class Candle(BaseModel):
         return parsed_decimal
 
     @model_validator(mode="after")
-    def check_ohlc_consistency(self) -> Candle:
+    def check_ohlc_consistency(self) -> Self:
         """
         Validate the logical consistency of OHLC prices (high >= low, etc.).
         """
