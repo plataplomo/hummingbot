@@ -1,52 +1,90 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
-from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from cyberdelta.utils.parsing import parse_decimal_value
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
 class Ticker(BaseModel):
     """
-    Ticker provides a lightweight snapshot of the best bid/ask, last price, and volume for a symbol.
-    It is immutable (frozen=True) to ensure that ticker data reflects the exact state at the time of
-    retrieval.
+    Represents an immutable, validated snapshot of the latest ticker data for a symbol.
 
-    Fields:
-        symbol (str): Trading symbol.
-        price (Decimal | None): Last traded price.
-        bid (Decimal | None): Best bid price.
-        ask (Decimal | None): Best ask price.
-        volume (Decimal | None): Trading volume.
-        timestamp (int | None): Optional timestamp.
+    Provides core price (last, bid, ask) and volume information, ensuring data integrity
+    through strict validation and Decimal usage for financial precision.
 
-    Notes:
-        - All price/volume fields use Decimal for precision.
-        - This model is not intended for mutation after creation.
+    Attributes:
+        symbol: Trading symbol (validated: required, non-empty, max 64 chars, UTF-8).
+        timestamp: UTC timestamp of the ticker snapshot (validated: required).
+        price: Last traded price. Must be non-negative if provided.
+        bid: Best bid price. Must be non-negative if provided.
+        ask: Best ask price. Must be non-negative if provided.
+        volume: Trading volume (e.g., 24h). Must be non-negative if provided.
+
+    Configuration:
+        - `frozen=True`: Guarantees immutability.
+        - `extra='forbid'`: Prevents unexpected fields.
+        - `validate_assignment=True`: Ensures validation on assignment (redundant with frozen=True).
     """
 
     symbol: str
-    price: Decimal | None = None
-    bid: Decimal | None = None
-    ask: Decimal | None = None
-    volume: Decimal | None = None
-    timestamp: int | None = None
+    timestamp: datetime
+    # Using Field for default=None and validation (ge=0)
+    price: Decimal | None = Field(default=None, ge=Decimal("0"))
+    bid: Decimal | None = Field(default=None, ge=Decimal("0"))
+    ask: Decimal | None = Field(default=None, ge=Decimal("0"))
+    volume: Decimal | None = Field(default=None, ge=Decimal("0"))
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol(cls, v: object) -> str:
+        """Validate the 'symbol' field."""
+        return validate_str_field(v, field_name="symbol", max_length=64, allow_empty=False)
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def validate_timestamp(cls, v: datetime | int | float | str | None) -> datetime:
+        """Validate and parse the 'timestamp' field to a required UTC datetime object."""
+        dt = parse_datetime_utc(v, field_name="timestamp")
+        if dt is None:
+            raise ValueError("timestamp must not be None and must be a valid format")
+        return dt
+
     @field_validator("price", "bid", "ask", "volume", mode="before")
     @classmethod
-    def parse_decimal(
-        cls, raw_value: str | int | float | Decimal | None, info: object
+    def validate_and_parse_decimal_optional(
+        cls, v: str | int | float | Decimal | None, info: ValidationInfo
     ) -> Decimal | None:
-        return parse_decimal_value(raw_value)
+        """
+        Validate, parse, and check finiteness for optional Decimal fields (price, bid, ask, volume).
 
-    def to_dict(self) -> dict[str, Any]:
-        """Subject to deprecation: Prefer model_dump(mode='json') for future serialization."""
-        data = self.model_dump()
-        for key, value in data.items():
-            if isinstance(value, Decimal):
-                data[key] = str(value)
-        return data
+        Uses `parse_decimal_value` which handles None input gracefully (returns None).
+        Adds an explicit check to ensure that any non-None parsed Decimal is finite.
+        The non-negativity (`ge=0`) constraint is handled by `Field`.
+
+        Args:
+            v: The raw input value (can be various numeric types or None).
+            info: Pydantic validation context. Used for field name in error messages if needed.
+
+        Returns:
+            The parsed Decimal value if input is valid and non-None, None if input is None,
+            or raises ValueError for invalid/non-finite inputs.
+
+        Raises:
+            ValueError: If a non-None input cannot be parsed to a finite Decimal.
+        """
+        # Ensure field_name is a str for the parsing utility.
+        field_name = info.field_name if info.field_name is not None else "unknown_field"
+
+        # parse_decimal_value returns None if v is None, raises ValueError otherwise on failure.
+        parsed_decimal = parse_decimal_value(v, allow_none=True, field_name=field_name)
+
+        # Ensure non-None results are finite. NaN/Infinity are invalid for ticker data.
+        if parsed_decimal is not None and not parsed_decimal.is_finite():
+            raise ValueError(f"Field '{field_name}' must be a finite Decimal, got {parsed_decimal}")
+
+        return parsed_decimal

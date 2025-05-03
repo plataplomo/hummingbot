@@ -19,14 +19,16 @@ class OrderBook(BaseModel):
     (e.g., str, int, float) directly into the required internal types (Decimal, datetime).
 
     Attributes:
-        symbol: Trading symbol (validated: non-empty, max 64 chars, UTF-8).
-        timestamp: UTC timestamp of the snapshot (required, validated).
+        symbol: Trading symbol (validated: required, non-empty, max 64 chars, UTF-8).
+        timestamp: UTC timestamp of the snapshot (validated: required).
         bids: List of (price, quantity) tuples for bids, validated & parsed to Decimal.
               Validated: price is finite, quantity is finite & non-negative.
-              Input can be list[tuple[Decimal | str | int | float, Decimal | str | int | float]].
+              Input can be list[tuple[Decimal | str | int | float,
+                                      Decimal | str | int | float]].
         asks: List of (price, quantity) tuples for asks, validated & parsed to Decimal.
               Validated: price is finite, quantity is finite & non-negative.
-              Input can be list[tuple[Decimal | str | int | float, Decimal | str | int | float]].
+              Input can be list[tuple[Decimal | str | int | float,
+                                      Decimal | str | int | float]].
 
     Configuration:
         - `frozen=True`: Guarantees immutability after creation.
