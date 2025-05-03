@@ -4,43 +4,86 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 from ..enums import OrderSide
 
 
+class HyperliquidTradeDetails(BaseModel):
+    """
+    Hyperliquid-specific trade enrichment fields for extension slot on Trade.
+    """
+
+    trade_hash: str
+    liquidation_mark_px: Decimal | None = None
+    start_position: Decimal | None = None
+    dir: str | None = None
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    @field_validator("trade_hash", mode="before")
+    @classmethod
+    def validate_trade_hash(cls, v: str, info: object) -> str:
+        return validate_str_field(v, field_name="trade_hash", max_length=128)
+
+    @field_validator("dir", mode="before")
+    @classmethod
+    def validate_dir(cls, v: str | None, info: object) -> str | None:
+        if v is None:
+            return None
+        return validate_str_field(v, field_name="dir", max_length=32)
+
+    @field_validator("liquidation_mark_px", "start_position", mode="before")
+    @classmethod
+    def validate_decimals(
+        cls, v: str | int | float | Decimal | None, info: object
+    ) -> Decimal | None:
+        if v is None:
+            return None
+        field_name = getattr(info, "field_name", "unknown")
+        d = parse_decimal_value(v, allow_none=True, field_name=field_name)
+        if d is not None and not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal.")
+        return d
+
+
+class BackpackTradeDetails(BaseModel):
+    """
+    Placeholder for Backpack-specific trade enrichment fields for extension slot on Trade.
+    """
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+
 class Trade(BaseModel):
     """
-    Superset internal model for a single execution event (fill) across Backpack and Hyperliquid.
-    Immutable, robust, and validated. Captures all relevant details for audit, reconciliation,
-    and analytics.
+    Lean core internal model for a single execution event (fill) across all supported exchanges.
+    Contains only essential, universal fields. Immutable, robust, and validated.
 
     Fields:
-        id (str): Trade ID (Backpack: str, HL: int/tid)
-        symbol (str): Trading symbol (Backpack: symbol, HL: coin)
-        executed_at (datetime): UTC timestamp of execution (Backpack: time, HL: time)
-        side (OrderSide): Buy or sell (Backpack: inferred, HL: side)
-        order_id (str): Exchange order ID (Backpack: order_id, HL: oid)
+        id (str): Trade ID (string, unique per exchange fill)
+        symbol (str): Trading symbol (e.g., 'BTC-PERP')
+        executed_at (datetime): UTC timestamp of execution
+        side (OrderSide): Buy or sell
+        order_id (str): Exchange order ID
         exchange (str): Exchange name (internal, required)
-        client_order_id (Optional[str]): Client-generated order ID (Backpack: client_order_id,
-            HL: cloid)
+        client_order_id (Optional[str]): Client-generated order ID
         price (Decimal): Execution price (must be positive)
         quantity (Decimal): Executed quantity (must be positive)
         fee (Decimal): Fee paid for this trade (can be negative for rebates/promotions)
         fee_asset (Optional[str]): Asset in which the fee was paid (required if fee != 0)
         is_maker (Optional[bool]): True if maker fill, False if taker, None if unknown
-        trade_hash (Optional[str]): Unique trade hash (HL only)
-        liquidation_mark_px (Optional[Decimal]): Liquidation mark price (HL only)
-        start_position (Optional[Decimal]): Start position before fill (HL only)
-        dir (Optional[str]): Direction of fill (HL only)
-        timestamp (Optional[int]): Optional integer timestamp (for legacy/exchange compatibility)
-
-    Notes:
-        - All financial fields use Decimal for accuracy.
-        - Negative fee values are allowed for rebates or promotions.
-        - This model is not intended for mutation after creation.
+        hl_details (Optional[HyperliquidTradeDetails]): Hyperliquid-specific enrichment slot
+        bp_details (Optional[BackpackTradeDetails]): Backpack-specific enrichment slot
     """
 
     id: str
@@ -49,41 +92,27 @@ class Trade(BaseModel):
     side: OrderSide
     order_id: str
     exchange: str
-    client_order_id: str | None = None
-    price: Decimal = Field(gt=0, description="Execution price must be positive.")
-    quantity: Decimal = Field(gt=0, description="Executed quantity must be positive.")
-    fee: Decimal = Field(
-        default=Decimal("0"),
-        description="Fee paid for this trade. Can be negative for rebates or promotion.",
-    )
-    fee_asset: str | None = Field(
-        default=None, description="Asset in which the fee was paid. Required if fee != 0."
-    )
-    is_maker: bool | None = Field(
-        default=None, description="True if maker fill, False if taker, None if unknown."
-    )
-    trade_hash: str | None = Field(default=None, description="Unique trade hash (HL only).")
-    liquidation_mark_px: Decimal | None = Field(
-        default=None, description="Liquidation mark price (HL only)."
-    )
-    start_position: Decimal | None = Field(
-        default=None, description="Start position before fill (HL only)."
-    )
-    dir: str | None = Field(default=None, description="Direction of fill (HL only).")
-    timestamp: int | None = Field(default=None, exclude=True)
+    price: Decimal = Field(gt=Decimal("0"))
+    quantity: Decimal = Field(gt=Decimal("0"))
+    client_order_id: str | None = Field(default=None)
+    fee: Decimal = Field(default=Decimal("0"))
+    fee_asset: str | None = Field(default=None)
+    is_maker: bool | None = Field(default=None)
+    hl_details: HyperliquidTradeDetails | None = Field(default=None)
+    bp_details: BackpackTradeDetails | None = Field(default=None)
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
-    @field_validator("id", mode="before")
+    @field_validator("id", "order_id", mode="before")
     @classmethod
-    def validate_id(cls, v: str, info: object) -> str:
+    def validate_id_fields(cls, v: str, info: object) -> str:
         field_name = getattr(info, "field_name", "id")
-        return validate_str_field(v, field_name=str(field_name), max_length=64)
+        return validate_str_field(v, field_name=str(field_name), max_length=128)
 
-    @field_validator("order_id", mode="before")
+    @field_validator("symbol", "exchange", mode="before")
     @classmethod
-    def validate_order_id(cls, v: str, info: object) -> str:
-        field_name = getattr(info, "field_name", "order_id")
+    def validate_symbol_exchange(cls, v: str, info: object) -> str:
+        field_name = getattr(info, "field_name", None)
         return validate_str_field(v, field_name=str(field_name), max_length=64)
 
     @field_validator("executed_at", mode="before")
@@ -96,35 +125,24 @@ class Trade(BaseModel):
             raise ValueError("executed_at cannot be None")
         return dt
 
-    @field_validator(
-        "price", "quantity", "fee", "liquidation_mark_px", "start_position", mode="before"
-    )
+    @field_validator("price", "quantity", "fee", mode="before")
     @classmethod
     def parse_decimal_fields(
         cls, raw_value: str | int | float | Decimal | None, info: object
-    ) -> Decimal | None:
+    ) -> Decimal:
         field_name = getattr(info, "field_name", None)
-        field_name_str = str(field_name) if field_name is not None else "unknown"
-        # Optional fields: allow None
-        if field_name in {"liquidation_mark_px", "start_position"}:
-            if raw_value is None:
-                return None
-        # Required fields: price, quantity, fee (fee has default, but should not be None)
-        if raw_value is None:
-            raise ValueError(f"{field_name_str}: Value cannot be None.")
-        d = parse_decimal_value(raw_value, allow_none=False, field_name=field_name_str)
+        d = parse_decimal_value(raw_value, allow_none=False, field_name=str(field_name))
         if d is None or not d.is_finite():
-            raise ValueError(f"{field_name_str}: Value must be a finite decimal.")
+            raise ValueError(f"{field_name}: Value must be a finite decimal.")
         return d
 
-    @field_validator("client_order_id", "fee_asset", "trade_hash", "dir", mode="before")
+    @field_validator("client_order_id", "fee_asset", mode="before")
     @classmethod
     def validate_optional_str(cls, v: str | None, info: object) -> str | None:
         field_name = getattr(info, "field_name", None)
-        field_name_str = str(field_name) if field_name is not None else "unknown"
         if v is None:
             return None
-        return validate_str_field(v, field_name=field_name_str, max_length=64)
+        return validate_str_field(v, field_name=str(field_name), max_length=64)
 
     @model_validator(mode="after")
     def check_fee_logic(self) -> Self:

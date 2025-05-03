@@ -14,7 +14,7 @@ import pydantic
 import pytest
 
 from cyberdelta.core.models.enums import OrderSide
-from cyberdelta.core.models.market.trade import Trade
+from cyberdelta.core.models.market.trade import BackpackTradeDetails, HyperliquidTradeDetails, Trade
 
 
 def test_trade_minimal_valid() -> None:
@@ -46,6 +46,13 @@ def test_trade_with_all_optionals() -> None:
     correctly."""
     price = Decimal("100.0")
     quantity = Decimal("2.0")
+    hl_details = HyperliquidTradeDetails(
+        trade_hash="hash-abc",
+        liquidation_mark_px=Decimal("99.5"),
+        start_position=Decimal("1.0"),
+        dir="open",
+    )
+    bp_details = BackpackTradeDetails()
     trade = Trade(
         id="12345",
         symbol="BTC-PERP",
@@ -59,21 +66,19 @@ def test_trade_with_all_optionals() -> None:
         fee=Decimal("-0.01"),
         fee_asset="USDC",
         is_maker=True,
-        trade_hash="hash-abc",
-        liquidation_mark_px=Decimal("99.5"),
-        start_position=Decimal("1.0"),
-        dir="open",
-        timestamp=1700000000,
+        hl_details=hl_details,
+        bp_details=bp_details,
     )
     assert trade.client_order_id == "cloid-123"
     assert trade.fee == Decimal("-0.01")
     assert trade.fee_asset == "USDC"
     assert trade.is_maker is True
-    assert trade.trade_hash == "hash-abc"
-    assert trade.liquidation_mark_px == Decimal("99.5")
-    assert trade.start_position == Decimal("1.0")
-    assert trade.dir == "open"
-    assert trade.timestamp == 1700000000
+    assert trade.hl_details is not None
+    assert trade.hl_details.trade_hash == "hash-abc"
+    assert trade.hl_details.liquidation_mark_px == Decimal("99.5")
+    assert trade.hl_details.start_position == Decimal("1.0")
+    assert trade.hl_details.dir == "open"
+    assert trade.bp_details is not None
     assert trade.cost == price * quantity
 
 
@@ -242,6 +247,10 @@ def test_trade_optional_string_fields() -> None:
     """Test that optional string fields accept None and valid strings, and reject invalid
     strings."""
     # Valid
+    hl_details = HyperliquidTradeDetails(
+        trade_hash="hash-abc",
+        dir="open",
+    )
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
@@ -253,13 +262,13 @@ def test_trade_optional_string_fields() -> None:
         quantity=Decimal("1.0"),
         client_order_id="cloid-123",
         fee_asset="USDC",
-        trade_hash="hash-abc",
-        dir="open",
+        hl_details=hl_details,
     )
     assert trade.client_order_id == "cloid-123"
     assert trade.fee_asset == "USDC"
-    assert trade.trade_hash == "hash-abc"
-    assert trade.dir == "open"
+    assert trade.hl_details is not None
+    assert trade.hl_details.trade_hash == "hash-abc"
+    assert trade.hl_details.dir == "open"
     # None
     trade = Trade(
         id="abc123",
@@ -272,13 +281,11 @@ def test_trade_optional_string_fields() -> None:
         quantity=Decimal("1.0"),
         client_order_id=None,
         fee_asset=None,
-        trade_hash=None,
-        dir=None,
+        hl_details=None,
     )
     assert trade.client_order_id is None
     assert trade.fee_asset is None
-    assert trade.trade_hash is None
-    assert trade.dir is None
+    assert trade.hl_details is None
     # Invalid: empty string
     with pytest.raises(ValueError):
         Trade(
@@ -298,21 +305,11 @@ def test_trade_optional_decimal_fields() -> None:
     """Test that optional decimal fields accept None and valid decimals, and reject invalid
     values."""
     # Valid
-    trade = Trade(
-        id="abc123",
-        symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
-        side=OrderSide.BUY,
-        order_id="order-xyz",
-        exchange="backpack",
-        price=Decimal("1.0"),
-        quantity=Decimal("1.0"),
+    hl_details = HyperliquidTradeDetails(
+        trade_hash="hash-abc",
         liquidation_mark_px=Decimal("1.23"),
         start_position=Decimal("2.34"),
     )
-    assert trade.liquidation_mark_px == Decimal("1.23")
-    assert trade.start_position == Decimal("2.34")
-    # None
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
@@ -322,28 +319,43 @@ def test_trade_optional_decimal_fields() -> None:
         exchange="backpack",
         price=Decimal("1.0"),
         quantity=Decimal("1.0"),
+        hl_details=hl_details,
+    )
+    assert trade.hl_details is not None
+    assert trade.hl_details.liquidation_mark_px == Decimal("1.23")
+    assert trade.hl_details.start_position == Decimal("2.34")
+    # None
+    hl_details = HyperliquidTradeDetails(
+        trade_hash="hash-abc",
         liquidation_mark_px=None,
         start_position=None,
     )
-    assert trade.liquidation_mark_px is None
-    assert trade.start_position is None
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="backpack",
+        price=Decimal("1.0"),
+        quantity=Decimal("1.0"),
+        hl_details=hl_details,
+    )
+    assert trade.hl_details is not None
+    assert trade.hl_details.liquidation_mark_px is None
+    assert trade.hl_details.start_position is None
     # Invalid: non-finite
     with pytest.raises(ValueError):
-        Trade(
-            id="abc123",
-            symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
-            side=OrderSide.BUY,
-            order_id="order-xyz",
-            exchange="backpack",
-            price=Decimal("1.0"),
-            quantity=Decimal("1.0"),
+        HyperliquidTradeDetails(
+            trade_hash="hash-abc",
             liquidation_mark_px=Decimal("NaN"),
         )
 
 
 def test_trade_model_dump_json_serialization() -> None:
-    """Test that Trade.model_dump(mode='json') serializes Decimal, Enum, and datetime fields as expected."""
+    """Test that Trade.model_dump(mode='json') serializes Decimal, Enum, and datetime fields
+    as expected.
+    """
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
