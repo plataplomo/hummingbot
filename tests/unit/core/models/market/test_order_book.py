@@ -26,7 +26,7 @@ class TestOrderBook:
         expected_bids = [(Decimal("50000.0"), Decimal("1.5")), (Decimal("49999.5"), Decimal("2.0"))]
         expected_asks = [(Decimal("50000.5"), Decimal("1.0")), (Decimal("50001.0"), Decimal("0.5"))]
 
-        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=bids, asks=asks)  # type: ignore[arg-type]
+        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=bids, asks=asks)
         assert ob.bids == expected_bids
         assert ob.asks == expected_asks
 
@@ -38,10 +38,13 @@ class TestOrderBook:
             # Ignore type error since we are testing missing field validation
             OrderBook(timestamp=now, bids=[], asks=[])
         with pytest.raises(ValidationError, match="Field required"):
+            # Ignore type error since we are testing missing field validation
             OrderBook(symbol="BTC", bids=[], asks=[])
         with pytest.raises(ValidationError, match="Field required"):
+            # Ignore type error since we are testing missing field validation
             OrderBook(symbol="BTC", timestamp=now, asks=[])
         with pytest.raises(ValidationError, match="Field required"):
+            # Ignore type error since we are testing missing field validation
             OrderBook(symbol="BTC", timestamp=now, bids=[])
 
     def test_symbol_validation(self) -> None:
@@ -99,8 +102,10 @@ class TestOrderBook:
 
         # --- Test Top-Level Structure ---
         with pytest.raises(TypeError, match="bids must be a list"):
+            # Ignore type error since we are testing validator structure check
             OrderBook(symbol="T", timestamp=now, bids="not_a_list", asks=[])
         with pytest.raises(TypeError, match="asks must be a list"):
+            # Ignore type error since we are testing validator structure check
             OrderBook(symbol="T", timestamp=now, bids=[], asks={})
 
         # --- Test Level Item Structure ---
@@ -176,6 +181,7 @@ class TestOrderBook:
         assert ob_empty.asks == []
 
         # Valid list with raw data needing parsing
+        # Ignore type error because testing validator's raw input handling
         ob_raw = OrderBook(symbol="T", timestamp=now, bids=[valid_level_raw], asks=[])
         assert ob_raw.bids == [valid_level_parsed]
 
@@ -186,6 +192,7 @@ class TestOrderBook:
         # Valid list with mixed types
         mixed_bids_raw: Any = [("10.1", 1), (Decimal("9.9"), "0.5")]
         mixed_bids_expected = [(Decimal("10.1"), Decimal("1")), (Decimal("9.9"), Decimal("0.5"))]
+        # Ignore type error because testing validator's mixed raw input handling
         ob_mixed = OrderBook(symbol="T", timestamp=now, bids=mixed_bids_raw, asks=[])
         assert ob_mixed.bids == mixed_bids_expected
 
@@ -219,4 +226,4 @@ class TestOrderBook:
         with pytest.raises(ValidationError, match="Instance is frozen"):
             # Attempting to set a new attribute raises ValidationError.
             # Mypy correctly flags attr-defined, ignore needed for test.
-            ob.new_field = "test"  # type: ignore[attr-defined]
+            ob.new_field = "test"
