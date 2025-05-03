@@ -80,7 +80,7 @@ class OrderBook(BaseModel):
                     f"Level item in {field_name} at index {index} must be a list or tuple, "
                     f"got {type(level_raw).__name__}"
                 )
-            # DEFENSIVE CHECK: Ensures runtime length is correct. Mypy=[arg-type]
+            # DEFENSIVE CHECK: Runtime length check. Pyright=[reportUnknownArgumentType]
             if len(level_raw) != 2:
                 raise ValueError(
                     f"Level item in {field_name} at index {index} must have length 2, "

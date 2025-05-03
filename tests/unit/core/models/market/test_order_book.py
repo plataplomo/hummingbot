@@ -26,7 +26,8 @@ class TestOrderBook:
         expected_bids = [(Decimal("50000.0"), Decimal("1.5")), (Decimal("49999.5"), Decimal("2.0"))]
         expected_asks = [(Decimal("50000.5"), Decimal("1.0")), (Decimal("50001.0"), Decimal("0.5"))]
 
-        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=bids, asks=asks)
+        # Ignore arg-type for bids/asks because testing validator's mixed raw input handling
+        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=bids, asks=asks)  # type: ignore[arg-type]
         assert ob.bids == expected_bids
         assert ob.asks == expected_asks
 
@@ -36,16 +37,16 @@ class TestOrderBook:
         # Pydantic raises ValidationError if fields are missing entirely
         with pytest.raises(ValidationError, match="Field required"):
             # Ignore type error since we are testing missing field validation
-            OrderBook(timestamp=now, bids=[], asks=[])
+            OrderBook(timestamp=now, bids=[], asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
             # Ignore type error since we are testing missing field validation
-            OrderBook(symbol="BTC", bids=[], asks=[])
+            OrderBook(symbol="BTC", bids=[], asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
             # Ignore type error since we are testing missing field validation
-            OrderBook(symbol="BTC", timestamp=now, asks=[])
+            OrderBook(symbol="BTC", timestamp=now, asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
             # Ignore type error since we are testing missing field validation
-            OrderBook(symbol="BTC", timestamp=now, bids=[])
+            OrderBook(symbol="BTC", timestamp=now, bids=[])  # type: ignore[call-arg]
 
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field."""
@@ -64,7 +65,8 @@ class TestOrderBook:
         # Using Any to bypass static checks for testing runtime validation
         invalid_data: dict[str, Any] = {"symbol": "BTC", "timestamp": None, "bids": [], "asks": []}
         with pytest.raises(ValueError, match="timestamp must not be None"):
-            OrderBook(**invalid_data)  # No ignore needed, caught by validator signature now
+            # Ignore type error since validator signature handles None explicitly
+            OrderBook(**invalid_data)
 
     def test_timestamp_validation_parsing(self) -> None:
         """Test timestamp parsing from various formats."""
@@ -73,12 +75,12 @@ class TestOrderBook:
         naive_dt = datetime(2023, 3, 15, 12, 0, 0)
         expected_dt = datetime(2023, 3, 15, 12, 0, 0, tzinfo=UTC)
 
-        # From ms int - ignore needed as validator expects specific types but handles int
-        ob_int = OrderBook(symbol="T", timestamp=ms_timestamp, bids=[], asks=[])
+        # Ignore arg-type because testing validator's parsing of int/str for datetime
+        ob_int = OrderBook(symbol="T", timestamp=ms_timestamp, bids=[], asks=[])  # type: ignore[arg-type]
         assert ob_int.timestamp == expected_dt
 
-        # From ISO string - ignore needed as validator expects specific types but handles str
-        ob_iso = OrderBook(symbol="T", timestamp=iso_timestamp, bids=[], asks=[])
+        # Ignore arg-type because testing validator's parsing of int/str for datetime
+        ob_iso = OrderBook(symbol="T", timestamp=iso_timestamp, bids=[], asks=[])  # type: ignore[arg-type]
         assert ob_iso.timestamp == expected_dt
 
         # From naive datetime
@@ -103,10 +105,10 @@ class TestOrderBook:
         # --- Test Top-Level Structure ---
         with pytest.raises(TypeError, match="bids must be a list"):
             # Ignore type error since we are testing validator structure check
-            OrderBook(symbol="T", timestamp=now, bids="not_a_list", asks=[])
+            OrderBook(symbol="T", timestamp=now, bids="not_a_list", asks=[])  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="asks must be a list"):
             # Ignore type error since we are testing validator structure check
-            OrderBook(symbol="T", timestamp=now, bids=[], asks={})
+            OrderBook(symbol="T", timestamp=now, bids=[], asks={})  # type: ignore[arg-type]
 
         # --- Test Level Item Structure ---
         with pytest.raises(TypeError, match="must be a list or tuple"):
@@ -181,8 +183,8 @@ class TestOrderBook:
         assert ob_empty.asks == []
 
         # Valid list with raw data needing parsing
-        # Ignore type error because testing validator's raw input handling
-        ob_raw = OrderBook(symbol="T", timestamp=now, bids=[valid_level_raw], asks=[])
+        # Ignore arg-type because testing validator's raw input handling
+        ob_raw = OrderBook(symbol="T", timestamp=now, bids=[valid_level_raw], asks=[])  # type: ignore[arg-type]
         assert ob_raw.bids == [valid_level_parsed]
 
         # Valid list with pre-parsed Decimals and zero quantity
@@ -192,8 +194,8 @@ class TestOrderBook:
         # Valid list with mixed types
         mixed_bids_raw: Any = [("10.1", 1), (Decimal("9.9"), "0.5")]
         mixed_bids_expected = [(Decimal("10.1"), Decimal("1")), (Decimal("9.9"), Decimal("0.5"))]
-        # Ignore type error because testing validator's mixed raw input handling
-        ob_mixed = OrderBook(symbol="T", timestamp=now, bids=mixed_bids_raw, asks=[])
+        # Ignore arg-type because testing validator's mixed raw input handling
+        ob_mixed = OrderBook(symbol="T", timestamp=now, bids=mixed_bids_raw, asks=[])  # type: ignore[arg-type]
         assert ob_mixed.bids == mixed_bids_expected
 
     def test_extra_fields_forbidden(self) -> None:
@@ -226,4 +228,4 @@ class TestOrderBook:
         with pytest.raises(ValidationError, match="Instance is frozen"):
             # Attempting to set a new attribute raises ValidationError.
             # Mypy correctly flags attr-defined, ignore needed for test.
-            ob.new_field = "test"
+            ob.new_field = "test"  # type: ignore[attr-defined]
