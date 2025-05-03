@@ -66,7 +66,7 @@ class TestOrderBook:
         invalid_data: dict[str, Any] = {"symbol": "BTC", "timestamp": None, "bids": [], "asks": []}
         with pytest.raises(ValueError, match="timestamp must not be None"):
             # Ignore type error since validator signature handles None explicitly
-            OrderBook(**invalid_data)
+            OrderBook(**invalid_data)  # type: ignore[arg-type]
 
     def test_timestamp_validation_parsing(self) -> None:
         """Test timestamp parsing from various formats."""
@@ -227,5 +227,5 @@ class TestOrderBook:
         # Setting NEW attributes on a frozen model also raises ValidationError (frozen_instance)
         with pytest.raises(ValidationError, match="Instance is frozen"):
             # Attempting to set a new attribute raises ValidationError.
-            # Mypy correctly flags attr-defined, ignore needed for test.
+            # Ignore Mypy's attr-defined error needed for test.
             ob.new_field = "test"  # type: ignore[attr-defined]
