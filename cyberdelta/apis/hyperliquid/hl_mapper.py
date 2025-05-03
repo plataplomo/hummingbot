@@ -36,7 +36,6 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     Balance,
     FundingRate,
-    MarketData,
     OrderBook,
     OrderSide,
     Position,
@@ -48,6 +47,7 @@ from cyberdelta.core.models.enums import (
     OrderType,
     TimeInForce,
 )
+from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
@@ -567,43 +567,49 @@ class HyperliquidPositionMapper:
 
 class HyperliquidCandleMapper:
     """
-    Maps a validated HyperliquidRawCandleSnapshot to a list of internal MarketData models.
-    Defensive: Handles malformed or missing data gracefully.
+    Maps a validated HyperliquidRawCandleSnapshot to a list of internal Candle models.
     """
 
     @staticmethod
-    def map(raw: HyperliquidRawCandleSnapshot, symbol: str) -> list[MarketData]:
-        candles: list[MarketData] = []
-        try:
-            for i in range(len(raw.t)):
-                open_ = parse_decimal_value(raw.o[i], allow_none=False, field_name="candle.open")
-                high = parse_decimal_value(raw.h[i], allow_none=False, field_name="candle.high")
-                low = parse_decimal_value(raw.low[i], allow_none=False, field_name="candle.low")
-                close = parse_decimal_value(raw.c[i], allow_none=False, field_name="candle.close")
-                volume = parse_decimal_value(raw.v[i], allow_none=False, field_name="candle.volume")
-                timestamp = parse_datetime_utc(raw.t[i], field_name="candle.time")
-                if (
-                    open_ is None
-                    or high is None
-                    or low is None
-                    or close is None
-                    or volume is None
-                    or timestamp is None
-                ):
-                    continue
-                candles.append(
-                    MarketData(
-                        symbol=symbol,
-                        open=open_,
-                        high=high,
-                        low=low,
-                        close=close,
-                        volume=volume,
-                        timestamp=timestamp,
-                    )
+    def map(raw: HyperliquidRawCandleSnapshot, symbol: str) -> list[Candle]:
+        candles: list[Candle] = []
+        if raw.candles is None or raw.interval is None:
+            logger.warning("Missing 'candles' or 'interval' in HyperliquidRawCandleSnapshot.")
+            return candles
+
+        interval_str = raw.interval
+
+        for candle_data in raw.candles:
+            if not candle_data:
+                continue
+            try:
+                # The parsing logic remains similar, but instantiation uses Candle
+                # Candle's validators will handle detailed checks (positivity, finite, consistency)
+
+                # Raw data extraction (with defensive .get)
+                raw_t = candle_data.get("t")
+                raw_o = candle_data.get("o")
+                raw_h = candle_data.get("h")
+                raw_l = candle_data.get("l")
+                raw_c = candle_data.get("c")
+                raw_v = candle_data.get("v")
+
+                # Attempt to create Candle instance, letting its validators handle parsing & checks
+                candle = Candle(
+                    symbol=symbol,
+                    interval=interval_str,
+                    open_time=raw_t,  # Pass raw value to Candle's validator
+                    open=raw_o,  # Pass raw value to Candle's validator
+                    high=raw_h,  # Pass raw value to Candle's validator
+                    low=raw_l,  # Pass raw value to Candle's validator
+                    close=raw_c,  # Pass raw value to Candle's validator
+                    volume=raw_v,  # Pass raw value to Candle's validator
                 )
-        except Exception:
-            pass
+                candles.append(candle)
+            except (ValidationError, ValueError, TypeError) as e:
+                # Catch validation errors from Candle creation or parsing issues
+                logger.warning(f"Error processing or validating candle data {candle_data}: {e}")
+                continue
         return candles
 
 
