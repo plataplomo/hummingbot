@@ -1,4 +1,5 @@
 {
+  "mcpServers": {
     "context7-mcp": {
       "command": "npx",
       "args": [

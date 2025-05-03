@@ -273,7 +273,8 @@ class Order(BaseModel):
 
         if self.post_only and self.order_type not in limit_types:
             logger.warning(
-                f"Order {self.client_order_id}: post_only=True used with non-limit order type {self.order_type}. This may be ignored by the exchange."
+                f"Order {self.client_order_id}: post_only=True used with non-limit order type "
+                f"{self.order_type}. This may be ignored by the exchange."
             )
 
         if self.quantity_filled > self.quantity_requested:
@@ -338,12 +339,7 @@ class Order(BaseModel):
                 self.status = OrderStatus.PARTIALLY_FILLED
 
     def to_dict(self) -> dict[str, Any]:
-        """
-        Convert the Order to a dictionary, serializing Decimals, Enums, datetimes, and
-        nested Trades.
-        Returns:
-            dict[str, Any]: Dictionary representation of the order.
-        """
+        """Subject to deprecation: Prefer model_dump(mode='json') for future serialization."""
         data = self.model_dump(exclude={"trades"})
         data["trades"] = [trade.model_dump(mode="json") for trade in self.trades]
         for key, value in data.items():

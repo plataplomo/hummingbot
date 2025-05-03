@@ -62,6 +62,7 @@ class Balance(BaseModel):
         return self
 
     def to_dict(self) -> dict[str, Any]:
+        """Subject to deprecation: Prefer model_dump(mode='json') for future serialization."""
         d = self.model_dump()
         for k, v in d.items():
             if isinstance(v, Decimal):

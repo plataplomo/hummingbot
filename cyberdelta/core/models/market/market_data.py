@@ -70,6 +70,7 @@ class MarketData(BaseModel):
         return datetime_value
 
     def to_dict(self) -> dict[str, Any]:
+        """Subject to deprecation: Prefer model_dump(mode='json') for future serialization."""
         data = self.model_dump()
         for key, value in data.items():
             if isinstance(value, Decimal):

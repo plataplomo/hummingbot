@@ -1,0 +1,368 @@
+"""
+Unit tests for the CyberDeltaEngine internal Trade model.
+
+These tests validate the correctness, validation logic, and edge case handling of the Trade Pydantic
+model, which serves as a superset for both Backpack and Hyperliquid fills.
+Tests cover field validation,
+cost calculation, cross-field logic, serialization, and handling of optional and required fields.
+"""
+
+from datetime import datetime
+from decimal import Decimal
+
+import pydantic
+import pytest
+
+from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.core.models.market.trade import Trade
+
+
+def test_trade_minimal_valid() -> None:
+    """Test that a minimal valid Trade instance is accepted and fields are set correctly."""
+    price = Decimal("100.0")
+    quantity = Decimal("2.0")
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="backpack",
+        price=price,
+        quantity=quantity,
+    )
+    assert trade.price == price
+    assert trade.quantity == quantity
+    assert trade.cost == price * quantity
+    assert trade.fee == Decimal("0")
+    assert trade.fee_asset is None
+    assert trade.is_maker is None
+    assert trade.exchange == "backpack"
+    assert trade.side == OrderSide.BUY
+
+
+def test_trade_with_all_optionals() -> None:
+    """Test that a Trade instance with all optional fields is accepted and values are set
+    correctly."""
+    price = Decimal("100.0")
+    quantity = Decimal("2.0")
+    trade = Trade(
+        id="12345",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="67890",
+        exchange="backpack",
+        price=price,
+        quantity=quantity,
+        client_order_id="cloid-123",
+        fee=Decimal("-0.01"),
+        fee_asset="USDC",
+        is_maker=True,
+        trade_hash="hash-abc",
+        liquidation_mark_px=Decimal("99.5"),
+        start_position=Decimal("1.0"),
+        dir="open",
+        timestamp=1700000000,
+    )
+    assert trade.client_order_id == "cloid-123"
+    assert trade.fee == Decimal("-0.01")
+    assert trade.fee_asset == "USDC"
+    assert trade.is_maker is True
+    assert trade.trade_hash == "hash-abc"
+    assert trade.liquidation_mark_px == Decimal("99.5")
+    assert trade.start_position == Decimal("1.0")
+    assert trade.dir == "open"
+    assert trade.timestamp == 1700000000
+    assert trade.cost == price * quantity
+
+
+def test_trade_cost_computed() -> None:
+    """Test that cost is always computed as price * quantity."""
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="backpack",
+        price=Decimal("1.5"),
+        quantity=Decimal("3.0"),
+    )
+    assert trade.cost == Decimal("4.5")
+
+
+def test_trade_id_and_order_id_validation() -> None:
+    """Test that id and order_id accept only valid non-empty strings, and reject invalid values."""
+    # Valid strings
+    for valid_id in ["idstr", "order-xyz", "1.23", "114", "abc", "hash-abc", "A" * 64]:
+        trade = Trade(
+            id=valid_id,
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id=valid_id,
+            exchange="backpack",
+            price=Decimal("1.0"),
+            quantity=Decimal("1.0"),
+        )
+        assert trade.id == valid_id
+        assert trade.order_id == valid_id
+    # Invalid: empty string
+    with pytest.raises(ValueError):
+        Trade(
+            id="",
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id="order-xyz",
+            exchange="backpack",
+            price=Decimal("1.0"),
+            quantity=Decimal("1.0"),
+        )
+    # Invalid: whitespace-only string
+    with pytest.raises(ValueError):
+        Trade(
+            id="   ",
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id="order-xyz",
+            exchange="backpack",
+            price=Decimal("1.0"),
+            quantity=Decimal("1.0"),
+        )
+    # Invalid: overlength string
+    with pytest.raises(ValueError):
+        Trade(
+            id="A" * 65,
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id="order-xyz",
+            exchange="backpack",
+            price=Decimal("1.0"),
+            quantity=Decimal("1.0"),
+        )
+    # Invalid: non-string types
+    for bad_id in [123, 1.23, None, [], {}, b"bytes"]:  # type: ignore
+        with pytest.raises((TypeError, ValueError, pydantic.ValidationError)):
+            Trade(
+                id=bad_id,  # type: ignore
+                symbol="BTC-PERP",
+                executed_at=datetime(2024, 1, 1, 0, 0, 0),
+                side=OrderSide.BUY,
+                order_id="order-xyz",
+                exchange="backpack",
+                price=Decimal("1.0"),
+                quantity=Decimal("1.0"),
+            )
+
+
+def test_trade_fee_asset_required() -> None:
+    """Test that a ValueError is raised if fee is nonzero and fee_asset is not provided."""
+    with pytest.raises(ValueError, match="fee_asset must be provided if fee is nonzero"):
+        Trade(
+            id="abc123",
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id="order-xyz",
+            exchange="backpack",
+            price=Decimal("100.0"),
+            quantity=Decimal("2.0"),
+            fee=Decimal("0.01"),
+        )
+
+
+def test_trade_negative_fee_allowed() -> None:
+    """Test that a negative fee (rebate) is accepted if fee_asset is provided."""
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="backpack",
+        price=Decimal("100.0"),
+        quantity=Decimal("2.0"),
+        fee=Decimal("-0.01"),
+        fee_asset="USDC",
+    )
+    assert trade.fee == Decimal("-0.01")
+    assert trade.fee_asset == "USDC"
+
+
+def test_trade_positive_constraints() -> None:
+    """Test that price and quantity must both be positive."""
+    # price
+    with pytest.raises(pydantic.ValidationError):
+        Trade(
+            id="abc123",
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id="order-xyz",
+            exchange="backpack",
+            price=Decimal("0"),
+            quantity=Decimal("2.0"),
+        )
+    # quantity
+    with pytest.raises(pydantic.ValidationError):
+        Trade(
+            id="abc123",
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id="order-xyz",
+            exchange="backpack",
+            price=Decimal("100.0"),
+            quantity=Decimal("0"),
+        )
+
+
+def test_trade_decimal_parsing() -> None:
+    """Test that Trade accepts values for Decimal fields that can be parsed from int or str."""
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="backpack",
+        price=Decimal("100.0"),
+        quantity=Decimal("2"),
+    )
+    assert trade.price == Decimal("100.0")
+    assert trade.quantity == Decimal("2")
+    assert trade.cost == Decimal("200.0")
+
+
+def test_trade_optional_string_fields() -> None:
+    """Test that optional string fields accept None and valid strings, and reject invalid
+    strings."""
+    # Valid
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="backpack",
+        price=Decimal("1.0"),
+        quantity=Decimal("1.0"),
+        client_order_id="cloid-123",
+        fee_asset="USDC",
+        trade_hash="hash-abc",
+        dir="open",
+    )
+    assert trade.client_order_id == "cloid-123"
+    assert trade.fee_asset == "USDC"
+    assert trade.trade_hash == "hash-abc"
+    assert trade.dir == "open"
+    # None
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="backpack",
+        price=Decimal("1.0"),
+        quantity=Decimal("1.0"),
+        client_order_id=None,
+        fee_asset=None,
+        trade_hash=None,
+        dir=None,
+    )
+    assert trade.client_order_id is None
+    assert trade.fee_asset is None
+    assert trade.trade_hash is None
+    assert trade.dir is None
+    # Invalid: empty string
+    with pytest.raises(ValueError):
+        Trade(
+            id="abc123",
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id="order-xyz",
+            exchange="backpack",
+            price=Decimal("1.0"),
+            quantity=Decimal("1.0"),
+            client_order_id="",
+        )
+
+
+def test_trade_optional_decimal_fields() -> None:
+    """Test that optional decimal fields accept None and valid decimals, and reject invalid
+    values."""
+    # Valid
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="backpack",
+        price=Decimal("1.0"),
+        quantity=Decimal("1.0"),
+        liquidation_mark_px=Decimal("1.23"),
+        start_position=Decimal("2.34"),
+    )
+    assert trade.liquidation_mark_px == Decimal("1.23")
+    assert trade.start_position == Decimal("2.34")
+    # None
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="backpack",
+        price=Decimal("1.0"),
+        quantity=Decimal("1.0"),
+        liquidation_mark_px=None,
+        start_position=None,
+    )
+    assert trade.liquidation_mark_px is None
+    assert trade.start_position is None
+    # Invalid: non-finite
+    with pytest.raises(ValueError):
+        Trade(
+            id="abc123",
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id="order-xyz",
+            exchange="backpack",
+            price=Decimal("1.0"),
+            quantity=Decimal("1.0"),
+            liquidation_mark_px=Decimal("NaN"),
+        )
+
+
+def test_trade_model_dump_json_serialization() -> None:
+    """Test that Trade.model_dump(mode='json') serializes Decimal, Enum, and datetime fields as expected."""
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="backpack",
+        price=Decimal("100.0"),
+        quantity=Decimal("2.0"),
+        fee=Decimal("0.01"),
+        fee_asset="USDC",
+    )
+    d = trade.model_dump(mode="json")
+    assert d["price"] == "100.0"
+    assert d["quantity"] == "2.0"
+    from decimal import Decimal as D
+
+    assert D(d["cost"]) == D("200.0")
+    assert d["fee"] == "0.01"
+    assert d["fee_asset"] == "USDC"
+    assert d["side"] == "BUY"
+    assert isinstance(d["executed_at"], str)

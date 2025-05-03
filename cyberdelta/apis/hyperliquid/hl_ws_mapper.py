@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -30,7 +30,8 @@ logger = structlog.get_logger(__name__)
 class HyperliquidWebsocketMapper:
     """
     Strict boundary validator and transformer for Hyperliquid WebSocket events.
-    All methods are static and validate incoming data using Pydantic models before mapping to internal models.
+    All methods are static and validate incoming data using Pydantic models before mapping to
+    internal models.
     """
 
     @staticmethod
@@ -65,7 +66,6 @@ class HyperliquidWebsocketMapper:
                     client_order_id=validated.cloid or "",
                     price=price,
                     quantity=quantity,
-                    cost=price * quantity,
                     fee=Decimal("0"),
                     fee_asset="USDC",
                     is_maker=validated.is_maker,
@@ -85,41 +85,39 @@ class HyperliquidWebsocketMapper:
             )
             return None
         if "channel" in message and message["channel"] == "trades":
-            data_raw = message.get("data", [])
-            if isinstance(data_raw, list):
-                for trade_dict_any_item in data_raw:
-                    if not isinstance(trade_dict_any_item, dict):
-                        continue
-                    trade_dict: dict[str, Any] = trade_dict_any_item
-                    try:
-                        validated = HyperliquidRawWsTradeEvent.model_validate(trade_dict)
-                    except Exception as e:
-                        logger.warning(
-                            f"[Hyperliquid] Invalid trade event (dropped): {e} | Data: {trade_dict}"
-                        )
-                        continue
-                    try:
-                        side = OrderSide.BUY if validated.side == "B" else OrderSide.SELL
-                        price = Decimal(validated.px)
-                        quantity = Decimal(validated.sz)
-                        return Trade(
-                            id=validated.hash,
-                            symbol=validated.coin,
-                            executed_at=datetime.fromtimestamp(validated.time / 1000, tz=UTC),
-                            side=side,
-                            order_id="",
-                            exchange="hyperliquid",
-                            client_order_id="",
-                            price=price,
-                            quantity=quantity,
-                            cost=price * quantity,
-                            fee=Decimal("0"),
-                            fee_asset="USDC",
-                            is_maker=None,
-                            timestamp=validated.time,
-                        )
-                    except Exception as e:
-                        logger.warning(f"[Hyperliquid] Error parsing validated trade event: {e}")
+            data_raw: list[Any] = message.get("data", [])
+            for trade_dict_any_item in data_raw:
+                if not isinstance(trade_dict_any_item, dict):
+                    continue
+                trade_dict: dict[str, Any] = cast(dict[str, Any], trade_dict_any_item)
+                try:
+                    validated = HyperliquidRawWsTradeEvent.model_validate(trade_dict)
+                except Exception as e:
+                    logger.warning(
+                        f"[Hyperliquid] Invalid trade event (dropped): {e} | Data: {trade_dict}"
+                    )
+                    continue
+                try:
+                    side = OrderSide.BUY if validated.side == "B" else OrderSide.SELL
+                    price = Decimal(validated.px)
+                    quantity = Decimal(validated.sz)
+                    return Trade(
+                        id=validated.hash,
+                        symbol=validated.coin,
+                        executed_at=datetime.fromtimestamp(validated.time / 1000, tz=UTC),
+                        side=side,
+                        order_id="",
+                        exchange="hyperliquid",
+                        client_order_id="",
+                        price=price,
+                        quantity=quantity,
+                        fee=Decimal("0"),
+                        fee_asset="USDC",
+                        is_maker=None,
+                        timestamp=validated.time,
+                    )
+                except Exception as e:
+                    logger.warning(f"[Hyperliquid] Error parsing validated trade event: {e}")
         return None
 
     @staticmethod
@@ -163,7 +161,8 @@ class HyperliquidWebsocketMapper:
         parse_order_fn: "Callable[[dict[str, Any]], Order]",
     ) -> Order | None:
         """
-        Parse an order update message using Pydantic validation and a provided order parsing function.
+        Parse an order update message using Pydantic validation and a provided order parsing
+        function.
         Args:
             message: The WebSocket message dict.
             logger: Logger for warnings/errors.
