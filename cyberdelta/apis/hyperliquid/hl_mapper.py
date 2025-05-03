@@ -5,7 +5,7 @@ CyberDeltaEngine's internal Order model.
 
 import logging
 import re
-import time
+from datetime import UTC
 from decimal import Decimal
 from typing import Any, cast
 
@@ -171,7 +171,6 @@ class HyperliquidOrderMapper:
             status=status,
             quantity_requested=quantity_requested,
             quantity_filled=quantity_filled,
-            executed_quote_quantity=None,
             price=price,
             stop_price=stop_price,
             average_fill_price=None,  # HL does not provide this in open order
@@ -179,12 +178,9 @@ class HyperliquidOrderMapper:
             time_in_force=time_in_force,
             reduce_only=raw.reduce_only,
             post_only=(time_in_force == TimeInForce.ALO),
-            self_trade_prevention=None,
             created_at=created_at,
             updated_at=updated_at,
             triggered_at=None,
-            expiry_reason=None,
-            origin=None,
             strategy_name=None,
             signal_id=None,
             trades=[],
@@ -201,11 +197,13 @@ class HyperliquidMapper:
         bid = parse_decimal_value(str(mark_px), allow_none=True)
         ask = parse_decimal_value(str(mark_px), allow_none=True)
         symbol = ctx.get("name", "")
+        from datetime import datetime
+
         return Ticker(
             symbol=symbol,
             bid=bid,
             ask=ask,
-            timestamp=int(time.time() * 1000),
+            timestamp=datetime.now(UTC),
         )
 
     @staticmethod
@@ -256,15 +254,9 @@ class HyperliquidMapper:
         if depth is not None and depth > 0:
             bids = bids[:depth]
             asks = asks[:depth]
-        timestamp_raw = data.get("time")
-        timestamp = None
-        if isinstance(timestamp_raw, int | float | str):
-            try:
-                timestamp = int(float(timestamp_raw))
-            except Exception:
-                timestamp = int(time.time() * 1000)
-        else:
-            timestamp = int(time.time() * 1000)
+        from datetime import datetime
+
+        timestamp = datetime.now(UTC)
         return OrderBook(
             symbol=symbol,
             bids=bids,
@@ -307,11 +299,9 @@ class HyperliquidMapper:
                     client_order_id="",
                     price=price,
                     quantity=quantity,
-                    cost=price * quantity,
                     fee=Decimal("0"),
                     fee_asset="USDC",
                     is_maker=False,
-                    timestamp=int(executed_at.timestamp() * 1000),
                 )
             )
         if limit is not None and limit > 0:
@@ -331,15 +321,21 @@ class HyperliquidMapper:
             mark_price = parse_decimal_value(
                 ctx.get("markPx", "0"), allow_none=False, field_name="mark_price"
             )
-            now_ms = int(time.time() * 1000)
-            next_funding_time_ms = (now_ms // 3600000 + 1) * 3600000
+            from datetime import datetime, timedelta
+
+            now = datetime.now(UTC)
+            # Next funding time: next full hour
+            next_funding_time = (now + timedelta(hours=1)).replace(
+                minute=0, second=0, microsecond=0
+            )
             if funding_rate is None or mark_price is None:
                 return None
             return FundingRate(
                 symbol=symbol,
+                timestamp=now,
                 funding_rate=funding_rate,
                 mark_price=mark_price,
-                next_funding_time=next_funding_time_ms,
+                next_funding_time=next_funding_time,
             )
         except (ValueError, TypeError, KeyError):
             return None
@@ -509,12 +505,10 @@ class HyperliquidUserFillMapper:
                 client_order_id=raw.cloid or "",
                 price=price,
                 quantity=quantity,
-                cost=price * quantity,
                 fee=parse_decimal_value(raw.fee, allow_none=True, field_name="fill.fee")
                 or Decimal("0"),
                 fee_asset="USDC",
                 is_maker=raw.is_maker,
-                timestamp=int(executed_at.timestamp() * 1000),
             )
         except Exception:
             return None
@@ -571,44 +565,41 @@ class HyperliquidCandleMapper:
     """
 
     @staticmethod
-    def map(raw: HyperliquidRawCandleSnapshot, symbol: str) -> list[Candle]:
+    def map(raw: HyperliquidRawCandleSnapshot, symbol: str, interval: str) -> list[Candle]:
         candles: list[Candle] = []
-        if raw.candles is None or raw.interval is None:
-            logger.warning("Missing 'candles' or 'interval' in HyperliquidRawCandleSnapshot.")
-            return candles
-
-        interval_str = raw.interval
-
-        for candle_data in raw.candles:
-            if not candle_data:
-                continue
+        n = len(raw.t)
+        for i in range(n):
             try:
-                # The parsing logic remains similar, but instantiation uses Candle
-                # Candle's validators will handle detailed checks (positivity, finite, consistency)
-
-                # Raw data extraction (with defensive .get)
-                raw_t = candle_data.get("t")
-                raw_o = candle_data.get("o")
-                raw_h = candle_data.get("h")
-                raw_l = candle_data.get("l")
-                raw_c = candle_data.get("c")
-                raw_v = candle_data.get("v")
-
-                # Attempt to create Candle instance, letting its validators handle parsing & checks
+                open_time = parse_datetime_utc(raw.t[i], field_name="open_time")
+                open_ = parse_decimal_value(raw.o[i], allow_none=False, field_name="open")
+                high = parse_decimal_value(raw.h[i], allow_none=False, field_name="high")
+                low = parse_decimal_value(raw.low[i], allow_none=False, field_name="low")
+                close = parse_decimal_value(raw.c[i], allow_none=False, field_name="close")
+                volume = parse_decimal_value(raw.v[i], allow_none=False, field_name="volume")
+                if None in (open_time, open_, high, low, close, volume):
+                    logger.warning(f"Skipping candle at index {i} due to None value(s)")
+                    continue
+                # DEFENSIVE CHECK: All values checked above for None.
+                # Mypy=[arg-type] Ruff=[arg-type]
+                assert open_time is not None
+                assert open_ is not None
+                assert high is not None
+                assert low is not None
+                assert close is not None
+                assert volume is not None
                 candle = Candle(
                     symbol=symbol,
-                    interval=interval_str,
-                    open_time=raw_t,  # Pass raw value to Candle's validator
-                    open=raw_o,  # Pass raw value to Candle's validator
-                    high=raw_h,  # Pass raw value to Candle's validator
-                    low=raw_l,  # Pass raw value to Candle's validator
-                    close=raw_c,  # Pass raw value to Candle's validator
-                    volume=raw_v,  # Pass raw value to Candle's validator
+                    interval=interval,
+                    open_time=open_time,
+                    open=open_,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
                 )
                 candles.append(candle)
             except (ValidationError, ValueError, TypeError) as e:
-                # Catch validation errors from Candle creation or parsing issues
-                logger.warning(f"Error processing or validating candle data {candle_data}: {e}")
+                logger.warning(f"Error processing or validating candle data at index {i}: {e}")
                 continue
         return candles
 
@@ -638,11 +629,9 @@ class HyperliquidWsEventMapper:
                 client_order_id=raw.cloid or "",
                 price=price,
                 quantity=quantity,
-                cost=price * quantity,
                 fee=Decimal("0"),
                 fee_asset="USDC",
                 is_maker=raw.is_maker,
-                timestamp=int(executed_at.timestamp() * 1000),
             )
         except Exception:
             return None
@@ -666,11 +655,9 @@ class HyperliquidWsEventMapper:
                 client_order_id="",
                 price=price,
                 quantity=quantity,
-                cost=price * quantity,
                 fee=Decimal("0"),
                 fee_asset="USDC",
                 is_maker=False,
-                timestamp=int(executed_at.timestamp() * 1000),
             )
         except Exception:
             return None
@@ -698,11 +685,17 @@ class HyperliquidWsEventMapper:
                 )
                 if price_ask is not None and quantity_ask is not None:
                     asks.append((price_ask, quantity_ask))
+            from cyberdelta.utils.parsing import parse_datetime_utc
+
+            timestamp = parse_datetime_utc(raw.time, field_name="orderbook.time")
+            if timestamp is None:
+                logger.warning("OrderBook event missing or invalid timestamp, skipping.")
+                return None
             return OrderBook(
                 symbol=symbol,
                 bids=bids,
                 asks=asks,
-                timestamp=raw.time,
+                timestamp=timestamp,
             )
         except Exception:
             return None
