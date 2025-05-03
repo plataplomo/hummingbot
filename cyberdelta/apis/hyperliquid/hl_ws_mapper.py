@@ -146,7 +146,7 @@ class HyperliquidWebsocketMapper:
                     symbol=validated.coin,
                     bids=bids,
                     asks=asks,
-                    timestamp=validated.time,
+                    timestamp=datetime.fromtimestamp(validated.time / 1000, tz=UTC),
                 )
             except Exception as e:
                 logger.warning(f"[Hyperliquid] Error parsing validated order book event: {e}")
@@ -248,13 +248,9 @@ class HyperliquidWebsocketMapper:
                 average_fill_price=None,  # Set if available
                 created_at=datetime.fromtimestamp(timestamp / 1000, tz=UTC),
                 exchange="hyperliquid",
-                executed_quote_quantity=None,
                 trigger_by=None,
-                self_trade_prevention=None,
                 updated_at=None,
                 triggered_at=None,
-                expiry_reason=None,
-                origin=None,
                 strategy_name=None,
                 signal_id=None,
             )
