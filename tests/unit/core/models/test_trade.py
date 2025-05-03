@@ -137,10 +137,10 @@ def test_trade_id_and_order_id_validation() -> None:
             price=Decimal("1.0"),
             quantity=Decimal("1.0"),
         )
-    # Invalid: overlength string
+    # Invalid: overlength string (model allows up to 128 chars)
     with pytest.raises(ValueError):
         Trade(
-            id="A" * 65,
+            id="A" * 129,
             symbol="BTC-PERP",
             executed_at=datetime(2024, 1, 1, 0, 0, 0),
             side=OrderSide.BUY,
@@ -352,8 +352,8 @@ def test_trade_optional_decimal_fields() -> None:
         )
 
 
-def test_trade_model_dump_json_serialization() -> None:
-    """Test that Trade.model_dump(mode='json') serializes Decimal, Enum, and datetime fields
+def test_trade_custom_to_dict_serialization() -> None:
+    """Test that Trade.to_dict() (deprecated) serializes Decimal, Enum, and datetime fields
     as expected.
     """
     trade = Trade(
@@ -368,6 +368,43 @@ def test_trade_model_dump_json_serialization() -> None:
         fee=Decimal("0.01"),
         fee_asset="USDC",
     )
+    d = trade.to_dict()
+    assert d["price"] == "100.0"
+    assert d["quantity"] == "2.0"
+    from decimal import Decimal as D
+
+    assert D(d["cost"]) == D("200.0")
+    assert d["fee"] == "0.01"
+    assert d["fee_asset"] == "USDC"
+    assert d["side"] == "BUY"
+    assert isinstance(d["executed_at"], str)
+
+
+def test_trade_model_dump_json_serialization() -> None:
+    """Test that Trade.model_dump(mode='json') serializes all fields, including enrichment
+    slots, as expected.
+    """
+    hl_details = HyperliquidTradeDetails(
+        trade_hash="hash-abc",
+        liquidation_mark_px=Decimal("99.5"),
+        start_position=Decimal("1.0"),
+        dir="open",
+    )
+    bp_details = BackpackTradeDetails(system_order_type="LIMIT")
+    trade = Trade(
+        id="abc123",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="order-xyz",
+        exchange="hyperliquid",
+        price=Decimal("100.0"),
+        quantity=Decimal("2.0"),
+        fee=Decimal("0.01"),
+        fee_asset="USDC",
+        hl_details=hl_details,
+        bp_details=bp_details,
+    )
     d = trade.model_dump(mode="json")
     assert d["price"] == "100.0"
     assert d["quantity"] == "2.0"
@@ -378,3 +415,136 @@ def test_trade_model_dump_json_serialization() -> None:
     assert d["fee_asset"] == "USDC"
     assert d["side"] == "BUY"
     assert isinstance(d["executed_at"], str)
+    assert d["hl_details"]["trade_hash"] == "hash-abc"
+    assert d["hl_details"]["liquidation_mark_px"] == "99.5"
+    assert d["hl_details"]["start_position"] == "1.0"
+    assert d["hl_details"]["dir"] == "open"
+    assert d["bp_details"]["system_order_type"] == "LIMIT"
+
+
+def test_hyperliquid_trade_details_validation() -> None:
+    """Test validation logic for HyperliquidTradeDetails enrichment fields."""
+    # Valid
+    details = HyperliquidTradeDetails(
+        trade_hash="hash-abc",
+        liquidation_mark_px=Decimal("123.45"),
+        start_position=Decimal("10.0"),
+        dir="open",
+    )
+    assert details.trade_hash == "hash-abc"
+    assert details.liquidation_mark_px == Decimal("123.45")
+    assert details.start_position == Decimal("10.0")
+    assert details.dir == "open"
+    # Optional fields None
+    details = HyperliquidTradeDetails(trade_hash="hash-abc")
+    assert details.liquidation_mark_px is None
+    assert details.start_position is None
+    assert details.dir is None
+    # Invalid: empty trade_hash
+    with pytest.raises(ValueError):
+        HyperliquidTradeDetails(trade_hash="")
+    # Invalid: overlength trade_hash
+    with pytest.raises(ValueError):
+        HyperliquidTradeDetails(trade_hash="a" * 129)
+    # Invalid: overlength dir
+    with pytest.raises(ValueError):
+        HyperliquidTradeDetails(trade_hash="hash", dir="a" * 33)
+    # Invalid: non-finite decimal
+    with pytest.raises(ValueError):
+        HyperliquidTradeDetails(trade_hash="hash", liquidation_mark_px=Decimal("NaN"))
+
+
+def test_backpack_trade_details_validation() -> None:
+    """Test validation logic for BackpackTradeDetails enrichment fields."""
+    # Valid
+    details = BackpackTradeDetails(system_order_type="LIMIT")
+    assert details.system_order_type == "LIMIT"
+    # Optional None
+    details = BackpackTradeDetails()
+    assert details.system_order_type is None
+    # Invalid: overlength system_order_type
+    with pytest.raises(ValueError):
+        BackpackTradeDetails(system_order_type="a" * 33)
+
+
+def test_trade_enrichment_slots_acceptance_and_serialization() -> None:
+    """Test that Trade accepts enrichment slots and serializes them as expected."""
+    hl_details = HyperliquidTradeDetails(
+        trade_hash="hash-abc",
+        liquidation_mark_px=Decimal("99.5"),
+        start_position=Decimal("1.0"),
+        dir="open",
+    )
+    bp_details = BackpackTradeDetails(system_order_type="LIMIT")
+    trade = Trade(
+        id="t1",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.BUY,
+        order_id="o1",
+        exchange="hyperliquid",
+        price=Decimal("100.0"),
+        quantity=Decimal("2.0"),
+        hl_details=hl_details,
+        bp_details=bp_details,
+    )
+    assert trade.hl_details is not None
+    assert trade.hl_details.trade_hash == "hash-abc"
+    assert trade.bp_details is not None
+    assert trade.bp_details.system_order_type == "LIMIT"
+    # model_dump includes enrichment fields
+    d = trade.model_dump(mode="json")
+    assert d["hl_details"]["trade_hash"] == "hash-abc"
+    assert d["hl_details"]["liquidation_mark_px"] == "99.5"
+    assert d["bp_details"]["system_order_type"] == "LIMIT"
+
+
+def test_trade_enrichment_slots_none() -> None:
+    """Test that Trade accepts None for enrichment slots and serializes as null."""
+    trade = Trade(
+        id="t2",
+        symbol="BTC-PERP",
+        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        side=OrderSide.SELL,
+        order_id="o2",
+        exchange="backpack",
+        price=Decimal("50.0"),
+        quantity=Decimal("1.0"),
+        hl_details=None,
+        bp_details=None,
+    )
+    assert trade.hl_details is None
+    assert trade.bp_details is None
+    d = trade.model_dump(mode="json")
+    assert d["hl_details"] is None
+    assert d["bp_details"] is None
+
+
+def test_trade_enrichment_invalid_details() -> None:
+    """Test that Trade rejects invalid enrichment slot data."""
+    # Invalid HyperliquidTradeDetails
+    with pytest.raises(ValueError):
+        Trade(
+            id="t3",
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id="o3",
+            exchange="hyperliquid",
+            price=Decimal("1.0"),
+            quantity=Decimal("1.0"),
+            hl_details=HyperliquidTradeDetails(trade_hash=""),
+        )
+    # Invalid BackpackTradeDetails
+    with pytest.raises(ValueError):
+        Trade(
+            id="t4",
+            symbol="BTC-PERP",
+            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            side=OrderSide.BUY,
+            order_id="o4",
+            exchange="backpack",
+            price=Decimal("1.0"),
+            quantity=Decimal("1.0"),
+            bp_details=BackpackTradeDetails(system_order_type="a" * 33),
+        )

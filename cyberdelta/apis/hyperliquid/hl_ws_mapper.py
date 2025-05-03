@@ -69,7 +69,6 @@ class HyperliquidWebsocketMapper:
                     fee=Decimal("0"),
                     fee_asset="USDC",
                     is_maker=validated.is_maker,
-                    timestamp=time_ms,
                 )
                 trades.append(trade)
             except (ValueError, TypeError) as e:
@@ -114,7 +113,6 @@ class HyperliquidWebsocketMapper:
                         fee=Decimal("0"),
                         fee_asset="USDC",
                         is_maker=None,
-                        timestamp=validated.time,
                     )
                 except Exception as e:
                     logger.warning(f"[Hyperliquid] Error parsing validated trade event: {e}")
