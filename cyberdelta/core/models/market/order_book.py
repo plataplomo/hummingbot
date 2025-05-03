@@ -108,13 +108,6 @@ class OrderBook(BaseModel):
                     f"Invalid price value in {field_name} at index {index}: {e}"
                 ) from e
 
-            # DEFENSIVE CHECK: Ensures finite price post-parse. Mypy=[union-attr]
-            if not price.is_finite():
-                raise ValueError(
-                    f"Invalid price value in {field_name} at index {index}: "
-                    f"Expected finite Decimal, got {price}"
-                )
-
             # 3. Validate and Parse Quantity
             if not isinstance(quantity_raw, Decimal | str | int | float):
                 raise TypeError(
@@ -129,22 +122,31 @@ class OrderBook(BaseModel):
                     f"Invalid quantity value in {field_name} at index {index}: {e}"
                 ) from e
 
-            # DEFENSIVE CHECK: Ensures finite quantity post-parse. Mypy=[union-attr]
+            # DEFENSIVE CHECK: Ensure price/quantity are not None before further checks & append.
+            assert price is not None, (
+                f"Price unexpectedly None after parsing at {field_name}[{index}]"
+            )
+            assert quantity is not None, (
+                f"Quantity unexpectedly None after parsing at {field_name}[{index}]"
+            )
+
+            # 4. Post-parse Validation (Now that types are confirmed Decimal)
+            if not price.is_finite():
+                raise ValueError(
+                    f"Invalid price value in {field_name} at index {index}: "
+                    f"Expected finite Decimal, got {price}"
+                )
             if not quantity.is_finite():
                 raise ValueError(
                     f"Invalid quantity value in {field_name} at index {index}: "
                     f"Expected finite Decimal, got {quantity}"
                 )
-            # DEFENSIVE CHECK: Ensures non-negative quantity post-parse. Mypy=[operator]
             if quantity < Decimal(0):
                 raise ValueError(
                     f"Invalid quantity value in {field_name} at index {index}: "
                     f"Must be non-negative, got {quantity}"
                 )
 
-            # DEFENSIVE CHECK: Ensure price/quantity are not None before append. Mypy=[arg-type]
-            assert price is not None, f"Price unexpectedly None at {field_name}[{index}]"
-            assert quantity is not None, f"Quantity unexpectedly None at {field_name}[{index}]"
             validated_levels.append((price, quantity))
 
         return validated_levels
