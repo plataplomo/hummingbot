@@ -2,16 +2,23 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (Order Book Group)
 --------------------------------------------------------------
 
-This module provides strict, security-focused Pydantic models for validating the *raw* structure of all major
-Hyperliquid Exchange API (REST and WebSocket) responses related to the L2 order book. It is a core
-part of CyberDeltaEngine's boundary validation layer for real-time and historical order book data.
+This module provides strict, security-focused Pydantic models for validating the *raw*
+structure of all major Hyperliquid Exchange API (REST and WebSocket) responses related to
+the L2 order book. It is a core part of CyberDeltaEngine's boundary validation layer for
+real-time and historical order book data.
 
 **Boundary Validation Policy:**
-- Models in this file are used exclusively to validate and parse the *external* data structures returned by
-  Hyperliquid's order book endpoints, including price levels and full L2 book snapshots.
-- All models enforce strict schema validation (`extra="forbid"`), strict type checking, and robust format validation (e.g., max length, finite decimals, valid UTF-8).
-- Any unexpected, malformed, or ambiguous fields in upstream data are immediately rejected. This is critical for robust, secure, and predictable operation in a financial system.
-- These models are the *first step* in the "validate first, then transform" pattern: validate external data at the boundary, then map to internal business models with type conversions and business logic.
+- Models in this file are used exclusively to validate and parse the *external* data
+  structures returned by Hyperliquid's order book endpoints, including price levels and
+  full L2 book snapshots.
+- All models enforce strict schema validation (`extra="forbid"`), strict type checking,
+  and robust format validation (e.g., max length, finite decimals, valid UTF-8).
+- Any unexpected, malformed, or ambiguous fields in upstream data are immediately
+  rejected. This is critical for robust, secure, and predictable operation in a
+  financial system.
+- These models are the *first step* in the "validate first, then transform" pattern:
+  validate external data at the boundary, then map to internal business models with
+  type conversions and business logic.
 - **Never use these models for internal business logic.**
 
 **References:**
@@ -49,10 +56,11 @@ def all_are_lists(items: list[Any]) -> bool:
 # --- Price Level Submodel ---
 class HyperliquidRawBookLevel(BaseModel):
     """
-    Strict boundary model for a single price level in the order book as returned in L2 book endpoints.
+    Strict boundary model for a single price level in the order book as returned in L2 book
+    endpoints.
 
-    This model validates the structure and content of each price level entry, enforcing strict type and
-    format constraints for all fields. Never use for internal business logic.
+    This model validates the structure and content of each price level entry, enforcing
+    strict type and format constraints for all fields. Never use for internal business logic.
 
     Fields:
         px (str): Price at this level as a decimal string.
@@ -111,10 +119,11 @@ class HyperliquidRawBookLevel(BaseModel):
 # --- L2 Order Book Model ---
 class HyperliquidRawL2Book(BaseModel):
     """
-    Strict boundary model for a full L2 order book snapshot as returned in order book endpoints.
+    Strict boundary model for a full L2 order book snapshot as returned in order book
+    endpoints.
 
-    This model validates the structure and content of the L2 book response, enforcing strict type and
-    format constraints for all fields. Never use for internal business logic.
+    This model validates the structure and content of the L2 book response, enforcing strict
+    type and format constraints for all fields. Never use for internal business logic.
 
     Fields:
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
@@ -150,8 +159,8 @@ class HyperliquidRawL2Book(BaseModel):
     ) -> list[list[HyperliquidRawBookLevel]]:
         """
         Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
-        Uses TypeGuard pattern to ensure both runtime and type-checker safety. Each entry is validated
-        as a HyperliquidRawBookLevel.
+        Uses TypeGuard pattern to ensure both runtime and type-checker safety. Each entry
+        is validated as a HyperliquidRawBookLevel.
 
         Args:
             v (object): The value to validate (should be a list of two lists).

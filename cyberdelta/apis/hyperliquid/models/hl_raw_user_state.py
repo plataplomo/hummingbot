@@ -2,18 +2,23 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (User State Group)
 --------------------------------------------------------------
 
-This module provides strict, security-focused Pydantic models for validating the *raw* structure of all major
-Hyperliquid Exchange API (REST and WebSocket) responses related to user state.
-It is a core part of CyberDeltaEngine's boundary validation layer for user account, margin, and
-position data.
+This module provides strict, security-focused Pydantic models for validating the *raw*
+structure of all major Hyperliquid Exchange API (REST and WebSocket) responses related to
+user state. It is a core part of CyberDeltaEngine's boundary validation layer for user
+account, margin, and position data.
 
 **Boundary Validation Policy:**
-- Models in this file are used exclusively to validate and parse the *external* data structures returned by
-  Hyperliquid's user state endpoints, including leverage, position info, margin summary, and
-  clearinghouse state.
-- All models enforce strict schema validation (`extra="forbid"`), strict type checking, and robust format validation (e.g., max length, finite decimals, valid UTF-8).
-- Any unexpected, malformed, or ambiguous fields in upstream data are immediately rejected. This is critical for robust, secure, and predictable operation in a financial system.
-- These models are the *first step* in the "validate first, then transform" pattern: validate external data at the boundary, then map to internal business models with type conversions and business logic.
+- Models in this file are used exclusively to validate and parse the *external* data
+  structures returned by Hyperliquid's user state endpoints, including leverage,
+  position info, margin summary, and clearinghouse state.
+- All models enforce strict schema validation (`extra="forbid"`), strict type checking,
+  and robust format validation (e.g., max length, finite decimals, valid UTF-8).
+- Any unexpected, malformed, or ambiguous fields in upstream data are immediately
+  rejected. This is critical for robust, secure, and predictable operation in a
+  financial system.
+- These models are the *first step* in the "validate first, then transform" pattern:
+  validate external data at the boundary, then map to internal business models with
+  type conversions and business logic.
 - **Never use these models for internal business logic.**
 
 **References:**
@@ -52,7 +57,8 @@ class HyperliquidRawLeverage(BaseModel):
     @classmethod
     def validate_type(cls, v: object, info: ValidationInfo) -> str:
         """
-        Validates the 'type' field to ensure it is either 'cross' or 'isolated' and a string of max length 16.
+        Validates the 'type' field to ensure it is either 'cross' or 'isolated' and a string
+        of max length 16.
 
         Args:
             v (object): The value to validate (should be a string).

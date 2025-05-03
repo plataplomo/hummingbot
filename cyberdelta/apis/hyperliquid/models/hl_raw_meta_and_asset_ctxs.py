@@ -2,17 +2,23 @@
 CyberDeltaEngine: Hyperliquid API Raw Models (Meta & Asset Context Group)
 -----------------------------------------------------------------------
 
-This module provides strict, security-focused Pydantic models for validating the *raw* structure of all major
-Hyperliquid Exchange API (REST and WebSocket) responses related to meta information, asset context,
-and related request/response payloads. It is a core part of CyberDeltaEngine's boundary validation layer.
+This module provides strict, security-focused Pydantic models for validating the *raw*
+structure of all major Hyperliquid Exchange API (REST and WebSocket) responses related to
+meta information, asset context, and related request/response payloads. It is a core part
+of CyberDeltaEngine's boundary validation layer.
 
 **Boundary Validation Policy:**
-- Models in this file are used exclusively to validate and parse the *external* data structures returned by
-  Hyperliquid's 'meta' and 'metaAndAssetCtxs' endpoints, as well as related request payloads and
-  leverage/margin updates.
-- All models enforce strict schema validation (`extra="forbid"`), strict type checking, and robust format validation (e.g., max length, finite decimals, valid UTF-8).
-- Any unexpected, malformed, or ambiguous fields in upstream data are immediately rejected. This is critical for robust, secure, and predictable operation in a financial system.
-- These models are the *first step* in the "validate first, then transform" pattern: validate external data at the boundary, then map to internal business models with type conversions and business logic.
+- Models in this file are used exclusively to validate and parse the *external* data
+  structures returned by Hyperliquid's 'meta' and 'metaAndAssetCtxs' endpoints, as well as
+  related request payloads and leverage/margin updates.
+- All models enforce strict schema validation (`extra="forbid"`), strict type checking,
+  and robust format validation (e.g., max length, finite decimals, valid UTF-8).
+- Any unexpected, malformed, or ambiguous fields in upstream data are immediately
+  rejected. This is critical for robust, secure, and predictable operation in a
+  financial system.
+- These models are the *first step* in the "validate first, then transform" pattern:
+  validate external data at the boundary, then map to internal business models with
+  type conversions and business logic.
 - **Never use these models for internal business logic.**
 
 **References:**
@@ -40,8 +46,9 @@ from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 def _validated_list_of_dict_str_any(obj: object) -> list[dict[str, Any]] | None:
     """
-    Helper for runtime validation and static type narrowing: returns a list of dict[str, Any] if valid,
-    else None. This is the only way to satisfy both runtime and static type safety without cast.
+    Helper for runtime validation and static type narrowing: returns a list of dict[str, Any]
+    if valid, else None. This is the only way to satisfy both runtime and static type safety
+    without cast.
     """
     if not isinstance(obj, list):
         return None
@@ -133,7 +140,8 @@ class HyperliquidRawAssetDefinition(BaseModel):
 
 class HyperliquidRawAssetCtx(BaseModel):
     """
-    Strict boundary model for contextual information about a single asset from the 'metaAndAssetCtxs' endpoint.
+    Strict boundary model for contextual information about a single asset from the
+    'metaAndAssetCtxs' endpoint.
 
     Used only for validating the raw structure of asset context entries (funding, mark price, etc.)
     as received from the upstream API. Enforces strict type and format constraints for all fields.
@@ -182,7 +190,8 @@ class HyperliquidRawAssetCtx(BaseModel):
     @classmethod
     def validate_impact_px(cls, v: object, info: ValidationInfo) -> str | None:
         """
-        Validates the optional 'impact_px' field to ensure it is either None or a valid decimal string.
+        Validates the optional 'impact_px' field to ensure it is either None or a valid
+        decimal string.
         """
         if v is None:
             return v
@@ -223,10 +232,11 @@ class HyperliquidRawMetaResponse(BaseModel):
 
 class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
     """
-    Strict boundary model for the [meta, assetCtxs] tuple response from the 'metaAndAssetCtxs' endpoint.
+    Strict boundary model for the [meta, assetCtxs] tuple response from the 'metaAndAssetCtxs'
+    endpoint.
 
-    Used only for validating the raw structure of the 2-tuple response: meta info and asset contexts.
-    Never use for internal business logic.
+    Used only for validating the raw structure of the 2-tuple response: meta info and
+    asset contexts. Never use for internal business logic.
 
     Fields:
         meta (HyperliquidRawMetaResponse): Meta/universe information.
@@ -276,7 +286,8 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         asset_ctxs_checked = _validated_list_of_dict_str_any(asset_ctxs_obj)
         if asset_ctxs_checked is None:
             raise ValueError(
-                "Invalid MetaAndAssetCtxs response structure: asset_ctxs must be list[dict[str, Any]]"
+                "Invalid MetaAndAssetCtxs response structure: asset_ctxs must be "
+                "list[dict[str, Any]]"
             )
         meta = HyperliquidRawMetaResponse.model_validate(meta_obj)
         asset_ctxs = [HyperliquidRawAssetCtx.model_validate(x) for x in asset_ctxs_checked]
@@ -289,8 +300,8 @@ class HyperliquidRawMetaRequestPayload(BaseModel):
     """
     Strict boundary model for the request payload for the 'meta' info type.
 
-    Used only for constructing and validating the payload sent to the Hyperliquid API when requesting
-    meta/universe information. Never use for internal business logic.
+    Used only for constructing and validating the payload sent to the Hyperliquid API when
+    requesting meta/universe information. Never use for internal business logic.
 
     Fields:
         type (str): Must be 'meta'.
@@ -315,8 +326,8 @@ class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
     """
     Strict boundary model for the request payload for the 'metaAndAssetCtxs' info type.
 
-    Used only for constructing and validating the payload sent to the Hyperliquid API when requesting
-    both meta and asset context information. Never use for internal business logic.
+    Used only for constructing and validating the payload sent to the Hyperliquid API when
+    requesting both meta and asset context information. Never use for internal business logic.
 
     Fields:
         type (str): Must be 'metaAndAssetCtxs'.
@@ -339,10 +350,11 @@ class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
 
 class HyperliquidRawUpdateLeverageRequest(BaseModel):
     """
-    Strict boundary model for the request payload for updating leverage settings for a specific asset.
+    Strict boundary model for the request payload for updating leverage settings for a
+    specific asset.
 
-    Used only for constructing and validating the payload sent to the Hyperliquid API when updating
-    leverage for an asset. Never use for internal business logic.
+    Used only for constructing and validating the payload sent to the Hyperliquid API when
+    updating leverage for an asset. Never use for internal business logic.
 
     Fields:
         asset (int): Asset index (API-defined).

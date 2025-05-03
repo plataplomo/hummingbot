@@ -61,8 +61,8 @@ class HyperliquidRawTriggerInfo(BaseModel):
     @classmethod
     def validate_trigger_px(cls, v: object, info: ValidationInfo) -> str:
         """
-        Validates the 'trigger_px' field to ensure it is a string representing a finite decimal (not NaN/inf),
-        with a maximum length of 64.
+        Validates the 'trigger_px' field to ensure it is a string representing a finite
+        decimal (not NaN/inf), with a maximum length of 64.
 
         Args:
             v (object): The value to validate (should be a string).
@@ -98,7 +98,8 @@ class HyperliquidRawTriggerInfo(BaseModel):
     @classmethod
     def validate_is_market_bool(cls, v: object, info: ValidationInfo) -> bool:
         """
-        Strictly enforce that is_market is a bool (no coercion). This is required by the raw model policy.
+        Strictly enforce that is_market is a bool (no coercion). This is required by the raw
+        model policy.
 
         Args:
             v (object): The value to validate (should be a bool).
