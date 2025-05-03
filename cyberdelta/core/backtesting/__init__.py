@@ -1,3 +1,3 @@
 from .backtesting import BacktestEngine
 
-__all__ = ["BacktestEngine"] 
+__all__ = ["BacktestEngine"]

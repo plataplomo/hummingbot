@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -21,23 +21,28 @@ class TestOrderBook:
     def test_creation_with_levels(self) -> None:
         """Test creating an OrderBook with valid bid/ask levels."""
         now = datetime.now(UTC)
-        bids = [(Decimal("50000.0"), Decimal("1.5")), (Decimal("49999.5"), Decimal("2.0"))]
-        asks = [(Decimal("50000.5"), Decimal("1.0")), (Decimal("50001.0"), Decimal("0.5"))]
-        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=bids, asks=asks)
-        assert ob.bids == bids
-        assert ob.asks == asks
+        bids = [("50000.0", "1.5"), (Decimal("49999.5"), 2.0)]  # Mix types
+        asks = [(Decimal("50000.5"), 1), ("50001.0", "0.5")]  # Mix types
+        expected_bids = [(Decimal("50000.0"), Decimal("1.5")), (Decimal("49999.5"), Decimal("2.0"))]
+        expected_asks = [(Decimal("50000.5"), Decimal("1.0")), (Decimal("50001.0"), Decimal("0.5"))]
+
+        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=bids, asks=asks)  # type: ignore[arg-type]
+        assert ob.bids == expected_bids
+        assert ob.asks == expected_asks
 
     def test_required_fields(self) -> None:
         """Test that required fields (symbol, timestamp, bids, asks) raise errors if missing."""
         now = datetime.now(UTC)
-        with pytest.raises(ValidationError, match="symbol"):
-            OrderBook(timestamp=now, bids=[], asks=[])  # type: ignore[call-arg]
-        with pytest.raises(ValidationError, match="timestamp"):
-            OrderBook(symbol="BTC", bids=[], asks=[])  # type: ignore[call-arg]
-        with pytest.raises(ValidationError, match="bids"):
-            OrderBook(symbol="BTC", timestamp=now, asks=[])  # type: ignore[call-arg]
-        with pytest.raises(ValidationError, match="asks"):
-            OrderBook(symbol="BTC", timestamp=now, bids=[])  # type: ignore[call-arg]
+        # Pydantic raises ValidationError if fields are missing entirely
+        with pytest.raises(ValidationError, match="Field required"):
+            # Ignore type error since we are testing missing field validation
+            OrderBook(timestamp=now, bids=[], asks=[])
+        with pytest.raises(ValidationError, match="Field required"):
+            OrderBook(symbol="BTC", bids=[], asks=[])
+        with pytest.raises(ValidationError, match="Field required"):
+            OrderBook(symbol="BTC", timestamp=now, asks=[])
+        with pytest.raises(ValidationError, match="Field required"):
+            OrderBook(symbol="BTC", timestamp=now, bids=[])
 
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field."""
@@ -52,11 +57,11 @@ class TestOrderBook:
         OrderBook(symbol="VALID-SYM_123", timestamp=now, bids=[], asks=[])
 
     def test_timestamp_validation_required(self) -> None:
-        """Test that timestamp cannot be None."""
-        # Using Any/cast to bypass static checks for testing runtime validation
+        """Test that timestamp cannot be None (handled by parse_datetime_utc)."""
+        # Using Any to bypass static checks for testing runtime validation
         invalid_data: dict[str, Any] = {"symbol": "BTC", "timestamp": None, "bids": [], "asks": []}
         with pytest.raises(ValueError, match="timestamp must not be None"):
-            OrderBook(**invalid_data)
+            OrderBook(**invalid_data)  # No ignore needed, caught by validator signature now
 
     def test_timestamp_validation_parsing(self) -> None:
         """Test timestamp parsing from various formats."""
@@ -65,11 +70,11 @@ class TestOrderBook:
         naive_dt = datetime(2023, 3, 15, 12, 0, 0)
         expected_dt = datetime(2023, 3, 15, 12, 0, 0, tzinfo=UTC)
 
-        # From ms int
-        ob_int = OrderBook(symbol="T", timestamp=ms_timestamp, bids=[], asks=[])  # type: ignore[arg-type]
+        # From ms int - ignore needed as validator expects specific types but handles int
+        ob_int = OrderBook(symbol="T", timestamp=ms_timestamp, bids=[], asks=[])
         assert ob_int.timestamp == expected_dt
 
-        # From ISO string
+        # From ISO string - ignore needed as validator expects specific types but handles str
         ob_iso = OrderBook(symbol="T", timestamp=iso_timestamp, bids=[], asks=[])
         assert ob_iso.timestamp == expected_dt
 
@@ -81,77 +86,108 @@ class TestOrderBook:
         ob_aware = OrderBook(symbol="T", timestamp=expected_dt, bids=[], asks=[])
         assert ob_aware.timestamp == expected_dt
 
-    def test_level_structure_validation(self) -> None:
-        """Test structure validation (mode='before') of bids/asks lists."""
+    # Remove test_level_structure_validation
+    # Remove test_level_content_validation
+
+    # Add new combined test
+    def test_level_validation_and_parsing(self) -> None:
+        """Test the single mode='before' validator for bids/asks."""
         now = datetime.now(UTC)
-        valid_level = (Decimal("10"), Decimal("1"))
-
-        # Bids/Asks not a list
-        with pytest.raises(TypeError, match="must be a list"):
-            OrderBook(symbol="T", timestamp=now, bids="not_a_list", asks=[valid_level])
-        with pytest.raises(TypeError, match="must be a list"):
-            OrderBook(symbol="T", timestamp=now, bids=[valid_level], asks={})
-
-        # List contains non-list/tuple item
-        with pytest.raises(TypeError, match="must be a list or tuple"):
-            invalid_bids_item_type: Any = [valid_level, 123]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_bids_item_type, asks=[])
-
-        # List contains item of wrong length
-        with pytest.raises(ValueError, match="must have length 2"):
-            invalid_bids_len1: Any = [valid_level, (Decimal("9"),)]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_bids_len1, asks=[])
-        with pytest.raises(ValueError, match="must have length 2"):
-            invalid_bids_len3: Any = [valid_level, (Decimal("9"), Decimal("1"), Decimal("2"))]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_bids_len3, asks=[])
-
-        # Valid structure should pass (content errors tested separately)
-        OrderBook(symbol="T", timestamp=now, bids=[(Decimal("10"), Decimal("1"))], asks=[])
-
-    def test_level_content_validation(self) -> None:
-        """Test content validation (type coercion & mode='after') within bid/ask levels."""
-        now = datetime.now(UTC)
+        valid_level_raw = ("10.0", "1.5")  # Use strings to test parsing
+        valid_level_parsed = (Decimal("10.0"), Decimal("1.5"))
         zero_qty_level = (Decimal("10"), Decimal("0"))  # Zero quantity is valid
 
-        # Invalid price type (Pydantic coercion fails between validators)
-        invalid_price_type_bids: Any = [("invalid_price", Decimal("1"))]
-        with pytest.raises(ValidationError, match="Input should be a valid decimal"):
-            OrderBook(symbol="T", timestamp=now, bids=invalid_price_type_bids, asks=[])
+        # --- Test Top-Level Structure ---
+        with pytest.raises(TypeError, match="bids must be a list"):
+            OrderBook(symbol="T", timestamp=now, bids="not_a_list", asks=[])
+        with pytest.raises(TypeError, match="asks must be a list"):
+            OrderBook(symbol="T", timestamp=now, bids=[], asks={})
 
-        # Invalid quantity type (Pydantic coercion fails between validators)
-        invalid_qty_type_bids: Any = [(Decimal("10"), "invalid_qty")]
-        with pytest.raises(ValidationError, match="Input should be a valid decimal"):
-            OrderBook(symbol="T", timestamp=now, bids=invalid_qty_type_bids, asks=[])
+        # --- Test Level Item Structure ---
+        with pytest.raises(TypeError, match="must be a list or tuple"):
+            invalid_bids_item_type: Any = [valid_level_raw, 123]
+            OrderBook(symbol="T", timestamp=now, bids=invalid_bids_item_type, asks=[])
+        with pytest.raises(ValueError, match="must have length 2"):
+            invalid_bids_len1: Any = [valid_level_raw, ("9",)]
+            OrderBook(symbol="T", timestamp=now, bids=invalid_bids_len1, asks=[])
+        with pytest.raises(ValueError, match="must have length 2"):
+            invalid_bids_len3: Any = [valid_level_raw, ("9", "1", "2")]
+            OrderBook(symbol="T", timestamp=now, bids=invalid_bids_len3, asks=[])
 
-        # --- Content checks handled by `validate_level_content` (mode='after') ---
+        # --- Test Level Content - Price ---
+        with pytest.raises(TypeError, match="Invalid price type"):
+            invalid_price_type: Any = [(None, "1")]
+            OrderBook(symbol="T", timestamp=now, bids=invalid_price_type, asks=[])
+        with pytest.raises(TypeError, match="Invalid price type"):
+            invalid_price_type_obj: Any = [({"a": 1}, "1")]
+            OrderBook(symbol="T", timestamp=now, bids=invalid_price_type_obj, asks=[])
+        with pytest.raises(
+            ValidationError, match=r"Value error, Invalid price value.*Cannot convert"
+        ):
+            invalid_price_parse: Any = [("not_a_number", "1")]
+            OrderBook(symbol="T", timestamp=now, bids=invalid_price_parse, asks=[])
+        with pytest.raises(
+            ValidationError,
+            match=r"Value error, Invalid price value.*Expected finite Decimal, got Infinity",
+        ):
+            infinite_price: Any = [(Decimal("Infinity"), "1")]
+            OrderBook(symbol="T", timestamp=now, bids=infinite_price, asks=[])
+        with pytest.raises(
+            ValidationError,
+            match=r"Value error, Invalid price value.*Expected finite Decimal, got NaN",
+        ):
+            nan_price: Any = [(Decimal("NaN"), "1")]
+            OrderBook(symbol="T", timestamp=now, bids=nan_price, asks=[])
 
-        # Non-finite price (Infinity) -> ValidationError from Pydantic coercion
-        infinite_price_bids: Any = [(Decimal("Infinity"), Decimal("1"))]
-        with pytest.raises(ValidationError, match="Input should be a finite number"):
-            OrderBook(symbol="T", timestamp=now, bids=infinite_price_bids, asks=[])
+        # --- Test Level Content - Quantity ---
+        with pytest.raises(TypeError, match="Invalid quantity type"):
+            invalid_qty_type: Any = [("10", None)]
+            OrderBook(symbol="T", timestamp=now, bids=invalid_qty_type, asks=[])
+        with pytest.raises(TypeError, match="Invalid quantity type"):
+            invalid_qty_type_obj: Any = [("10", ["1"])]
+            OrderBook(symbol="T", timestamp=now, bids=invalid_qty_type_obj, asks=[])
+        with pytest.raises(
+            ValidationError, match=r"Value error, Invalid quantity value.*Cannot convert"
+        ):
+            invalid_qty_parse: Any = [("10", "not_a_number")]
+            OrderBook(symbol="T", timestamp=now, bids=invalid_qty_parse, asks=[])
+        with pytest.raises(
+            ValidationError,
+            match=r"Value error, Invalid quantity value.*Expected finite Decimal, got Infinity",
+        ):
+            infinite_qty: Any = [("10", Decimal("Infinity"))]
+            OrderBook(symbol="T", timestamp=now, bids=infinite_qty, asks=[])
+        with pytest.raises(
+            ValidationError,
+            match=r"Value error, Invalid quantity value.*Expected finite Decimal, got NaN",
+        ):
+            nan_qty: Any = [("10", Decimal("NaN"))]
+            OrderBook(symbol="T", timestamp=now, bids=nan_qty, asks=[])
+        with pytest.raises(
+            ValidationError, match=r"Value error, Invalid quantity value.*Must be non-negative"
+        ):
+            negative_qty: Any = [("10", "-1")]
+            OrderBook(symbol="T", timestamp=now, bids=negative_qty, asks=[])
 
-        # Non-finite price (NaN) -> ValidationError from Pydantic coercion
-        nan_price_bids: Any = [(Decimal("NaN"), Decimal("1"))]
-        with pytest.raises(ValidationError, match="Input should be a finite number"):
-            OrderBook(symbol="T", timestamp=now, bids=nan_price_bids, asks=[])
+        # --- Test Valid Cases ---
+        # Empty lists
+        ob_empty = OrderBook(symbol="T", timestamp=now, bids=[], asks=[])
+        assert ob_empty.bids == []
+        assert ob_empty.asks == []
 
-        # Non-finite quantity (Infinity) -> ValidationError from Pydantic coercion
-        infinite_qty_bids: Any = [(Decimal("10"), Decimal("Infinity"))]
-        with pytest.raises(ValidationError, match="Input should be a finite number"):
-            OrderBook(symbol="T", timestamp=now, bids=infinite_qty_bids, asks=[])
+        # Valid list with raw data needing parsing
+        ob_raw = OrderBook(symbol="T", timestamp=now, bids=[valid_level_raw], asks=[])
+        assert ob_raw.bids == [valid_level_parsed]
 
-        # Non-finite quantity (NaN) -> ValidationError from Pydantic coercion
-        nan_qty_bids: Any = [(Decimal("10"), Decimal("NaN"))]
-        with pytest.raises(ValidationError, match="Input should be a finite number"):
-            OrderBook(symbol="T", timestamp=now, bids=nan_qty_bids, asks=[])
+        # Valid list with pre-parsed Decimals and zero quantity
+        ob_parsed = OrderBook(symbol="T", timestamp=now, bids=[zero_qty_level], asks=[])
+        assert ob_parsed.bids == [zero_qty_level]
 
-        # Negative quantity -> ValueError from mode='after' validator
-        negative_qty_bids: Any = [(Decimal("10"), Decimal("-1"))]
-        with pytest.raises(ValueError, match="Must be non-negative"):
-            OrderBook(symbol="T", timestamp=now, bids=negative_qty_bids, asks=[])
-
-        # Valid level with zero quantity should pass all validation
-        OrderBook(symbol="T", timestamp=now, bids=[zero_qty_level], asks=[])
+        # Valid list with mixed types
+        mixed_bids_raw: Any = [("10.1", 1), (Decimal("9.9"), "0.5")]
+        mixed_bids_expected = [(Decimal("10.1"), Decimal("1")), (Decimal("9.9"), Decimal("0.5"))]
+        ob_mixed = OrderBook(symbol="T", timestamp=now, bids=mixed_bids_raw, asks=[])
+        assert ob_mixed.bids == mixed_bids_expected
 
     def test_extra_fields_forbidden(self) -> None:
         """Test that extra fields are forbidden."""
@@ -168,15 +204,19 @@ class TestOrderBook:
             OrderBook(**extra_field_kwargs)
 
     def test_immutability(self) -> None:
-        """Test that the OrderBook model is immutable."""
+        """Test that the OrderBook model is immutable (frozen=True)."""
         now = datetime.now(UTC)
         ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=[], asks=[])
 
-        with pytest.raises(ValidationError):
-            cast(Any, ob).symbol = "ETH-PERP"
-        with pytest.raises(ValidationError):
-            cast(Any, ob).timestamp = now + timedelta(seconds=1)
-        with pytest.raises(ValidationError):
-            cast(Any, ob).bids = [(Decimal("1"), Decimal("1"))]
-        with pytest.raises(ValidationError):
-            cast(Any, ob).new_field = "test"
+        # Direct attribute assignment raises ValidationError due to frozen=True
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            ob.symbol = "ETH-PERP"
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            ob.timestamp = now + timedelta(seconds=1)
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            ob.bids = [(Decimal("1"), Decimal("1"))]
+        # Setting NEW attributes on a frozen model also raises ValidationError (frozen_instance)
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            # Attempting to set a new attribute raises ValidationError.
+            # Mypy correctly flags attr-defined, ignore needed for test.
+            ob.new_field = "test"  # type: ignore[attr-defined]

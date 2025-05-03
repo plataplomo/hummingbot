@@ -7,13 +7,13 @@ import pytest
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import FundingRateValidatorProtocol, PortfolioTrackerProtocol
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config  # Assuming Config class is used
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
 from tests.integration.mocks.mock_exchange import MockExchangeAPI
 

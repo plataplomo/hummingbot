@@ -1,0 +1,49 @@
+---
+description: 
+globs: *.py,*.pyi
+alwaysApply: false
+---
+---
+id: RULE-STATIC-ANALYSIS-V3
+title: Mandatory Immediate Static Analysis & Compliant Fix Iteration
+description: Mandates immediate, comprehensive static analysis after code modification using project-configured tools via .venv, requires exhaustive compliant fix attempts before halting.
+globs: ["*.py", "*.pyi"] # Apply when Python/stub files are involved
+alwaysApply: true # This check is mandatory after modifications
+severity: critical # Failure to comply is critical
+---
+
+# Mandatory Immediate Static Analysis & Compliant Fix Iteration
+
+1.  **Check Timing & Mandate:**
+    *   **Immediately after** completing *any* code generation or modification task affecting one or more `.py` or `.pyi` files, you **MUST NOT** proceed to any other task (including further code generation, analysis, or reporting on the *content* of the generated code) until the static analysis protocol defined below is successfully completed or explicitly halted by user instruction.
+    *   Checks **MUST** be performed per logical code change, not batched across unrelated changes.
+
+2.  **Tools & Scope (Strict):**
+    *   Execute **ALL** of the following commands, in sequence, using the **exact paths** specified:
+        1.  `.venv/bin/ruff format <modified_file(s_or_directory)>` (Apply formatting first)
+        2.  `.venv/bin/ruff check --fix --exit-zero <modified_file(s_or_directory)>` (Attempt automatic fixes for check rules)
+        3.  `.venv/bin/ruff check <modified_file(s_or_directory)>` (Verify remaining check issues)
+        4.  `.venv/bin/mypy --strict <modified_file(s_or_directory)>` (Strict type checking)
+        5.  `.venv/bin/pyright <modified_file(s_or_directory)>` (Additional static analysis)
+    *   Target the specific `modified_file(s)` directly. If multiple related files were changed in one logical task, they may be checked together. Consider checking the immediate parent module directory (`<directory>`) for broader impact if appropriate, but *always* check the specific files.
+    *   **ABSOLUTELY NO** use of global, system, `npx`, or other non-`.venv` tool installations.
+
+3.  **Configuration Adherence:**
+    *   All tools **MUST** run using only the project's checked-in configuration (`pyproject.toml`, `mypy.ini`). Command-line overrides that alter rule sets, severity, or ignore patterns specified in the config files are forbidden. Strict adherence to `RULE-CONFIG-INTEGRITY-V3` is required.
+
+4.  **Error Handling & Compliant Fix Protocol:**
+    *   If **ANY** of the checks in step 2 (after auto-fixes in 2.2) report **ANY errors or warnings**:
+        *   **A. Attempt Compliant Fixes:** You **MUST** iteratively attempt to fix **ALL** reported issues by modifying **only the Python source code**. Fixes **MUST** strictly adhere to **ALL other project rules** (e.g., `RULE-NO-SILENCING-V3`, `RULE-RUNTIME-SAFETY-V3`). Prioritize fixes enhancing correctness and type safety. After each fix attempt, **re-run the full sequence of checks (Step 2) on the modified file(s)**.
+        *   **B. Identify Unfixable Issues:** Continue iterating fixes (Step 4.A) until either all checks pass, or you determine that remaining issues **cannot** be fixed via compliant source code changes without violating other rules or requiring configuration changes (per `RULE-CONFIG-INTEGRITY-V3`).
+        *   **C. HALT and Document (If Blocked):** If, and only if, compliant source code fixes are impossible after diligent attempts:
+            *   **HALT** work on the current task.
+            *   Document the specific remaining error(s) (Tool, Code, Message, File, Line), problematic code, attempted fixes, and the reason a compliant fix failed (referencing specific conflicting rules).
+            *   State: **"HALTED: Static analysis errors persist that cannot be fixed compliantly. Awaiting user guidance."**
+        *   **D. Present Complex Fixes:** If a compliant fix requires significant logical changes or refactoring that might alter behavior, **present the proposed fix** to the User for review *before* applying it, even if it passes static analysis.
+
+5.  **Mandatory Reporting:**
+    *   Before proceeding *after* successful code modification and analysis, you **MUST** report the outcome concisely. Examples:
+        *   "Ran Ruff format, Ruff check --fix, Ruff check, Mypy --strict, Pyright on `src/foo.py`. All checks passed (2 Ruff issues auto-fixed)."
+        *   "Ran checks on `src/bar.py`. Ruff auto-fixed 1 issue. Manually fixed 1 Mypy error (`Optional[str]` added). All checks now pass."
+        *   (If halted according to 4.C) Provide the detailed halt report.
+    *   Do not proceed to the next logical task until all checks pass or a halt is explicitly acknowledged/resolved by the User.
