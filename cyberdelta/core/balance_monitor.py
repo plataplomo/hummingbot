@@ -4,9 +4,9 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio_tracker import Balance, PortfolioTracker
 from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
@@ -43,38 +43,7 @@ class BalanceAlert:
 
     def __post_init__(self) -> None:
         """Ensure all numeric fields are Decimal."""
-        # The threshold_value is already type-hinted as Decimal in the dataclass definition.
-        # The following conversion block is unreachable and has been removed.
-        # if not isinstance(self.threshold_value, Decimal):
-        #     try:
-        #         self.threshold_value = Decimal(str(self.threshold_value))
-        #     except (ValueError, TypeError):
-        #         logger.error(
-        #             f"Invalid threshold value: {self.threshold_value}. Defaulting to 0.0"
-        #         )
-        #         self.threshold_value = Decimal("0.0")
-
-        # The current_balance is already type-hinted as Decimal in the dataclass definition.
-        # The following conversion block is unreachable and has been removed.
-        # if not isinstance(self.current_balance, Decimal):
-        #     try:
-        #         self.current_balance = Decimal(str(self.current_balance))
-        #     except (ValueError, TypeError):
-        #         logger.error(
-        #             f"Invalid current balance: {self.current_balance}. Defaulting to 0.0"
-        #         )
-        #         self.current_balance = Decimal("0.0")
-
-        # The required_balance is already type-hinted as Decimal in the dataclass definition.
-        # The following conversion block is unreachable and has been removed.
-        # if not isinstance(self.required_balance, Decimal):
-        #     try:
-        #         self.required_balance = Decimal(str(self.required_balance))
-        #     except (ValueError, TypeError):
-        #         logger.error(
-        #             f"Invalid required balance: {self.required_balance}. Defaulting to 0.0"
-        #         )
-        #         self.required_balance = Decimal("0.0")
+        # Validations removed as fields are type-hinted correctly with defaults
 
     def __str__(self) -> str:
         """Generate string representation of the alert."""
@@ -106,12 +75,19 @@ class BalanceMonitor:
         """
         self.config = config
         self.portfolio_tracker = portfolio_tracker
+        self.state_file: str = ""  # Initialize state_file attribute
 
         # Load balance parameters from config and convert to Decimal
-        self.min_usdc_balance = Decimal(str(config.get("balance.min_usdc_balance", 50.0)))
-        self.low_balance_threshold = Decimal(
-            str(config.get("balance.low_balance_threshold", 100.0))
-        )
+        # DEFENSIVE CHECK: Convert config values safely
+        try:
+            self.min_usdc_balance = Decimal(str(config.get("balance.min_usdc_balance", "50.0")))
+            self.low_balance_threshold = Decimal(
+                str(config.get("balance.low_balance_threshold", "100.0"))
+            )
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid balance config value: {e}. Using defaults.")
+            self.min_usdc_balance = Decimal("50.0")
+            self.low_balance_threshold = Decimal("100.0")
 
         # Exchange-specific minimum balance requirements
         self.exchange_min_balances: dict[str, dict[str, Decimal]] = {}
@@ -119,30 +95,62 @@ class BalanceMonitor:
         # Active alerts
         self.active_alerts: list[BalanceAlert] = []
 
-        # Historical alerts (keep last 100)
+        # Historical alerts (keep last N)
         self.alert_history: list[BalanceAlert] = []
-        self.max_alert_history = 100
+        # Use config for max history size
+        raw_max_history = config.get("balance.max_alert_history", 100)
+        try:
+            self.max_alert_history = int(str(raw_max_history))
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid max_alert_history '{raw_max_history}'. Using default 100.")
+            self.max_alert_history = 100
 
         # Load exchange-specific requirements
         self._load_exchange_requirements()
+        # Load state if configured
+        self._load_state()
 
     def _load_exchange_requirements(self) -> None:
         """Load exchange-specific balance requirements from config."""
-        for exchange_id in self.config.get("exchanges", {}).keys():
+        # Cast config result to expected dict type
+        exchanges_conf = self.config.get("exchanges", {})
+        exchanges_dict = cast(
+            dict[str, Any], exchanges_conf if isinstance(exchanges_conf, dict) else {}
+        )
+
+        for exchange_id in exchanges_dict.keys():
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 continue
 
             # Default minimum USDC balance for each exchange
-            min_usdc = self.config.get(
+            min_usdc_raw = self.config.get(
                 f"exchanges.{exchange_id}.min_usdc_balance", self.min_usdc_balance
             )
-            self.exchange_min_balances[exchange_id] = {"USDC": Decimal(str(min_usdc))}
+            try:
+                min_usdc = Decimal(str(min_usdc_raw))
+            except (ValueError, TypeError):
+                logger.warning(
+                    f"Invalid min_usdc_balance '{min_usdc_raw}' for {exchange_id}. Using global default."
+                )
+                min_usdc = self.min_usdc_balance
+
+            self.exchange_min_balances[exchange_id] = {"USDC": min_usdc}
 
             # Add any exchange-specific asset requirements
-            min_balances = self.config.get(f"exchanges.{exchange_id}.min_balances", {})
-            for asset, amount in min_balances.items():
-                # Convert amount to Decimal
-                self.exchange_min_balances[exchange_id][asset] = Decimal(str(amount))
+            min_balances_conf = self.config.get(f"exchanges.{exchange_id}.min_balances", {})
+            min_balances_dict = cast(
+                dict[str, Any], min_balances_conf if isinstance(min_balances_conf, dict) else {}
+            )
+
+            for asset, amount_raw in min_balances_dict.items():
+                try:
+                    # Convert amount to Decimal
+                    amount_decimal = Decimal(str(amount_raw))
+                    self.exchange_min_balances[exchange_id][asset] = amount_decimal
+                except (ValueError, TypeError):
+                    logger.error(
+                        f"Invalid min_balance amount '{amount_raw}' for {asset} on {exchange_id}. Skipping."
+                    )
 
     def check_balances(self) -> list[BalanceAlert]:
         """
@@ -151,33 +159,34 @@ class BalanceMonitor:
         Returns:
             List of balance alerts
         """
-        new_alerts = []
-        already_alerted = set()  # Track exchanges/assets already alerted
+        new_alerts: list[BalanceAlert] = []  # Explicit type annotation
+        already_alerted: set[tuple[str, str]] = set()  # Track exchanges/assets already alerted
 
-        # Clear active alerts
-        self.active_alerts = []
+        self.active_alerts = []  # Clear active alerts before checking
 
-        # Check each exchange's balances
         for exchange_id, min_balances in self.exchange_min_balances.items():
             for asset, min_balance in min_balances.items():
-                current_balance = self.portfolio_tracker.get_exchange_balance(exchange_id, asset)
-                # Safely extract the total amount from the Balance object
+                # Use explicit Balance type hint
+                current_balance: Balance | None = self.portfolio_tracker.get_exchange_balance(
+                    exchange_id, asset
+                )
                 current_balance_amount = Decimal("0.0")
+
                 if current_balance is not None:
+                    # DEFENSIVE CHECK: Ensure current_balance is not None before access.
+                    assert current_balance is not None  # Mypy=[redundant-expr]
                     try:
                         # Balance object has a total field which is a Decimal
-                        # Keep it as Decimal - don't convert to float
                         current_balance_amount = current_balance.total
-                    except AttributeError:
+                    except AttributeError:  # Should not happen if Balance model is correct
                         logger.warning(f"Unable to extract balance amount from: {current_balance}")
 
                 # Check if balance is below minimum
                 if current_balance_amount < min_balance:
-                    # Create critical alert
                     alert = BalanceAlert(
                         exchange=exchange_id,
                         asset=asset,
-                        current_balance=current_balance_amount,
+                        current_balance=current_balance_amount,  # Known Decimal
                         required_balance=min_balance,
                         severity=BalanceAlert.SEVERITY_CRITICAL,
                         message="Balance below minimum requirement",
@@ -187,19 +196,16 @@ class BalanceMonitor:
                     new_alerts.append(alert)
                     self.active_alerts.append(alert)
                     already_alerted.add((exchange_id, asset))
-
                     logger.warning(str(alert))
-
                 # Check if balance is below low threshold but above minimum
                 elif (
                     current_balance_amount < self.low_balance_threshold
                     and (exchange_id, asset) not in already_alerted
                 ):
-                    # Create warning alert
                     alert = BalanceAlert(
                         exchange=exchange_id,
                         asset=asset,
-                        current_balance=current_balance_amount,
+                        current_balance=current_balance_amount,  # Known Decimal
                         required_balance=self.low_balance_threshold,
                         severity=BalanceAlert.SEVERITY_WARNING,
                         message="Balance nearing low threshold",
@@ -208,7 +214,6 @@ class BalanceMonitor:
                     )
                     new_alerts.append(alert)
                     self.active_alerts.append(alert)
-
                     logger.info(str(alert))
 
         # Add alerts to history and cap history size
@@ -232,22 +237,26 @@ class BalanceMonitor:
         Returns:
             BalanceAlert if insufficient, None otherwise
         """
-        current_balance = self.portfolio_tracker.get_exchange_balance(exchange, asset)
-        # Safely extract the total amount from the Balance object
+        # Use explicit Balance type hint
+        current_balance: Balance | None = self.portfolio_tracker.get_exchange_balance(
+            exchange, asset
+        )
         current_balance_amount = Decimal("0.0")
+
         if current_balance is not None:
+            # DEFENSIVE CHECK: Ensure current_balance is not None before access.
+            assert current_balance is not None  # Mypy=[redundant-expr]
             try:
                 # Balance object has a total field which is a Decimal
-                # Keep it as Decimal - don't convert to float
                 current_balance_amount = current_balance.total
-            except AttributeError:
+            except AttributeError:  # Should not happen if Balance model is correct
                 logger.warning(f"Unable to extract balance amount from: {current_balance}")
 
         if current_balance_amount < required_amount:
             alert = BalanceAlert(
                 exchange=exchange,
                 asset=asset,
-                current_balance=current_balance_amount,
+                current_balance=current_balance_amount,  # Known Decimal
                 required_balance=required_amount,
                 severity=BalanceAlert.SEVERITY_CRITICAL,
                 message=f"Insufficient {asset} balance for trade on {exchange}",
@@ -255,7 +264,7 @@ class BalanceMonitor:
                 threshold_value=required_amount,
             )
             logger.warning(str(alert))
-            # Add to active alerts
+            # Add to active alerts only if not already present (check ID)
             if not any(a.id == alert.id for a in self.active_alerts):
                 self.active_alerts.append(alert)
             return alert
@@ -268,7 +277,6 @@ class BalanceMonitor:
 
     def get_critical_alerts(self) -> list[BalanceAlert]:
         """Return only active critical alerts."""
-        # Ensure alert.severity is checked correctly
         return [
             alert
             for alert in self.active_alerts
@@ -282,33 +290,34 @@ class BalanceMonitor:
         Returns:
             Dictionary summarizing balance status
         """
-        # Initialize status dictionary
         status: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "balances": {},
             "alerts": [str(alert) for alert in self.active_alerts],
         }
 
-        # Iterate through configured exchanges
         for exchange_id, min_balances in self.exchange_min_balances.items():
-            exchange_balances = {}
+            exchange_balances: dict[str, dict[str, str]] = {}  # Type hint for inner dict
             for asset in min_balances:
-                # Get current balance from PortfolioTracker
-                current_balance = self.portfolio_tracker.get_exchange_balance(exchange_id, asset)
-                # Safely extract the total amount from the Balance object
+                # Use explicit Balance type hint
+                current_balance: Balance | None = self.portfolio_tracker.get_exchange_balance(
+                    exchange_id, asset
+                )
                 current_balance_amount = Decimal("0.0")
+
                 if current_balance is not None:
+                    # DEFENSIVE CHECK: Ensure current_balance is not None before access.
+                    assert current_balance is not None  # Mypy=[redundant-expr]
                     try:
                         # Balance object has a total field which is a Decimal
-                        # Keep it as Decimal - don't convert to float
                         current_balance_amount = current_balance.total
-                    except AttributeError:
+                    except AttributeError:  # Should not happen if Balance model is correct
                         logger.warning(f"Unable to extract balance amount from: {current_balance}")
+
                 min_balance = self.exchange_min_balances[exchange_id][asset]
 
-                # Create a new dictionary with balance information
-                # Maintain Decimal internally, only convert to string for output in the dictionary
-                asset_info = {
+                # Create a new dictionary with balance information (strings for JSON compatibility)
+                asset_info: dict[str, str] = {
                     "current": str(current_balance_amount),
                     "minimum": str(min_balance),
                     "status": "OK" if current_balance_amount >= min_balance else "LOW",
@@ -321,38 +330,29 @@ class BalanceMonitor:
 
     def _load_state(self) -> None:
         """Loads alerts and last known balances from a state file."""
-        # This method is incomplete and has syntax errors
-        # Completely reimplement it with proper structure and flow
-        self.state_file = self.config.get("balance.state_file", "")
+        # Fetch config value safely
+        state_file_conf = self.config.get("balance.state_file", "")
+        self.state_file = str(state_file_conf) if isinstance(state_file_conf, str) else ""
 
         if not self.state_file or not os.path.exists(self.state_file):
             logger.info(f"No state file found at {self.state_file}, starting with empty state")
             return
 
         try:
-            # Load state from file - we'll just use logging for now as the method is incomplete
-            logger.info(f"Would load balance state from {self.state_file}")
-            # Actual implementation would read the file and load the state
+            # Placeholder for loading state
+            logger.info(f"Attempting to load balance state from {self.state_file}")
+            # Example: Read and parse JSON, update self.active_alerts, self.alert_history
         except Exception as e:
-            logger.error(f"Error loading balance state: {e}")
+            logger.error(f"Error loading balance state from {self.state_file}: {e}")
 
     def add_alert(self, alert: BalanceAlert) -> None:
-        """Adds a new balance alert."""
-        # The alert.threshold_value is guaranteed to be Decimal by the BalanceAlert type hint.
-        # The following conversion block is unreachable and has been removed.
-        # if not isinstance(alert.threshold_value, Decimal):
-        #     try:
-        #         alert.threshold_value = Decimal(str(alert.threshold_value))
-        #     except (ValueError, TypeError):
-        #         logger.error(f"Invalid threshold value for alert: {alert.threshold_value}")
-        #         return  # Do not add alert with invalid threshold
-
-        # Add to active alerts if not already present
+        """Adds a new balance alert, preventing duplicates."""
+        # Alert properties are validated by BalanceAlert dataclass
         if not any(a.id == alert.id for a in self.active_alerts):
             self.active_alerts.append(alert)
             logger.info(f"Added balance alert: ID={alert.id}, Asset={alert.asset}")
-            # Save state would be called here if implemented
+            # self._save_state() # TODO: Implement state saving
         else:
-            # Mypy incorrectly flags this 'else' block as unreachable.
-            # It's necessary to handle cases where an alert with the same ID already exists.
-            logger.warning(f"Alert with ID {alert.id} already exists")  # mypy: [unreachable]
+            logger.warning(f"Alert with ID {alert.id} already exists, not adding again.")
+
+    # TODO: Implement state saving if needed
