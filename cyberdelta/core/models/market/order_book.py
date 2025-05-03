@@ -11,24 +11,27 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, va
 
 class OrderBook(BaseModel):
     """
-    Represents an immutable snapshot of the order book for a specific symbol at a given time.
+    Represents an immutable, validated snapshot of the L2 order book for a specific symbol at a point in time.
 
-    This model enforces strict validation for structure and data types, ensuring consistency
-    for internal use.
+    This model enforces strict validation for structure and data types during initialization,
+    ensuring consistency and safety for internal use within the CyberDeltaEngine. It uses
+    `mode='before'` validators to handle parsing and validation of potentially diverse input types
+    (e.g., str, int, float) directly into the required internal types (Decimal, datetime).
 
-    Fields:
-        symbol (str): Trading symbol (validated: non-empty, max 64 chars, UTF-8).
-        timestamp (datetime): UTC timestamp of the snapshot (required, validated).
-        bids (list[tuple[Decimal, Decimal]]): List of (price, quantity) tuples for bids.
-                                            Validated: price is finite, quantity is finite & >= 0.
-        asks (list[tuple[Decimal, Decimal]]): List of (price, quantity) tuples for asks.
-                                            Validated: price is finite, quantity is finite & >= 0.
+    Attributes:
+        symbol: Trading symbol (validated: non-empty, max 64 chars, UTF-8).
+        timestamp: UTC timestamp of the snapshot (required, validated).
+        bids: List of (price, quantity) tuples for bids, validated & parsed to Decimal.
+              Validated: price is finite, quantity is finite & non-negative.
+              Input can be list[tuple[Decimal | str | int | float, Decimal | str | int | float]].
+        asks: List of (price, quantity) tuples for asks, validated & parsed to Decimal.
+              Validated: price is finite, quantity is finite & non-negative.
+              Input can be list[tuple[Decimal | str | int | float, Decimal | str | int | float]].
 
-    Notes:
-        - Prices/quantities use Decimal for precision.
-        - Bids/Asks are expected to be sorted by price appropriately by the caller.
-        - Immutability (frozen=True) guarantees snapshot integrity.
-        - `extra='forbid'` prevents unexpected fields.
+    Configuration:
+        - `frozen=True`: Guarantees immutability after creation.
+        - `extra='forbid'`: Prevents unexpected fields during initialization.
+        - `validate_assignment=True`: Ensures validation runs even if attributes are somehow modified post-init (though frozen should prevent this).
     """
 
     symbol: str
@@ -41,17 +44,39 @@ class OrderBook(BaseModel):
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_symbol(cls, v: object) -> str:
-        """Validate symbol field."""
+        """
+        Validate the 'symbol' field.
+
+        Ensures the symbol is a non-empty string with a maximum length of 64 characters.
+
+        Args:
+            v: The raw input value for the symbol.
+        Returns:
+            The validated symbol string.
+        Raises:
+            ValueError: If validation fails (e.g., empty, too long).
+        """
         return validate_str_field(v, field_name="symbol", max_length=64, allow_empty=False)
 
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp(cls, v: datetime | int | float | str | None) -> datetime:
-        """Validate and parse timestamp field, ensuring it is a required UTC datetime."""
+        """
+        Validate and parse the 'timestamp' field to a required UTC datetime object.
+
+        Handles various input types (datetime, int/float ms epoch, ISO string) via `parse_datetime_utc`.
+
+        Args:
+            v: The raw input value for the timestamp.
+        Returns:
+            The validated, timezone-aware (UTC) datetime object.
+        Raises:
+            ValueError: If the input is None or cannot be parsed into a valid datetime.
+        """
         dt = parse_datetime_utc(v, field_name="timestamp")
         if dt is None:
-            # This path should ideally not be hit if the field is required by schema,
-            # but validator ensures non-None result.
+            # This path should ideally not be hit if the field is required by Pydantic's schema
+            # validation for non-optional fields, but this check provides explicit runtime safety.
             raise ValueError("timestamp must not be None")
         return dt
 
@@ -61,68 +86,88 @@ class OrderBook(BaseModel):
         cls, v: object, info: ValidationInfo
     ) -> list[tuple[Decimal, Decimal]]:
         """
-        Validate structure, parse, and validate content of bids/asks levels.
+        Validate structure, parse types, and validate content for 'bids' and 'asks' fields.
 
-        Expects a list where each item is a list/tuple of length 2.
-        Parses price and quantity to Decimal, ensuring price is finite and
-        quantity is finite and non-negative.
-        Returns the fully validated list of (Decimal, Decimal) tuples.
+        This comprehensive `mode='before'` validator handles the entire process for order book levels:
+        1.  Ensures the input `v` is a list.
+        2.  Iterates through each `level_raw` item in the list.
+        3.  Validates `level_raw` structure: Must be a list or tuple of exactly length 2.
+        4.  Parses `price_raw` (level_raw[0]) and `quantity_raw` (level_raw[1]) from potentially
+            mixed input types (Decimal, str, int, float) into Decimal using `parse_decimal_value`.
+        5.  Validates parsed `price`: Must be finite (not NaN or Infinity).
+        6.  Validates parsed `quantity`: Must be finite and non-negative (>= 0).
+        7.  Appends the validated `(Decimal, Decimal)` tuple to the result list.
+
+        Args:
+            v: The raw input value for the bids/asks list. Expected to be a list of lists/tuples.
+            info: Pydantic validation context, used to get the field name ("bids" or "asks").
+        Returns:
+            A list of validated (Decimal price, Decimal quantity) tuples.
+        Raises:
+            TypeError: If the input `v` is not a list, or if items within `v` are not lists/tuples,
+                       or if price/quantity elements have fundamentally incompatible types (e.g., None, dict).
+            ValueError: If items within `v` do not have length 2, or if price/quantity strings/numbers
+                        cannot be parsed to Decimal, or if parsed values are non-finite or quantity is negative.
         """
         field_name = info.field_name
         if not isinstance(v, list):
             raise TypeError(f"{field_name} must be a list, got {type(v).__name__}")
 
         validated_levels: list[tuple[Decimal, Decimal]] = []
-        for index, level_raw in enumerate(v):
-            # 1. Validate Structure
+
+        # Pyright struggles to track types precisely when iterating over 'v: object'.
+        # Runtime checks below ensure safety, but ignores are needed for static analysis.
+        for index, level_raw in enumerate(v):  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+            # 1. Validate Structure (Runtime check)
             if not isinstance(level_raw, list | tuple):
+                # Ignore necessary because Pyright doesn't know 'level_raw' type after initial check.
                 raise TypeError(
                     f"Level item in {field_name} at index {index} must be a list or tuple, "
-                    f"got {type(level_raw).__name__}"
+                    f"got {type(level_raw).__name__}"  # pyright: ignore[reportUnknownArgumentType]
                 )
-            # DEFENSIVE CHECK: Runtime length check. Pyright=[reportUnknownArgumentType]
-            if len(level_raw) != 2:
+            # DEFENSIVE CHECK: Runtime length check.
+            # Ignore necessary because Pyright doesn't know 'level_raw' type reliably here.
+            if len(level_raw) != 2:  # pyright: ignore[reportUnknownArgumentType]
+                # Ignore necessary because Pyright doesn't know 'level_raw' type reliably here.
                 raise ValueError(
                     f"Level item in {field_name} at index {index} must have length 2, "
-                    f"got length {len(level_raw)}"
+                    f"got length {len(level_raw)}"  # pyright: ignore[reportUnknownArgumentType]
                 )
 
-            # Type checkers might see level_raw[0]/[1] as Any/Unknown here.
-            # Runtime isinstance checks below handle validation.
-            price_raw = level_raw[0]
-            quantity_raw = level_raw[1]
+            # Extract raw price/quantity. Runtime checks follow.
+            # Ignores needed as Pyright cannot infer types from 'level_raw: object'.
+            price_raw = level_raw[0]  # pyright: ignore[reportUnknownVariableType]
+            quantity_raw = level_raw[1]  # pyright: ignore[reportUnknownVariableType]
 
-            # 2. Validate and Parse Price
+            # 2. Validate and Parse Price (Runtime check + parse attempt)
             if not isinstance(price_raw, Decimal | str | int | float):
+                # Ignore necessary because Pyright doesn't know 'price_raw' type reliably here.
                 raise TypeError(
                     f"Invalid price type in {field_name} at index {index}: "
-                    f"Expected Decimal, str, int, or float, got {type(price_raw).__name__}"
+                    f"Expected Decimal, str, int, or float, got {type(price_raw).__name__}"  # pyright: ignore[reportUnknownArgumentType]
                 )
             try:
-                # parse_decimal_value handles str, int, float, Decimal inputs
-                # It raises ValueError on failure (incl. None), which we catch below.
                 price = parse_decimal_value(price_raw)
             except ValueError as e:
-                # Re-raise with more context
                 raise ValueError(
                     f"Invalid price value in {field_name} at index {index}: {e}"
                 ) from e
 
-            # 3. Validate and Parse Quantity
+            # 3. Validate and Parse Quantity (Runtime check + parse attempt)
             if not isinstance(quantity_raw, Decimal | str | int | float):
+                # Ignore necessary because Pyright doesn't know 'quantity_raw' type reliably here.
                 raise TypeError(
                     f"Invalid quantity type in {field_name} at index {index}: "
-                    f"Expected Decimal, str, int, or float, got {type(quantity_raw).__name__}"
+                    f"Expected Decimal, str, int, or float, got {type(quantity_raw).__name__}"  # pyright: ignore[reportUnknownArgumentType]
                 )
             try:
                 quantity = parse_decimal_value(quantity_raw)
             except ValueError as e:
-                # Re-raise with more context
                 raise ValueError(
                     f"Invalid quantity value in {field_name} at index {index}: {e}"
                 ) from e
 
-            # DEFENSIVE CHECK: Ensure price/quantity are not None before further checks & append.
+            # DEFENSIVE CHECK: Runtime check post-parsing.
             assert price is not None, (
                 f"Price unexpectedly None after parsing at {field_name}[{index}]"
             )
@@ -130,7 +175,7 @@ class OrderBook(BaseModel):
                 f"Quantity unexpectedly None after parsing at {field_name}[{index}]"
             )
 
-            # 4. Post-parse Validation (Now that types are confirmed Decimal)
+            # 4. Post-parse Validation (Finite, Non-negative Quantity)
             if not price.is_finite():
                 raise ValueError(
                     f"Invalid price value in {field_name} at index {index}: "

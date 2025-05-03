@@ -9,8 +9,10 @@ from cyberdelta.core.models.market.order_book import OrderBook
 
 
 class TestOrderBook:
+    """Unit tests for the cyberdelta.core.models.market.order_book.OrderBook model."""
+
     def test_minimal_creation(self) -> None:
-        """Test creating an OrderBook with minimal valid data."""
+        """Test creating an OrderBook with minimal valid data (empty bids/asks)."""
         now = datetime.now(UTC)
         ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=[], asks=[])
         assert ob.symbol == "BTC-PERP"
@@ -26,7 +28,9 @@ class TestOrderBook:
         expected_bids = [(Decimal("50000.0"), Decimal("1.5")), (Decimal("49999.5"), Decimal("2.0"))]
         expected_asks = [(Decimal("50000.5"), Decimal("1.0")), (Decimal("50001.0"), Decimal("0.5"))]
 
-        # Ignore arg-type for bids/asks because testing validator's mixed raw input handling
+        # Ignore arg-type for bids/asks because this test specifically verifies that the
+        # mode='before' validator correctly handles mixed raw input types (str, float, int, Decimal)
+        # before parsing them into the expected list[tuple[Decimal, Decimal]].
         ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=bids, asks=asks)  # type: ignore[arg-type]
         assert ob.bids == expected_bids
         assert ob.asks == expected_asks
@@ -36,16 +40,16 @@ class TestOrderBook:
         now = datetime.now(UTC)
         # Pydantic raises ValidationError if fields are missing entirely
         with pytest.raises(ValidationError, match="Field required"):
-            # Ignore type error since we are testing missing field validation
+            # Ignore call-arg error: Intentionally missing 'symbol' to test Pydantic's required field validation.
             OrderBook(timestamp=now, bids=[], asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
-            # Ignore type error since we are testing missing field validation
+            # Ignore call-arg error: Intentionally missing 'timestamp' to test Pydantic's required field validation.
             OrderBook(symbol="BTC", bids=[], asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
-            # Ignore type error since we are testing missing field validation
+            # Ignore call-arg error: Intentionally missing 'bids' to test Pydantic's required field validation.
             OrderBook(symbol="BTC", timestamp=now, asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
-            # Ignore type error since we are testing missing field validation
+            # Ignore call-arg error: Intentionally missing 'asks' to test Pydantic's required field validation.
             OrderBook(symbol="BTC", timestamp=now, bids=[])  # type: ignore[call-arg]
 
     def test_symbol_validation(self) -> None:
@@ -61,25 +65,26 @@ class TestOrderBook:
         OrderBook(symbol="VALID-SYM_123", timestamp=now, bids=[], asks=[])
 
     def test_timestamp_validation_required(self) -> None:
-        """Test that timestamp cannot be None (handled by parse_datetime_utc)."""
-        # Using Any to bypass static checks for testing runtime validation
+        """Test that providing timestamp=None raises a ValueError from the validator."""
+        # Using Any to bypass static checks for testing runtime validation of None input.
         invalid_data: dict[str, Any] = {"symbol": "BTC", "timestamp": None, "bids": [], "asks": []}
         with pytest.raises(ValueError, match="timestamp must not be None"):
-            # Ignore type error since validator signature handles None explicitly
-            OrderBook(**invalid_data)  # type: ignore[arg-type]
+            # No type ignore needed here as Mypy doesn't flag an error for passing None
+            # when the validator explicitly accepts Optional types in its signature.
+            OrderBook(**invalid_data)
 
     def test_timestamp_validation_parsing(self) -> None:
-        """Test timestamp parsing from various formats."""
+        """Test timestamp parsing from various supported formats (int, str, datetime)."""
         ms_timestamp = 1678881600000  # 2023-03-15 12:00:00 UTC
         iso_timestamp = "2023-03-15T12:00:00Z"
         naive_dt = datetime(2023, 3, 15, 12, 0, 0)
         expected_dt = datetime(2023, 3, 15, 12, 0, 0, tzinfo=UTC)
 
-        # Ignore arg-type because testing validator's parsing of int/str for datetime
+        # Ignore arg-type: Testing the validator's ability to parse int timestamp.
         ob_int = OrderBook(symbol="T", timestamp=ms_timestamp, bids=[], asks=[])  # type: ignore[arg-type]
         assert ob_int.timestamp == expected_dt
 
-        # Ignore arg-type because testing validator's parsing of int/str for datetime
+        # Ignore arg-type: Testing the validator's ability to parse ISO string timestamp.
         ob_iso = OrderBook(symbol="T", timestamp=iso_timestamp, bids=[], asks=[])  # type: ignore[arg-type]
         assert ob_iso.timestamp == expected_dt
 
@@ -96,7 +101,16 @@ class TestOrderBook:
 
     # Add new combined test
     def test_level_validation_and_parsing(self) -> None:
-        """Test the single mode='before' validator for bids/asks."""
+        """
+        Test the combined `validate_and_parse_levels` validator for bids/asks.
+
+        Covers validation of:
+        - Top-level list structure
+        - Individual level item structure (list/tuple, length 2)
+        - Price type, parsability, and finiteness
+        - Quantity type, parsability, finiteness, and non-negativity
+        - Handling of various valid input formats (raw strings, Decimals, mixed)
+        """
         now = datetime.now(UTC)
         valid_level_raw = ("10.0", "1.5")  # Use strings to test parsing
         valid_level_parsed = (Decimal("10.0"), Decimal("1.5"))
@@ -104,10 +118,10 @@ class TestOrderBook:
 
         # --- Test Top-Level Structure ---
         with pytest.raises(TypeError, match="bids must be a list"):
-            # Ignore type error since we are testing validator structure check
+            # Ignore arg-type: Intentionally passing wrong type (str) for 'bids' to test validator.
             OrderBook(symbol="T", timestamp=now, bids="not_a_list", asks=[])  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="asks must be a list"):
-            # Ignore type error since we are testing validator structure check
+            # Ignore arg-type: Intentionally passing wrong type (dict) for 'asks' to test validator.
             OrderBook(symbol="T", timestamp=now, bids=[], asks={})  # type: ignore[arg-type]
 
         # --- Test Level Item Structure ---
@@ -183,8 +197,9 @@ class TestOrderBook:
         assert ob_empty.asks == []
 
         # Valid list with raw data needing parsing
-        # Ignore arg-type because testing validator's raw input handling
-        ob_raw = OrderBook(symbol="T", timestamp=now, bids=[valid_level_raw], asks=[])  # type: ignore[arg-type]
+        # Ignore Mypy's list-item error: Intentionally providing list[tuple[str, str]]
+        # to test the validator's parsing from string to Decimal.
+        ob_raw = OrderBook(symbol="T", timestamp=now, bids=[valid_level_raw], asks=[])  # type: ignore[list-item]
         assert ob_raw.bids == [valid_level_parsed]
 
         # Valid list with pre-parsed Decimals and zero quantity
@@ -195,11 +210,13 @@ class TestOrderBook:
         mixed_bids_raw: Any = [("10.1", 1), (Decimal("9.9"), "0.5")]
         mixed_bids_expected = [(Decimal("10.1"), Decimal("1")), (Decimal("9.9"), Decimal("0.5"))]
         # Ignore arg-type because testing validator's mixed raw input handling
-        ob_mixed = OrderBook(symbol="T", timestamp=now, bids=mixed_bids_raw, asks=[])  # type: ignore[arg-type]
+        # Mypy doesn't flag an error here (likely due to Any type hint on raw list)
+        # No ignore needed: Mypy accepts Any here, Pyright infers correctly due to validator.
+        ob_mixed = OrderBook(symbol="T", timestamp=now, bids=mixed_bids_raw, asks=[])
         assert ob_mixed.bids == mixed_bids_expected
 
     def test_extra_fields_forbidden(self) -> None:
-        """Test that extra fields are forbidden."""
+        """Test that initializing with unexpected fields raises ValidationError (extra='forbid')."""
         now = datetime.now(UTC)
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             # Using Any to bypass type checking for extra_field
@@ -213,7 +230,7 @@ class TestOrderBook:
             OrderBook(**extra_field_kwargs)
 
     def test_immutability(self) -> None:
-        """Test that the OrderBook model is immutable (frozen=True)."""
+        """Test that the OrderBook model instance is immutable (frozen=True)."""
         now = datetime.now(UTC)
         ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=[], asks=[])
 
@@ -224,8 +241,9 @@ class TestOrderBook:
             ob.timestamp = now + timedelta(seconds=1)
         with pytest.raises(ValidationError, match="Instance is frozen"):
             ob.bids = [(Decimal("1"), Decimal("1"))]
-        # Setting NEW attributes on a frozen model also raises ValidationError (frozen_instance)
+
+        # Setting NEW attributes on a frozen model also raises ValidationError
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            # Attempting to set a new attribute raises ValidationError.
-            # Ignore Mypy's attr-defined error needed for test.
+            # Ignore Mypy's attr-defined error: Intentionally trying to assign a non-existent
+            # attribute to test the frozen=True behavior.
             ob.new_field = "test"  # type: ignore[attr-defined]
