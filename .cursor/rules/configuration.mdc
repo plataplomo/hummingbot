@@ -1,7 +1,7 @@
 ---
 description: 
-globs: pyproject.toml,mypy.ini
-alwaysApply: false
+globs: 
+alwaysApply: true
 ---
 ---
 description: Mandates the preservation of static analysis tool configurations (Ruff, Mypy).
