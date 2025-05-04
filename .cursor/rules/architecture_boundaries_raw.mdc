@@ -1,0 +1,60 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+id: RULE-ARCH-MODEL-DESIGN-V1
+title: Core Model Architecture & Validation Policy
+description: Defines the mandatory architectural separation, naming conventions, validation philosophy, and design patterns for Raw API models and Internal Domain models.
+alwaysApply: true
+severity: critical # Adherence to these patterns is critical for consistency and robustness.
+---
+
+# Core Model Architecture & Validation Policy
+
+This document codifies the non-negotiable architectural design principles for data models within the CyberDeltaEngine project, specifically covering the separation and design of Raw API models and Internal Domain models.
+
+**1. Strict Separation of Concerns:**
+
+*   **Raw API Models:**
+    *   **Location:** MUST reside *exclusively* within the `cyberdelta/apis/<exchange_name>/models/` directory structure.
+    *   **Purpose:** Represent the **exact structure and raw data types** (e.g., `str`, `int`, `bool`, `list`, `dict`) received from an external exchange API *before* any significant transformation or interpretation. They act as the first validation boundary against the external contract.
+    *   **Naming:** MUST use the prefix `Raw` appended to the logical concept, preceded by the exchange identifier (e.g., `BackpackRawOrder`, `HyperliquidRawUserFill`).
+    *   **Prohibition:** MUST NOT contain internal business logic, complex calculations (beyond basic validation), or references to Internal Domain model types (except potentially standard Python Enums if used directly in the raw API). Raw models MUST NOT be defined within the `cyberdelta/core/` directory.
+*   **Internal Domain Models:**
+    *   **Location:** MUST reside *exclusively* within the `cyberdelta/core/models/` directory structure (potentially in submodules like `market`, `portfolio`, `strategy`).
+    *   **Purpose:** Represent the **unified, canonical business concepts** of the CyberDeltaEngine (e.g., `Trade`, `Order`, `SpotBalance`, `DerivativePosition`). They use clean, internal Python types (`Decimal`, `datetime`, project-defined `Enum`s). They are the target for transformation *from* validated Raw models.
+    *   **Naming:** MUST use clear, descriptive names reflecting the business concept, without `Raw` or exchange-specific prefixes (e.g., `Order`, `SpotBalance`).
+    *   **Prohibition:** MUST NOT directly reference or depend on specific Raw API model classes in their field definitions. They define their *own* structure based on the unified internal representation.
+
+**2. Pydantic `BaseModel` Mandatory:**
+
+*   All Raw API Models and Internal Domain Models **MUST** inherit from `pydantic.BaseModel`.
+
+**3. Raw Model Validation Policy:**
+
+*   **Focus:** Validate the external API contract ONLY.
+*   **Checks:** MUST validate structure, raw types (as received), non-emptiness for required strings/collections, reasonable `max_length` for strings, valid UTF-8 encoding, and basic format validity for numeric strings (parseable to finite `Decimal`/`int`/`float` via `utils.parsing` helpers).
+*   **Configuration:** MUST use `model_config = ConfigDict(extra='forbid', ...)`. Use `frozen=True` unless mutability is explicitly required by the raw structure itself (rare). `populate_by_name=True` should generally be used if `Field(alias=...)` is employed.
+*   **NO Content/Business Logic:** MUST NOT perform business logic validation (e.g., `price > 0`), complex pattern matching (beyond basic formats like addresses if agreed), or semantic checks.
+
+**4. Internal Model Design & Validation Policy:**
+
+*   **Types:** MUST use appropriate, strict internal Python types (`Decimal` for all finance, `datetime` for UTC timestamps, project `Enum`s from `core/models/enums.py`, `bool`, validated `str`/`int`). Avoid `Any`, `float` (for finance), generic `dict`.
+*   **Validation:**
+    *   Use `Field(...)` constraints for basic checks (`gt=0`, `ge=0`, etc.).
+    *   Use `@field_validator(..., mode='before')` primarily for **parsing/coercion** of varied inputs (e.g., str/int/float to `Decimal`, various timestamp formats to `datetime`) using `utils.parsing` helpers. These validators MUST ensure the output matches the field's internal type hint and basic format validity (e.g., finite).
+    *   Use `@model_validator(mode='after')` for **cross-field consistency checks** and enforcing internal business logic invariants (e.g., `high >= low`, `fee_asset` required if `fee != 0`, `entry_price` required if `size != 0`).
+*   **Extensibility (Idea 5):** For models representing concepts with significant exchange-specific enrichment data (`Trade`, `Order`, `DerivativePosition`), **MUST** use the "Core + Typed Extension Slots" pattern:
+    *   Define a **lean core model** with only universal fields.
+    *   Define separate, immutable (`frozen=True`) `*Details(BaseModel)` classes (e.g., `HyperliquidTradeDetails`) holding exchange-specific enrichment fields, placed within the corresponding internal model file (e.g., `core/models/market.py`). Use `model_config = ConfigDict(extra='ignore', frozen=True)` for these `*Details` models.
+    *   Add optional slots (`hl_details: Optional[HyperliquidTradeDetails] = Field(default=None)`, etc.) to the core model.
+*   **Immutability:** Internal models representing snapshots (`SpotBalance`, `Ticker`, `Candle`, `Trade`, `MarginAccountSummary`) **MUST** use `frozen=True`. Models representing mutable state (`Order`, `DerivativePosition`) **MUST NOT** use `frozen=True`.
+*   **Configuration:** Core models MUST use `model_config = ConfigDict(extra='forbid', validate_assignment=True, ...)`. Include `frozen=True` as appropriate.
+
+**5. Helper Usage:**
+
+*   Utilize validation and parsing helpers from `cyberdelta.utils.parsing` consistently (`validate_str_field`, `parse_decimal_value`, `parse_datetime_utc`, `validate_enum_field`) where applicable.
+
+**Rationale:** This strict separation and defined validation approach ensures: clear boundaries, type safety at each layer, prevention of external data corruption propagating internally, testability, maintainability, and controlled handling of exchange-specific details without polluting core domain logic. Adherence is mandatory for system robustness.
