@@ -16,11 +16,15 @@ from .derivative_position import (
 from .enums import (
     # ExchangeType, # Removed - Not defined in enums.py
     # Interval, # Removed - Not defined in enums.py
+    OrderExpiryReason,
     OrderSide,
     OrderStatus,
     OrderType,
+    OrderUpdateOrigin,
+    SelfTradePrevention,
     SignalType,
     TimeInForce,
+    TriggerType,
 )
 
 # Import new Margin Account models
@@ -29,7 +33,12 @@ from .margin_account import (
     HyperliquidMarginDetails,
     MarginAccountSummary,
 )
-from .market import FundingRate, Order, OrderBook, Ticker, Trade
+from .market import FundingRate, OrderBook, Ticker, Trade
+from .market.order import (
+    BackpackOrderDetails,
+    HyperliquidOrderDetails,
+    Order,
+)
 from .spot_balance import SpotBalance
 
 # from .positions import PositionInfo, PositionSide # TODO: Resolve ModuleNotFoundError
@@ -43,8 +52,14 @@ __all__ = [
     "OrderType",
     "SignalType",
     "TimeInForce",
+    "OrderExpiryReason",
+    "OrderUpdateOrigin",
+    "SelfTradePrevention",
+    "TriggerType",
     # Market Data Models
     "Order",
+    "HyperliquidOrderDetails",
+    "BackpackOrderDetails",
     "Trade",
     "Ticker",
     "OrderBook",

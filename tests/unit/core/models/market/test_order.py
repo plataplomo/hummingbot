@@ -2,20 +2,19 @@
 Unit tests for the CyberDeltaEngine internal Order model and enrichment slots.
 
 Covers:
-- Order: construction, field validation, mutability, serialization, and error cases
-- BackpackOrderDetails: all field and model-level validation, including enum and decimal checks,
-  edge cases, and error messages
-- HyperliquidOrderDetails: field validation, edge cases
-
-All tests use pytest and pydantic.ValidationError for error testing.
+- Order: construction, core field validation, mutability, model validation, extra='forbid'
+- BackpackOrderDetails: creation, field validation (decimal, enum), immutability, extra='ignore'
+- HyperliquidOrderDetails: creation, field validation, immutability, extra='ignore'
+- Core+Details pattern integration.
 """
 
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
-import pydantic
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.core.models.enums import (
     OrderExpiryReason,
@@ -24,284 +23,454 @@ from cyberdelta.core.models.enums import (
     OrderType,
     OrderUpdateOrigin,
     SelfTradePrevention,
+    TimeInForce,
+    TriggerType,
 )
 from cyberdelta.core.models.market.order import (
     BackpackOrderDetails,
     HyperliquidOrderDetails,
     Order,
 )
+from cyberdelta.core.models.market.trade import Trade  # Needed for Order.trades
 
 
-# --- Order Model Tests ---
-def test_order_minimal_valid() -> None:
-    """Test that a minimal valid Order instance is accepted and fields are set correctly."""
-    order = Order(
-        exchange="backpack",
-        symbol="BTC-PERP",
-        side=OrderSide.BUY,
-        order_type=OrderType.LIMIT,
-        quantity_requested=Decimal("1.0"),
-        price=Decimal("100.0"),
-        exchange_order_id=None,
-        related_order_id=None,
-        updated_at=None,
-        triggered_at=None,
-        strategy_name=None,
-        signal_id=None,
-    )
+# --- Helper Fixtures ---
+@pytest.fixture
+def valid_hl_order_details_data() -> dict[str, Any]:
+    """Provides valid data for HyperliquidOrderDetails."""
+    return {"remaining_sz": Decimal("0.5")}
+
+
+@pytest.fixture
+def valid_bp_order_details_data() -> dict[str, Any]:
+    """Provides valid data for BackpackOrderDetails."""
+    return {
+        "executed_quote_quantity": Decimal("1000.50"),
+        "self_trade_prevention": SelfTradePrevention.REJECT_TAKER,
+        "expiry_reason": OrderExpiryReason.USER_CANCELLED,
+        "origin": OrderUpdateOrigin.USER,
+        "sl_trigger_price": Decimal("49000.0"),
+        "sl_limit_price": Decimal("48950.0"),
+        "sl_trigger_by": TriggerType.MARK_PRICE,
+        "tp_trigger_price": Decimal("55000.0"),
+        "tp_limit_price": Decimal("55050.0"),
+        "tp_trigger_by": TriggerType.LAST_PRICE,
+        "trigger_quantity": Decimal("1.0"),
+    }
+
+
+@pytest.fixture
+def base_order_data() -> dict[str, Any]:
+    """Provides a dictionary with valid core data for Order creation."""
+    return {
+        "exchange": "backpack",
+        "symbol": "BTC-PERP",
+        "side": OrderSide.BUY,
+        "order_type": OrderType.LIMIT,
+        "quantity_requested": Decimal("1.0"),
+        "price": Decimal("50000.0"),
+        "time_in_force": TimeInForce.GTC,
+        "created_at": datetime.now(UTC),
+        # Other optional fields default to None or factory defaults
+    }
+
+
+# --- Core Order Model Tests ---
+def test_order_minimal_valid(base_order_data: dict[str, Any]) -> None:
+    """Test that a minimal valid Order instance is accepted."""
+    order = Order(**base_order_data)
     assert order.exchange == "backpack"
     assert order.symbol == "BTC-PERP"
     assert order.side == OrderSide.BUY
     assert order.order_type == OrderType.LIMIT
     assert order.quantity_requested == Decimal("1.0")
-    assert order.price == Decimal("100.0")
+    assert order.price == Decimal("50000.0")
+    assert order.time_in_force == TimeInForce.GTC
     assert order.status == OrderStatus.NEW
+    assert order.quantity_filled == Decimal("0")
+    assert order.reduce_only is False
+    assert order.post_only is False
+    assert isinstance(order.created_at, datetime)
     assert order.trades == []
     assert order.hl_details is None
     assert order.bp_details is None
     assert isinstance(uuid.UUID(order.client_order_id), uuid.UUID)
+    assert order.model_config.get("frozen") is not True
+    assert order.model_config.get("validate_assignment") is True
+    assert order.model_config.get("extra") == "forbid"
 
 
-def test_order_required_fields_missing() -> None:
-    """Test that missing required fields raise ValidationError."""
-    with pytest.raises(pydantic.ValidationError):
-        Order(
-            symbol="BTC-PERP",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1.0"),
-            exchange_order_id=None,
-            related_order_id=None,
-            exchange="backpack",
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-    with pytest.raises(pydantic.ValidationError):
-        Order(
-            exchange="backpack",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1.0"),
-            exchange_order_id=None,
-            related_order_id=None,
-            symbol="BTC-PERP",
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-    with pytest.raises(pydantic.ValidationError):
-        Order(
-            exchange="backpack",
-            symbol="BTC-PERP",
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1.0"),
-            exchange_order_id=None,
-            related_order_id=None,
-            side=OrderSide.BUY,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-    with pytest.raises(pydantic.ValidationError):
-        Order(
-            exchange="backpack",
-            symbol="BTC-PERP",
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0"),
-            exchange_order_id=None,
-            related_order_id=None,
-            order_type=OrderType.LIMIT,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
+def test_order_all_core_fields(base_order_data: dict[str, Any]) -> None:
+    """Test creation with all optional core fields populated."""
+    data = base_order_data.copy()
+    # Use the client_order_id generated by the Order model if possible
+    client_order_id_for_trade = data.get("client_order_id", str(uuid.uuid4()))
 
-
-def test_order_decimal_and_enum_validation() -> None:
-    """Test that invalid decimals and enums are rejected."""
-    # Negative quantity
-    with pytest.raises(pydantic.ValidationError):
-        Order(
-            exchange="backpack",
-            symbol="BTC-PERP",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("-1.0"),
-            price=Decimal("100.0"),
-            exchange_order_id=None,
-            related_order_id=None,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-    # Invalid enum
-    with pytest.raises(ValueError):
-        Order(
-            exchange="backpack",
-            symbol="BTC-PERP",
-            side="INVALID",  # type: ignore
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1.0"),
-            price=Decimal("100.0"),
-            exchange_order_id=None,
-            related_order_id=None,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-
-
-def test_order_limit_and_stop_type_requirements() -> None:
-    """Test that limit types require price and stop types require stop_price."""
-    # LIMIT without price
-    with pytest.raises(ValueError, match="requires a price"):
-        Order(
-            exchange="backpack",
-            symbol="BTC-PERP",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1.0"),
-            exchange_order_id=None,
-            related_order_id=None,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-    # STOP_MARKET without stop_price
-    with pytest.raises(ValueError, match="requires a stop_price"):
-        Order(
-            exchange="backpack",
-            symbol="BTC-PERP",
-            side=OrderSide.BUY,
-            order_type=OrderType.STOP_MARKET,
-            quantity_requested=Decimal("1.0"),
-            exchange_order_id=None,
-            related_order_id=None,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-
-
-def test_order_mutability() -> None:
-    """Test that Order is mutable and fields can be updated."""
-    order = Order(
+    # Construct Trade instance directly with correct types
+    trade_instance = Trade(
+        id="trade1",
+        order_id="bp12345",  # Assume this matches exchange_order_id below
+        client_order_id=client_order_id_for_trade,
         exchange="backpack",
         symbol="BTC-PERP",
         side=OrderSide.BUY,
-        order_type=OrderType.LIMIT,
-        quantity_requested=Decimal("1.0"),
-        price=Decimal("100.0"),
-        exchange_order_id=None,
-        related_order_id=None,
-        updated_at=None,
-        triggered_at=None,
-        strategy_name=None,
-        signal_id=None,
+        quantity=Decimal("0.5"),
+        price=Decimal("50001.0"),
+        fee=Decimal("0.5"),
+        fee_asset="USDC",
+        executed_at=datetime.now(UTC),
+        is_maker=False,
     )
-    order.status = OrderStatus.FILLED
-    order.quantity_filled = Decimal("1.0")
+
+    data.update(
+        {
+            "exchange_order_id": "bp12345",
+            "related_order_id": "bp00000",
+            "status": OrderStatus.PARTIALLY_FILLED,
+            "quantity_filled": Decimal("0.5"),
+            "quote_quantity_requested": Decimal("50000.0"),
+            "average_fill_price": Decimal("50001.0"),
+            "stop_price": Decimal("49000.0"),
+            "trigger_by": TriggerType.MARK_PRICE,
+            "reduce_only": True,
+            "post_only": False,
+            "updated_at": datetime.now(UTC),
+            "triggered_at": None,
+            "strategy_name": "TestStrat",
+            "signal_id": "Sig123",
+            "trades": [trade_instance],
+        }
+    )
+    order = Order(**data)
+    assert order.exchange_order_id == "bp12345"
+    assert order.status == OrderStatus.PARTIALLY_FILLED
+    assert order.quantity_filled == Decimal("0.5")
+    assert order.average_fill_price == Decimal("50001.0")
+    assert order.reduce_only is True
+    assert isinstance(order.updated_at, datetime)
+    assert len(order.trades) == 1
+    assert order.trades[0].id == "trade1"
+
+
+def test_order_required_fields_missing(base_order_data: dict[str, Any]) -> None:
+    """Test that missing required core fields raise ValidationError."""
+    required_fields = [
+        "exchange",
+        "symbol",
+        "side",
+        "order_type",
+        "quantity_requested",
+        "time_in_force",
+    ]
+    # price is required for LIMIT type in base_order_data
+    required_fields_limit = required_fields + ["price"]
+
+    for field_to_remove in required_fields_limit:
+        invalid_data = base_order_data.copy()
+        del invalid_data[field_to_remove]
+        # Use precise escaped string if needed, otherwise just field name is okay
+        match_str = f"\\n{field_to_remove}\\n  Field required"
+        with pytest.raises(ValidationError, match=match_str):
+            Order(**invalid_data)
+
+
+@pytest.mark.parametrize(
+    "field, value, error_match",
+    [
+        # Strings
+        ("exchange", "", "String cannot be empty or whitespace"),
+        ("symbol", None, "Value error, symbol: Value cannot be None"),
+        ("client_order_id", "   ", "String cannot be empty or whitespace"),
+        ("exchange_order_id", "id-" * 50, "String value too long"),  # ~150 chars
+        # Enums
+        ("side", "INVALID", r"Input should be .BUY. or .SELL."),
+        ("order_type", None, r"Field required"),
+        ("status", "PENDING", r"Input should be .*OrderStatus"),
+        ("time_in_force", "GOOD_TIL_FRIDAY", r"Input should be .*TimeInForce"),
+        ("trigger_by", "INDEX", r"Input should be .*TriggerType"),  # Needs full value
+        # Decimals (Required, >0)
+        ("quantity_requested", 0, "Input should be greater than 0"),
+        ("quantity_requested", "-1", "Input should be greater than 0"),
+        ("quantity_requested", Decimal("NaN"), "Value must be finite"),
+        # Decimals (Optional, >0)
+        ("quote_quantity_requested", Decimal("0"), "Input should be greater than 0"),
+        ("price", Decimal("-100"), "Input should be greater than 0"),
+        ("stop_price", Decimal("Infinity"), "Value must be finite if provided"),
+        ("average_fill_price", "abc", "Cannot convert 'abc' to Decimal"),
+        # Decimals (Required, >=0)
+        ("quantity_filled", Decimal("-0.1"), "Input should be greater than or equal to 0"),
+        (
+            "quantity_filled",
+            None,
+            "Required value parsed as None or was invalid.",
+        ),  # From validator
+        # Bools
+        ("reduce_only", "true", r"Input should be a valid boolean"),
+        ("post_only", 1, r"Input should be a valid boolean"),
+        # Datetimes
+        ("created_at", None, "Required datetime parsed as None or invalid."),  # From validator
+        ("updated_at", "yesterday", "Cannot parse ISO datetime string"),
+    ],
+)
+def test_order_invalid_core_field_values(
+    base_order_data: dict[str, Any],
+    field: str,
+    value: Any,  # noqa: ANN401
+    error_match: str,
+) -> None:
+    """Test core field validation failures for various invalid inputs."""
+    invalid_data = base_order_data.copy()
+    # Ensure base state is valid before testing target field
+    # e.g., if testing price, ensure order_type is LIMIT
+    if field == "price" and invalid_data.get("order_type") != OrderType.LIMIT:
+        invalid_data["order_type"] = OrderType.LIMIT
+    elif field == "stop_price" and invalid_data.get("order_type") != OrderType.STOP_MARKET:
+        invalid_data["order_type"] = OrderType.STOP_MARKET
+
+    invalid_data[field] = value
+    with pytest.raises((ValidationError, ValueError), match=error_match):
+        Order(**invalid_data)
+
+
+def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> None:
+    """Test model validation failures (cross-field logic)."""
+    # LIMIT without price
+    data = base_order_data.copy()
+    data["order_type"] = OrderType.LIMIT
+    del data["price"]
+    with pytest.raises(ValueError, match=r"Order type LIMIT requires a positive price."):
+        Order(**data)
+
+    # LIMIT with zero price
+    data = base_order_data.copy()
+    data["order_type"] = OrderType.LIMIT
+    data["price"] = Decimal("0")
+    with pytest.raises(ValueError, match=r"Order type LIMIT requires a positive price."):
+        Order(**data)
+
+    # STOP_MARKET without stop_price
+    data = base_order_data.copy()
+    data["order_type"] = OrderType.STOP_MARKET
+    data["price"] = None  # Not needed for STOP_MARKET
+    with pytest.raises(ValueError, match=r"Order type STOP_MARKET requires a positive stop_price."):
+        Order(**data)
+
+    # STOP_LIMIT with negative stop_price
+    data = base_order_data.copy()
+    data["order_type"] = OrderType.STOP_LIMIT
+    data["price"] = Decimal("100")  # Need price for STOP_LIMIT
+    data["stop_price"] = Decimal("-50")
+    with pytest.raises(ValueError, match=r"Order type STOP_LIMIT requires a positive stop_price."):
+        Order(**data)
+
+    # Filled quantity > requested quantity
+    data = base_order_data.copy()
+    data["quantity_filled"] = data["quantity_requested"] + 1
+    data["average_fill_price"] = Decimal("50000")  # Need avg price if filled
+    with pytest.raises(ValueError, match="quantity_filled .* cannot exceed quantity_requested"):
+        Order(**data)
+
+    # Positive fill quantity without positive average fill price
+    data = base_order_data.copy()
+    data["quantity_filled"] = Decimal("0.1")
+    data["average_fill_price"] = Decimal("0")
+    with pytest.raises(
+        ValueError, match="average_fill_price must be positive if quantity_filled > 0"
+    ):
+        Order(**data)
+    data["average_fill_price"] = None
+    with pytest.raises(
+        ValueError, match="average_fill_price must be positive if quantity_filled > 0"
+    ):
+        Order(**data)
+
+    # HL exchange with BP details
+    data = base_order_data.copy()
+    data["exchange"] = "hyperliquid"
+    data["bp_details"] = BackpackOrderDetails()  # Empty is enough to trigger
+    with pytest.raises(
+        ValueError, match="Backpack details .* must be None for a Hyperliquid order"
+    ):
+        Order(**data)
+
+    # BP exchange with HL details
+    data = base_order_data.copy()
+    data["exchange"] = "backpack"
+    data["hl_details"] = HyperliquidOrderDetails()  # Empty is enough to trigger
+    with pytest.raises(
+        ValueError, match="Hyperliquid details .* must be None for a Backpack order"
+    ):
+        Order(**data)
+
+
+def test_order_mutability(base_order_data: dict[str, Any]) -> None:
+    """Test that Order is mutable and assignment triggers validation."""
+    order = Order(**base_order_data)
+    # original_status = order.status # Unused
+    # original_qty_filled = order.quantity_filled # Unused
+
+    # Valid assignments
+    new_status = OrderStatus.FILLED
+    new_qty_filled = order.quantity_requested
+    new_avg_price = order.price + 1  # type: ignore
+    order.status = new_status
+    order.quantity_filled = new_qty_filled
+    order.average_fill_price = new_avg_price  # Add avg price for filled order
     order.updated_at = datetime.now(UTC)
-    assert order.status == OrderStatus.FILLED
-    assert order.quantity_filled == Decimal("1.0")
+
+    assert order.status == new_status
+    assert order.quantity_filled == new_qty_filled
+    assert order.average_fill_price == new_avg_price
     assert isinstance(order.updated_at, datetime)
 
+    # Invalid assignment (violates model validator)
+    with pytest.raises(
+        ValidationError, match="quantity_filled .* cannot exceed quantity_requested"
+    ):
+        order.quantity_filled = order.quantity_requested + 1
 
-def test_order_to_dict_serialization() -> None:
-    """Test that to_dict serializes correctly and includes trades as list of dicts."""
-    order = Order(
-        exchange="backpack",
-        symbol="BTC-PERP",
-        side=OrderSide.BUY,
-        order_type=OrderType.LIMIT,
-        quantity_requested=Decimal("1.0"),
-        price=Decimal("100.0"),
-        exchange_order_id=None,
-        related_order_id=None,
-        updated_at=None,
-        triggered_at=None,
-        strategy_name=None,
-        signal_id=None,
-    )
-    d = order.to_dict()
-    assert isinstance(d, dict)
-    assert d["symbol"] == "BTC-PERP"
-    assert isinstance(d["trades"], list)
+    # Invalid assignment (violates field validator)
+    with pytest.raises(ValidationError, match="Input should be greater than 0"):
+        order.price = Decimal("-100")
+
+    # Test assignment to details slot
+    order.exchange = "backpack"  # Change exchange first
+    order.bp_details = BackpackOrderDetails(origin=OrderUpdateOrigin.USER)
+    assert order.bp_details is not None
+    assert order.bp_details.origin == OrderUpdateOrigin.USER
 
 
-# --- BackpackOrderDetails Tests ---
-def test_backpack_order_details_valid() -> None:
-    """Test that a valid BackpackOrderDetails instance is accepted."""
-    details = BackpackOrderDetails(
-        executed_quote_quantity=Decimal("10.5"),
-        self_trade_prevention=SelfTradePrevention("RejectTaker"),
-        expiry_reason=OrderExpiryReason("UserCancelled"),
-        origin=OrderUpdateOrigin("USER"),
-    )
-    assert details.executed_quote_quantity == Decimal("10.5")
-    assert details.self_trade_prevention == SelfTradePrevention("RejectTaker")
-    assert details.expiry_reason == OrderExpiryReason("UserCancelled")
-    assert details.origin == OrderUpdateOrigin("USER")
-
-
-def test_backpack_order_details_enum_str_coercion() -> None:
-    """Test that enum fields accept both enum values and valid strings (via enum constructor)."""
-    details = BackpackOrderDetails(
-        self_trade_prevention=SelfTradePrevention.REJECT_TAKER,
-        expiry_reason=OrderExpiryReason.USER_CANCELLED,
-        origin=OrderUpdateOrigin.USER,
-    )
-    assert details.self_trade_prevention == SelfTradePrevention.REJECT_TAKER
-    assert details.expiry_reason == OrderExpiryReason.USER_CANCELLED
-    assert details.origin == OrderUpdateOrigin.USER
-
-
-def test_backpack_order_details_invalid_enum() -> None:
-    """Test that invalid enum values raise ValidationError with clear messages."""
-    from typing import cast
-
-    with pytest.raises(pydantic.ValidationError, match="enum"):
-        BackpackOrderDetails(self_trade_prevention=cast(SelfTradePrevention, "INVALID"))
-    with pytest.raises(pydantic.ValidationError, match="enum"):
-        BackpackOrderDetails(expiry_reason=cast(OrderExpiryReason, "NOT_A_REASON"))
-    with pytest.raises(pydantic.ValidationError, match="enum"):
-        BackpackOrderDetails(origin=cast(OrderUpdateOrigin, "NOT_AN_ORIGIN"))
-
-
-def test_backpack_order_details_executed_quote_quantity_validation() -> None:
-    """Test that executed_quote_quantity must be non-negative and finite if set."""
-    BackpackOrderDetails(executed_quote_quantity=Decimal("0"))  # valid
-    BackpackOrderDetails(executed_quote_quantity=None)  # valid
-    with pytest.raises(ValueError, match="non-negative"):
-        BackpackOrderDetails(executed_quote_quantity=Decimal("-1"))
-    with pytest.raises(ValueError, match="finite"):
-        BackpackOrderDetails(executed_quote_quantity=Decimal("NaN"))
+def test_order_extra_fields_forbidden(base_order_data: dict[str, Any]) -> None:
+    """Test extra='forbid' on core Order model."""
+    invalid_data = base_order_data.copy()
+    invalid_data["extra_order_field"] = "not allowed"
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        Order(**invalid_data)
 
 
 # --- HyperliquidOrderDetails Tests ---
-def test_hyperliquid_order_details_valid() -> None:
-    """Test that a valid HyperliquidOrderDetails instance is accepted."""
-    details = HyperliquidOrderDetails(remaining_sz=Decimal("5.0"))
-    assert details.remaining_sz == Decimal("5.0")
-    details2 = HyperliquidOrderDetails(remaining_sz=None)
-    assert details2.remaining_sz is None
 
 
-def test_hyperliquid_order_details_invalid_remaining_sz() -> None:
-    """Test that remaining_sz must be non-negative and finite if set."""
-    with pytest.raises(ValueError, match="non-negative"):
-        HyperliquidOrderDetails(remaining_sz=Decimal("-1"))
-    with pytest.raises(ValueError, match="finite"):
-        HyperliquidOrderDetails(remaining_sz=Decimal("NaN"))
+def test_hl_details_creation_and_immutability(
+    valid_hl_order_details_data: dict[str, Any],
+) -> None:
+    """Test HyperliquidOrderDetails creation and immutability."""
+    details = HyperliquidOrderDetails(**valid_hl_order_details_data)
+    assert details.remaining_sz == Decimal("0.5")
+    assert details.model_config.get("frozen") is True
+
+    # Test immutability
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        details.remaining_sz = Decimal("0.6")
 
 
-# --- Draft: Extend with more edge cases, cross-field logic, and integration tests as needed ---
+@pytest.mark.parametrize(
+    "field, value, error_match",
+    [
+        ("remaining_sz", Decimal("-1"), "Input should be greater than or equal to 0"),
+        ("remaining_sz", Decimal("NaN"), "Value must be finite if provided"),
+        ("remaining_sz", "abc", "Cannot convert 'abc' to Decimal"),
+    ],
+)
+def test_hl_details_invalid_field_values(
+    valid_hl_order_details_data: dict[str, Any],
+    field: str,
+    value: Any,  # noqa: ANN401
+    error_match: str,
+) -> None:
+    """Test validation failures for HyperliquidOrderDetails."""
+    invalid_data = valid_hl_order_details_data.copy()
+    invalid_data[field] = value
+    with pytest.raises(ValidationError, match=error_match):
+        HyperliquidOrderDetails(**invalid_data)
+
+
+def test_hl_details_extra_fields_ignored(valid_hl_order_details_data: dict[str, Any]) -> None:
+    """Test extra='ignore' on HyperliquidOrderDetails."""
+    data = valid_hl_order_details_data.copy()
+    data["ignored_hl_field"] = 123
+    details = HyperliquidOrderDetails(**data)
+    assert not hasattr(details, "ignored_hl_field")
+
+
+# --- BackpackOrderDetails Tests ---
+
+
+def test_bp_details_creation_and_immutability(
+    valid_bp_order_details_data: dict[str, Any],
+) -> None:
+    """Test basic creation and immutability of BackpackOrderDetails."""
+    details = BackpackOrderDetails(**valid_bp_order_details_data)
+    assert details.executed_quote_quantity == Decimal("1000.50")
+    assert details.self_trade_prevention == SelfTradePrevention.REJECT_TAKER
+    assert details.model_config.get("frozen") is True
+    assert details.model_config.get("extra") == "ignore"
+
+    # Test immutability
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        details.executed_quote_quantity = Decimal("2000")  # type: ignore
+
+    # Test creation with potentially invalid types for enums (should pass if None)
+    # Corrected to use valid types (None or Enum) instead of Decimals
+    invalid_type_data = valid_bp_order_details_data.copy()
+    invalid_type_data["self_trade_prevention"] = None  # Pass None instead of Decimal("1")
+    invalid_type_data["expiry_reason"] = None  # Pass None instead of Decimal("2")
+    invalid_type_data["origin"] = None  # Pass None instead of Decimal("3")
+    invalid_type_data["sl_trigger_by"] = None  # Pass None instead of Decimal("4")
+    invalid_type_data["tp_trigger_by"] = None  # Pass None instead of Decimal("5")
+
+    # This creation should now pass as None is valid for Optional Enum fields
+    details_none_enums = BackpackOrderDetails(**invalid_type_data)
+    assert details_none_enums.self_trade_prevention is None
+    assert details_none_enums.expiry_reason is None
+    assert details_none_enums.origin is None
+    assert details_none_enums.sl_trigger_by is None
+    assert details_none_enums.tp_trigger_by is None
+
+
+@pytest.mark.parametrize(
+    "field, value, error_match",
+    [
+        # Decimals (Optional, >=0)
+        ("executed_quote_quantity", Decimal("-0.01"), "Input should be greater than or equal to 0"),
+        ("executed_quote_quantity", "invalid", "Cannot convert 'invalid' to Decimal"),
+        # Decimals (Optional, >0)
+        ("sl_trigger_price", Decimal("0"), "Input should be greater than 0"),
+        ("sl_limit_price", Decimal("-1"), "Input should be greater than 0"),
+        ("tp_trigger_price", Decimal("NaN"), "Value must be finite if provided"),
+        ("tp_limit_price", Decimal("Infinity"), "Value must be finite if provided"),
+        ("trigger_quantity", Decimal("-10"), "Input should be greater than 0"),
+        # Enums (Optional) - Use invalid string/int inputs
+        ("self_trade_prevention", "REJECT_INVALID", r"Input should be .*SelfTradePrevention"),
+        ("expiry_reason", 999, r"Input should be .*OrderExpiryReason"),
+        ("origin", "EXTERNAL_SYSTEM", r"Input should be .*OrderUpdateOrigin"),
+        ("sl_trigger_by", "OraclePrice", r"Input should be .*TriggerType"),
+        ("tp_trigger_by", None, ""),  # None is allowed
+    ],
+)
+def test_bp_details_invalid_field_values(
+    valid_bp_order_details_data: dict[str, Any],
+    field: str,
+    value: Any,  # noqa: ANN401
+    error_match: str,
+) -> None:
+    """Test that BackpackOrderDetails rejects invalid field values."""
+    invalid_data = valid_bp_order_details_data.copy()
+    invalid_data[field] = value
+
+    # None is generally allowed for optional fields, unless the Field validation rejects it
+    # For enum tests, passing None is valid, but invalid strings/ints should fail.
+    if error_match:
+        with pytest.raises(ValidationError, match=error_match):
+            BackpackOrderDetails(**invalid_data)
+    else:  # Expect no error (e.g., testing if None is allowed)
+        details = BackpackOrderDetails(**invalid_data)
+        assert getattr(details, field) is None
+
+
+def test_bp_details_extra_fields_ignored(valid_bp_order_details_data: dict[str, Any]) -> None:
+    """Test extra='ignore' on BackpackOrderDetails."""
+    data = valid_bp_order_details_data.copy()
+    data["ignored_bp_field"] = {"a": 1}
+    details = BackpackOrderDetails(**data)
+    assert not hasattr(details, "ignored_bp_field")

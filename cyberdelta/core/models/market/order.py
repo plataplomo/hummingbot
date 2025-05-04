@@ -4,7 +4,6 @@ import logging
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from enum import Enum
 from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
@@ -25,142 +24,132 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, va
 logger = logging.getLogger(__name__)
 
 
-# --- Enrichment Details Models ---
+# --- Enrichment Details Models (Immutable) ---
 class HyperliquidOrderDetails(BaseModel):
-    """
-    Hyperliquid-specific order enrichment fields for extension slot on Order.
-
-    Fields:
-        remaining_sz (Optional[Decimal]): Remaining unfilled size (from HL API, non-negative)
-        # Add other HL-specific fields as needed
-    """
+    """Hyperliquid-specific order enrichment fields. Immutable."""
 
     remaining_sz: Decimal | None = Field(
-        default=None, ge=0, description="Remaining unfilled size (non-negative, from HL API)."
+        default=None, ge=Decimal("0"), description="Remaining unfilled size (non-negative)."
     )
-    # TODO: Add more HL-specific fields as discovered
+    # Add other HL-specific fields as needed
     model_config = ConfigDict(extra="ignore", frozen=True)
 
     @field_validator("remaining_sz", mode="before")
     @classmethod
-    def parse_remaining_sz(cls, v: object, info: ValidationInfo) -> Decimal | None:
+    def parse_optional_decimal_finite(cls, v: Any, info: ValidationInfo) -> Decimal | None:
+        """Parse optional decimal, ensuring finite if present."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
         if v is None:
             return None
-        d = parse_decimal_value(
-            v if isinstance(v, Decimal | str | int | float | None) else None,
-            allow_none=False,
-            field_name="remaining_sz",
-        )
-        if d is None or not d.is_finite() or d < 0:
-            raise ValueError("remaining_sz must be a non-negative, finite decimal.")
-        return d
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
+        if parsed is None:  # Input format was invalid
+            return None
+        # Check finiteness if a valid Decimal was parsed. ge=0 handled by Field.
+        if not parsed.is_finite():
+            raise ValueError(f"{field_name}: Value must be finite if provided")
+        return parsed
 
 
 class BackpackOrderDetails(BaseModel):
-    """
-    Backpack-specific order enrichment fields for extension slot on Order.
+    """Backpack-specific order enrichment fields. Immutable."""
 
-    Fields:
-        executed_quote_quantity (Optional[Decimal]): Filled quote quantity (executedQuoteQuantity,
-            must be non-negative if set)
-        self_trade_prevention (Optional[SelfTradePrevention]): Self-trade prevention behavior (enum)
-        expiry_reason (Optional[OrderExpiryReason]): Reason for expiry/cancellation (enum)
-        origin (Optional[OrderUpdateOrigin]): Origin of the last update (enum)
-    """
-
-    executed_quote_quantity: Decimal | None = None
+    # Fields based on Task Instructions
+    executed_quote_quantity: Decimal | None = Field(default=None, ge=Decimal("0"))
     self_trade_prevention: SelfTradePrevention | None = None
     expiry_reason: OrderExpiryReason | None = None
     origin: OrderUpdateOrigin | None = None
+    sl_trigger_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    sl_limit_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    sl_trigger_by: TriggerType | None = None
+    tp_trigger_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    tp_limit_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    tp_trigger_by: TriggerType | None = None
+    trigger_quantity: Decimal | None = Field(default=None, gt=Decimal("0"))
+
     model_config = ConfigDict(extra="ignore", frozen=True)
 
-    @field_validator("executed_quote_quantity", mode="before")
+    @field_validator(
+        "executed_quote_quantity",
+        "sl_trigger_price",
+        "sl_limit_price",
+        "tp_trigger_price",
+        "tp_limit_price",
+        "trigger_quantity",
+        mode="before",
+    )
     @classmethod
-    def parse_executed_quote_quantity(cls, v: object, info: ValidationInfo) -> Decimal | None:
+    def parse_optional_decimal_finite(cls, v: Any, info: ValidationInfo) -> Decimal | None:
+        """Parse optional decimal, ensuring finite if present."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
         if v is None:
             return None
-        d = parse_decimal_value(
-            v if isinstance(v, Decimal | str | int | float | None) else None,
-            allow_none=False,
-            field_name="executed_quote_quantity",
-        )
-        if d is not None and (not d.is_finite() or d < 0):
-            raise ValueError("executed_quote_quantity must be a non-negative, finite decimal.")
-        return d
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
+        if parsed is None:  # Input format was invalid
+            return None
+        # Check finiteness if a valid Decimal was parsed. gt/ge=0 handled by Field.
+        if not parsed.is_finite():
+            raise ValueError(f"{field_name}: Value must be finite if provided")
+        return parsed
+
+    # Enum fields rely on Pydantic's default validation for Optional[EnumType]
 
 
+# --- Core Order Model (Mutable) ---
 class Order(BaseModel):
     """
     Core internal model for a single order across all supported exchanges.
-    Contains only essential, universal fields. Mutable, robust, and validated.
-
-    Fields:
-        client_order_id (str): Client-generated unique order ID (UUID).
-        exchange_order_id (Optional[str]): Exchange-provided order ID.
-        related_order_id (Optional[str]): Related order ID (e.g., parent/trigger).
-        exchange (str): Name of the exchange ('hyperliquid', 'backpack', etc.).
-        symbol (str): Trading symbol.
-        side (OrderSide): Buy or sell.
-        order_type (OrderType): Order type (MARKET, LIMIT, STOP, etc.).
-        status (OrderStatus): Current order status.
-        quantity_requested (Decimal): Requested order quantity.
-        quantity_filled (Decimal): Total filled quantity.
-        price (Optional[Decimal]): Limit price.
-        stop_price (Optional[Decimal]): Stop trigger price.
-        average_fill_price (Optional[Decimal]): Weighted average fill price.
-        trigger_by (Optional[TriggerType]): Reference price for triggers (e.g., Mark, Index, Last).
-        time_in_force (TimeInForce): Time in force.
-        reduce_only (bool): Reduce-only flag.
-        post_only (bool): Post-only flag.
-        created_at (datetime): Order creation time (UTC).
-        updated_at (Optional[datetime]): Last update time.
-        triggered_at (Optional[datetime]): Time the conditional order was triggered.
-        strategy_name (Optional[str]): Optional strategy identifier.
-        signal_id (Optional[str]): Optional signal identifier.
-        trades (List[Trade]): List of associated trade fills.
-        hl_details (Optional[HyperliquidOrderDetails]): Hyperliquid-specific enrichment slot
-        bp_details (Optional[BackpackOrderDetails]): Backpack-specific enrichment slot
+    Contains essential, universal fields. Mutable, robust, and validated.
+    Follows the "Core + Typed Extension Slots" pattern (Idea 5).
     """
 
+    # --- Core Fields (as per Task) ---
     client_order_id: str = Field(
         default_factory=lambda: str(uuid.uuid4()),
         description="Client-generated unique order ID (UUID).",
     )
-    exchange_order_id: str | None = Field(
-        None, description="Exchange-provided order ID (string for BP, int as str for HL)."
-    )
+    exchange_order_id: str | None = Field(default=None, description="Exchange-provided order ID.")
     related_order_id: str | None = Field(
-        None, description="ID of related order (e.g., parent, trigger target)."
+        default=None, description="ID of related order (e.g., parent, trigger target)."
     )
-    exchange: str = Field(
-        ...,
-        description="Name of the exchange this order belongs to (e.g., 'hyperliquid', 'backpack').",
-    )
-    symbol: str = Field(..., description="Trading symbol (e.g., 'BTC-PERP', 'SOL_USDC').")
+    exchange: str = Field(..., description="Name of the exchange.")
+    symbol: str = Field(..., description="Trading symbol.")
     side: OrderSide
     order_type: OrderType
     status: OrderStatus = Field(default=OrderStatus.NEW, description="Current status of the order.")
     quantity_requested: Decimal = Field(
-        ..., gt=0, description="Requested order quantity (must be positive)."
+        ..., gt=Decimal("0"), description="Requested base quantity (must be positive)."
+    )
+    quote_quantity_requested: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+        description="Optional requested quote quantity (must be positive if set).",
     )
     quantity_filled: Decimal = Field(
-        default=Decimal("0.0"), ge=0, description="Total filled quantity (non-negative)."
+        default=Decimal("0"),
+        ge=Decimal("0"),
+        description="Total filled base quantity (non-negative).",
     )
     price: Decimal | None = Field(
-        default=None, description="Limit price (positive if set). Used for LIMIT types."
+        default=None, gt=Decimal("0"), description="Limit price (positive if set)."
     )
     stop_price: Decimal | None = Field(
-        default=None, description="Stop trigger price (positive if set). Required for STOP types."
+        default=None, gt=Decimal("0"), description="Stop trigger price (positive if set)."
     )
     average_fill_price: Decimal | None = Field(
-        default=None, description="Weighted average fill price (positive if filled > 0)."
+        default=None,
+        gt=Decimal("0"),
+        description="Weighted average fill price (positive if filled > 0).",
     )
     trigger_by: TriggerType | None = Field(
         default=None, description="Reference price for triggers (e.g., Mark, Index, Last)."
     )
     time_in_force: TimeInForce = Field(
-        default=TimeInForce.GTC, description="Time in force for the order."
-    )
+        ..., description="Time in force for the order."
+    )  # Removed default=GTC, should be required
     reduce_only: bool = Field(
         default=False, description="True if order can only reduce position size."
     )
@@ -178,79 +167,161 @@ class Order(BaseModel):
     strategy_name: str | None = Field(None, description="Optional strategy identifier.")
     signal_id: str | None = Field(None, description="Optional signal identifier.")
     trades: list[Trade] = Field(default_factory=list, description="List of associated trade fills.")
+
+    # --- Extension Slots ---
     hl_details: HyperliquidOrderDetails | None = Field(default=None)
     bp_details: BackpackOrderDetails | None = Field(default=None)
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    # --- Config (Mutable) ---
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)  # NO frozen=True
 
-    @field_validator("exchange_order_id", "related_order_id", mode="before")
+    # --- Field Validators ---
+    @field_validator(
+        "client_order_id",
+        "exchange_order_id",
+        "related_order_id",
+        "strategy_name",
+        "signal_id",
+        mode="before",
+    )
     @classmethod
-    def validate_optional_str_id(cls, v: str | None, info: ValidationInfo) -> str | None:
-        if v is None:
+    def validate_optional_str_id(cls, v: Any, info: ValidationInfo) -> str | None:
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        # client_order_id is required by default factory, others are optional
+        if v is None and field_name != "client_order_id":
             return None
-        return validate_str_field(v, field_name=info.field_name or "id", max_length=128)
+        if v is None and field_name == "client_order_id":
+            # Should not happen with default_factory, but defensive check
+            raise ValueError(f"{field_name}: Required string value cannot be None")
 
-    @field_validator("client_order_id", mode="before")
-    @classmethod
-    def validate_client_order_id(cls, v: str, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="client_order_id", max_length=128)
+        return validate_str_field(v, field_name=field_name, max_length=128)
 
     @field_validator("symbol", "exchange", mode="before")
     @classmethod
-    def validate_symbol_exchange(cls, v: str, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name=info.field_name or "field", max_length=64)
+    def validate_required_str_short(cls, v: Any, info: ValidationInfo) -> str:
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        return validate_str_field(v, field_name=field_name, max_length=64)
 
-    @field_validator("price", "stop_price", "average_fill_price", mode="before")
+    @field_validator(
+        "price",
+        "stop_price",
+        "average_fill_price",
+        "quote_quantity_requested",
+        mode="before",
+    )
     @classmethod
-    def parse_optional_decimal(
-        cls, v: Decimal | str | int | float | None, info: ValidationInfo
-    ) -> Decimal | None:
+    def parse_optional_decimal_finite_positive(cls, v: Any, info: ValidationInfo) -> Decimal | None:
+        """Parse optional decimal, ensuring finite and positive if present (via Field)."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
         if v is None:
             return None
-        d = parse_decimal_value(v, allow_none=False, field_name=info.field_name or "field")
-        if d is None or not d.is_finite():
-            raise ValueError(f"{info.field_name}: Value must be a finite decimal.")
-        return d
-
-    @field_validator("quantity_requested", "quantity_filled", mode="before")
-    @classmethod
-    def parse_required_decimal(
-        cls, v: Decimal | str | int | float, info: ValidationInfo
-    ) -> Decimal:
-        d = parse_decimal_value(v, allow_none=False, field_name=info.field_name or "field")
-        if d is None or not d.is_finite():
-            raise ValueError(f"{info.field_name}: Value must be a finite decimal.")
-        return d
-
-    @field_validator("created_at", "updated_at", "triggered_at", mode="before")
-    @classmethod
-    def parse_optional_datetime(
-        cls, v: datetime | int | float | str | None, info: ValidationInfo
-    ) -> datetime | None:
-        if v is None:
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
+        if parsed is None:  # Input format was invalid
             return None
-        dt = parse_datetime_utc(v, field_name=info.field_name or "field")
+        # Check finiteness. gt=0 handled by Field.
+        if not parsed.is_finite():
+            raise ValueError(f"{field_name}: Value must be finite if provided")
+        return parsed
+
+    @field_validator("quantity_requested", mode="before")
+    @classmethod
+    def parse_required_decimal_finite_positive(cls, v: Any, info: ValidationInfo) -> Decimal:
+        """Parse required decimal, ensuring finite and positive (via Field)."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
+        if parsed is None:
+            raise ValueError(f"{field_name}: Required value parsed as None or was invalid.")
+        # Check finiteness. gt=0 handled by Field.
+        if not parsed.is_finite():
+            raise ValueError(f"{field_name}: Value must be finite")
+        return parsed
+
+    @field_validator("quantity_filled", mode="before")
+    @classmethod
+    def parse_required_decimal_finite_non_negative(cls, v: Any, info: ValidationInfo) -> Decimal:
+        """Parse required decimal, ensuring finite and non-negative (via Field)."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
+        if parsed is None:
+            raise ValueError(f"{field_name}: Required value parsed as None or was invalid.")
+        # Check finiteness. ge=0 handled by Field.
+        if not parsed.is_finite():
+            raise ValueError(f"{field_name}: Value must be finite")
+        return parsed
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def parse_required_datetime_utc(cls, v: Any, info: ValidationInfo) -> datetime:
+        """Parse required datetime, ensuring UTC."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        # created_at has default factory, should not receive None, but check anyway
+        dt = parse_datetime_utc(v, field_name=field_name)
         if dt is None:
-            raise ValueError(f"{info.field_name}: Value must be a valid datetime.")
+            raise ValueError(f"{field_name}: Required datetime parsed as None or invalid.")
         return dt
 
+    @field_validator("updated_at", "triggered_at", mode="before")
+    @classmethod
+    def parse_optional_datetime_utc(cls, v: Any, info: ValidationInfo) -> datetime | None:
+        """Parse optional datetime, ensuring UTC if present."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        if v is None:
+            return None
+        dt = parse_datetime_utc(v, field_name=field_name)
+        # Return None if parsing failed for optional field
+        return dt
+
+    # Enum fields (side, order_type, status, trigger_by, time_in_force) rely on Pydantic's
+    # default enum validation. Ensure type hints are correct.
+
+    # --- Model Validator ---
     @model_validator(mode="after")
     def check_order_logic(self) -> Self:
+        """Validate essential cross-field order logic."""
         limit_types = {OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT}
         stop_types = {OrderType.STOP_MARKET, OrderType.STOP_LIMIT}
-        if self.order_type in limit_types and self.price is None:
-            raise ValueError(f"Order type {self.order_type} requires a price.")
-        if self.order_type in stop_types and self.stop_price is None:
-            raise ValueError(f"Order type {self.order_type} requires a stop_price.")
+
+        # Price required for limit types
+        if self.order_type in limit_types and (self.price is None or self.price <= 0):
+            raise ValueError(f"Order type {self.order_type.value} requires a positive price.")
+
+        # Stop price required for stop types
+        if self.order_type in stop_types and (self.stop_price is None or self.stop_price <= 0):
+            raise ValueError(f"Order type {self.order_type.value} requires a positive stop_price.")
+
+        # Average fill price must be positive if quantity filled is positive
+        avg_price: Decimal | None = self.average_fill_price
+        if self.quantity_filled > 0 and (avg_price is None or avg_price <= 0):
+            raise ValueError("average_fill_price must be positive if quantity_filled > 0.")
+
+        # Quantity filled cannot exceed quantity requested
+        if self.quantity_filled > self.quantity_requested:
+            raise ValueError(
+                f"quantity_filled ({self.quantity_filled}) cannot exceed "
+                f"quantity_requested ({self.quantity_requested})"
+            )
+
+        # Check Extension Slot Consistency (Placeholder - can be more specific if needed)
+        if self.exchange == "hyperliquid" and self.bp_details is not None:
+            raise ValueError("Backpack details (bp_details) must be None for a Hyperliquid order")
+        if self.exchange == "backpack" and self.hl_details is not None:
+            raise ValueError("Hyperliquid details (hl_details) must be None for a Backpack order")
+
         return self
 
-    def to_dict(self) -> dict[str, Any]:
-        """Subject to deprecation: Prefer model_dump(mode='json') for future serialization."""
-        data = self.model_dump(exclude={"trades"})
-        data["trades"] = [trade.model_dump(mode="json") for trade in self.trades]
-        for key, value in data.items():
-            if isinstance(value, datetime):
-                data[key] = value.isoformat()
-            elif isinstance(value, Enum):
-                data[key] = value.value
-        return data
+    # Remove old helper methods like to_dict, add_trade, etc.
+    # Serialization should use model_dump() or custom serializers if needed.
