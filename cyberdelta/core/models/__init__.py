@@ -22,6 +22,13 @@ from .enums import (
     SignalType,
     TimeInForce,
 )
+
+# Import new Margin Account models
+from .margin_account import (
+    BackpackMarginDetails,
+    HyperliquidMarginDetails,
+    MarginAccountSummary,
+)
 from .market import FundingRate, Order, OrderBook, Ticker, Trade
 from .spot_balance import SpotBalance
 
@@ -30,25 +37,33 @@ from .spot_balance import SpotBalance
 from .strategy import TradeSignal
 
 __all__ = [
-    # "APIKeys", # TODO: Resolve ModuleNotFoundError
-    # "ExchangeType", # Removed - Not defined in enums.py
-    # "Interval", # Removed - Not defined in enums.py
+    # Core Enums
     "OrderSide",
     "OrderStatus",
     "OrderType",
     "SignalType",
     "TimeInForce",
+    # Market Data Models
     "Order",
     "Trade",
     "Ticker",
     "OrderBook",
     "FundingRate",
+    # Portfolio State Models
     "SpotBalance",
     "DerivativePosition",
-    "HyperliquidPositionDetails",
-    "BackpackPositionDetails",
+    "HyperliquidPositionDetails",  # Derivative Position Detail
+    "BackpackPositionDetails",  # Derivative Position Detail
+    "MarginAccountSummary",
+    "HyperliquidMarginDetails",  # Margin Account Detail
+    "BackpackMarginDetails",  # Margin Account Detail
+    # Strategy Models
     "TradeSignal",
-    # "PositionInfo", # TODO: Resolve ModuleNotFoundError
-    # "PositionSide", # TODO: Resolve ModuleNotFoundError
-    # "Quote", # TODO: Resolve ModuleNotFoundError
+    # --- TODO: Resolve Missing Modules/Imports ---
+    # "APIKeys",
+    # "ExchangeType",
+    # "Interval",
+    # "PositionInfo",
+    # "PositionSide",
+    # "Quote",
 ]

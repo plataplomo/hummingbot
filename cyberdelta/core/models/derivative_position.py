@@ -30,14 +30,13 @@ from cyberdelta.utils.parsing import (
 class HyperliquidPositionDetails(BaseModel):
     """Immutable exchange-specific details for a Hyperliquid position (Internal)."""
 
-    leverage_type: str = Field(...)  # e.g., "cross", "isolated"
+    leverage_type: str = Field(...)  # 'cross' or 'isolated'
     leverage_value: int = Field(..., ge=0)
     max_leverage: int = Field(..., ge=0)
     margin_used: Decimal | None = Field(default=None, ge=Decimal("0"))
 
-    model_config = ConfigDict(
-        extra="ignore", frozen=True, validate_assignment=False
-    )  # Details are immutable
+    # Config: Immutable, ignore extra fields during creation
+    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
 
     @field_validator("leverage_type", mode="before")
     @classmethod
@@ -47,15 +46,18 @@ class HyperliquidPositionDetails(BaseModel):
         allowed_values: set[str] = {"cross", "isolated"}
         try:
             s = validate_str_field(v, field_name=field_name, max_length=16)
+            # Use helper for enum check
             return validate_enum_field(s, allowed=allowed_values, field_name=field_name)
         except Exception as e:
             raise ValueError(f"{field_name}: Validation failed - {e}") from e
 
-    @field_validator("leverage_value", mode="before")
+    @field_validator("leverage_value", "max_leverage", mode="before")
     @classmethod
-    def validate_leverage_value(cls, v: object, info: ValidationInfo) -> int:
-        """Validate leverage_value is a non-negative integer."""
-        field_name = info.field_name or "leverage_value"
+    def validate_leverage_int(cls, v: object, info: ValidationInfo) -> int:
+        """Validate leverage values are non-negative integers."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
         if not isinstance(v, int):
             raise ValueError(f"{field_name}: Expected int, got {type(v).__name__}")
         if v < 0:
@@ -64,16 +66,15 @@ class HyperliquidPositionDetails(BaseModel):
 
     @field_validator("margin_used", mode="before")
     @classmethod
-    def parse_optional_decimal(
+    def parse_optional_decimal_finite(  # Renamed for clarity
         cls, v: str | int | float | Decimal | None, info: ValidationInfo
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""
-        # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
-        parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Ensure finite if not None. Mypy=[redundant-expr]
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
+        # Check finiteness if not None. ge=0 handled by Field constraint.
         if parsed is not None and not parsed.is_finite():
             raise ValueError(f"{field_name}: Value must be finite if provided")
         return parsed
@@ -82,30 +83,29 @@ class HyperliquidPositionDetails(BaseModel):
 class BackpackPositionDetails(BaseModel):
     """Immutable exchange-specific details for a Backpack position (Internal)."""
 
-    imf_base: Decimal | None = Field(default=None)  # SqrtFunction base parameter
-    imf_factor: Decimal | None = Field(default=None)  # SqrtFunction factor parameter
-    mmf_base: Decimal | None = Field(default=None)  # SqrtFunction base parameter
-    mmf_factor: Decimal | None = Field(default=None)  # SqrtFunction factor parameter
+    imf_base: Decimal | None = Field(default=None)
+    imf_factor: Decimal | None = Field(default=None)
+    mmf_base: Decimal | None = Field(default=None)
+    mmf_factor: Decimal | None = Field(default=None)
     cumulative_funding: Decimal | None = Field(default=None)
 
-    model_config = ConfigDict(
-        extra="ignore", frozen=True, validate_assignment=False
-    )  # Details are immutable
+    # Config: Immutable, ignore extra fields during creation
+    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
 
+    # Use single validator for all optional decimals
     @field_validator(
         "imf_base", "imf_factor", "mmf_base", "mmf_factor", "cumulative_funding", mode="before"
     )
     @classmethod
-    def parse_optional_decimal(
+    def parse_optional_decimal_finite(  # Renamed for clarity and consistency
         cls, v: str | int | float | Decimal | None, info: ValidationInfo
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""
-        # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
-        parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Ensure finite if not None. Mypy=[redundant-expr]
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
+        # Check finiteness if not None
         if parsed is not None and not parsed.is_finite():
             raise ValueError(f"{field_name}: Value must be finite if provided")
         return parsed
@@ -270,15 +270,8 @@ class DerivativePosition(BaseModel):
 
     @model_validator(mode="after")
     def check_position_logic(self) -> Self:
-        """
-        Validate cross-field consistency and business logic rules.
-
-        - entry_price must be > 0 if size is non-zero.
-        - entry_price must be None if size is zero.
-        - side must match the sign of size (Buy for size > 0, Sell for size < 0).
-          (Note: Side is less defined if size is 0, we allow either if flat)
-        """
-        # --- Entry Price Logic ---
+        """Validate cross-field consistency (entry_price, side/size, details slots)."""
+        # Entry Price Logic
         if self.size != Decimal("0"):
             if self.entry_price is None:
                 raise ValueError("entry_price must be provided if size is non-zero")
@@ -288,14 +281,14 @@ class DerivativePosition(BaseModel):
             if self.entry_price is not None:
                 raise ValueError("entry_price must be None if size is zero")
 
-        # --- Side vs Size Logic ---
+        # Side vs Size Logic
         if self.size > Decimal("0") and self.side != OrderSide.BUY:
             raise ValueError("side must be BUY if size is positive")
         if self.size < Decimal("0") and self.side != OrderSide.SELL:
             raise ValueError("side must be SELL if size is negative")
-        # If size is 0, side can be either BUY or SELL (representing last state)
 
-        # --- Check Extension Slot Consistency ---
+        # Check Extension Slot Consistency (Idea 5)
+        known_exchanges_with_details = {"hyperliquid", "backpack"}
         if self.exchange == "hyperliquid" and self.bp_details is not None:
             raise ValueError(
                 "Backpack details (bp_details) must be None for a Hyperliquid position"
@@ -304,5 +297,11 @@ class DerivativePosition(BaseModel):
             raise ValueError(
                 "Hyperliquid details (hl_details) must be None for a Backpack position"
             )
+        # Add check for unrecognized exchanges having details
+        if self.exchange not in known_exchanges_with_details:
+            if self.hl_details is not None or self.bp_details is not None:
+                raise ValueError(
+                    f"Exchange-specific details provided for unrecognized exchange: {self.exchange}"
+                )
 
         return self

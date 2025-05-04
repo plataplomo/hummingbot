@@ -12,36 +12,35 @@ from cyberdelta.core.models.derivative_position import (
 )
 from cyberdelta.core.models.enums import OrderSide
 
-# --- DerivativePosition Tests ---
-
 # --- Helper Fixtures ---
 
 
 @pytest.fixture
-def valid_hl_details() -> HyperliquidPositionDetails:
-    """Creates valid internal HyperliquidPositionDetails."""
-    return HyperliquidPositionDetails(
-        leverage_type="cross",
-        leverage_value=10,
-        max_leverage=20,
-        margin_used=Decimal("50.5"),
-    )
+def valid_hl_details_data() -> dict[str, Any]:
+    """Provides valid data for HyperliquidPositionDetails."""
+    return {
+        "leverage_type": "cross",
+        "leverage_value": 10,
+        "max_leverage": 20,
+        "margin_used": Decimal("50.5"),
+    }
 
 
 @pytest.fixture
-def valid_bp_details() -> BackpackPositionDetails:
-    """Creates valid internal BackpackPositionDetails."""
-    return BackpackPositionDetails(
-        imf_base=Decimal("0.1"),
-        imf_factor=Decimal("0.01"),
-        mmf_base=Decimal("0.05"),
-        mmf_factor=Decimal("0.005"),
-        cumulative_funding=Decimal("-1.23"),
-    )
+def valid_bp_details_data() -> dict[str, Any]:
+    """Provides valid data for BackpackPositionDetails."""
+    return {
+        "imf_base": Decimal("0.1"),
+        "imf_factor": Decimal("0.01"),
+        "mmf_base": Decimal("0.05"),
+        "mmf_factor": Decimal("0.005"),
+        "cumulative_funding": Decimal("-1.23"),
+    }
 
 
 @pytest.fixture
 def base_derivative_position_data() -> dict[str, Any]:
+    """Provides a dictionary with valid core data for DerivativePosition creation."""
     return {
         "exchange": "hyperliquid",
         "symbol": "BTC-PERP",
@@ -58,13 +57,13 @@ def base_derivative_position_data() -> dict[str, Any]:
     }
 
 
-# --- Core DerivativePosition Tests ---
+# --- Core DerivativePosition Success Tests ---
 
 
 def test_derivative_position_successful_creation(
     base_derivative_position_data: dict[str, Any],
 ) -> None:
-    """Test successful creation with valid core data."""
+    """Test successful creation with valid core data, no details."""
     pos = DerivativePosition(**base_derivative_position_data)
     assert pos.exchange == "hyperliquid"
     assert pos.symbol == "BTC-PERP"
@@ -83,11 +82,11 @@ def test_derivative_position_successful_creation(
 def test_derivative_position_flat_creation(
     base_derivative_position_data: dict[str, Any],
 ) -> None:
-    """Test successful creation of a flat position (size=0). Ensure entry price is None."""
+    """Test successful creation of a flat position (size=0)."""
     data = base_derivative_position_data.copy()
     data["size"] = Decimal("0")
-    data["entry_price"] = None  # Must be None when size is 0
-    data["side"] = OrderSide.BUY  # Side can be anything when flat, check validation allows it
+    data["entry_price"] = None  # Required for size=0
+    data["side"] = OrderSide.SELL  # Side can be last known side when flat
     pos = DerivativePosition(**data)
     assert pos.size == Decimal("0")
     assert pos.entry_price is None
@@ -109,173 +108,136 @@ def test_derivative_position_short_creation(
 
 
 def test_derivative_position_with_hl_details(
-    base_derivative_position_data: dict[str, Any], valid_hl_details: HyperliquidPositionDetails
+    base_derivative_position_data: dict[str, Any],
+    valid_hl_details_data: dict[str, Any],
 ) -> None:
-    """Test creation with valid Hyperliquid details."""
+    """Test creation with valid Hyperliquid details (Idea 5)."""
     data = base_derivative_position_data.copy()
-    data["exchange"] = "hyperliquid"  # Ensure exchange matches details
-    data["hl_details"] = valid_hl_details
+    data["exchange"] = "hyperliquid"
+    data["hl_details"] = HyperliquidPositionDetails(**valid_hl_details_data)
     pos = DerivativePosition(**data)
-    assert pos.hl_details == valid_hl_details
+    assert pos.hl_details is not None
+    assert pos.hl_details.leverage_type == "cross"
     assert pos.bp_details is None
-    assert (
-        pos.hl_details is not None and pos.hl_details.model_config.get("frozen") is True
-    )  # Details are immutable
+    assert pos.hl_details.model_config.get("frozen") is True  # Details immutable
 
 
 def test_derivative_position_with_bp_details(
-    base_derivative_position_data: dict[str, Any], valid_bp_details: BackpackPositionDetails
+    base_derivative_position_data: dict[str, Any],
+    valid_bp_details_data: dict[str, Any],
 ) -> None:
-    """Test creation with valid Backpack details."""
+    """Test creation with valid Backpack details (Idea 5)."""
     data = base_derivative_position_data.copy()
     data["exchange"] = "backpack"
-    data["bp_details"] = valid_bp_details
+    data["bp_details"] = BackpackPositionDetails(**valid_bp_details_data)
     pos = DerivativePosition(**data)
-    assert pos.bp_details == valid_bp_details
+    assert pos.bp_details is not None
+    assert pos.bp_details.imf_base == Decimal("0.1")
     assert pos.hl_details is None
-    assert (
-        pos.bp_details is not None and pos.bp_details.model_config.get("frozen") is True
-    )  # Details are immutable
+    assert pos.bp_details.model_config.get("frozen") is True  # Details immutable
 
 
 def test_derivative_position_mutability(
     base_derivative_position_data: dict[str, Any],
 ) -> None:
-    """Test that core fields can be mutated and validation triggers."""
+    """Test core model mutability and assignment validation."""
     pos = DerivativePosition(**base_derivative_position_data)
     original_timestamp = pos.timestamp
 
-    # Mutate size and timestamp
+    # Mutate core fields
     new_timestamp = datetime.now(UTC)
     pos.size = Decimal("2.0")
     pos.timestamp = new_timestamp
+    pos.mark_price = Decimal("52000.0")
 
     assert pos.size == Decimal("2.0")
     assert pos.timestamp == new_timestamp
     assert pos.timestamp != original_timestamp
+    assert pos.mark_price == Decimal("52000.0")
 
-    # Test invalid mutation (negative mark price)
-    with pytest.raises(ValidationError, match="mark_price"):
+    # Test invalid assignment (negative mark price via Field constraint)
+    match_str = "1 validation error for DerivativePosition\\nmark_price\\n  Input should be greater than or equal to 0"
+    with pytest.raises(ValidationError, match=match_str):
         pos.mark_price = Decimal("-100")
 
-    # Test mutation triggering model validation (size vs entry_price)
-    # Ensure entry_price is initially valid
+    # Test assignment triggering model validation (size vs entry_price)
     pos.size = Decimal("1.0")
-    pos.entry_price = Decimal("50000")
-    # Now, setting size to 0 should trigger the model validator because entry_price is not None
+    pos.entry_price = Decimal("50000")  # Set valid entry price first
+    # Setting size to 0 when entry_price is non-None should fail
     with pytest.raises(ValidationError, match="entry_price must be None if size is zero"):
         pos.size = Decimal("0")
 
-    # Correct the state *before* assignment to avoid the model validation error during assignment
+    # Correct the state first to allow valid assignment
     pos.entry_price = None
-    pos.size = Decimal("0")  # This assignment should now pass
+    pos.size = Decimal("0")  # Should now succeed
     assert pos.size == Decimal("0")
     assert pos.entry_price is None
 
-    # Re-check validation passes - assign a valid value
-    pos.symbol = "ETH-PERP"  # Should not raise now
-    assert pos.symbol == "ETH-PERP"
+    # Test mutating details slot (should be allowed)
+    pos.exchange = "backpack"  # Change exchange first to pass model validation
+    pos.bp_details = BackpackPositionDetails(imf_base=Decimal("0.2"))
+    assert pos.bp_details is not None
+    assert pos.bp_details.imf_base == Decimal("0.2")
 
 
-# --- Validation Failure Tests ---
+# --- Core DerivativePosition Failure Tests ---
 
 
 @pytest.mark.parametrize(
-    "field, value, error_part",
+    "field, value, error_match",
     [
-        # Required string fields validation (None input -> Specific error)
+        # Required Strings
         ("exchange", None, "Value error, exchange: Expected string, got NoneType"),
         ("exchange", "", "String cannot be empty or whitespace"),
         ("symbol", None, "Value error, symbol: Expected string, got NoneType"),
-        ("symbol", " ", "String cannot be empty or whitespace"),
-        # Required enum field validation (None input -> Specific error)
+        ("symbol", "   ", "String cannot be empty or whitespace"),
+        ("symbol", "S" * 65, "String value too long"),
+        # Required Enum
         ("side", None, "Input should be 'BUY' or 'SELL'"),
-        # Invalid enum value
-        ("side", "INVALID_SIDE", "Input should be 'BUY' or 'SELL'"),
-        # Required decimal field validation
+        ("side", "NEUTRAL", "Input should be 'BUY' or 'SELL'"),
+        # Required Decimal (Size)
         ("size", None, "Value error, size: Value cannot be None"),
-        ("size", "abc", "Cannot convert 'abc' to Decimal"),
+        ("size", "not-a-number", "Cannot convert 'not-a-number' to Decimal"),
         ("size", Decimal("NaN"), "Value must be finite"),
-        ("entry_price", Decimal("NaN"), "Value must be finite if provided"),
-        (
-            "entry_price",
-            Decimal("-10"),
-            # Simpler match for the core message
-            "Value error, entry_price must be positive (> 0) if size is non-zero",
-        ),
-        # Required datetime field validation
+        ("size", Decimal("Infinity"), "Value must be finite"),
+        # Required Datetime
         ("timestamp", None, "Value error, timestamp: Value cannot be None"),
-        ("timestamp", "invalid-date", "Cannot parse ISO datetime string"),
-        # Optional fields with constraints
-        ("mark_price", Decimal("-1"), "Input should be greater than or equal to 0"),
+        ("timestamp", "2023-13-01T00:00:00Z", "Cannot parse ISO datetime string"),
+        # Optional Decimals (with constraints)
+        ("entry_price", Decimal("NaN"), "Value must be finite if provided"),
+        ("mark_price", Decimal("-0.01"), "Input should be greater than or equal to 0"),
         ("mark_price", Decimal("Infinity"), "Value must be finite if provided"),
-        ("liquidation_price", Decimal("-1"), "Input should be greater than or equal to 0"),
-        ("liquidation_price", Decimal("NaN"), "Value must be finite if provided"),
-        (
-            "unrealized_pnl",
-            Decimal("Infinity"),
-            "Value must be finite if provided",
-        ),
-        ("realized_pnl", Decimal("NaN"), "Value must be finite if provided"),
-        # Optional string fields validation (Wrong type -> Specific error)
-        ("strategy_name", 123, "Value error, strategy_name: Expected string, got int"),
-        ("strategy_name", "s" * 129, "String value too long"),
-        ("signal_id", [], "Value error, signal_id: Expected string, got list"),
+        ("liquidation_price", Decimal("-100"), "Input should be greater than or equal to 0"),
+        ("unrealized_pnl", Decimal("NaN"), "Value must be finite if provided"),
+        # Optional Strings
+        ("strategy_name", 12345, "Value error, strategy_name: Expected string, got int"),
+        ("strategy_name", "A" * 129, "String value too long"),
+        ("signal_id", {"a": 1}, "Value error, signal_id: Expected string, got dict"),
     ],
 )
-def test_derivative_position_invalid_core_fields(
+def test_derivative_position_invalid_field_inputs(
     base_derivative_position_data: dict[str, Any],
     field: str,
-    value: Any,  # noqa: ANN401 - Necessary for pytest parametrize flexibility
-    error_part: str,
+    value: Any,  # noqa: ANN401
+    error_match: str,
 ) -> None:
-    """Test validation failures for individual core field invalid inputs."""
+    """Test validation failures for individual field invalid inputs."""
     data = base_derivative_position_data.copy()
-
-    # Special handling for model validation checks vs field checks
-    data[field] = value
-
-    # Need to ensure base state is valid before testing the target field
-    # Size/Entry Price Interdependency:
-    if field != "size" and field != "entry_price":
-        current_size = data.get("size", Decimal("1"))  # Default to non-zero if absent
-        if current_size == Decimal("0"):
-            data["entry_price"] = None
-        else:
-            # Fix Mypy [operator] error by checking entry_price is not None before comparison
-            entry_price_val = data.get("entry_price")
-            if entry_price_val is None or entry_price_val <= Decimal("0"):
-                data["entry_price"] = Decimal("50000")  # Provide valid entry price
-    elif field == "entry_price" and value == Decimal("-10"):
-        # This is caught by model validator, ensure size is non-zero for the check
-        if data.get("size", Decimal("1")) == Decimal("0"):
-            data["size"] = Decimal("1.0")  # Need non-zero size to test negative entry price
-    elif field == "size" and value != Decimal("0"):
-        # If testing size and making it non-zero, ensure entry price is valid
-        entry_price_val = data.get("entry_price")
-        if entry_price_val is None or entry_price_val <= Decimal("0"):
-            data["entry_price"] = Decimal("50000")
-    elif field == "size" and value == Decimal("0"):
-        # If testing size and making it zero, entry price must be None
+    # Ensure base state is valid before testing the target field
+    if data.get("size", Decimal("1")) == Decimal("0") and field != "entry_price":
         data["entry_price"] = None
+    elif data.get("size", Decimal("1")) != Decimal("0") and data.get("entry_price") is None:
+        data["entry_price"] = Decimal("50000")  # Need valid entry for non-zero size
 
-    # Side/Size Interdependency
-    if field != "side" and field != "size":
-        current_size = data.get("size", Decimal("1.0"))
-        if current_size > Decimal("0"):
-            data["side"] = OrderSide.BUY
-        elif current_size < Decimal("0"):
-            data["side"] = OrderSide.SELL
-        # else: side can be either if size is 0
-
-    with pytest.raises(ValidationError) as excinfo:
+    data[field] = value
+    with pytest.raises(ValidationError, match=error_match):
         DerivativePosition(**data)
-    # print(f"Testing {field}={value}: Error = {excinfo.value}") # Debug print
-    assert error_part in str(excinfo.value)
 
 
 def test_derivative_position_model_validation_failures(
     base_derivative_position_data: dict[str, Any],
+    valid_hl_details_data: dict[str, Any],
+    valid_bp_details_data: dict[str, Any],
 ) -> None:
     """Test model validation failures (cross-field logic)."""
     data = base_derivative_position_data.copy()
@@ -283,7 +245,7 @@ def test_derivative_position_model_validation_failures(
     # Case 1: Size positive, Side SELL
     data["size"] = Decimal("1.0")
     data["side"] = OrderSide.SELL
-    data["entry_price"] = Decimal("100")  # Ensure entry price valid for size
+    data["entry_price"] = Decimal("100")
     with pytest.raises(ValidationError, match="side must be BUY if size is positive"):
         DerivativePosition(**data)
 
@@ -305,9 +267,7 @@ def test_derivative_position_model_validation_failures(
     data["size"] = Decimal("1.0")
     data["entry_price"] = Decimal("0")
     with pytest.raises(
-        ValidationError,
-        # Use raw string and match exact model validation error
-        match=r"Value error, entry_price must be positive \(> 0\) if size is non-zero",
+        ValidationError, match="entry_price must be positive .* if size is non-zero"
     ):
         DerivativePosition(**data)
 
@@ -315,56 +275,53 @@ def test_derivative_position_model_validation_failures(
     data["size"] = Decimal("1.0")
     data["entry_price"] = Decimal("-10")
     with pytest.raises(
-        ValidationError,
-        # Use raw string and match exact model validation error
-        match=r"Value error, entry_price must be positive \(> 0\) if size is non-zero",
+        ValidationError, match="entry_price must be positive .* if size is non-zero"
     ):
         DerivativePosition(**data)
 
     # Case 6: Size zero, Entry Price non-None
     data["size"] = Decimal("0")
     data["entry_price"] = Decimal("100")
-    data["side"] = OrderSide.BUY  # Reset side for this test
+    data["side"] = OrderSide.BUY  # Reset side
     with pytest.raises(ValidationError, match="entry_price must be None if size is zero"):
         DerivativePosition(**data)
 
-
-def test_derivative_position_exchange_details_mismatch(
-    base_derivative_position_data: dict[str, Any],
-    valid_hl_details: HyperliquidPositionDetails,
-    valid_bp_details: BackpackPositionDetails,
-) -> None:
-    """Test validation failure when details mismatch the exchange field."""
+    # Case 7: HL exchange with BP details
     data = base_derivative_position_data.copy()
-
-    # HL exchange with BP details
     data["exchange"] = "hyperliquid"
+    data["bp_details"] = BackpackPositionDetails(**valid_bp_details_data)
     data["hl_details"] = None
-    data["bp_details"] = valid_bp_details
-    # Corrected assertion check
-    # Fix: Use raw string for match or escape backslashes
     with pytest.raises(
-        ValidationError,
-        match=r"Backpack details \(bp_details\) must be None for a Hyperliquid position",
+        ValidationError, match="Backpack details .* must be None for a Hyperliquid position"
     ):
         DerivativePosition(**data)
 
-    # BP exchange with HL details
+    # Case 8: BP exchange with HL details
+    data = base_derivative_position_data.copy()
     data["exchange"] = "backpack"
-    data["hl_details"] = valid_hl_details
+    data["hl_details"] = HyperliquidPositionDetails(**valid_hl_details_data)
     data["bp_details"] = None
-    # Fix: Use raw string for match or escape backslashes
+    with pytest.raises(
+        ValidationError, match="Hyperliquid details .* must be None for a Backpack position"
+    ):
+        DerivativePosition(**data)
+
+    # Case 9: Other exchange with details provided
+    data = base_derivative_position_data.copy()
+    data["exchange"] = "other_exchange"
+    data["hl_details"] = HyperliquidPositionDetails(**valid_hl_details_data)
+    data["bp_details"] = None
     with pytest.raises(
         ValidationError,
-        match=r"Hyperliquid details \(hl_details\) must be None for a Backpack position",
+        match="Exchange-specific details provided for unrecognized exchange: other_exchange",
     ):
         DerivativePosition(**data)
 
 
 def test_derivative_position_extra_fields(base_derivative_position_data: dict[str, Any]) -> None:
-    """Test that extra fields cause a validation error due to extra='forbid'."""
+    """Test extra='forbid' on core model."""
     data = base_derivative_position_data.copy()
-    data["extra_field"] = "should_fail"
+    data["unexpected_core_field"] = "value"
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         DerivativePosition(**data)
 
@@ -372,93 +329,95 @@ def test_derivative_position_extra_fields(base_derivative_position_data: dict[st
 # --- Details Model Specific Tests ---
 
 
-def test_hyperliquid_details_validation() -> None:
-    """Test validation specific to HyperliquidPositionDetails."""
-    # Valid
-    details = HyperliquidPositionDetails(
-        leverage_type="isolated",
-        leverage_value=5,
-        max_leverage=10,
-        margin_used=Decimal("100.5"),  # Fix arg-type
-    )
-    assert details.leverage_type == "isolated"
-    assert details.leverage_value == 5
-    assert details.max_leverage == 10
-    assert details.margin_used == Decimal("100.5")
-    assert details.model_config.get("frozen") is True
-
-    # Invalid leverage type
-    with pytest.raises(
-        ValidationError, match="leverage_type: Validation failed - leverage_type: Invalid value"
-    ):
-        HyperliquidPositionDetails(leverage_type="bad", leverage_value=5, max_leverage=10)
-
-    # Invalid leverage value (negative)
-    with pytest.raises(ValidationError, match="leverage_value: Must be non-negative"):
-        HyperliquidPositionDetails(leverage_type="cross", leverage_value=-1, max_leverage=10)
-
-    # Invalid max_leverage (negative)
-    with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
-        HyperliquidPositionDetails(leverage_type="cross", leverage_value=5, max_leverage=-10)
-
-    # Invalid margin_used (negative)
-    with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
-        HyperliquidPositionDetails(
-            leverage_type="cross",
-            leverage_value=5,
-            max_leverage=10,
-            margin_used=Decimal("-1.0"),  # Fix arg-type
-        )
-
-    # Invalid margin_used (NaN)
-    with pytest.raises(ValidationError, match="Value must be finite if provided"):
-        HyperliquidPositionDetails(
-            leverage_type="cross", leverage_value=5, max_leverage=10, margin_used=Decimal("NaN")
-        )
-
-    # Extra fields ignored (test creation, not attribute access)
-    details = HyperliquidPositionDetails(
-        leverage_type="cross",
-        leverage_value=5,
-        max_leverage=10,
-        margin_used=Decimal("1.0"),  # Fix: Removed extra="ignored"
-    )
-    # We expect extra='ignore' to work silently, assert base fields are correct
+def test_hyperliquid_details_creation_and_immutability(
+    valid_hl_details_data: dict[str, Any],
+) -> None:
+    """Test HyperliquidPositionDetails creation and immutability."""
+    details = HyperliquidPositionDetails(**valid_hl_details_data)
     assert details.leverage_type == "cross"
-    assert details.leverage_value == 5
-    assert details.max_leverage == 10
-    assert details.margin_used == Decimal("1.0")
-
-
-def test_backpack_details_validation() -> None:
-    """Test validation specific to BackpackPositionDetails."""
-    # Valid (all optional fields can be None)
-    details = BackpackPositionDetails()
-    assert details.imf_base is None
-    assert details.cumulative_funding is None
+    assert details.leverage_value == 10
+    assert details.max_leverage == 20
+    assert details.margin_used == Decimal("50.5")
     assert details.model_config.get("frozen") is True
 
-    # Valid with values
-    details = BackpackPositionDetails(
-        imf_base=Decimal("0.1"),  # Fix arg-type
-        imf_factor=Decimal("0.01"),  # Fix arg-type
-        mmf_base=Decimal("0.05"),  # Fix arg-type
-        mmf_factor=Decimal("0.005"),  # Fix arg-type
-        cumulative_funding=Decimal("-5.5"),  # Fix arg-type
-    )
-    assert details.imf_base == Decimal("0.1")
-    assert details.imf_factor == Decimal("0.01")
-    assert details.mmf_base == Decimal("0.05")
-    assert details.mmf_factor == Decimal("0.005")
-    assert details.cumulative_funding == Decimal("-5.5")
+    # Test immutability
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        details.leverage_value = 15
 
-    # Invalid decimal format - Testing the 'before' validator
-    with pytest.raises(ValidationError, match="Cannot convert 'abc' to Decimal"):
-        BackpackPositionDetails(imf_base="abc")  # type: ignore[arg-type]
-    with pytest.raises(ValidationError, match="Value must be finite if provided"):
-        BackpackPositionDetails(mmf_factor=Decimal("inf"))
 
-    # Extra fields ignored (test creation, not attribute access)
-    details = BackpackPositionDetails(imf_base=Decimal("0.1"))  # Fix: Removed extra="ignored"
+@pytest.mark.parametrize(
+    "field, value, error_match",
+    [
+        ("leverage_type", "sideways", "Invalid value"),
+        ("leverage_type", 123, "Expected string"),
+        ("leverage_value", -1, "Must be non-negative"),
+        ("leverage_value", "abc", "Expected int"),
+        ("max_leverage", -5, "Must be non-negative"),
+        ("margin_used", Decimal("-1"), "Input should be greater than or equal to 0"),
+        ("margin_used", Decimal("NaN"), "Value must be finite if provided"),
+    ],
+)
+def test_hyperliquid_details_invalid_fields(
+    valid_hl_details_data: dict[str, Any],
+    field: str,
+    value: Any,  # noqa: ANN401
+    error_match: str,
+) -> None:
+    """Test validation failures for HyperliquidPositionDetails."""
+    data = valid_hl_details_data.copy()
+    data[field] = value
+    with pytest.raises(ValidationError, match=error_match):
+        HyperliquidPositionDetails(**data)
+
+
+def test_hyperliquid_details_extra_fields_ignored(valid_hl_details_data: dict[str, Any]) -> None:
+    """Test extra='ignore' on HyperliquidPositionDetails."""
+    data = valid_hl_details_data.copy()
+    data["extra_ignored_field"] = "does not matter"
+    # Should not raise ValidationError
+    details = HyperliquidPositionDetails(**data)
+    assert not hasattr(details, "extra_ignored_field")
+    assert details.leverage_value == 10  # Check original fields still correct
+
+
+def test_backpack_details_creation_and_immutability(valid_bp_details_data: dict[str, Any]) -> None:
+    """Test BackpackPositionDetails creation and immutability."""
+    details = BackpackPositionDetails(**valid_bp_details_data)
     assert details.imf_base == Decimal("0.1")
-    # We expect extra='ignore' to work silently, assert base field is correct
+    assert details.cumulative_funding == Decimal("-1.23")
+    assert details.model_config.get("frozen") is True
+
+    # Test immutability
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        details.cumulative_funding = Decimal("0")
+
+
+@pytest.mark.parametrize(
+    "field, value, error_match",
+    [
+        ("imf_base", Decimal("NaN"), "Value must be finite if provided"),
+        ("imf_factor", "invalid", "Cannot convert 'invalid' to Decimal"),
+        ("cumulative_funding", Decimal("Infinity"), "Value must be finite if provided"),
+    ],
+)
+def test_backpack_details_invalid_fields(
+    valid_bp_details_data: dict[str, Any],
+    field: str,
+    value: Any,  # noqa: ANN401
+    error_match: str,
+) -> None:
+    """Test validation failures for BackpackPositionDetails."""
+    data = valid_bp_details_data.copy()
+    data[field] = value
+    with pytest.raises(ValidationError, match=error_match):
+        BackpackPositionDetails(**data)
+
+
+def test_backpack_details_extra_fields_ignored(valid_bp_details_data: dict[str, Any]) -> None:
+    """Test extra='ignore' on BackpackPositionDetails."""
+    data = valid_bp_details_data.copy()
+    data["ignored_stuff"] = 123
+    # Should not raise ValidationError
+    details = BackpackPositionDetails(**data)
+    assert not hasattr(details, "ignored_stuff")
+    assert details.imf_base == Decimal("0.1")
