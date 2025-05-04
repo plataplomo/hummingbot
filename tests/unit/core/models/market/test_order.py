@@ -312,10 +312,14 @@ def test_order_mutability(base_order_data: dict[str, Any]) -> None:
     # Valid assignments
     new_status = OrderStatus.FILLED
     new_qty_filled = order.quantity_requested
-    new_avg_price = order.price + 1  # type: ignore
+    # Ensure Decimal type for price calculation
+    price_base = (
+        order.price if order.price is not None else Decimal("0")
+    )  # Handle None case defensively
+    new_avg_price = price_base + Decimal("1")  # Corrected: Add Decimal("1")
     order.status = new_status
     order.quantity_filled = new_qty_filled
-    order.average_fill_price = new_avg_price  # Add avg price for filled order
+    order.average_fill_price = new_avg_price
     order.updated_at = datetime.now(UTC)
 
     assert order.status == new_status
@@ -408,7 +412,7 @@ def test_bp_details_creation_and_immutability(
 
     # Test immutability
     with pytest.raises(ValidationError, match="Instance is frozen"):
-        details.executed_quote_quantity = Decimal("2000")  # type: ignore
+        details.executed_quote_quantity = Decimal("2000")  # Removed unused type: ignore
 
     # Test creation with potentially invalid types for enums (should pass if None)
     # Corrected to use valid types (None or Enum) instead of Decimals

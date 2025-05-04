@@ -4,7 +4,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Self
+from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -36,7 +36,11 @@ class HyperliquidOrderDetails(BaseModel):
 
     @field_validator("remaining_sz", mode="before")
     @classmethod
-    def parse_optional_decimal_finite(cls, v: Any, info: ValidationInfo) -> Decimal | None:
+    def parse_optional_decimal_finite(
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
+    ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
@@ -80,7 +84,11 @@ class BackpackOrderDetails(BaseModel):
         mode="before",
     )
     @classmethod
-    def parse_optional_decimal_finite(cls, v: Any, info: ValidationInfo) -> Decimal | None:
+    def parse_optional_decimal_finite(
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
+    ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
@@ -185,7 +193,7 @@ class Order(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_optional_str_id(cls, v: Any, info: ValidationInfo) -> str | None:
+    def validate_optional_str_id(cls, v: str | None, info: ValidationInfo) -> str | None:
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
@@ -200,7 +208,7 @@ class Order(BaseModel):
 
     @field_validator("symbol", "exchange", mode="before")
     @classmethod
-    def validate_required_str_short(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_required_str_short(cls, v: str, info: ValidationInfo) -> str:
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
@@ -214,7 +222,11 @@ class Order(BaseModel):
         mode="before",
     )
     @classmethod
-    def parse_optional_decimal_finite_positive(cls, v: Any, info: ValidationInfo) -> Decimal | None:
+    def parse_optional_decimal_finite_positive(
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
+    ) -> Decimal | None:
         """Parse optional decimal, ensuring finite and positive if present (via Field)."""
         field_name = info.field_name
         if field_name is None:
@@ -231,7 +243,11 @@ class Order(BaseModel):
 
     @field_validator("quantity_requested", mode="before")
     @classmethod
-    def parse_required_decimal_finite_positive(cls, v: Any, info: ValidationInfo) -> Decimal:
+    def parse_required_decimal_finite_positive(
+        cls,
+        v: str | int | float | Decimal,
+        info: ValidationInfo,
+    ) -> Decimal:
         """Parse required decimal, ensuring finite and positive (via Field)."""
         field_name = info.field_name
         if field_name is None:
@@ -246,7 +262,11 @@ class Order(BaseModel):
 
     @field_validator("quantity_filled", mode="before")
     @classmethod
-    def parse_required_decimal_finite_non_negative(cls, v: Any, info: ValidationInfo) -> Decimal:
+    def parse_required_decimal_finite_non_negative(
+        cls,
+        v: str | int | float | Decimal,
+        info: ValidationInfo,
+    ) -> Decimal:
         """Parse required decimal, ensuring finite and non-negative (via Field)."""
         field_name = info.field_name
         if field_name is None:
@@ -261,7 +281,11 @@ class Order(BaseModel):
 
     @field_validator("created_at", mode="before")
     @classmethod
-    def parse_required_datetime_utc(cls, v: Any, info: ValidationInfo) -> datetime:
+    def parse_required_datetime_utc(
+        cls,
+        v: str | int | float | datetime,
+        info: ValidationInfo,
+    ) -> datetime:
         """Parse required datetime, ensuring UTC."""
         field_name = info.field_name
         if field_name is None:
@@ -274,7 +298,11 @@ class Order(BaseModel):
 
     @field_validator("updated_at", "triggered_at", mode="before")
     @classmethod
-    def parse_optional_datetime_utc(cls, v: Any, info: ValidationInfo) -> datetime | None:
+    def parse_optional_datetime_utc(
+        cls,
+        v: str | int | float | datetime | None,
+        info: ValidationInfo,
+    ) -> datetime | None:
         """Parse optional datetime, ensuring UTC if present."""
         field_name = info.field_name
         if field_name is None:
