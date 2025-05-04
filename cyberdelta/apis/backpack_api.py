@@ -21,12 +21,11 @@ This module implements the Backpack exchange adapter for CyberDeltaEngine, inclu
 import asyncio
 import hashlib
 import hmac
-import logging
 import time
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 from pydantic import ValidationError
 
@@ -40,21 +39,25 @@ from cyberdelta.apis.models.api import (
 )
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (  # Use absolute import
+    DerivativePosition,
     FundingRate,
     Order,
     OrderBook,
     OrderSide,
     OrderStatus,
     OrderType,
-    Position,
     SpotBalance,
     Ticker,
     TimeInForce,
     Trade,
 )
+from cyberdelta.utils.logging_config import get_logger
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+# Type variable for generic response handling
+ResponseType = TypeVar("ResponseType")
 
 
 class BackpackAPI(ExchangeAPI):
@@ -501,7 +504,7 @@ class BackpackAPI(ExchangeAPI):
 
         # Ensure response_data is a dictionary before proceeding
         if not isinstance(response_data, dict):
-            self.logger.warning(
+            logger.warning(
                 f"[{self.exchange_name}] Unexpected response type for balances: "
                 f"{type(response_data)}. Returning empty balances."
             )
@@ -512,26 +515,19 @@ class BackpackAPI(ExchangeAPI):
 
         processed_balances: dict[str, SpotBalance] = {}
         for asset, balance_details in response_dict.items():  # Iterate over typed dict
-            # Runtime check still useful despite cast
-            if not isinstance(balance_details, dict):
-                self.logger.warning(
-                    f"[{self.exchange_name}] Skipping balance entry for asset '{asset}' "
-                    f"due to unexpected details type: {type(balance_details)}"
-                )
-                continue
             try:
                 # Ensure asset is treated as string
                 asset_str = str(asset)
                 # Create SpotBalance instance, passing the exchange name and details
                 balance = SpotBalance(
-                    exchange=self.exchange_name.value,  # Use dynamic exchange name
+                    exchange=self.exchange_name,  # Pass str name directly
                     asset=asset_str,
                     total=balance_details.get("total", "0"),  # Pydantic handles parsing
                     available=balance_details.get("available", "0"),  # Pydantic handles parsing
                 )
                 processed_balances[asset_str] = balance
             except (ValidationError, TypeError, InvalidOperation) as e:
-                self.logger.error(
+                logger.error(
                     f"[{self.exchange_name}] Error parsing balance item for asset '{asset}': {e}. Data: {balance_details}",
                     exc_info=True,
                 )
@@ -539,7 +535,7 @@ class BackpackAPI(ExchangeAPI):
 
         return processed_balances
 
-    async def get_positions(self, symbol: str | None = None) -> list[Position]:
+    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """
         Get current positions.
         Currently fetches all positions, ignoring the optional symbol filter.
@@ -563,7 +559,7 @@ class BackpackAPI(ExchangeAPI):
                     f"{type(response)}. Returning empty list."
                 )
                 return []
-            positions: list[Position] = []
+            positions: list[DerivativePosition] = []
             pos_data_item: Any
             for pos_data_item in response:
                 item: dict[str, Any] = cast(dict[str, Any], pos_data_item)
@@ -596,9 +592,6 @@ class BackpackAPI(ExchangeAPI):
                     pnl_dec = parse_decimal_value(
                         item.get("unrealizedPnl", "0"), allow_none=False, field_name="unrealizedPnl"
                     )
-                    leverage_float = parse_decimal_value(
-                        item.get("leverage", "1.0"), allow_none=False, field_name="leverage"
-                    )
                     # Defensive: ensure required decimals are not None
                     if size_dec is None:
                         raise ValueError(
@@ -616,12 +609,18 @@ class BackpackAPI(ExchangeAPI):
                         raise ValueError(
                             "Unrealized PnL is None after parse_decimal_value with allow_none=False"
                         )
-                    if leverage_float is None:
-                        raise ValueError(
-                            "Leverage is None after parse_decimal_value with allow_none=False"
+                    # Parse timestamp (assuming field name like 'lastUpdatedAtMs')
+                    ts_raw = item.get("lastUpdatedAtMs")  # Adjust field name if needed
+                    timestamp = parse_datetime_utc(ts_raw, field_name="lastUpdatedAtMs")
+                    if timestamp is None:
+                        logger.warning(
+                            f"[{self.exchange_name}] Position missing or invalid timestamp: {item}. Using current time."
                         )
-                    leverage_dec = leverage_float
-                    position = Position(
+                        timestamp = datetime.now(UTC)
+
+                    position = DerivativePosition(
+                        exchange=self.exchange_name,  # Add required exchange
+                        timestamp=timestamp,  # Add required timestamp
                         symbol=symbol_from_data,
                         size=size_dec,
                         entry_price=entry_price_dec,
@@ -629,9 +628,10 @@ class BackpackAPI(ExchangeAPI):
                         side=OrderSide.BUY if size_dec > Decimal("0") else OrderSide.SELL,
                         liquidation_price=liq_price_dec
                         if liq_price_dec is not None
-                        else Decimal("0"),
+                        else Decimal("0"),  # Provide default if None
                         unrealized_pnl=pnl_dec,
-                        leverage=leverage_dec,
+                        # Do not pass leverage here
+                        # bp_details could be parsed here if needed
                     )
                     positions.append(position)
                 except Exception as e:

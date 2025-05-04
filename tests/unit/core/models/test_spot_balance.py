@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.portfolio import SpotBalance  # Import the refactored model
+from cyberdelta.core.models.spot_balance import SpotBalance
 
 # --- SpotBalance Tests ---
 
@@ -171,7 +171,3 @@ def test_spot_balance_immutability() -> None:
         assert balance.available == Decimal("900.00"), (
             "Field value changed despite ValidationError on frozen instance."
         )
-
-
-# --- TODO: Add Position Tests Below ---
-# Tests for the Position class should be added here later.

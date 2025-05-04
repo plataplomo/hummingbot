@@ -35,10 +35,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.models.api import APIError, APIErrorResponse
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
+    DerivativePosition,
     FundingRate,
     OrderBook,
     OrderSide,
-    Position,
     SpotBalance,
     Ticker,
     Trade,
@@ -569,7 +569,7 @@ class HyperliquidPositionMapper:
     """
 
     @staticmethod
-    def map(raw: HyperliquidRawPositionInfo) -> Position | None:
+    def map(raw: HyperliquidRawPositionInfo) -> DerivativePosition | None:
         try:
             size = parse_decimal_value(raw.szi, allow_none=False, field_name="position.size")
             entry_price = parse_decimal_value(
@@ -584,7 +584,7 @@ class HyperliquidPositionMapper:
             if size is None or entry_price is None:
                 return None
             side = OrderSide.BUY if size > 0 else OrderSide.SELL
-            return Position(
+            return DerivativePosition(
                 symbol=raw.coin,
                 size=size,
                 entry_price=entry_price,
@@ -749,7 +749,7 @@ class HyperliquidWsEventMapper:
             return None
 
     @staticmethod
-    def map_position_event(raw: WsPositionInfo) -> Position | None:
+    def map_position_event(raw: WsPositionInfo) -> DerivativePosition | None:
         # TODO: Map fields from WsPositionInfo to Position
         #       if structure differs from HyperliquidRawPositionInfo
         # For now, return None or implement a conversion if needed

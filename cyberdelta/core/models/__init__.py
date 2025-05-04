@@ -8,6 +8,14 @@ convenient import.
 """
 
 # from .credentials import APIKeys # TODO: Resolve ModuleNotFoundError
+from .derivative_position import (
+    BackpackPositionDetails,
+    BackpackRawImfFunction,
+    BackpackRawMmfFunction,
+    DerivativePosition,
+    HyperliquidPositionDetails,
+    HyperliquidRawLeverage,
+)
 from .enums import (
     # ExchangeType, # Removed - Not defined in enums.py
     # Interval, # Removed - Not defined in enums.py
@@ -18,7 +26,7 @@ from .enums import (
     TimeInForce,
 )
 from .market import FundingRate, Order, OrderBook, Ticker, Trade
-from .portfolio import Position, SpotBalance
+from .spot_balance import SpotBalance
 
 # from .positions import PositionInfo, PositionSide # TODO: Resolve ModuleNotFoundError
 # from .quotes import Quote # TODO: Resolve ModuleNotFoundError
@@ -39,7 +47,12 @@ __all__ = [
     "OrderBook",
     "FundingRate",
     "SpotBalance",
-    "Position",
+    "DerivativePosition",
+    "HyperliquidPositionDetails",
+    "HyperliquidRawLeverage",
+    "BackpackPositionDetails",
+    "BackpackRawImfFunction",
+    "BackpackRawMmfFunction",
     "TradeSignal",
     # "PositionInfo", # TODO: Resolve ModuleNotFoundError
     # "PositionSide", # TODO: Resolve ModuleNotFoundError

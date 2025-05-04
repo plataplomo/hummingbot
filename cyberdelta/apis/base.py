@@ -17,10 +17,10 @@ from cyberdelta.apis.models.api import APIError, RateLimiterConfig
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.core.models import (
+    DerivativePosition,
     FundingRate,
     Order,
     OrderBook,
-    Position,
     SpotBalance,
     Ticker,
     Trade,
@@ -732,7 +732,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_positions(self, symbol: str | None = None) -> list[Position]:
+    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Fetch current open positions, optionally filtered by symbol."""
         raise NotImplementedError
 
@@ -871,7 +871,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def parse_position(self, data: dict[str, Any]) -> Position:
+    def parse_position(self, data: dict[str, Any]) -> DerivativePosition:
         """Parse raw position data into a Position object."""
         raise NotImplementedError
 
@@ -903,7 +903,7 @@ class ExchangeAPI(ABC):
     @abstractmethod
     def parse_account_update_message(
         self, message: dict[str, Any]
-    ) -> tuple[dict[str, SpotBalance] | None, dict[str, Position] | None]:
+    ) -> tuple[dict[str, SpotBalance] | None, dict[str, DerivativePosition] | None]:
         """Parse a WebSocket message containing account (balance/position) updates."""
         raise NotImplementedError
 
