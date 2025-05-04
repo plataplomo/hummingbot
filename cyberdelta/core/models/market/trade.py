@@ -18,76 +18,6 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, va
 from ..enums import OrderSide
 
 
-class HyperliquidTradeDetails(BaseModel):
-    """
-    Hyperliquid-specific trade enrichment fields for extension slot on Trade.
-
-    Fields:
-        trade_hash (str): Unique trade hash (ApiUserFill.hash)
-        liquidation_mark_px (Optional[Decimal]): Mark price at liquidation
-            (ApiUserFill.liquidationMarkPx)
-        start_position (Optional[Decimal]): Position size before fill
-            (ApiUserFill.startPosition)
-        dir (Optional[str]): Direction of fill (ApiUserFill.dir).
-            Enum validation to be added if values are known.
-    """
-
-    trade_hash: str
-    liquidation_mark_px: Decimal | None = None
-    start_position: Decimal | None = None
-    dir: str | None = None
-
-    model_config = ConfigDict(extra="ignore", frozen=True)
-
-    @field_validator("trade_hash", mode="before")
-    @classmethod
-    def validate_trade_hash(cls, v: str, info: object) -> str:
-        return validate_str_field(v, field_name="trade_hash", max_length=128)
-
-    @field_validator("dir", mode="before")
-    @classmethod
-    def validate_dir(cls, v: str | None, info: object) -> str | None:
-        if v is None:
-            return None
-        # TODO: Replace with enum validation if/when values are known
-        return validate_str_field(v, field_name="dir", max_length=32)
-
-    @field_validator("liquidation_mark_px", "start_position", mode="before")
-    @classmethod
-    def validate_decimals(
-        cls, v: str | int | float | Decimal | None, info: object
-    ) -> Decimal | None:
-        if v is None:
-            return None
-        field_name = getattr(info, "field_name", "unknown")
-        d = parse_decimal_value(v, allow_none=False, field_name=field_name)
-        if d is not None and not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal.")
-        return d
-
-
-class BackpackTradeDetails(BaseModel):
-    """
-    Backpack-specific trade enrichment fields for extension slot on Trade.
-
-    Fields:
-        system_order_type (Optional[str]): Type of system order that triggered the fill
-            (OrderFill.systemOrderType). Enum validation to be added if values are known.
-    """
-
-    system_order_type: str | None = None
-
-    model_config = ConfigDict(extra="ignore", frozen=True)
-
-    @field_validator("system_order_type", mode="before")
-    @classmethod
-    def validate_system_order_type(cls, v: str | None, info: object) -> str | None:
-        if v is None:
-            return None
-        # TODO: Replace with enum validation if/when values are known
-        return validate_str_field(v, field_name="system_order_type", max_length=32)
-
-
 class Trade(BaseModel):
     """
     Lean core internal model for a single execution event (fill) across all supported exchanges.
@@ -192,3 +122,73 @@ class Trade(BaseModel):
             elif isinstance(value, datetime):
                 data[key] = value.isoformat()
         return data
+
+
+class HyperliquidTradeDetails(BaseModel):
+    """
+    Hyperliquid-specific trade enrichment fields for extension slot on Trade.
+
+    Fields:
+        trade_hash (str): Unique trade hash (ApiUserFill.hash)
+        liquidation_mark_px (Optional[Decimal]): Mark price at liquidation
+            (ApiUserFill.liquidationMarkPx)
+        start_position (Optional[Decimal]): Position size before fill
+            (ApiUserFill.startPosition)
+        dir (Optional[str]): Direction of fill (ApiUserFill.dir).
+            Enum validation to be added if values are known.
+    """
+
+    trade_hash: str
+    liquidation_mark_px: Decimal | None = None
+    start_position: Decimal | None = None
+    dir: str | None = None
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    @field_validator("trade_hash", mode="before")
+    @classmethod
+    def validate_trade_hash(cls, v: str, info: object) -> str:
+        return validate_str_field(v, field_name="trade_hash", max_length=128)
+
+    @field_validator("dir", mode="before")
+    @classmethod
+    def validate_dir(cls, v: str | None, info: object) -> str | None:
+        if v is None:
+            return None
+        # TODO: Replace with enum validation if/when values are known
+        return validate_str_field(v, field_name="dir", max_length=32)
+
+    @field_validator("liquidation_mark_px", "start_position", mode="before")
+    @classmethod
+    def validate_decimals(
+        cls, v: str | int | float | Decimal | None, info: object
+    ) -> Decimal | None:
+        if v is None:
+            return None
+        field_name = getattr(info, "field_name", "unknown")
+        d = parse_decimal_value(v, allow_none=False, field_name=field_name)
+        if d is not None and not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal.")
+        return d
+
+
+class BackpackTradeDetails(BaseModel):
+    """
+    Backpack-specific trade enrichment fields for extension slot on Trade.
+
+    Fields:
+        system_order_type (Optional[str]): Type of system order that triggered the fill
+            (OrderFill.systemOrderType). Enum validation to be added if values are known.
+    """
+
+    system_order_type: str | None = None
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    @field_validator("system_order_type", mode="before")
+    @classmethod
+    def validate_system_order_type(cls, v: str | None, info: object) -> str | None:
+        if v is None:
+            return None
+        # TODO: Replace with enum validation if/when values are known
+        return validate_str_field(v, field_name="system_order_type", max_length=32)

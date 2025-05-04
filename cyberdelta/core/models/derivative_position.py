@@ -24,93 +24,6 @@ from cyberdelta.utils.parsing import (
     validate_str_field,
 )
 
-# --- Derivative Position Details & Sub-Models (INTERNAL) ---
-
-
-class HyperliquidPositionDetails(BaseModel):
-    """Immutable exchange-specific details for a Hyperliquid position (Internal)."""
-
-    leverage_type: str = Field(...)  # 'cross' or 'isolated'
-    leverage_value: int = Field(..., ge=0)
-    max_leverage: int = Field(..., ge=0)
-    margin_used: Decimal | None = Field(default=None, ge=Decimal("0"))
-
-    # Config: Immutable, ignore extra fields during creation
-    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
-
-    @field_validator("leverage_type", mode="before")
-    @classmethod
-    def validate_leverage_type(cls, v: object, info: ValidationInfo) -> str:
-        """Validate leverage_type is 'cross' or 'isolated'."""
-        field_name = info.field_name or "leverage_type"
-        allowed_values: set[str] = {"cross", "isolated"}
-        try:
-            s = validate_str_field(v, field_name=field_name, max_length=16)
-            # Use helper for enum check
-            return validate_enum_field(s, allowed=allowed_values, field_name=field_name)
-        except Exception as e:
-            raise ValueError(f"{field_name}: Validation failed - {e}") from e
-
-    @field_validator("leverage_value", "max_leverage", mode="before")
-    @classmethod
-    def validate_leverage_int(cls, v: object, info: ValidationInfo) -> int:
-        """Validate leverage values are non-negative integers."""
-        field_name = info.field_name
-        if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
-        if not isinstance(v, int):
-            raise ValueError(f"{field_name}: Expected int, got {type(v).__name__}")
-        if v < 0:
-            raise ValueError(f"{field_name}: Must be non-negative")
-        return v
-
-    @field_validator("margin_used", mode="before")
-    @classmethod
-    def parse_optional_decimal_finite(  # Renamed for clarity
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo
-    ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present."""
-        field_name = info.field_name
-        if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
-        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
-        # Check finiteness if not None. ge=0 handled by Field constraint.
-        if parsed is not None and not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
-        return parsed
-
-
-class BackpackPositionDetails(BaseModel):
-    """Immutable exchange-specific details for a Backpack position (Internal)."""
-
-    imf_base: Decimal | None = Field(default=None)
-    imf_factor: Decimal | None = Field(default=None)
-    mmf_base: Decimal | None = Field(default=None)
-    mmf_factor: Decimal | None = Field(default=None)
-    cumulative_funding: Decimal | None = Field(default=None)
-
-    # Config: Immutable, ignore extra fields during creation
-    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
-
-    # Use single validator for all optional decimals
-    @field_validator(
-        "imf_base", "imf_factor", "mmf_base", "mmf_factor", "cumulative_funding", mode="before"
-    )
-    @classmethod
-    def parse_optional_decimal_finite(  # Renamed for clarity and consistency
-        cls, v: str | int | float | Decimal | None, info: ValidationInfo
-    ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present."""
-        field_name = info.field_name
-        if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
-        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
-        # Check finiteness if not None
-        if parsed is not None and not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
-        return parsed
-
-
 # --- Derivative Position Core Model ---
 
 
@@ -305,3 +218,90 @@ class DerivativePosition(BaseModel):
                 )
 
         return self
+
+
+# --- Derivative Position Details & Sub-Models (INTERNAL) ---
+
+
+class HyperliquidPositionDetails(BaseModel):
+    """Immutable exchange-specific details for a Hyperliquid position (Internal)."""
+
+    leverage_type: str = Field(...)  # 'cross' or 'isolated'
+    leverage_value: int = Field(..., ge=0)
+    max_leverage: int = Field(..., ge=0)
+    margin_used: Decimal | None = Field(default=None, ge=Decimal("0"))
+
+    # Config: Immutable, ignore extra fields during creation
+    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
+
+    @field_validator("leverage_type", mode="before")
+    @classmethod
+    def validate_leverage_type(cls, v: object, info: ValidationInfo) -> str:
+        """Validate leverage_type is 'cross' or 'isolated'."""
+        field_name = info.field_name or "leverage_type"
+        allowed_values: set[str] = {"cross", "isolated"}
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=16)
+            # Use helper for enum check
+            return validate_enum_field(s, allowed=allowed_values, field_name=field_name)
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+
+    @field_validator("leverage_value", "max_leverage", mode="before")
+    @classmethod
+    def validate_leverage_int(cls, v: object, info: ValidationInfo) -> int:
+        """Validate leverage values are non-negative integers."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        if not isinstance(v, int):
+            raise ValueError(f"{field_name}: Expected int, got {type(v).__name__}")
+        if v < 0:
+            raise ValueError(f"{field_name}: Must be non-negative")
+        return v
+
+    @field_validator("margin_used", mode="before")
+    @classmethod
+    def parse_optional_decimal_finite(  # Renamed for clarity
+        cls, v: str | int | float | Decimal | None, info: ValidationInfo
+    ) -> Decimal | None:
+        """Parse optional decimal, ensuring finite if present."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
+        # Check finiteness if not None. ge=0 handled by Field constraint.
+        if parsed is not None and not parsed.is_finite():
+            raise ValueError(f"{field_name}: Value must be finite if provided")
+        return parsed
+
+
+class BackpackPositionDetails(BaseModel):
+    """Immutable exchange-specific details for a Backpack position (Internal)."""
+
+    imf_base: Decimal | None = Field(default=None)
+    imf_factor: Decimal | None = Field(default=None)
+    mmf_base: Decimal | None = Field(default=None)
+    mmf_factor: Decimal | None = Field(default=None)
+    cumulative_funding: Decimal | None = Field(default=None)
+
+    # Config: Immutable, ignore extra fields during creation
+    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
+
+    # Use single validator for all optional decimals
+    @field_validator(
+        "imf_base", "imf_factor", "mmf_base", "mmf_factor", "cumulative_funding", mode="before"
+    )
+    @classmethod
+    def parse_optional_decimal_finite(  # Renamed for clarity and consistency
+        cls, v: str | int | float | Decimal | None, info: ValidationInfo
+    ) -> Decimal | None:
+        """Parse optional decimal, ensuring finite if present."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
+        # Check finiteness if not None
+        if parsed is not None and not parsed.is_finite():
+            raise ValueError(f"{field_name}: Value must be finite if provided")
+        return parsed

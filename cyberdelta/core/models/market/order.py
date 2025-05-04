@@ -24,88 +24,6 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, va
 logger = logging.getLogger(__name__)
 
 
-# --- Enrichment Details Models (Immutable) ---
-class HyperliquidOrderDetails(BaseModel):
-    """Hyperliquid-specific order enrichment fields. Immutable."""
-
-    remaining_sz: Decimal | None = Field(
-        default=None, ge=Decimal("0"), description="Remaining unfilled size (non-negative)."
-    )
-    # Add other HL-specific fields as needed
-    model_config = ConfigDict(extra="ignore", frozen=True)
-
-    @field_validator("remaining_sz", mode="before")
-    @classmethod
-    def parse_optional_decimal_finite(
-        cls,
-        v: str | int | float | Decimal | None,
-        info: ValidationInfo,
-    ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present."""
-        field_name = info.field_name
-        if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
-        if v is None:
-            return None
-        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
-        if parsed is None:  # Input format was invalid
-            return None
-        # Check finiteness if a valid Decimal was parsed. ge=0 handled by Field.
-        if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
-        return parsed
-
-
-class BackpackOrderDetails(BaseModel):
-    """Backpack-specific order enrichment fields. Immutable."""
-
-    # Fields based on Task Instructions
-    executed_quote_quantity: Decimal | None = Field(default=None, ge=Decimal("0"))
-    self_trade_prevention: SelfTradePrevention | None = None
-    expiry_reason: OrderExpiryReason | None = None
-    origin: OrderUpdateOrigin | None = None
-    sl_trigger_price: Decimal | None = Field(default=None, gt=Decimal("0"))
-    sl_limit_price: Decimal | None = Field(default=None, gt=Decimal("0"))
-    sl_trigger_by: TriggerType | None = None
-    tp_trigger_price: Decimal | None = Field(default=None, gt=Decimal("0"))
-    tp_limit_price: Decimal | None = Field(default=None, gt=Decimal("0"))
-    tp_trigger_by: TriggerType | None = None
-    trigger_quantity: Decimal | None = Field(default=None, gt=Decimal("0"))
-
-    model_config = ConfigDict(extra="ignore", frozen=True)
-
-    @field_validator(
-        "executed_quote_quantity",
-        "sl_trigger_price",
-        "sl_limit_price",
-        "tp_trigger_price",
-        "tp_limit_price",
-        "trigger_quantity",
-        mode="before",
-    )
-    @classmethod
-    def parse_optional_decimal_finite(
-        cls,
-        v: str | int | float | Decimal | None,
-        info: ValidationInfo,
-    ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present."""
-        field_name = info.field_name
-        if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
-        if v is None:
-            return None
-        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
-        if parsed is None:  # Input format was invalid
-            return None
-        # Check finiteness if a valid Decimal was parsed. gt/ge=0 handled by Field.
-        if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
-        return parsed
-
-    # Enum fields rely on Pydantic's default validation for Optional[EnumType]
-
-
 # --- Core Order Model (Mutable) ---
 class Order(BaseModel):
     """
@@ -351,5 +269,84 @@ class Order(BaseModel):
 
         return self
 
-    # Remove old helper methods like to_dict, add_trade, etc.
-    # Serialization should use model_dump() or custom serializers if needed.
+
+# --- Enrichment Details Models (Immutable) ---
+class HyperliquidOrderDetails(BaseModel):
+    """Hyperliquid-specific order enrichment fields. Immutable."""
+
+    remaining_sz: Decimal | None = Field(
+        default=None, ge=Decimal("0"), description="Remaining unfilled size (non-negative)."
+    )
+    # Add other HL-specific fields as needed
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    @field_validator("remaining_sz", mode="before")
+    @classmethod
+    def parse_optional_decimal_finite(
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
+    ) -> Decimal | None:
+        """Parse optional decimal, ensuring finite if present."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        if v is None:
+            return None
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
+        if parsed is None:  # Input format was invalid
+            return None
+        # Check finiteness if a valid Decimal was parsed. ge=0 handled by Field.
+        if not parsed.is_finite():
+            raise ValueError(f"{field_name}: Value must be finite if provided")
+        return parsed
+
+
+class BackpackOrderDetails(BaseModel):
+    """Backpack-specific order enrichment fields. Immutable."""
+
+    # Fields based on Task Instructions
+    executed_quote_quantity: Decimal | None = Field(default=None, ge=Decimal("0"))
+    self_trade_prevention: SelfTradePrevention | None = None
+    expiry_reason: OrderExpiryReason | None = None
+    origin: OrderUpdateOrigin | None = None
+    sl_trigger_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    sl_limit_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    sl_trigger_by: TriggerType | None = None
+    tp_trigger_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    tp_limit_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    tp_trigger_by: TriggerType | None = None
+    trigger_quantity: Decimal | None = Field(default=None, gt=Decimal("0"))
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    @field_validator(
+        "executed_quote_quantity",
+        "sl_trigger_price",
+        "sl_limit_price",
+        "tp_trigger_price",
+        "tp_limit_price",
+        "trigger_quantity",
+        mode="before",
+    )
+    @classmethod
+    def parse_optional_decimal_finite(
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
+    ) -> Decimal | None:
+        """Parse optional decimal, ensuring finite if present."""
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        if v is None:
+            return None
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
+        if parsed is None:  # Input format was invalid
+            return None
+        # Check finiteness if a valid Decimal was parsed. gt/ge=0 handled by Field.
+        if not parsed.is_finite():
+            raise ValueError(f"{field_name}: Value must be finite if provided")
+        return parsed
+
+    # Enum fields rely on Pydantic's default validation for Optional[EnumType]
