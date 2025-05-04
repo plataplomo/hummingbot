@@ -11,12 +11,12 @@ import aiohttp
 import pytest
 
 from cyberdelta.core.models import (
+    DerivativePosition,
     FundingRate,
     Order,
     OrderSide,
     OrderStatus,
     OrderType,
-    Position,
     SpotBalance,
     Ticker,
 )
@@ -302,17 +302,26 @@ def mock_exchange_api() -> AsyncMock:
     }
 
     mock_api.get_positions.return_value = {
-        "BTC": Position(
+        "BTC": DerivativePosition(
+            exchange="mock_exchange",
+            timestamp=datetime.now(UTC),
             symbol="BTC",
             size=Decimal("0.5"),
-            entry_price=Decimal("40000.0"),
-            mark_price=Decimal("42000.0"),
-            liquidation_price=Decimal("30000.0"),
-            unrealized_pnl=Decimal("1000.0"),
-            leverage=Decimal("5.0"),
+            entry_price=Decimal("60000"),
+            mark_price=Decimal("61000"),
             side=OrderSide.BUY,
-            timestamp=int(now.timestamp() * 1000),  # Position expects int | None
-        )
+            unrealized_pnl=Decimal("500"),
+        ),
+        "ETH": DerivativePosition(
+            exchange="mock_exchange",
+            timestamp=datetime.now(UTC),
+            symbol="ETH",
+            size=Decimal("-10"),
+            entry_price=Decimal("3000"),
+            mark_price=Decimal("2950"),
+            side=OrderSide.SELL,
+            unrealized_pnl=Decimal("500"),
+        ),
     }
 
     mock_api.get_ticker.return_value = Ticker(
@@ -350,6 +359,10 @@ def mock_exchange_api() -> AsyncMock:
         strategy_name=None,
         signal_id=None,
     )
+
+    mock_api.get_open_orders.return_value = [
+        # Assuming get_open_orders returns a list of orders
+    ]
 
     return mock_api
 
@@ -416,20 +429,20 @@ def mock_arbitrage_opportunity() -> MagicMock:
     return opportunity
 
 
-def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any | None:  # noqa: ANN401 - Config helper mock
-    """Helper to access nested keys using dot notation."""
-    key_parts = keys.split(".")
-    val: Any = d  # noqa: ANN401 - Iterating through potentially mixed dict
-    try:
-        for key in key_parts:
-            if isinstance(val, dict):
-                val = val[key]
-            else:
-                # If we encounter a non-dict before the last key part, return default
-                # If it's the last part, return the value itself
-                if key != key_parts[-1]:
-                    return default
-                return val
-        return val
-    except (KeyError, TypeError, IndexError):
-        return default
+def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any | None:  # noqa: ANN401 - Config helper mock # type: ignore[reportUnknownVariableType]
+    """Helper to get nested dictionary values."""
+    keys_list = keys.split(".")
+    val: Any = d  # Initialize val with type Any
+    for key in keys_list:
+        # Check if val is a dict before attempting access
+        if isinstance(val, dict):
+            val = val.get(key, default)  # type: ignore[reportUnknownMemberType]
+            if val == default:  # Stop if key not found
+                break
+        else:
+            return default  # Return default if intermediate path is not a dict
+    # Check if the final value is the default, potentially indicating failure
+    # The original default check was inside the loop, this might be more accurate
+    # depending on desired behavior if a key maps to the default value itself.
+    # Let's keep the logic simple: return whatever val is at the end.
+    return val

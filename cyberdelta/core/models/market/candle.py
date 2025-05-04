@@ -25,7 +25,8 @@ class Candle(BaseModel):
 
     Attributes:
         symbol: Trading symbol (validated: required, non-empty, max 64 chars, UTF-8).
-        interval: Time interval of the candle (e.g., "1m", "1h") (validated: required, non-empty, max 16 chars).
+        interval: Time interval of the candle (e.g., "1m", "1h")
+                    (validated: required, non-empty, max 16 chars).
         open_time: Start time of the candle interval (validated: required, UTC).
         open: Opening price for the interval (validated: required, > 0, finite).
         high: Highest price for the interval (validated: required, > 0, finite).
@@ -36,7 +37,8 @@ class Candle(BaseModel):
     Configuration:
         - `frozen=True`: Guarantees immutability.
         - `extra='forbid'`: Prevents unexpected fields.
-        - `validate_assignment=True`: Ensures validation on assignment (mostly redundant with frozen=True).
+        - `validate_assignment=True`: Ensures validation on assignment
+                (mostly redundant with frozen=True).
     """
 
     symbol: str

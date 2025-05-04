@@ -136,7 +136,8 @@ class DerivativePosition(BaseModel):
         unrealized_pnl (Decimal | None): Current unrealized PnL (can be negative).
         realized_pnl (Decimal | None): Accumulated realized PnL (can be negative).
         strategy_name (str | None): Optional identifier for the strategy managing this position.
-        signal_id (str | None): Optional identifier for the signal that originated the position/trade.
+        signal_id (str | None): Optional identifier for the signal
+                                that originated the position/trade.
 
     Extension Slots:
         hl_details (HyperliquidPositionDetails | None): Specific details for Hyperliquid.
@@ -201,22 +202,6 @@ class DerivativePosition(BaseModel):
             raise ValueError("Field name is unexpectedly None during validation.")
         return validate_str_field(v, field_name=field_name, max_length=128)
 
-    @field_validator("side", mode="before")
-    @classmethod
-    def validate_side_enum(cls, v: object, info: ValidationInfo) -> OrderSide:
-        """Validate OrderSide enum."""
-        # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
-        field_name = info.field_name
-        if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
-        try:
-            allowed_values: set[str] = {member.value for member in OrderSide}
-            s = validate_str_field(v, field_name=field_name, max_length=16)
-            validated_str = validate_enum_field(s, allowed=allowed_values, field_name=field_name)
-            return OrderSide(validated_str)
-        except Exception as e:
-            raise ValueError(f"{field_name}: Validation failed - {e}") from e
-
     @field_validator("size", mode="before")
     @classmethod
     def parse_required_decimal(
@@ -228,7 +213,7 @@ class DerivativePosition(BaseModel):
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
         parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Explicitly require non-None and finite values post-parse. Mypy=[unreachable]
+        # DEFENSIVE CHECK: Explicitly require non-None and finite values post-parse.
         if parsed is None:
             raise ValueError(f"{field_name}: Value cannot be None")
         # DEFENSIVE CHECK: Ensure value is finite. Mypy=[possibly-undefined]

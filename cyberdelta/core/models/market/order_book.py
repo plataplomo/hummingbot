@@ -11,7 +11,8 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, va
 
 class OrderBook(BaseModel):
     """
-    Represents an immutable, validated snapshot of the L2 order book for a specific symbol at a point in time.
+    Represents an immutable, validated snapshot
+    of the L2 order book for a specific symbol at a point in time.
 
     This model enforces strict validation for structure and data types during initialization,
     ensuring consistency and safety for internal use within the CyberDeltaEngine. It uses
@@ -33,7 +34,8 @@ class OrderBook(BaseModel):
     Configuration:
         - `frozen=True`: Guarantees immutability after creation.
         - `extra='forbid'`: Prevents unexpected fields during initialization.
-        - `validate_assignment=True`: Ensures validation runs even if attributes are somehow modified post-init (though frozen should prevent this).
+        - `validate_assignment=True`: Ensures validation runs even if
+                    attributes are somehow modified post-init (though frozen should prevent this).
     """
 
     symbol: str
@@ -66,7 +68,8 @@ class OrderBook(BaseModel):
         """
         Validate and parse the 'timestamp' field to a required UTC datetime object.
 
-        Handles various input types (datetime, int/float ms epoch, ISO string) via `parse_datetime_utc`.
+        Handles various input types (datetime, int/float ms epoch, ISO string)
+            via `parse_datetime_utc`.
 
         Args:
             v: The raw input value for the timestamp.
@@ -90,7 +93,8 @@ class OrderBook(BaseModel):
         """
         Validate structure, parse types, and validate content for 'bids' and 'asks' fields.
 
-        This comprehensive `mode='before'` validator handles the entire process for order book levels:
+        This comprehensive `mode='before'` validator handles
+                the entire process for order book levels:
         1.  Ensures the input `v` is a list.
         2.  Iterates through each `level_raw` item in the list.
         3.  Validates `level_raw` structure: Must be a list or tuple of exactly length 2.
@@ -107,9 +111,12 @@ class OrderBook(BaseModel):
             A list of validated (Decimal price, Decimal quantity) tuples.
         Raises:
             TypeError: If the input `v` is not a list, or if items within `v` are not lists/tuples,
-                       or if price/quantity elements have fundamentally incompatible types (e.g., None, dict).
-            ValueError: If items within `v` do not have length 2, or if price/quantity strings/numbers
-                        cannot be parsed to Decimal, or if parsed values are non-finite or quantity is negative.
+                       or if price/quantity elements have
+                        fundamentally incompatible types (e.g., None, dict).
+            ValueError: If items within `v` do not have length 2,
+                        or if price/quantity strings/numbers
+                        cannot be parsed to Decimal,
+                        or if parsed values are non-finite or quantity is negative.
         """
         field_name = info.field_name
         if not isinstance(v, list):
@@ -122,7 +129,8 @@ class OrderBook(BaseModel):
         for index, level_raw in enumerate(v):  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
             # 1. Validate Structure (Runtime check)
             if not isinstance(level_raw, list | tuple):
-                # Ignore necessary because Pyright doesn't know 'level_raw' type after initial check.
+                # Ignore necessary because Pyright
+                # doesn't know 'level_raw' type after initial check.
                 raise TypeError(
                     f"Level item in {field_name} at index {index} must be a list or tuple, "
                     f"got {type(level_raw).__name__}"  # pyright: ignore[reportUnknownArgumentType]

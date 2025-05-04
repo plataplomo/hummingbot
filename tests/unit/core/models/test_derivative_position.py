@@ -155,21 +155,23 @@ def test_derivative_position_mutability(
     assert pos.timestamp != original_timestamp
 
     # Test invalid mutation (negative mark price)
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="mark_price"):
         pos.mark_price = Decimal("-100")
 
     # Test mutation triggering model validation (size vs entry_price)
-    pos.size = Decimal("0")
-    # Should fail because entry_price is still set
+    # Ensure entry_price is initially valid
+    pos.size = Decimal("1.0")
+    pos.entry_price = Decimal("50000")
+    # Now, setting size to 0 should trigger the model validator because entry_price is not None
     with pytest.raises(ValidationError, match="entry_price must be None if size is zero"):
-        # Pydantic v2 should automatically re-validate on assignment triggering model_validator
-        pass  # The error should be raised when size was set to 0 while entry_price != None
+        pos.size = Decimal("0")
 
-    # Correct the state
-    pos.entry_price = None  # Now set entry_price to None
-    pos.size = Decimal("0")  # Re-set size to 0, validation should pass now
+    # Correct the state *before* assignment to avoid the model validation error during assignment
+    pos.entry_price = None
+    pos.size = Decimal("0")  # This assignment should now pass
     assert pos.size == Decimal("0")
     assert pos.entry_price is None
+
     # Re-check validation passes - assign a valid value
     pos.symbol = "ETH-PERP"  # Should not raise now
     assert pos.symbol == "ETH-PERP"
@@ -181,36 +183,44 @@ def test_derivative_position_mutability(
 @pytest.mark.parametrize(
     "field, value, error_part",
     [
-        ("exchange", None, "Field required"),  # Missing required
-        ("exchange", "", "String must not be empty"),  # Updated check
-        ("symbol", None, "Field required"),
-        ("symbol", " ", "String must not be empty"),  # Updated check
-        ("side", None, "Field required"),
-        ("side", "INVALID_SIDE", "Input should be 'buy' or 'sell'"),  # Based on enum
-        ("size", None, "Field required"),
-        ("size", "abc", "Input should be a valid number"),
+        # Required string fields validation (None input -> Specific error)
+        ("exchange", None, "Value error, exchange: Expected string, got NoneType"),
+        ("exchange", "", "String cannot be empty or whitespace"),
+        ("symbol", None, "Value error, symbol: Expected string, got NoneType"),
+        ("symbol", " ", "String cannot be empty or whitespace"),
+        # Required enum field validation (None input -> Specific error)
+        ("side", None, "Input should be 'BUY' or 'SELL'"),
+        # Invalid enum value
+        ("side", "INVALID_SIDE", "Input should be 'BUY' or 'SELL'"),
+        # Required decimal field validation
+        ("size", None, "Value error, size: Value cannot be None"),
+        ("size", "abc", "Cannot convert 'abc' to Decimal"),
         ("size", Decimal("NaN"), "Value must be finite"),
-        ("entry_price", Decimal("NaN"), "Value must be finite if provided"),  # Optional check
+        ("entry_price", Decimal("NaN"), "Value must be finite if provided"),
         (
             "entry_price",
             Decimal("-10"),
-            "entry_price must be positive (> 0)",
-        ),  # Model validator check
-        ("timestamp", None, "Field required"),
-        ("timestamp", "invalid-date", "Invalid datetime format"),
+            # Simpler match for the core message
+            "Value error, entry_price must be positive (> 0) if size is non-zero",
+        ),
+        # Required datetime field validation
+        ("timestamp", None, "Value error, timestamp: Value cannot be None"),
+        ("timestamp", "invalid-date", "Cannot parse ISO datetime string"),
+        # Optional fields with constraints
         ("mark_price", Decimal("-1"), "Input should be greater than or equal to 0"),
-        ("mark_price", Decimal("Infinity"), "Value must be finite if provided"),  # Optional check
+        ("mark_price", Decimal("Infinity"), "Value must be finite if provided"),
         ("liquidation_price", Decimal("-1"), "Input should be greater than or equal to 0"),
-        ("liquidation_price", Decimal("NaN"), "Value must be finite if provided"),  # Optional check
+        ("liquidation_price", Decimal("NaN"), "Value must be finite if provided"),
         (
             "unrealized_pnl",
             Decimal("Infinity"),
             "Value must be finite if provided",
-        ),  # Optional check
-        ("realized_pnl", Decimal("NaN"), "Value must be finite if provided"),  # Optional check
-        ("strategy_name", 123, "Input should be a valid string"),
-        ("strategy_name", "s" * 129, "String should have at most 128 characters"),
-        ("signal_id", [], "Input should be a valid string"),
+        ),
+        ("realized_pnl", Decimal("NaN"), "Value must be finite if provided"),
+        # Optional string fields validation (Wrong type -> Specific error)
+        ("strategy_name", 123, "Value error, strategy_name: Expected string, got int"),
+        ("strategy_name", "s" * 129, "String value too long"),
+        ("signal_id", [], "Value error, signal_id: Expected string, got list"),
     ],
 )
 def test_derivative_position_invalid_core_fields(
@@ -295,7 +305,9 @@ def test_derivative_position_model_validation_failures(
     data["size"] = Decimal("1.0")
     data["entry_price"] = Decimal("0")
     with pytest.raises(
-        ValidationError, match="entry_price must be positive (> 0) if size is non-zero"
+        ValidationError,
+        # Use raw string and match exact model validation error
+        match=r"Value error, entry_price must be positive \(> 0\) if size is non-zero",
     ):
         DerivativePosition(**data)
 
@@ -303,7 +315,9 @@ def test_derivative_position_model_validation_failures(
     data["size"] = Decimal("1.0")
     data["entry_price"] = Decimal("-10")
     with pytest.raises(
-        ValidationError, match="entry_price must be positive (> 0) if size is non-zero"
+        ValidationError,
+        # Use raw string and match exact model validation error
+        match=r"Value error, entry_price must be positive \(> 0\) if size is non-zero",
     ):
         DerivativePosition(**data)
 
@@ -374,11 +388,13 @@ def test_hyperliquid_details_validation() -> None:
     assert details.model_config.get("frozen") is True
 
     # Invalid leverage type
-    with pytest.raises(ValidationError, match="Input should be 'cross' or 'isolated'"):
+    with pytest.raises(
+        ValidationError, match="leverage_type: Validation failed - leverage_type: Invalid value"
+    ):
         HyperliquidPositionDetails(leverage_type="bad", leverage_value=5, max_leverage=10)
 
     # Invalid leverage value (negative)
-    with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
+    with pytest.raises(ValidationError, match="leverage_value: Must be non-negative"):
         HyperliquidPositionDetails(leverage_type="cross", leverage_value=-1, max_leverage=10)
 
     # Invalid max_leverage (negative)
@@ -437,8 +453,7 @@ def test_backpack_details_validation() -> None:
     assert details.cumulative_funding == Decimal("-5.5")
 
     # Invalid decimal format - Testing the 'before' validator
-    with pytest.raises(ValidationError, match="Value must be finite if provided"):
-        # Fix: Add type: ignore for this specific validator test line
+    with pytest.raises(ValidationError, match="Cannot convert 'abc' to Decimal"):
         BackpackPositionDetails(imf_base="abc")  # type: ignore[arg-type]
     with pytest.raises(ValidationError, match="Value must be finite if provided"):
         BackpackPositionDetails(mmf_factor=Decimal("inf"))

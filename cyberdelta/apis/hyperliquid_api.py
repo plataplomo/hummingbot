@@ -492,14 +492,12 @@ class HyperliquidAPI(ExchangeAPI):
                                 size_dec = Decimal(size)
                                 entry_price_dec = Decimal(entry_price)
                                 # DEFENSIVE CHECK: Guards None from API. Pyright=[redundant-expr]
-                                # mark_price_dec = Decimal(mark_price) if mark_price is not None else None # Removed redundant check
                                 mark_price_dec = Decimal(mark_price)
                                 # DEFENSIVE CHECK: Guards None from API. Pyright=[redundant-expr]
                                 liq_price_dec = (
                                     Decimal(liq_price) if liq_price is not None else None
                                 )  # Keep check for optional liq_price
                                 # DEFENSIVE CHECK: Guards None from API. Pyright=[redundant-expr]
-                                # unrealized_pnl_dec = Decimal(unrealized_pnl) if unrealized_pnl is not None else None # Removed redundant check
                                 unrealized_pnl_dec = Decimal(unrealized_pnl)
                             except Exception:
                                 # Log or handle conversion error, skip this position
