@@ -10,15 +10,14 @@ import pytest
 from cyberdelta.apis.base import MessageHandler
 from cyberdelta.apis.hyperliquid_api import HyperliquidAPI
 from cyberdelta.core.models import (
-    Balance,
     FundingRate,
-    MarketData,
     Order,
     OrderBook,
     OrderSide,
     OrderStatus,
     OrderType,
     Position,
+    SpotBalance,
     Ticker,
     TimeInForce,
     Trade,
@@ -39,7 +38,7 @@ class TestHyperliquidAPI:
             # Correct return type for override
             def parse_account_update_message(
                 self, message: dict[str, Any]
-            ) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]:
+            ) -> tuple[dict[str, SpotBalance] | None, dict[str, Position] | None]:
                 return None, None  # Mock implementation
 
             async def parse_l2_book_update_message(self, message: dict[str, Any]) -> None:
@@ -69,7 +68,7 @@ class TestHyperliquidAPI:
             async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
                 return []
 
-            async def get_balances(self) -> dict[str, Balance]:
+            async def get_balances(self) -> dict[str, SpotBalance]:
                 raise NotImplementedError  # Implemented in base, but maybe needed here?
 
             async def get_positions(self, symbol: str | None = None) -> list[Position]:
@@ -138,7 +137,7 @@ class TestHyperliquidAPI:
             ) -> list[Trade]:
                 return []
 
-            def parse_balance(self, data: dict[str, Any]) -> Balance:
+            def parse_balance(self, data: dict[str, Any]) -> SpotBalance:
                 raise NotImplementedError
 
             def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate:
@@ -214,18 +213,21 @@ class TestHyperliquidAPI:
         """Test get_balances returns proper Balance objects."""
         # Mock the specific public method
         mock_balance_data = {
-            "USDC": Balance(
-                asset="USDC", total=Decimal("1000.50"), available=Decimal("1000.50")
+            "USDC": SpotBalance(
+                exchange="hyperliquid",
+                asset="USDC",
+                total=Decimal("1000.50"),
+                available=Decimal("1000.50"),
             )  # Hyperliquid only gives total USD value
         }
         api_client.get_balances = AsyncMock(return_value=mock_balance_data)  # type: ignore[method-assign]  # Test mock override
 
         # Get balances
-        balances: dict[str, Balance] = await api_client.get_balances()
+        balances: dict[str, SpotBalance] = await api_client.get_balances()
 
         # Verify expected data
         assert "USDC" in balances
-        assert isinstance(balances["USDC"], Balance)
+        assert isinstance(balances["USDC"], SpotBalance)
         assert balances["USDC"].asset == "USDC"
         # Hyperliquid API might only return total, available might be same as total
         assert balances["USDC"].available == Decimal("1000.50")

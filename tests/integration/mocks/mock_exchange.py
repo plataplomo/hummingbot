@@ -9,7 +9,6 @@ from typing import Any
 # Import Fill type
 from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
-    Balance,
     FundingRate,
     Order,
     OrderBook,
@@ -17,6 +16,7 @@ from cyberdelta.core.models import (
     OrderStatus,
     OrderType,
     Position,
+    SpotBalance,
     Ticker,
     TimeInForce,
     Trade,
@@ -57,7 +57,7 @@ class MockExchangeAPI(ExchangeAPI):
         self._order_id_counter = 1
         self._orders: dict[str, Order] = {}  # Store orders by ID
         self._positions: dict[str, Position] = {}  # Store positions by symbol
-        self._balances: dict[str, Balance] = {}  # Store balances by asset
+        self._balances: dict[str, SpotBalance] = {}  # Store balances by asset
         self._mock_tickers: dict[str, Ticker] = {}
         self._mock_funding_rates: dict[str, FundingRate] = {}
         self._trades: list[Trade] = []  # Added to store trades
@@ -96,7 +96,7 @@ class MockExchangeAPI(ExchangeAPI):
         )
 
         # Initialize balances and positions
-        self.balances: dict[str, Balance] = {}
+        self.balances: dict[str, SpotBalance] = {}
         self.positions: dict[str, Position] = {}
         self.open_orders: dict[str, Order] = {}
         self.trade_history: list[Trade] = []
@@ -260,7 +260,7 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
         return self._mock_funding_rates.get(symbol)
 
-    async def get_balances(self) -> dict[str, Balance]:
+    async def get_balances(self) -> dict[str, SpotBalance]:
         """Return mock balances."""
         self._check_error("get_balances")
         await self._simulate_latency()
@@ -555,56 +555,40 @@ class MockExchangeAPI(ExchangeAPI):
         self._mock_funding_rates[funding_rate.symbol] = funding_rate
         logger.debug(f"Mock {self.exchange_name}: Set mock funding rate for {funding_rate.symbol}")
 
-    def set_mock_balance(self, balance_data: Balance | dict[str, Any]) -> None:
-        """Set a predefined balance for an asset."""
-        self._check_error("set_mock_balance")
-        balance_obj: Balance | None = None
-        asset: str | None = None
-
-        if isinstance(balance_data, Balance):
-            balance_obj = balance_data
-            asset = balance_obj.asset
-            logger.debug(
-                f"Mock {self.exchange_name}: Setting mock balance for {asset} using Balance object."
-            )
-        elif True:  # balance_data is always a dict here
-            # Try to construct Balance from dict
-            try:
-                # Extract required fields first
-                asset_val = balance_data.get("asset")
-                total_val = balance_data.get("total")
-                if asset_val is None or total_val is None:
-                    raise ValueError("Missing 'asset' or 'total' in balance dict")
-
-                # Extract optional fields with defaults
-                available_val = balance_data.get(
-                    "available", total_val
-                )  # Default available to total
-                free_val = balance_data.get("free", available_val)  # Default free to available
-                locked_val = balance_data.get(
-                    "locked", Decimal(str(total_val)) - Decimal(str(available_val))
-                )  # Default locked
-
-                # Create Balance object, ensuring Decimal conversion
-                balance_obj = Balance(
-                    asset=str(asset_val),
-                    total=Decimal(str(total_val)),
-                    available=Decimal(str(available_val)),
-                    free=Decimal(str(free_val)),
-                    locked=Decimal(str(locked_val)),
-                )
-                asset = balance_obj.asset
-                logger.debug(
-                    f"Mock {self.exchange_name}: Setting mock balance for {asset} using direct Balance dict."
-                )
-            except (TypeError, KeyError, ValueError, InvalidOperation) as err:
-                logger.error(f"Failed to parse direct balance dict: {balance_data}. Error: {err}")
-                return  # Don't proceed if parsing fails
-
-        if asset and balance_obj:
-            self._balances[asset] = balance_obj
+    def set_mock_balance(self, balance_data: SpotBalance | dict[str, Any]) -> None:
+        """
+        Set or update a mock balance for a specific asset.
+        Accepts either a SpotBalance object or a dictionary representation.
+        """
+        asset = None
+        if isinstance(balance_data, SpotBalance):
+            asset = balance_data.asset
+            # Ensure the mock knows the exchange name
+            if not balance_data.exchange:
+                balance_data = balance_data.model_copy(update={"exchange": self.exchange_name})
+            self._balances[asset] = balance_data
+            self.balances[asset] = balance_data  # Keep public attribute consistent
+        elif isinstance(balance_data, dict):
+            asset = balance_data.get("asset")
+            if asset:
+                # Ensure exchange field is present
+                if "exchange" not in balance_data:
+                    balance_data["exchange"] = self.exchange_name
+                try:
+                    balance_obj = SpotBalance(**balance_data)
+                    self._balances[asset] = balance_obj
+                    self.balances[asset] = balance_obj  # Keep public attribute consistent
+                except Exception as e:
+                    logger.error(
+                        f"Failed to create SpotBalance from dict: {e}, data={balance_data}"
+                    )
+            else:
+                logger.error("Dictionary provided to set_mock_balance must contain 'asset' key.")
         else:
-            logger.error("Could not determine asset or create Balance object.")
+            logger.error("Invalid data type provided to set_mock_balance.")
+
+        if asset:
+            logger.info(f"Mock balance set for {asset} on {self.exchange_name}")
 
     def set_mock_position(self, position: Position) -> None:
         """Set a predefined position for a symbol."""
@@ -660,7 +644,7 @@ class MockExchangeAPI(ExchangeAPI):
             )
         return rate
 
-    async def fetch_balances(self) -> dict[str, Balance]:
+    async def fetch_balances(self) -> dict[str, SpotBalance]:
         """Fetch balances (simulated)."""
         self._check_error("fetch_balances")
         await self._simulate_latency()
@@ -699,7 +683,7 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Update quote currency balance (e.g., USD, USDC)
         quote_balance = self._balances.get(
-            quote_asset, Balance(asset=quote_asset, total=Decimal("0"), available=Decimal("0"))
+            quote_asset, SpotBalance(asset=quote_asset, total=Decimal("0"), available=Decimal("0"))
         )
         quote_balance.total = Decimal(quote_balance.total or 0)
         quote_balance.available = Decimal(quote_balance.available or 0)
@@ -713,7 +697,7 @@ class MockExchangeAPI(ExchangeAPI):
         # Update fee asset balance
         if fee > 0:
             fee_balance = self._balances.get(
-                fee_asset, Balance(asset=fee_asset, total=Decimal("0"), available=Decimal("0"))
+                fee_asset, SpotBalance(asset=fee_asset, total=Decimal("0"), available=Decimal("0"))
             )
             fee_balance.total = Decimal(fee_balance.total or 0)
             fee_balance.available = Decimal(fee_balance.available or 0)
@@ -724,7 +708,7 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Update base currency balance
         base_balance = self._balances.get(
-            base_asset, Balance(asset=base_asset, total=Decimal("0"), available=Decimal("0"))
+            base_asset, SpotBalance(asset=base_asset, total=Decimal("0"), available=Decimal("0"))
         )
         base_balance.total = Decimal(base_balance.total or 0)
         base_balance.available = Decimal(base_balance.available or 0)
@@ -959,24 +943,39 @@ class MockExchangeAPI(ExchangeAPI):
             history = [t for t in history if t.symbol == symbol]
         return history[:limit]
 
-    def parse_account_update_message(  # Corrected return type again based on base class
+    def parse_account_update_message(
         self, message: dict[str, Any]
-    ) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]:
-        """Parse account update message (placeholder)."""
-        # Placeholder: Return None, None as per signature. Real parsing needed if used.
-        # If parsing were implemented, raise ValueError on failure.
-        return None, None
+    ) -> tuple[dict[str, SpotBalance] | None, dict[str, Position] | None]:
+        """
+        Parse account update message to extract balances and positions.
+        Returns a tuple: (balances_dict, positions_dict). Dictionaries are None if not present.
+        """
+        # Placeholder implementation - needs logic based on actual message format
+        balances: dict[str, SpotBalance] | None = None
+        positions: dict[str, Position] | None = None
+        # Example logic (needs adjustment based on real format):
+        # if message.get("type") == "account_update":
+        #     balances_data = message.get("balances")
+        #     positions_data = message.get("positions")
+        #     if balances_data:
+        #         balances = {b["asset"]: self.parse_balance(b) for b in balances_data}
+        #     if positions_data:
+        #         positions = {p["symbol"]: self.parse_position(p) for p in positions_data}
+        return balances, positions
 
     def parse_balance(
         self, data: dict[str, Any]
-    ) -> Balance:  # Ensure implementation raises on failure, not returns None
-        """Parse balance data (placeholder)."""
+    ) -> SpotBalance:  # Updated return type, Ensure implementation raises on failure
+        """Parse raw balance data into a SpotBalance object."""
         try:
-            # Attempt to create Balance, assuming data is a dict-like structure
-            return Balance(**data)
-        except Exception as err:
-            logger.error(f"Mock parse_balance failed for data: {data}. Error: {err}")
-            raise ValueError(f"Mock parse_balance failed: {err}") from err
+            # Add exchange if missing, using the mock API's name
+            if "exchange" not in data:
+                data["exchange"] = self.exchange_name
+            return SpotBalance(**data)
+        except Exception as e:
+            logger.error(f"Failed to parse balance data: {data}. Error: {e}")
+            # Re-raise as a specific error type or handle as needed
+            raise MockAPIError(f"Failed to parse balance data: {e}") from e
 
     def parse_funding_rate(
         self, data: dict[str, Any]

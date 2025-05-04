@@ -14,6 +14,7 @@ from .enums import (
     OrderSide,
     OrderStatus,
     OrderType,
+    SignalType,
     TimeInForce,
 )
 from .market import FundingRate, Order, OrderBook, Ticker, Trade
@@ -30,6 +31,7 @@ __all__ = [
     "OrderSide",
     "OrderStatus",
     "OrderType",
+    "SignalType",
     "TimeInForce",
     "Order",
     "Trade",

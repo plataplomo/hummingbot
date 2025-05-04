@@ -10,7 +10,8 @@ import pytest
 import pytz
 
 from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.models import MarketData, OrderSide, SignalType, TradeSignal
+from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
+from cyberdelta.core.models.market import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
@@ -109,9 +110,11 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
         self.strategy_manager.enable_strategy(self.mock_strategy2.name)
 
         # Create test market data (remove quote_volume and count)
-        market_data = MarketData(
+        now = datetime.now(UTC)
+        market_data = Candle(
             symbol="BTC-USDT",
-            timestamp=datetime.now(),
+            interval="1m",
+            open_time=now,
             open=Decimal("50000.0"),
             high=Decimal("51000.0"),
             low=Decimal("49000.0"),
@@ -264,9 +267,11 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
 
         # Create test market data (remove quote_volume and count)
-        market_data = MarketData(
+        now = datetime.now(UTC)
+        market_data = Candle(
             symbol="BTC-USDT",
-            timestamp=datetime.now(),
+            interval="1m",
+            open_time=now,
             open=Decimal("50000.0"),
             high=Decimal("51000.0"),
             low=Decimal("49000.0"),
@@ -284,9 +289,11 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
     async def test_process_market_data_mixed_valid_invalid(self) -> None:
         """Test that only valid TradeSignal objects are processed and returned."""
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        market_data = MarketData(
+        now = datetime.now(UTC)
+        market_data = Candle(
             symbol="BTC-USDT",
-            timestamp=datetime.now(),
+            interval="1m",
+            open_time=now,
             open=Decimal("50000.0"),
             high=Decimal("51000.0"),
             low=Decimal("49000.0"),
@@ -317,9 +324,11 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
     async def test_process_market_data_duplicate_signals(self) -> None:
         """Test that duplicate signals are handled (allowed or deduplicated as per logic)."""
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        market_data = MarketData(
+        now = datetime.now(UTC)
+        market_data = Candle(
             symbol="BTC-USDT",
-            timestamp=datetime.now(),
+            interval="1m",
+            open_time=now,
             open=Decimal("50000.0"),
             high=Decimal("51000.0"),
             low=Decimal("49000.0"),
@@ -348,9 +357,11 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
     async def test_process_market_data_signal_with_missing_fields(self) -> None:
         """Test that signals with missing/None fields are ignored or handled defensively."""
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        market_data = MarketData(
+        now = datetime.now(UTC)
+        market_data = Candle(
             symbol="BTC-USDT",
-            timestamp=datetime.now(),
+            interval="1m",
+            open_time=now,
             open=Decimal("50000.0"),
             high=Decimal("51000.0"),
             low=Decimal("49000.0"),
@@ -378,9 +389,11 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
     async def test_process_market_data_risk_manager_exception(self) -> None:
         """Test that if the risk manager raises, other signals are still processed."""
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        market_data = MarketData(
+        now = datetime.now(UTC)
+        market_data = Candle(
             symbol="BTC-USDT",
-            timestamp=datetime.now(),
+            interval="1m",
+            open_time=now,
             open=Decimal("50000.0"),
             high=Decimal("51000.0"),
             low=Decimal("49000.0"),
@@ -428,9 +441,11 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
         """
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
         self.strategy_manager.enable_strategy(self.mock_strategy2.name)
-        market_data = MarketData(
+        now = datetime.now(UTC)
+        market_data = Candle(
             symbol="BTC-USDT",
-            timestamp=datetime.now(),
+            interval="1m",
+            open_time=now,
             open=Decimal("50000.0"),
             high=Decimal("51000.0"),
             low=Decimal("49000.0"),
@@ -459,9 +474,11 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
         """Test that no signals are returned if no strategies are enabled for the symbol."""
         # Ensure no strategies are enabled
         self.strategy_manager.enabled_strategies.clear()
-        market_data = MarketData(
+        now = datetime.now(UTC)
+        market_data = Candle(
             symbol="BTC-USDT",
-            timestamp=datetime.now(),
+            interval="1m",
+            open_time=now,
             open=Decimal("50000.0"),
             high=Decimal("51000.0"),
             low=Decimal("49000.0"),
@@ -475,9 +492,11 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
     async def test_process_market_data_async_process_data_raises(self) -> None:
         """Test that if process_data is an async coroutine that raises, error is handled."""
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        market_data = MarketData(
+        now = datetime.now(UTC)
+        market_data = Candle(
             symbol="BTC-USDT",
-            timestamp=datetime.now(),
+            interval="1m",
+            open_time=now,
             open=Decimal("50000.0"),
             high=Decimal("51000.0"),
             low=Decimal("49000.0"),
@@ -496,9 +515,11 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
     async def test_process_market_data_signal_handler_raises(self) -> None:
         """Test that if the signal handler/queue raises, error is logged and system continues."""
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
-        market_data = MarketData(
+        now = datetime.now(UTC)
+        market_data = Candle(
             symbol="BTC-USDT",
-            timestamp=datetime.now(),
+            interval="1m",
+            open_time=now,
             open=Decimal("50000.0"),
             high=Decimal("51000.0"),
             low=Decimal("49000.0"),

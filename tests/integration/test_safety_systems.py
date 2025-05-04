@@ -13,9 +13,9 @@ from cyberdelta.core.execution_handler import (
     TradeExecution,
 )
 from cyberdelta.core.models import (
-    Balance,
     OrderSide,
     Position,  # Added Position
+    SpotBalance,  # Updated from Balance
     # RiskParameters, # Removed - Not defined in models.py
     # SignalStatus, # Removed - Not defined in models.py
 )
@@ -71,13 +71,19 @@ async def test_circuit_breaker_global_halts_execution(
     circuit_breaker_system.reset_exchange_breakers("mock_hl")
 
     mock_bp_api.set_mock_balance(
-        Balance(asset="USDC", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_bp", asset="USDC", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     mock_bp_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_bp", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_hl", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     await real_portfolio_tracker.initialize()
     ts = datetime.now(UTC)
@@ -161,13 +167,19 @@ async def test_circuit_breaker_exchange_halts_execution(
     circuit_breaker_system.reset_exchange_breakers("mock_hl")
 
     mock_bp_api.set_mock_balance(
-        Balance(asset="USDC", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_bp", asset="USDC", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     mock_bp_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_bp", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_hl", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     await real_portfolio_tracker.initialize()
     ts = datetime.now(UTC)
@@ -258,13 +270,19 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
         real_portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
     # Set balances
     mock_bp_api.set_mock_balance(
-        Balance(asset="USDC", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_bp", asset="USDC", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     mock_bp_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_bp", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_hl", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.initialize()
@@ -309,13 +327,19 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
         real_portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
     # Set balances
     mock_bp_api.set_mock_balance(
-        Balance(asset="USDC", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_bp", asset="USDC", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     mock_bp_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_bp", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), available=Decimal("10000"))
+        SpotBalance(
+            exchange="mock_hl", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+        )
     )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.initialize()
@@ -715,10 +739,10 @@ async def test_kelly_insufficient_balance(
     opp.expected_return = Decimal("0.01")
     # Set balances to $500 (less than Kelly size)
     mock_bp_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("500"), available=Decimal("500"))
+        SpotBalance(exchange="mock_bp", asset="USD", total=Decimal("500"), available=Decimal("500"))
     )
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("500"), available=Decimal("500"))
+        SpotBalance(exchange="mock_hl", asset="USD", total=Decimal("500"), available=Decimal("500"))
     )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.initialize()
@@ -738,8 +762,12 @@ async def test_kelly_zero_total_capital(
     funding_rate_validator: MagicMock,
 ) -> None:
     # Set all balances to zero
-    mock_bp_api.set_mock_balance(Balance(asset="USD", total=Decimal("0"), available=Decimal("0")))
-    mock_hl_api.set_mock_balance(Balance(asset="USD", total=Decimal("0"), available=Decimal("0")))
+    mock_bp_api.set_mock_balance(
+        SpotBalance(exchange="mock_bp", asset="USD", total=Decimal("0"), available=Decimal("0"))
+    )
+    mock_hl_api.set_mock_balance(
+        SpotBalance(exchange="mock_hl", asset="USD", total=Decimal("0"), available=Decimal("0"))
+    )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.initialize()
     opp = ArbitrageOpportunity(

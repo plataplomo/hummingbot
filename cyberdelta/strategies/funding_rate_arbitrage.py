@@ -8,11 +8,12 @@ from typing import Any
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import (
-    MarketData,
+    # MarketData, # Removed
     OrderSide,
     SignalType,
     TradeSignal,
 )
+from cyberdelta.core.models.market import Candle  # Import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.strategy import Strategy
@@ -210,41 +211,12 @@ class FundingRateArbitrageStrategy(Strategy):
 
         # Determine which side to take based on funding rate
         perp_side = "SHORT" if nfd > 0 else "LONG"
-        # spot_side = OrderSide.BUY if opportunity.net_funding_differential > 0 else OrderSide.SELL  # Unused, remove
 
-        # Extract ask/bid prices from ticker_data if available, else fallback to close
-        def get_ask_bid(market_data: MarketData, exchange: str, symbol: str, side: str) -> Decimal:
-            # Handle both MarketData (with ticker_data) and Ticker objects (test mocks)
-            if (
-                hasattr(market_data, "ticker_data")
-                and market_data.ticker_data
-                and symbol in market_data.ticker_data
-            ):
-                ticker = market_data.ticker_data[symbol].get(exchange)
-                if ticker:
-                    if side == "ask" and ticker.ask is not None:
-                        return ticker.ask
-                    if side == "bid" and ticker.bid is not None:
-                        return ticker.bid
-                # Fallback to close
-                return market_data.close
-            # If it's a Ticker mock, return the close attribute or fallback
-            if hasattr(market_data, side):
-                return getattr(market_data, side, market_data.close)
-            return getattr(market_data, "close", Decimal("0"))
-
-        long_price = get_ask_bid(
-            perp_ticker if perp_side == "LONG" else spot_ticker,
-            self.perp_exchange if perp_side == "LONG" else self.spot_exchange,
-            self.symbol if perp_side == "LONG" else spot_symbol,
-            "ask",
-        )
-        short_price = get_ask_bid(
-            spot_ticker if perp_side == "LONG" else perp_ticker,
-            self.spot_exchange if perp_side == "LONG" else self.perp_exchange,
-            spot_symbol if perp_side == "LONG" else self.symbol,
-            "bid",
-        )
+        # Determine entry prices based on Candle close prices
+        # A real strategy might estimate entry better (e.g., mid-price, or consider liquidity)
+        # For simplicity, use the close price of the respective tickers
+        long_price = perp_ticker.close if perp_side == "LONG" else spot_ticker.close
+        short_price = spot_ticker.close if perp_side == "LONG" else perp_ticker.close
 
         # Create opportunity object
         opportunity = ArbitrageOpportunity(
@@ -322,9 +294,9 @@ class FundingRateArbitrageStrategy(Strategy):
             return base_slippage
         return base_slippage * slippage_scaling
 
-    async def process_data(self, data: MarketData) -> list[TradeSignal]:
+    async def process_data(self, data: Candle) -> list[TradeSignal]:
         """
-        Asynchronously process new market data and generate trading signals if appropriate.
+        Process incoming market data (Candle).
 
         Args:
             data: Market data to process

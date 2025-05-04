@@ -16,7 +16,8 @@ import pandas as pd
 import pytest
 
 from cyberdelta.core.backtesting.backtesting import BacktestEngine
-from cyberdelta.core.models import MarketData, OrderSide, SignalType, TradeSignal
+from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
+from cyberdelta.core.models.market import Candle
 from cyberdelta.core.strategy import Strategy
 
 # Configure logging
@@ -76,7 +77,7 @@ class TestBacktestingIntegration:
                 self.entry_threshold = Decimal("0")  # Initialize attribute
                 self._target_symbol = symbol  # Store target symbol
 
-            def process_data(self, data: MarketData) -> TradeSignal | None:
+            def process_data(self, data: Candle) -> TradeSignal | None:
                 # Only process data for the strategy's configured symbol
                 if data.symbol != self._target_symbol:
                     return None

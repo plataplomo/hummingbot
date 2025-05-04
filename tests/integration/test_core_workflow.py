@@ -21,16 +21,16 @@ from cyberdelta.core.execution_handler import (  # Added TradeExecution
 
 # Models
 from cyberdelta.core.models import (
-    Balance,
     FundingRate,
     Order,
     OrderBook,
     OrderSide,
     OrderStatus,
     OrderType,
+    SpotBalance,
     Ticker,
 )
-from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_generator import SignalGenerator
@@ -47,11 +47,13 @@ from tests.integration.mocks.mock_exchange import MockAPIError, MockExchangeAPI
 def create_mock_funding_rate(symbol: str, rate: str | Decimal, next_time: datetime) -> FundingRate:
     # Convert rate to Decimal, ensuring string conversion for floats/others
     # Convert next_time to integer timestamp (milliseconds)
-    next_funding_timestamp = int(next_time.timestamp() * 1000)
+    # next_funding_timestamp = int(next_time.timestamp() * 1000) # FundingRate expects datetime
     return FundingRate(
         symbol=symbol,
         funding_rate=Decimal(str(rate)),
-        next_funding_time=next_funding_timestamp,  # Pass integer timestamp
+        # Pass datetime object directly
+        next_funding_time=next_time,
+        timestamp=next_time,  # Add required timestamp
     )
 
 
@@ -68,7 +70,9 @@ def create_mock_ticker(
         bid=Decimal(str(bid)),
         ask=Decimal(str(ask)),
         price=Decimal(str(price)),
-        timestamp=int(timestamp.timestamp() * 1000),
+        # Pass datetime object directly
+        # timestamp=int(timestamp.timestamp() * 1000),
+        timestamp=timestamp,
     )
 
 
@@ -83,7 +87,9 @@ def create_mock_orderbook(
         symbol=symbol,
         bids=[(Decimal(str(p)), Decimal(str(q))) for p, q in bids],
         asks=[(Decimal(str(p)), Decimal(str(q))) for p, q in asks],
-        timestamp=int(timestamp.timestamp() * 1000),
+        # Pass datetime object directly
+        # timestamp=int(timestamp.timestamp() * 1000),
+        timestamp=timestamp,
     )
 
 
@@ -468,12 +474,22 @@ async def test_happy_path_full_cycle(
     portfolio_tracker.update_balance(
         "mock_hl",
         "USD",
-        Balance(asset="USD", total=initial_usdc_balance, available=initial_usdc_balance),
+        SpotBalance(
+            exchange="mock_hl",
+            asset="USD",
+            total=initial_usdc_balance,
+            available=initial_usdc_balance,
+        ),
     )
     portfolio_tracker.update_balance(
         "mock_bp",
         "USDC",
-        Balance(asset="USDC", total=initial_usdc_balance, available=initial_usdc_balance),
+        SpotBalance(
+            exchange="mock_bp",
+            asset="USDC",
+            total=initial_usdc_balance,
+            available=initial_usdc_balance,
+        ),
     )
 
     # 2. Set mock data in APIs and DataHandler
@@ -606,12 +622,22 @@ async def test_happy_path_full_cycle(
     portfolio_tracker.update_balance(
         "mock_hl",
         "USD",
-        Balance(asset="USD", total=initial_usdc_balance, available=initial_usdc_balance),
+        SpotBalance(
+            exchange="mock_hl",
+            asset="USD",
+            total=initial_usdc_balance,
+            available=initial_usdc_balance,
+        ),
     )
     portfolio_tracker.update_balance(
         "mock_bp",
         "USDC",
-        Balance(asset="USDC", total=initial_usdc_balance, available=initial_usdc_balance),
+        SpotBalance(
+            exchange="mock_bp",
+            asset="USDC",
+            total=initial_usdc_balance,
+            available=initial_usdc_balance,
+        ),
     )
     # Manually update derived metrics if needed (depends on RM implementation)
     # await portfolio_tracker.update() # Assuming update calculates total capital etc.
@@ -803,10 +829,10 @@ async def test_partial_fill(
 
     # Configure initial balances
     mock_hl_api.set_mock_balance(
-        Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
+        SpotBalance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
     )
     mock_bp_api.set_mock_balance(
-        Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
+        SpotBalance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
     )
     await portfolio_tracker.initialize()
     await portfolio_tracker.update()  # Explicitly update derived metrics
@@ -1127,8 +1153,8 @@ async def test_execution_failure_compensation(
     mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)
 
     # Configure initial balances
-    initial_hl_balance = Balance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
-    initial_bp_balance = Balance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
+    initial_hl_balance = SpotBalance(asset="USD", total=Decimal("10000"), free=Decimal("10000"))
+    initial_bp_balance = SpotBalance(asset="USDC", total=Decimal("10000"), free=Decimal("10000"))
     mock_hl_api.set_mock_balance(initial_hl_balance)
     mock_bp_api.set_mock_balance(initial_bp_balance)
     await portfolio_tracker.initialize()

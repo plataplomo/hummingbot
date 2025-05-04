@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 # Import core components and models
 from cyberdelta.apis.base import APIError  # Import APIError for simulation
 from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus
-from cyberdelta.core.models import Balance
+from cyberdelta.core.models import (
+    SpotBalance,
+)
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.validation import ArbitrageOpportunity
@@ -73,10 +75,20 @@ class TestFailureScenarios:
 
         # Set balances and initialize tracker
         mock_bp_api.set_mock_balance(
-            Balance(asset="USDT", total=Decimal("10000"), available=Decimal("10000"))
+            SpotBalance(
+                exchange="mock_bp",
+                asset="USDT",
+                total=Decimal("10000"),
+                available=Decimal("10000"),
+            )
         )
         mock_hl_api.set_mock_balance(
-            Balance(asset="USDT", total=Decimal("10000"), available=Decimal("10000"))
+            SpotBalance(
+                exchange="mock_hl",
+                asset="USDT",
+                total=Decimal("10000"),
+                available=Decimal("10000"),
+            )
         )
         await real_portfolio_tracker.initialize()
         ts = datetime.now(UTC)

@@ -184,75 +184,19 @@ class PortfolioTracker:
             # --- HANDLE DICT or LIST ---
             updated_balances: dict[str, SpotBalance] = {}
             processed = False
-            if isinstance(balances_data, dict):
-                logger.debug(f"[FETCH_BALANCES:{exchange_id}] Processing DICT.")
-                for asset, balance_info in balances_data.items():
-                    # asset is always str, balance_info is SpotBalance or dict[str, Any]
-                    if asset:
-                        balance_instance = self._parse_balance_info(
-                            exchange_id, asset, balance_info
-                        )
-                        if balance_instance:
-                            updated_balances[asset] = balance_instance
-                        else:
-                            logger.warning(
-                                f"[_fetch_exchange_balances:{exchange_id}] "
-                                f"Failed to parse balance info for asset {asset}."
-                            )
-                            continue  # Skip this item if parsing failed
-                    else:
-                        logger.warning(
-                            f"[_fetch_exchange_balances:{exchange_id}] "
-                            f"Skipping balance item with missing asset or info: "
-                            f"asset={asset}, info={balance_info}"
-                        )
-                        continue  # Skip this item
+            try:
+                for asset, balance_details in balances_data.items():
+                    # Ensure exchange name is added
+                    balance_details["exchange"] = exchange_id
+                    balance_obj = self._parse_balance_info(exchange_id, asset, balance_details)
+                    if balance_obj:
+                        updated_balances[asset] = balance_obj
                 processed = True
-            else:
-                # Defensive: balances_data is expected to be a list by type hint.
-                # isinstance check removed.
-                logger.debug(f"[FETCH_BALANCES:{exchange_id}] Processing LIST.")
-                for balance_item in balances_data:
-                    item_asset: str | None = None
-                    parsed_balance: SpotBalance | None = None
-                    if type(balance_item) is SpotBalance:
-                        item_asset = balance_item.asset
-                        parsed_balance = balance_item
-                    else:
-                        asset_candidate = (
-                            balance_item.get("asset") if type(balance_item) is dict else None
-                        )
-                        if isinstance(asset_candidate, str):
-                            item_asset = asset_candidate
-                            parsed_balance = self._parse_balance_info(
-                                exchange_id, item_asset, balance_item
-                            )
-                        else:
-                            logger.warning(
-                                f"[_fetch_exchange_balances:{exchange_id}] "
-                                f"Skipping balance dict item missing or invalid 'asset' key: "
-                                f"{balance_item}"
-                            )
-                            continue  # Skip this item
-                    if parsed_balance and item_asset:
-                        updated_balances[item_asset] = parsed_balance
-                processed = True
+            except (ValidationError, TypeError, InvalidOperation) as e:
+                logger.error(f"[{exchange_id}] Error parsing balance entry: {e}", exc_info=True)
 
-            if processed and updated_balances:
-                logger.info(
-                    (
-                        f"[FETCH_BALANCES:{exchange_id}] BEFORE assign: "
-                        f"self._balances[{exchange_id}] = {self._balances.get(exchange_id)}. "
-                        f"updated_balances = {updated_balances}"
-                    ),
-                )
-                self._balances[exchange_id] = updated_balances
-                logger.info(
-                    (
-                        f"[FETCH_BALANCES:{exchange_id}] AFTER assign: "
-                        f"self._balances[{exchange_id}] = {self._balances.get(exchange_id)}"
-                    ),
-                )
+            if processed:
+                self._update_exchange_balances(exchange_id, updated_balances)
                 self._last_update_time[exchange_id] = datetime.now(UTC)
                 logger.info(
                     f"[FETCH_BALANCES:{exchange_id}] Successfully processed. Returning True."

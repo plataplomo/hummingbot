@@ -303,9 +303,6 @@ class BalanceMonitor:
                     else Decimal("0.0")  # Default if balance is None
                 )
 
-                # Fetch the specific minimum requirement for this asset
-                min_balance_req_loop = self.exchange_min_balances[exchange_id][asset]
-
                 # Create a new dictionary with balance information (strings for JSON compatibility)
                 asset_info: dict[str, str] = {
                     "current": str(available_balance),

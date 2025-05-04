@@ -1,6 +1,10 @@
-import time
-from datetime import datetime
+from __future__ import annotations  # Enable postponed evaluation
+
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import TracebackType  # Import TracebackType
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -14,11 +18,10 @@ from cyberdelta.core.models import (
     OrderType,
     Position,
     SpotBalance,
+    Ticker,
 )
-from cyberdelta.core.models.market import Candle
-
-# Import the classes we need to test
 from cyberdelta.utils.config import Config
+from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem  # Import CB system
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -26,30 +29,35 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 class MockResponse:
     def __init__(
         self,
-        data: object,
+        data: Any,  # noqa: ANN401 - Mock data can be anything
         status: int = 200,
         headers: dict[str, str] | None = None,
         content_type: str = "application/json",
-    ):
+    ) -> None:
         self._data = data
         self.status = status
         self.headers = headers or {}
         self.content_type = content_type
         self._raise_for_status_called = False
 
-    async def json(self):
+    async def json(self) -> Any:  # noqa: ANN401 - Mock data can be anything
         return self._data
 
-    async def text(self):
+    async def text(self) -> str:
         return str(self._data)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> MockResponse:
         return self
 
-    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         pass
 
-    def raise_for_status(self):
+    def raise_for_status(self) -> None:
         self._raise_for_status_called = True
         if self.status >= 400:
             raise aiohttp.ClientResponseError(
@@ -61,21 +69,26 @@ class MockClientSession:
     def __init__(
         self,
         responses: dict[tuple[str, str], MockResponse] | None = None,
-    ):
+    ) -> None:
         self.responses = responses or {}
-        self.requests: list[dict[str, object]] = []
+        self.requests: list[dict[str, Any]] = []  # noqa: ANN401 - Flexible for test requests
         self.closed = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> MockClientSession:
         return self
 
-    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         pass
 
-    async def close(self):
+    async def close(self) -> None:
         self.closed = True
 
-    async def _request(self, method: str, url: str, **kwargs: object) -> MockResponse:
+    async def _request(self, method: str, url: str, **kwargs: Any) -> MockResponse:  # noqa: ANN401 - Accepts any kwargs
         self.requests.append({"method": method, "url": url, "kwargs": kwargs})
 
         # Find match in responses
@@ -90,21 +103,23 @@ class MockClientSession:
         # Default response if no match
         return MockResponse({}, status=404)
 
-    async def get(self, url: str, **kwargs: object) -> MockResponse:
+    async def get(self, url: str, **kwargs: Any) -> MockResponse:  # noqa: ANN401 - Accepts any kwargs
         return await self._request("GET", url, **kwargs)
 
-    async def post(self, url: str, **kwargs: object) -> MockResponse:
+    async def post(self, url: str, **kwargs: Any) -> MockResponse:  # noqa: ANN401 - Accepts any kwargs
         return await self._request("POST", url, **kwargs)
 
-    async def put(self, url: str, **kwargs: object) -> MockResponse:
+    async def put(self, url: str, **kwargs: Any) -> MockResponse:  # noqa: ANN401 - Accepts any kwargs
         return await self._request("PUT", url, **kwargs)
 
-    async def delete(self, url: str, **kwargs: object) -> MockResponse:
+    async def delete(self, url: str, **kwargs: Any) -> MockResponse:  # noqa: ANN401 - Accepts any kwargs
         return await self._request("DELETE", url, **kwargs)
 
 
 @pytest.fixture
-def mock_client_session():
+def mock_client_session() -> Callable[
+    [dict[tuple[str, str], MockResponse] | None], MockClientSession
+]:
     """Fixture to provide a mock aiohttp ClientSession."""
 
     def create_session(
@@ -116,7 +131,7 @@ def mock_client_session():
 
 
 @pytest.fixture
-def hyperliquid_config():
+def hyperliquid_config() -> dict[str, Any]:
     """Fixture to provide Hyperliquid API configuration."""
     return {
         "rest_endpoint": "https://api.hyperliquid.xyz",
@@ -130,7 +145,7 @@ def hyperliquid_config():
 
 
 @pytest.fixture
-def backpack_config():
+def backpack_config() -> dict[str, Any]:
     """Fixture to provide Backpack API configuration."""
     return {
         "rest_endpoint": "https://api.backpack.exchange",
@@ -144,7 +159,7 @@ def backpack_config():
 
 
 @pytest.fixture
-def hyperliquid_secrets():
+def hyperliquid_secrets() -> dict[str, str]:
     """Fixture to provide Hyperliquid API secrets."""
     return {
         "HYPERLIQUID_WALLET_PRIVATE_KEY": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
@@ -153,7 +168,7 @@ def hyperliquid_secrets():
 
 
 @pytest.fixture
-def backpack_secrets():
+def backpack_secrets() -> dict[str, str]:
     """Fixture to provide Backpack API secrets."""
     return {
         "BACKPACK_API_KEY": "backpack-api-key-123456",
@@ -168,7 +183,7 @@ def backpack_secrets():
 
 
 @pytest.fixture
-def mock_config():
+def mock_config() -> MagicMock:
     """Create a mock Config object with test settings."""
     config_data = {
         "exchanges": {
@@ -218,7 +233,7 @@ def mock_config():
                         "enabled": True,
                         "threshold": 5,
                         "window_seconds": 120,
-                        "cooldown_seconds": 600,
+                        "cooldown_seconds": 600,  # Shortened line
                     }
                 },
                 "exchanges": {
@@ -257,13 +272,21 @@ def mock_config():
         },
         "data": {"staleness_thresholds": {"ticker": 60, "funding_rate": 300, "orderbook": 60}},
     }
-    return Config(config_data)
+
+    def getter(key: str, default: Any | None = None) -> Any | None:  # noqa: ANN401 - Config getter mock
+        return _deep_get(config_data, key, default)
+
+    mock_cfg = MagicMock(spec=Config)
+    mock_cfg.get = getter  # noqa: ANN401 - Assigning mock method
+    mock_cfg.config_data = config_data
+    return mock_cfg
 
 
 @pytest.fixture
-def mock_exchange_api():
+def mock_exchange_api() -> AsyncMock:
     """Create a mock ExchangeAPI for testing."""
     mock_api = AsyncMock()
+    now = datetime.now(UTC)
 
     # Configure common methods
     mock_api.get_balances.return_value = {
@@ -288,56 +311,58 @@ def mock_exchange_api():
             unrealized_pnl=Decimal("1000.0"),
             leverage=Decimal("5.0"),
             side=OrderSide.BUY,
+            timestamp=int(now.timestamp() * 1000),  # Position expects int | None
         )
     }
 
-    mock_api.get_ticker.return_value = Candle(
+    mock_api.get_ticker.return_value = Ticker(
         symbol="BTC",
-        interval="1m",
-        open_time=datetime.now(),
-        open=Decimal("40000.0"),
-        high=Decimal("42000.0"),
-        low=Decimal("39000.0"),
-        close=Decimal("41500.0"),
-        volume=Decimal("100.0"),
+        bid=Decimal("40000.0"),
+        ask=Decimal("40002.0"),
+        price=Decimal("40001.0"),
+        timestamp=now,  # Ticker expects datetime
     )
 
     mock_api.get_funding_rate.return_value = FundingRate(
         symbol="BTC",
         funding_rate=Decimal("0.0001"),
-        predicted_rate=Decimal("0.00012"),
         mark_price=Decimal("41500.0"),
         index_price=Decimal("41450.0"),
-        next_funding_time=int(time.time() * 1000) + 3600000,
+        timestamp=now,
+        next_funding_time=now + timedelta(hours=1),
     )
 
     mock_api.place_order.return_value = Order(
-        id="order123",
+        exchange="mock_exchange",
+        exchange_order_id="order123",
         symbol="BTC",
         side=OrderSide.BUY,
-        type=OrderType.LIMIT,
-        price=Decimal("41000.0"),
-        quantity=Decimal("0.1"),
-        filled_quantity=Decimal("0.0"),
+        order_type=OrderType.LIMIT,
         status=OrderStatus.NEW,
-        time=datetime.now(),
+        price=Decimal("41000.0"),
+        quantity_requested=Decimal("0.1"),
+        quantity_filled=Decimal("0.0"),
+        created_at=now,
+        updated_at=now,
         client_order_id="test-order-123",
+        related_order_id=None,
+        triggered_at=None,
+        strategy_name=None,
+        signal_id=None,
     )
 
     return mock_api
 
 
 @pytest.fixture
-def circuit_breaker_system(mock_config: Config):
+def circuit_breaker_system(mock_config: Config) -> CircuitBreakerSystem:
     """Create a CircuitBreakerSystem instance using mock config."""
-    from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
-
     system = CircuitBreakerSystem(mock_config)
     return system
 
 
 @pytest.fixture
-def mock_portfolio_tracker():
+def mock_portfolio_tracker() -> MagicMock:
     """Create a mock PortfolioTracker for testing."""
     mock_tracker = MagicMock()
 
@@ -351,29 +376,28 @@ def mock_portfolio_tracker():
 
 
 @pytest.fixture
-def mock_data_handler():
+def mock_data_handler() -> MagicMock:
     """Create a mock DataHandler for testing."""
     mock_handler = MagicMock()
+    now = datetime.now(UTC)
 
     # Configure mock methods
-    mock_handler.get_ticker.return_value = Candle(
+    mock_handler.get_ticker.return_value = Ticker(
         symbol="BTC",
-        interval="1m",
-        open_time=datetime.now(),
-        open=Decimal("40000.0"),
-        high=Decimal("42000.0"),
-        low=Decimal("39000.0"),
-        close=Decimal("41500.0"),
-        volume=Decimal("100.0"),
+        bid=Decimal("40000.0"),
+        ask=Decimal("40002.0"),
+        price=Decimal("40001.0"),
+        timestamp=now,
     )
 
-    mock_handler.get_funding_rate.return_value = (Decimal("0.0001"), datetime.now())
+    # Funding rate from handler returns tuple (rate, timestamp)
+    mock_handler.get_funding_rate.return_value = (Decimal("0.0001"), now)
 
     return mock_handler
 
 
 @pytest.fixture
-def mock_arbitrage_opportunity():
+def mock_arbitrage_opportunity() -> MagicMock:
     """Create a mock ArbitrageOpportunity for testing."""
     opportunity = MagicMock(spec=ArbitrageOpportunity)
     opportunity.symbol = "BTC"
@@ -383,6 +407,29 @@ def mock_arbitrage_opportunity():
     opportunity.basis_volatility = 0.01
     opportunity.expected_profit = 10.0
     opportunity.confidence = 0.8
-    opportunity.timestamp = datetime.now()
+    opportunity.timestamp = datetime.now(UTC)
+    opportunity.long_price = Decimal("30000")
+    opportunity.short_price = Decimal("29999")
+    opportunity.long_size = Decimal("0.1")
+    opportunity.short_size = Decimal("0.1")
 
     return opportunity
+
+
+def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any | None:  # noqa: ANN401 - Config helper mock
+    """Helper to access nested keys using dot notation."""
+    key_parts = keys.split(".")
+    val: Any = d  # noqa: ANN401 - Iterating through potentially mixed dict
+    try:
+        for key in key_parts:
+            if isinstance(val, dict):
+                val = val[key]
+            else:
+                # If we encounter a non-dict before the last key part, return default
+                # If it's the last part, return the value itself
+                if key != key_parts[-1]:
+                    return default
+                return val
+        return val
+    except (KeyError, TypeError, IndexError):
+        return default

@@ -13,6 +13,18 @@
       "env": {
         "DEFAULT_MINIMUM_TOKENS": "10000"
       }
+      
+
+      },
+      "mcp-obsidian": {
+        "command": "uvx",
+        "args": [
+          "mcp-obsidian"
+        ],
+        "env": {
+          "OBSIDIAN_API_KEY": "da46bd7b6264d4f6af938da6b316e7e700950be7568f57bc28414618b23c9aa2",
+          "OBSIDIAN_HOST": "https://127.0.0.1:27124/"
+        }
+      }
     }
   }
-}

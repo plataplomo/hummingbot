@@ -432,7 +432,7 @@ class HyperliquidAPI(ExchangeAPI):
                         total_balance = asset_pos.position.position_value
                         total_balance_dec = Decimal(total_balance)
                         balances["USDC"] = SpotBalance(
-                            exchange=self.exchange_name.value,
+                            exchange=self.exchange_name,
                             asset="USDC",
                             total=total_balance_dec,
                             available=total_balance_dec,

@@ -9,12 +9,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cyberdelta.core.models import (
-    Balance,
     Order,
     OrderSide,
     OrderStatus,
     OrderType,
     Position,
+    SpotBalance,
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
@@ -164,11 +164,11 @@ class TestPortfolioTracker:
 
         # Verify internal state was updated
         hyperliquid_usdc_balance = portfolio_tracker.get_exchange_balance("hyperliquid", "USDC")
-        assert isinstance(hyperliquid_usdc_balance, Balance)
+        assert isinstance(hyperliquid_usdc_balance, SpotBalance)
         assert hyperliquid_usdc_balance.total == sample_balances["hyperliquid"]["USDC"]
 
         backpack_eth_balance = portfolio_tracker.get_exchange_balance("backpack", "ETH")
-        assert isinstance(backpack_eth_balance, Balance)
+        assert isinstance(backpack_eth_balance, SpotBalance)
         assert backpack_eth_balance.total == sample_balances["backpack"]["ETH"]
 
         # Verify positions were stored properly
@@ -321,9 +321,9 @@ class TestPortfolioTracker:
         usdc_amount = Decimal("100000.0")
         portfolio_tracker.update_balance("hyperliquid", "USDC", usdc_amount)
 
-        # Verify the balance was stored as a Balance object
+        # Verify the balance was stored as a SpotBalance object
         balance_obj = portfolio_tracker.get_exchange_balance("hyperliquid", "USDC")
-        assert isinstance(balance_obj, Balance)
+        assert isinstance(balance_obj, SpotBalance)
         assert balance_obj.asset == "USDC"
         assert balance_obj.total == usdc_amount
         assert balance_obj.available == usdc_amount
@@ -341,11 +341,11 @@ class TestPortfolioTracker:
 
         # Test getting balances - check object type and total value
         usdc_balance = portfolio_tracker.get_exchange_balance("hyperliquid", "USDC")
-        assert isinstance(usdc_balance, Balance)
+        assert isinstance(usdc_balance, SpotBalance)
         assert usdc_balance.total == Decimal("100000.0")
 
         eth_balance = portfolio_tracker.get_exchange_balance("backpack", "ETH")
-        assert isinstance(eth_balance, Balance)
+        assert isinstance(eth_balance, SpotBalance)
         assert eth_balance.total == Decimal("20.0")
 
         # Test getting non-existent balance
@@ -551,7 +551,7 @@ class TestPortfolioTracker:
         for exchange_id, balances in sample_balances.items():
             for asset, amount in balances.items():
                 restored_balance = new_tracker.get_exchange_balance(exchange_id, asset)
-                assert isinstance(restored_balance, Balance)
+                assert isinstance(restored_balance, SpotBalance)
                 assert restored_balance.total == amount
 
         # Verify positions were restored
