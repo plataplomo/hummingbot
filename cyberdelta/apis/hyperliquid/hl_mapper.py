@@ -216,16 +216,21 @@ class HyperliquidMapper:
         Defensive: Handles malformed or missing data gracefully.
         """
         levels_raw = data.get("levels")
+        # Explicitly check if levels_raw is a list
         levels: list[Any] = levels_raw if isinstance(levels_raw, list) else []
         bids: list[tuple[Decimal, Decimal]] = []
         asks: list[tuple[Decimal, Decimal]] = []
+
         if len(levels) > 1:
             bid_levels_raw = levels[0]
+            # Check if bid_levels_raw is a list
             bid_levels: list[Any] = bid_levels_raw if isinstance(bid_levels_raw, list) else []
-            for level in bid_levels:
-                if not isinstance(level, list):
+            for level_raw in bid_levels:
+                # Check if level_raw is a list
+                if not isinstance(level_raw, list):
                     continue
-                level_typed: list[Any] = level
+                # Removed cast
+                level_typed: list[Any] = level_raw
                 if len(level_typed) >= 2:
                     price = parse_decimal_value(
                         level_typed[0], allow_none=False, field_name="orderbook.bid.price"
@@ -235,12 +240,16 @@ class HyperliquidMapper:
                     )
                     if price is not None and quantity is not None:
                         bids.append((price, quantity))
+
             ask_levels_raw = levels[1]
+            # Check if ask_levels_raw is a list
             ask_levels: list[Any] = ask_levels_raw if isinstance(ask_levels_raw, list) else []
-            for level in ask_levels:
-                if not isinstance(level, list):
+            for level_raw_ask in ask_levels:
+                # Check if level_raw_ask is a list
+                if not isinstance(level_raw_ask, list):
                     continue
-                level_typed_ask: list[Any] = level
+                # Removed cast
+                level_typed_ask: list[Any] = level_raw_ask
                 if len(level_typed_ask) >= 2:
                     price = parse_decimal_value(
                         level_typed_ask[0], allow_none=False, field_name="orderbook.ask.price"
@@ -480,58 +489,177 @@ class HyperliquidMapper:
     @staticmethod
     def map_balances(state_data: dict[str, Any]) -> dict[str, SpotBalance]:
         """
-        Maps Hyperliquid state data (assetContexts) to internal SpotBalance models.
+        Map the balances portion of the Hyperliquid user state API response to a
+        dictionary of CyberDeltaEngine internal SpotBalance models.
+
+        Args:
+            state_data (dict[str, Any]): The raw user state dictionary, potentially containing
+                                         `assetPositions` and `marginSummary`.
+
+        Returns:
+            dict[str, SpotBalance]: A dictionary where keys are asset names (uppercase)
+                                    and values are SpotBalance models. Returns empty dict
+                                    if no relevant balance data is found.
         """
         balances: dict[str, SpotBalance] = {}
-        try:
-            # Explicitly type asset_contexts as list[Any] for iteration
-            asset_contexts: list[Any] = state_data.get("assetContexts", [])
+        # state_data typically contains 'assetPositions' (list) and 'marginSummary' (dict)
+        asset_positions_raw = state_data.get("assetPositions", [])
+        # DEFENSIVE CHECK: Ensure asset_positions_raw is a list
+        asset_positions: list[Any]
+        if isinstance(asset_positions_raw, list):
+            asset_positions = asset_positions_raw
+        else:
+            logger.warning(
+                "HyperliquidMapper: Expected 'assetPositions' to be a list, but got %s. Skipping.",
+                type(asset_positions_raw).__name__,
+            )
+            asset_positions = []
 
-            if asset_contexts:
-                for context_item in asset_contexts:
-                    # Check if the item is a dictionary before proceeding
-                    if isinstance(context_item, dict):
-                        context = context_item  # context is now known to be a dict
-                        asset_name: str | None = context.get("name")
-                        if not asset_name:
-                            continue
+        margin_summary_raw = state_data.get("marginSummary", {})
+        # DEFENSIVE CHECK: Ensure margin_summary_raw is a dict
+        margin_summary: dict[str, Any]
+        if isinstance(margin_summary_raw, dict):
+            margin_summary = margin_summary_raw
+        else:
+            logger.warning(
+                "HyperliquidMapper: Expected 'marginSummary' to be a dict, but got %s. Skipping.",
+                type(margin_summary_raw).__name__,
+            )
+            margin_summary = {}
 
-                        balance_details_item: Any = context.get("balance")
-                        # Check if balance details is a dictionary
-                        if isinstance(balance_details_item, dict):
-                            balance_details = (
-                                balance_details_item  # balance_details is now known to be a dict
-                            )
+        # Process 'assetPositions' first for positions that might represent spot balances
+        # Note: Hyperliquid state primarily reflects margin account, focusing on USDC.
+        processed_assets: set[str] = set()
 
-                            total_val: Any = balance_details.get("total", "0")
-                            available_val: Any = balance_details.get("availableMaybe", total_val)
+        for position_entry in asset_positions:
+            # DEFENSIVE CHECK: Ensure each position_entry is a dictionary
+            if not isinstance(position_entry, dict):
+                logger.warning("HyperliquidMapper: Skipping non-dictionary item in assetPositions.")
+                continue
+            # Fix: Cast to dict after check to resolve typing ambiguity
+            position_entry_dict = cast(dict[str, Any], position_entry)
 
-                            try:
-                                # Pass values that can be parsed by Pydantic (str, int, float, Decimal)
-                                balances[asset_name] = SpotBalance(
-                                    exchange=ExchangeName.HYPERLIQUID.value,
-                                    asset=asset_name,
-                                    total=total_val,
-                                    available=available_val,
-                                )
-                            except (ValidationError, TypeError, ValueError) as e:
-                                logger.error(
-                                    f"Failed to parse HL balance for {asset_name}: {e}. Data: {balance_details}",
-                                    exc_info=True,
-                                )
-                        else:
-                            logger.warning(
-                                f"Missing or invalid 'balance' details for asset '{asset_name}' in HL state."
-                            )
-                    else:
-                        logger.warning(
-                            f"Unexpected item type in assetContexts: {type(context_item)}"
-                        )
+            position_details_raw = position_entry_dict.get("position")
+            if not isinstance(position_details_raw, dict):
+                logger.warning(
+                    "HyperliquidMapper: Skipping assetPosition with invalid 'position' field (not a dict)."
+                )
+                continue
+            # Now we know position_details_raw is a dict
+            position_details: dict[str, Any] = position_details_raw
+
+            asset_name_raw = position_details.get("coin")
+            if not isinstance(asset_name_raw, str) or not asset_name_raw:
+                logger.warning(
+                    "HyperliquidMapper: Skipping assetPosition with missing or invalid 'coin' field."
+                )
+                continue
+            asset_name: str = asset_name_raw.upper()
+            processed_assets.add(asset_name)  # Track assets found in positions
+
+            # Primarily interested in USDC from marginSummary for total/available
+            if asset_name != "USDC":
+                # We could potentially parse 'szi' from position_details for other assets
+                # if they represent spot holdings, but HL state focuses on margin.
+                # For now, only fully process USDC balance from marginSummary.
+                continue
+
+            # Extract balances for USDC from margin_summary
+            total_balance_str_raw = margin_summary.get("accountValue")
+            total_balance_str = (
+                str(total_balance_str_raw) if total_balance_str_raw is not None else None
+            )
+
+            total = parse_decimal_value(
+                total_balance_str, field_name=f"{asset_name}_totalBalance", allow_none=True
+            )
+
+            if total is None:
+                if total_balance_str is not None:  # Log only if parsing failed
+                    logger.warning(
+                        f"HyperliquidMapper: Failed to parse total balance for {asset_name} from "
+                        f"marginSummary.accountValue: '{total_balance_str}'"
+                    )
+                continue  # Cannot proceed without total balance
+
+            available_balance_str_raw = margin_summary.get("withdrawable")
+            available_balance_str = (
+                str(available_balance_str_raw) if available_balance_str_raw is not None else "0"
+            )
+
+            available = parse_decimal_value(
+                available_balance_str, field_name=f"{asset_name}_availableBalance"
+            )
+            # Default available to 0 if parsing fails or not provided
+            available_validated = available if available is not None else Decimal("0")
+
+            # DEFENSIVE CHECK: Ensure total is finite before calculation.
+            # Add ignore for Pyright warning about redundant check after None check
+            if total is not None and total.is_finite():  # type: ignore[reportUnnecessaryComparison]
+                pass  # Keep the block structure for clarity if needed
             else:
-                logger.warning("'assetContexts' missing or not a list in HL state data.")
+                logger.warning(
+                    f"HyperliquidMapper: Could not determine locked balance for {asset_name} "
+                    f"due to invalid total balance ({total})."
+                )
 
-        except Exception as e:
-            logger.error(f"Error mapping Hyperliquid balances: {e}", exc_info=True)
+            # Create SpotBalance instance (asset_name is guaranteed str here)
+            balance_data = {
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "asset": asset_name,
+                "total": total,
+                "available": available_validated,
+            }
+            try:
+                balance = SpotBalance.model_validate(balance_data)
+                balances[asset_name] = balance
+            except ValidationError as e:
+                logger.error(
+                    f"HyperliquidMapper: Failed validation creating SpotBalance for {asset_name}: {e}. "
+                    f"Data: {balance_data}"
+                )
+
+        # Special case: If marginSummary exists but USDC wasn't in assetPositions
+        # (e.g., empty positions list but margin account has value)
+        if "accountValue" in margin_summary and "USDC" not in processed_assets:
+            total_balance_str_raw = margin_summary.get("accountValue")
+            total_balance_str = (
+                str(total_balance_str_raw) if total_balance_str_raw is not None else None
+            )
+
+            available_balance_str_raw = margin_summary.get("withdrawable")
+            available_balance_str = (
+                str(available_balance_str_raw) if available_balance_str_raw is not None else "0"
+            )
+
+            total = parse_decimal_value(total_balance_str, field_name="USDC_totalBalance")
+            available = parse_decimal_value(
+                available_balance_str, field_name="USDC_availableBalance"
+            )
+            available_validated = available if available is not None else Decimal("0")
+
+            if total is not None:
+                balance_data = {
+                    "exchange": ExchangeName.HYPERLIQUID.value,
+                    "asset": "USDC",  # Explicitly USDC
+                    "total": total,
+                    "available": available_validated,
+                }
+                try:
+                    balance = SpotBalance.model_validate(balance_data)
+                    balances["USDC"] = balance
+                except ValidationError:
+                    logger.error(
+                        "HyperliquidMapper: Failed validation creating USDC SpotBalance from marginSummary: {e}. "
+                        f"Data: {balance_data}"
+                    )
+
+            else:
+                logger.warning(
+                    "HyperliquidMapper: Failed to parse USDC total balance directly from marginSummary "
+                    "(when not found in assetPositions)."
+                )
+
         return balances
 
 

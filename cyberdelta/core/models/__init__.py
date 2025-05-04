@@ -10,11 +10,8 @@ convenient import.
 # from .credentials import APIKeys # TODO: Resolve ModuleNotFoundError
 from .derivative_position import (
     BackpackPositionDetails,
-    BackpackRawImfFunction,
-    BackpackRawMmfFunction,
     DerivativePosition,
     HyperliquidPositionDetails,
-    HyperliquidRawLeverage,
 )
 from .enums import (
     # ExchangeType, # Removed - Not defined in enums.py
@@ -49,10 +46,7 @@ __all__ = [
     "SpotBalance",
     "DerivativePosition",
     "HyperliquidPositionDetails",
-    "HyperliquidRawLeverage",
     "BackpackPositionDetails",
-    "BackpackRawImfFunction",
-    "BackpackRawMmfFunction",
     "TradeSignal",
     # "PositionInfo", # TODO: Resolve ModuleNotFoundError
     # "PositionSide", # TODO: Resolve ModuleNotFoundError

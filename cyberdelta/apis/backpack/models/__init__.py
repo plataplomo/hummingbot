@@ -21,6 +21,7 @@ for boundary validation and transformation only.
 from .bp_raw_account import BackpackRawAccount, BackpackRawBalance
 from .bp_raw_error import BackpackRawApiError
 from .bp_raw_funding import BackpackRawFundingRate, BackpackRawMarkPrice
+from .bp_raw_margin_functions import BackpackRawImfFunction, BackpackRawMmfFunction
 from .bp_raw_market import BackpackRawMarket, BackpackRawOpenInterest, BackpackRawTicker
 from .bp_raw_order import BackpackRawOrder, BackpackRawOrderBook, BackpackRawOrderUpdate
 from .bp_raw_position import BackpackRawPosition, BackpackRawPositionUpdate
@@ -46,4 +47,6 @@ __all__ = [
     "BackpackRawWithdrawal",
     "BackpackRawDeposit",
     "BackpackRawLiquidation",
+    "BackpackRawImfFunction",
+    "BackpackRawMmfFunction",
 ]

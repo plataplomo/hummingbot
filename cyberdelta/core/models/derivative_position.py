@@ -13,37 +13,54 @@ from pydantic import (
 )
 from pydantic_core.core_schema import ValidationInfo
 
+# Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
+# (Although for Details, we usually transform *before* creating Details)
+# from cyberdelta.apis.hyperliquid.models import HyperliquidRawLeverage # Should not be needed here
 from cyberdelta.core.models.enums import OrderSide
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import (
+    parse_datetime_utc,
+    parse_decimal_value,
+    validate_enum_field,
+    validate_str_field,
+)
 
-# --- Derivative Position Details & Sub-Models ---
-
-# Note: These sub-models represent raw data structures often received from APIs.
-# They should be validated but kept simple.
-
-
-class HyperliquidRawLeverage(BaseModel):
-    """Raw leverage details from Hyperliquid API."""
-
-    type: str  # e.g., "cross", "isolated"
-    value: int = Field(ge=0)
-
-    model_config = ConfigDict(extra="ignore", frozen=True)
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def validate_type_str(cls, v: object) -> str:
-        return validate_str_field(v, field_name="type", max_length=32)
+# --- Derivative Position Details & Sub-Models (INTERNAL) ---
 
 
 class HyperliquidPositionDetails(BaseModel):
-    """Immutable exchange-specific details for a Hyperliquid position."""
+    """Immutable exchange-specific details for a Hyperliquid position (Internal)."""
 
-    leverage: HyperliquidRawLeverage
-    max_leverage: int = Field(ge=0)
+    leverage_type: str = Field(...)  # e.g., "cross", "isolated"
+    leverage_value: int = Field(..., ge=0)
+    max_leverage: int = Field(..., ge=0)
     margin_used: Decimal | None = Field(default=None, ge=Decimal("0"))
 
-    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=True)
+    model_config = ConfigDict(
+        extra="ignore", frozen=True, validate_assignment=False
+    )  # Details are immutable
+
+    @field_validator("leverage_type", mode="before")
+    @classmethod
+    def validate_leverage_type(cls, v: object, info: ValidationInfo) -> str:
+        """Validate leverage_type is 'cross' or 'isolated'."""
+        field_name = info.field_name or "leverage_type"
+        allowed_values: set[str] = {"cross", "isolated"}
+        try:
+            s = validate_str_field(v, field_name=field_name, max_length=16)
+            return validate_enum_field(s, allowed=allowed_values, field_name=field_name)
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+
+    @field_validator("leverage_value", mode="before")
+    @classmethod
+    def validate_leverage_value(cls, v: object, info: ValidationInfo) -> int:
+        """Validate leverage_value is a non-negative integer."""
+        field_name = info.field_name or "leverage_value"
+        if not isinstance(v, int):
+            raise ValueError(f"{field_name}: Expected int, got {type(v).__name__}")
+        if v < 0:
+            raise ValueError(f"{field_name}: Must be non-negative")
+        return v
 
     @field_validator("margin_used", mode="before")
     @classmethod
@@ -56,90 +73,28 @@ class HyperliquidPositionDetails(BaseModel):
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
         parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Ensure finite if not None.
+        # DEFENSIVE CHECK: Ensure finite if not None. Mypy=[redundant-expr]
         if parsed is not None and not parsed.is_finite():
-            # This should be practically unreachable due to Pydantic's validation flow
-            # if info.field_name is None: # Check already performed
-            #     raise ValueError("Field name is unexpectedly None during validation.")
             raise ValueError(f"{field_name}: Value must be finite if provided")
         return parsed
 
 
-class BackpackRawImfFunction(BaseModel):
-    """Raw Initial Margin Fraction (IMF) function parameters from Backpack API."""
-
-    a: Decimal
-    b: Decimal
-    c: Decimal
-
-    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=True)
-
-    @field_validator("a", "b", "c", mode="before")
-    @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info: ValidationInfo) -> Decimal:
-        """Parse required decimal, ensuring finite."""
-        # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
-        field_name = info.field_name
-        if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
-        parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Explicitly require finite values post-parse. Mypy=[unreachable]
-        if parsed is None:
-            # parse_decimal_value should raise if allow_none=False is implied by return type Decimal
-            # if info.field_name is None: # Check already performed
-            #     raise ValueError("Field name is unexpectedly None during validation.")
-            raise ValueError(f"{field_name}: Value cannot be None")
-        # DEFENSIVE CHECK: Ensure value is finite. Mypy=[possibly-undefined]
-        if not parsed.is_finite():
-            # This should be practically unreachable due to Pydantic's validation flow
-            # if info.field_name is None: # Check already performed
-            #     raise ValueError("Field name is unexpectedly None during validation.")
-            raise ValueError(f"{field_name}: Value must be finite")
-        return parsed
-
-
-class BackpackRawMmfFunction(BaseModel):
-    """Raw Maintenance Margin Fraction (MMF) function parameters from Backpack API."""
-
-    base: Decimal
-    factor: Decimal
-
-    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=True)
-
-    @field_validator("base", "factor", mode="before")
-    @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info: ValidationInfo) -> Decimal:
-        """Parse required decimal, ensuring finite."""
-        # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
-        field_name = info.field_name
-        if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
-        parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Explicitly require finite values post-parse. Mypy=[unreachable]
-        if parsed is None:
-            # parse_decimal_value should raise if allow_none=False is implied by return type Decimal
-            # if info.field_name is None: # Check already performed
-            #     raise ValueError("Field name is unexpectedly None during validation.")
-            raise ValueError(f"{field_name}: Value cannot be None")
-        # DEFENSIVE CHECK: Ensure value is finite. Mypy=[possibly-undefined]
-        if not parsed.is_finite():
-            # This should be practically unreachable due to Pydantic's validation flow
-            # if info.field_name is None: # Check already performed
-            #     raise ValueError("Field name is unexpectedly None during validation.")
-            raise ValueError(f"{field_name}: Value must be finite")
-        return parsed
-
-
 class BackpackPositionDetails(BaseModel):
-    """Immutable exchange-specific details for a Backpack position."""
+    """Immutable exchange-specific details for a Backpack position (Internal)."""
 
+    imf_base: Decimal | None = Field(default=None)  # SqrtFunction base parameter
+    imf_factor: Decimal | None = Field(default=None)  # SqrtFunction factor parameter
+    mmf_base: Decimal | None = Field(default=None)  # SqrtFunction base parameter
+    mmf_factor: Decimal | None = Field(default=None)  # SqrtFunction factor parameter
     cumulative_funding: Decimal | None = Field(default=None)
-    imf_function: BackpackRawImfFunction | None = None
-    mmf_function: BackpackRawMmfFunction | None = None
 
-    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=True)
+    model_config = ConfigDict(
+        extra="ignore", frozen=True, validate_assignment=False
+    )  # Details are immutable
 
-    @field_validator("cumulative_funding", mode="before")
+    @field_validator(
+        "imf_base", "imf_factor", "mmf_base", "mmf_factor", "cumulative_funding", mode="before"
+    )
     @classmethod
     def parse_optional_decimal(
         cls, v: str | int | float | Decimal | None, info: ValidationInfo
@@ -150,11 +105,8 @@ class BackpackPositionDetails(BaseModel):
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
         parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Ensure finite if not None.
+        # DEFENSIVE CHECK: Ensure finite if not None. Mypy=[redundant-expr]
         if parsed is not None and not parsed.is_finite():
-            # This should be practically unreachable due to Pydantic's validation flow
-            # if info.field_name is None: # Check already performed
-            #     raise ValueError("Field name is unexpectedly None during validation.")
             raise ValueError(f"{field_name}: Value must be finite if provided")
         return parsed
 
@@ -215,7 +167,8 @@ class DerivativePosition(BaseModel):
     hl_details: HyperliquidPositionDetails | None = Field(default=None)
     bp_details: BackpackPositionDetails | None = Field(default=None)
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)  # Mutable
+    # IMPORTANT: MUTABLE MODEL - DO NOT SET frozen=True
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     # --- Field Validators ---
 
@@ -248,30 +201,39 @@ class DerivativePosition(BaseModel):
             raise ValueError("Field name is unexpectedly None during validation.")
         return validate_str_field(v, field_name=field_name, max_length=128)
 
+    @field_validator("side", mode="before")
+    @classmethod
+    def validate_side_enum(cls, v: object, info: ValidationInfo) -> OrderSide:
+        """Validate OrderSide enum."""
+        # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
+        field_name = info.field_name
+        if field_name is None:
+            raise ValueError("Field name is unexpectedly None during validation.")
+        try:
+            allowed_values: set[str] = {member.value for member in OrderSide}
+            s = validate_str_field(v, field_name=field_name, max_length=16)
+            validated_str = validate_enum_field(s, allowed=allowed_values, field_name=field_name)
+            return OrderSide(validated_str)
+        except Exception as e:
+            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+
     @field_validator("size", mode="before")
     @classmethod
     def parse_required_decimal(
         cls, v: str | int | float | Decimal | None, info: ValidationInfo
     ) -> Decimal:
-        """Parse required decimal fields, ensuring finite."""
+        """Parse required decimal ('size'), ensuring finite."""
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            # This should be practically unreachable due to Pydantic's validation flow
             raise ValueError("Field name is unexpectedly None during validation.")
         parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Explicitly require finite values post-parse. Mypy=[unreachable]
+        # DEFENSIVE CHECK: Explicitly require non-None and finite values post-parse. Mypy=[unreachable]
         if parsed is None:
-            # parse_decimal_value should raise if None based on return type Decimal
-            # if info.field_name is None: # Check already performed
-            #     raise ValueError("Field name is unexpectedly None during validation.")
             raise ValueError(f"{field_name}: Value cannot be None")
         # DEFENSIVE CHECK: Ensure value is finite. Mypy=[possibly-undefined]
         if not parsed.is_finite():
-            # This should be practically unreachable due to Pydantic's validation flow
-            # if info.field_name is None: # Check already performed
-            #     raise ValueError("Field name is unexpectedly None during validation.")
-            raise ValueError(f"{field_name}: Value must be finite (not NaN or Infinity)")
+            raise ValueError(f"{field_name}: Value must be finite")
         return parsed
 
     @field_validator(
@@ -286,24 +248,15 @@ class DerivativePosition(BaseModel):
     def parse_optional_decimal(
         cls, v: str | int | float | Decimal | None, info: ValidationInfo
     ) -> Decimal | None:
-        """Parse optional decimal fields, ensuring finite if present."""
+        """Parse optional decimals, ensuring finite if present."""
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            # This should be practically unreachable due to Pydantic's validation flow
             raise ValueError("Field name is unexpectedly None during validation.")
         parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Ensure finite if not None.
+        # DEFENSIVE CHECK: Ensure finite if not None. Mypy=[redundant-expr]
         if parsed is not None and not parsed.is_finite():
-            # This should be practically unreachable due to Pydantic's validation flow
-            # if info.field_name is None: # Check already performed
-            #     raise ValueError("Field name is unexpectedly None during validation.")
             raise ValueError(f"{field_name}: Value must be finite if provided")
-        # Additional check for fields that must be non-negative if provided
-        if field_name in ("mark_price", "liquidation_price"):
-            if parsed is not None and parsed < Decimal("0"):
-                raise ValueError(f"{field_name}: Value cannot be negative")
-        # Note: entry_price > 0 check happens in model_validator based on size
         return parsed
 
     @field_validator("timestamp", mode="before")
@@ -311,70 +264,60 @@ class DerivativePosition(BaseModel):
     def parse_required_datetime(
         cls, v: str | int | float | datetime | None, info: ValidationInfo
     ) -> datetime:
-        """Parse required datetime field, ensuring it's not None."""
+        """Parse required datetime, ensuring UTC."""
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            # This should be practically unreachable due to Pydantic's validation flow
             raise ValueError("Field name is unexpectedly None during validation.")
         dt = parse_datetime_utc(v, field_name=field_name)
-        # DEFENSIVE CHECK: parse_datetime_utc should raise if None based on return type datetime
+        # DEFENSIVE CHECK: Explicitly require non-None. Mypy=[unreachable]
         if dt is None:
-            # This should be practically unreachable due to Pydantic's validation flow
-            # if info.field_name is None: # Check already performed
-            #     raise ValueError("Field name is unexpectedly None during validation.")
-            raise ValueError(f"{field_name} cannot be None")
+            raise ValueError(f"{field_name}: Value cannot be None")
         return dt
 
-    # --- Properties ---
+    # --- Instance Methods ---
 
     def is_active(self) -> bool:
-        """
-        Returns True if the position is currently open (size is non-zero), False otherwise.
-        """
-        # DEFENSIVE CHECK: Ensure size is finite before comparison. Should be guaranteed by validator. Mypy=[redundant-expr]
-        if not self.size.is_finite():
-            raise ValueError("Position size is not finite, cannot determine active status.")
+        """Check if the position has a non-zero size."""
         return self.size != Decimal("0")
 
-    # --- Model Validator ---
+    # --- Model Validators ---
 
     @model_validator(mode="after")
     def check_position_logic(self) -> Self:
         """
-        Ensures logical consistency between size, entry_price, and side.
-        1. If size is non-zero, entry_price must be present and positive.
-        2. If size is zero, entry_price must be None.
-        3. Side must align with the sign of the size (BUY for > 0, SELL for < 0).
-           (Size == 0 can technically have either side state depending on last trade,
-            but often reset to BUY/None; we allow either if size is zero).
+        Validate cross-field consistency and business logic rules.
+
+        - entry_price must be > 0 if size is non-zero.
+        - entry_price must be None if size is zero.
+        - side must match the sign of size (Buy for size > 0, Sell for size < 0).
+          (Note: Side is less defined if size is 0, we allow either if flat)
         """
-        # Check 1 & 2: Entry price logic vs. size
+        # --- Entry Price Logic ---
         if self.size != Decimal("0"):
-            if self.entry_price is None or self.entry_price <= Decimal("0"):
-                raise ValueError(
-                    "Entry price must be provided and positive if position size is non-zero."
-                )
+            if self.entry_price is None:
+                raise ValueError("entry_price must be provided if size is non-zero")
+            if self.entry_price <= Decimal("0"):
+                raise ValueError("entry_price must be positive (> 0) if size is non-zero")
         else:  # size == 0
             if self.entry_price is not None:
-                # Optionally force entry_price to None when flat, or just warn/allow?
-                # Forcing consistency:
-                # object.__setattr__(self, "entry_price", None)
-                # Raising error:
-                raise ValueError("Entry price must be None if position size is zero.")
+                raise ValueError("entry_price must be None if size is zero")
 
-        # Check 3: Side vs. Size consistency
+        # --- Side vs Size Logic ---
         if self.size > Decimal("0") and self.side != OrderSide.BUY:
-            raise ValueError("Position side must be BUY if size is positive.")
+            raise ValueError("side must be BUY if size is positive")
         if self.size < Decimal("0") and self.side != OrderSide.SELL:
-            raise ValueError("Position side must be SELL if size is negative.")
+            raise ValueError("side must be SELL if size is negative")
+        # If size is 0, side can be either BUY or SELL (representing last state)
 
-        # Check details match exchange (simple check)
+        # --- Check Extension Slot Consistency ---
         if self.exchange == "hyperliquid" and self.bp_details is not None:
-            raise ValueError("Backpack details (bp_details) provided for a Hyperliquid position.")
+            raise ValueError(
+                "Backpack details (bp_details) must be None for a Hyperliquid position"
+            )
         if self.exchange == "backpack" and self.hl_details is not None:
-            raise ValueError("Hyperliquid details (hl_details) provided for a Backpack position.")
-        # Could add checks: If exchange is X, details X should not be None?
-        # Depends on whether we always expect details. For now, allow None details.
+            raise ValueError(
+                "Hyperliquid details (hl_details) must be None for a Backpack position"
+            )
 
         return self
