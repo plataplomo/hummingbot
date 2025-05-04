@@ -12,74 +12,66 @@ from decimal import Decimal
 from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic_core.core_schema import ValidationInfo
 
 from cyberdelta.core.models.enums import OrderSide
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
-class Balance(BaseModel):
+class SpotBalance(BaseModel):
     """
-    Balance models the account balance for a single asset (e.g., USDC, BTC) on an exchange. It is
-    immutable (frozen=True) to ensure that balance snapshots reflect the exact state at the time of
-    retrieval and are not accidentally mutated.
+    Represents an immutable snapshot of a spot asset balance on a specific exchange.
+
+    This model reflects simple asset ownership, typically sourced from account balance endpoints.
+    It uses Decimal for financial precision and is immutable (`frozen=True`) to ensure
+    data integrity after creation.
 
     Fields:
-        asset (str): The asset/currency symbol.
-        total (Decimal): Total balance for the asset.
-        available (Decimal | None): Amount available for trading (may be None,
-            defaults to total).
-        free (Decimal | None): Unlocked/free amount (may be None, defaults to 0.0).
-        locked (Decimal | None): Amount locked in orders or for margin (may be None,
-            defaults to 0.0).
+        exchange (str): The name of the exchange (e.g., 'backpack', 'hyperliquid').
+        asset (str): The asset/currency symbol (e.g., 'USDC', 'BTC').
+        total (Decimal): Total balance for the asset (non-negative).
+        available (Decimal): Amount available for trading (non-negative).
 
-    Notes:
-        - All financial fields use Decimal for accuracy.
-        - Use is_active() to check if the balance is nonzero.
-        - This model is not intended for mutation after creation.
+    Validators ensure required fields are non-empty strings and financial values are
+    non-negative, finite Decimals.
     """
 
+    exchange: str
     asset: str
-    total: Decimal
-    available: Decimal | None = None
-    free: Decimal | None = None
-    locked: Decimal | None = None
+    total: Decimal = Field(ge=Decimal("0"))
+    available: Decimal = Field(ge=Decimal("0"))
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
-    @field_validator("total", "available", "free", "locked", mode="before")
+    @field_validator("exchange", "asset", mode="before")
     @classmethod
-    def parse_decimal(cls, v: str | int | float | Decimal | None, info: object) -> Decimal | None:
-        return parse_decimal_value(v)
+    def validate_string_fields(cls, v: object, info: ValidationInfo) -> str:
+        """Validate exchange and asset fields are non-empty, reasonable length strings."""
+        # DEFENSIVE CHECK: Ensures runtime type at boundary. Mypy=[unreachable]
+        if info.field_name is None:
+            # This should be practically unreachable due to Pydantic's validation flow
+            raise ValueError("Field name is unexpectedly None during validation.")
+        return validate_str_field(v, field_name=info.field_name, max_length=64)
 
-    @model_validator(mode="after")
-    def set_defaults(self) -> Self:
-        if self.available is None:
-            object.__setattr__(self, "available", self.total)
-        if self.free is None:
-            object.__setattr__(self, "free", Decimal("0.0"))
-        if self.locked is None:
-            object.__setattr__(self, "locked", Decimal("0.0"))
-        return self
-
-    def to_dict(self) -> dict[str, Any]:
-        """Subject to deprecation: Prefer model_dump(mode='json') for future serialization."""
-        d = self.model_dump()
-        for k, v in d.items():
-            if isinstance(v, Decimal):
-                d[k] = str(v)
-        return d
-
-    @property
-    def quantity(self) -> Decimal:
-        return self.total
-
-    def is_active(self) -> bool:
-        return self.total > Decimal("0.0")
-
-    def calculate_unrealized_pnl(self, current_price: Decimal) -> Decimal:
-        if self.asset in ["USD", "USDC", "USDT"]:
-            return Decimal("0.0")
-        return Decimal("0.0")
+    @field_validator("total", "available", mode="before")
+    @classmethod
+    def parse_and_validate_decimal(
+        cls, v: str | int | float | Decimal | None, info: ValidationInfo
+    ) -> Decimal:
+        """Parse and validate decimal fields, ensuring they are non-None and finite."""
+        # DEFENSIVE CHECK: Ensures runtime type at boundary. Mypy=[unreachable]
+        if info.field_name is None:
+            # This should be practically unreachable due to Pydantic's validation flow
+            raise ValueError("Field name is unexpectedly None during validation.")
+        parsed_value = parse_decimal_value(v, allow_none=False, field_name=info.field_name)
+        # DEFENSIVE CHECK: Explicitly require finite values post-parse. Mypy=[unreachable]
+        if parsed_value is None:
+            # parse_decimal_value should raise if allow_none=False, but belt-and-suspenders
+            raise ValueError(f"{info.field_name}: Value cannot be None")
+        # DEFENSIVE CHECK: Ensure value is finite. Mypy=[possibly-undefined]
+        if not parsed_value.is_finite():
+            raise ValueError(f"{info.field_name}: Value must be finite (not NaN or Infinity)")
+        return parsed_value
 
 
 class Position(BaseModel):

@@ -6,7 +6,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, cast
 
-from cyberdelta.core.portfolio_tracker import Balance, PortfolioTracker
+from cyberdelta.core.portfolio_tracker import (
+    PortfolioTracker,  # Updated from Balance
+)
+from cyberdelta.core.risk_manager import ExchangeBalance  # Import the correct type
 from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
@@ -166,27 +169,21 @@ class BalanceMonitor:
 
         for exchange_id, min_balances in self.exchange_min_balances.items():
             for asset, min_balance in min_balances.items():
-                # Use explicit Balance type hint
-                current_balance: Balance | None = self.portfolio_tracker.get_exchange_balance(
-                    exchange_id, asset
+                # Use the correct type hint: ExchangeBalance
+                current_balance: ExchangeBalance | None = (
+                    self.portfolio_tracker.get_exchange_balance(exchange_id, asset)
                 )
-                current_balance_amount = Decimal("0.0")
+                available_balance = (
+                    current_balance.get("available", Decimal("0.0"))  # Default if key missing
+                    if current_balance is not None  # Check if balance exists before .get()
+                    else Decimal("0.0")  # Default if balance is None
+                )
 
-                if current_balance is not None:
-                    # DEFENSIVE CHECK: Ensure current_balance is not None before access.
-                    assert current_balance is not None  # Mypy=[redundant-expr]
-                    try:
-                        # Balance object has a total field which is a Decimal
-                        current_balance_amount = current_balance.total
-                    except AttributeError:  # Should not happen if Balance model is correct
-                        logger.warning(f"Unable to extract balance amount from: {current_balance}")
-
-                # Check if balance is below minimum
-                if current_balance_amount < min_balance:
+                if available_balance < min_balance:
                     alert = BalanceAlert(
                         exchange=exchange_id,
                         asset=asset,
-                        current_balance=current_balance_amount,  # Known Decimal
+                        current_balance=available_balance,  # Known Decimal
                         required_balance=min_balance,
                         severity=BalanceAlert.SEVERITY_CRITICAL,
                         message="Balance below minimum requirement",
@@ -199,13 +196,13 @@ class BalanceMonitor:
                     logger.warning(str(alert))
                 # Check if balance is below low threshold but above minimum
                 elif (
-                    current_balance_amount < self.low_balance_threshold
+                    available_balance < self.low_balance_threshold
                     and (exchange_id, asset) not in already_alerted
                 ):
                     alert = BalanceAlert(
                         exchange=exchange_id,
                         asset=asset,
-                        current_balance=current_balance_amount,  # Known Decimal
+                        current_balance=available_balance,  # Known Decimal
                         required_balance=self.low_balance_threshold,
                         severity=BalanceAlert.SEVERITY_WARNING,
                         message="Balance nearing low threshold",
@@ -237,26 +234,23 @@ class BalanceMonitor:
         Returns:
             BalanceAlert if insufficient, None otherwise
         """
-        # Use explicit Balance type hint
-        current_balance: Balance | None = self.portfolio_tracker.get_exchange_balance(
+        # Use the correct type hint: ExchangeBalance
+        current_balance: ExchangeBalance | None = self.portfolio_tracker.get_exchange_balance(
             exchange, asset
         )
-        current_balance_amount = Decimal("0.0")
+        available_balance = (
+            current_balance.get("available", Decimal("0.0"))  # Default if key missing
+            if current_balance is not None  # Check if balance exists before .get()
+            else Decimal("0.0")  # Default if balance is None
+        )
 
-        if current_balance is not None:
-            # DEFENSIVE CHECK: Ensure current_balance is not None before access.
-            assert current_balance is not None  # Mypy=[redundant-expr]
-            try:
-                # Balance object has a total field which is a Decimal
-                current_balance_amount = current_balance.total
-            except AttributeError:  # Should not happen if Balance model is correct
-                logger.warning(f"Unable to extract balance amount from: {current_balance}")
+        min_balance_req = self.exchange_min_balances.get(exchange, {}).get(asset, Decimal("0.0"))
 
-        if current_balance_amount < required_amount:
+        if available_balance < required_amount:
             alert = BalanceAlert(
                 exchange=exchange,
                 asset=asset,
-                current_balance=current_balance_amount,  # Known Decimal
+                current_balance=available_balance,  # Known Decimal
                 required_balance=required_amount,
                 severity=BalanceAlert.SEVERITY_CRITICAL,
                 message=f"Insufficient {asset} balance for trade on {exchange}",
@@ -299,28 +293,26 @@ class BalanceMonitor:
         for exchange_id, min_balances in self.exchange_min_balances.items():
             exchange_balances: dict[str, dict[str, str]] = {}  # Type hint for inner dict
             for asset in min_balances:
-                # Use explicit Balance type hint
-                current_balance: Balance | None = self.portfolio_tracker.get_exchange_balance(
-                    exchange_id, asset
+                # Use the correct type hint: ExchangeBalance
+                current_balance: ExchangeBalance | None = (
+                    self.portfolio_tracker.get_exchange_balance(exchange_id, asset)
                 )
-                current_balance_amount = Decimal("0.0")
+                available_balance = (
+                    current_balance.get("available", Decimal("0.0"))  # Default if key missing
+                    if current_balance is not None  # Check if balance exists before .get()
+                    else Decimal("0.0")  # Default if balance is None
+                )
 
-                if current_balance is not None:
-                    # DEFENSIVE CHECK: Ensure current_balance is not None before access.
-                    assert current_balance is not None  # Mypy=[redundant-expr]
-                    try:
-                        # Balance object has a total field which is a Decimal
-                        current_balance_amount = current_balance.total
-                    except AttributeError:  # Should not happen if Balance model is correct
-                        logger.warning(f"Unable to extract balance amount from: {current_balance}")
-
-                min_balance = self.exchange_min_balances[exchange_id][asset]
+                # Fetch the specific minimum requirement for this asset
+                min_balance_req_loop = self.exchange_min_balances[exchange_id][asset]
 
                 # Create a new dictionary with balance information (strings for JSON compatibility)
                 asset_info: dict[str, str] = {
-                    "current": str(current_balance_amount),
-                    "minimum": str(min_balance),
-                    "status": "OK" if current_balance_amount >= min_balance else "LOW",
+                    "current": str(available_balance),
+                    "minimum": str(min_balance_req_loop),  # Use correct min balance
+                    "status": "OK"
+                    if available_balance >= min_balance_req_loop
+                    else "LOW",  # Use correct min balance
                 }
                 exchange_balances[asset] = asset_info
 

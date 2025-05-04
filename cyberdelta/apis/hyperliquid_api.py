@@ -18,12 +18,12 @@ from cyberdelta.apis.hyperliquid.hl_ws_mapper import HyperliquidWebsocketMapper
 from cyberdelta.apis.models.api import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
-    Balance,
     FundingRate,
     Order,
     OrderBook,
     OrderSide,
     Position,
+    SpotBalance,
     Ticker,
     Trade,
 )
@@ -412,7 +412,7 @@ class HyperliquidAPI(ExchangeAPI):
                 f"Request error: {e}", code=APIErrorCode.SERVER_ERROR.value, original_exception=e
             ) from e
 
-    async def get_balances(self) -> dict[str, Balance]:
+    async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances."""
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
@@ -425,13 +425,14 @@ class HyperliquidAPI(ExchangeAPI):
             # Validate and parse the clearinghouse state response
             validated = HyperliquidRawClearinghouseState.model_validate(response)
             state_data = validated  # The validated object is the clearinghouse state
-            balances: dict[str, Balance] = {}
+            balances: dict[str, SpotBalance] = {}
             if state_data and state_data.asset_positions:
                 for asset_pos in state_data.asset_positions:
                     if asset_pos.asset == "USDC" and asset_pos.position:
                         total_balance = asset_pos.position.position_value
                         total_balance_dec = Decimal(total_balance)
-                        balances["USDC"] = Balance(
+                        balances["USDC"] = SpotBalance(
+                            exchange=self.exchange_name.value,
                             asset="USDC",
                             total=total_balance_dec,
                             available=total_balance_dec,
@@ -785,7 +786,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         raise NotImplementedError("parse_trade is not implemented for HyperliquidAPI.")
 
-    def parse_balance(self, data: dict[str, Any]) -> Balance:
+    def parse_balance(self, data: dict[str, Any]) -> SpotBalance:
         """
         Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
         """

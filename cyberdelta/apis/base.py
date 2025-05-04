@@ -16,22 +16,24 @@ from aiohttp import ClientTimeout, ClientWSTimeout
 from cyberdelta.apis.models.api import APIError, RateLimiterConfig
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.core.models import (
+    FundingRate,
+    Order,
+    OrderBook,
+    Position,
+    SpotBalance,
+    Ticker,
+    Trade,
+)
+from cyberdelta.core.models.enums import (
+    OrderSide,  # Moved back
+    OrderType,  # Moved back
+    TimeInForce,  # Moved back
+)
 
 if TYPE_CHECKING:
-    # Import other models only needed for type hints here
-    from ..core.models import (
-        Balance,
-        FundingRate,
-        Order,
-        OrderBook,
-        OrderSide,  # Moved back
-        OrderType,  # Moved back
-        Position,
-        Ticker,
-        TimeInForce,  # Moved back
-        Trade,  # Use Trade instead of Fill
-    )
-    from ..core.models.market import Candle  # Correct import
+    # Import models only needed for type hints here
+    from cyberdelta.core.models.market import Candle
 
 logger = logging.getLogger(__name__)
 
@@ -725,8 +727,8 @@ class ExchangeAPI(ABC):
     # --- Account Information --- #
 
     @abstractmethod
-    async def get_balances(self) -> dict[str, Balance] | list[Balance | dict[str, Any]] | None:
-        """Fetch account balances for all assets."""
+    async def get_balances(self) -> dict[str, SpotBalance] | list[SpotBalance] | None:
+        """Get account balances."""
         raise NotImplementedError
 
     @abstractmethod
@@ -864,8 +866,8 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def parse_balance(self, data: dict[str, Any]) -> Balance:
-        """Parse raw balance data into a Balance object."""
+    def parse_balance(self, data: dict[str, Any]) -> SpotBalance:
+        """Parse raw balance data into a SpotBalance object."""
         raise NotImplementedError
 
     @abstractmethod
@@ -901,7 +903,7 @@ class ExchangeAPI(ABC):
     @abstractmethod
     def parse_account_update_message(
         self, message: dict[str, Any]
-    ) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]:
+    ) -> tuple[dict[str, SpotBalance] | None, dict[str, Position] | None]:
         """Parse a WebSocket message containing account (balance/position) updates."""
         raise NotImplementedError
 

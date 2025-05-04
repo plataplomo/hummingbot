@@ -7,15 +7,15 @@ import aiohttp
 import pytest
 
 from cyberdelta.core.models import (
-    Balance,
     FundingRate,
     Order,
     OrderSide,
     OrderStatus,
     OrderType,
     Position,
+    SpotBalance,
 )
-from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market import Candle
 
 # Import the classes we need to test
 from cyberdelta.utils.config import Config
@@ -267,11 +267,14 @@ def mock_exchange_api():
 
     # Configure common methods
     mock_api.get_balances.return_value = {
-        "USDC": Balance(
-            asset="USDC", free=Decimal("10000.0"), locked=Decimal("0.0"), total=Decimal("10000.0")
+        "USDC": SpotBalance(
+            exchange="mock_exchange",
+            asset="USDC",
+            total=Decimal("10000.0"),
+            available=Decimal("10000.0"),
         ),
-        "BTC": Balance(
-            asset="BTC", free=Decimal("1.0"), locked=Decimal("0.0"), total=Decimal("1.0")
+        "BTC": SpotBalance(
+            exchange="mock_exchange", asset="BTC", total=Decimal("1.0"), available=Decimal("1.0")
         ),
     }
 

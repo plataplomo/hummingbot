@@ -9,11 +9,11 @@ from typing import Any
 
 from cyberdelta.apis.base import ExchangeAPI
 from cyberdelta.core.models import (
-    Balance,
     Order,
     OrderSide,
     OrderStatus,
     Position,
+    SpotBalance,
     Trade,
 )
 from cyberdelta.core.risk_manager import ExchangeBalance
@@ -47,7 +47,9 @@ class PortfolioTracker:
         self.api_clients: dict[str, ExchangeAPI] = {}
 
         # Balance tracking (Store as Decimal)
-        self._balances: dict[str, dict[str, Balance]] = {}  # exchange -> asset -> Balance object
+        self._balances: dict[
+            str, dict[str, SpotBalance]
+        ] = {}  # exchange -> asset -> SpotBalance object
 
         # Position tracking
         self._positions: dict[str, dict[str, Position]] = {}  # exchange -> position_id -> Position
@@ -180,12 +182,12 @@ class PortfolioTracker:
                 return False
 
             # --- HANDLE DICT or LIST ---
-            updated_balances: dict[str, Balance] = {}
+            updated_balances: dict[str, SpotBalance] = {}
             processed = False
             if isinstance(balances_data, dict):
                 logger.debug(f"[FETCH_BALANCES:{exchange_id}] Processing DICT.")
                 for asset, balance_info in balances_data.items():
-                    # asset is always str, balance_info is Balance or dict[str, Any]
+                    # asset is always str, balance_info is SpotBalance or dict[str, Any]
                     if asset:
                         balance_instance = self._parse_balance_info(
                             exchange_id, asset, balance_info
@@ -212,8 +214,8 @@ class PortfolioTracker:
                 logger.debug(f"[FETCH_BALANCES:{exchange_id}] Processing LIST.")
                 for balance_item in balances_data:
                     item_asset: str | None = None
-                    parsed_balance: Balance | None = None
-                    if type(balance_item) is Balance:
+                    parsed_balance: SpotBalance | None = None
+                    if type(balance_item) is SpotBalance:
                         item_asset = balance_item.asset
                         parsed_balance = balance_item
                     else:
@@ -279,70 +281,47 @@ class PortfolioTracker:
             return False
 
     def _parse_balance_info(
-        self, exchange_id: str, asset: str, balance_info: dict[str, Any] | Balance
-    ) -> Balance | None:
-        """Parse balance information into a Balance object."""
-        # Handle Balance object case
-        if isinstance(balance_info, Balance):
-            try:
-                # Already a Balance object, ensure Decimal types
-                balance_info.total = self._safe_decimal_convert(
-                    balance_info.total, "total", asset, exchange_id
-                ) or Decimal("0")
-                balance_info.free = self._safe_decimal_convert(
-                    balance_info.free, "free", asset, exchange_id
-                )
-                balance_info.locked = self._safe_decimal_convert(
-                    balance_info.locked, "locked", asset, exchange_id
-                )
-                return balance_info
-            except (InvalidOperation, ValueError, TypeError) as e:
+        self, exchange_id: str, asset: str, balance_info: dict[str, Any] | SpotBalance
+    ) -> SpotBalance | None:
+        """Parse balance information into a SpotBalance object."""
+        # Handle SpotBalance object case
+        if isinstance(balance_info, SpotBalance):
+            # Ensure the exchange matches if it's already a SpotBalance object
+            # (This shouldn't happen if fetched directly but good for defensive coding)
+            if balance_info.exchange != exchange_id:
                 logger.error(
-                    f"Error converting Balance fields for {asset} on {exchange_id}: "
-                    f"{e}. Data: {balance_info}"
+                    f"Mismatched exchange ID in provided SpotBalance object: expected "
+                    f"{exchange_id}, got {balance_info.exchange}"
                 )
                 return None
+            return balance_info
 
-        # Defensive: balance_info is expected to be a dict by type hint; isinstance check removed.
-        try:
-            total = self._safe_decimal_convert(
-                balance_info.get("total"), "total", asset, exchange_id
-            )
-            free = self._safe_decimal_convert(balance_info.get("free"), "free", asset, exchange_id)
-            locked = self._safe_decimal_convert(
-                balance_info.get("locked"), "locked", asset, exchange_id
-            )
-
-            if total is None:
-                logger.warning(
-                    f"Missing 'total' balance for {asset} on {exchange_id}. "
-                    f"Cannot create Balance object."
-                )
-                return None
-
-            # If free or locked is missing, try to infer or default to 0
-            if free is None and locked is not None:
-                free = total - locked
-            elif locked is None and free is not None:
-                locked = total - free
-            elif free is None and locked is None:
-                # Cannot determine free/locked, assume all is free if total > 0
-                if total > Decimal("0"):
-                    free = total
-                    locked = Decimal("0")
-                    logger.warning(
-                        f"Missing 'free' and 'locked' for {asset} on {exchange_id}. "
-                        f"Assuming all 'total' is free."
-                    )
-                else:
-                    free = Decimal("0")
-                    locked = Decimal("0")
-
-            return Balance(asset=asset, total=total, free=free, locked=locked)
-        except (InvalidOperation, ValueError, TypeError) as e:
+        if not isinstance(balance_info, dict):
             logger.error(
-                f"Error parsing balance dict for {asset} on {exchange_id}: "
-                f"{e}. Data: {balance_info}"
+                f"Invalid balance_info type: {type(balance_info)}. Expected dict or SpotBalance."
+            )
+            return None
+
+        # Construct the data dictionary for SpotBalance, adding the exchange
+        balance_data = balance_info.copy()
+        balance_data["exchange"] = exchange_id
+        balance_data["asset"] = asset  # Ensure asset is explicitly set
+
+        try:
+            # Validate and create the SpotBalance object
+            # Pydantic handles parsing 'total', 'available' from str/int/float via validators
+            parsed = SpotBalance(**balance_data)
+            # Additional runtime checks (redundant with Pydantic ge=0 but defensive)
+            if parsed.total < Decimal("0") or parsed.available < Decimal("0"):
+                logger.error(
+                    f"Parsed balance has negative values: Total={parsed.total}, "
+                    f"Available={parsed.available}"
+                )
+                return None
+            return parsed
+        except (ValidationError, TypeError, InvalidOperation) as e:
+            logger.error(
+                f"Failed to parse balance for {asset} on {exchange_id}: {e}", exc_info=True
             )
             return None
 
@@ -693,64 +672,65 @@ class PortfolioTracker:
         logger.warning(f"Could not reliably split symbol '{symbol}' into base/quote.")
         return symbol, ""  # Fallback
 
-    def update_balance(self, exchange_id: str, asset: str, amount: Decimal | Balance) -> None:
+    def update_balance(self, exchange_id: str, asset: str, amount: Decimal | SpotBalance) -> None:
         """
         Update the balance for a specific asset on an exchange.
 
         Args:
             exchange_id: Exchange identifier
             asset: Asset symbol (e.g., 'USDC')
-            amount: The new total balance (as Decimal) or a Balance object.
+            amount: The new total balance (as Decimal) or a SpotBalance object.
         """
         if exchange_id not in self._balances:
             self._balances[exchange_id] = {}
             logger.warning(f"Initialized balance tracking for {exchange_id} during update_balance.")
 
-        if isinstance(amount, Balance):
-            # If a full Balance object is provided, use it directly
+        if isinstance(amount, SpotBalance):
+            # If a full SpotBalance object is provided, use it directly
             if amount.asset != asset:
                 logger.error(
-                    f"Asset mismatch in update_balance: expected {asset}, got {amount.asset}"
+                    f"Asset mismatch when updating balance: Expected {asset}, got {amount.asset}"
                 )
                 return
-            # Ensure Decimal types
-            amount.total = self._safe_decimal_convert(
-                amount.total, "total", asset, exchange_id
-            ) or Decimal("0")
-            amount.free = self._safe_decimal_convert(amount.free, "free", asset, exchange_id)
-            amount.locked = self._safe_decimal_convert(amount.locked, "locked", asset, exchange_id)
-            self._balances[exchange_id][asset] = amount
-            logger.debug(
-                f"Updated balance for {asset} on {exchange_id} using Balance object. "
-                f"New total: {amount.total}"
-            )
-        elif type(amount) in (Decimal, int, float, str):
-            # If only a numerical amount is provided, update the total balance
-            # This is less ideal as free/locked info is lost or becomes stale
-            safe_amount = self._safe_decimal_convert(amount, "total", asset, exchange_id)
-            if safe_amount is None:
+            if amount.exchange != exchange_id:
                 logger.error(
-                    f"Invalid amount type/value provided for {asset} on {exchange_id}: {amount}"
+                    f"Exchange mismatch when updating balance: Expected {exchange_id}, got {amount.exchange}"
                 )
                 return
-
-            if asset in self._balances[exchange_id]:
-                # Update existing balance object's total
-                self._balances[exchange_id][asset].total = safe_amount
-                # Mark free/locked as potentially stale if only total is updated?
+            # DEFENSIVE CHECK: Ensure non-negative values from SpotBalance object
+            if amount.total < Decimal("0") or amount.available < Decimal("0"):
+                logger.error(f"Attempted to update with negative SpotBalance: {amount}")
+                return
+            new_balance = amount
+            logger.debug(f"Updating balance for {asset} on {exchange_id} with SpotBalance object.")
+        elif isinstance(amount, Decimal):
+            # If only a Decimal amount is provided, assume it's the new total and available
+            # This path might be less common now, prefer passing SpotBalance
+            if amount < Decimal("0"):
+                logger.error(
+                    f"Attempted to update balance for {asset} on {exchange_id} with negative decimal: {amount}"
+                )
+                return
+            try:
+                new_balance = SpotBalance(
+                    exchange=exchange_id, asset=asset, total=amount, available=amount
+                )
                 logger.warning(
-                    f"Updating total balance for {asset} on {exchange_id} to {safe_amount}. "
-                    f"Free/locked might be stale."
+                    f"Updating balance for {asset} on {exchange_id} with Decimal amount only. "
+                    f"Assuming total=available={amount}. Prefer providing full SpotBalance."
                 )
-            else:
-                # Create a new balance object, assuming all is free
-                self._balances[exchange_id][asset] = Balance(
-                    asset=asset, total=safe_amount, free=safe_amount, locked=Decimal("0")
+            except ValidationError as e:
+                logger.error(
+                    f"Failed to create SpotBalance from Decimal for {asset} on {exchange_id}: {e}"
                 )
-                logger.debug(
-                    f"Created new balance for {asset} on {exchange_id}. Total: {safe_amount}"
-                )
+                return
+        else:
+            logger.error(f"Invalid amount type for update_balance: {type(amount)}")
+            return
 
+        # Update the internal state
+        self._balances.setdefault(exchange_id, {})[asset] = new_balance
+        logger.info(f"Updated balance for {asset} on {exchange_id}: {new_balance}")
         self._last_update_time[exchange_id] = datetime.now(UTC)
 
     def get_exchange_balance(self, exchange: str, asset: str) -> ExchangeBalance | None:
@@ -997,13 +977,13 @@ class PortfolioTracker:
         tracker._high_watermark = Decimal(str(data.get("high_watermark", "0.0")))
         tracker._realized_pnl = Decimal(str(data.get("realized_pnl", "0.0")))
 
-        # TODO: Convert nested dicts back into Balance, Position, Order objects
+        # TODO: Convert nested dicts back into SpotBalance, Position, Order objects
         # This is crucial for the tracker to function correctly after loading state.
         # Example (needs iteration and error handling):
         # for ex_id, bals in tracker._balances.items():
         #     for asset, bal_data in bals.items():
         #         if isinstance(bal_data, dict):
-        #             tracker._balances[ex_id][asset] = Balance(**bal_data) # Assuming keys match
+        #             tracker._balances[ex_id][asset] = SpotBalance(**bal_data) # Assuming keys match
         #             # __init__
         # Similar loops for positions and orders...
         logger.warning(
@@ -1060,26 +1040,26 @@ class PortfolioTracker:
         self.update_active_symbols()  # Ensure active symbols are current
         return self._active_symbols.union(self._watchlist)
 
-    def _update_balance(self, exchange_id: str, balance: Balance | None) -> None:
+    def _update_balance(self, exchange_id: str, balance: SpotBalance | None) -> None:
         if balance is None:
             return
         self._balances.setdefault(exchange_id, {})[balance.asset] = balance
 
     def _parse_balances(
-        self, exchange_id: str, balances: list[Balance | dict[str, Any]] | dict[str, Any]
+        self, exchange_id: str, balances: list[SpotBalance | dict[str, Any]] | dict[str, Any]
     ) -> None:
         if isinstance(balances, dict):
             for bal in balances.values():
-                if isinstance(bal, Balance):
+                if isinstance(bal, SpotBalance):
                     self._update_balance(exchange_id, bal)
                 else:
-                    self._update_balance(exchange_id, Balance(**bal))
+                    self._update_balance(exchange_id, SpotBalance(**bal))
         else:
             for bal in balances:
-                if isinstance(bal, Balance):
+                if isinstance(bal, SpotBalance):
                     self._update_balance(exchange_id, bal)
                 else:
-                    self._update_balance(exchange_id, Balance(**bal))
+                    self._update_balance(exchange_id, SpotBalance(**bal))
 
     def _parse_positions(
         self, exchange_id: str, positions: list[Position] | dict[str, Any]

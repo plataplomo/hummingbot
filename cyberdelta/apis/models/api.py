@@ -6,11 +6,11 @@ from typing import Any, Generic, TypeVar
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cyberdelta.core.models import (
-    Balance,
     Order,
     OrderSide,
     OrderType,
     Position,
+    SpotBalance,
     TimeInForce,
     Trade,
 )
@@ -221,7 +221,7 @@ class AccountUpdateEvent(BaseModel):
 
     event: str
     account_id: str
-    balances: list[Balance] | None = None
+    balances: list[SpotBalance] | None = None
     positions: list[Position] | None = None
     ts: int | None = None
 

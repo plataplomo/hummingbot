@@ -25,7 +25,7 @@ import logging
 import time
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
 from pydantic import ValidationError
@@ -35,10 +35,11 @@ from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.base import ExchangeAPI, MessageHandler
 from cyberdelta.apis.exchange_names import ExchangeName
-from cyberdelta.apis.models.api import APIError
+from cyberdelta.apis.models.api import (
+    APIError,
+)
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (  # Use absolute import
-    Balance,
     FundingRate,
     Order,
     OrderBook,
@@ -46,6 +47,7 @@ from cyberdelta.core.models import (  # Use absolute import
     OrderStatus,
     OrderType,
     Position,
+    SpotBalance,
     Ticker,
     TimeInForce,
     Trade,
@@ -492,44 +494,50 @@ class BackpackAPI(ExchangeAPI):
                 f"Error getting recent trades for {symbol}: {e}", code=APIErrorCode.UNKNOWN.value
             ) from e
 
-    async def get_balances(self) -> dict[str, Balance]:
+    async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances."""
-        try:
-            response: Any = await self._request("GET", "/api/v1/capital")
-            if not isinstance(response, dict):
-                logger.warning(
-                    f"[{self.exchange_name}] Unexpected response type for balances: "
-                    f"{type(response)}. Returning empty balances."
-                )
-                return {}
-            balances: dict[str, Balance] = {}
-            # Explicitly declare type for static analysis
-            asset_key: Any
-            data_val: Any
-            for asset_key, data_val in response.items():
-                asset_key = cast(
-                    str, asset_key
-                )  # Pyright false positive: asset_key is always str after cast
-                data_val = cast(
-                    dict[str, Any], data_val
-                )  # Pyright false positive: data_val is always dict[str, Any] after cast
-                key: str = asset_key
-                asset_str = key
-                available = parse_decimal_value(
-                    data_val.get("available", "0"), allow_none=False, field_name="available"
-                )
-                total = parse_decimal_value(
-                    data_val.get("total", "0"), allow_none=False, field_name="total"
-                )
-                balances[asset_str] = Balance(
-                    asset=asset_str,
-                    available=available if available is not None else Decimal("0"),
-                    total=total if total is not None else Decimal("0"),
-                )
-            return balances
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error getting balances: {e}")
+        endpoint = "/api/v1/capital"
+        response_data: Any = await self._request("GET", endpoint)
+
+        # Ensure response_data is a dictionary before proceeding
+        if not isinstance(response_data, dict):
+            self.logger.warning(
+                f"[{self.exchange_name}] Unexpected response type for balances: "
+                f"{type(response_data)}. Returning empty balances."
+            )
             return {}
+
+        # Provide specific type hint after runtime check
+        response_dict = cast(dict[str, dict[str, Any]], response_data)
+
+        processed_balances: dict[str, SpotBalance] = {}
+        for asset, balance_details in response_dict.items():  # Iterate over typed dict
+            # Runtime check still useful despite cast
+            if not isinstance(balance_details, dict):
+                self.logger.warning(
+                    f"[{self.exchange_name}] Skipping balance entry for asset '{asset}' "
+                    f"due to unexpected details type: {type(balance_details)}"
+                )
+                continue
+            try:
+                # Ensure asset is treated as string
+                asset_str = str(asset)
+                # Create SpotBalance instance, passing the exchange name and details
+                balance = SpotBalance(
+                    exchange=self.exchange_name.value,  # Use dynamic exchange name
+                    asset=asset_str,
+                    total=balance_details.get("total", "0"),  # Pydantic handles parsing
+                    available=balance_details.get("available", "0"),  # Pydantic handles parsing
+                )
+                processed_balances[asset_str] = balance
+            except (ValidationError, TypeError, InvalidOperation) as e:
+                self.logger.error(
+                    f"[{self.exchange_name}] Error parsing balance item for asset '{asset}': {e}. Data: {balance_details}",
+                    exc_info=True,
+                )
+                continue  # Skip this balance if parsing fails
+
+        return processed_balances
 
     async def get_positions(self, symbol: str | None = None) -> list[Position]:
         """

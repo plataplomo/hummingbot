@@ -11,6 +11,7 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.hl_api_error import (
     HYPERLIQUID_ERROR_STRINGS,
     HyperliquidAPIErrorCategory,
@@ -34,11 +35,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.models.api import APIError, APIErrorResponse
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
-    Balance,
     FundingRate,
     OrderBook,
     OrderSide,
     Position,
+    SpotBalance,
     Ticker,
     Trade,
 )
@@ -476,6 +477,53 @@ class HyperliquidMapper:
             original_exception=error_response.original_exception,
         )
 
+    @staticmethod
+    def map_balances(state_data: dict[str, Any]) -> dict[str, SpotBalance]:
+        """
+        Maps Hyperliquid state data (assetContexts) to internal SpotBalance models.
+        """
+        balances: dict[str, SpotBalance] = {}
+        try:
+            asset_contexts = state_data.get("assetContexts", [])
+            if asset_contexts and isinstance(asset_contexts, list):
+                for context in asset_contexts:
+                    if isinstance(context, dict):
+                        asset_name = context.get("name", "Unknown")
+                        if asset_name == "Unknown":
+                            continue  # Skip if asset name invalid
+
+                        balance_details = context.get("balance")
+                        if balance_details and isinstance(balance_details, dict):
+                            total = balance_details.get("total", "0")
+                            # Use Hyperliquid specific key if available, else default to total
+                            available = balance_details.get("availableMaybe", total)
+
+                            try:
+                                # Create SpotBalance, ensure Decimals are handled by Pydantic
+                                balances[asset_name] = SpotBalance(
+                                    exchange=ExchangeName.HYPERLIQUID.value,
+                                    asset=asset_name,
+                                    total=total,
+                                    available=available,
+                                )
+                            except (ValidationError, TypeError) as e:
+                                logger.error(
+                                    f"Failed to parse HL balance for {asset_name}: {e}. Data: {balance_details}",
+                                    exc_info=True,
+                                )
+                        else:
+                            logger.warning(
+                                f"Missing or invalid 'balance' details for asset '{asset_name}' in HL state."
+                            )
+                    else:
+                        logger.warning(f"Unexpected item type in assetContexts: {type(context)}")
+            else:
+                logger.warning("'assetContexts' missing or not a list in HL state data.")
+
+        except Exception as e:
+            logger.error(f"Error mapping Hyperliquid balances: {e}", exc_info=True)
+        return balances
+
 
 # --- Additional Hyperliquid Mappers ---
 
@@ -554,7 +602,7 @@ class HyperliquidPositionMapper:
             return None
 
     @staticmethod
-    def map_balance(raw: dict[str, Any]) -> Balance | None:
+    def map_balance(raw: dict[str, Any]) -> SpotBalance | None:
         # Placeholder: implement if/when balance fields are available in user state
         return None
 
