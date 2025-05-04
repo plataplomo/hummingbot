@@ -5,7 +5,7 @@ CyberDeltaEngine's internal Order model.
 
 import logging
 import re
-from datetime import UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -484,29 +484,37 @@ class HyperliquidMapper:
         """
         balances: dict[str, SpotBalance] = {}
         try:
-            asset_contexts = state_data.get("assetContexts", [])
-            if asset_contexts and isinstance(asset_contexts, list):
-                for context in asset_contexts:
-                    if isinstance(context, dict):
-                        asset_name = context.get("name", "Unknown")
-                        if asset_name == "Unknown":
-                            continue  # Skip if asset name invalid
+            # Explicitly type asset_contexts as list[Any] for iteration
+            asset_contexts: list[Any] = state_data.get("assetContexts", [])
 
-                        balance_details = context.get("balance")
-                        if balance_details and isinstance(balance_details, dict):
-                            total = balance_details.get("total", "0")
-                            # Use Hyperliquid specific key if available, else default to total
-                            available = balance_details.get("availableMaybe", total)
+            if asset_contexts:
+                for context_item in asset_contexts:
+                    # Check if the item is a dictionary before proceeding
+                    if isinstance(context_item, dict):
+                        context = context_item  # context is now known to be a dict
+                        asset_name: str | None = context.get("name")
+                        if not asset_name:
+                            continue
+
+                        balance_details_item: Any = context.get("balance")
+                        # Check if balance details is a dictionary
+                        if isinstance(balance_details_item, dict):
+                            balance_details = (
+                                balance_details_item  # balance_details is now known to be a dict
+                            )
+
+                            total_val: Any = balance_details.get("total", "0")
+                            available_val: Any = balance_details.get("availableMaybe", total_val)
 
                             try:
-                                # Create SpotBalance, ensure Decimals are handled by Pydantic
+                                # Pass values that can be parsed by Pydantic (str, int, float, Decimal)
                                 balances[asset_name] = SpotBalance(
                                     exchange=ExchangeName.HYPERLIQUID.value,
                                     asset=asset_name,
-                                    total=total,
-                                    available=available,
+                                    total=total_val,
+                                    available=available_val,
                                 )
-                            except (ValidationError, TypeError) as e:
+                            except (ValidationError, TypeError, ValueError) as e:
                                 logger.error(
                                     f"Failed to parse HL balance for {asset_name}: {e}. Data: {balance_details}",
                                     exc_info=True,
@@ -516,7 +524,9 @@ class HyperliquidMapper:
                                 f"Missing or invalid 'balance' details for asset '{asset_name}' in HL state."
                             )
                     else:
-                        logger.warning(f"Unexpected item type in assetContexts: {type(context)}")
+                        logger.warning(
+                            f"Unexpected item type in assetContexts: {type(context_item)}"
+                        )
             else:
                 logger.warning("'assetContexts' missing or not a list in HL state data.")
 
@@ -584,7 +594,13 @@ class HyperliquidPositionMapper:
             if size is None or entry_price is None:
                 return None
             side = OrderSide.BUY if size > 0 else OrderSide.SELL
+            # Extract timestamp (assuming it exists in raw.position or similar)
+            # Placeholder: Use current time if timestamp is not available
+            timestamp = parse_datetime_utc(getattr(raw, "timestamp", None)) or datetime.now(UTC)
+
             return DerivativePosition(
+                exchange=ExchangeName.HYPERLIQUID,  # Add required exchange
+                timestamp=timestamp,  # Add required timestamp
                 symbol=raw.coin,
                 size=size,
                 entry_price=entry_price,
@@ -594,9 +610,8 @@ class HyperliquidPositionMapper:
                     raw.liquidation_px, allow_none=True, field_name="position.liquidation_px"
                 ),
                 unrealized_pnl=unrealized_pnl,
-                leverage=Decimal(str(raw.leverage.value))
-                if hasattr(raw, "leverage") and hasattr(raw.leverage, "value")
-                else None,
+                # leverage removed
+                # TODO: Add hl_details parsing if needed
             )
         except Exception:
             return None

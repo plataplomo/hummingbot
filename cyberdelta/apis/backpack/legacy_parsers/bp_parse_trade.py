@@ -56,11 +56,11 @@ def bp_parse_trade(data: dict[str, Any], exchange_name: str) -> Trade:
             client_order_id="",
             price=price,
             quantity=quantity,
-            cost=price * quantity,
             fee=Decimal("0"),
             fee_asset="",
             is_maker=is_maker,
-            timestamp=timestamp,
         )
     except Exception as e:
-        raise APIError(f"Error parsing trade data: {e}", code=APIErrorCode.INVALID_PARAMS) from e
+        raise APIError(
+            f"Error parsing trade data: {e}", code=APIErrorCode.INVALID_PARAMS.value
+        ) from e

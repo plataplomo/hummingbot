@@ -21,7 +21,10 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType
 
 
-def _parse_backpack_timestamp(ts: Any) -> datetime:
+# ANN401: Any is justified here as Backpack can send timestamps in multiple formats
+# (int ms, int µs, float ms, float µs, ISO string) which is difficult to type precisely
+# without significant complexity or runtime overhead.
+def _parse_backpack_timestamp(ts: Any) -> datetime:  # noqa: ANN401
     """
     Convert Backpack timestamp (ms, µs, or ISO string) to UTC datetime.
     """
@@ -38,7 +41,7 @@ def _parse_backpack_timestamp(ts: Any) -> datetime:
                 ts = int(ts)
             except Exception:
                 return datetime.now(UTC)
-    if isinstance(ts, (int, float)):
+    if isinstance(ts, int | float):  # UP038 fix applied
         # µs (WebSocket) or ms (REST)
         if ts > 1e12:
             return datetime.fromtimestamp(ts / 1e6, UTC)
@@ -90,6 +93,8 @@ def bp_parse_order(data: dict[str, Any]) -> Order:
         return Order(
             client_order_id=client_order_id,
             exchange_order_id=exchange_order_id if exchange_order_id else None,
+            related_order_id=None,
+            exchange="backpack",
             symbol=symbol,
             side=side,
             order_type=order_type,
@@ -104,12 +109,19 @@ def bp_parse_order(data: dict[str, Any]) -> Order:
             else None,
             created_at=created_at,
             updated_at=updated_at,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
         # --- Ignored Backpack fields (not in core model, but available for future extension): ---
         # postOnly, reduceOnly, timeInForce, selfTradePrevention, expiryReason, stopLossTriggerPrice,
         # stopLossLimitPrice, stopLossTriggerBy, takeProfitTriggerPrice, takeProfitLimitPrice,
         # takeProfitTriggerBy, triggerBy, triggerPrice, triggerQuantity, triggeredAt, relatedOrderId, etc.
     except KeyError as e:
-        raise APIError(f"Missing key {e} in order data", code=APIErrorCode.INVALID_PARAMS) from e
+        raise APIError(
+            f"Missing key {e} in order data", code=APIErrorCode.INVALID_PARAMS.value
+        ) from e
     except Exception as e:
-        raise APIError(f"Error parsing order data: {e}", code=APIErrorCode.INVALID_PARAMS) from e
+        raise APIError(
+            f"Error parsing order data: {e}", code=APIErrorCode.INVALID_PARAMS.value
+        ) from e

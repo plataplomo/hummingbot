@@ -144,7 +144,6 @@ class BackpackOrderMapper:
             raise ValueError("createdAt missing/invalid in BackpackRawOrder")
         # Optional fields
         parsed_quantity_filled = parse_decimal_value(raw.executedQuantity) or Decimal("0.0")
-        parsed_executed_quote_quantity = parse_decimal_value(raw.executedQuoteQuantity)
         parsed_price = parse_decimal_value(raw.price)
         parsed_stop_price = parse_decimal_value(raw.triggerPrice)
         parsed_avg_fill_price = parse_decimal_value(raw.avgFillPrice)
@@ -159,7 +158,6 @@ class BackpackOrderMapper:
             status=BackpackOrderMapper.map_status_to_internal(raw.status),
             quantity_requested=parsed_quantity,
             quantity_filled=parsed_quantity_filled,
-            executed_quote_quantity=parsed_executed_quote_quantity,
             price=parsed_price,
             stop_price=parsed_stop_price,
             average_fill_price=parsed_avg_fill_price,
@@ -167,14 +165,10 @@ class BackpackOrderMapper:
             time_in_force=BackpackOrderMapper.map_tif_to_internal(raw.timeInForce),
             reduce_only=raw.reduceOnly or False,
             post_only=raw.postOnly or False,
-            self_trade_prevention=BackpackOrderMapper.map_stp_to_internal(raw.selfTradePrevention),
             created_at=parsed_created_at,
             updated_at=parse_datetime_utc(raw.updatedAt),
             triggered_at=parse_datetime_utc(raw.triggeredAt),
-            expiry_reason=BackpackOrderMapper.map_expiry_reason_to_internal(raw.expiryReason),
-            origin=BackpackOrderMapper.map_origin_to_internal(raw.origin),
-            # The following fields are not present in BackpackRawOrder; set to None/[] explicitly.
-            strategy_name=None,  # Not present in BackpackRawOrder
-            signal_id=None,  # Not present in BackpackRawOrder
-            trades=[],  # Not present in BackpackRawOrder
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
         )

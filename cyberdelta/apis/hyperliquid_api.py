@@ -18,16 +18,17 @@ from cyberdelta.apis.hyperliquid.hl_ws_mapper import HyperliquidWebsocketMapper
 from cyberdelta.apis.models.api import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
+    DerivativePosition,
     FundingRate,
     Order,
     OrderBook,
     OrderSide,
-    Position,
     SpotBalance,
     Ticker,
     Trade,
 )
 from cyberdelta.core.models.market import Candle
+from cyberdelta.utils.parsing import parse_datetime_utc
 
 logger = logging.getLogger(__name__)
 
@@ -452,7 +453,7 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_positions(self, symbol: str | None = None) -> list[Position]:
+    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Get current positions, optionally filtering by symbol."""
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
@@ -464,7 +465,7 @@ class HyperliquidAPI(ExchangeAPI):
 
             validated = HyperliquidRawClearinghouseState.model_validate(response)
             state_data = validated
-            positions_list: list[Position] = []
+            positions_list: list[DerivativePosition] = []
             if state_data and state_data.asset_positions:
                 for asset_pos in state_data.asset_positions:
                     position_data = asset_pos.position
@@ -474,28 +475,49 @@ class HyperliquidAPI(ExchangeAPI):
                             continue
                         size = position_data.szi
                         entry_price = position_data.entry_px
+                        # Use position_value for mark price as per hl_mapper.py logic
+                        mark_price = position_data.position_value
+                        liq_price = position_data.liquidation_px
                         unrealized_pnl = position_data.unrealized_pnl
+                        # timestamp = position_data.timestamp
+                        # Placeholder for timestamp parsing
+                        ts_raw = getattr(position_data, "timestamp", time.time() * 1000)
+                        timestamp_dt = parse_datetime_utc(ts_raw, field_name="position_timestamp")
+                        if timestamp_dt is None:
+                            timestamp_dt = datetime.now(UTC)  # Fallback
+
                         # Defensive conversion to Decimal for all numeric fields
                         if entry_price is not None:
                             try:
                                 size_dec = Decimal(size)
                                 entry_price_dec = Decimal(entry_price)
+                                # DEFENSIVE CHECK: Guards None from API. Pyright=[redundant-expr]
+                                # mark_price_dec = Decimal(mark_price) if mark_price is not None else None # Removed redundant check
+                                mark_price_dec = Decimal(mark_price)
+                                # DEFENSIVE CHECK: Guards None from API. Pyright=[redundant-expr]
+                                liq_price_dec = (
+                                    Decimal(liq_price) if liq_price is not None else None
+                                )  # Keep check for optional liq_price
+                                # DEFENSIVE CHECK: Guards None from API. Pyright=[redundant-expr]
+                                # unrealized_pnl_dec = Decimal(unrealized_pnl) if unrealized_pnl is not None else None # Removed redundant check
                                 unrealized_pnl_dec = Decimal(unrealized_pnl)
                             except Exception:
                                 # Log or handle conversion error, skip this position
                                 continue
                             if size_dec != 0 and pos_symbol:
                                 side: OrderSide = OrderSide.BUY if size_dec > 0 else OrderSide.SELL
-                                leverage_placeholder: Decimal = Decimal("1")
                                 positions_list.append(
-                                    Position(
+                                    DerivativePosition(
+                                        exchange=self.exchange_name,
+                                        timestamp=timestamp_dt,
                                         symbol=pos_symbol,
                                         side=side,
                                         size=abs(size_dec),
                                         entry_price=entry_price_dec,
-                                        leverage=leverage_placeholder,
+                                        mark_price=mark_price_dec,
+                                        liquidation_price=liq_price_dec,
                                         unrealized_pnl=unrealized_pnl_dec,
-                                        timestamp=int(time.time() * 1000),
+                                        # TODO: Add hl_details parsing
                                     )
                                 )
             return positions_list
@@ -792,7 +814,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         raise NotImplementedError("parse_balance is not implemented for HyperliquidAPI.")
 
-    def parse_position(self, data: dict[str, Any]) -> Position:
+    def parse_position(self, data: dict[str, Any]) -> DerivativePosition:
         """
         Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
         """

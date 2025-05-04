@@ -10,10 +10,10 @@ from typing import Any
 
 from cyberdelta.apis.base import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.core.models import Balance
+from cyberdelta.core.models import SpotBalance
 
 
-def bp_parse_balance(data: dict[str, Any]) -> Balance:
+def bp_parse_balance(data: dict[str, Any]) -> SpotBalance:
     """
     Parse raw balance data from Backpack into a Balance object.
 
@@ -28,10 +28,13 @@ def bp_parse_balance(data: dict[str, Any]) -> Balance:
         asset = data.get("asset") or data.get("symbol") or ""
         available = Decimal(str(data.get("available") or "0"))
         total = Decimal(str(data.get("total") or "0"))
-        return Balance(
+        return SpotBalance(
+            exchange="backpack",
             asset=asset,
             available=available,
             total=total,
         )
     except Exception as e:
-        raise APIError(f"Error parsing balance data: {e}", code=APIErrorCode.INVALID_PARAMS) from e
+        raise APIError(
+            f"Error parsing balance data: {e}", code=APIErrorCode.INVALID_PARAMS.value
+        ) from e
