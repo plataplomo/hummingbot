@@ -1065,12 +1065,16 @@ class HyperliquidAPI(ExchangeAPI):
                         # Requires reverse mapping or fetching order status separately
                         logger.info(f"Order resting: {first_status.resting.oid}")
                         # Placeholder - ideally return mapped Order
-                        return await self.get_order_status(str(first_status.resting.oid))
+                        raise NotImplementedError(
+                            "Mapping resting order status to internal Order not implemented"
+                        )
                     elif first_status.filled:
                         # TODO: Map HyperliquidRawExchangeStatusFilled back to internal Order/Trade
                         logger.info(f"Order filled immediately: {first_status.filled.oid}")
                         # Placeholder - ideally return mapped Order or Trade info
-                        return await self.get_order_status(str(first_status.filled.oid))
+                        raise NotImplementedError(
+                            "Mapping filled order status to internal Order not implemented"
+                        )
                     elif first_status.error:
                         raise APIError(
                             f"Order placement error: {first_status.error}",

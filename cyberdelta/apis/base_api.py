@@ -8,7 +8,7 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine, Mapping
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 from aiohttp import ClientTimeout, ClientWSTimeout
@@ -330,7 +330,7 @@ class ExchangeAPI(ABC):
                         error = self._map_error_response(
                             status_code=response.status,
                             error_body=error_body,
-                            error_data=cast(dict[str, Any], error_data),
+                            error_data=error_data,
                         )
 
                         # Handle retryable errors
@@ -359,7 +359,7 @@ class ExchangeAPI(ABC):
                         try:
                             # Cast the result to inform Mypy it matches the expected types
                             parsed_json = json.loads(resp_text)
-                            return cast(dict[str, Any] | list[Any], parsed_json)
+                            return parsed_json
                         except json.JSONDecodeError:
                             # Return raw text if not JSON
                             return resp_text
@@ -814,7 +814,7 @@ class ExchangeAPI(ABC):
     # --- Account Information --- #
 
     @abstractmethod
-    async def get_balances(self) -> dict[str, SpotBalance] | list[SpotBalance] | None:
+    async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances."""
         raise NotImplementedError
 

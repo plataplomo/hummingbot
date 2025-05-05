@@ -270,17 +270,16 @@ class BackpackAPI(ExchangeAPI):
             ) from e
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting ticker for {symbol}: {e}")
-            raise e  # Re-raise mapped APIError
+            raise e  # Re-raise mapped APIError from _request
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Error getting ticker for {symbol}: {e}", exc_info=True
+                f"[{self.exchange_name}] Unexpected error getting ticker for {symbol}: {e}",
+                exc_info=True,
             )
-            api_error = BackpackErrorMapper.map_error_response(
-                status_code=getattr(e, "status", None),
-                error_body=f"Error getting ticker for {symbol}: {e}",
-                request_path=request_path,
-            )
-            raise api_error from e
+            # Let _request handle mapping via overridden _map_error_response
+            raise APIError(
+                f"Unexpected error getting ticker: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
         """Fetch the order book for a symbol, validated via Raw model and transformed via Mapper.
@@ -418,13 +417,10 @@ class BackpackAPI(ExchangeAPI):
             logger.error(
                 f"[{self.exchange_name}] Unexpected error in get_recent_trades: {e}", exc_info=True
             )
-            api_error = BackpackErrorMapper.map_error_response(
-                status_code=getattr(e, "status", None),
-                error_body=str(e),
-                request_path=request_path,
-                exchange_message=f"Error getting recent trades for {symbol}: {e}",
-            )
-            raise api_error from e
+            # Let _request handle mapping via overridden _map_error_response
+            raise APIError(
+                f"Unexpected error getting recent trades: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances, validated via Raw models and transformed via Mapper."""
@@ -556,13 +552,10 @@ class BackpackAPI(ExchangeAPI):
             logger.error(
                 f"[{self.exchange_name}] Unexpected error in get_positions: {e}", exc_info=True
             )
-            api_error = BackpackErrorMapper.map_error_response(
-                status_code=getattr(e, "status", None),
-                error_body=str(e),
-                request_path=request_path,
-                exchange_message=f"Unexpected error fetching positions: {e}",
-            )
-            raise api_error from e
+            # Let _request handle mapping via overridden _map_error_response
+            raise APIError(
+                f"Unexpected error getting positions: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
 
     async def place_order(
         self,
@@ -638,15 +631,15 @@ class BackpackAPI(ExchangeAPI):
             return BackpackOrderMapper.transform_raw_order_to_internal(raw_order)
         except ValueError as ve:
             raise ve
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error placing order: {e}")
+            raise e
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Error placing order: {e}", exc_info=True)
-            # Attempt to map the error, default to generic EXCHANGE_ERROR
-            api_error = BackpackErrorMapper.map_error_response(
-                status_code=getattr(e, "status", None),
-                error_body=str(e),
-                exchange_message=f"Error placing order for {symbol} (Path: {request_path}): {e}",
-            )
-            raise api_error from e
+            # Let _request handle mapping via overridden _map_error_response
+            raise APIError(
+                f"Unexpected error placing order: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
 
     async def cancel_order(
         self, order_id: str, symbol: str | None = None
@@ -670,18 +663,17 @@ class BackpackAPI(ExchangeAPI):
                 "symbol": symbol,
                 "response_body": str(response) if response else None,
             }
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error canceling order {order_id}: {e}")
+            raise e
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Error canceling order {order_id}: {e}", exc_info=True
             )
-            api_error = BackpackErrorMapper.map_error_response(
-                status_code=getattr(e, "status", None),
-                error_body=str(e),
-                exchange_message=(
-                    f"Error canceling order {order_id} for {symbol} (Path: {request_path}): {e}"
-                ),
-            )
-            raise api_error from e
+            # Let _request handle mapping via overridden _map_error_response
+            raise APIError(
+                f"Unexpected error canceling order {order_id}: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         request_path = "/api/v1/orders"
@@ -738,9 +730,7 @@ class BackpackAPI(ExchangeAPI):
             return orders
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting open orders: {e}")
-            raise APIError(
-                f"API Error getting open orders: {e}", code=APIErrorCode.UNKNOWN.value
-            ) from e
+            raise e
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Unexpected error in get_open_orders: {e}", exc_info=True
@@ -803,11 +793,10 @@ class BackpackAPI(ExchangeAPI):
                 f"[{self.exchange_name}] Unexpected error getting funding rate for {symbol}: {e}",
                 exc_info=True,
             )
-            raise BackpackErrorMapper.map_error_response(
-                status_code=getattr(e, "status", None),
-                error_body=str(e),
-                request_path=request_path,
-                exchange_message=f"Error getting funding rate for {symbol}: {e}",
+            # Let _request handle mapping via overridden _map_error_response
+            raise APIError(
+                f"Unexpected error getting funding rate for {symbol}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
             ) from e
 
     # --- Placeholder for required abstract method --- #
@@ -858,14 +847,15 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return {}
             return response  # Known to be dict now
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting account info: {e}")
+            raise e
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Error getting account info: {e}")
-            api_error = BackpackErrorMapper.map_error_response(
-                status_code=getattr(e, "status", None),
-                error_body=str(e),
-                exchange_message=f"Error getting account info (Path: {request_path}): {e}",
-            )
-            raise api_error from e
+            # Let _request handle mapping via overridden _map_error_response
+            raise APIError(
+                f"Error getting account info: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
 
     async def transfer(
         self, asset: str, amount: Decimal, from_account: str, to_account: str
@@ -982,17 +972,15 @@ class BackpackAPI(ExchangeAPI):
             return orders
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting order history: {e}")
-            raise
+            raise e
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Unexpected error getting order history: {e}",
                 exc_info=True,
             )
-            raise BackpackErrorMapper.map_error_response(
-                status_code=getattr(e, "status", None),
-                error_body=str(e),
-                request_path=request_path,
-                exchange_message=f"Error getting order history for {symbol or 'all'}: {e}",
+            raise APIError(
+                f"Error getting order history for {symbol or 'all'}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
             ) from e
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
@@ -1040,18 +1028,30 @@ class BackpackAPI(ExchangeAPI):
             return trades
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting trade history: {e}")
-            raise
+            raise e
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Unexpected error getting trade history: {e}",
                 exc_info=True,
             )
-            raise BackpackErrorMapper.map_error_response(
-                status_code=getattr(e, "status", None),
-                error_body=str(e),
-                request_path=request_path,
-                exchange_message=f"Error getting trade history for {symbol or 'all'}: {e}",
+            raise APIError(
+                f"Error getting trade history for {symbol or 'all'}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
             ) from e
+
+    # --- Override Base Error Mapping --- #
+
+    def _map_error_response(
+        self, status_code: int, error_body: str, error_data: dict[str, Any]
+    ) -> APIError:
+        """Override base error mapping to use BackpackErrorMapper."""
+        # Use the dedicated mapper for Backpack errors
+        return BackpackErrorMapper.map_error_response(
+            status_code=status_code,
+            error_body=error_body,
+            error_data=error_data,
+            # request_path can be added if needed by the mapper
+        )
 
     # TODO: Implement remaining abstract methods from ExchangeAPI
     #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)
