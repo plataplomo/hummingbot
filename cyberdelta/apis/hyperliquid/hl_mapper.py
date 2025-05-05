@@ -18,6 +18,7 @@ from cyberdelta.apis.hyperliquid.hl_api_error import (
     HyperliquidAPIErrorCategory,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_error import HyperliquidRawApiError
+from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import HyperliquidRawCandle
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
@@ -26,9 +27,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawClearinghouseState,
-)
-from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
-    HyperliquidRawPositionInfo as WsPositionInfo,
+    HyperliquidRawPositionInfo,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsBookUpdate,
@@ -57,6 +56,7 @@ from cyberdelta.core.models.enums import (
     OrderType,
 )
 from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 from .models.hl_raw_fill import HyperliquidRawFill
@@ -226,6 +226,7 @@ class HyperliquidMapper:
         """
         levels_raw = data.get("levels")
         # Explicitly check if levels_raw is a list
+        # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType). Mypy=ok
         levels: list[Any] = levels_raw if isinstance(levels_raw, list) else []
         bids: list[tuple[Decimal, Decimal]] = []
         asks: list[tuple[Decimal, Decimal]] = []
@@ -233,41 +234,48 @@ class HyperliquidMapper:
         if len(levels) > 1:
             bid_levels_raw = levels[0]
             # Check if bid_levels_raw is a list
+            # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType). Mypy=ok
             bid_levels: list[Any] = bid_levels_raw if isinstance(bid_levels_raw, list) else []
             for level_raw in bid_levels:
                 # Check if level_raw is a list
                 if not isinstance(level_raw, list):
                     continue
                 # Removed cast
+                # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType). Mypy=ok
                 level_typed: list[Any] = level_raw
                 if len(level_typed) >= 2:
                     price = parse_decimal_value(
                         level_typed[0], allow_none=False, field_name="orderbook.bid.price"
                     )
-                    quantity = parse_decimal_value(
-                        level_typed[1], allow_none=False, field_name="orderbook.bid.qty"
+                    size = parse_decimal_value(
+                        level_typed[1], allow_none=False, field_name="orderbook.bid.size"
                     )
-                    if price is not None and quantity is not None:
-                        bids.append((price, quantity))
+                    if price is not None and size is not None:
+                        bids.append((price, size))
 
             ask_levels_raw = levels[1]
             # Check if ask_levels_raw is a list
+            # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType). Mypy=ok
             ask_levels: list[Any] = ask_levels_raw if isinstance(ask_levels_raw, list) else []
             for level_raw_ask in ask_levels:
-                # Check if level_raw_ask is a list
+                # Check if level_raw is a list
                 if not isinstance(level_raw_ask, list):
                     continue
-                # Removed cast
+                # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType). Mypy=ok
                 level_typed_ask: list[Any] = level_raw_ask
                 if len(level_typed_ask) >= 2:
-                    price = parse_decimal_value(
-                        level_typed_ask[0], allow_none=False, field_name="orderbook.ask.price"
+                    price_ask = parse_decimal_value(
+                        level_typed_ask[0],
+                        allow_none=False,
+                        field_name="orderbook.ask.price",
                     )
-                    quantity = parse_decimal_value(
-                        level_typed_ask[1], allow_none=False, field_name="orderbook.ask.qty"
+                    size_ask = parse_decimal_value(
+                        level_typed_ask[1], allow_none=False, field_name="orderbook.ask.size"
                     )
-                    if price is not None and quantity is not None:
-                        asks.append((price, quantity))
+                    if price_ask is not None and size_ask is not None:
+                        asks.append((price_ask, size_ask))
+
+        # Sort bids descending, asks ascending
         bids.sort(key=lambda x: x[0], reverse=True)
         asks.sort(key=lambda x: x[0])
         if depth is not None and depth > 0:
@@ -740,95 +748,100 @@ class HyperliquidMapper:
 
     @staticmethod
     def transform_raw_fill_to_internal(raw: HyperliquidRawFill) -> Trade:
-        """Transforms a raw Hyperliquid fill object from userFills into an internal Trade."""
-        # Defensive parsing
-        price_dec = parse_decimal_value(raw.px, allow_none=False, field_name="px")
-        quantity_dec = parse_decimal_value(raw.sz, allow_none=False, field_name="sz")
-        fee_dec = parse_decimal_value(raw.fee, allow_none=False, field_name="fee")
-        timestamp_dt = parse_datetime_utc(raw.time)  # time is ms timestamp
+        """
+        Transforms a validated HyperliquidRawFill object into an internal Trade object.
 
-        if price_dec is None:
-            raise ValueError("px missing/invalid in HyperliquidRawFill")
-        if quantity_dec is None:
-            raise ValueError("sz missing/invalid in HyperliquidRawFill")
-        if fee_dec is None:
-            raise ValueError("fee missing/invalid in HyperliquidRawFill")
-        if timestamp_dt is None:
-            raise ValueError("time missing/invalid in HyperliquidRawFill")
+        Handles type conversions, field renaming, and populates enrichment slots.
+        Raises ValueError on critical parsing errors.
+        """
+        executed_at = parse_datetime_utc(raw.time, field_name="executed_at")
+        if executed_at is None:
+            raise ValueError("executed_at (time) is required and could not be parsed.")
 
+        price = parse_decimal_value(raw.px, allow_none=False, field_name="price")
+        quantity = parse_decimal_value(raw.sz, allow_none=False, field_name="quantity")
+        fee = parse_decimal_value(raw.fee, allow_none=False, field_name="fee")
+
+        if price is None or quantity is None or fee is None:
+            # Should not happen if raw model validation passed, but defensive check
+            raise ValueError("Critical fill fields (price, quantity, fee) failed parsing.")
+
+        # Map side
         side = OrderSide.BUY if raw.side == "B" else OrderSide.SELL
 
-        # Hyperliquid doesn't provide fee asset directly, assume USDC
-        fee_asset = "USDC"
+        # Handle optional fields for enrichment
+        start_position = parse_decimal_value(
+            raw.start_position, allow_none=True, field_name="start_position"
+        )
+        liquidation_mark_px_decimal = parse_decimal_value(
+            raw.liquidation_mark_px,  # Access correct field name
+            allow_none=True,
+            field_name="liquidation_mark_px",
+        )
+
+        hl_details = HyperliquidTradeDetails(
+            trade_hash=raw.hash,
+            liquidation_mark_px=liquidation_mark_px_decimal,
+            start_position=start_position,
+            dir=raw.dir,
+        )
 
         return Trade(
-            id=str(raw.tid),  # Map tid to id
-            exchange=ExchangeName.HYPERLIQUID,
+            id=str(raw.tid),  # Use trade ID as primary ID
             symbol=raw.coin,
-            order_id=str(raw.oid),
-            client_order_id=raw.cloid,
+            executed_at=executed_at,
             side=side,
-            price=price_dec,
-            quantity=quantity_dec,
-            fee=fee_dec,
-            fee_asset=fee_asset,
+            order_id=str(raw.oid),
+            exchange=ExchangeName.HYPERLIQUID.value,
+            client_order_id=raw.cloid,
+            price=price,
+            quantity=quantity,
+            fee=fee,
+            fee_asset=raw.coin,  # Assume fee is paid in quote asset (coin symbol)
             is_maker=raw.is_maker,
-            executed_at=timestamp_dt,
-            liquidation_mark_price=parse_decimal_value(raw.liquidation_mark_px),
+            hl_details=hl_details,
+            bp_details=None,  # No backpack details for HL fills
         )
 
     @staticmethod
     def transform_raw_candle_to_internal(
         symbol: str, interval: str, raw: HyperliquidRawCandle
     ) -> Candle | None:
-        """Transforms a raw Hyperliquid candle object into an internal Candle.
-
-        Args:
-            symbol: Trading symbol.
-            interval: Candle interval string.
-            raw: The raw candle data from HyperliquidRawCandle.
-
-        Returns:
-            A Candle object, or None if parsing/validation fails.
         """
+        Transforms a validated HyperliquidRawCandle object into an internal Candle object.
+
+        Returns None if any required OHLCV value fails parsing or is invalid.
+        """
+        open_time = parse_datetime_utc(raw.t, field_name="open_time")
+        o = parse_decimal_value(raw.o, allow_none=True, field_name="open")
+        h = parse_decimal_value(raw.h, allow_none=True, field_name="high")
+        low_px = parse_decimal_value(raw.l, allow_none=True, field_name="low")
+        c = parse_decimal_value(raw.c, allow_none=True, field_name="close")
+        v = parse_decimal_value(raw.v, allow_none=True, field_name="volume")
+
+        # Check if all required fields were successfully parsed and are not None
+        if open_time is None or o is None or h is None or low_px is None or c is None or v is None:
+            logger.warning(
+                f"Failed parsing candle fields for {symbol} {interval} at {raw.t}. Skipping."
+            )
+            return None
+
         try:
-            # Parse timestamp (assuming milliseconds)
-            open_time = parse_datetime_utc(raw.t, field_name="candle_timestamp")
-            if open_time is None:
-                logger.warning(f"Could not parse candle timestamp: {raw.t}")
-                return None
-
-            # Parse OHLCV strings to Decimal
-            open_px = parse_decimal_value(raw.o, allow_none=False, field_name="open")
-            high_px = parse_decimal_value(raw.h, allow_none=False, field_name="high")
-            low_px = parse_decimal_value(raw.l, allow_none=False, field_name="low")
-            close_px = parse_decimal_value(raw.c, allow_none=False, field_name="close")
-            volume_val = parse_decimal_value(raw.v, allow_none=False, field_name="volume")
-
-            # Create the Candle object, relying on its internal validation
             return Candle(
                 symbol=symbol,
                 interval=interval,
                 open_time=open_time,
-                open=open_px,
-                high=high_px,
+                open=o,
+                high=h,
                 low=low_px,
-                close=close_px,
-                volume=volume_val,
+                close=c,
+                volume=v,
             )
-
-        except (ValidationError, ValueError) as e:
-            # Log validation/parsing errors during Candle creation or Decimal parsing
+        except ValidationError as e:
             logger.warning(
-                f"Skipping candle due to transformation/validation error: {e}. Raw: {raw.model_dump()}"
+                f"Validation failed for Candle {symbol} {interval} at {raw.t}: {e}. Skipping."
             )
             return None
-        except Exception as e:
-            logger.error(
-                f"Unexpected error transforming raw candle: {e}. Raw: {raw.model_dump()}",
-                exc_info=True,
-            )
-            return None  # Skip candle on unexpected error
 
 
 # --- Additional Hyperliquid Mappers ---
@@ -870,47 +883,48 @@ class HyperliquidUserFillMapper:
 
 class HyperliquidPositionMapper:
     """
-    Maps a validated HyperliquidRawPositionInfo to an internal Position model.
-    Defensive: Handles malformed or missing data gracefully.
+    Utility for mapping raw position data (likely from WebSocket events) to the internal Position model.
     """
 
     @staticmethod
-    def map(raw: WsPositionInfo) -> DerivativePosition | None:
-        try:
-            size = parse_decimal_value(raw.szi, allow_none=False, field_name="position.size")
-            entry_price = parse_decimal_value(
-                raw.entry_px, allow_none=False, field_name="position.entry_price"
-            )
-            mark_price = parse_decimal_value(
-                raw.position_value, allow_none=True, field_name="position.position_value"
-            )
-            unrealized_pnl = parse_decimal_value(
-                raw.unrealized_pnl, allow_none=True, field_name="position.unrealized_pnl"
-            )
-            if size is None or entry_price is None:
-                return None
-            side = OrderSide.BUY if size > 0 else OrderSide.SELL
-            # Extract timestamp (assuming it exists in raw.position or similar)
-            # Placeholder: Use current time if timestamp is not available
-            timestamp = parse_datetime_utc(getattr(raw, "timestamp", None)) or datetime.now(UTC)
+    def map(raw: HyperliquidRawPositionInfo) -> DerivativePosition | None:
+        """
+        Maps a raw Hyperliquid position info object to an internal Position object.
 
-            return DerivativePosition(
-                exchange=ExchangeName.HYPERLIQUID,  # Add required exchange
-                timestamp=timestamp,  # Add required timestamp
-                symbol=raw.coin,
-                size=size,
-                entry_price=entry_price,
-                mark_price=mark_price,
-                side=side,
-                liquidation_price=parse_decimal_value(
-                    raw.liquidation_px, allow_none=True, field_name="position.liquidation_px"
-                ),
-                unrealized_pnl=unrealized_pnl,
-                # leverage removed
-                # TODO: Add hl_details parsing if needed
-            )
-        except Exception:
+        Returns None if any required field is missing or invalid.
+        """
+        size = parse_decimal_value(raw.szi, allow_none=False, field_name="position.size")
+        entry_price = parse_decimal_value(
+            raw.entry_px, allow_none=False, field_name="position.entry_price"
+        )
+        mark_price = parse_decimal_value(
+            raw.position_value, allow_none=True, field_name="position.position_value"
+        )
+        unrealized_pnl = parse_decimal_value(
+            raw.unrealized_pnl, allow_none=True, field_name="position.unrealized_pnl"
+        )
+        if size is None or entry_price is None:
             return None
+        side = OrderSide.BUY if size > 0 else OrderSide.SELL
+        # Extract timestamp (assuming it exists in raw.position or similar)
+        # Placeholder: Use current time if timestamp is not available
+        timestamp = parse_datetime_utc(getattr(raw, "timestamp", None)) or datetime.now(UTC)
+
+        return DerivativePosition(
+            exchange=ExchangeName.HYPERLIQUID,  # Add required exchange
+            timestamp=timestamp,  # Add required timestamp
+            symbol=raw.coin,
+            size=size,
+            entry_price=entry_price,
+            mark_price=mark_price,
+            side=side,
+            liquidation_price=parse_decimal_value(
+                raw.liquidation_px, allow_none=True, field_name="position.liquidation_px"
+            ),
+            unrealized_pnl=unrealized_pnl,
+            # leverage removed
+            # TODO: Add hl_details parsing if needed
+        )
 
     @staticmethod
     def map_balance(raw: dict[str, Any]) -> SpotBalance | None:
@@ -1060,7 +1074,7 @@ class HyperliquidWsEventMapper:
             return None
 
     @staticmethod
-    def map_position_event(raw: WsPositionInfo) -> DerivativePosition | None:
+    def map_position_event(raw: HyperliquidRawPositionInfo) -> DerivativePosition | None:
         # TODO: Map fields from WsPositionInfo to Position
         #       if structure differs from HyperliquidRawPositionInfo
         # For now, return None or implement a conversion if needed

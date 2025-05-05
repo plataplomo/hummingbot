@@ -212,7 +212,10 @@ def test_hl_status_object_invalid(invalid_data: dict[str, Any], expected_msg: st
     [
         ({"type": "", "statuses": []}, "String cannot be empty"),
         ({"type": 123, "statuses": []}, "Expected string"),
-        ({"type": "order", "statuses": [1, 2]}, "Invalid item type int"),
+        (
+            {"type": "order", "statuses": [1, 2]},
+            "statuses[0]: Invalid type int. Expected str/dict.",
+        ),
         ({"type": "order", "statuses": ["invalid_status"]}, "Invalid status string"),
         ({"type": "order", "statuses": [{"resting": {"oid": -1}}]}, "Must be non-negative"),
         ({"type": "order"}, "Field required"),  # Missing statuses
@@ -240,7 +243,7 @@ def test_hl_response_data_invalid(invalid_data: dict[str, Any], expected_msg: st
         ({}, "Field required"),  # Missing status
         (
             {"status": "ok", "data": {"type": "order", "statuses": [1]}},
-            "Invalid item type int",
+            "statuses[0]: Invalid type int. Expected str/dict.",
         ),  # Nested
         ({"status": "ok", "extra_field": 1}, "Extra inputs are not permitted"),  # extra='forbid'
     ],

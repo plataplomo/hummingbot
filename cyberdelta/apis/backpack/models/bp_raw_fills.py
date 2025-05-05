@@ -106,7 +106,8 @@ class BackpackRawFill(BaseModel):
         """Validate boolean field."""
         field_name = info.field_name or "unknown_bool_field"
         if not isinstance(v, bool):
-            raise TypeError(f"{field_name}: Must be a boolean, got {type(v).__name__}")
+            # Use ValueError for Pydantic compatibility
+            raise ValueError(f"{field_name}: Must be a boolean, got {type(v).__name__}")
         return v
 
     @field_validator("side", mode="before")

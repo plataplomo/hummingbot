@@ -90,7 +90,7 @@ class HyperliquidRawUserFill(BaseModel):
             if isinstance(v, str) and v.isdigit():
                 v_int = int(v)
             else:
-                raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
+                raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
         else:
             v_int = v
         if v_int < 0:
@@ -200,7 +200,7 @@ class HyperliquidRawUserFill(BaseModel):
         """Validate that is_maker is a boolean."""
         field_name = info.field_name or "is_maker"
         if not isinstance(v, bool):
-            raise TypeError(f"{field_name}: Must be a boolean, got {type(v).__name__}")
+            raise ValueError(f"{field_name}: Must be a boolean, got {type(v).__name__}")
         return v
 
     @field_validator("cloid", "hash", mode="before")

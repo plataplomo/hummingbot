@@ -1,4 +1,4 @@
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
@@ -26,7 +26,8 @@ class HyperliquidRawExchangeStatusResting(BaseModel):
             if isinstance(v, str) and v.isdigit():
                 v_int = int(v)
             else:
-                raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
+                # Use ValueError for Pydantic compatibility
+                raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
         else:
             v_int = v
         if v_int < 0:
@@ -52,7 +53,8 @@ class HyperliquidRawExchangeStatusFilled(BaseModel):
             if isinstance(v, str) and v.isdigit():
                 v_int = int(v)
             else:
-                raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
+                # Use ValueError for Pydantic compatibility
+                raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
         else:
             v_int = v
         if v_int < 0:
@@ -113,12 +115,9 @@ class HyperliquidRawExchangeResponseData(BaseModel):
     @field_validator("statuses", mode="before")
     @classmethod
     def validate_statuses_list(
-        cls, v: object
+        cls, v: list[Any]
     ) -> list[Literal["canceled", "modified", "success"] | HyperliquidRawExchangeStatusObject]:
         """Validate the structure and content of the statuses list."""
-        if not isinstance(v, list):
-            raise TypeError(f"statuses: Must be a list, got {type(v).__name__}")
-
         validated_list: list[
             Literal["canceled", "modified", "success"] | HyperliquidRawExchangeStatusObject
         ] = []
@@ -126,6 +125,7 @@ class HyperliquidRawExchangeResponseData(BaseModel):
 
         # Iterate through the raw list provided
         for i, item_raw in enumerate(v):
+            item_raw: Any
             # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType etc). Mypy=ok
             if isinstance(item_raw, str):
                 # DEFENSIVE CHECK: Assert type for checker after isinstance
@@ -152,11 +152,14 @@ class HyperliquidRawExchangeResponseData(BaseModel):
                     validated_list.append(validated_obj)
                 except ValidationError as e:
                     # Wrap Pydantic error for clarity
-                    raise ValueError(f"statuses[{i}]: Invalid status object format: {e}") from e
+                    raise ValueError(
+                        f"statuses[{i}]: Invalid status object format: {str(e)}"
+                    ) from e
             else:
                 # Handle unexpected types
                 # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownArgumentType). Mypy=ok
-                raise TypeError(
+                # Use ValueError for Pydantic compatibility
+                raise ValueError(
                     f"statuses[{i}]: Invalid type {type(item_raw).__name__}. Expected str/dict."
                 )  # Shortened more
 
