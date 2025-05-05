@@ -20,19 +20,13 @@ class HyperliquidRawExchangeStatusResting(BaseModel):
 
     @field_validator("oid", mode="before")
     @classmethod
-    def validate_oid(cls, v: object) -> int:
-        field_name = "oid"
+    def validate_oid(cls, v: object, info: ValidationInfo) -> int:
+        field_name = info.field_name or "oid"
         if not isinstance(v, int):
-            if isinstance(v, str) and v.isdigit():
-                v_int = int(v)
-            else:
-                # Use ValueError for Pydantic compatibility
-                raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
-        else:
-            v_int = v
-        if v_int < 0:
-            raise ValueError(f"{field_name}: Must be non-negative, got {v_int}")
-        return v_int
+            raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
+        if v < 0:
+            raise ValueError(f"{field_name}: Must be non-negative, got {v}")
+        return v
 
 
 class HyperliquidRawExchangeStatusFilled(BaseModel):
@@ -46,34 +40,28 @@ class HyperliquidRawExchangeStatusFilled(BaseModel):
 
     @field_validator("oid", mode="before")
     @classmethod
-    def validate_oid(cls, v: object) -> int:
-        # Reusing validator logic
-        field_name = "oid"
+    def validate_oid(cls, v: object, info: ValidationInfo) -> int:
+        field_name = info.field_name or "oid"
         if not isinstance(v, int):
-            if isinstance(v, str) and v.isdigit():
-                v_int = int(v)
-            else:
-                # Use ValueError for Pydantic compatibility
-                raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
-        else:
-            v_int = v
-        if v_int < 0:
-            raise ValueError(f"{field_name}: Must be non-negative, got {v_int}")
-        return v_int
+            raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
+        if v < 0:
+            raise ValueError(f"{field_name}: Must be non-negative, got {v}")
+        return v
 
     @field_validator("total_sz", "avg_px", mode="before")
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
-        """Validate required decimal strings."""
-        field_name = info.field_name or "unknown_decimal_field"  # Provide default
+        field_name = info.field_name or "unknown_decimal_field"
         v_str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
         try:
             dec_val = parse_decimal_value(v_str, allow_none=False, field_name=field_name)
-            if dec_val is None or not dec_val.is_finite():
-                raise ValueError(f"{field_name}: Value '{v_str}' must be a finite decimal.")
-        except (ValueError, TypeError) as e:
+            if dec_val is None:
+                raise ValueError(f"{field_name}: Parsing returned None unexpectedly.")
+            if not dec_val.is_finite():
+                raise ValueError(f"{field_name}: Value '{v_str}' must represent a finite decimal.")
+        except ValueError as e:
             raise ValueError(
-                f"{field_name}: String '{v_str}' not parseable as finite Decimal: {e}"
+                f"{field_name}: Invalid finite decimal string '{v_str}'. Reason: {e}"
             ) from e
         return v_str
 
@@ -89,11 +77,11 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
 
     @field_validator("error", mode="before")
     @classmethod
-    def validate_optional_error_string(cls, v: object | None) -> str | None:
-        """Validate optional error string."""
+    def validate_optional_error_string(cls, v: object | None, info: ValidationInfo) -> str | None:
         if v is None:
             return None
-        return validate_str_field(v, field_name="error", max_length=1024, allow_empty=False)
+        field_name = info.field_name or "error"
+        return validate_str_field(v, field_name=field_name, max_length=1024, allow_empty=False)
 
 
 class HyperliquidRawExchangeResponseData(BaseModel):
@@ -108,60 +96,54 @@ class HyperliquidRawExchangeResponseData(BaseModel):
 
     @field_validator("type", mode="before")
     @classmethod
-    def validate_type_string(cls, v: object) -> str:
-        # Basic string validation. Could use validate_enum_field if known values emerge.
-        return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
+    def validate_type_string(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "type"
+        return validate_str_field(v, field_name=field_name, max_length=32, allow_empty=False)
 
     @field_validator("statuses", mode="before")
     @classmethod
     def validate_statuses_list(
-        cls, v: list[Any]
+        cls, v: object, info: ValidationInfo
     ) -> list[Literal["canceled", "modified", "success"] | HyperliquidRawExchangeStatusObject]:
-        """Validate the structure and content of the statuses list."""
+        field_name = info.field_name or "statuses"
+        if not isinstance(v, list):
+            raise ValueError(f"{field_name}: Must be a list, got {type(v).__name__}")
+
+        raw_list: list[Any] = v
         validated_list: list[
             Literal["canceled", "modified", "success"] | HyperliquidRawExchangeStatusObject
         ] = []
         allowed_strings = {"canceled", "modified", "success"}
 
-        # Iterate through the raw list provided
-        for i, item_raw in enumerate(v):
-            item_raw: Any
-            # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType etc). Mypy=ok
+        for i, item_raw in enumerate(raw_list):
+            current_field = f"{field_name}[{i}]"
             if isinstance(item_raw, str):
-                # DEFENSIVE CHECK: Assert type for checker after isinstance
-                assert isinstance(item_raw, str)
                 try:
                     validated_str = validate_enum_field(
-                        item_raw, allowed=allowed_strings, field_name=f"statuses[{i}]"
+                        item_raw, allowed=allowed_strings, field_name=current_field
                     )
-                    # Cast validated string to the Literal type for list compatibility
-                    # Justification: We just validated it belongs to the allowed set.
                     validated_literal = cast(
                         Literal["canceled", "modified", "success"], validated_str
                     )
                     validated_list.append(validated_literal)
                 except ValueError as e:
-                    raise ValueError(f"statuses[{i}]: Invalid status string: {e}") from e
-            # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType etc). Mypy=ok
+                    raise ValueError(
+                        f"{current_field}: Invalid status string '{item_raw}'. {e}"
+                    ) from e
             elif isinstance(item_raw, dict):
-                # DEFENSIVE CHECK: Assert type for checker after isinstance
-                assert isinstance(item_raw, dict)
                 try:
-                    # Validate the dict as the nested Pydantic model
-                    validated_obj = HyperliquidRawExchangeStatusObject.model_validate(item_raw)
+                    item_dict: dict[str, Any] = item_raw
+                    validated_obj = HyperliquidRawExchangeStatusObject.model_validate(item_dict)
                     validated_list.append(validated_obj)
                 except ValidationError as e:
-                    # Wrap Pydantic error for clarity
                     raise ValueError(
-                        f"statuses[{i}]: Invalid status object format: {str(e)}"
+                        f"{current_field}: Invalid status object format. Errors: {e}"
                     ) from e
             else:
                 # Handle unexpected types
-                # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownArgumentType). Mypy=ok
-                # Use ValueError for Pydantic compatibility
                 raise ValueError(
-                    f"statuses[{i}]: Invalid type {type(item_raw).__name__}. Expected str/dict."
-                )  # Shortened more
+                    f"{current_field}: Invalid type {type(item_raw).__name__}. Expected str/dict."
+                )  # Shortened message slightly to fit line length
 
         return validated_list
 
@@ -175,11 +157,9 @@ class HyperliquidRawExchangeResponse(BaseModel):
     # Making data optional and handling its absence might be safer.
     model_config = ConfigDict(extra="forbid", frozen=True)  # Set extra='forbid' and frozen=True
 
-    # No explicit validator needed for 'status' due to Literal type hint
-    # No explicit validator needed for 'data'; relies on nested model validation
-    # However, we add a validator for 'status' to ensure consistency with raw policy
     @field_validator("status", mode="before")
     @classmethod
-    def validate_status_ok(cls, v: object) -> str:
+    def validate_status_ok(cls, v: object, info: ValidationInfo) -> str:
         """Validate the top-level status is exactly 'ok'."""
-        return validate_enum_field(v, allowed={"ok"}, field_name="status")
+        field_name = info.field_name or "status"
+        return validate_enum_field(v, allowed={"ok"}, field_name=field_name)

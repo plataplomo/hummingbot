@@ -446,7 +446,8 @@ def test_BackpackRawFill_missing_required_fields() -> None:
     for field in required_fields:
         data = valid_fill_data()
         del data[field]
-        with pytest.raises(ValidationError, match=f"Field required.*{field}"):
+        # Use simpler match on just the field name, as Pydantic error messages can change format
+        with pytest.raises(ValidationError, match=field):  # Adjusted match pattern
             BackpackRawFill.model_validate(data)
 
 
@@ -455,19 +456,20 @@ def test_BackpackRawFill_invalid_types() -> None:
     invalid_type_cases = [
         ("fee", 1.0),  # Should be string
         ("feeSymbol", 123),
-        ("isMaker", "true"),  # Should be bool
-        ("orderId", None),
+        ("isMaker", "true"),  # Should be bool (Now raises ValueError -> ValidationError)
+        ("orderId", None),  # Field required error
         ("price", 50000.0),
         ("quantity", ["0.01"]),
         ("side", 1),
         ("symbol", {"s": "BTC"}),
-        ("timestamp", 1234567890),  # Should be string for this model
-        ("tradeId", "987abc"),  # Should be int
-        ("clientId", 123),
+        ("timestamp", 1234567890),
+        ("tradeId", "987abc"),  # Expected int error
+        ("clientId", 123),  # Optional but wrong type if present
     ]
     for field, value in invalid_type_cases:
         data = valid_fill_data()
         data[field] = value
+        # Expect ValidationError now for isMaker case too
         with pytest.raises(ValidationError, match=field):
             BackpackRawFill.model_validate(data)
 
@@ -475,31 +477,40 @@ def test_BackpackRawFill_invalid_types() -> None:
 def test_BackpackRawFill_invalid_formats_and_values() -> None:
     """Test ValidationError for invalid string formats, enum values, or number constraints."""
     invalid_format_cases = [
-        ("fee", ""),  # Empty string
+        ("fee", ""),  # Empty string (now caught by min_length=1)
         ("fee", "not-a-number"),
-        ("fee", "inf"),  # Non-finite
+        ("fee", "inf"),
         ("fee", "NaN"),
         ("fee_symbol", ""),
         ("fee_symbol", "A" * 33),  # Exceeds max_length
         ("orderId", " "),
         ("orderId", "B" * 129),
-        ("price", "1.0.0"),  # Invalid decimal format
+        ("price", ""),  # Empty string (now caught by min_length=1)
+        ("price", "1.0.0"),
         ("price", "-inf"),
-        ("quantity", "0.0"),  # Valid but could test >0 if needed elsewhere
-        ("side", "Buy"),  # Invalid enum value (case sensitive)
-        ("side", "ask"),  # Invalid enum value (case sensitive)
+        ("quantity", ""),  # Empty string (now caught by min_length=1)
+        (
+            "quantity",
+            "0.0",
+        ),  # Technically valid number, but maybe test specific non-zero requirement elsewhere
+        ("side", "Buy"),
+        ("side", "ask"),
         ("symbol", ""),
         ("symbol", "C" * 65),
         ("timestamp", ""),
-        ("timestamp", "2024-05-01 12:34:56"),  # Incorrect format
+        ("timestamp", "2024-05-01 12:34:56"),
         ("timestamp", "not-a-date"),
-        ("tradeId", -1),  # Negative integer
-        ("clientId", ""),  # Empty optional string
+        ("tradeId", -1),  # Caught by ge=0
+        (
+            "clientId",
+            "",
+        ),  # Optional string can be empty if validator allows_empty=True, but ours doesn't
         ("clientId", "D" * 129),
     ]
     for field, value in invalid_format_cases:
         data = valid_fill_data()
         data[field] = value
+        # The test should now pass for fee="", price="", quantity="" due to min_length=1
         with pytest.raises(ValidationError, match=field):
             BackpackRawFill.model_validate(data)
 

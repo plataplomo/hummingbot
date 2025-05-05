@@ -315,7 +315,7 @@ class BackpackRawFill(BaseModel):
     Performs basic type validation and parsing for numeric/boolean fields.
     """
 
-    fee: str = Field(..., description="The fee charged on the fill.")
+    fee: str = Field(..., description="The fee charged on the fill.", min_length=1)
     fee_symbol: str = Field(
         ..., alias="feeSymbol", description="The asset that is charged as a fee.", max_length=32
     )
@@ -325,8 +325,8 @@ class BackpackRawFill(BaseModel):
     order_id: str = Field(
         ..., alias="orderId", description="The order ID of the fill.", max_length=128
     )
-    price: str = Field(..., description="The price of the fill.")
-    quantity: str = Field(..., description="The quantity of the fill.")
+    price: str = Field(..., description="The price of the fill.", min_length=1)
+    quantity: str = Field(..., description="The quantity of the fill.", min_length=1)
     side: str = Field(..., description="The side of the fill.")
     symbol: str = Field(..., description="The market symbol of the fill.", max_length=64)
     timestamp: str = Field(
@@ -376,12 +376,13 @@ class BackpackRawFill(BaseModel):
     @field_validator("fee_symbol", "order_id", "symbol", mode="before")
     @classmethod
     def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
-        """Validate required, non-empty string fields with specific max_lengths."""
-        field_name = info.field_name or "unknown_field"  # Fallback for field name
-        # Safely access max_length, provide default if metadata or max_length is missing
-        max_len = getattr(
-            getattr(cls.model_fields.get(field_name), "metadata", [None])[0], "max_length", 64
-        )
+        """Validate required, non-empty strings with max lengths."""
+        field_name = info.field_name or "unknown_string_field"
+        field_info = cls.model_fields.get(field_name)
+        # Get max_length directly from FieldInfo if available, otherwise default
+        max_len = getattr(field_info, "max_length", 128) if field_info else 128
+        # Ensure max_len is an int, provide default if None was somehow retrieved
+        max_len = max_len if max_len is not None else 128
         return validate_str_field(v, field_name=field_name, max_length=max_len, allow_empty=False)
 
     @field_validator("side", mode="before")
@@ -414,13 +415,14 @@ class BackpackRawFill(BaseModel):
     @classmethod
     def validate_trade_id(cls, v: object, info: ValidationInfo) -> int:
         """Validate trade_id is a non-negative integer."""
-        field_name = info.field_name or "trade_id"  # Fallback for field name
+        field_name = info.field_name or "trade_id"
         if not isinstance(v, int):
             # Try converting if string
             if isinstance(v, str) and v.isdigit():
                 v_int = int(v)
             else:
-                raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
+                # Raise ValueError for Pydantic compatibility
+                raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
         else:
             v_int = v
 
@@ -432,22 +434,30 @@ class BackpackRawFill(BaseModel):
     @classmethod
     def validate_is_maker(cls, v: object, info: ValidationInfo) -> bool:
         """Validate is_maker is a boolean."""
-        field_name = info.field_name or "is_maker"  # Fallback for field name
+        field_name = info.field_name or "is_maker"
         if not isinstance(v, bool):
-            # Allow common string representations? No, spec says boolean.
-            raise TypeError(f"{field_name}: Must be a boolean, got {type(v).__name__}")
+            raise ValueError(f"{field_name}: Must be a boolean, got {type(v).__name__}")
         return v
 
     @field_validator("client_id", mode="before")
     @classmethod
     def validate_optional_string(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """Validate optional string fields: must be non-empty if present."""
+        """Validate optional string: must be non-empty if present."""
+        field_name = info.field_name or "client_id"
+
         if v is None:
             return None
-        field_name = info.field_name or "optional_field"  # Fallback for field name
-        # Safely access max_length, provide default if metadata or max_length is missing
-        max_len = getattr(
-            getattr(cls.model_fields.get(field_name), "metadata", [None])[0], "max_length", 128
-        )
-        # If not None, validate as a non-empty string
+
+        # Explicitly reject empty string here after None check
+        if isinstance(v, str) and not v.strip():
+            raise ValueError(
+                f"{field_name}: Optional string cannot be empty or just whitespace if provided."
+            )
+
+        # If not None and not empty, validate type and length
+        field_info = cls.model_fields.get(field_name)
+        max_len = getattr(field_info, "max_length", 128) if field_info else 128
+        max_len = max_len if max_len is not None else 128
+
+        # Call validate_str_field ensuring allow_empty is False
         return validate_str_field(v, field_name=field_name, max_length=max_len, allow_empty=False)
