@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
+    BackpackRawFill,
     BackpackRawTrade,
     BackpackRawTradeEvent,
 )
@@ -380,3 +381,142 @@ def test_BackpackRawTradeEvent_corruption_garbled_unicode_symbol() -> None:
     p["s"] = "BTC_\udce2\udc28\udc00"
     with pytest.raises(ValidationError):
         BackpackRawTradeEvent.model_validate(p)
+
+
+# --- BackpackRawFill ---
+
+
+def valid_fill_data() -> dict[str, Any]:
+    """Return a dictionary with valid data for BackpackRawFill."""
+    return {
+        "fee": "0.001",
+        "feeSymbol": "USDC",
+        "isMaker": True,
+        "orderId": "order-123456789",
+        "price": "50000.12345",
+        "quantity": "0.002",
+        "side": "Bid",  # Must match allowed values ('Bid', 'Ask')
+        "symbol": "BTC_USDC",
+        "timestamp": "2024-05-01T12:34:56.789000Z",  # Expected ISO format
+        "tradeId": 987654321,
+        "clientId": "client-abc-def-999",
+    }
+
+
+def test_BackpackRawFill_happy_path() -> None:
+    """Test successful validation with valid data."""
+    data = valid_fill_data()
+    obj = BackpackRawFill.model_validate(data)
+
+    assert obj.fee == "0.001"
+    assert obj.fee_symbol == "USDC"
+    assert obj.is_maker is True
+    assert obj.order_id == "order-123456789"
+    assert obj.price == "50000.12345"
+    assert obj.quantity == "0.002"
+    assert obj.side == "Bid"
+    assert obj.symbol == "BTC_USDC"
+    assert obj.timestamp == "2024-05-01T12:34:56.789000Z"
+    assert obj.trade_id == 987654321
+    assert obj.client_id == "client-abc-def-999"
+
+
+def test_BackpackRawFill_optional_client_id_none() -> None:
+    """Test successful validation when optional clientId is None."""
+    data = valid_fill_data()
+    del data["clientId"]
+    obj = BackpackRawFill.model_validate(data)
+    assert obj.client_id is None
+
+
+def test_BackpackRawFill_missing_required_fields() -> None:
+    """Test ValidationError when required fields are missing."""
+    required_fields = [
+        "fee",
+        "feeSymbol",
+        "isMaker",
+        "orderId",
+        "price",
+        "quantity",
+        "side",
+        "symbol",
+        "timestamp",
+        "tradeId",
+    ]
+    for field in required_fields:
+        data = valid_fill_data()
+        del data[field]
+        with pytest.raises(ValidationError, match=f"Field required.*{field}"):
+            BackpackRawFill.model_validate(data)
+
+
+def test_BackpackRawFill_invalid_types() -> None:
+    """Test ValidationError for incorrect field types."""
+    invalid_type_cases = [
+        ("fee", 1.0),  # Should be string
+        ("feeSymbol", 123),
+        ("isMaker", "true"),  # Should be bool
+        ("orderId", None),
+        ("price", 50000.0),
+        ("quantity", ["0.01"]),
+        ("side", 1),
+        ("symbol", {"s": "BTC"}),
+        ("timestamp", 1234567890),  # Should be string for this model
+        ("tradeId", "987abc"),  # Should be int
+        ("clientId", 123),
+    ]
+    for field, value in invalid_type_cases:
+        data = valid_fill_data()
+        data[field] = value
+        with pytest.raises(ValidationError, match=field):
+            BackpackRawFill.model_validate(data)
+
+
+def test_BackpackRawFill_invalid_formats_and_values() -> None:
+    """Test ValidationError for invalid string formats, enum values, or number constraints."""
+    invalid_format_cases = [
+        ("fee", ""),  # Empty string
+        ("fee", "not-a-number"),
+        ("fee", "inf"),  # Non-finite
+        ("fee", "NaN"),
+        ("fee_symbol", ""),
+        ("fee_symbol", "A" * 33),  # Exceeds max_length
+        ("orderId", " "),
+        ("orderId", "B" * 129),
+        ("price", "1.0.0"),  # Invalid decimal format
+        ("price", "-inf"),
+        ("quantity", "0.0"),  # Valid but could test >0 if needed elsewhere
+        ("side", "Buy"),  # Invalid enum value (case sensitive)
+        ("side", "ask"),  # Invalid enum value (case sensitive)
+        ("symbol", ""),
+        ("symbol", "C" * 65),
+        ("timestamp", ""),
+        ("timestamp", "2024-05-01 12:34:56"),  # Incorrect format
+        ("timestamp", "not-a-date"),
+        ("tradeId", -1),  # Negative integer
+        ("clientId", ""),  # Empty optional string
+        ("clientId", "D" * 129),
+    ]
+    for field, value in invalid_format_cases:
+        data = valid_fill_data()
+        data[field] = value
+        with pytest.raises(ValidationError, match=field):
+            BackpackRawFill.model_validate(data)
+
+
+def test_BackpackRawFill_extra_field_forbidden() -> None:
+    """Test ValidationError when extra fields are provided (extra='forbid')."""
+    data = valid_fill_data()
+    data["extraField"] = "should not be allowed"
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        BackpackRawFill.model_validate(data)
+
+
+def test_BackpackRawFill_frozen() -> None:
+    """Test that the model is frozen (immutable) after creation."""
+    data = valid_fill_data()
+    obj = BackpackRawFill.model_validate(data)
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        obj.symbol = "SOL_USDC"
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        obj.price = "60000.0"

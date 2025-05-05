@@ -50,6 +50,9 @@ def test_user_fill_happy_path() -> None:
     assert obj.coin == "ETH"
     assert obj.px == "123.45"
     assert obj.is_maker is True
+    assert obj.time == 1234567890
+    assert obj.oid == 2
+    assert obj.start_position == "0.0"
 
 
 def test_user_fill_missing_required() -> None:
@@ -102,6 +105,14 @@ def test_user_fill_type_errors() -> None:
     d["isMaker"] = "true"
     with pytest.raises(ValidationError):
         HyperliquidRawUserFill.model_validate(d)
+    d = valid_user_fill().copy()
+    d["time"] = 123.45  # Float instead of int
+    with pytest.raises(ValidationError):
+        HyperliquidRawUserFill.model_validate(d)
+    d = valid_user_fill().copy()
+    d["oid"] = "id-string"  # String instead of int
+    with pytest.raises(ValidationError):
+        HyperliquidRawUserFill.model_validate(d)
 
 
 def test_user_fill_format_errors() -> None:
@@ -119,6 +130,32 @@ def test_user_fill_format_errors() -> None:
         HyperliquidRawUserFill.model_validate(d)
     d = valid_user_fill().copy()
     d["side"] = "notaside"
+    with pytest.raises(ValidationError):
+        HyperliquidRawUserFill.model_validate(d)
+    d = valid_user_fill().copy()
+    d["hash"] = "0x" + "a" * 65  # Too long (max 66)
+    with pytest.raises(ValidationError):
+        HyperliquidRawUserFill.model_validate(d)
+    d = valid_user_fill().copy()
+    d["cloid"] = "a" * 129  # Too long (max 128)
+    with pytest.raises(ValidationError):
+        HyperliquidRawUserFill.model_validate(d)
+    # Test non-finite for start_position
+    d = valid_user_fill().copy()
+    d["startPosition"] = "inf"
+    with pytest.raises(ValidationError):
+        HyperliquidRawUserFill.model_validate(d)
+    # Test negative integers
+    d = valid_user_fill().copy()
+    d["tid"] = -1
+    with pytest.raises(ValidationError):
+        HyperliquidRawUserFill.model_validate(d)
+    d = valid_user_fill().copy()
+    d["oid"] = -1
+    with pytest.raises(ValidationError):
+        HyperliquidRawUserFill.model_validate(d)
+    d = valid_user_fill().copy()
+    d["time"] = -1
     with pytest.raises(ValidationError):
         HyperliquidRawUserFill.model_validate(d)
 
@@ -316,3 +353,20 @@ def test_user_fills_request_payload_extra_field() -> None:
     d["foo"] = 1
     with pytest.raises(ValidationError):
         HyperliquidRawUserFillsRequestPayload.model_validate(d)
+
+
+def test_user_fill_extra_field_forbidden() -> None:
+    """Test explicit check for extra='forbid'."""
+    d = valid_user_fill().copy()
+    d["foo"] = 1
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        HyperliquidRawUserFill.model_validate(d)
+
+
+def test_user_fill_frozen() -> None:
+    """Test explicit check for frozen=True."""
+    obj = HyperliquidRawUserFill.model_validate(valid_user_fill())
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        obj.tid = 999
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        obj.px = "999.99"
