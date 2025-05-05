@@ -156,7 +156,10 @@ def test_derivative_position_mutability(
     assert pos.mark_price == Decimal("52000.0")
 
     # Test invalid assignment (negative mark price via Field constraint)
-    match_str = "1 validation error for DerivativePosition\\nmark_price\\n  Input should be greater than or equal to 0"
+    match_str = (
+        "1 validation error for DerivativePosition\\nmark_price\\n"
+        "  Input should be greater than or equal to 0"
+    )
     with pytest.raises(ValidationError, match=match_str):
         pos.mark_price = Decimal("-100")
 

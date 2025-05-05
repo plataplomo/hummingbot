@@ -85,5 +85,6 @@ class TestRiskManagerValidation:
             assert len(validated_mixed) == 1
             assert validated_mixed[0] == valid_sized  # Should be the valid one
 
-    # TODO: Add tests for _get_validation_metrics if needed (currently implicitly tested via controls)
+    # TODO: Add tests for _get_validation_metrics if needed
+    # (currently implicitly tested via controls)
     # TODO: Add tests for is_opportunity_profitable helper

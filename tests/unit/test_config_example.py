@@ -58,7 +58,10 @@ class TestConfigExample(unittest.TestCase):
             script_dir = os.path.dirname(self.example_script)
 
             # Use the system Python since we're already in a venv context
-            command = f"cd {script_dir} && python {os.path.basename(self.example_script)} --create-example"
+            command = (
+                f"cd {script_dir} && python {os.path.basename(self.example_script)} "
+                f"--create-example"
+            )
             exit_code = os.system(command)
 
             # Check that the script executed successfully
@@ -146,7 +149,10 @@ exchanges:
         # Run the benchmark using os.system with venv Python
         script_dir = os.path.dirname(self.example_script)
 
-        command = f"cd {script_dir} && python {os.path.basename(self.example_script)} --benchmark --config {config_path} --secrets {secrets_path}"
+        command = (
+            f"cd {script_dir} && python {os.path.basename(self.example_script)} "
+            f"--benchmark --config {config_path} --secrets {secrets_path}"
+        )
         exit_code = os.system(command)
 
         # Check that the script executed successfully
@@ -204,7 +210,10 @@ exchanges:
         # Run the script using os.system with venv Python
         script_dir = os.path.dirname(self.example_script)
 
-        command = f"cd {script_dir} && python {os.path.basename(self.example_script)} --config {config_path} --secrets {secrets_path}"
+        command = (
+            f"cd {script_dir} && python {os.path.basename(self.example_script)} "
+            f"--config {config_path} --secrets {secrets_path}"
+        )
         exit_code = os.system(command)
 
         # Check that the script executed successfully

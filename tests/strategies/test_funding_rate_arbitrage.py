@@ -28,9 +28,12 @@ logger = logging.getLogger(__name__)
 # Move TickerWithClose to module level for reuse
 default_close = Decimal("30000.0")
 
+# Define a specific type alias or use a more concrete type if possible
+PositionType = DerivativePosition | None
+
 
 class TickerWithClose:
-    def __init__(self, close: Decimal = default_close):
+    def __init__(self, close: Decimal = default_close) -> None:
         self.close: Decimal = close
 
 
@@ -62,7 +65,7 @@ def fake_get_latest_price(ex: str, sym: str) -> Decimal:
     return Decimal("29990.0")
 
 
-def fake_get_position(ex: str, sym: str) -> Any:
+def fake_get_position(ex: str, sym: str) -> PositionType:
     positions = {
         ("hyperliquid", "BTC-PERP"): DerivativePosition(
             exchange="hyperliquid",
@@ -90,13 +93,21 @@ def fake_get_position(ex: str, sym: str) -> Any:
     return positions.get((ex, sym))
 
 
-def fake_get_ticker(ex: str, sym: str) -> Any:
+# Define a specific type alias or use a more concrete type if possible
+TickerType = Ticker | TickerWithClose | None
+
+
+def fake_get_ticker(ex: str, sym: str) -> TickerType:
     if ex == "hyperliquid":
         return TickerWithClose(Decimal("30000.0"))
     return TickerWithClose(Decimal("29990.0"))
 
 
-def fake_get_param(k: str, d: Any = None) -> Any:
+# Define a specific type alias or use a more concrete type if possible
+ParamType = Any  # Keep Any for now as the return structure is complex
+
+
+def fake_get_param(k: str, d: object | None = None) -> ParamType:
     return {
         "history_length": 24,
         "hyperliquid_fee_rate": Decimal("0.0001"),

@@ -58,7 +58,7 @@ def mock_config(mock_config_values: dict[str, Any]) -> MagicMock:
     cfg.default_values = mock_config_values
 
     # The side_effect function now just looks up from the stored defaults
-    def config_get_side_effect(key: str, default: object | None = None) -> Any:
+    def config_get_side_effect(key: str, default: object | None = None) -> object | None:
         return cfg.default_values.get(key, default)
 
     cfg.get.side_effect = config_get_side_effect
@@ -75,7 +75,7 @@ def mock_portfolio_tracker() -> MagicMock:
     mock_balance.available = Decimal("1000.0")
     tracker.get_exchange_balance.return_value = mock_balance
 
-    def collateral_balance_side_effect(*args: Any) -> Decimal:
+    def collateral_balance_side_effect(*args: object) -> Decimal:
         return Decimal("1000.0")
 
     tracker.get_exchange_collateral_balance.side_effect = collateral_balance_side_effect

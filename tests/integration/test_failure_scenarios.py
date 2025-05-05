@@ -240,7 +240,13 @@ class TestFailureScenarios:
         # Otherwise (SUCCESS), it means mock_bp API didn't fail this time *and* its breaker was reset/didn't re-trip instantly.
         else:
             assert other_result.status == ExecutionStatus.SUCCESS, (
-                f"Unexpected status {other_result.status.name} for execution on {other_exchange}"
+                f"Expected {other_exchange} execution to succeed after {target_exchange} failure and reset"
+            )
+            assert (
+                other_result.error_message is not None
+                and target_exchange in other_result.error_message
+            ), (
+                f"Error message '{other_result.error_message}' doesn't mention the originally failing exchange breaker '{target_exchange}'"
             )
 
         # 6. Reset Breaker Manually (Optional Check)

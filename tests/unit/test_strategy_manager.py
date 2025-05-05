@@ -429,7 +429,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
         )
         self.mock_strategy1.process_data.return_value = [valid_signal1, valid_signal2]
 
-        def size_signal_side_effect(signal: Any) -> Any:
+        def size_signal_side_effect(signal: object) -> Any:
             if signal == valid_signal1:
                 raise Exception("Risk sizing failed")
             return signal
@@ -443,8 +443,10 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_process_market_data_update_historical_data_exception(self) -> None:
         """
-        Conservative: If any strategy's update_historical_data fails, the whole process should fail (raise).
-        This is a fail-fast, all-or-nothing protection for early-stage financial safety.
+        Conservative: If any strategy's update_historical_data fails,
+        the whole process should fail (raise).
+        This is a fail-fast, all-or-nothing protection for
+        early-stage financial safety.
         """
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
         self.strategy_manager.enable_strategy(self.mock_strategy2.name)
@@ -512,7 +514,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
             volume=Decimal("100.0"),
         )
 
-        async def async_raises(*args: Any, **kwargs: Any) -> Any:
+        async def async_raises(*args: object, **kwargs: object) -> Any:
             raise Exception("Async process_data failed")
 
         self.mock_strategy1.process_data = async_raises

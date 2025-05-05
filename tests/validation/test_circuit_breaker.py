@@ -553,7 +553,7 @@ def mock_config() -> Config:
             # Explicit cast to ConfigValue to satisfy type checker
             return (
                 current_data
-                if isinstance(current_data, (str, int, float, bool, dict, list))
+                if isinstance(current_data, str | int | float | bool | dict | list)
                 else None
             )
         except (KeyError, TypeError, AssertionError):

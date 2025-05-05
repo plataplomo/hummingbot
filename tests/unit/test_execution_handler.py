@@ -113,7 +113,7 @@ class TestExecutionHandler:
         """Provides a mock Config object using the dictionary."""
         cfg = MagicMock(spec=Config)
 
-        def config_get_side_effect(key: str, default: Any = None) -> Any:
+        def config_get_side_effect(key: str, default: object | None = None) -> Any:
             return mock_config_dict.get(key, default)
 
         cfg.get.side_effect = config_get_side_effect
@@ -572,7 +572,7 @@ class TestExecutionHandler:
     ) -> None:
         """Test successful concurrent execution of an opportunity."""
 
-        def config_get_side_effect_conc(key: str, default: Any = None) -> Any:
+        def config_get_side_effect_conc(key: str, default: object | None = None) -> Any:
             values = {
                 "execution.order_placement_type": "concurrent",
                 "execution.max_retries": 3,
@@ -667,7 +667,7 @@ class TestExecutionHandler:
             client_order_id: str | None = None,
             reduce_only: bool = False,
             post_only: bool = False,
-            **kwargs: Any,
+            **kwargs: object,
         ) -> Order:
             await asyncio.sleep(0.01)
             if exchange_id == "hyperliquid":
@@ -741,7 +741,7 @@ class TestExecutionHandler:
     ) -> None:
         """Test execution flow when one leg fails and compensation is triggered."""
 
-        def config_get_side_effect_comp(key: str, default: Any = None) -> Any:
+        def config_get_side_effect_comp(key: str, default: object | None = None) -> Any:
             values = {
                 "execution.order_placement_type": "concurrent",
                 "execution.compensation.use_limit_orders": True,
@@ -855,7 +855,7 @@ class TestExecutionHandler:
             client_order_id: str | None = None,
             reduce_only: bool = False,
             post_only: bool = False,
-            **kwargs: Any,
+            **kwargs: object,
         ) -> Order:
             nonlocal comp_order
             await asyncio.sleep(0.01)

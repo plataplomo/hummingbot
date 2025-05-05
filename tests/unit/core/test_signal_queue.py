@@ -125,7 +125,8 @@ def test_add_signal_with_circuit_breaker(
     mock_breaker_instance.state = BreakerState.OPEN
     mock_breaker_instance.trip_reason = "Test trip"
     # Mock get_exchange_breaker to return this OPEN breaker for the relevant exchange
-    # Infer exchange from signal symbol (e.g., assuming BTC/USDT implies 'binance' if not in metadata)
+    # Infer exchange from signal symbol (e.g., assuming BTC/USDT implies 'binance'
+    # if not in metadata)
     # We need a symbol mapper or assume metadata for a robust test, let's add metadata
     sample_signal.metadata = {"long_exchange": "test_exchange"}  # Add metadata
     mock_circuit_breaker.get_exchange_breaker.return_value = mock_breaker_instance
@@ -262,7 +263,7 @@ def test_clear(mock_config: Config, sample_signal: TradeSignal) -> None:
 )  # Patch datetime used within the model methods (like is_valid)
 @patch("unittest.mock.patch")  # Added missing import for patch decorator
 def test_clean_expired_signals(
-    mock_patch, mock_models_dt: MagicMock, mock_queue_dt: MagicMock, mock_config: Config
+    mock_patch: MagicMock, mock_models_dt: MagicMock, mock_queue_dt: MagicMock, mock_config: Config
 ) -> None:  # Added mock_patch arg
     """Test cleaning expired signals from the queue."""
     # Use a fixed time for consistency

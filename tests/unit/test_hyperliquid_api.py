@@ -392,8 +392,10 @@ class TestHyperliquidAPI:
         """Test the authentication mechanism (placeholder)."""
         # Basic check: ensure necessary attributes exist if needed for auth
         assert hasattr(api_client, "_wallet_address")  # noqa: SLF001
-        # assert hasattr(api_client, "_api_secret")  # noqa: SLF001 # Hyperliquid uses private key/account
-        assert hasattr(api_client, "_private_key") or hasattr(api_client, "_account")  # noqa: SLF001 - Check for key or derived account
+        # assert hasattr(api_client, "_api_secret")  # noqa: SLF001
+        # Hyperliquid uses private key/account
+        assert hasattr(api_client, "_private_key") or hasattr(api_client, "_account")
+        # noqa: SLF001 - Check for key or derived account
 
     @pytest.mark.asyncio
     async def test_connect_valid_address(

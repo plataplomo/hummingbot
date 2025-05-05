@@ -40,16 +40,20 @@ class TestOrderBook:
         now = datetime.now(UTC)
         # Pydantic raises ValidationError if fields are missing entirely
         with pytest.raises(ValidationError, match="Field required"):
-            # Ignore call-arg error: Intentionally missing 'symbol' to test Pydantic's required field validation.
+            # Ignore call-arg error: Intentionally missing 'symbol'
+            # to test Pydantic's required field validation.
             OrderBook(timestamp=now, bids=[], asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
-            # Ignore call-arg error: Intentionally missing 'timestamp' to test Pydantic's required field validation.
+            # Ignore call-arg error: Intentionally missing 'timestamp'
+            # to test Pydantic's required field validation.
             OrderBook(symbol="BTC", bids=[], asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
-            # Ignore call-arg error: Intentionally missing 'bids' to test Pydantic's required field validation.
+            # Ignore call-arg error: Intentionally missing 'bids'
+            # to test Pydantic's required field validation.
             OrderBook(symbol="BTC", timestamp=now, asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
-            # Ignore call-arg error: Intentionally missing 'asks' to test Pydantic's required field validation.
+            # Ignore call-arg error: Intentionally missing 'asks'
+            # to test Pydantic's required field validation.
             OrderBook(symbol="BTC", timestamp=now, bids=[])  # type: ignore[call-arg]
 
     def test_symbol_validation(self) -> None:

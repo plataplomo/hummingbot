@@ -55,7 +55,8 @@ class TestDataHandler:
         handler = DataHandler(config_obj)
 
         # Use empty dict for ws_tasks; rely on DataHandler's annotation
-        # NOTE: Type checkers cannot infer the type of ws_tasks here due to lack of class-level annotation.
+        # NOTE: Type checkers cannot infer the type of ws_tasks here
+        # due to lack of class-level annotation.
         # This is a known limitation and does not affect test correctness.
         handler.ws_tasks = {}
         assert len(handler.ws_tasks) == 0
@@ -190,7 +191,7 @@ class TestDataHandler:
         """Test updating all data from exchanges."""
 
         # Patch config get method to enable exchanges and provide symbols
-        def mock_config_get(key: str, default: Any = None) -> bool | list[str] | None:
+        def mock_config_get(key: str, default: object | None = None) -> bool | list[str] | None:
             if key.endswith(".enabled"):
                 return True
             if key.endswith(".symbols"):
@@ -312,7 +313,7 @@ class TestDataHandler:
             cancelled_tasks.add(task_mock)
 
             # Standard cancel behavior raises CancelledError on next await
-            async def await_raises_cancelled(*args: Any, **kwargs: Any) -> None:
+            async def await_raises_cancelled(*args: object, **kwargs: object) -> None:
                 if task_mock in cancelled_tasks:
                     raise asyncio.CancelledError
                 return None
@@ -411,7 +412,7 @@ class TestDataHandler:
         """Test the WebSocket connection maintenance logic."""
 
         # Mock the config.get method to return test-friendly values
-        def config_get(key: str, default: Any = None) -> Any:
+        def config_get(key: str, default: object | None = None) -> Any:
             return {
                 "exchanges.hyperliquid.enabled": True,
                 "exchanges.hyperliquid.symbols": ["BTC", "ETH"],
@@ -486,7 +487,7 @@ class TestDataHandler:
         """Test processing WebSocket messages."""
 
         # Mock config get method for ping interval
-        def mock_config_get(key: str, default: Any = None) -> float | None:
+        def mock_config_get(key: str, default: object | None = None) -> float | None:
             if key.endswith(".websocket.ping_interval"):
                 return 0.5  # Short interval for testing
             return default

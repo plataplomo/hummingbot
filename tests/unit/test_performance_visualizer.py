@@ -51,7 +51,8 @@ class TestPerformanceVisualizer(unittest.TestCase):
         self.visualizer = PerformanceVisualizer(config=self.config)
 
         # Generate sample return data
-        # Linter warning for 'date_range' is a false positive due to pandas' complex typing; usage is correct.
+        # Linter warning for 'date_range' is a false positive due to
+        # pandas' complex typing; usage is correct.
         dates: pd.DatetimeIndex = pd.date_range(start="2020-01-01", end="2020-12-31", freq="D")
         np.random.seed(42)
 

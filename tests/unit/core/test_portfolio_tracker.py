@@ -183,7 +183,6 @@ class TestPortfolioTracker:
         # Access internal state directly for verification
         hyperliquid_usdc_balance = portfolio_tracker._balances.get("hyperliquid", {}).get("USDC")  # noqa: SLF001 - Test verification
         assert isinstance(hyperliquid_usdc_balance, SpotBalance)
-        # assert hyperliquid_usdc_balance.total_quantity == sample_balances["hyperliquid"]["USDC"] # Assertion moved below check
         if hyperliquid_usdc_balance:
             assert hyperliquid_usdc_balance.total_quantity == sample_balances["hyperliquid"]["USDC"]
         else:
@@ -191,7 +190,6 @@ class TestPortfolioTracker:
 
         backpack_eth_balance = portfolio_tracker._balances.get("backpack", {}).get("ETH")  # noqa: SLF001 - Test verification
         assert isinstance(backpack_eth_balance, SpotBalance)
-        # assert backpack_eth_balance.total_quantity == sample_balances["backpack"]["ETH"] # Assertion moved below check
         if backpack_eth_balance:
             assert backpack_eth_balance.total_quantity == sample_balances["backpack"]["ETH"]
         else:
@@ -857,12 +855,8 @@ class TestPortfolioTracker:
 
         # Verify mock setup
         assert mock_hl_api.get_cancelled_orders.return_value == test_cancelled_orders_list
-        # Assertion against internal state depends on how cancelled orders are handled.
-        # If they are merged into _orders:
-        # portfolio_tracker.update_order("hyperliquid", test_cancelled_orders_list[0]) # Update state
-        # stored_order = portfolio_tracker.get_order_by_id("hyperliquid", "test-order-cancelled")
-        # assert stored_order == test_cancelled_orders_list[0]
-        # Given the lack of a dedicated _cancelled_orders attribute, this test might need refactoring.
+        # Given the lack of a dedicated _cancelled_orders attribute,
+        # this test might need refactoring.
         # Temporarily skipping assertion on internal state due to ambiguity.
         pass  # Placeholder: Assertion needs clarification based on PortfolioTracker implementation.
 
@@ -1011,7 +1005,6 @@ class TestPortfolioTracker:
         # Assuming update_position handles history or there's a separate mechanism:
         # portfolio_tracker.update_position("hyperliquid", test_position_history_list[0]) # Example update
         # This test likely needs adjustment based on actual position history tracking logic.
-        # For now, just verify the mock was configured.
         pass  # Placeholder: Assertion needs clarification based on PortfolioTracker implementation.
 
     @pytest.mark.asyncio

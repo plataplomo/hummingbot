@@ -209,7 +209,7 @@ class TestBackpackAPI:
     """Test suite for BackpackAPI client."""
 
     @pytest.fixture
-    def api_client(self, backpack_config: Config, backpack_secrets: dict[str, str]):
+    def api_client(self, backpack_config: Config, backpack_secrets: dict[str, str]) -> BackpackAPI:
         """Create a BackpackAPI client instance for testing (using AsyncMock)."""
         # Use AsyncMock with spec to avoid abstract class instantiation errors
         client = AsyncMock(spec=BackpackAPI)
@@ -218,7 +218,7 @@ class TestBackpackAPI:
         return client
 
     @pytest.mark.asyncio
-    async def test_get_ticker(self, api_client: BackpackAPI):
+    async def test_get_ticker(self, api_client: BackpackAPI) -> None:
         """Test get_ticker returns proper Ticker object."""
         # Mock the specific method being tested
         mock_ticker_data = Ticker(
@@ -246,7 +246,7 @@ class TestBackpackAPI:
         api_client.get_ticker.assert_called_once_with("BTCUSDC")
 
     @pytest.mark.asyncio
-    async def test_get_order_book(self, api_client: BackpackAPI):
+    async def test_get_order_book(self, api_client: BackpackAPI) -> None:
         """Test get_order_book returns proper OrderBook object."""
         mock_time = int(time.time() * 1000)
         mock_order_book_data = OrderBook(
@@ -288,7 +288,7 @@ class TestBackpackAPI:
         api_client.get_order_book.assert_called_once_with("BTCUSDC", depth=5)
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades(self, api_client: BackpackAPI):
+    async def test_get_recent_trades(self, api_client: BackpackAPI) -> None:
         """Test get_recent_trades returns list of Trade objects."""
         mock_trade_data: list[Trade] = [
             Trade(
@@ -341,7 +341,7 @@ class TestBackpackAPI:
         api_client.get_recent_trades.assert_called_once_with("BTCUSDC", limit=2)
 
     @pytest.mark.asyncio
-    async def test_get_funding_rate(self, api_client: BackpackAPI):
+    async def test_get_funding_rate(self, api_client: BackpackAPI) -> None:
         """Test get_funding_rate returns proper FundingRate object."""
         mock_time = int(time.time() * 1000) + 3600000
         mock_funding_data = FundingRate(
@@ -368,7 +368,7 @@ class TestBackpackAPI:
         api_client.get_funding_rate.assert_called_once_with("BTCUSDC")
 
     @pytest.mark.asyncio
-    async def test_get_balances(self, api_client: BackpackAPI):
+    async def test_get_balances(self, api_client: BackpackAPI) -> None:
         """Test get_balances returns balances correctly."""
         mock_balance_data = {
             "USDC": SpotBalance(
@@ -398,7 +398,7 @@ class TestBackpackAPI:
         api_client.get_balances.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_get_positions(self, api_client: BackpackAPI):
+    async def test_get_positions(self, api_client: BackpackAPI) -> None:
         """Test get_positions returns list of Position objects."""
         mock_position_data = [
             DerivativePosition(
@@ -457,7 +457,7 @@ class TestBackpackAPI:
         api_client.get_positions.assert_called_once_with()
 
     @pytest.mark.asyncio
-    async def test_place_order(self, api_client: BackpackAPI):
+    async def test_place_order(self, api_client: BackpackAPI) -> None:
         """Test place_order returns Order object."""
         now_utc = datetime.now(UTC)
         mock_order_data = Order(
@@ -516,7 +516,7 @@ class TestBackpackAPI:
         assert kwargs.get("time_in_force") == TimeInForce.GTC
 
     @pytest.mark.asyncio
-    async def test_cancel_order(self, api_client: BackpackAPI):
+    async def test_cancel_order(self, api_client: BackpackAPI) -> None:
         """Test cancel_order completes successfully."""
         # Mock the API call response (often just success status)
         mock_cancel_response = {"success": True, "orderId": "order-to-cancel"}
@@ -538,7 +538,9 @@ class TestBackpackAPI:
         # Removed incorrect Order instantiation here.
 
     @pytest.mark.asyncio
-    async def test_sign_request(self, backpack_config: Config, backpack_secrets: dict[str, str]):
+    async def test_sign_request(
+        self, backpack_config: Config, backpack_secrets: dict[str, str]
+    ) -> None:
         """Test _sign_request generates valid HMAC signature headers."""
         # Convert secrets to required type
         secrets_typed: dict[str, str | None] = {

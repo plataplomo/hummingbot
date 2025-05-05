@@ -416,7 +416,8 @@ class TestSignalGenerator:
         # Define side effect with type hints, adding mark_price and timestamp
         def mock_low_funding(exchange: str, symbol: str) -> FundingRate | None:
             now = datetime.now(UTC)
-            # Use exchange symbols from mapper if needed (This logic looks suspect, might need review if still failing)
+            # Use exchange symbols from mapper if needed
+            # (This logic looks suspect, might need review if still failing)
             hl_sym = (
                 signal_generator.symbol_mapper.get_exchange_symbol("BTC", "hyperliquid")
                 or "BTC-PERP"
@@ -502,7 +503,9 @@ class TestSignalGenerator:
             return mock_single_config_dict.get(key, default)
 
         config.get.side_effect = single_exchange_config_get
-        # Accessing protected member for test setup; no public API is available and this is required for correct test initialization.
+        # Accessing protected member for test setup;
+        # no public API is available and this is required
+        # for correct test initialization.
         signal_generator._initialize_data_structures()
 
         # Prepare mock data arguments
@@ -549,7 +552,8 @@ class TestSignalGenerator:
             "backpack": Ticker(symbol="BTC_USDC", price=Decimal("41100")),
         }
 
-        # Accessing protected method for targeted unit test; this is intentional for coverage and no public alternative exists.
+        # Accessing protected method for targeted unit test;
+        # this is intentional for coverage and no public alternative exists.
         opportunities = signal_generator._check_funding_rate_opportunities(
             "BTC", funding_data, ticker_data
         )

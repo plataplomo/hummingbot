@@ -365,10 +365,10 @@ class TestPortfolioTracker:
         with (
             patch.object(
                 mock_hl_api, "get_ticker", side_effect=mock_get_ticker_usdc
-            ) as hl_mocked_ticker,
+            ) as _hl_mocked_ticker,
             patch.object(
                 mock_bp_api, "get_ticker", side_effect=mock_get_ticker_usdc
-            ) as bp_mocked_ticker,
+            ) as _bp_mocked_ticker,
         ):
             total_capital = portfolio_tracker.get_total_capital(base_currency="USDC")  # No await
             assert total_capital == Decimal("55000.0")
@@ -384,10 +384,10 @@ class TestPortfolioTracker:
         with (
             patch.object(
                 mock_hl_api, "get_ticker", side_effect=mock_get_ticker_eth
-            ) as hl_mocked_ticker_eth,
+            ) as _hl_mocked_ticker_eth,
             patch.object(
                 mock_bp_api, "get_ticker", side_effect=mock_get_ticker_eth
-            ) as bp_mocked_ticker_eth,
+            ) as _bp_mocked_ticker_eth,
         ):
             total_capital_eth = portfolio_tracker.get_total_capital(base_currency="ETH")  # No await
             assert total_capital_eth == Decimal("27.5")
@@ -440,7 +440,7 @@ class TestPortfolioTracker:
                 return Ticker(symbol="ETH-USDC", bid=Decimal("2100"), ask=Decimal("2101"))
             return None
 
-        with patch.object(mock_hl_api, "get_ticker", side_effect=mock_get_ticker) as mocked_ticker:
+        with patch.object(mock_hl_api, "get_ticker", side_effect=mock_get_ticker) as _mocked_ticker:
             exposure = portfolio_tracker.get_exchange_exposure("hyperliquid")  # No await
             assert exposure == Decimal("41500.0")
             exposure_none = portfolio_tracker.get_exchange_exposure("nonexistent")  # No await
@@ -563,7 +563,7 @@ class TestPortfolioTracker:
                 return Ticker(symbol="ETH-USDC", bid=Decimal("1900"), ask=Decimal("1901"))
             return None
 
-        with patch.object(mock_hl_api, "get_ticker", side_effect=mock_get_ticker) as mocked_ticker:
+        with patch.object(mock_hl_api, "get_ticker", side_effect=mock_get_ticker) as _mocked_ticker:
             portfolio_tracker._realized_pnl = Decimal("25.0")  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
             realized_pnl, unrealized_pnl = portfolio_tracker.get_pnl()  # No await
 
