@@ -4,7 +4,7 @@ Tests for the CircuitBreaker system.
 
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -555,15 +555,15 @@ def mock_config_with_exchanges() -> Config:
     def specific_side_effect(key: str, default: Any | None = None) -> Any:
         parts = key.split(".")
         value = test_config
-        try:
-            for part in parts:
-                if isinstance(value, dict):
-                    value = value[part]
-                else:
-                    return default  # Key path not found
-            return value
-        except KeyError:
-            return default
+        for part in parts:
+            if isinstance(value, dict):
+                value = value.get(part, default)
+            else:
+                value = default
+                break
+        # Cast to Any to allow assignment in mock, acknowledging potential type mismatch
+        mock_specific_config: dict[str, object] = cast(Any, value)
+        return mock_specific_config
 
     cfg.get.side_effect = specific_side_effect
     return cfg

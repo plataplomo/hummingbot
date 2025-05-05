@@ -19,6 +19,7 @@ from cyberdelta.core.models import (
     OrderType,
     SpotBalance,
     Ticker,
+    TimeInForce,
 )
 from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem  # Import CB system
@@ -162,7 +163,9 @@ def backpack_config() -> dict[str, Any]:
 def hyperliquid_secrets() -> dict[str, str]:
     """Fixture to provide Hyperliquid API secrets."""
     return {
-        "HYPERLIQUID_WALLET_PRIVATE_KEY": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        "HYPERLIQUID_WALLET_PRIVATE_KEY": (
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        ),
         "HYPERLIQUID_WALLET_ADDRESS": "0xabcdef1234567890abcdef1234567890abcdef12",
     }
 
@@ -360,6 +363,7 @@ def mock_exchange_api() -> AsyncMock:
         updated_at=now,
         client_order_id="test-order-123",
         related_order_id=None,
+        time_in_force=TimeInForce.GTC,
         triggered_at=None,
         strategy_name=None,
         signal_id=None,

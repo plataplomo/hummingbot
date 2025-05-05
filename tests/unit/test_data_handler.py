@@ -9,6 +9,10 @@ import pytest
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import FundingRate, Ticker
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market.funding_rate import FundingRate
+from cyberdelta.core.models.market.ticker import Ticker
+from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.utils.config import Config
 
 
 class TestDataHandler:
@@ -542,3 +546,51 @@ class TestDataHandler:
                 await process_task
             except asyncio.CancelledError:
                 pass
+
+    def test_data_handler_init(self, mock_config: Config, mock_symbol_mapper: SymbolMapper):
+        """Test DataHandler initialization."""
+        data_handler = DataHandler(mock_config, mock_symbol_mapper)
+        assert data_handler.config is mock_config
+        assert data_handler.symbol_mapper is mock_symbol_mapper
+        assert "mock_exchange" in data_handler.tickers
+        assert "BTC-PERP" in data_handler.tickers["mock_exchange"]
+        assert "mock_exchange" in data_handler.order_books
+        assert "BTC-PERP" in data_handler.order_books["mock_exchange"]
+        assert "mock_exchange" in data_handler.funding_rates
+        assert "mock_exchange" in data_handler.last_update_time
+        assert "BTC-PERP" in data_handler.last_update_time["mock_exchange"]
+        assert isinstance(data_handler.last_update_time["mock_exchange"]["BTC-PERP"], datetime)
+
+    async def test_websocket_reconnect(self, mock_config: Config, mock_symbol_mapper: SymbolMapper):
+        """Test WebSocket reconnection logic."""
+        data_handler = DataHandler(mock_config, mock_symbol_mapper)
+        mock_client = AsyncMock(spec=ExchangeAPI)
+        data_handler.register_api_client("mock_exchange", mock_client)
+
+        # Simulate initial connection failure
+        mock_client.connect_ws.side_effect = [
+            Exception("Initial connect fail"),
+            None,
+        ]  # Fail once, then succeed
+        mock_client.receive_ws_message.side_effect = (
+            asyncio.CancelledError
+        )  # Stop loop after connect
+
+        # Instead, test start_connections or the loop within _handle_messages if possible
+        # This requires more complex mocking setup.
+
+        # Assert connect_ws was called twice (initial fail + retry)
+        assert mock_client.connect_ws.call_count == 2
+
+    def get_price(self, symbol: str) -> float | None:
+        if symbol == "BTC-USDC":
+            return 50000.0
+        return None
+
+    # data_handler.get_asset_price_in_base = get_price # Cannot assign to method
+    # Mock the internal method or the API call it relies on
+    data_handler._get_asset_price_in_base = AsyncMock(
+        return_value=Decimal("50000.0")
+    )  # Example mock
+
+    price = await data_handler._get_asset_price_in_base("mock_exchange", "BTC", "USDC")

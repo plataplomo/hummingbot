@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 """Tests to ensure configuration file consistency."""
 
+import json
 import re
 from pathlib import Path
 from typing import Any, cast
 
+import jsonschema
 import pytest
 import yaml
 
@@ -45,7 +47,7 @@ def get_yaml_keys_from_string(yaml_string: str) -> set[str]:
 def _extract_keys(data: dict[str, Any], prefix: str = "") -> set[str]:
     """Recursively extracts keys from a nested dictionary."""
     keys: set[str] = set()
-    for k, v in data.items():  # type: ignore
+    for k, v in data.items():
         full_key = f"{prefix}.{k}" if prefix else k
         keys.add(full_key)
         if isinstance(v, dict):
@@ -129,3 +131,16 @@ class TestConfigConsistency:
             Missing in script: {actual_keys - script_keys}. \
             Extra in script: {script_keys - actual_keys}"
         )
+
+    @pytest.mark.skipif(not EXAMPLE_CONFIG_PATH.exists(), reason=f"{EXAMPLE_CONFIG_PATH} not found")
+    def test_example_config_validates_against_schema(self) -> None:
+        """Ensure config.yaml.example validates against the schema."""
+        # Load schema
+        with open(schema_path) as f:
+            schema = json.load(f)
+
+        # Validate example against schema
+        try:
+            jsonschema.validate(instance=example_config, schema=schema)
+        except jsonschema.ValidationError as e:
+            pytest.fail(f"Example config {EXAMPLE_CONFIG_PATH} failed validation: {e}")

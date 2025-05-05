@@ -206,3 +206,37 @@ def sample_opportunity() -> ArbitrageOpportunity:
         basis_volatility=0.002,  # float ok for Kelly input
     )
     return opp
+
+
+def mock_get_config(key: str, default: Any = None) -> object | None:
+    """Mock function for Config.get."""
+    config_values = {
+        # Global Risk
+        "risk.global.max_position_usd": "1000.0",
+        "risk.global.max_total_exposure_usd": "20000.0",
+        "risk.global.max_portfolio_leverage": "3.0",
+        "risk.max_collateral_per_exchange": "0.8",
+        "risk.max_exposure_per_asset": "0.2",
+        "risk.max_exposure_per_exchange": "0.5",
+        "risk.kelly_fraction": "0.5",
+        "exchanges": {
+            "hyperliquid": {"enabled": True},
+            "backpack": {"enabled": True},
+        },
+        "risk.min_liquidation_buffer": "0.2",
+        "risk_manager.min_exchange_balance": "10.0",
+        "risk.strategy.max_single_position_exposure_ratio": "0.1",
+        "risk.global.max_drawdown_limit_ratio": "0.2",
+        "strategy.min_net_funding_differential": "0.0001",
+        "risk.strategy.max_leverage_per_trade": "5.0",
+        "risk.max_acceptable_rmse": "0.05",
+        "risk.max_acceptable_bias": "0.02",
+        "risk.min_validation_factor": "0.2",
+        "strategy.volatility_period_days": 14,
+        "risk.circuit_breaker_recovery_factor": "0.3",
+        "risk.use_simple_sizing_path": False,
+        "risk.simple_sizing_method": "fixed_fraction",
+        "risk.simple_fixed_fraction": "0.01",
+        "risk.simple_fixed_usd_size": "100",
+    }
+    return config_values.get(key, default)

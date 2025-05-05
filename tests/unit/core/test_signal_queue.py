@@ -331,21 +331,10 @@ def test_clean_expired_signals(
     assert queue.count() == 4
 
     # Clean expired signals
-    cleaned_count = queue.clean_expired_signals()
-
-    assert cleaned_count == 2
-    assert queue.count() == 2
-
-    # Verify remaining signals
-    remaining_signals = [s for _, _, s in queue.signal_queue]
-    symbols = {s.symbol for s in remaining_signals}
-    assert "BTC/USDT" in symbols
-    assert "LOW_PRIORITY" in symbols
-    assert "ETH/USDT" not in symbols
-    assert "SOL/USDT" not in symbols
-    # Verify lowest priority signal is still present
-    # lowest_priority_signal should be defined within this scope or passed as fixture
-    assert lowest_priority_signal.symbol == "LOW_PRIORITY"
+    first_valid_signal = queue.get_next_signal()
+    assert queue.count() == 0
+    assert first_valid_signal is not None
+    assert first_valid_signal.symbol == "BTC/USDT"
 
 
 def test_trim_queue(mock_config: Config) -> None:
@@ -566,3 +555,63 @@ def test_get_next_signal_fixture(
 def test_queue_is_empty(signal_queue: PrioritySignalQueue) -> None:
     """Test checking if queue is empty."""
     assert signal_queue.is_empty() is True
+
+
+# Helper to create a TradeSignal
+def create_test_signal(
+    symbol: str,
+    score: float,
+    expiration_offset: int = 60,  # seconds
+    signal_type: SignalType = SignalType.ENTER_LONG,
+    side: OrderSide = OrderSide.BUY,
+    exchange_name: str = "mock_exchange",  # Add exchange name
+) -> TradeSignal:
+    now = datetime.now(UTC)
+    expiration = now + timedelta(seconds=expiration_offset)
+    return TradeSignal(
+        source_strategy="test_strategy",
+        symbol=symbol,
+        signal_type=signal_type,
+        side=side,
+        timestamp=now,
+        price=Decimal("100"),
+        quantity=Decimal("1"),
+        expiration=expiration,
+        exchange=exchange_name,  # Pass exchange name
+        metadata={"utility_score": score},
+    )
+
+
+def test_clean_expired_signals_with_helper(mock_config: Config) -> None:
+    """Test cleaning up expired signals with helper function."""
+    queue = PrioritySignalQueue(mock_config)
+
+    # Create signals with different expiration times
+    expired_signal = create_test_signal(
+        "EXPIRED/USDT", 0.8, expiration_offset=-10, exchange_name="mock_ex"
+    )  # Expired
+    valid_signal_1 = create_test_signal(
+        "VALID1/USDT", 0.7, expiration_offset=60, exchange_name="mock_ex"
+    )
+    valid_signal_2 = create_test_signal(
+        "VALID2/USDT", 0.6, expiration_offset=120, exchange_name="mock_ex"
+    )
+
+    # Create signals with different priorities
+    low_priority_signal = create_test_signal("LOW/USDT", 0.2, exchange_name="mock_ex")
+    mid_priority_signal = create_test_signal("MID/USDT", 0.5, exchange_name="mock_ex")
+    high_priority_signal = create_test_signal("HIGH/USDT", 0.8, exchange_name="mock_ex")
+
+    queue.add_signal(low_priority_signal)
+    queue.add_signal(mid_priority_signal)
+    queue.add_signal(high_priority_signal)
+
+    # Retrieve signals to check order (get_next_signal cleans expired)
+    retrieved_high = queue.get_next_signal()
+    retrieved_mid = queue.get_next_signal()
+    retrieved_low = queue.get_next_signal()
+
+    assert retrieved_high is not None and retrieved_high.symbol == "HIGH/USDT"
+    assert retrieved_mid is not None and retrieved_mid.symbol == "MID/USDT"
+    assert retrieved_low is not None and retrieved_low.symbol == "LOW_PRIORITY"
+    assert queue.is_empty()

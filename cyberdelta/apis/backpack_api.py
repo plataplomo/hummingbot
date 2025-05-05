@@ -31,14 +31,14 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
-from cyberdelta.apis.backpack.models.bp_raw_balance import BackpackRawBalance
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-from cyberdelta.apis.backpack.models.bp_spot_balance_details import BackpackSpotBalanceDetails
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (  # Use absolute import
+    BackpackSpotBalanceDetails,
     DerivativePosition,
     FundingRate,
     Order,
@@ -51,7 +51,6 @@ from cyberdelta.core.models import (  # Use absolute import
     TimeInForce,
     Trade,
 )
-from cyberdelta.core.models.spot_balance import SpotBalance  # Ensure SpotBalance is imported
 from cyberdelta.utils.logging_config import get_logger
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
@@ -1057,9 +1056,9 @@ class BackpackAPI(ExchangeAPI):
 
                 # Placeholder logic until Raw Model path confirmed - USE HARDCODED KEYS FOR NOW
                 # Remove references to undefined total/available
-                total_raw = details.get("total", "0")
-                available_raw = details.get("available", "0")
-                locked_qty_raw = details.get("locked", "0")
+                # total_raw = details.get("total", "0")
+                # available_raw = details.get("available", "0")
+                # locked_qty_raw = details.get("locked", "0")
 
                 # Need to import the actual Details model if it exists
                 # from .models.bp_spot_balance_details import BackpackSpotBalanceDetails # Placeholder
