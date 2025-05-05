@@ -23,7 +23,7 @@ These models act as a strict shield between external API data and internal busin
 robustness and security at the data ingestion boundary.
 """
 
-from typing import Any, cast
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -159,31 +159,6 @@ class BackpackRawOpenInterest(BaseModel):
         return s
 
 
-class BackpackRawBookLevel(BaseModel):
-    """
-    Represents a single price level in the raw order book response (a [price, size] pair).
-    Validates that both elements are strings parseable to finite decimals.
-    """
-
-    price: str = Field(...)
-    quantity: str = Field(...)
-    model_config = ConfigDict(extra="forbid")
-
-    @field_validator("price", "quantity", mode="before")
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
-
-    def to_tuple(self) -> tuple[str, str]:
-        """Converts the validated level back to a tuple."""
-        return (self.price, self.quantity)
-
-
 class BackpackRawOrderBook(BaseModel):
     """
     Pydantic model for the raw order book depth object from `/api/v1/depth` (Backpack REST API).
@@ -202,44 +177,62 @@ class BackpackRawOrderBook(BaseModel):
     bids: list[tuple[str, str]] = Field(..., alias="bids")
     last_update_id: str = Field(..., alias="lastUpdateId")
     timestamp: int = Field(..., alias="timestamp")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
+    )
 
     @field_validator("asks", "bids", mode="before")
     @classmethod
     def validate_levels(cls, v: object, info: ValidationInfo) -> list[tuple[str, str]]:
+        """Validates bids/asks are lists of [price_str, quantity_str] pairs.
+
+        Ensures:
+            - Input `v` is a list.
+            - Each item in `v` is a list/tuple of exactly 2 elements.
+            - Both elements are non-empty strings (max_length=64).
+            - Both elements parse to finite Decimals.
+            - Quantity string parses to a non-negative Decimal.
+
+        Returns:
+            List[Tuple[str, str]]: The validated list of string pairs.
+
+        Raises:
+            ValueError: If validation fails at any step.
+        """
         field_name = info.field_name
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Must be a list of [price, quantity] pairs")
 
-        # DEFENSIVE CHECK: Ensure `v` is list before cast. Mypy=[redundant-cast]
-        # Justification for cast: We confirmed 'v' is a list.
-        v_list = cast(list[Any], v)
-
+        # Removed cast - perform runtime checks inside loop
         validated_levels: list[tuple[str, str]] = []
-        for i, level_raw in enumerate(v_list):
-            if not isinstance(level_raw, list) or len(level_raw) != 2:
+        for i, level_raw in enumerate(v):
+            # Runtime check for structure
+            if not isinstance(level_raw, list | tuple) or len(level_raw) != 2:
                 raise ValueError(
                     f"{field_name}[{i}]: Each level must be a list/tuple of [price, quantity]"
                 )
+
+            price_raw: Any = level_raw[0]
+            quantity_raw: Any = level_raw[1]
+
             try:
-                # Explicit check for list/tuple elements before validation
-                level_pair: list[Any] = level_raw
-                # Validate price (index 0)
-                price_str = validate_str_field(
-                    level_pair[0], f"{field_name}[{i}].price", max_length=64
-                )
+                # Validate price string and its content
+                price_str = validate_str_field(price_raw, f"{field_name}[{i}].price", max_length=64)
                 price_dec = parse_decimal_value(price_str, allow_none=False)
                 if price_dec is None or not price_dec.is_finite():
-                    raise ValueError(f"{field_name}[{i}].price: Must be finite decimal")
-                # Validate quantity (index 1)
-                qty_str = validate_str_field(
-                    level_pair[1], f"{field_name}[{i}].quantity", max_length=64
+                    raise ValueError("Price must be a finite decimal string")
+
+                # Validate quantity string and its content (non-negative)
+                quantity_str = validate_str_field(
+                    quantity_raw, f"{field_name}[{i}].quantity", max_length=64
                 )
-                qty_dec = parse_decimal_value(qty_str, allow_none=False)
-                if qty_dec is None or not qty_dec.is_finite():
-                    raise ValueError(f"{field_name}[{i}].quantity: Must be finite decimal")
-                validated_levels.append((price_str, qty_str))
-            except (ValueError, TypeError, IndexError) as e:
+                quantity_dec = parse_decimal_value(quantity_str, allow_none=False)
+                if quantity_dec is None or not quantity_dec.is_finite() or quantity_dec < 0:
+                    raise ValueError("Quantity must be a non-negative finite decimal string")
+
+                validated_levels.append((price_str, quantity_str))
+            except (ValueError, TypeError) as e:
+                # Catch errors from helpers or checks above
                 raise ValueError(
                     f"{field_name}[{i}]: Invalid level format [{level_raw}]: {e}"
                 ) from e
@@ -253,9 +246,7 @@ class BackpackRawOrderBook(BaseModel):
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp(cls, v: object, info: ValidationInfo) -> int:
+        """Validate timestamp is strictly an integer."""
         if not isinstance(v, int):
-            # Allow string representation of int for flexibility if API changes
-            if isinstance(v, str) and v.isdigit():
-                return int(v)
             raise ValueError("timestamp: Must be an integer (microseconds)")
         return v
