@@ -27,4 +27,12 @@ __all__ = [
     "HyperliquidRawAssetPosition",
     "HyperliquidRawMarginSummary",
     "HyperliquidRawClearinghouseState",
+    "HyperliquidRawWsFillEvent",
+    "HyperliquidRawWsBookUpdate",
+    "HyperliquidRawWsTradeEvent",
+    "HyperliquidRawWsOrderUpdate",
+    "HyperliquidRawWsPositionUpdateEvent",
+    "HyperliquidRawPositionInfo",
+]
+
 ]

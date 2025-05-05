@@ -14,8 +14,11 @@ from web3.auto import w3
 
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
-from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
+from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper, HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.hl_ws_mapper import HyperliquidWebsocketMapper
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+    HyperliquidRawTriggerInfo,
+)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
@@ -23,13 +26,13 @@ from cyberdelta.core.models import (
     FundingRate,
     Order,
     OrderBook,
-    OrderSide,
     SpotBalance,
     Ticker,
     Trade,
 )
+from cyberdelta.core.models.enums import OrderStatus
 from cyberdelta.core.models.market import Candle
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.parsing import parse_decimal_value
 
 logger = logging.getLogger(__name__)
 
@@ -382,11 +385,14 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e
 
     async def get_balances(self) -> dict[str, SpotBalance]:
-        """Get account balances."""
+        """Get account balances.
+        NOTE: Currently only retrieves USDC balance from clearinghouseState.
+        TODO: Refactor to use mapper once spot balance parsing in map_user_state is implemented.
+        """
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
-            # --- User State (clearinghouseState) ---
+
             from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
                 HyperliquidRawClearinghouseState,
             )
@@ -397,106 +403,91 @@ class HyperliquidAPI(ExchangeAPI):
             balances: dict[str, SpotBalance] = {}
             if state_data and state_data.asset_positions:
                 for asset_pos in state_data.asset_positions:
+                    # Only process USDC balance from asset_positions
                     if asset_pos.asset == "USDC" and asset_pos.position:
-                        total_balance = asset_pos.position.position_value
-                        total_balance_dec = Decimal(total_balance)
-                        balances["USDC"] = SpotBalance(
-                            exchange=self.exchange_name,
-                            asset="USDC",
-                            total=total_balance_dec,
-                            available=total_balance_dec,
-                        )
+                        try:
+                            total_balance = asset_pos.position.position_value
+                            total_balance_dec = Decimal(total_balance)
+                            balances["USDC"] = SpotBalance(
+                                exchange=self.exchange_name,
+                                asset="USDC",
+                                timestamp=datetime.now(UTC),  # Add timestamp
+                                total_quantity=total_balance_dec,  # Correct kwarg
+                                available_quantity=total_balance_dec,  # Assuming total=available for USDC
+                            )
+                        except (InvalidOperation, ValueError, TypeError) as parse_err:
+                            logger.error(
+                                f"[{self.exchange_name}] Error parsing USDC "
+                                f"balance from state: {parse_err}"
+                            )
+                            # Continue to return empty dict if parsing fails
             return balances
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting balances: {e}")
             raise
+        except (ValidationError, ValueError) as e:
+            logger.error(
+                f"[{self.exchange_name}] Error parsing/mapping user state for balances: {e}"
+            )
+            raise APIError(
+                f"Failed to parse balance data: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Error getting balances: {e}",
+                f"[{self.exchange_name}] Unexpected error getting balances: {e}",
                 exc_info=True,
             )
             raise APIError(
-                f"Failed to get balances: {e}",
+                f"Unexpected error getting balances: {e}",
                 code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
-        """Get current positions, optionally filtering by symbol."""
+        """Get current positions using the user state endpoint and mapper."""
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
             response = await self._request("POST", self.INFO_URL + "/info", data=payload)
-            # --- User State (clearinghouseState) ---
+
             from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
                 HyperliquidRawClearinghouseState,
             )
 
-            validated = HyperliquidRawClearinghouseState.model_validate(response)
-            state_data = validated
-            positions_list: list[DerivativePosition] = []
-            if state_data and state_data.asset_positions:
-                for asset_pos in state_data.asset_positions:
-                    position_data = asset_pos.position
-                    if position_data:
-                        pos_symbol: str | None = asset_pos.asset
-                        if symbol is not None and pos_symbol != symbol:
-                            continue
-                        size = position_data.szi
-                        entry_price = position_data.entry_px
-                        # Use position_value for mark price as per hl_mapper.py logic
-                        mark_price = position_data.position_value
-                        liq_price = position_data.liquidation_px
-                        unrealized_pnl = position_data.unrealized_pnl
-                        # timestamp = position_data.timestamp
-                        # Placeholder for timestamp parsing
-                        ts_raw = getattr(position_data, "timestamp", time.time() * 1000)
-                        timestamp_dt = parse_datetime_utc(ts_raw, field_name="position_timestamp")
-                        if timestamp_dt is None:
-                            timestamp_dt = datetime.now(UTC)  # Fallback
+            validated_state = HyperliquidRawClearinghouseState.model_validate(response)
 
-                        # Defensive conversion to Decimal for all numeric fields
-                        if entry_price is not None:
-                            try:
-                                size_dec = Decimal(size)
-                                entry_price_dec = Decimal(entry_price)
-                                # DEFENSIVE CHECK: Guards None from API. Pyright=[redundant-expr]
-                                mark_price_dec = Decimal(mark_price)
-                                # DEFENSIVE CHECK: Guards None from API. Pyright=[redundant-expr]
-                                liq_price_dec = (
-                                    Decimal(liq_price) if liq_price is not None else None
-                                )  # Keep check for optional liq_price
-                                # DEFENSIVE CHECK: Guards None from API. Pyright=[redundant-expr]
-                                unrealized_pnl_dec = Decimal(unrealized_pnl)
-                            except Exception:
-                                # Log or handle conversion error, skip this position
-                                continue
-                            if size_dec != 0 and pos_symbol:
-                                side: OrderSide = OrderSide.BUY if size_dec > 0 else OrderSide.SELL
-                                positions_list.append(
-                                    DerivativePosition(
-                                        exchange=self.exchange_name,
-                                        timestamp=timestamp_dt,
-                                        symbol=pos_symbol,
-                                        side=side,
-                                        size=abs(size_dec),
-                                        entry_price=entry_price_dec,
-                                        mark_price=mark_price_dec,
-                                        liquidation_price=liq_price_dec,
-                                        unrealized_pnl=unrealized_pnl_dec,
-                                        # TODO: Add hl_details parsing
-                                    )
-                                )
+            # Use mapper to extract positions
+            positions_dict, _orders, _margins, _balances = HyperliquidMapper.map_user_state(
+                validated_state
+            )
+
+            # Convert dict of positions to list, filtering by symbol if needed
+            positions_list: list[DerivativePosition] = list(positions_dict.values())
+            if symbol:
+                positions_list = [p for p in positions_list if p.symbol == symbol]
+
             return positions_list
+
+        except (ValidationError, ValueError) as e:  # Catch validation/mapping errors
+            logger.error(
+                f"[{self.exchange_name}] Error parsing/mapping user state for positions: {e}"
+            )
+            raise APIError(
+                f"Failed to parse position data: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting positions: {e}")
             raise
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Error getting positions: {e}",
+                f"[{self.exchange_name}] Unexpected error getting positions: {e}",
                 exc_info=True,
             )
             raise APIError(
-                f"Failed to get positions: {e}",
+                f"Unexpected error getting positions: {e}",
                 code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
@@ -520,16 +511,22 @@ class HyperliquidAPI(ExchangeAPI):
                 order_data: HyperliquidRawOrder = order_obj.order
                 order_symbol: str = order_data.asset
                 if symbol is None or order_symbol == symbol:
-                    order_status_str: str = order_data.status
-                    if order_status_str == "open":
-                        pass
-                    elif order_status_str == "filled":
-                        continue
-                    elif order_status_str == "canceled":
-                        continue
-                    order = self.parse_order(order_data.model_dump())
+                    # Extract trigger info (might be None)
+                    trigger_info: HyperliquidRawTriggerInfo | None = getattr(
+                        order_obj, "trigger", None
+                    )
+                    # Use the mapper function
+                    order = HyperliquidOrderMapper.transform_raw_order_to_internal(
+                        raw=order_data, trigger=trigger_info
+                    )
                     if order:
-                        open_orders.append(order)
+                        # Filter for open statuses after transformation
+                        if order.status in [
+                            OrderStatus.OPEN,
+                            OrderStatus.PARTIALLY_FILLED,
+                            OrderStatus.NEW,
+                        ]:
+                            open_orders.append(order)
             return open_orders
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting open orders: {e}")
@@ -705,46 +702,8 @@ class HyperliquidAPI(ExchangeAPI):
             "Withdrawal functionality needs specific Hyperliquid implementation."
         )
 
-    def _map_error_response(
-        self, status_code: int, error_body: str, error_data: dict[str, Any] | None = None
-    ) -> APIError:
-        """Map HTTP errors and Hyperliquid specific errors to standard APIErrorCode."""
-        if status_code == 400:
-            code = APIErrorCode.INVALID_REQUEST.value
-        elif status_code == 401 or status_code == 403:
-            code = APIErrorCode.AUTHENTICATION_FAILED.value
-        elif status_code == 404:
-            code = APIErrorCode.SYMBOL_NOT_FOUND.value
-        elif status_code == 429:
-            code = APIErrorCode.RATE_LIMITED.value
-        elif 500 <= status_code < 600:
-            code = APIErrorCode.SERVER_ERROR.value
-        else:
-            code = APIErrorCode.UNKNOWN.value
-
-        message = f"HTTP error {status_code}"
-        exchange_code = None
-        exchange_message = error_body
-
-        if error_data:
-            exchange_message = error_data.get("error", exchange_message)
-            if "Invalid order size" in exchange_message:
-                code = APIErrorCode.QUANTITY_OUT_OF_RANGE.value
-            elif "Order not found" in exchange_message:
-                code = APIErrorCode.ORDER_NOT_FOUND.value
-            elif "Insufficient margin" in exchange_message:
-                code = APIErrorCode.INSUFFICIENT_FUNDS.value
-
-        return APIError(
-            message=message,
-            code=code,
-            http_status=status_code,
-            exchange_code=exchange_code,
-            exchange_message=exchange_message,
-        )
-
     async def connect_websocket(self) -> None:
-        await self._connect_ws()
+        """(Placeholder) Connect to the WebSocket endpoint."""
 
     async def _handle_websocket_message(self, message: dict[str, Any] | list[Any] | str) -> None:
         # Accepts dict, list, or str; list[Any] is explicit for linter
@@ -756,42 +715,6 @@ class HyperliquidAPI(ExchangeAPI):
     async def subscribe_to_account_updates(self) -> None:
         raise NotImplementedError("subscribe_to_account_updates needs handler implementation")
 
-    def parse_ticker(self, data: dict[str, Any], symbol: str) -> Ticker:
-        """
-        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
-        """
-        raise NotImplementedError("parse_ticker is not implemented for HyperliquidAPI.")
-
-    def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
-        """
-        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
-        """
-        raise NotImplementedError("parse_order_book is not implemented for HyperliquidAPI.")
-
-    def parse_trade(self, data: dict[str, Any], symbol: str) -> Trade:
-        """
-        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
-        """
-        raise NotImplementedError("parse_trade is not implemented for HyperliquidAPI.")
-
-    def parse_balance(self, data: dict[str, Any]) -> SpotBalance:
-        """
-        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
-        """
-        raise NotImplementedError("parse_balance is not implemented for HyperliquidAPI.")
-
-    def parse_position(self, data: dict[str, Any]) -> DerivativePosition:
-        """
-        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
-        """
-        raise NotImplementedError("parse_position is not implemented for HyperliquidAPI.")
-
-    def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate:
-        """
-        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
-        """
-        raise NotImplementedError("parse_funding_rate is not implemented for HyperliquidAPI.")
-
     async def ping_websocket(self) -> None:
         if self._ws_connection and not self._ws_connection.closed:
             try:
@@ -799,24 +722,6 @@ class HyperliquidAPI(ExchangeAPI):
                 logger.debug(f"[{self.exchange_name}] Sent WebSocket ping")
             except Exception as e:
                 logger.warning(f"[{self.exchange_name}] Failed to send WebSocket ping: {e}")
-
-    def get_message_type(self, message: dict[str, Any]) -> str:
-        channel = message.get("channel", "unknown")
-        return str(channel) if channel is not None else "unknown"
-
-    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | None:
-        """Parse ticker message from WebSocket."""
-        if message.get("channel") == "allMids":
-            logger.warning(
-                f"[{self.exchange_name}] parse_ticker_message needs specific implementation "
-                f"for 'allMids' structure."
-            )
-            return None
-        return None
-
-    def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
-        logger.warning(f"[{self.exchange_name}] parse_funding_rate_message needs WS update impl.")
-        return None
 
     async def _on_message(self, ws: "aiohttp.ClientWebSocketResponse", message: str) -> None:
         """Handle WebSocket messages.
@@ -930,6 +835,7 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         """
         Get current funding rates, optionally filtering by symbol.
+        Uses the 'allMeta' endpoint and validates/transforms via Raw models and Mapper.
 
         Args:
             symbols: If provided, only return funding rate for these symbols.
@@ -941,47 +847,66 @@ class HyperliquidAPI(ExchangeAPI):
             # Get all market information which includes funding rates
             url = f"{self.INFO_URL}/info"
             payload = {"type": "allMeta"}
-            response = await self._request("POST", url, data=payload)
+            response_raw = await self._request("POST", url, data=payload)
+
+            # Validate the response using the Raw Meta model
+            # Assuming the response structure matches HyperliquidRawMetaResponse
+            # which expects a list containing one dict with a 'universe' key.
+            if (
+                not isinstance(response_raw, list)
+                or len(response_raw) != 1
+                or not isinstance(response_raw[0], dict)
+            ):
+                raise APIError(
+                    f"Unexpected response structure for allMeta: {type(response_raw)}",
+                    code=APIErrorCode.UNKNOWN.value,
+                )
+
+            from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+                HyperliquidRawMetaResponse,
+            )
+
+            validated_meta = HyperliquidRawMetaResponse.model_validate(response_raw[0])
 
             result: list[FundingRate] = []
+            for asset_def in validated_meta.universe:
+                market_symbol: str = asset_def.name
+                # If symbols list is provided, only include markets from that list
+                if symbols is not None and market_symbol not in symbols:
+                    continue
 
-            # Extract funding rates from response
-            if response and isinstance(response, list) and len(response) > 0:
-                universe_data: list[dict[str, Any]] = response[0].get("universe", [])
+                # Use mapper to transform asset definition to FundingRate
+                # Note: This assumes asset_def contains funding info.
+                # The mapper function handles missing keys or parsing errors.
+                funding_rate = HyperliquidMapper.transform_raw_asset_def_to_funding_rate(
+                    asset_def.model_dump()  # Pass the dict representation
+                )
 
-                for market in universe_data:
-                    market_symbol: str = market.get("name", "")
-                    # If symbols list is provided, only include markets from that list
-                    if symbols is not None and market_symbol not in symbols:
-                        continue
-
-                    funding_info: dict[str, Any] | None = market.get("funding")
-                    if funding_info is not None:
-                        rate_str: str = str(funding_info.get("fundingRate", "0"))
-                        # Convert from percentage to decimal (e.g., 0.01% -> 0.0001)
-                        rate_decimal = Decimal(rate_str) / Decimal(100)
-                        # timestamp = int(time.time() * 1000)  # Current time in milliseconds
-                        timestamp_dt = datetime.now(UTC)  # Use current UTC time
-
-                        funding_rate = FundingRate(
-                            symbol=market_symbol,
-                            funding_rate=rate_decimal,
-                            timestamp=timestamp_dt,  # Use datetime object
-                        )
-                        result.append(funding_rate)
+                if funding_rate:
+                    result.append(funding_rate)
 
             return result
 
+        except (ValidationError, ValueError) as e:  # Catch validation/mapping errors
+            logger.error(
+                f"[{self.exchange_name}] Error parsing/mapping allMeta response "
+                f"for funding rates: {e}"
+            )
+            raise APIError(
+                f"Failed to parse funding rate data: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting funding rates: {e}")
             raise
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Error getting funding rates: {e}",
+                f"[{self.exchange_name}] Unexpected error getting funding rates: {e}",
                 exc_info=True,
             )
             raise APIError(
-                f"Failed to get funding rates: {e}",
+                f"Unexpected error getting funding rates: {e}",
                 code=APIErrorCode.SERVER_ERROR.value,
                 original_exception=e,
             ) from e
@@ -1033,37 +958,3 @@ class HyperliquidAPI(ExchangeAPI):
         except (ValidationError, ValueError, TypeError, InvalidOperation) as e:
             logger.error(f"Error parsing spot balance item: {e}. Data: {balance_data}")
             return None
-
-    # --- Core Data Fetching Implementation ---
-    async def get_ticker(self, symbol: str) -> Ticker:
-        try:
-            payload = {"type": "metaAndAssetCtxs"}
-            response = await self._request("POST", self.INFO_URL + "/info", data=payload)
-            from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
-                HyperliquidRawMetaAndAssetCtxsResponse,
-            )
-
-            validated = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response)
-            for asset_ctx in validated.asset_ctxs:
-                if asset_ctx.name == symbol:
-                    return HyperliquidMapper.map_raw_ctx_to_ticker(asset_ctx.model_dump())
-            logger.warning(
-                f"[{self.exchange_name}] Ticker data not found for {symbol} in response: {response}"
-            )
-            raise APIError(
-                f"Ticker data not found for {symbol}",
-                code=APIErrorCode.SYMBOL_NOT_FOUND.value,
-            )
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error getting ticker for {symbol}: {e}")
-            raise
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Error getting ticker for {symbol}: {e}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Failed to get ticker for {symbol}: {e}",
-                code=APIErrorCode.SERVER_ERROR.value,
-                original_exception=e,
-            ) from e

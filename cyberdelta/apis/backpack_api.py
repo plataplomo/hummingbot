@@ -24,7 +24,7 @@ import hmac
 import time
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any, cast
 
 from pydantic import ValidationError
@@ -32,13 +32,15 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
+from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (  # Use absolute import
-    BackpackSpotBalanceDetails,
     DerivativePosition,
     FundingRate,
     Order,
@@ -52,7 +54,7 @@ from cyberdelta.core.models import (  # Use absolute import
     Trade,
 )
 from cyberdelta.utils.logging_config import get_logger
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.parsing import parse_datetime_utc
 
 logger = get_logger(__name__)
 
@@ -361,14 +363,18 @@ class BackpackAPI(ExchangeAPI):
                 asks=asks,
                 timestamp=timestamp_dt,  # Use datetime object
             )
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting order book for {symbol}: {e}")
+            raise
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Error getting order book for {symbol}: {e}", exc_info=True
             )
             raise BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
-                error_body=f"Error getting order book for {symbol}: {e}",
+                error_body=str(e),
                 request_path=request_path,
+                exchange_message=f"Error getting order book for {symbol}: {e}",
             ) from e
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
@@ -387,171 +393,124 @@ class BackpackAPI(ExchangeAPI):
             params: dict[str, Any] = {"symbol": symbol}
             if limit is not None:
                 params["limit"] = limit
-            response: Any = await self._request("GET", request_path, params=params)
+            response_raw: Any = await self._request("GET", request_path, params=params)
 
-            if not isinstance(response, list):
+            if not isinstance(response_raw, list):
                 logger.warning(
-                    f"[{self.exchange_name}] Unexpected trades response type: {type(response)}"
+                    f"[{self.exchange_name}] Unexpected trades response type: {type(response_raw)}. "
+                    f"Expected list. Returning empty list."
                 )
                 return []
 
+            # Cast after check
+            response_list = cast(list[dict[str, Any]], response_raw)
+
             trades: list[Trade] = []
-            trade_data_raw: Any
-            for trade_data_raw in response:
-                if not isinstance(trade_data_raw, dict):
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping malformed trade data: {trade_data_raw}"
-                    )
-                    continue
-                trade_data: dict[str, Any] = cast(dict[str, Any], trade_data_raw)
+            for trade_data_raw in response_list:
                 try:
-                    trade_id: str = str(trade_data.get("id", ""))
-                    order_id: str = str(trade_data.get("orderId", ""))
-                    client_order_id: str = str(trade_data.get("clientOrderId", ""))
-                    try:
-                        price_val = parse_decimal_value(
-                            trade_data.get("price", "0"), allow_none=False, field_name="price"
-                        )
-                        if price_val is None:
-                            raise ValueError(
-                                "price is None after parse_decimal_value with allow_none=False"
-                            )
-                        price: Decimal = price_val
-                        quantity_val = parse_decimal_value(
-                            trade_data.get("qty", "0"), allow_none=False, field_name="qty"
-                        )
-                        if quantity_val is None:
-                            raise ValueError(
-                                "quantity is None after parse_decimal_value with allow_none=False"
-                            )
-                        quantity: Decimal = quantity_val
-                    except Exception as e:
-                        logger.warning(
-                            f"[{self.exchange_name}] Invalid price/qty in trade: {trade_data} ({e})"
-                        )
-                        continue
-                    raw_time = trade_data.get("time")
-                    if raw_time is None:
-                        logger.warning(f"[{self.exchange_name}] Trade missing 'time': {trade_data}")
-                        continue
-                    try:
-                        executed_at_input = raw_time  # raw_time must not be None here
-                        if executed_at_input is None:
-                            raise ValueError(
-                                "executed_at (raw_time) cannot be None for this assignment"
-                            )
-                        executed_at: datetime = parse_datetime_utc(
-                            executed_at_input, field_name="time"
-                        )  # type: ignore[assignment]
-                    except Exception as e:
-                        logger.warning(
-                            f"[{self.exchange_name}] Invalid 'time' in trade: {trade_data} ({e})"
-                        )
-                        continue
-                    side: OrderSide | None = None
-                    if "isBuyerMaker" in trade_data:
-                        side = (
-                            OrderSide.BUY
-                            if bool(trade_data.get("isBuyerMaker", False))
-                            else OrderSide.SELL
-                        )
-                    else:
-                        logger.warning(
-                            f"[{self.exchange_name}] Trade missing 'isBuyerMaker': {trade_data}"
-                        )
-                        continue
-                    fee: Decimal = Decimal("0")
-                    fee_asset: str = ""
-                    is_maker_raw = trade_data.get("isMaker", None)
-                    is_maker: bool | None = bool(is_maker_raw) if is_maker_raw is not None else None
-                    # Pydantic-ready: all required fields present, types correct
-                    trade = Trade(
-                        id=trade_id,
-                        symbol=symbol,
-                        executed_at=executed_at,
-                        side=side,
-                        order_id=order_id,
-                        exchange=self.exchange_name,
-                        client_order_id=client_order_id,
-                        price=price,
-                        quantity=quantity,
-                        fee=fee,
-                        fee_asset=fee_asset,
-                        is_maker=is_maker,
+                    # Validate raw trade data using Pydantic model
+                    raw_trade = BackpackRawTrade.model_validate(trade_data_raw)
+
+                    # Transform validated raw trade to internal Trade using mapper
+                    internal_trade = BackpackOrderMapper.transform_raw_trade_to_internal(
+                        raw=raw_trade
                     )
-                    trades.append(trade)
-                except Exception as e:
+
+                    # Append only if transformation succeeded (returned Trade, not None)
+                    if internal_trade:
+                        trades.append(internal_trade)
+
+                except ValidationError as e:
                     logger.warning(
-                        f"[{self.exchange_name}] Error processing trade: {e} | Data: {trade_data}"
+                        f"[{self.exchange_name}] Skipping trade due to validation error: {e}. "
+                        f"Data: {trade_data_raw}"
                     )
+                    continue  # Skip this trade if validation fails
+                except ValueError as e:  # Catches errors from transform_raw_trade_to_internal
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping trade due to transformation error: {e}. "
+                        f"Raw Data: {trade_data_raw}"
+                    )
+                    continue  # Skip this trade if transformation fails
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected error processing trade: {e}. "
+                        f"Data: {trade_data_raw}",
+                        exc_info=True,
+                    )
+                    continue  # Skip on unexpected errors
+
             return trades
+        except APIError as e:
+            logger.error(
+                f"[{self.exchange_name}] API Error getting recent trades for {symbol}: {e}"
+            )
+            # Reraise the mapped error from _request
+            raise e
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Error getting recent trades for {symbol}: {e}",
-                exc_info=True,
+                f"[{self.exchange_name}] Unexpected error in get_recent_trades: {e}", exc_info=True
             )
-            raise APIError(
-                f"Error getting recent trades for {symbol}: {e}", code=APIErrorCode.UNKNOWN.value
+            raise BackpackErrorMapper.map_error_response(
+                status_code=getattr(e, "status", None),
+                error_body=str(e),
+                request_path=request_path,
+                exchange_message=f"Error getting recent trades for {symbol}: {e}",
             ) from e
 
     async def get_balances(self) -> dict[str, SpotBalance]:
-        """Get account balances."""
+        """Get account balances, validated via Raw models and transformed via Mapper."""
         endpoint = "/api/v1/capital"
-        response_data: Any = await self._request("GET", endpoint)
+        response_data_raw: Any = await self._request("GET", endpoint)
 
-        # Ensure response_data is a dictionary before proceeding
-        if not isinstance(response_data, dict):
+        # DEFENSIVE CHECK: Ensure the response is a dictionary before processing.
+        if not isinstance(response_data_raw, dict):
             logger.warning(
-                f"[{self.exchange_name}] Unexpected response type for balances: "
-                f"{type(response_data)}. Returning empty balances."
+                f"[{self.exchange_name}] Unexpected response type for balances ({type(response_data_raw)}). "
+                f"Expected dict. Returning empty balances."
             )
             return {}
 
-        # Provide specific type hint after runtime check
-        response_dict = cast(dict[str, dict[str, Any]], response_data)
+        # Cast after check (justification included if needed elsewhere, omitted here for brevity)
+        response_dict = cast(dict[str, dict[str, Any]], response_data_raw)
 
         processed_balances: dict[str, SpotBalance] = {}
-        for asset, balance_details in response_dict.items():
-            asset_str = ""
+        for asset_symbol_raw, balance_details_raw in response_dict.items():
+            asset_symbol = str(asset_symbol_raw)  # Ensure key is string
             try:
-                # Ensure asset is treated as string
-                asset_str = str(asset)
-                # Create SpotBalance instance, passing the exchange name and details
-                # Use correct field names: total_quantity, available_quantity
-                total_raw = balance_details.get("total", "0")
-                available_raw = balance_details.get("available", "0")
-                # Validate types before passing to model
-                total_val = str(total_raw) if total_raw is not None else "0"
-                available_val = str(available_raw) if available_raw is not None else "0"
+                # Validate raw balance details using Pydantic model
+                raw_balance = BackpackRawBalance.model_validate(balance_details_raw)
 
-                try:
-                    total_dec = Decimal(total_val)
-                    available_dec = Decimal(available_val)
-
-                    balance = SpotBalance(
-                        exchange=self.exchange_name,  # Pass str name directly
-                        asset=asset_str,
-                        total_quantity=total_dec,  # Pass Decimal
-                        available_quantity=available_dec,  # Pass Decimal
-                        timestamp=datetime.now(UTC),  # Add timestamp if required by model
-                    )
-                    processed_balances[asset_str] = balance
-                except InvalidOperation as dec_err:
-                    logger.error(
-                        f"Failed to convert balance values to Decimal for {asset_str}: {dec_err}"
-                    )
-                    continue  # Skip this asset if conversion fails
-
-            except (ValidationError, TypeError, KeyError) as e:
-                logger.error(
-                    f"Failed to parse balance for {asset_str}: {e}. Data: {balance_details}"
+                # Transform validated raw balance to internal SpotBalance using mapper
+                internal_balance = BackpackOrderMapper.transform_raw_balance_to_internal(
+                    asset_symbol=asset_symbol, raw=raw_balance
                 )
-                continue
+                processed_balances[internal_balance.asset] = internal_balance
+
+            except ValidationError as e:
+                logger.error(
+                    f"[{self.exchange_name}] Failed Pydantic validation for balance {asset_symbol}: {e}. "
+                    f"Data: {balance_details_raw}"
+                )
+                continue  # Skip this asset if validation fails
+            except ValueError as e:  # Catches errors from transform_raw_balance_to_internal
+                logger.error(
+                    f"[{self.exchange_name}] Failed transformation for balance {asset_symbol}: {e}. "
+                    f"Raw Data: {balance_details_raw}"
+                )
+                continue  # Skip this asset if transformation fails
+            except Exception as e:
+                logger.error(
+                    f"[{self.exchange_name}] Unexpected error processing balance for {asset_symbol}: {e}",
+                    exc_info=True,
+                )
+                continue  # Skip on unexpected errors
+
         return processed_balances
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """
-        Get current positions.
+        Get current positions, validated via Raw models and transformed via Mapper.
         Currently fetches all positions, ignoring the optional symbol filter.
 
         Args:
@@ -560,102 +519,72 @@ class BackpackAPI(ExchangeAPI):
         Returns:
             List of Position objects.
         """
+        request_path = "/api/v1/positions"
         if symbol:
             logger.warning(
                 f"[{self.exchange_name}] get_positions called with symbol '{symbol}', "
                 "but Backpack API currently fetches all positions."
             )
         try:
-            response: Any = await self._request("GET", "/api/v1/positions", signed=True)
-            if not isinstance(response, list):
+            response_raw: Any = await self._request("GET", request_path, signed=True)
+            # DEFENSIVE CHECK: Ensure response is list
+            if not isinstance(response_raw, list):
                 logger.warning(
-                    f"[{ExchangeName.BACKPACK}] Unexpected response type for positions: "
-                    f"{type(response)}. Returning empty list."
+                    f"[{self.exchange_name}] Unexpected response type for positions: "
+                    f"{type(response_raw)}. Returning empty list."
                 )
                 return []
+
+            # Cast response to list of dicts after check
+            response_list = cast(list[dict[str, Any]], response_raw)
+
             positions: list[DerivativePosition] = []
-            pos_data_item: Any
-            for pos_data_item in response:
-                item: dict[str, Any] = cast(dict[str, Any], pos_data_item)
-                symbol_from_data = item.get("symbol")
-                if not isinstance(symbol_from_data, str) or not symbol_from_data:
+            for pos_data_raw in response_list:  # Iterate over casted list
+                try:
+                    # Validate raw position details using Pydantic model
+                    raw_position = BackpackRawPosition.model_validate(pos_data_raw)
+
+                    # Transform validated raw position to internal DerivativePosition
+                    internal_position = BackpackOrderMapper.transform_raw_position_to_internal(
+                        raw=raw_position
+                    )
+                    positions.append(internal_position)
+
+                except ValidationError as e:
                     logger.warning(
-                        f"[{ExchangeName.BACKPACK}] Position missing or invalid 'symbol': {item}"
+                        f"[{self.exchange_name}] Skipping position due to validation error: {e}. "
+                        f"Data: {pos_data_raw}"
                     )
                     continue
-                try:
-                    size_dec = parse_decimal_value(
-                        item.get("positionSize", "0"), allow_none=False, field_name="positionSize"
-                    )
-                    entry_price_dec = parse_decimal_value(
-                        item.get("entryPrice", "0"), allow_none=False, field_name="entryPrice"
-                    )
-                    mark_price_dec = parse_decimal_value(
-                        item.get("markPrice", "0"), allow_none=False, field_name="markPrice"
-                    )
-                    liq_price_str = item.get("liquidationPrice")
-                    liq_price_dec = (
-                        parse_decimal_value(
-                            liq_price_str, allow_none=True, field_name="liquidationPrice"
-                        )
-                        if liq_price_str is not None and liq_price_str != "0"
-                        else parse_decimal_value(
-                            "0.0", allow_none=False, field_name="liquidationPrice"
-                        )
-                    )
-                    pnl_dec = parse_decimal_value(
-                        item.get("unrealizedPnl", "0"), allow_none=False, field_name="unrealizedPnl"
-                    )
-                    # Defensive: ensure required decimals are not None
-                    if size_dec is None:
-                        raise ValueError(
-                            "Position size is None after parse_decimal_value with allow_none=False"
-                        )
-                    if entry_price_dec is None:
-                        raise ValueError(
-                            "Entry price is None after parse_decimal_value with allow_none=False"
-                        )
-                    if mark_price_dec is None:
-                        raise ValueError(
-                            "Mark price is None after parse_decimal_value with allow_none=False"
-                        )
-                    if pnl_dec is None:
-                        raise ValueError(
-                            "Unrealized PnL is None after parse_decimal_value with allow_none=False"
-                        )
-                    # Parse timestamp (assuming field name like 'lastUpdatedAtMs')
-                    ts_raw = item.get("lastUpdatedAtMs")  # Adjust field name if needed
-                    timestamp = parse_datetime_utc(ts_raw, field_name="lastUpdatedAtMs")
-                    if timestamp is None:
-                        logger.warning(
-                            f"[{self.exchange_name}] Position missing or invalid timestamp: {item}. Using current time."
-                        )
-                        timestamp = datetime.now(UTC)
-
-                    position = DerivativePosition(
-                        exchange=self.exchange_name,  # Add required exchange
-                        timestamp=timestamp,  # Add required timestamp
-                        symbol=symbol_from_data,
-                        size=size_dec,
-                        entry_price=entry_price_dec,
-                        mark_price=mark_price_dec,
-                        side=OrderSide.BUY if size_dec > Decimal("0") else OrderSide.SELL,
-                        liquidation_price=liq_price_dec
-                        if liq_price_dec is not None
-                        else Decimal("0"),  # Provide default if None
-                        unrealized_pnl=pnl_dec,
-                        # Do not pass leverage here
-                        # bp_details could be parsed here if needed
-                    )
-                    positions.append(position)
-                except Exception as e:
+                except ValueError as e:  # Catches errors from transform_raw_position_to_internal
                     logger.warning(
-                        f"[{ExchangeName.BACKPACK}] Error processing position: {e} | Data: {item}"
+                        f"[{self.exchange_name}] Skipping position due to transformation error: {e}. "
+                        f"Raw Data: {pos_data_raw}"
                     )
+                    continue
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected error processing position: {e}. "
+                        f"Data: {pos_data_raw}",
+                        exc_info=True,
+                    )
+                    continue  # Skip on unexpected errors
+
             return positions
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting positions: {e}")
+            # Reraise the mapped error from _request
+            raise e
         except Exception as e:
-            logger.error(f"[{ExchangeName.BACKPACK}] Error getting positions: {e}")
-            return []
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error in get_positions: {e}", exc_info=True
+            )
+            raise BackpackErrorMapper.map_error_response(
+                status_code=getattr(e, "status", None),
+                error_body=str(e),
+                request_path=request_path,
+                exchange_message=f"Unexpected error fetching positions: {e}",
+            ) from e
 
     async def place_order(
         self,
@@ -837,76 +766,65 @@ class BackpackAPI(ExchangeAPI):
             ) from e
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
-        """Fetch funding rate for a symbol.
-        Note: Base class ExchangeAPI expects get_funding_rates (plural).
+        """Fetch funding rate for a symbol, validated via Raw models and transformed via Mapper.
+
+        Args:
+            symbol: The trading symbol (e.g., 'BTC_USDC').
 
         Returns:
             FundingRate object.
 
         Raises:
-            APIError: If the funding rate cannot be fetched.
+            APIError: If the funding rate cannot be fetched or validated.
         """
-        # Assuming Backpack provides funding rates via a specific endpoint
-        # This endpoint might need adjustment based on actual API docs
         request_path = f"/api/v1/funding/{symbol}"
+        response_raw: Any = None  # Initialize to prevent unbound error
         try:
-            response = await self._request("GET", request_path)
-            if not isinstance(response, dict):
-                logger.error(
-                    f"[{self.exchange_name}] Unexpected response type for funding rate: "
-                    f"{type(response)}"
-                )
-                raise APIError(
-                    f"Could not fetch funding rate for {symbol}", code=APIErrorCode.UNKNOWN.value
-                )
-            # Parse timestamp to datetime
-            timestamp_raw = response.get("time")
-            # Use current UTC time if API doesn't provide one
-            timestamp_dt = (
-                parse_datetime_utc(timestamp_raw, field_name="time")
-                if timestamp_raw
-                else datetime.now(UTC)
-            )
-            if timestamp_dt is None:  # Should not happen with fallback, but defensive check
-                logger.error(
-                    f"[{self.exchange_name}] Failed to parse or get timestamp for funding rate. "
-                    f"Using current UTC time."
-                )
-                timestamp_dt = datetime.now(UTC)
+            response_raw = await self._request("GET", request_path)
 
-            funding_rate_dec = parse_decimal_value(
-                response.get("fundingRate", "0"), allow_none=False, field_name="fundingRate"
-            )
-            mark_price_dec = (
-                parse_decimal_value(
-                    response.get("markPrice", "0"), allow_none=True, field_name="markPrice"
-                )
-                if response.get("markPrice")
-                else None
-            )
-            if funding_rate_dec is None:  # Defensive check
-                raise ValueError("fundingRate parsed to None unexpectedly")
+            # Validate raw funding rate data using Pydantic model
+            raw_funding_rate = BackpackRawFundingRate.model_validate(response_raw)
 
-            return FundingRate(
-                symbol=symbol,
-                timestamp=timestamp_dt,  # Use datetime object
-                funding_rate=funding_rate_dec,
-                mark_price=mark_price_dec,
+            # Transform validated raw data to internal FundingRate using mapper
+            internal_funding_rate = BackpackOrderMapper.transform_raw_funding_rate_to_internal(
+                raw=raw_funding_rate
             )
+
+            return internal_funding_rate
+
+        except ValidationError as e:
+            logger.error(
+                f"[{self.exchange_name}] Funding rate validation failed for {symbol}: {e}. "
+                f"Data: {response_raw}"
+            )
+            raise APIError(
+                f"Invalid funding rate response for {symbol}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+            ) from e
+        except ValueError as e:  # Catches errors from transform method
+            logger.error(
+                f"[{self.exchange_name}] Funding rate transformation failed for {symbol}: {e}. "
+                f"Raw Data: {response_raw}"
+            )
+            raise APIError(
+                f"Funding rate transformation failed for {symbol}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+            ) from e
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting funding rate for {symbol}: {e}")
+            # Reraise the mapped error from _request
+            raise e
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Error getting funding rate for {symbol}: {e}",
+                f"[{self.exchange_name}] Unexpected error getting funding rate for {symbol}: {e}",
                 exc_info=True,
             )
-            # Use exchange_message for context in APIError call
-            api_error = BackpackErrorMapper.map_error_response(
+            raise BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
-                exchange_message=(
-                    f"Error getting funding rate for {symbol} (Path: {request_path}): {e}"
-                ),
-            )
-            raise api_error from e
+                request_path=request_path,
+                exchange_message=f"Error getting funding rate for {symbol}: {e}",
+            ) from e
 
     # --- Placeholder for required abstract method --- #
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
@@ -1032,67 +950,3 @@ class BackpackAPI(ExchangeAPI):
 
     # TODO: Implement remaining abstract methods from ExchangeAPI
     #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)
-
-    async def _fetch_balance(self, asset: str | None = None) -> list[SpotBalance]:
-        """Internal method to fetch spot balances."""
-        balances_data = await self._request("GET", "/api/v1/capital")
-        if not isinstance(balances_data, dict):
-            logger.warning("Unexpected response format from /capital endpoint")
-            return []  # Return empty list on unexpected format
-
-        now = datetime.now(UTC)
-        balances = []
-        for asset_symbol, details in balances_data.items():
-            if not isinstance(details, dict):
-                logger.warning(f"Skipping invalid balance entry for {asset_symbol}: {details}")
-                continue
-
-            # Use raw model from correct location if it exists, otherwise skip details for now
-            # Assuming a BackpackRawBalance model exists in backpack.models
-            try:
-                # Need to import the actual Raw Balance model if it exists
-                # from .models.bp_raw_balance import BackpackRawBalance # Placeholder
-                raw_details = BackpackRawBalance.model_validate(details)  # Placeholder
-
-                # Placeholder logic until Raw Model path confirmed - USE HARDCODED KEYS FOR NOW
-                # Remove references to undefined total/available
-                # total_raw = details.get("total", "0")
-                # available_raw = details.get("available", "0")
-                # locked_qty_raw = details.get("locked", "0")
-
-                # Need to import the actual Details model if it exists
-                # from .models.bp_spot_balance_details import BackpackSpotBalanceDetails # Placeholder
-                # bp_details_obj = None  # Placeholder
-                bp_details_obj = BackpackSpotBalanceDetails(
-                    open_order_quantity=raw_details.locked,
-                    lend_quantity=raw_details.locked,
-                    collateral_weight=None,
-                )  # Placeholder
-
-                try:
-                    # Convert to Decimal using the raw values fetched
-                    total_dec = Decimal(str(total_raw))
-                    available_dec = Decimal(str(available_raw))
-                    # locked_dec = Decimal(locked) # Assuming locked is not part of SpotBalance core
-
-                    balance = SpotBalance(
-                        asset=asset_symbol.upper(),
-                        total_quantity=total_dec,
-                        available_quantity=available_dec,
-                        # Assuming 'locked' maps to unavailable, needs confirmation
-                        # If SpotBalance model includes locked, add it here.
-                        timestamp=datetime.now(UTC),  # Add timestamp
-                        exchange=self.exchange_name,
-                    )
-                    if asset is None or balance.asset == asset.upper():
-                        balances.append(balance)
-                except InvalidOperation as dec_err:
-                    logger.error(
-                        f"Failed to convert balance values to Decimal for {asset_symbol} in list: {dec_err}"
-                    )
-                    continue  # Skip this item if conversion fails
-
-            except (ValidationError, TypeError, KeyError) as e:
-                logger.error(f"Failed to parse balance for {asset_symbol}: {e}. Data: {details}")
-                continue
-        return balances

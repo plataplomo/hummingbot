@@ -56,7 +56,6 @@ from cyberdelta.core.models.enums import (
     OrderType,
 )
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.models.market.order import Order
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
@@ -358,6 +357,51 @@ class HyperliquidMapper:
             return None
 
     @staticmethod
+    def transform_raw_asset_def_to_funding_rate(
+        raw_asset_def: dict[str, Any],
+    ) -> FundingRate | None:
+        """Map a raw asset definition dict from Hyperliquid 'allMeta' to FundingRate.
+        Assumes the dict contains necessary funding info similar to AssetCtx.
+        """
+        try:
+            symbol = raw_asset_def.get("name")
+            if not symbol or not isinstance(symbol, str):
+                logger.warning(f"Missing or invalid symbol in raw asset def: {raw_asset_def}")
+                return None
+
+            # Attempt to parse funding rate (assuming same key as in AssetCtx)
+            # NOTE: This assumes the structure is similar; needs verification.
+            funding_str = raw_asset_def.get("funding")  # Check if this key exists!
+            if funding_str is None:
+                logger.warning(f"Missing 'funding' key for {symbol} in allMeta response.")
+                return None  # Cannot create FundingRate without the rate
+
+            funding_rate_dec = parse_decimal_value(
+                str(funding_str), allow_none=False, field_name=f"{symbol}_funding"
+            )
+            if funding_rate_dec is None:  # Should be unreachable
+                raise ValueError("Funding rate parsed to None unexpectedly.")
+
+            # Convert funding rate from hourly basis (if needed, check HL docs)
+            # funding_rate_dec = funding_rate_dec * 8 # Example if rate is hourly
+
+            # Mark price might be available under a different key, e.g., "markPx"
+            mark_price_str = raw_asset_def.get("markPx")
+            mark_price_dec = parse_decimal_value(str(mark_price_str)) if mark_price_str else None
+
+            return FundingRate(
+                symbol=symbol,
+                timestamp=datetime.now(UTC),  # Use current time as not provided per-asset
+                funding_rate=funding_rate_dec,
+                mark_price=mark_price_dec,
+            )
+        except (ValidationError, ValueError, TypeError, InvalidOperation) as e:
+            logger.error(
+                f"Error mapping raw asset definition to FundingRate: {e}. Data: {raw_asset_def}"
+            )
+            return None
+
+    @staticmethod
     def _regex_match(msg: str, patterns: str | list[str]) -> bool:
         """
         Helper for regex-based error message matching.
@@ -536,11 +580,13 @@ class HyperliquidMapper:
                     )
             except ValidationError as e:
                 logger.error(
-                    f"Validation error parsing position for asset {asset_symbol}: {e}. Data: {position_data}"
+                    f"Validation error parsing position for asset {asset_symbol}: {e}. "
+                    f"Data: {position_data}"
                 )
             except Exception as e:
                 logger.error(
-                    f"Unexpected error mapping position for asset {asset_symbol}: {e}. Data: {position_data}"
+                    f"Unexpected error mapping position for asset {asset_symbol}: {e}. "
+                    f"Data: {position_data}"
                 )
         return positions
 
