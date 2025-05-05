@@ -24,10 +24,15 @@ robustness and security at the data ingestion boundary.
 """
 
 import logging
+from typing import Any, cast
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import (
+    parse_decimal_value,
+    validate_enum_field,
+    validate_str_field,
+)
 
 # Get logger for the module
 logger = logging.getLogger(__name__)
@@ -204,54 +209,68 @@ class BackpackRawOrderBook(BaseModel):
         """
         field_name = info.field_name
         if not isinstance(v, list):
-            raise ValueError(f"{field_name}: Must be a list of [price, quantity] pairs")
+            raise ValueError(f"{field_name}: Must be a list of [price_str, quantity_str] pairs.")
 
-        # Perform runtime checks inside loop
+        raw_list: list[Any] = cast(list[Any], v)
         validated_levels: list[tuple[str, str]] = []
-        # Pyright Warning: `v` is `object` in mode='before', `enumerate` arg type is unknown.
-        # Runtime `isinstance(v, list)` check above ensures safety.
-        for i, level_raw in enumerate(v):
-            # Runtime check for structure and element types
-            # Pyright Warning: `level_raw` is `unknown`, `len` arg type is unknown.
-            # Runtime check below ensures safety.
-            if not isinstance(level_raw, list | tuple) or len(level_raw) != 2:
+
+        for i, item_raw in enumerate(raw_list):
+            current_item_desc = f"{field_name}[{i}]"
+            # Check item structure
+            # Use Any type hint for item_raw and rely on runtime checks
+            item: Any = item_raw
+            if not isinstance(item, (list, tuple)):
+                raise ValueError(f"{current_item_desc}: Item is not a list or tuple.")
+
+            # DEFENSIVE CHECK: Runtime check ensures item is sized. Pyright=[reportUnknownArgumentType]
+            if len(item) != 2:
                 raise ValueError(
-                    f"{field_name}[{i}]: Each level must be a list/tuple of [price, quantity]"
+                    f"{current_item_desc}: Must be a list/tuple of length 2 [price_str, quantity_str]."
                 )
 
-            # Ensure elements are potentially processable before validation
-            # Pyright Warning: `level_raw[0/1]` access type is unknown.
-            # Runtime check above ensures `level_raw` is sequence of length 2.
-            price_raw: object = level_raw[0]
-            quantity_raw: object = level_raw[1]
+            # Runtime checks above ensure item is indexable
+            price_raw: Any = item[0]
+            quantity_raw: Any = item[1]
 
+            # Validate Price String
             try:
-                # Validate price string and its content
-                # Pyright Warning: `price_raw` type is unknown.
-                # Runtime check ensures it's accessed from a valid sequence element.
                 price_str = validate_str_field(
-                    price_raw, f"{field_name}[{i}].price", max_length=64, allow_empty=False
+                    price_raw,
+                    field_name=f"{current_item_desc}[0](price)",
+                    max_length=64,
+                    allow_empty=False,
                 )
                 price_dec = parse_decimal_value(price_str, allow_none=False)
-                if price_dec is None or not price_dec.is_finite():
-                    raise ValueError("Price must be a finite decimal string")
+                # Add explicit check for None before is_finite
+                if price_dec is None:
+                    raise ValueError("Price parsing unexpectedly returned None.")
+                if not price_dec.is_finite():
+                    raise ValueError("Price must be finite.")
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"{current_item_desc}[0](price): Invalid finite decimal string '{price_raw}'. {e}"
+                ) from e
 
-                # Validate quantity string and its content (non-negative)
-                # Pyright Warning: `quantity_raw` type is unknown.
-                # Runtime check ensures it's accessed from a valid sequence element.
+            # Validate Quantity String
+            try:
                 quantity_str = validate_str_field(
-                    quantity_raw, f"{field_name}[{i}].quantity", max_length=64, allow_empty=False
+                    quantity_raw,
+                    field_name=f"{current_item_desc}[1](quantity)",
+                    max_length=64,
+                    allow_empty=False,
                 )
                 quantity_dec = parse_decimal_value(quantity_str, allow_none=False)
-                if quantity_dec is None or not quantity_dec.is_finite() or quantity_dec < 0:
-                    raise ValueError("Quantity must be a non-negative finite decimal string")
-
-                validated_levels.append((price_str, quantity_str))
-            except (ValidationError, ValueError, TypeError) as e:
-                # Catch errors from helpers or checks above
+                # Add explicit check for None before is_finite and comparison
+                if quantity_dec is None:
+                    raise ValueError("Quantity parsing unexpectedly returned None.")
+                if not quantity_dec.is_finite() or quantity_dec < 0:
+                    raise ValueError("Quantity must be finite and non-negative.")
+            except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{field_name}[{i}]: Invalid level format [{level_raw}]: {e}"
+                    f"{current_item_desc}[1](quantity): Invalid non-negative finite decimal string '{quantity_raw}'. {e}"
                 ) from e
+
+            validated_levels.append((price_str, quantity_str))
         return validated_levels
 
     @field_validator("last_update_id", mode="before")
@@ -274,105 +293,195 @@ class BackpackRawOrderBook(BaseModel):
 class BackpackRawTickerEvent(BaseModel):
     """
     Raw Pydantic model for a WebSocket ticker update event (`ticker.<symbol>`).
-    Structure is assumed based on REST ticker, confirm with actual stream data.
+    Includes comprehensive validation.
     """
 
-    symbol: str = Field(..., alias="s")
-    last_price: str = Field(..., alias="lastPrice")
-    high: str = Field(..., alias="high")
-    low: str = Field(..., alias="low")
-    volume: str = Field(..., alias="volume")
-    quote_volume: str = Field(..., alias="quoteVolume")
-    price_change_percent: str = Field(..., alias="priceChangePercent")
+    # Fields confirmed from limited observation/comparison to REST Ticker
+    # Assume required unless seen otherwise in streams
+    symbol: str = Field(..., alias="s", max_length=64)
+    last_price: str = Field(..., alias="lastPrice", max_length=64)
+    high: str = Field(..., alias="high", max_length=64)
+    low: str = Field(..., alias="low", max_length=64)
+    volume: str = Field(..., alias="volume", max_length=64)
+    quote_volume: str = Field(..., alias="quoteVolume", max_length=64)
+    price_change_percent: str = Field(..., alias="priceChangePercent", max_length=64)
+    # Assuming event time (E) and event type (e) might be present based on other streams
+    event_type: str | None = Field(None, alias="e", max_length=32)
+    event_time: int | None = Field(None, alias="E")
 
-    model_config = ConfigDict(populate_by_name=True, extra="ignore", frozen=True)
+    model_config = ConfigDict(
+        populate_by_name=True, extra="ignore", frozen=True, validate_by_name=True
+    )
 
-    # Reusing validators from BackpackRawTicker might be possible if structure is identical
-    # For now, add specific simple validators
     @field_validator("symbol", mode="before")
     @classmethod
-    def validate_symbol_str(cls, v: object) -> str:
-        return validate_str_field(v, allow_empty=False, max_length=64)
+    def validate_symbol_str(cls, v: object, info: ValidationInfo) -> str:
+        """Validate required symbol string."""
+        return validate_str_field(
+            v, field_name=info.field_name or "symbol", max_length=64, allow_empty=False
+        )
 
     @field_validator(
         "last_price", "high", "low", "volume", "quote_volume", "price_change_percent", mode="before"
     )
     @classmethod
-    def validate_numeric_str(cls, v: object) -> str:
-        s = validate_str_field(v, allow_empty=False, max_length=64)
-        _ = parse_decimal_value(s, allow_none=False)  # Check parsability
+    def validate_required_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        """Validate required, non-empty, finite decimal strings."""
+        field_name = info.field_name or "decimal_field"
+        s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
+        try:
+            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():  # Defensive check
+                raise ValueError("Value must be a finite decimal.")
+        except ValueError as e:
+            raise ValueError(
+                f"{field_name}: Invalid finite decimal string '{s}'. Reason: {e}"
+            ) from e
         return s
+
+    # Optional validators if E and e are present
+    @field_validator("event_type", mode="before")
+    @classmethod
+    def validate_optional_event_type(cls, v: object | None, info: ValidationInfo) -> str | None:
+        """Validate optional event_type string."""
+        if v is None:
+            return None
+        # Assuming type is 'ticker' if present
+        return validate_enum_field(
+            v, allowed={"ticker"}, field_name=info.field_name or "event_type"
+        )
+
+    @field_validator("event_time", mode="before")
+    @classmethod
+    def validate_optional_timestamp_int(cls, v: object | None, info: ValidationInfo) -> int | None:
+        """Validate optional event_time integer."""
+        if v is None:
+            return None
+        if not isinstance(v, int):
+            raise ValueError(
+                f"{info.field_name or 'event_time'}: Must be an integer, got {type(v).__name__}"
+            )
+        return v
 
 
 class BackpackRawDepthUpdateEvent(BaseModel):
     """
     Raw Pydantic model for a WebSocket depth update event (`depth.<symbol>`).
-    Structure assumes a snapshot format similar to REST, confirm with actual stream data.
+    Includes comprehensive validation for levels.
     """
 
-    last_update_id: str = Field(..., alias="lastUpdateId")
+    last_update_id: str = Field(..., alias="lastUpdateId", max_length=64)
     bids: list[tuple[str, str]] = Field(..., alias="bids")
     asks: list[tuple[str, str]] = Field(..., alias="asks")
-    # Backpack WS might include timestamp, add if observed
-    # timestamp: Optional[int] = Field(None, alias="E")
+    event_type: str | None = Field(None, alias="e", max_length=32)
+    event_time: int | None = Field(None, alias="E")
 
-    model_config = ConfigDict(populate_by_name=True, extra="ignore", frozen=True)
+    model_config = ConfigDict(
+        populate_by_name=True, extra="ignore", frozen=True, validate_by_name=True
+    )
 
-    # Use the same robust level validator as BackpackRawOrderBook
     @field_validator("asks", "bids", mode="before")
     @classmethod
     def validate_levels(cls, v: object, info: ValidationInfo) -> list[tuple[str, str]]:
-        field_name = info.field_name
+        """Validates bids/asks are lists of [price_str, quantity_str] pairs.
+
+        Reuses the robust validation logic from BackpackRawOrderBook.
+        Ensures finite prices and non-negative finite quantities.
+        """
+        field_name = info.field_name or "levels"
         if not isinstance(v, list):
-            raise ValueError(f"{field_name}: Must be a list of [price, quantity] pairs")
+            raise ValueError(f"{field_name}: Must be a list of [price_str, quantity_str] pairs.")
 
-        # Perform runtime checks inside loop
+        raw_list: list[Any] = cast(list[Any], v)
         validated_levels: list[tuple[str, str]] = []
-        # Pyright Warning: `v` is `object` in mode='before', `enumerate` arg type is unknown.
-        # Runtime `isinstance(v, list)` check above ensures safety.
-        for i, level_raw in enumerate(v):
-            # Runtime check for structure
-            # Pyright Warning: `level_raw` is `unknown`, `len` arg type is unknown.
-            # Runtime check below ensures safety.
-            if not isinstance(level_raw, list | tuple) or len(level_raw) != 2:
-                # Use tuple for isinstance check, | requires Python 3.10+
+
+        for i, item_raw in enumerate(raw_list):
+            current_item_desc = f"{field_name}[{i}]"
+            # Check item structure
+            # Use Any type hint for item_raw and rely on runtime checks
+            item: Any = item_raw
+            if not isinstance(item, (list, tuple)):
+                raise ValueError(f"{current_item_desc}: Item is not a list or tuple.")
+
+            # DEFENSIVE CHECK: Runtime check ensures item is sized. Pyright=[reportUnknownArgumentType]
+            if len(item) != 2:
                 raise ValueError(
-                    f"{field_name}[{i}]: Each level must be a list/tuple of [price, quantity]"
+                    f"{current_item_desc}: Must be a list/tuple of length 2 [price_str, quantity_str]."
                 )
 
-            # Explicitly check item types before accessing
-            # Pyright Warning: `level_raw[0/1]` access type is unknown.
-            # Runtime check above ensures `level_raw` is sequence of length 2.
-            price_item: object = level_raw[0]
-            qty_item: object = level_raw[1]
+            # Runtime checks above ensure item is indexable
+            price_raw: Any = item[0]
+            quantity_raw: Any = item[1]
 
+            # Validate Price String
             try:
-                # Extract and validate price string
-                # Pyright Warning: `price_item` type is unknown.
-                # Runtime check ensures it's accessed from a valid sequence element.
                 price_str = validate_str_field(
-                    price_item, f"{field_name}[{i}].price", max_length=64, allow_empty=False
+                    price_raw,
+                    field_name=f"{current_item_desc}[0](price)",
+                    max_length=64,
+                    allow_empty=False,
                 )
-                _ = parse_decimal_value(price_str, allow_none=False)  # Check finite
+                price_dec = parse_decimal_value(price_str, allow_none=False)
+                # Add explicit check for None before is_finite
+                if price_dec is None:
+                    raise ValueError("Price parsing unexpectedly returned None.")
+                if not price_dec.is_finite():
+                    raise ValueError("Price must be finite.")
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"{current_item_desc}[0](price): Invalid finite decimal string '{price_raw}'. {e}"
+                ) from e
 
-                # Extract and validate quantity string
-                # Pyright Warning: `qty_item` type is unknown.
-                # Runtime check ensures it's accessed from a valid sequence element.
-                qty_str = validate_str_field(
-                    qty_item, f"{field_name}[{i}].quantity", max_length=64, allow_empty=False
+            # Validate Quantity String
+            try:
+                quantity_str = validate_str_field(
+                    quantity_raw,
+                    field_name=f"{current_item_desc}[1](quantity)",
+                    max_length=64,
+                    allow_empty=False,
                 )
-                _ = parse_decimal_value(qty_str, allow_none=False)  # Check finite
+                quantity_dec = parse_decimal_value(quantity_str, allow_none=False)
+                # Add explicit check for None before is_finite and comparison
+                if quantity_dec is None:
+                    raise ValueError("Quantity parsing unexpectedly returned None.")
+                if not quantity_dec.is_finite() or quantity_dec < 0:
+                    raise ValueError("Quantity must be finite and non-negative.")
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"{current_item_desc}[1](quantity): Invalid non-negative finite decimal string '{quantity_raw}'. {e}"
+                ) from e
 
-                validated_levels.append((price_str, qty_str))
-            # Catch specific expected errors + general Exception
-            except (ValidationError, ValueError, TypeError, IndexError) as e:
-                logger.error(
-                    f"Failed to validate level {i} for {field_name}: {e}. Level data: {level_raw}"
-                )
-                raise ValueError(f"Invalid level format at index {i} for {field_name}: {e}") from e
+            validated_levels.append((price_str, quantity_str))
         return validated_levels
 
     @field_validator("last_update_id", mode="before")
     @classmethod
-    def validate_update_id_str(cls, v: object) -> str:
-        return validate_str_field(v, allow_empty=False, max_length=64)
+    def validate_update_id_str(cls, v: object, info: ValidationInfo) -> str:
+        """Validate required last_update_id string."""
+        return validate_str_field(
+            v, field_name=info.field_name or "last_update_id", max_length=64, allow_empty=False
+        )
+
+    # Optional validators if E and e are present
+    @field_validator("event_type", mode="before")
+    @classmethod
+    def validate_optional_event_type(cls, v: object | None, info: ValidationInfo) -> str | None:
+        """Validate optional event_type string."""
+        if v is None:
+            return None
+        # Assuming type is 'depthUpdate' if present
+        return validate_enum_field(
+            v, allowed={"depthUpdate"}, field_name=info.field_name or "event_type"
+        )
+
+    @field_validator("event_time", mode="before")
+    @classmethod
+    def validate_optional_timestamp_int(cls, v: object | None, info: ValidationInfo) -> int | None:
+        """Validate optional event_time integer."""
+        if v is None:
+            return None
+        if not isinstance(v, int):
+            raise ValueError(
+                f"{info.field_name or 'event_time'}: Must be an integer, got {type(v).__name__}"
+            )
+        return v
