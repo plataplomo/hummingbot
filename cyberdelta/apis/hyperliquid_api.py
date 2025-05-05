@@ -301,7 +301,7 @@ class HyperliquidAPI(ExchangeAPI):
             timeout: Request timeout in seconds
 
         Returns:
-            The parsed JSON response as a dict, list, string or None
+            The parsed JSON response as a dict, list, string or None.
 
         Raises:
             APIError: If an error occurs during the request
@@ -358,13 +358,11 @@ class HyperliquidAPI(ExchangeAPI):
                     )
 
                 if response.content_type == "application/json":
-                    json_data: dict[str, Any] | list[Any] = await response.json()
-                    if isinstance(json_data, dict):
-                        return json_data
-                    # If not a dict, must be a list (by type annotation), so just return
-                    return json_data
+                    response_data: dict[str, Any] | list[Any] = await response.json()
+                    return response_data
                 else:
-                    return await response.text()
+                    text_response: str = await response.text()
+                    return text_response
 
         except aiohttp.ClientError as e:
             logger.error(f"[{self.exchange_name}] HTTP error: {e}", exc_info=True)
@@ -390,7 +388,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
-            response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            response: object = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
             from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
                 HyperliquidRawClearinghouseState,
@@ -443,7 +441,7 @@ class HyperliquidAPI(ExchangeAPI):
         """Get current positions using the user state endpoint and mapper."""
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
-            response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            response: object = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
             from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
                 HyperliquidRawClearinghouseState,
@@ -490,7 +488,7 @@ class HyperliquidAPI(ExchangeAPI):
         """Get open orders for a specific symbol or all symbols."""
         try:
             payload = {"type": "openOrders", "user": self._wallet_address}
-            response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            response: object = await self._request("POST", self.INFO_URL + "/info", data=payload)
             # --- Open Orders ---
             from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
                 HyperliquidRawOpenOrdersResponse,
@@ -542,7 +540,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         try:
             payload = {"type": "metaAndAssetCtxs"}
-            response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            response: object = await self._request("POST", self.INFO_URL + "/info", data=payload)
             from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
                 HyperliquidRawMetaAndAssetCtxsResponse,
             )
@@ -578,7 +576,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         try:
             payload = {"type": "l2Book", "coin": symbol}
-            response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            response: object = await self._request("POST", self.INFO_URL + "/info", data=payload)
             from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
                 HyperliquidRawL2Book,
             )
@@ -605,7 +603,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         try:
             payload = {"type": "recentTrades", "coin": symbol}
-            response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            response: object = await self._request("POST", self.INFO_URL + "/info", data=payload)
             from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
                 HyperliquidRawRecentTradesResponse,
             )
@@ -637,7 +635,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         try:
             payload = {"type": "metaAndAssetCtxs"}
-            response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            response: object = await self._request("POST", self.INFO_URL + "/info", data=payload)
             from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
                 HyperliquidRawMetaAndAssetCtxsResponse,
             )
@@ -841,11 +839,9 @@ class HyperliquidAPI(ExchangeAPI):
             # Get all market information which includes funding rates
             url = f"{self.INFO_URL}/info"
             payload = {"type": "allMeta"}
-            response_raw = await self._request("POST", url, data=payload)
+            response_raw: object = await self._request("POST", url, data=payload)
 
-            # Validate the response using the Raw Meta model
-            # Assuming the response structure matches HyperliquidRawMetaResponse
-            # which expects a list containing one dict with a 'universe' key.
+            # DEFENSIVE CHECK: Runtime check before validation
             if (
                 not isinstance(response_raw, list)
                 or len(response_raw) != 1

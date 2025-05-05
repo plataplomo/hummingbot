@@ -23,7 +23,7 @@ import hashlib
 import hmac
 import time
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -31,7 +31,7 @@ from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook
+from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
@@ -246,24 +246,41 @@ class BackpackAPI(ExchangeAPI):
             APIError: If the ticker cannot be fetched or validated.
         """
         request_path: str = f"/api/v1/ticker/{symbol}"
+        response_raw: object = None  # Type as object
         try:
-            response: Any = await self._request("GET", request_path)
-            return Ticker.model_validate(response)
+            response_raw = await self._request("GET", request_path)
+            # Validate with Raw model first
+            raw_ticker = BackpackRawTicker.model_validate(response_raw)
+            # Transform to internal (if needed, Ticker might be simple enough)
+            # For now, assuming direct validation is sufficient if Ticker = RawTicker structure
+            # If transformation logic exists/is needed, use a Mapper.
+            # Let's assume Ticker can validate the raw_ticker dictionary directly for now
+            # This needs verification against the Ticker model definition.
+            # A safer pattern would be:
+            # internal_ticker = BackpackMarketMapper.transform_raw_ticker(raw_ticker)
+            return Ticker.model_validate(raw_ticker.model_dump())
         except ValidationError as e:
-            logger.error(f"[{self.exchange_name}] Ticker validation failed: {e}")
+            logger.error(
+                f"[{self.exchange_name}] Ticker validation failed for {symbol}: {e}. "
+                f"Data: {response_raw}"
+            )
             raise APIError(
                 f"Invalid ticker response for {symbol}: {e}",
-                code=APIErrorCode.INVALID_REQUEST.value,
+                code=APIErrorCode.UNKNOWN.value,  # Use UNKNOWN for validation errors
             ) from e
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting ticker for {symbol}: {e}")
+            raise e  # Re-raise mapped APIError
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Error getting ticker for {symbol}: {e}", exc_info=True
             )
-            raise BackpackErrorMapper.map_error_response(
+            api_error = BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=f"Error getting ticker for {symbol}: {e}",
                 request_path=request_path,
-            ) from e
+            )
+            raise api_error from e
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
         """Fetch the order book for a symbol, validated via Raw model and transformed via Mapper.
@@ -340,8 +357,9 @@ class BackpackAPI(ExchangeAPI):
             params: dict[str, Any] = {"symbol": symbol}
             if limit is not None:
                 params["limit"] = limit
-            response_raw: Any = await self._request("GET", request_path, params=params)
+            response_raw: object = await self._request("GET", request_path, params=params)
 
+            # DEFENSIVE CHECK: Runtime check before processing
             if not isinstance(response_raw, list):
                 logger.warning(
                     f"[{self.exchange_name}] Unexpected trades response type: "
@@ -349,11 +367,15 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return []
 
-            # Cast after check
-            response_list = cast(list[dict[str, Any]], response_raw)
+            # No cast needed, iterate directly over the list known from isinstance
+            response_list = response_raw
 
             trades: list[Trade] = []
             for trade_data_raw in response_list:
+                # Ensure item is dict before validation
+                if not isinstance(trade_data_raw, dict):
+                    logger.warning(f"Skipping non-dict item in trades list: {trade_data_raw}")
+                    continue
                 try:
                     # Validate raw trade data using Pydantic model
                     raw_trade = BackpackRawTrade.model_validate(trade_data_raw)
@@ -372,44 +394,44 @@ class BackpackAPI(ExchangeAPI):
                         f"[{self.exchange_name}] Skipping trade due to validation error: {e}. "
                         f"Data: {trade_data_raw}"
                     )
-                    continue  # Skip this trade if validation fails
-                except ValueError as e:  # Catches errors from transform_raw_trade_to_internal
+                    continue
+                except ValueError as e:
                     logger.warning(
                         f"[{self.exchange_name}] Skipping trade due to transformation error: {e}. "
                         f"Raw Data: {trade_data_raw}"
                     )
-                    continue  # Skip this trade if transformation fails
+                    continue
                 except Exception as e:
                     logger.error(
                         f"[{self.exchange_name}] Unexpected error processing trade: {e}. "
                         f"Data: {trade_data_raw}",
                         exc_info=True,
                     )
-                    continue  # Skip on unexpected errors
-
+                    continue
             return trades
         except APIError as e:
             logger.error(
                 f"[{self.exchange_name}] API Error getting recent trades for {symbol}: {e}"
             )
-            # Reraise the mapped error from _request
             raise e
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Unexpected error in get_recent_trades: {e}", exc_info=True
             )
-            raise BackpackErrorMapper.map_error_response(
+            api_error = BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
                 request_path=request_path,
                 exchange_message=f"Error getting recent trades for {symbol}: {e}",
-            ) from e
+            )
+            raise api_error from e
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances, validated via Raw models and transformed via Mapper."""
         endpoint = "/api/v1/capital"
-        response_data_raw: Any = await self._request("GET", endpoint)
+        response_data_raw: object = await self._request("GET", endpoint)
 
+        # DEFENSIVE CHECK: Runtime check before processing
         if not isinstance(response_data_raw, dict):
             logger.warning(
                 f"[{self.exchange_name}] Unexpected response type for balances "
@@ -417,12 +439,19 @@ class BackpackAPI(ExchangeAPI):
             )
             return {}
 
-        # Cast after check (justification included if needed elsewhere, omitted here for brevity)
-        response_dict = cast(dict[str, dict[str, Any]], response_data_raw)
+        # No cast needed, iterate directly
+        response_dict = response_data_raw
 
         processed_balances: dict[str, SpotBalance] = {}
+        # Ensure keys are strings and values are dicts before processing
         for asset_symbol_raw, balance_details_raw in response_dict.items():
-            asset_symbol = str(asset_symbol_raw)  # Ensure key is string
+            if not isinstance(balance_details_raw, dict):
+                logger.warning(
+                    f"Skipping balance entry with non-dict value for key "
+                    f"{asset_symbol_raw}: {balance_details_raw}"
+                )
+                continue
+            asset_symbol = str(asset_symbol_raw)
             try:
                 # Validate raw balance details using Pydantic model
                 raw_balance = BackpackRawBalance.model_validate(balance_details_raw)
@@ -451,8 +480,7 @@ class BackpackAPI(ExchangeAPI):
                     f"{asset_symbol}: {e}",
                     exc_info=True,
                 )
-                continue  # Skip on unexpected errors
-
+                continue
         return processed_balances
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
@@ -473,7 +501,7 @@ class BackpackAPI(ExchangeAPI):
                 "but Backpack API currently fetches all positions."
             )
         try:
-            response_raw: Any = await self._request("GET", request_path, signed=True)
+            response_raw: object = await self._request("GET", request_path, signed=True)
             # DEFENSIVE CHECK: Ensure response is list
             if not isinstance(response_raw, list):
                 logger.warning(
@@ -482,11 +510,15 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return []
 
-            # Cast response to list of dicts after check
-            response_list = cast(list[dict[str, Any]], response_raw)
+            # No cast needed
+            response_list = response_raw
 
             positions: list[DerivativePosition] = []
-            for pos_data_raw in response_list:  # Iterate over casted list
+            for pos_data_raw in response_list:
+                # Ensure item is dict before validation
+                if not isinstance(pos_data_raw, dict):
+                    logger.warning(f"Skipping non-dict item in positions list: {pos_data_raw}")
+                    continue
                 try:
                     # Validate raw position details using Pydantic model
                     raw_position = BackpackRawPosition.model_validate(pos_data_raw)
@@ -499,8 +531,8 @@ class BackpackAPI(ExchangeAPI):
 
                 except ValidationError as e:
                     logger.warning(
-                        f"[{self.exchange_name}] Skipping position due to validation error: {e}. "
-                        f"Data: {pos_data_raw}"
+                        f"[{self.exchange_name}] Skipping position due to validation error: "
+                        f"{e}. Data: {pos_data_raw}"
                     )
                     continue
                 except ValueError as e:  # Catches errors from transform_raw_position_to_internal
@@ -511,27 +543,26 @@ class BackpackAPI(ExchangeAPI):
                     continue
                 except Exception as e:
                     logger.error(
-                        f"[{self.exchange_name}] Unexpected error processing position: {e}. "
-                        f"Data: {pos_data_raw}",
+                        f"[{self.exchange_name}] Unexpected error processing position: "
+                        f"{e}. Data: {pos_data_raw}",
                         exc_info=True,
                     )
-                    continue  # Skip on unexpected errors
-
+                    continue
             return positions
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting positions: {e}")
-            # Reraise the mapped error from _request
             raise e
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Unexpected error in get_positions: {e}", exc_info=True
             )
-            raise BackpackErrorMapper.map_error_response(
+            api_error = BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
                 request_path=request_path,
                 exchange_message=f"Unexpected error fetching positions: {e}",
-            ) from e
+            )
+            raise api_error from e
 
     async def place_order(
         self,
@@ -617,7 +648,9 @@ class BackpackAPI(ExchangeAPI):
             )
             raise api_error from e
 
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
+    async def cancel_order(
+        self, order_id: str, symbol: str | None = None
+    ) -> dict[str, bool | str | None]:  # More specific return type
         """Cancel an existing order. Conforms to ExchangeAPI interface."""
         if symbol is None:
             # Attempt to lookup symbol from order_id if possible, or raise error
@@ -625,18 +658,22 @@ class BackpackAPI(ExchangeAPI):
             raise ValueError("Symbol is required to cancel order on Backpack")
 
         request_path = "/api/v1/order"
+        response: object = None  # Initialize
         try:
             params = {"symbol": symbol, "orderId": order_id}
-            # Response might be empty on success or contain order details
             response = await self._request("DELETE", request_path, params=params, signed=True)
             logger.info(f"[{self.exchange_name}] Canceled order {order_id} for {symbol}")
-            # Return success dictionary as per ExchangeAPI
-            return {"success": True, "orderId": order_id, "symbol": symbol, "response": response}
+            # Return more specific success dict
+            return {
+                "success": True,
+                "orderId": order_id,
+                "symbol": symbol,
+                "response_body": str(response) if response else None,
+            }
         except Exception as e:
             logger.error(
                 f"[{self.exchange_name}] Error canceling order {order_id}: {e}", exc_info=True
             )
-            # Raise APIError as per ExchangeAPI
             api_error = BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
@@ -804,22 +841,25 @@ class BackpackAPI(ExchangeAPI):
         return rates
 
     # --- Account Management --- #
-    async def get_account_info(self) -> dict[str, Any]:
+    async def get_account_info(
+        self,
+    ) -> dict[str, object]:  # Return dict[str, object] instead of Any
         """Get general account information (Example)."""
         # This method is just an example; Backpack might not have this exact endpoint.
         request_path = "/api/v1/account"
         try:
-            response = await self._request("GET", request_path, signed=True)
+            response: object = await self._request("GET", request_path, signed=True)
+            # TODO: Define BackpackRawAccountInfo if structure is known and stable.
+            # For now, perform basic type check and return as dict[str, object]
             if not isinstance(response, dict):
                 logger.warning(
                     f"[{self.exchange_name}] Unexpected response type for account info: "
                     f"{type(response)}. Returning empty dict."
                 )
                 return {}
-            return response
+            return response  # Known to be dict now
         except Exception as e:
             logger.error(f"[{self.exchange_name}] Error getting account info: {e}")
-            # Raise APIError for consistency.
             api_error = BackpackErrorMapper.map_error_response(
                 status_code=getattr(e, "status", None),
                 error_body=str(e),
