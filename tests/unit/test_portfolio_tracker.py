@@ -301,9 +301,10 @@ class TestPortfolioTracker:
         """Test updating a balance.
 
         NOTE: The public `update_balance` method doesn't exist. This test now
-        verifies internal state setting, simulating an update.
+        Verifies internal state setting, simulating an update.
         """
-        # portfolio_tracker.update_balance("hyperliquid", "USDC", Decimal("10000.0")) # Method doesn't exist
+        # Method doesn't exist:
+        # portfolio_tracker.update_balance("hyperliquid", "USDC", Decimal("10000.0"))
         # Manually set internal state to simulate update
         usdc_amount = Decimal("10000.0")
         usdc_balance_obj = SpotBalance(
@@ -318,6 +319,12 @@ class TestPortfolioTracker:
         # Verify the balance was stored as a SpotBalance object
         balance_obj = portfolio_tracker._balances["hyperliquid"].get("USDC")  # noqa: SLF001 - Test verification
         assert balance_obj is not None and balance_obj.total_quantity == Decimal("10000.0")
+        # balance_obj_btc = portfolio_tracker.get_exchange_balance("hyperliquid", "BTC") # Method doesn't exist
+        balance_obj_btc = portfolio_tracker._balances["hyperliquid"].get("BTC")  # Access directly
+        assert balance_obj_btc is not None and balance_obj_btc.total_quantity == Decimal("1.0")
+        # balance_obj_eth = portfolio_tracker.get_exchange_balance("hyperliquid", "ETH") # Method doesn't exist
+        balance_obj_eth = portfolio_tracker._balances["hyperliquid"].get("ETH")  # Access directly
+        assert balance_obj_eth is None
 
     def test_get_exchange_balance(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test getting an exchange balance."""

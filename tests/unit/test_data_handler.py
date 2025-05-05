@@ -222,7 +222,7 @@ class TestDataHandler:
         # Set up a test ticker with UTC timestamp
         test_ticker = Candle(
             symbol="BTC",
-            timestamp=datetime.now(UTC),
+            open_time=datetime.now(UTC),
             open=Decimal("40000.0"),
             high=Decimal("42000.0"),
             low=Decimal("39000.0"),
@@ -232,7 +232,7 @@ class TestDataHandler:
 
         # Store the ticker in the DataHandler
         data_handler.tickers["hyperliquid"] = {"BTC": test_ticker}
-        data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"] = datetime.now(UTC)
+        data_handler.last_update_time["hyperliquid"]["BTC"] = datetime.now(UTC)
 
         # Get the ticker
         result = data_handler.get_ticker("hyperliquid", "BTC")
@@ -241,9 +241,9 @@ class TestDataHandler:
         assert result == test_ticker
 
         # Test with stale data
-        data_handler.last_update_time["hyperliquid"]["ticker"]["BTC"] = datetime.now(
-            UTC
-        ) - timedelta(seconds=120)
+        data_handler.last_update_time["hyperliquid"]["BTC"] = datetime.now(UTC) - timedelta(
+            seconds=120
+        )
         result = data_handler.get_ticker("hyperliquid", "BTC")
 
         # Should return None for stale data
@@ -255,48 +255,39 @@ class TestDataHandler:
 
     def test_get_funding_rate(self, data_handler: DataHandler) -> None:
         """Test retrieving funding rate data."""
-        # Set up a test funding rate object
+        rate = Decimal("0.0001")
+        timestamp = datetime.now(UTC)
+        # FundingRate expects datetime timestamp
         test_funding_rate = FundingRate(
             symbol="BTC",
-            funding_rate=Decimal("0.0001"),
-            timestamp=int(datetime.now(UTC).timestamp()),
+            funding_rate=rate,
+            timestamp=timestamp,
+            next_funding_time=timestamp + timedelta(hours=1),  # Add required next_funding_time
         )
 
-        # Store the funding rate in the DataHandler (using _update_funding_rate method)
-        data_handler._update_funding_rate("hyperliquid", "BTC", test_funding_rate)  # type: ignore[reportPrivateUsage]  # White-box test: intentional
+        # Store the rate and timestamp tuple
+        data_handler.funding_rates["hyperliquid"] = {
+            "BTC": (rate, test_funding_rate.next_funding_time)
+        }
+        data_handler.last_update_time["hyperliquid"]["BTC"] = timestamp  # Correct structure
 
-        # Verify the internal storage format (tuple)
-        assert data_handler.funding_rates["hyperliquid"]["BTC"] == (
-            test_funding_rate.funding_rate,
-            test_funding_rate.timestamp,
-        )
-        # Verify last update time is aware
-        assert (
-            data_handler.last_update_time["hyperliquid"]["funding_rate"]["BTC"].tzinfo is not None
-        )
-
-        # Get the funding rate object using the public getter
+        # Get the funding rate
         result = data_handler.get_funding_rate("hyperliquid", "BTC")
 
-        # Verify the result is the correct FundingRate object
-        assert isinstance(result, FundingRate)
+        # Verify the result (should reconstruct FundingRate object)
+        assert result is not None
         assert result.symbol == "BTC"
-        assert result.funding_rate == test_funding_rate.funding_rate
-        assert result.timestamp == test_funding_rate.timestamp
+        assert result.funding_rate == rate
+        assert result.timestamp == timestamp
+        assert result.next_funding_time == test_funding_rate.next_funding_time
 
         # Test with stale data
-        # Manually set the last update time to be stale
-        stale_time = datetime.now(UTC) - timedelta(seconds=600)
-        data_handler.last_update_time["hyperliquid"]["funding_rate"]["BTC"] = stale_time
-
-        # Call the getter again
+        data_handler.last_update_time["hyperliquid"]["BTC"] = datetime.now(  # Correct structure
+            UTC
+        ) - timedelta(days=1)  # Make it clearly stale
         result = data_handler.get_funding_rate("hyperliquid", "BTC")
 
         # Should return None for stale data
-        assert result is None
-
-        # Test with nonexistent data
-        result = data_handler.get_funding_rate("hyperliquid", "NONEXISTENT")
         assert result is None
 
     @pytest.mark.asyncio

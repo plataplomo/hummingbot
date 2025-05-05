@@ -54,7 +54,7 @@ def sample_signal() -> TradeSignal:
         symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("50000"),  # Convert to Decimal
+        price=Decimal("50000"),
         quantity=Decimal("1"),
         source_strategy="test_strategy",
         metadata={"utility_score": 0.8},
@@ -80,7 +80,6 @@ def sample_opportunity() -> ArbitrageOpportunity:
         expected_profit=Decimal("1.5"),
         basis_volatility=0.0005,
         confidence_score=0.85,
-        exchange="mock_exchange",
     )
 
 
@@ -213,6 +212,7 @@ def test_get_signals(mock_config: Config) -> None:
         side=OrderSide.BUY,
         price=Decimal("50000"),
         quantity=Decimal("1"),
+        exchange="mock_exchange1",
     )
     signal2 = TradeSignal(
         symbol="ETH/USDT",
@@ -220,6 +220,7 @@ def test_get_signals(mock_config: Config) -> None:
         side=OrderSide.BUY,
         price=Decimal("3000"),
         quantity=Decimal("1"),
+        exchange="mock_exchange2",
     )
 
     queue.add_signal(signal1)
@@ -282,9 +283,10 @@ def test_clean_expired_signals(
         symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("50000"),
-        quantity=Decimal("1"),
+        price=Decimal("49999"),
+        quantity=Decimal("0.5"),
         expiration=fixed_now - timedelta(seconds=10),  # Already expired
+        exchange="mock_exchange_exp",
     )
 
     # Valid signal
@@ -292,9 +294,10 @@ def test_clean_expired_signals(
         symbol="ETH/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("3000"),
-        quantity=Decimal("1"),
+        price=Decimal("50001"),
+        quantity=Decimal("0.5"),
         expiration=fixed_now + timedelta(seconds=30),  # Not expired
+        exchange="mock_exchange_valid",
     )
 
     queue.add_signal(expired)
@@ -333,27 +336,30 @@ def test_trim_queue(mock_config: Config) -> None:
         symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("50000"),
+        price=Decimal(str(50000 + 0)),
         quantity=Decimal("1"),
-        metadata={"utility_score": 0.9},  # Higher priority
+        metadata={"utility_score": 0.1 * 0},
+        exchange=f"mock_exchange_{0}",
     )
 
     signal2 = TradeSignal(
         symbol="ETH/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("3000"),
+        price=Decimal(str(50000 + 1)),
         quantity=Decimal("1"),
-        metadata={"utility_score": 0.8},  # Medium priority
+        metadata={"utility_score": 0.1 * 1},
+        exchange=f"mock_exchange_{1}",
     )
 
     signal3 = TradeSignal(
         symbol="SOL/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("100"),
+        price=Decimal(str(50000 + 2)),
         quantity=Decimal("1"),
-        metadata={"utility_score": 0.7},  # Lower priority
+        metadata={"utility_score": 0.1 * 2},
+        exchange=f"mock_exchange_{2}",
     )
 
     queue.add_signal(signal1)
@@ -369,6 +375,29 @@ def test_trim_queue(mock_config: Config) -> None:
     assert "BTC/USDT" in symbols
     assert "ETH/USDT" in symbols
     assert "SOL/USDT" not in symbols
+
+    # Verify signals are added
+    assert len(queue.signal_queue) == 3
+
+    # Add one more signal to trigger trimming
+    signal4 = TradeSignal(
+        symbol="LOW_PRIORITY",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,
+        price=Decimal(str(50000 + 3)),
+        quantity=Decimal("1"),
+        metadata={"utility_score": 0.1 * 3},
+        exchange=f"mock_exchange_{3}",
+    )
+    queue.add_signal(signal4)
+
+    # Check which signals remain (should be the highest priority ones)
+    signals = queue.get_signals()
+    symbols = [s.symbol for s in signals]
+    assert "BTC/USDT" in symbols
+    assert "ETH/USDT" in symbols
+    assert "SOL/USDT" not in symbols
+    assert lowest_priority_signal.symbol == "LOW_PRIORITY"
 
 
 def test_calculate_expiration(mock_config: Config, sample_signal: TradeSignal) -> None:
@@ -429,6 +458,7 @@ def test_check_circuit_breakers(mock_config: Config, mock_circuit_breaker: Magic
             "long_exchange": "exchange_a",
             "short_exchange": "exchange_b",
         },
+        exchange="exA",
     )
 
     # Set up circuit breaker to check for different cases
@@ -468,6 +498,7 @@ def test_check_circuit_breakers(mock_config: Config, mock_circuit_breaker: Magic
         side=OrderSide.BUY,
         price=Decimal("50000"),
         quantity=Decimal("1"),
+        exchange="exA",
     )
 
     mock_circuit_breaker.check_symbol.return_value = True
