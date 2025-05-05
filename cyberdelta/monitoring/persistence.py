@@ -129,8 +129,8 @@ class PerformanceDataPersistence:
                 for item in data
             ]
         # This block is unreachable due to the input type hint `dict | list`
-        # logger.warning(f"_make_serializable received unexpected type: {type(data)}")
-        # return data
+        logger.warning(f"_make_serializable received unexpected type: {type(data)}")
+        return data
 
     def _make_dict_serializable(self, item: dict[str, Any]) -> dict[str, Any]:
         """Makes a single dictionary (like a trade or signal) serializable."""

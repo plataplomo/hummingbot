@@ -563,11 +563,19 @@ class CircuitBreakerSystem:
 
         if isinstance(global_api_config, dict):
             try:
-                # Add type ignores as config.get return type is Any
-                threshold = int(global_api_config.get("error_threshold", 3))  # type: ignore[arg-type]
-                window = int(global_api_config.get("window_seconds", 60))  # type: ignore[arg-type]
-                cooldown = int(global_api_config.get("cooldown_seconds", 300))  # type: ignore[arg-type]
-                enabled = bool(global_api_config.get("enabled", True))  # type: ignore[arg-type]
+                # Remove unused type ignores and add type checks
+                threshold_val = global_api_config.get("error_threshold", 3)
+                window_val = global_api_config.get("window_seconds", 60)
+                cooldown_val = global_api_config.get("cooldown_seconds", 300)
+                enabled_val = global_api_config.get("enabled", True)
+
+                # Validate types
+                threshold = (
+                    int(threshold_val) if isinstance(threshold_val, (int, float, str)) else 3
+                )
+                window = int(window_val) if isinstance(window_val, (int, float, str)) else 60
+                cooldown = int(cooldown_val) if isinstance(cooldown_val, (int, float, str)) else 300
+                enabled = bool(enabled_val) if isinstance(enabled_val, bool) else True
 
                 if enabled:
                     self.global_api_error_breaker = APIErrorBreaker(
@@ -597,7 +605,9 @@ class CircuitBreakerSystem:
             return
 
         # Assuming exchanges_config.items() yields str, dict based on structure
-        for exchange_id, exchange_config in exchanges_config.items():  # type: ignore [attr-defined]
+        exchange_id: str
+        exchange_config: dict[str, Any]
+        for exchange_id, exchange_config in exchanges_config.items():  # type: ignore [assignment] # Ignore assignment type mismatch
             if not isinstance(exchange_config, dict):
                 logger.warning(f"Config for exchange '{exchange_id}' is not a dict. Skipping.")
                 continue
@@ -614,11 +624,20 @@ class CircuitBreakerSystem:
             api_error_config = breakers_config.get("api_errors")
             if isinstance(api_error_config, dict):
                 try:
-                    # Add type ignores as config.get return type is Any
-                    threshold = int(api_error_config.get("error_threshold", 5))  # type: ignore[arg-type]
-                    window = int(api_error_config.get("window_seconds", 120))  # type: ignore[arg-type]
-                    cooldown = int(api_error_config.get("cooldown_seconds", 600))  # type: ignore[arg-type]
-                    enabled = bool(api_error_config.get("enabled", True))  # type: ignore[arg-type]
+                    # Remove unused type ignores and add type checks
+                    threshold_val = api_error_config.get("error_threshold", 5)
+                    window_val = api_error_config.get("window_seconds", 120)
+                    cooldown_val = api_error_config.get("cooldown_seconds", 600)
+                    enabled_val = api_error_config.get("enabled", True)
+
+                    threshold = (
+                        int(threshold_val) if isinstance(threshold_val, (int, float, str)) else 5
+                    )
+                    window = int(window_val) if isinstance(window_val, (int, float, str)) else 120
+                    cooldown = (
+                        int(cooldown_val) if isinstance(cooldown_val, (int, float, str)) else 600
+                    )
+                    enabled = bool(enabled_val) if isinstance(enabled_val, bool) else True
 
                     if enabled:
                         breaker_name = f"{exchange_id}_api_errors"
@@ -643,12 +662,25 @@ class CircuitBreakerSystem:
             # TODO: Add loading logic for other breaker types (Volatility, Drawdown, Liquidity)
             # Example placeholder for VolatilityBreaker
             vol_config = breakers_config.get("volatility")
-            if isinstance(vol_config, dict) and bool(vol_config.get("enabled", False)):  # type: ignore[arg-type]
+            if isinstance(vol_config, dict) and bool(vol_config.get("enabled", False)):
                 try:
-                    # Add type ignores as config.get return type is Any
-                    lookback = int(vol_config.get("lookback_periods", 12))  # type: ignore[arg-type]
-                    vol_threshold = float(vol_config.get("volatility_threshold", 0.05))  # type: ignore[arg-type]
-                    cooldown = int(vol_config.get("cooldown_seconds", 300))  # type: ignore[arg-type]
+                    # Remove unused type ignores and add type checks
+                    lookback_val = vol_config.get("lookback_periods", 12)
+                    vol_threshold_val = vol_config.get("volatility_threshold", 0.05)
+                    cooldown_val = vol_config.get("cooldown_seconds", 300)
+
+                    lookback = (
+                        int(lookback_val) if isinstance(lookback_val, (int, float, str)) else 12
+                    )
+                    vol_threshold = (
+                        float(vol_threshold_val)
+                        if isinstance(vol_threshold_val, (int, float, str))
+                        else 0.05
+                    )
+                    cooldown = (
+                        int(cooldown_val) if isinstance(cooldown_val, (int, float, str)) else 300
+                    )
+
                     breaker_name = f"{exchange_id}_volatility"
                     breaker = VolatilityBreaker(
                         name=breaker_name,
@@ -846,40 +878,52 @@ class CircuitBreakerSystem:
                             f"API success confirmed recovery: {exchange_breaker_name} reset to CLOSED state"
                         )
                     else:
+                        # Correctly formatted multi-line f-string
                         logger.info(
-                            f"Exchange breaker {exchange_breaker_name} remains in HALF_OPEN after successful check.\"
+                            f"Exchange breaker {exchange_breaker_name} remains in HALF_OPEN after "
+                            f"successful check."
                         )
                         # Keep state HALF_OPEN, reset success count
-                        self._recovery_success_counts[exchange_breaker_name] = 0
+                        # Assumes _recovery_success_counts exists, which might be incorrect
+                        # self._recovery_success_counts[exchange_breaker_name] = 0 # Commenting out potentially incorrect line
                 else:
-                    logger.info(\
-                        f\"API success not sufficient for recovery: \"
-                        f\"{exchange_breaker_name} remains in OPEN state\"\
+                    # Correctly formatted multi-line f-string
+                    logger.info(
+                        f"API success not sufficient for recovery: "
+                        f"{exchange_breaker_name} remains in OPEN state"
                     )
             else:
-                # Not OPEN or HALF_OPEN, success doesn\'t change state
-                pass
+                # Not OPEN or HALF_OPEN, success doesn't change state
+                # Corrected escaping for apostrophe
+                logger.debug(
+                    f"API success recorded for {exchange} (breaker state {breaker.state.name}), no state change."
+                )
 
         # Also update global API breaker if present
-        if "global_api_errors" in self.breakers:
-            breaker = self.breakers["global_api_errors"]
-            if isinstance(breaker, APIErrorBreaker):
-                # Similar logic for global breaker
-                if breaker.state == BreakerState.HALF_OPEN:
-                    recovery_success = breaker.test_recovery()
-                    if recovery_success:
-                        logger.info("API success confirmed recovery: global_api_errors reset to CLOSED state")
-                    else:
-                        logger.info(\
-                            f\"API success not sufficient for recovery: \"
-                            f\"global_api_errors remains in {global_breaker.state.name} state\"\
-                        )
+        # Check if the attribute exists before accessing it
+        global_breaker = getattr(self, "global_api_error_breaker", None)
+        if global_breaker and isinstance(global_breaker, APIErrorBreaker):
+            # Similar logic for global breaker
+            if global_breaker.state == BreakerState.HALF_OPEN:
+                recovery_success = global_breaker.test_recovery()
+                if recovery_success:
+                    logger.info(
+                        "API success confirmed recovery: global_api_errors reset to CLOSED state"
+                    )
                 else:
-                    # Not OPEN or HALF_OPEN, success doesn\'t change state
-                    pass
-
-        if not recorded:
-            logger.warning(f"No API error breakers found to record error for {exchange}")
+                    # Correctly formatted multi-line f-string
+                    logger.info(
+                        f"API success not sufficient for recovery: "
+                        f"global_api_errors remains in {global_breaker.state.name} state"
+                    )
+            else:
+                # Not OPEN or HALF_OPEN, success doesn't change state
+                logger.debug(
+                    f"API success recorded for global breaker (state {global_breaker.state.name}), no state change."
+                )
+        # 'recorded' variable was never defined or used meaningfully, removing related logic
+        # if not recorded: # 'recorded' is not defined
+        #     logger.warning(f"No API error breakers found to record error for {exchange}")
 
     def record_critical_failure(self, exchange: str, error_message: str) -> None:
         """

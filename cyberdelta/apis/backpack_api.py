@@ -510,25 +510,42 @@ class BackpackAPI(ExchangeAPI):
         response_dict = cast(dict[str, dict[str, Any]], response_data)
 
         processed_balances: dict[str, SpotBalance] = {}
-        for asset, balance_details in response_dict.items():  # Iterate over typed dict
+        for asset, balance_details in response_dict.items():
+            asset_str = ""
             try:
                 # Ensure asset is treated as string
                 asset_str = str(asset)
                 # Create SpotBalance instance, passing the exchange name and details
-                balance = SpotBalance(
-                    exchange=self.exchange_name,  # Pass str name directly
-                    asset=asset_str,
-                    total=balance_details.get("total", "0"),  # Pydantic handles parsing
-                    available=balance_details.get("available", "0"),  # Pydantic handles parsing
-                )
-                processed_balances[asset_str] = balance
-            except (ValidationError, TypeError, InvalidOperation) as e:
-                logger.error(
-                    f"[{self.exchange_name}] Error parsing balance item for asset '{asset}': {e}. Data: {balance_details}",
-                    exc_info=True,
-                )
-                continue  # Skip this balance if parsing fails
+                # Use correct field names: total_quantity, available_quantity
+                total_raw = balance_details.get("total", "0")
+                available_raw = balance_details.get("available", "0")
+                # Validate types before passing to model
+                total_val = str(total_raw) if total_raw is not None else "0"
+                available_val = str(available_raw) if available_raw is not None else "0"
 
+                try:
+                    total_dec = Decimal(total_val)
+                    available_dec = Decimal(available_val)
+
+                    balance = SpotBalance(
+                        exchange=self.exchange_name,  # Pass str name directly
+                        asset=asset_str,
+                        total_quantity=total_dec,  # Pass Decimal
+                        available_quantity=available_dec,  # Pass Decimal
+                        timestamp=datetime.now(UTC),  # Add timestamp if required by model
+                    )
+                    processed_balances[asset_str] = balance
+                except InvalidOperation as dec_err:
+                    logger.error(
+                        f"Failed to convert balance values to Decimal for {asset_str}: {dec_err}"
+                    )
+                    continue  # Skip this asset if conversion fails
+
+            except (ValidationError, TypeError, KeyError) as e:
+                logger.error(
+                    f"Failed to parse balance for {asset_str}: {e}. Data: {balance_details}"
+                )
+                continue
         return processed_balances
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
@@ -1034,34 +1051,50 @@ class BackpackAPI(ExchangeAPI):
             try:
                 # Need to import the actual Raw Balance model if it exists
                 # from .models.bp_raw_balance import BackpackRawBalance # Placeholder
-                # raw_details = BackpackRawBalance.model_validate(details) # Placeholder
+                raw_details = BackpackRawBalance.model_validate(details)  # Placeholder
 
                 # Placeholder logic until Raw Model path confirmed - USE HARDCODED KEYS FOR NOW
-                available_qty = Decimal(str(details.get("available", "0")))
-                locked_qty = Decimal(str(details.get("locked", "0")))
-                staked_qty = Decimal(str(details.get("staked", "0")))
-                total_qty = available_qty + locked_qty
+                # total_raw = details.get("total", "0")
+                # available_raw = details.get("available", "0")
+                # locked_qty_raw = details.get("locked", "0")
+
+                # total = str(total_raw) if total_raw is not None else "0"
+                # available = str(available_raw) if available_raw is not None else "0"
+                # locked = str(locked_qty_raw) if locked_qty_raw is not None else "0"
 
                 # Need to import the actual Details model if it exists
                 # from .models.bp_spot_balance_details import BackpackSpotBalanceDetails # Placeholder
-                bp_details_obj = None  # Placeholder
-                # bp_details_obj = BackpackSpotBalanceDetails(
-                #     open_order_quantity=locked_qty,
-                #     lend_quantity=staked_qty,
-                #     collateral_weight=None,
-                # ) # Placeholder
+                # bp_details_obj = None  # Placeholder
+                bp_details_obj = BackpackSpotBalanceDetails(
+                    open_order_quantity=raw_details.locked,
+                    lend_quantity=raw_details.locked,
+                    collateral_weight=None,
+                )  # Placeholder
 
-                balance = SpotBalance(
-                    exchange=self.exchange_name,
-                    asset=asset_symbol.upper(),
-                    timestamp=now,  # Add missing timestamp
-                    total_quantity=total_qty,  # Corrected argument name
-                    available_quantity=available_qty,  # Corrected argument name
-                    bp_details=bp_details_obj,  # Use placeholder for now
-                )
-                if asset is None or balance.asset == asset.upper():
-                    balances.append(balance)
-            except (ValidationError, TypeError, KeyError, InvalidOperation) as e:
+                try:
+                    # Convert to Decimal
+                    total_dec = Decimal(total)
+                    available_dec = Decimal(available)
+                    # locked_dec = Decimal(locked) # Assuming locked is not part of SpotBalance core
+
+                    balance = SpotBalance(
+                        asset=asset_symbol.upper(),
+                        total_quantity=total_dec,
+                        available_quantity=available_dec,
+                        # Assuming 'locked' maps to unavailable, needs confirmation
+                        # If SpotBalance model includes locked, add it here.
+                        timestamp=datetime.now(UTC),  # Add timestamp
+                        exchange=self.exchange_name,
+                    )
+                    if asset is None or balance.asset == asset.upper():
+                        balances.append(balance)
+                except InvalidOperation as dec_err:
+                    logger.error(
+                        f"Failed to convert balance values to Decimal for {asset_symbol} in list: {dec_err}"
+                    )
+                    continue  # Skip this item if conversion fails
+
+            except (ValidationError, TypeError, KeyError) as e:
                 logger.error(f"Failed to parse balance for {asset_symbol}: {e}. Data: {details}")
                 continue
         return balances

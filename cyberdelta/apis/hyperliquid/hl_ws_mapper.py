@@ -21,6 +21,7 @@ from cyberdelta.core.models import (
     OrderSide,
     OrderStatus,
     OrderType,
+    TimeInForce,
     Trade,
 )
 
@@ -253,6 +254,7 @@ class HyperliquidWebsocketMapper:
                 triggered_at=None,
                 strategy_name=None,
                 signal_id=None,
+                time_in_force=TimeInForce.GTC,  # Default assumption
             )
         except Exception as e:
             logger.error(f"Error parsing order data: {e}")

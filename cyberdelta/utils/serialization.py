@@ -26,11 +26,11 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
             # Convert datetime to ISO 8601 format string
             return o.isoformat()
         if isinstance(o, np.integer):
-            # Convert numpy integer to standard Python int
-            return int(o)  # type: ignore[arg-type]
+            # Convert numpy integer to standard Python int using .item()
+            return o.item()
         if isinstance(o, np.floating):
-            # Convert numpy float to standard Python float
-            return float(o)  # type: ignore[arg-type]
+            # Convert numpy float to standard Python float using .item()
+            return o.item()
         # Handle Pydantic models
         if isinstance(o, BaseModel):
             # Use Pydantic's built-in serialization

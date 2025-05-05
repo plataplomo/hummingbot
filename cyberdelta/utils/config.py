@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import cast
 
 import yaml
 
@@ -184,7 +185,10 @@ class Config:
         """
         for key, value in source.items():
             if key in target and isinstance(target[key], dict) and isinstance(value, dict):
-                self._merge_dicts(target[key], value)
+                # Cast target[key] to the expected type for the recursive call
+                # We know it's a dict due to the isinstance check
+                target_dict = cast(dict[str, object], target[key])
+                self._merge_dicts(target_dict, value)
             else:
                 target[key] = value
 

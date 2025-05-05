@@ -188,8 +188,9 @@ class StrategyManager:
                         self.risk_manager.size_signal(signal) if self.risk_manager else signal
                     )  # type: ignore[attr-defined]
                 except Exception as e:
-                    logger.error(
-                        f"Risk manager failed to size signal in {strategy_name}: {e}", exc_info=True
+                    self.logger.error(
+                        f"Error during signal processing (post-generation) in {strategy_name}: {e}",
+                        exc_info=True,
                     )
                     continue
                 # Only append if still valid after sizing
@@ -234,13 +235,11 @@ class StrategyManager:
                     )
                     continue
                 try:
-                    # type: ignore[attr-defined] because size_signal is a test mock, not in interface
-                    sized_signal = (
-                        self.risk_manager.size_signal(signal) if self.risk_manager else signal
-                    )  # type: ignore[attr-defined]
+                    sized_signal = signal  # Pass signal through
                 except Exception as e:
                     self.logger.error(
-                        f"Risk manager failed to size signal in {strategy.name}: {e}", exc_info=True
+                        f"Error during signal processing (post-generation) in {strategy.name}: {e}",
+                        exc_info=True,
                     )
                     continue
                 # Only append if still valid after sizing

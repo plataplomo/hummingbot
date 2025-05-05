@@ -31,10 +31,23 @@ class StateManager:
         """
         self.config = config
 
-        # Load state parameters from config
-        self.state_file: str = config.get("general.state_file", "state.json")
-        self.backup_dir: str = config.get("general.state_backup_directory", "state_backups")
-        self.backup_count: int = config.get("general.state_backup_count", 5)
+        # Load state parameters from config with type validation
+        state_file_val = config.get("general.state_file", "state.json")
+        self.state_file: str = (
+            str(state_file_val) if isinstance(state_file_val, str) else "state.json"
+        )
+
+        backup_dir_val = config.get("general.state_backup_directory", "state_backups")
+        self.backup_dir: str = (
+            str(backup_dir_val) if isinstance(backup_dir_val, str) else "state_backups"
+        )
+
+        backup_count_val = config.get("general.state_backup_count", 5)
+        self.backup_count: int = (
+            int(backup_count_val)
+            if isinstance(backup_count_val, (int, str)) and str(backup_count_val).isdigit()
+            else 5
+        )
 
         # Ensure backup directory exists
         os.makedirs(self.backup_dir, exist_ok=True)
@@ -268,6 +281,8 @@ class StateManager:
         if not isinstance(expected_checksum_raw, str):
             logger.error(f"Expected checksum must be a string, got {type(expected_checksum_raw)}")
             return False
+
+        # Type narrowed here:
         expected_checksum: str = expected_checksum_raw
         actual_checksum = self._calculate_checksum(state_data["state"])
 

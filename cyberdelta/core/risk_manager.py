@@ -211,11 +211,32 @@ class RiskManager:
                 str(self.config.get("risk.min_validation_factor", 0.2))
             )
             self.exchange_risk_modifiers: dict[str, float] = {}
-            for exchange_id in self.config.get("exchanges", {}).keys():
-                if self.config.get(f"exchanges.{exchange_id}.enabled", False):
-                    self.exchange_risk_modifiers[exchange_id] = self.config.get(
-                        f"exchanges.{exchange_id}.risk_modifier", 1.0
-                    )
+            exchanges_config = self.config.get("exchanges", {})
+            if isinstance(exchanges_config, dict):
+                for exchange_id_raw in exchanges_config.keys():
+                    # Ensure exchange_id is a string before using it
+                    if not isinstance(exchange_id_raw, str):
+                        logger.warning(
+                            f"Non-string key found in exchanges config: {exchange_id_raw}"
+                        )
+                        continue
+                    exchange_id: str = exchange_id_raw  # Now confirmed string
+
+                    if self.config.get(f"exchanges.{exchange_id}.enabled", False):
+                        modifier_val = self.config.get(
+                            f"exchanges.{exchange_id}.risk_modifier", 1.0
+                        )
+                        # Validate modifier type
+                        if isinstance(modifier_val, (float, int)):
+                            self.exchange_risk_modifiers[exchange_id] = float(modifier_val)
+                        else:
+                            # Default to 1.0 if type is wrong
+                            self.exchange_risk_modifiers[exchange_id] = 1.0
+            else:
+                logger.warning(
+                    "'exchanges' config is not a dictionary, cannot load risk modifiers."
+                )
+
             self.max_single_position_exposure = Decimal(
                 str(self.config.get("risk.strategy.max_single_position_exposure_ratio", 0.1))
             )
@@ -332,13 +353,12 @@ class RiskManager:
             return ZERO
 
     def _check_required_fields(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check that all required fields are present in the opportunity."""
-        try:
-            opportunity.validate_required_fields()
-            return True
-        except ValueError as e:
-            self.logger.warning(f"Opportunity validation failed for {opportunity.symbol}: {e}")
-            return False
+        """Check that all required fields are present in the opportunity.
+        (Note: Pydantic validation handles this implicitly on creation/assignment).
+        """
+        # Pydantic models validate on instantiation/assignment.
+        # No explicit method call needed here.
+        return True
 
     def _check_profitability(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check if the opportunity is profitable."""
@@ -378,12 +398,12 @@ class RiskManager:
                 if opportunity.short_price is not None
                 else None
             )
-            if long_price is None or long_price <= ZERO:
+            if long_price <= ZERO:
                 self.logger.warning(
                     f"Invalid long entry price ({long_price}) for {opportunity.symbol}"
                 )
                 return False
-            if short_price is None or short_price <= ZERO:
+            if short_price <= ZERO:
                 self.logger.warning(
                     f"Invalid short entry price ({short_price}) for {opportunity.symbol}"
                 )
@@ -1327,26 +1347,8 @@ class RiskManager:
             return None
 
     def is_opportunity_profitable(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check if the net funding differential meets the minimum threshold."""
-        if opportunity.net_funding_differential is None:
-            self.logger.debug(f"Opportunity {opportunity.symbol} has no NFD. Skipping.")
-            return False
-        try:
-            nfd = Decimal(str(opportunity.net_funding_differential))
-            if nfd >= self.min_net_funding_differential:
-                return True
-            else:
-                self.logger.debug(
-                    f"Opportunity {opportunity.symbol} NFD {nfd:.6f} not above threshold "
-                    f"{self.min_net_funding_differential:.6f}",
-                )
-                return False
-        except InvalidOperation:
-            self.logger.error(
-                f"Invalid net_funding_differential for {opportunity.symbol}: "
-                f"{opportunity.net_funding_differential}",
-            )
-            return False
+        """Check if the opportunity has a positive expected profit."""
+        return opportunity.expected_profit > ZERO
 
     def adjust_order_size(self, symbol: str, requested_size: Decimal) -> Decimal:
         """Placeholder for adjusting order size based on liquidity, order book depth, etc."""

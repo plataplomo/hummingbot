@@ -9,16 +9,15 @@ from typing import Any
 
 import structlog
 
-import cyberdelta.apis.backpack_api import BackpackAPI
-import cyberdelta.apis.hyperliquid_api import HyperliquidAPI
-from cyberdelta.apis.base import ExchangeAPI
+from cyberdelta.apis.backpack_api import BackpackAPI
 from cyberdelta.apis.exchange_names import ExchangeName
+from cyberdelta.apis.hyperliquid_api import HyperliquidAPI
+from cyberdelta.apis.models.exchange_api_config import ExchangeAPI
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import TradingEngine
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.portfolio_tracker import PortfolioTracker, PortfolioTrackerProtocol
 from cyberdelta.core.risk_manager import ConfigError, RiskManager
-from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.strategy_manager import StrategyManager
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
@@ -195,10 +194,10 @@ async def main() -> None:
         # Initialize StrategyManager
         strategy_manager = StrategyManager(
             config=config,
-            signal_queue=engine.signal_queue, # Pass signal queue
+            signal_queue=engine.signal_queue,  # Pass signal queue
             risk_manager=risk_manager,
             portfolio_tracker=portfolio_tracker,
-            symbol_mapper=symbol_mapper # Pass symbol_mapper
+            symbol_mapper=symbol_mapper,  # Pass symbol_mapper
         )
         app_state["strategy_manager"] = strategy_manager
 
@@ -286,9 +285,9 @@ async def main() -> None:
                 if strategy_type == "FundingRateArbitrage":
                     symbol = strategy_config.get("symbol")
                     if not symbol:
-                        logger.error(\
-                            f\"Strategy '{strategy_name}' missing required \'symbol\' \"
-                            f\"in config. Skipping.\"\
+                        logger.error(
+                            f"Strategy '{strategy_name}' missing required 'symbol' "
+                            f"in config. Skipping."
                         )
                         continue
                     strategy = FundingRateArbitrageStrategy(
@@ -367,7 +366,7 @@ async def main() -> None:
         # Start the engine (now ready to receive data and forward signals)
         logger.info("Starting Trading Engine...")
         # engine.run() # This would block if run directly
-        asyncio.run(engine.run_async()) # Run the async version
+        asyncio.run(engine.run_async())  # Run the async version
         logger.info("Engine started. Entering main monitoring loop.")
 
         # Set up signal handling for graceful shutdown

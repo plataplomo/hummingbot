@@ -5,12 +5,14 @@ This module provides a function to parse raw balance data from Backpack into a s
 Balance object for CyberDeltaEngine.
 """
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.base_api import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import SpotBalance
+from cyberdelta.utils.parsing import parse_datetime_utc
 
 
 def bp_parse_balance(data: dict[str, Any]) -> SpotBalance:
@@ -28,11 +30,15 @@ def bp_parse_balance(data: dict[str, Any]) -> SpotBalance:
         asset = data.get("asset") or data.get("symbol") or ""
         available = Decimal(str(data.get("available") or "0"))
         total = Decimal(str(data.get("total") or "0"))
+        # Parse timestamp safely
+        ts_raw = data.get("timestamp")
+        timestamp = parse_datetime_utc(ts_raw, field_name="timestamp") or datetime.now(UTC)
         return SpotBalance(
             exchange="backpack",
             asset=asset,
-            available=available,
-            total=total,
+            total_quantity=total,
+            available_quantity=available,
+            timestamp=timestamp,
         )
     except Exception as e:
         raise APIError(

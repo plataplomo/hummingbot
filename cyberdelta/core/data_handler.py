@@ -81,9 +81,20 @@ class DataHandler:
 
     def _load_staleness_config(self) -> None:
         """Load data staleness thresholds from config."""
-        defaults = self.config.get("data_handler.staleness_defaults", {})
-        default_ticker_sec = defaults.get("ticker", 60.0)  # Default 60 seconds
-        default_funding_sec = defaults.get("funding_rate", 3600.0)  # Default 1 hour
+        defaults_raw = self.config.get("data_handler.staleness_defaults", {})
+        defaults = defaults_raw if isinstance(defaults_raw, dict) else {}
+
+        default_ticker_sec = 60.0
+        if isinstance(defaults, dict):
+            ticker_val = defaults.get("ticker", 60.0)
+            default_ticker_sec = float(ticker_val) if isinstance(ticker_val, (int, float)) else 60.0
+
+        default_funding_sec = 3600.0
+        if isinstance(defaults, dict):
+            funding_val = defaults.get("funding_rate", 3600.0)
+            default_funding_sec = (
+                float(funding_val) if isinstance(funding_val, (int, float)) else 3600.0
+            )
 
         exchanges_conf = self.config.get("exchanges", {})
         exchanges_dict = cast(
@@ -92,9 +103,28 @@ class DataHandler:
 
         for exchange_id in exchanges_dict.keys():
             if self.config.get(f"exchanges.{exchange_id}.enabled", False):
-                exchange_staleness = self.config.get(f"exchanges.{exchange_id}.staleness", {})
-                ticker_thresh = exchange_staleness.get("ticker", default_ticker_sec)
-                funding_thresh = exchange_staleness.get("funding_rate", default_funding_sec)
+                exchange_staleness_raw = self.config.get(f"exchanges.{exchange_id}.staleness", {})
+                exchange_staleness = (
+                    exchange_staleness_raw if isinstance(exchange_staleness_raw, dict) else {}
+                )
+
+                ticker_thresh = default_ticker_sec  # Default value
+                if isinstance(exchange_staleness, dict):
+                    ticker_val = exchange_staleness.get("ticker", default_ticker_sec)
+                    ticker_thresh = (
+                        float(ticker_val)
+                        if isinstance(ticker_val, (int, float))
+                        else default_ticker_sec
+                    )
+
+                funding_thresh = default_funding_sec  # Default value
+                if isinstance(exchange_staleness, dict):
+                    funding_val = exchange_staleness.get("funding_rate", default_funding_sec)
+                    funding_thresh = (
+                        float(funding_val)
+                        if isinstance(funding_val, (int, float))
+                        else default_funding_sec
+                    )
 
                 # Store thresholds as timedelta
                 try:
@@ -214,7 +244,7 @@ class DataHandler:
         """Connect to WebSocket and subscribe to necessary channels."""
         try:
             logger.info(f"Connecting to {exchange_id} WebSocket...")
-            await client.connect_ws()  # type: ignore[attr-defined]
+            await client.connect_ws()
             logger.info(f"Connected to {exchange_id} WebSocket.")
 
             # Get symbols for this exchange
@@ -230,19 +260,18 @@ class DataHandler:
             # Subscribe to channels
             subscribe_tasks = []
             for symbol in symbols:
-                # Assume methods exist based on earlier check in start_connections
                 if hasattr(client, "subscribe_to_ticker"):
-                    subscribe_tasks.append(client.subscribe_to_ticker(symbol))  # type: ignore[attr-defined]
+                    subscribe_tasks.append(client.subscribe_to_ticker(symbol))
                 if hasattr(client, "subscribe_to_order_book"):
-                    subscribe_tasks.append(client.subscribe_to_order_book(symbol))  # type: ignore[attr-defined]
+                    subscribe_tasks.append(client.subscribe_to_order_book(symbol))
                 if hasattr(client, "subscribe_to_trades"):
-                    subscribe_tasks.append(client.subscribe_to_trades(symbol))  # type: ignore[attr-defined]
+                    subscribe_tasks.append(client.subscribe_to_trades(symbol))
                 if hasattr(client, "subscribe_to_funding_rates"):
-                    subscribe_tasks.append(client.subscribe_to_funding_rates(symbol))  # type: ignore[attr-defined]
+                    subscribe_tasks.append(client.subscribe_to_funding_rates(symbol))
 
             # Exchange-specific subscriptions (Example)
             if exchange_id == "hyperliquid" and hasattr(client, "subscribe_to_user_events"):
-                subscribe_tasks.append(client.subscribe_to_user_events())  # type: ignore[attr-defined]
+                subscribe_tasks.append(client.subscribe_to_user_events())
             # Add other exchange-specific logic here
 
             if subscribe_tasks:
@@ -270,7 +299,7 @@ class DataHandler:
         logger.info(f"Starting message loop for {exchange_id}...")
         try:
             while self._running:  # Check if engine is still running
-                message = await client.receive_ws_message()  # type: ignore[attr-defined]
+                message = await client.receive_ws_message()
                 if message:
                     # Process the raw message (parsing delegated)
                     await self._process_raw_message(exchange_id, message)
@@ -301,7 +330,7 @@ class DataHandler:
             return
 
         try:
-            message_type, parsed_data = client.parse_ws_message(message)  # type: ignore[attr-defined]
+            message_type, parsed_data = client.parse_ws_message(message)
 
             if message_type is None or parsed_data is None:
                 # Message type not relevant or parsing failed gracefully

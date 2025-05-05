@@ -239,6 +239,8 @@ class PrioritySignalQueue:
             timestamp=timestamp,
             price=price,  # Always Decimal
             quantity=quantity,  # Always Decimal
+            # Pass both exchanges involved in the arbitrage
+            exchange=[opportunity.long_exchange, opportunity.short_exchange],
             expiration=getattr(opportunity, "expiration", None),
             metadata=metadata,
         )
@@ -737,6 +739,18 @@ class PrioritySignalQueue:
         take_profit = getattr(signal, "take_profit", None)
         expiration = getattr(signal, "expiration", None)
         metadata_dict = getattr(signal, "metadata", None)
+        # Extract exchange from the original signal, ensuring it's a string
+        exchange_name_raw = getattr(signal, "exchange", None)
+        if not isinstance(exchange_name_raw, str):
+            # Handle missing or invalid exchange - perhaps log and skip?
+            # For now, defaulting to an empty string or raising might be options.
+            # Let's log a warning and potentially skip or use a default.
+            logger.warning(
+                f"Signal missing or invalid exchange: {signal}. Defaulting to 'unknown'."
+            )
+            exchange_name = "unknown"  # Default or raise error
+        else:
+            exchange_name = exchange_name_raw
 
         new_signal = TradeSignal(
             symbol=signal.symbol,
@@ -745,6 +759,7 @@ class PrioritySignalQueue:
             price=price_decimal,
             quantity=quantity_decimal,
             timestamp=timestamp,
+            exchange=exchange_name,  # Add missing exchange
             confidence=signal.confidence,
             source_strategy=source_strategy,
             stop_loss=stop_loss,
