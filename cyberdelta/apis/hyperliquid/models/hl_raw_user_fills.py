@@ -78,8 +78,24 @@ class HyperliquidRawUserFill(BaseModel):
     fee: str = Field(..., alias="fee")
     is_maker: bool = Field(..., alias="isMaker")
     liquidation_mark_px: str | None = Field(None, alias="liquidationMarkPx")
-    cloid: str | None = Field(None, alias="cloid")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    cloid: str | None = Field(None, alias="cloid", max_length=128)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("tid", "oid", "time", mode="before")
+    @classmethod
+    def validate_non_negative_int(cls, v: object, info: ValidationInfo) -> int:
+        """Validate required non-negative integer fields."""
+        field_name = info.field_name or "int_field"
+        if not isinstance(v, int):
+            if isinstance(v, str) and v.isdigit():
+                v_int = int(v)
+            else:
+                raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
+        else:
+            v_int = v
+        if v_int < 0:
+            raise ValueError(f"{field_name}: Must be non-negative, got {v_int}")
+        return v_int
 
     @field_validator("coin", mode="before")
     @classmethod
@@ -97,11 +113,11 @@ class HyperliquidRawUserFill(BaseModel):
         """
         return validate_str_field(v, field_name="coin", max_length=64)
 
-    @field_validator("px", "sz", "fee", mode="before")
+    @field_validator("px", "sz", "fee", "start_position", mode="before")
     @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+    def validate_required_decimal_str(cls, v: object, info: ValidationInfo) -> str:
         """
-        Validates that the field is a string representing a finite decimal (not NaN/inf),
+        Validates that the field is a non-empty string representing a finite decimal (not NaN/inf),
         with a maximum length of 64. This is critical for financial data integrity.
 
         Args:
@@ -112,7 +128,7 @@ class HyperliquidRawUserFill(BaseModel):
         Raises:
             ValueError: If the input is not a valid decimal string.
         """
-        field_name = info.field_name or "field"
+        field_name = info.field_name or "decimal_field"
         s = validate_str_field(v, field_name=field_name, max_length=64)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
         if d is None or not d.is_finite():
@@ -135,11 +151,11 @@ class HyperliquidRawUserFill(BaseModel):
         """
         return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
 
-    @field_validator("start_position", "dir", "hash", mode="before")
+    @field_validator("dir", "hash", mode="before")
     @classmethod
     def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
         """
-        Validates that the field is a non-empty string of max length 64.
+        Validates that the field is a non-empty string of max length 66 for hash and 64 for dir.
 
         Args:
             v (object): The value to validate (should be a string).
@@ -150,13 +166,14 @@ class HyperliquidRawUserFill(BaseModel):
             ValueError: If the input is not a valid string.
         """
         field_name = info.field_name or "field"
-        return validate_str_field(v, field_name=field_name, max_length=64)
+        max_len = 66 if field_name == "hash" else 64
+        return validate_str_field(v, field_name=field_name, max_length=max_len)
 
-    @field_validator("liquidation_mark_px", "cloid", mode="before")
+    @field_validator("cloid", mode="before")
     @classmethod
-    def validate_optional_str(cls, v: object, info: ValidationInfo) -> str | None:
+    def validate_optional_str(cls, v: object | None, info: ValidationInfo) -> str | None:
         """
-        Validates that the field is either None or a string of max length 64.
+        Validates that the field is either None or a string of max length 128 for cloid.
 
         Args:
             v (object): The value to validate (should be a string or None).
@@ -168,8 +185,14 @@ class HyperliquidRawUserFill(BaseModel):
         """
         if v is None:
             return v
-        field_name = info.field_name or "field"
-        return validate_str_field(v, field_name=field_name, max_length=64)
+        field_name = info.field_name or "optional_field"
+        default_max_len = 128 if field_name == "cloid" else 64
+        max_len = getattr(
+            getattr(cls.model_fields.get(field_name), "metadata", [None])[0],
+            "max_length",
+            default_max_len,
+        )
+        return validate_str_field(v, field_name=field_name, max_length=max_len)
 
     @field_validator("is_maker", mode="before")
     @classmethod
@@ -192,7 +215,7 @@ class HyperliquidRawUserFill(BaseModel):
 
     @field_validator("cloid", "hash", mode="before")
     @classmethod
-    def validate_no_null_bytes(cls, v: object, info: ValidationInfo) -> str | None:
+    def validate_no_null_bytes(cls, v: object | None, info: ValidationInfo) -> str | None:
         """
         Reject null bytes (\x00) in cloid and hash fields for safety and robustness.
 
@@ -206,14 +229,16 @@ class HyperliquidRawUserFill(BaseModel):
         """
         if v is None:
             return v
-        s = validate_str_field(v, field_name=info.field_name or "field", max_length=64)
+        field_name = info.field_name or "field"
+        max_len = 66 if field_name == "hash" else 128
+        s = validate_str_field(v, field_name=field_name, max_length=max_len)
         if "\x00" in s:
-            raise ValueError(f"{info.field_name}: Null byte (\\x00) not allowed in string")
+            raise ValueError(f"{field_name}: Null byte (\\x00) not allowed in string")
         return s
 
     @field_validator("liquidation_mark_px", mode="before")
     @classmethod
-    def validate_optional_decimal_str(cls, v: object, info: ValidationInfo) -> str | None:
+    def validate_optional_decimal_str(cls, v: object | None, info: ValidationInfo) -> str | None:
         """
         Ensure optional decimal string is valid if present (finite decimal, not NaN/inf).
 
@@ -227,10 +252,11 @@ class HyperliquidRawUserFill(BaseModel):
         """
         if v is None:
             return v
-        s = validate_str_field(v, field_name=info.field_name or "field", max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=info.field_name or "field")
+        field_name = "liquidation_mark_px"
+        s = validate_str_field(v, field_name=field_name, max_length=64)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
         if d is None or not d.is_finite():
-            raise ValueError(f"{info.field_name}: Value must be a finite decimal (not NaN or inf)")
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
         return s
 
 
