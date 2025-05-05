@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
+
+# Instantiate logger for this module
+logger = logging.getLogger(__name__)
 
 
 class Ticker(BaseModel):
@@ -88,3 +92,37 @@ class Ticker(BaseModel):
             raise ValueError(f"Field '{field_name}' must be a finite Decimal, got {parsed_decimal}")
 
         return parsed_decimal
+
+    @property
+    def mid_price(self) -> Decimal | None:
+        """Calculate the mid-price (average of bid and ask).
+
+        Returns:
+            The mid-price as a Decimal if both bid and ask are valid and non-None,
+            otherwise returns None.
+        """
+        # Type hints and earlier validation make isinstance checks redundant here.
+        if (
+            self.bid is not None
+            and self.ask is not None
+            and self.bid.is_finite()
+            and self.ask.is_finite()
+        ):
+            try:
+                mid = (self.bid + self.ask) / Decimal("2")
+                # Check if calculation resulted in non-finite
+                if mid.is_finite():
+                    return mid
+                else:
+                    logger.warning(
+                        f"Mid-price calculation for {self.symbol} resulted in non-finite value from bid={self.bid}, ask={self.ask}"
+                    )
+                    return None
+            except InvalidOperation:  # Catch only InvalidOperation for calculation issues
+                # Should not happen if inputs are finite Decimals, but defensive
+                logger.error(
+                    f"Error calculating mid-price for {self.symbol} from bid={self.bid}, ask={self.ask}",
+                    exc_info=True,
+                )
+                return None
+        return None  # Return None if bid or ask is None or non-finite

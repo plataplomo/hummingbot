@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 import numpy as np
+from pydantic import BaseModel
 
 
 class CyberDeltaJSONEncoder(json.JSONEncoder):
@@ -14,23 +15,28 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
     - datetime objects (converts to ISO 8601 string)
     - numpy integer types (converts to standard int)
     - numpy float types (converts to standard float)
+    - Pydantic models (uses Pydantic's built-in serialization)
     """
 
-    def default(self, obj: Any) -> str | float | int | Any:
-        if isinstance(obj, Decimal):
+    def default(self, o: Any) -> str | float | int | Any:
+        if isinstance(o, Decimal):
             # Convert Decimal to string to preserve precision
-            return str(obj)
-        if isinstance(obj, datetime):
+            return str(o)
+        if isinstance(o, datetime):
             # Convert datetime to ISO 8601 format string
-            return obj.isoformat()
-        if isinstance(obj, np.integer):
+            return o.isoformat()
+        if isinstance(o, np.integer):
             # Convert numpy integer to standard Python int
-            return int(obj)
-        if isinstance(obj, np.floating):
+            return int(o)  # type: ignore[arg-type]
+        if isinstance(o, np.floating):
             # Convert numpy float to standard Python float
-            return float(obj)
+            return float(o)  # type: ignore[arg-type]
+        # Handle Pydantic models
+        if isinstance(o, BaseModel):
+            # Use Pydantic's built-in serialization
+            return o.model_dump(mode="json")
         # Let the base class default method raise the TypeError for other types
-        return super().default(obj)
+        return super().default(o)
 
 
 # Helper function to easily dump JSON with the custom encoder

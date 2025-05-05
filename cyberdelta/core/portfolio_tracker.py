@@ -121,7 +121,8 @@ class PortfolioTracker:
         """Initialize portfolio state from exchanges."""
         initialization_tasks: list[Awaitable[bool]] = []
         logger.info(
-            f"PortfolioTracker {id(self)}: About to gather init tasks. Balance dict: {self._balances}"
+            f"PortfolioTracker {id(self)}: About to gather init tasks. "
+            f"Balance dict: {self._balances}"
         )
         for exchange_id, _client in self.api_clients.items():
             if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
@@ -157,7 +158,7 @@ class PortfolioTracker:
                 f"PortfolioTracker failed to initialize essential data from one or more exchanges. "
                 f"Cannot proceed reliably. Errors: {error_summary}"
             )
-        initial_capital = self.get_total_capital()
+        initial_capital = await self.get_total_capital()
         self._high_watermark = initial_capital
         if initial_capital > Decimal("0.0"):
             logger.info(f"Initial high watermark set to: {self._high_watermark}")
@@ -187,42 +188,79 @@ class PortfolioTracker:
                 logger.error(f"[FETCH_BALANCES:{exchange_id}] API call returned None.")
                 return False
 
-            # --- HANDLE DICT or LIST ---
             updated_balances: dict[str, SpotBalance] = {}
-            processed = False
-            try:
-                for asset, balance_details in balances_data.items():
-                    # Ensure exchange name is added
-                    balance_details["exchange"] = exchange_id
-                    balance_obj = self._parse_balance_info(exchange_id, asset, balance_details)
-                    if balance_obj:
-                        updated_balances[asset] = balance_obj
-                processed = True
-            except (ValidationError, TypeError, InvalidOperation) as e:
-                logger.error(f"[{exchange_id}] Error parsing balance entry: {e}", exc_info=True)
+            if isinstance(balances_data, dict):
+                for asset, balance_obj in balances_data.items():
+                    if isinstance(balance_obj, SpotBalance):
+                        # Validate exchange ID if already a SpotBalance object
+                        if balance_obj.exchange == exchange_id:
+                            updated_balances[asset] = balance_obj
+                        else:
+                            logger.warning(
+                                f"[{exchange_id}] Skipping balance for asset {asset} "
+                                f"due to mismatched exchange ID ({balance_obj.exchange}) "
+                                f"in received SpotBalance object."
+                            )
+                    elif isinstance(balance_obj, dict):
+                        # Attempt to parse if it's a dictionary (legacy or raw format?)
+                        # Add exchange_id if missing for parsing
+                        if "exchange" not in balance_obj:
+                            balance_obj["exchange"] = exchange_id
+                        parsed_obj = self._parse_balance_info(exchange_id, asset, balance_obj)
+                        if parsed_obj:
+                            updated_balances[asset] = parsed_obj
+                    else:
+                        logger.warning(
+                            f"[{exchange_id}] Skipping unexpected balance data type "
+                            f"for asset {asset}: {type(balance_obj)}"
+                        )
 
-            if processed:
-                self._fetch_exchange_balances(exchange_id)
+            elif isinstance(balances_data, list):  # Handle list case if API returns list
+                for item in balances_data:
+                    if isinstance(item, SpotBalance):
+                        if item.exchange == exchange_id:
+                            updated_balances[item.asset] = item
+                        else:
+                            logger.warning(
+                                f"[{exchange_id}] Skipping balance for asset {item.asset} "
+                                f"due to mismatched exchange ID ({item.exchange}) "
+                                f"in received SpotBalance object."
+                            )
+                    elif isinstance(item, dict) and "asset" in item:
+                        asset = item["asset"]
+                        if "exchange" not in item:
+                            item["exchange"] = exchange_id
+                        parsed_obj = self._parse_balance_info(exchange_id, asset, item)
+                        if parsed_obj:
+                            updated_balances[asset] = parsed_obj
+                    else:
+                        logger.warning(
+                            f"[{exchange_id}] Skipping unexpected item in balance list: {item}"
+                        )
+
+            else:
+                logger.error(
+                    f"[FETCH_BALANCES:{exchange_id}] Unexpected data type received "
+                    f"for balances: {type(balances_data)}"
+                )
+                return False  # Cannot process
+
+            if updated_balances:
+                # Atomically update the balances for the exchange
+                self._balances[exchange_id] = updated_balances
                 self._last_update_time[exchange_id] = datetime.now(UTC)
                 logger.info(
-                    f"[FETCH_BALANCES:{exchange_id}] Successfully processed. Returning True."
+                    f"[FETCH_BALANCES:{exchange_id}] Successfully processed and updated "
+                    f"{len(updated_balances)} balances."
                 )
                 return True
-            elif processed and not updated_balances:
+            else:
                 logger.warning(
-                    (
-                        f"[FETCH_BALANCES:{exchange_id}] Processed the response, but resulting "
-                        f"updated_balances dict is empty. Response was: {balances_data}. "
-                        f"Returning False."
-                    ),
+                    f"[FETCH_BALANCES:{exchange_id}] Processed response, but no valid "
+                    f"balances were found or updated. Original data: {balances_data}"
                 )
-                return False
-            else:  # Not processed (e.g., wrong data type)
-                logger.error(
-                    f"[FETCH_BALANCES:{exchange_id}] Failed to process balances data. "
-                    f"Data type was {type(balances_data)}. Returning False."
-                )
-                return False
+                # Still return True if the call succeeded but had no data, False only on error
+                return isinstance(balances_data, dict | list)
 
         except Exception as e:
             logger.exception(
@@ -262,10 +300,10 @@ class PortfolioTracker:
             # Pydantic handles parsing 'total', 'available' from str/int/float via validators
             parsed = SpotBalance(**balance_data)
             # Additional runtime checks (redundant with Pydantic ge=0 but defensive)
-            if parsed.total < Decimal("0") or parsed.available < Decimal("0"):
+            if parsed.total_quantity < Decimal("0") or parsed.available_quantity < Decimal("0"):
                 logger.error(
-                    f"Parsed balance has negative values: Total={parsed.total}, "
-                    f"Available={parsed.available}"
+                    f"Parsed balance has negative values: Total={parsed.total_quantity}, "
+                    f"Available={parsed.available_quantity}"
                 )
                 return None
             return parsed
@@ -321,7 +359,8 @@ class PortfolioTracker:
                     updated_positions[pos_key] = position_info
                 else:
                     logger.warning(
-                        f"Skipping DerivativePosition object without symbol on {exchange_id}: {position_info}"
+                        f"Skipping DerivativePosition object without symbol on "
+                        f"{exchange_id}: {position_info}"
                     )
 
             self._positions[exchange_id] = updated_positions
@@ -420,7 +459,7 @@ class PortfolioTracker:
                     logger.warning(
                         f"Portfolio update task (index {i}) indicated failure (returned False)."
                     )
-        current_capital = self.get_total_capital()
+        current_capital = await self.get_total_capital()
         self._high_watermark = max(self._high_watermark, current_capital)
 
     def update_order(self, exchange_id: str, order: Order) -> None:
@@ -509,7 +548,8 @@ class PortfolioTracker:
                     )
                 else:
                     logger.warning(
-                        f"Cannot calculate PNL for closing {trade.symbol} due to zero/None entry price."
+                        f"Cannot calculate PNL for closing {trade.symbol} "
+                        f"due to zero/None entry price."
                     )
 
                 del self._positions[exchange_id][position_key]
@@ -527,10 +567,11 @@ class PortfolioTracker:
                 current_position.entry_price = new_entry_price
                 current_position.size = new_position_size
                 current_position.side = OrderSide.BUY if new_position_size > 0 else OrderSide.SELL
-                current_position.timestamp = trade.timestamp  # Update timestamp
+                current_position.timestamp = trade.executed_at  # Use executed_at
                 # Mark price, liq price, unrealized PNL update via market data
                 logger.debug(
-                    f"Position {trade.symbol} modified. New size: {new_position_size}, New avg entry: {new_entry_price:.4f}"
+                    f"Position {trade.symbol} modified. New size: {new_position_size}, "
+                    f"New avg entry: {new_entry_price:.4f}"
                 )
 
         else:
@@ -543,7 +584,7 @@ class PortfolioTracker:
                 side=side,
                 size=trade.quantity if side == OrderSide.BUY else -trade.quantity,
                 entry_price=trade.price,  # Assume trade price is valid entry > 0
-                timestamp=trade.timestamp,
+                timestamp=trade.executed_at,  # Use executed_at
                 mark_price=trade.price,  # Initial mark price
                 unrealized_pnl=Decimal("0.0"),
                 realized_pnl=Decimal("0.0"),
@@ -557,7 +598,7 @@ class PortfolioTracker:
 
         self._last_update_time[exchange_id] = datetime.now(UTC)
 
-    def _update_balances_from_trade(self, exchange_id: str, trade: Trade):
+    def _update_balances_from_trade(self, exchange_id: str, trade: Trade) -> None:
         # Placeholder for balance update logic based on trade details
         logger.debug(f"Placeholder: Update balances for trade {trade.id} on {exchange_id}")
         pass
@@ -583,17 +624,12 @@ class PortfolioTracker:
         return self._positions.get(exchange_id, {}).get(position_key)
 
     def get_positions_by_symbol(self, exchange_id: str, symbol: str) -> list[DerivativePosition]:
-        """Get all positions for a specific symbol on an exchange."""  # Simplified docstring
-        matching_positions: list[DerivativePosition] = []
-        # Assuming positions are keyed by symbol now
-        position = self._positions.get(exchange_id, {}).get(symbol)
-        if position:
-            matching_positions.append(position)
-        # If keys might not be symbol, revert to iterating:
-        # for position in self._positions.get(exchange_id, {}).values():
-        #     if position.symbol == symbol:
-        #         matching_positions.append(position)
-        return matching_positions
+        """Retrieve all positions for a specific symbol on a given exchange."""
+        if exchange_id not in self._positions:
+            return []
+        exchange_positions = self._positions.get(exchange_id, {})
+        # Iterate over values() as key is unused
+        return [pos for pos in exchange_positions.values() if pos.symbol == symbol]
 
     def get_all_positions(self) -> list[tuple[str, DerivativePosition]]:
         """Get all positions across all exchanges."""
@@ -615,152 +651,277 @@ class PortfolioTracker:
         """Public read-only accessor for all tracked positions."""  # Simplified docstring
         return self._positions
 
-    def get_total_capital(self, base_currency: str = "USDC") -> Decimal:
-        # ... (Implementation needs careful review for balance/position value calculation) ...
-        # This implementation relies heavily on _get_asset_price_in_base which needs defining
-        # Also needs to consider margin/position values correctly.
-        logger.warning("get_total_capital needs review for DerivativePosition integration.")
-        # Simplified temporary version using only balances:
+    @property
+    def realized_pnl(self) -> Decimal:
+        """Returns the total realized PNL tracked."""
+        return self._realized_pnl
+
+    async def get_total_capital(self, base_currency: str = "USDC") -> Decimal:
+        """Calculate the total portfolio value in the specified base currency."""
+        logger.debug(f"Calculating total capital in {base_currency}...")
         total_value = Decimal("0.0")
-        for exchange_id, balances_dict in self._balances.items():
-            for asset, balance in balances_dict.items():
-                balance_total = getattr(balance, "total", Decimal("0.0"))
-                if not isinstance(balance_total, Decimal) or not balance_total.is_finite():
-                    logger.warning(f"Invalid/non-finite balance total for {asset} on {exchange_id}")
+
+        # 1. Calculate value of all spot balances
+        for exchange_id, balances in self._balances.items():
+            for asset, balance in balances.items():
+                # Defensive check for zero quantity
+                # (is None check removed as total_quantity is not Optional)
+                if balance.total_quantity == Decimal("0"):
                     continue
 
-                value_in_base = balance_total
-                if asset != base_currency:
-                    price = self._get_asset_price_in_base(asset, base_currency)
-                    if price is not None and price.is_finite() and price > 0:
-                        value_in_base = balance_total * price
-                    else:
-                        logger.warning(
-                            f"Skipping {asset} on {exchange_id} in capital calc due to missing/invalid price."
+                price = await self._get_asset_price_in_base(exchange_id, asset, base_currency)
+                if price is not None:
+                    try:
+                        asset_value = balance.total_quantity * price
+                        total_value += asset_value
+                        logger.debug(
+                            f"  [{exchange_id}] Spot Balance: {asset} {balance.total_quantity} "
+                            f"@ {price} {base_currency} = {asset_value} {base_currency}"
                         )
-                        continue
-                total_value += value_in_base
-
-        # Add unrealized PnL from positions
-        unrealized_pnl, _ = self.get_pnl()  # Assuming get_pnl is updated for DerivativePosition
-        if unrealized_pnl.is_finite():
-            total_value += unrealized_pnl
-        else:
-            logger.error("Total unrealized PnL is non-finite. Not adding to total capital.")
-
-        if total_value.is_finite():
-            self._high_watermark = max(self._high_watermark, total_value)
-        else:
-            logger.error(
-                f"Calculated total capital is non-finite ({total_value}). High watermark not updated."
-            )
-            return Decimal("0.0")  # Return 0 if non-finite
-
-        return total_value
-
-    def get_exchange_exposure(self, exchange_id: str) -> Decimal:
-        """Calculate the total exposure (position value) on a specific exchange."""
-        exposure = Decimal("0.0")
-        for position in self._positions.get(exchange_id, {}).values():
-            size = position.size
-            mark_price = position.mark_price
-            if (
-                mark_price is not None
-                and isinstance(mark_price, Decimal)
-                and mark_price.is_finite()
-                and isinstance(size, Decimal)
-                and size.is_finite()
-            ):
-                exposure += abs(size) * mark_price
-            else:
-                logger.warning(
-                    f"Skipping position {position.symbol} in exposure calc due to invalid size/mark price."
-                )
-        return exposure
-
-    def get_total_exposure(self, valuation_asset: str = "USDC") -> Decimal:
-        """Calculate the total portfolio exposure across all exchanges."""
-        # TODO: Needs price conversion if valuation_asset is not quote asset of position
-        logger.warning(
-            "get_total_exposure needs review for DerivativePosition and price conversion."
-        )
-        total_exposure = Decimal("0.0")
-        for exchange_positions in self._positions.values():
-            for position in exchange_positions.values():
-                size = position.size
-                mark_price = position.mark_price
-                if (
-                    mark_price is not None
-                    and isinstance(mark_price, Decimal)
-                    and mark_price.is_finite()
-                    and isinstance(size, Decimal)
-                    and size.is_finite()
-                ):
-                    # Assuming mark_price is in valuation_asset for now
-                    exposure_value = size * mark_price
-                    total_exposure += exposure_value
+                    except (TypeError, InvalidOperation) as e:
+                        logger.error(
+                            f"Error calculating value for spot balance {asset} "
+                            f"on {exchange_id}: {e}"
+                        )
                 else:
                     logger.warning(
-                        f"Skipping position {position.symbol} in total exposure calc due to invalid size/mark price."
+                        f"Could not determine price for spot asset {asset} "
+                        f"on {exchange_id} in {base_currency}. "
+                        f"Skipping in capital calculation."
                     )
 
-        return total_exposure
+        # 2. Calculate the equity value of all derivative positions
+        # This is simplified: Assumes margin is held in base_currency and PnL reflects value.
+        # A more accurate calculation might need margin details per exchange.
+        # We add unrealized PnL here as a proxy for position value change.
+        _realized, unrealized = await self.get_pnl(base_currency)
+        total_value += unrealized
+        logger.debug(f"  Adding total unrealized PNL to capital: {unrealized} {base_currency}")
 
-    def get_pnl(self) -> tuple[Decimal, Decimal]:
-        """Calculate total unrealized and realized PNL."""  # Simplified docstring
+        # Update high watermark
+        if total_value.is_finite() and total_value > self._high_watermark:
+            self._high_watermark = total_value
+            logger.debug(f"New high watermark reached: {self._high_watermark}")
+
+        logger.info(f"Total portfolio capital calculated: {total_value} {base_currency}")
+        return total_value if total_value.is_finite() else Decimal("0.0")
+
+    async def get_exchange_exposure(
+        self, exchange_id: str, valuation_asset: str = "USDC"
+    ) -> Decimal:
+        """Calculate the total market exposure for a given exchange in a valuation asset."""
+        logger.debug(f"Calculating exposure for {exchange_id} in {valuation_asset}...")
+        exchange_exposure = Decimal("0.0")
+        positions = self._positions.get(exchange_id, {})
+
+        for position_key, position in positions.items():
+            # Defensive checks (is None checks removed as size/symbol are not Optional)
+            if position.size == Decimal("0"):
+                continue  # Skip zero size positions
+
+            # Get current market price
+            mark_price = await self._get_asset_price_in_base(
+                exchange_id, position.symbol, valuation_asset
+            )
+
+            if mark_price is not None and mark_price.is_finite():
+                try:
+                    position_value = position.size * mark_price
+                    exchange_exposure += position_value
+                    logger.debug(
+                        f"  [{exchange_id}] Position Exposure: {position.symbol} "
+                        f"size {position.size} @ mark {mark_price} {valuation_asset} = "
+                        f"{position_value} {valuation_asset}"
+                    )
+                except (TypeError, InvalidOperation) as e:
+                    logger.error(
+                        f"Error calculating value for position {position_key} "
+                        f"({position.symbol}) on {exchange_id}: {e}"
+                    )
+            else:
+                logger.warning(
+                    f"Could not determine mark price for position {position_key} "
+                    f"({position.symbol}) on {exchange_id} in {valuation_asset}. "
+                    f"Skipping in exposure calculation."
+                )
+
+        logger.info(f"Total exposure for {exchange_id}: {exchange_exposure} {valuation_asset}")
+        return exchange_exposure if exchange_exposure.is_finite() else Decimal("0.0")
+
+    async def get_total_exposure(self, valuation_asset: str = "USDC") -> Decimal:
+        """Calculate the total market exposure across all exchanges."""
+        logger.debug(f"Calculating total exposure across all exchanges in {valuation_asset}...")
+        total_exposure = Decimal("0.0")
+        for exchange_id in self.api_clients.keys():
+            if self.config.get(f"exchanges.{exchange_id}.enabled", False):
+                total_exposure += await self.get_exchange_exposure(exchange_id, valuation_asset)
+
+        logger.info(f"Total portfolio exposure calculated: {total_exposure} {valuation_asset}")
+        return total_exposure if total_exposure.is_finite() else Decimal("0.0")
+
+    async def get_pnl(self, base_currency: str = "USDC") -> tuple[Decimal, Decimal]:
+        """
+        Calculate the total realized and unrealized PNL across all exchanges.
+
+        Args:
+            base_currency: The currency to report PNL in.
+
+        Returns:
+            A tuple containing (total_realized_pnl, total_unrealized_pnl).
+        """
+        logger.debug(f"Calculating PNL in {base_currency}...")
         total_unrealized_pnl = Decimal("0.0")
-        for exchange_positions in self._positions.values():
-            for position in exchange_positions.values():
-                # Use stored unrealized_pnl if available and valid
-                unrealized_pnl = position.unrealized_pnl
-                if (
-                    unrealized_pnl is not None
-                    and isinstance(unrealized_pnl, Decimal)
-                    and unrealized_pnl.is_finite()
-                ):
-                    total_unrealized_pnl += unrealized_pnl
-                else:
-                    # Fallback: Calculate from mark/entry if possible
-                    mark_price = position.mark_price
-                    entry_price = position.entry_price
-                    size = position.size
-                    if (
-                        isinstance(mark_price, Decimal)
-                        and mark_price.is_finite()
-                        and isinstance(entry_price, Decimal)
-                        and entry_price.is_finite()
-                        and entry_price > 0
-                        and isinstance(size, Decimal)
-                        and size.is_finite()
-                        and size != 0
-                    ):
-                        pnl = (mark_price - entry_price) * size
-                        if position.side == OrderSide.SELL:
-                            pnl = -pnl  # Correct for short positions
-                        total_unrealized_pnl += pnl
+        total_realized_pnl = self._realized_pnl  # Start with globally tracked realized PNL
+
+        for exchange_id, positions in self._positions.items():
+            for position_key, position in positions.items():
+                # Add position's own realized PNL (if provided by exchange and non-None)
+                if position.realized_pnl is not None and position.realized_pnl.is_finite():
+                    # Assume position.realized_pnl is already in a consistent quote currency
+                    # (needs verification)
+                    # We need to convert this to the requested base_currency
+                    # Simplified: assumes position quote currency needs conversion to base
+                    # currency
+                    # TODO: Determine actual quote currency of the position's PNL
+                    pnl_quote_asset = (
+                        position.symbol.split("_")[-1]
+                        if "_" in position.symbol
+                        else position.symbol.split("-")[-1]
+                    )  # Simple guess
+                    conversion_rate = await self._get_asset_price_in_base(
+                        exchange_id, pnl_quote_asset, base_currency
+                    )
+                    if conversion_rate is not None:
+                        total_realized_pnl += position.realized_pnl * conversion_rate
                     else:
-                        logger.debug(
-                            f"Cannot calculate unrealized PNL for {position.symbol} due to missing/invalid data."
+                        logger.warning(
+                            f"Cannot convert realized PNL for {position_key} on {exchange_id} "
+                            f"to {base_currency}, skipping."
                         )
 
-        return total_unrealized_pnl, self._realized_pnl
+                # Calculate unrealized PNL
+                if (
+                    position.size is None
+                    or position.entry_price is None
+                    or position.symbol is None
+                    or position.size == Decimal("0")
+                ):
+                    logger.debug(
+                        f"Skipping unrealized PNL calc for {position_key} on {exchange_id} "
+                        f"due to missing data or zero size."
+                    )
+                    continue
 
-    def get_current_drawdown(self) -> Decimal | None:
+                # 1. Get Mark Price in the requested Base Currency
+                mark_price_in_base = await self._get_asset_price_in_base(
+                    exchange_id, position.symbol, base_currency
+                )
+
+                # 2. Get Entry Price (which is in the Quote currency of the symbol)
+                entry_price_in_quote = position.entry_price
+
+                # 3. Determine the Quote Currency from the symbol
+                quote_currency = None
+                if "-" in position.symbol:
+                    quote_currency = position.symbol.split("-")[-1]
+                elif "_" in position.symbol:
+                    quote_currency = position.symbol.split("_")[-1]
+                else:
+                    logger.warning(
+                        f"Cannot determine quote currency for symbol {position.symbol}, "
+                        f"cannot calculate unrealized PNL accurately."
+                    )
+                    continue  # Skip if we can't determine quote currency
+
+                # 4. Convert Entry Price from Quote Currency to Base Currency
+                entry_price_in_base: Decimal | None
+                if quote_currency == base_currency:
+                    entry_price_in_base = entry_price_in_quote
+                else:
+                    # Need conversion rate from quote to base
+                    quote_to_base_rate = await self._get_asset_price_in_base(
+                        exchange_id, quote_currency, base_currency
+                    )
+                    if quote_to_base_rate is not None:
+                        entry_price_in_base = entry_price_in_quote * quote_to_base_rate
+                    else:
+                        logger.warning(
+                            f"Cannot convert entry price for {position.symbol} "
+                            f"from {quote_currency} to {base_currency}. "
+                            f"Skipping unrealized PNL."
+                        )
+                        entry_price_in_base = None
+
+                # 5. Calculate Unrealized PNL if possible
+                if (
+                    mark_price_in_base is not None
+                    and entry_price_in_base is not None
+                    and mark_price_in_base.is_finite()
+                    and entry_price_in_base.is_finite()
+                ):
+                    try:
+                        # Unrealized PNL = Size * (Mark Price in Base - Entry Price in Base)
+                        unrealized_pnl = position.size * (mark_price_in_base - entry_price_in_base)
+                        total_unrealized_pnl += unrealized_pnl
+                        logger.debug(
+                            f"  [{exchange_id}] Position PNL: {position.symbol} "
+                            f"size {position.size}, entry_base {entry_price_in_base:.4f}, "
+                            f"mark_base {mark_price_in_base:.4f} => Unrealized: "
+                            f"{unrealized_pnl:.4f} {base_currency}"
+                        )
+
+                    except (TypeError, InvalidOperation) as e:
+                        logger.error(
+                            f"Error calculating unrealized PNL for {position_key} "
+                            f"on {exchange_id}: {e}"
+                        )
+                else:
+                    logger.warning(
+                        f"Skipping unrealized PNL calculation for {position_key} "
+                        f"({position.symbol}) on {exchange_id} due to missing/invalid "
+                        f"converted prices (MarkBase={mark_price_in_base}, "
+                        f"EntryBase={entry_price_in_base})."
+                    )
+
+        finite_realized = total_realized_pnl if total_realized_pnl.is_finite() else Decimal("0.0")
+        finite_unrealized = (
+            total_unrealized_pnl if total_unrealized_pnl.is_finite() else Decimal("0.0")
+        )
+
+        logger.info(
+            f"Total PNL calculated: Realized={finite_realized} {base_currency}, "
+            f"Unrealized={finite_unrealized} {base_currency}"
+        )
+        return finite_realized, finite_unrealized
+
+    async def get_current_drawdown(self) -> Decimal | None:
         """
         Calculate the current portfolio drawdown from the high watermark.
 
         Returns:
-            Current drawdown as a positive Decimal percentage (e.g., 0.1 for 10%),
+            The drawdown percentage as a Decimal (e.g., 0.1 for 10%),
             or None if capital is zero or negative.
         """
-        current_capital = self.get_total_capital()
+        current_capital = await self.get_total_capital()
 
         if self._high_watermark <= Decimal("0.0"):
-            return Decimal("0.0")  # Or None? Returning 0 might be safer.
+            logger.warning("High watermark is not positive. Cannot calculate drawdown.")
+            return None
 
-        # Calculation of the drawdown as a ratio (0.1 = 10% drawdown)
-        drawdown_ratio = (self._high_watermark - current_capital) / self._high_watermark
-        return max(Decimal("0.0"), drawdown_ratio)  # Ensure drawdown is not negative
+        if not current_capital.is_finite() or current_capital <= Decimal("0.0"):
+            logger.warning(
+                f"Current capital ({current_capital}) is not positive or finite. "
+                f"Cannot calculate drawdown."
+            )
+            return None
+
+        drawdown = (self._high_watermark - current_capital) / self._high_watermark
+        result = max(Decimal("0.0"), drawdown)
+        logger.debug(
+            f"Calculated Drawdown: HWM={self._high_watermark}, "
+            f"Capital={current_capital}, Drawdown={result}"
+        )
+        return result
 
     # --- Order Access Methods ---
 
@@ -795,9 +956,11 @@ class PortfolioTracker:
         return self._orders.get(exchange_id, {}).get(order_id)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the portfolio state to a dictionary."""
-        # Deep copy might be safer if objects are mutable and used elsewhere
-        state: dict[str, Any] = {
+        """Serialize the portfolio state to a dictionary suitable for JSON.
+
+        Note: Returns dict containing Pydantic models. Serialization handled by encoder.
+        """
+        return {
             "balances": self._balances,
             "positions": self._positions,
             "orders": self._orders,
@@ -805,8 +968,10 @@ class PortfolioTracker:
             "last_reconciliation_time": self._last_reconciliation_time,
             "high_watermark": self._high_watermark,
             "realized_pnl": self._realized_pnl,
+            # Active symbols and watchlist could be added if needed for persistence
+            # "active_symbols": list(self._active_symbols),
+            # "watchlist": list(self._watchlist),
         }
-        return state
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], config: Config) -> PortfolioTracker:
@@ -889,22 +1054,16 @@ class PortfolioTracker:
             return
         self._balances.setdefault(exchange_id, {})[balance.asset] = balance
 
-    def _parse_balances(
-        self, exchange_id: str, balances_data: list[dict[str, Any]] | dict[str, Any]
-    ) -> None:
-        # ... (Implementation added in previous attempt, assuming correct now) ...
-        pass  # Placeholder
-
     def _parse_positions(
         self, exchange_id: str, positions_data: list[DerivativePosition] | dict[str, Any]
     ) -> None:
         logger.warning("_parse_positions needs implementation based on API data format.")
         if isinstance(positions_data, dict):
-            for _pos_key, pos_data in positions_data.items():
+            for _pos_key, _pos_data in positions_data.items():
                 # TODO: Parse pos_data dict into DerivativePosition
                 pass
         elif isinstance(positions_data, list):
-            for pos_data in positions_data:
+            for _pos_data in positions_data:
                 # TODO: Parse pos_data (dict or object?) into DerivativePosition
                 pass
         else:
@@ -913,11 +1072,11 @@ class PortfolioTracker:
     def _parse_orders(self, exchange_id: str, orders_data: list[Order] | dict[str, Any]) -> None:
         logger.warning("_parse_orders needs implementation based on API data format.")
         if isinstance(orders_data, dict):
-            for _order_key, order_data in orders_data.items():
+            for _order_key, _order_data in orders_data.items():
                 # TODO: Parse order_data dict into Order
                 pass
         elif isinstance(orders_data, list):
-            for order_data in orders_data:
+            for _order_data in orders_data:
                 # TODO: Parse order_data (dict or object?) into Order
                 pass
         else:
@@ -952,13 +1111,107 @@ class PortfolioTracker:
         # ... (Implementation as before) ...
         pass  # Placeholder
 
-    # --- Helper for Price Conversion (Placeholder) ---
-    def _get_asset_price_in_base(self, asset: str, base_currency: str) -> Decimal | None:
-        # TODO: Implement actual price fetching/lookup (e.g., from DataHandler or Tickers)
-        logger.warning(
-            f"Price conversion for {asset} to {base_currency} not implemented. Returning None."
-        )
+    # --- Price Helper --- #
+    async def _get_asset_price_in_base(
+        self,
+        exchange_id: str,
+        asset: str,  # The asset whose price we want (e.g., 'BTC', 'ETH')
+        base_currency: str,  # The currency to get the price in (e.g., 'USDC')
+        price_override: Decimal
+        | None = None,  # Allow overriding for specific cases like entry price conversion
+    ) -> Decimal | None:
+        """Helper to get the price of an asset in the base currency."""
+        # TODO: Revisit price override logic - assumes override is already in base_currency
+        if price_override is not None:
+            logger.debug(
+                f"[{exchange_id}] Using provided price override for {asset} "
+                f"in {base_currency}: {price_override}"
+            )
+            return price_override
+
         if asset == base_currency:
             return Decimal("1.0")
-        # Example: if asset == 'BTC' and base_currency == 'USDC', return current BTC/USDC price
+
+        client = self.api_clients.get(exchange_id)
+        if not client:
+            logger.warning(
+                f"[{exchange_id}] No API client to fetch price for {asset}->{base_currency}"
+            )
+            return None
+
+        pair_to_try: str | None = None
+        is_inverse = False
+
+        # Check if the input asset IS the direct pair XXX-BASE
+        if asset.endswith(f"-{base_currency}"):
+            pair_to_try = asset
+            logger.debug(f"[{exchange_id}] Input asset '{asset}' is the direct pair.")
+        # Check if the input asset IS the inverse pair BASE-XXX
+        elif asset.startswith(f"{base_currency}-"):
+            pair_to_try = asset
+            is_inverse = True
+            logger.debug(f"[{exchange_id}] Input asset '{asset}' is the inverse pair.")
+        else:
+            # Assume input asset is just the base, construct pairs
+            # Standard pair format: BASE-QUOTE (e.g., BTC-USDC)
+            direct_pair = f"{asset}-{base_currency}"
+            logger.debug(f"[{exchange_id}] Attempting constructed direct pair: {direct_pair}")
+            try:
+                ticker = await client.get_ticker(direct_pair)
+                price_to_use = ticker.mid_price if ticker else None
+                if price_to_use is not None and price_to_use.is_finite():
+                    logger.debug(
+                        f"[{exchange_id}] Found price via constructed "
+                        f"direct pair {direct_pair}: {price_to_use}"
+                    )
+                    return price_to_use  # Return directly if found
+            except Exception as e:
+                logger.warning(
+                    f"[{exchange_id}] Failed to get ticker for constructed "
+                    f"direct pair {direct_pair}: {e}",
+                    exc_info=False,
+                )
+
+            # Attempt constructed inverse pair (e.g., USDC-BTC)
+            inverse_pair = f"{base_currency}-{asset}"
+            logger.debug(f"[{exchange_id}] Attempting constructed inverse pair: {inverse_pair}")
+            pair_to_try = inverse_pair  # Will try this pair below
+            is_inverse = True
+
+        # If we determined a pair to try (either from input or constructed inverse)
+        if pair_to_try:
+            logger.debug(f"[{exchange_id}] Trying ticker for determined pair: {pair_to_try}")
+            try:
+                ticker = await client.get_ticker(pair_to_try)
+                price_to_use = ticker.mid_price if ticker else None
+                if price_to_use is not None and price_to_use.is_finite():
+                    if is_inverse:
+                        if price_to_use != Decimal("0"):
+                            price = Decimal("1.0") / price_to_use
+                            logger.debug(
+                                f"[{exchange_id}] Found price via inverse pair "
+                                f"{pair_to_try} ({price_to_use}), calculated: {price}"
+                            )
+                            return price
+                        else:
+                            logger.warning(
+                                f"[{exchange_id}] Inverse pair {pair_to_try} has zero mid_price."
+                            )
+                    else:  # Direct pair from input
+                        logger.debug(
+                            f"[{exchange_id}] Found price via direct pair "
+                            f"{pair_to_try}: {price_to_use}"
+                        )
+                        return price_to_use
+            except Exception as e:
+                logger.warning(
+                    f"[{exchange_id}] Failed to get ticker for determined pair {pair_to_try}: {e}",
+                    exc_info=False,
+                )
+
+        # TODO: Implement simple triangulation if needed
+        logger.warning(
+            f"[{exchange_id}] Price conversion failed for {asset} to "
+            f"{base_currency}. Returning None."
+        )
         return None
