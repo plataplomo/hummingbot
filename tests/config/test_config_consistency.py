@@ -114,7 +114,8 @@ class TestConfigConsistency:
         # Explicitly check for None and fail the test if extraction failed
         if config_content_str is None:
             pytest.fail(
-                f"Failed to extract config_content variable from {EXAMPLE_SCRIPT_PATH}. Check the script."
+                f"Failed to extract config_content variable from \
+                f{EXAMPLE_SCRIPT_PATH}. Check the script."
             )
 
         # Cast loaded YAML to dict[str, Any] before passing to _extract_keys

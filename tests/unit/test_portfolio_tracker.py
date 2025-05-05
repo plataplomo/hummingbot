@@ -2,7 +2,6 @@ import asyncio  # Added import for asyncio.sleep
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any  # Import Any for type hinting
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -173,7 +172,7 @@ class TestPortfolioTracker:
         """Test updating portfolio state."""
 
         # Add type hints for the inner function
-        def config_side_effect(key: str, default: Any = None) -> Any:
+        def config_side_effect(key: str, default: object | None = None) -> object | None:
             config_values = {
                 "exchanges.hyperliquid.enabled": True,
                 "exchanges.backpack.enabled": True,

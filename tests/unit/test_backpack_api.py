@@ -1,4 +1,5 @@
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -132,7 +133,9 @@ class ConcreteBackpackAPI(BackpackAPI):
     ) -> dict[str, Any]:
         return {}  # Placeholder
 
-    def _update_rate_limit_from_headers(self, headers: Any, method: str, path: str) -> None:
+    def _update_rate_limit_from_headers(
+        self, headers: Mapping[str, str] | None, method: str, path: str
+    ) -> None:
         pass  # Placeholder
 
     async def get_ticker(self, symbol: str) -> Ticker:

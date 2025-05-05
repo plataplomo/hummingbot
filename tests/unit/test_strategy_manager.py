@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import NoReturn
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -429,7 +429,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
         )
         self.mock_strategy1.process_data.return_value = [valid_signal1, valid_signal2]
 
-        def size_signal_side_effect(signal: object) -> Any:
+        def size_signal_side_effect(signal: object) -> object | None:
             if signal == valid_signal1:
                 raise Exception("Risk sizing failed")
             return signal
@@ -514,7 +514,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
             volume=Decimal("100.0"),
         )
 
-        async def async_raises(*args: object, **kwargs: object) -> Any:
+        async def async_raises(*args: object, **kwargs: object) -> NoReturn:
             raise Exception("Async process_data failed")
 
         self.mock_strategy1.process_data = async_raises

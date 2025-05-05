@@ -9,13 +9,6 @@ from decimal import Decimal
 
 import pytest
 
-# Configure logging for tests
-logging.getLogger().setLevel(logging.INFO)
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
 # Import core components and models
 from cyberdelta.apis.base_api import APIError  # Import APIError for simulation
 from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus
@@ -24,15 +17,23 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
+from cyberdelta.utils.config import Config  # Added import
 from cyberdelta.validation import ArbitrageOpportunity
 from cyberdelta.validation.circuit_breaker import (
     BreakerState,
     CircuitBreakerSystem,
 )  # Import BreakerState
-from tests.integration.conftest import create_mock_ticker  # Assuming this helper exists
 
 # Import mocks and test utilities
+from tests.integration.conftest import create_mock_ticker  # Assuming this helper exists
 from tests.integration.mocks.mock_exchange import MockExchangeAPI
+
+# Configure logging for tests
+logging.getLogger().setLevel(logging.INFO)
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 # Fixtures will be reused from tests/integration/conftest.py
 
@@ -52,14 +53,14 @@ class TestFailureScenarios:
     @pytest.mark.asyncio
     async def test_cb_trips_on_repeated_api_errors(
         self,
-        mock_config,  # Required for setup
+        mock_config: Config,  # Added Config type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
         real_portfolio_tracker: PortfolioTracker,
         circuit_breaker_system: CircuitBreakerSystem,
         execution_handler: ExecutionHandler,
         basic_opportunity: ArbitrageOpportunity,
-    ):
+    ) -> None:  # Added return type hint
         """Tests that repeated API errors trigger the exchange circuit breaker."""
         # 1. Setup
         target_exchange = "mock_bp"  # Exchange we will cause to fail
@@ -166,8 +167,8 @@ class TestFailureScenarios:
         )  # Reset the tripped breaker for this check
 
         # Create an opportunity targeting the *other* exchange
-        other_long_symbol = mock_config.get(f"exchanges.{other_exchange}.symbols.BTC")
-        other_short_symbol = mock_config.get(
+        _other_long_symbol = mock_config.get(f"exchanges.{other_exchange}.symbols.BTC")
+        _other_short_symbol = mock_config.get(
             f"exchanges.{target_exchange}.symbols.BTC"
         )  # Needs a symbol, even if CB might block it
 

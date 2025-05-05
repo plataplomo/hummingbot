@@ -113,7 +113,7 @@ class TestExecutionHandler:
         """Provides a mock Config object using the dictionary."""
         cfg = MagicMock(spec=Config)
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
+        def config_get_side_effect(key: str, default: object | None = None) -> object | None:
             return mock_config_dict.get(key, default)
 
         cfg.get.side_effect = config_get_side_effect
@@ -572,7 +572,7 @@ class TestExecutionHandler:
     ) -> None:
         """Test successful concurrent execution of an opportunity."""
 
-        def config_get_side_effect_conc(key: str, default: object | None = None) -> Any:
+        def config_get_side_effect_conc(key: str, default: object | None = None) -> object | None:
             values = {
                 "execution.order_placement_type": "concurrent",
                 "execution.max_retries": 3,
@@ -741,7 +741,7 @@ class TestExecutionHandler:
     ) -> None:
         """Test execution flow when one leg fails and compensation is triggered."""
 
-        def config_get_side_effect_comp(key: str, default: object | None = None) -> Any:
+        def config_get_side_effect_comp(key: str, default: object | None = None) -> object | None:
             values = {
                 "execution.order_placement_type": "concurrent",
                 "execution.compensation.use_limit_orders": True,

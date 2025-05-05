@@ -218,7 +218,9 @@ async def test_check_opportunity(
 
 
 @pytest.mark.asyncio
-async def test_calculate_basis_volatility(strategy: Any, **kwargs: Any) -> None:
+async def test_calculate_basis_volatility(
+    strategy: FundingRateArbitrageStrategy, **kwargs: object
+) -> None:
     """Test calculation of basis volatility."""
     strategy.historical_basis = {
         "BTC-PERP": [
@@ -237,7 +239,7 @@ async def test_calculate_basis_volatility(strategy: Any, **kwargs: Any) -> None:
 # Helper functions
 
 
-def create_mock_candle(**kwargs: Any) -> Candle:
+def create_mock_candle(**kwargs: object) -> Candle:
     return Candle(
         symbol=kwargs.get("symbol", "BTC-PERP"),
         interval=kwargs.get("interval", "1m"),
@@ -250,7 +252,7 @@ def create_mock_candle(**kwargs: Any) -> Candle:
     )
 
 
-def create_mock_ticker(**kwargs: Any) -> Ticker:
+def create_mock_ticker(**kwargs: object) -> Ticker:
     return Ticker(
         symbol=kwargs.get("symbol", "BTC-PERP"),
         price=kwargs.get("price", Decimal("30000.0")),
@@ -261,7 +263,7 @@ def create_mock_ticker(**kwargs: Any) -> Ticker:
     )
 
 
-def create_mock_funding_rate(**kwargs: Any) -> FundingRate:
+def create_mock_funding_rate(**kwargs: object) -> FundingRate:
     return FundingRate(
         symbol=kwargs.get("symbol", "BTC-PERP"),
         funding_rate=kwargs.get("funding_rate", Decimal("0.1")),

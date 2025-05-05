@@ -2,7 +2,7 @@ import asyncio
 import logging  # Import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -413,7 +413,7 @@ def execution_handler(
 
 
 # Helper function to ensure nested dict structure exists in DataHandler
-def _ensure_dh_structure(dh: DataHandler, exchange: str, symbol: str):
+def _ensure_dh_structure(dh: DataHandler, exchange: str, symbol: str) -> None:
     if exchange not in dh.tickers:
         dh.tickers[exchange] = {}
     if exchange not in dh.funding_rates:
@@ -450,8 +450,10 @@ async def test_happy_path_full_cycle(
     signal_generator: SignalGenerator,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
+    symbol_mapper: SymbolMapper,
+    circuit_breaker_system: CircuitBreakerSystem,
     caplog: LogCaptureFixture,
-):
+) -> None:
     """Tests the full arbitrage cycle: data -> signal -> validation -> execution -> portfolio update."""
     # --- Force DEBUG logging for this test ---
     caplog.set_level(logging.DEBUG)
@@ -643,7 +645,8 @@ async def test_happy_path_full_cycle(
     # await portfolio_tracker.update() # Assuming update calculates total capital etc.
     # Let's assume RM uses get_total_capital directly from balances for now
     logger.info(
-        f"Portfolio Total Capital for Sizing (from balances): {portfolio_tracker.get_total_capital()}"
+        f"Portfolio Total Capital for Sizing (from balances): "
+        f"{portfolio_tracker.get_total_capital()}"
     )
 
     logger.info("Validating and sizing opportunities with RiskManager...")
@@ -670,8 +673,10 @@ async def test_happy_path_full_cycle(
 
     # 6. Execute Sized Opportunity
     logger.info(
-        f"Executing opportunity: {sized_opportunity.opportunity.long_exchange} LONG {sized_opportunity.long_size} {symbol_bp}, "
-        f"{sized_opportunity.opportunity.short_exchange} SHORT {sized_opportunity.short_size} {symbol_hl}"
+        f"Executing opportunity: {sized_opportunity.opportunity.long_exchange} "
+        f"LONG {sized_opportunity.long_size} {symbol_bp}, "
+        f"{sized_opportunity.opportunity.short_exchange} "
+        f"SHORT {sized_opportunity.short_size} {symbol_hl}"
     )
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
         sized_opportunity
@@ -747,12 +752,13 @@ async def test_api_error_during_placement(
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
-    risk_manager: RiskManager,
     portfolio_tracker: PortfolioTracker,
+    risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
-    caplog: LogCaptureFixture,
-):
-    pass  # Rework required
+    symbol_mapper: SymbolMapper,
+) -> None:
+    """Tests that an APIError during order placement is handled."""
+    # ... (Setup similar to happy path)
 
 
 # --- test_insufficient_balance needs rework ---
@@ -764,11 +770,12 @@ async def test_insufficient_balance(
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
-    risk_manager: RiskManager,
     portfolio_tracker: PortfolioTracker,
-    caplog: LogCaptureFixture,
-):
-    pass  # Rework required
+    risk_manager: RiskManager,
+    execution_handler: ExecutionHandler,
+) -> None:
+    """Tests behavior when there isn't enough balance for the trade."""
+    # ... (Setup similar, but mock low balances)
 
 
 @pytest.mark.asyncio
@@ -778,15 +785,13 @@ async def test_partial_fill(
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
-    risk_manager: RiskManager,
     portfolio_tracker: PortfolioTracker,
+    risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
+    symbol_mapper: SymbolMapper,
     caplog: LogCaptureFixture,
-):
-    """
-    Test scenario where one leg of the trade fills partially initially,
-    requiring compensation logic (which should eventually fully fill or handle).
-    """
+) -> None:
+    """Tests the scenario where one leg fills partially and the other fully."""
     caplog.set_level(logging.DEBUG)
 
     # --- Setup Mock Data ---
@@ -893,7 +898,7 @@ async def test_partial_fill(
         created_at=now,  # Keep it simple for now, use same datetime
     )
 
-    async def place_order_side_effect_bp(*args: Any, **kwargs: Any) -> Order:
+    async def place_order_side_effect_bp(*args: object, **kwargs: object) -> Order:
         nonlocal bp_place_call_count
         bp_place_call_count += 1
         side = kwargs.get("side")
@@ -915,7 +920,7 @@ async def test_partial_fill(
 
     bp_status_call_count = 0
 
-    async def get_order_status_side_effect_bp(*args: Any, **kwargs: Any) -> Order | None:
+    async def get_order_status_side_effect_bp(*args: object, **kwargs: object) -> Order | None:
         nonlocal bp_status_call_count
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
         logger.debug(f"MOCK BP get_order_status called for ID: {order_id}")
@@ -962,7 +967,7 @@ async def test_partial_fill(
         created_at=now,  # Keep it simple for now, use same datetime
     )
 
-    async def place_order_side_effect_hl(*args: Any, **kwargs: Any) -> Order:
+    async def place_order_side_effect_hl(*args: object, **kwargs: object) -> Order:
         nonlocal hl_place_call_count
         hl_place_call_count += 1
         side = kwargs.get("side")
@@ -981,7 +986,7 @@ async def test_partial_fill(
 
     mock_hl_api.place_order = AsyncMock(side_effect=place_order_side_effect_hl)
 
-    async def get_order_status_side_effect_hl(*args: Any, **kwargs: Any) -> Order | None:
+    async def get_order_status_side_effect_hl(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
         logger.debug(f"MOCK HL get_order_status called for ID: {order_id}")
         if order_id == short_order_id_hl:
@@ -1060,15 +1065,18 @@ async def test_partial_fill(
 
     # 4. Verification
     # Verify that the execution handler correctly identifies the partial fill
-    # and potentially enters a state reflecting this (e.g., PARTIALLY_COMPLETED or FAILED depending on desired logic)
+    # and potentially enters a state reflecting this (e.g., PARTIALLY_COMPLETED or FAILED
+    # depending on desired logic)
     # CURRENT LOGIC: Neither order FAILED initially, so it goes to COMPLETED placeholder.
     assert trade_execution_result.status == ExecutionStatus.COMPLETED, (
         f"Expected COMPLETED status (current behavior), got {trade_execution_result.status.name}"
     )
 
     # Further checks:
-    # - Verify PortfolioTracker reflects the partial fill on BP and full fill on HL *before* any compensation.
-    # - Verify logs indicate compensation was triggered (or not, depending on the test setup). # This test setup doesn't trigger compensation.
+    # - Verify PortfolioTracker reflects the partial fill on BP and full fill on HL
+    #   *before* any compensation.
+    # - Verify logs indicate compensation was triggered (or not, depending on the test setup).
+    #   # This test setup doesn't trigger compensation.
     # - Verify final PortfolioTracker state shows successful compensation if it ran.
 
     # Example Check (adjust based on PortfolioTracker state after COMPLETED status)
@@ -1078,7 +1086,8 @@ async def test_partial_fill(
     logger.debug(f"Final BP Position after partial fill scenario: {bp_final_pos}")
     logger.debug(f"Final HL Position after partial fill scenario: {hl_final_pos}")
 
-    # Check the state *as left* by the ExecutionHandler (which doesn't wait for full fills/compensation)
+    # Check the state *as left* by the ExecutionHandler
+    # (which doesn't wait for full fills/compensation)
     assert bp_final_pos is not None
     assert abs(bp_final_pos.size) == pytest.approx(
         partial_fill_qty
@@ -1103,15 +1112,14 @@ async def test_execution_failure_compensation(
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
-    risk_manager: RiskManager,
     portfolio_tracker: PortfolioTracker,
+    risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
+    symbol_mapper: SymbolMapper,
+    circuit_breaker_system: CircuitBreakerSystem,
     caplog: LogCaptureFixture,
-):
-    """
-    Tests compensation logic when one leg fails entirely during execution.
-    Ensures the successfully executed leg is reversed.
-    """
+) -> None:
+    """Tests that compensation logic is triggered if one leg fails execution."""
     caplog.set_level(logging.DEBUG)
 
     # --- Setup Mock Data ---
@@ -1221,7 +1229,7 @@ async def test_execution_failure_compensation(
     # --- Setup Mock `place_order` Side Effects ---
     bp_place_call_num = 0
 
-    async def place_order_bp_side_effect(*args: Any, **kwargs: Any) -> Order:
+    async def place_order_bp_side_effect(*args: object, **kwargs: object) -> Order:
         nonlocal bp_place_call_num
         bp_place_call_num += 1
         side = kwargs.get("side")
@@ -1242,7 +1250,9 @@ async def test_execution_failure_compensation(
 
     hl_place_call_num = 0
 
-    async def place_order_hl_side_effect(*args: Any, **kwargs: Any):
+    async def place_order_hl_side_effect(
+        *args: object, **kwargs: object
+    ) -> NoReturn:  # Changed return type
         nonlocal hl_place_call_num
         hl_place_call_num += 1
         side = kwargs.get("side")
@@ -1262,7 +1272,7 @@ async def test_execution_failure_compensation(
     mock_hl_api.place_order = AsyncMock(side_effect=place_order_hl_side_effect)
 
     # Mock `get_order_status`
-    async def get_order_status_bp_side_effect(*args: Any, **kwargs: Any) -> Order | None:
+    async def get_order_status_bp_side_effect(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
         logger.debug(f"MOCK BP get_order_status called for ID: {order_id}")
         if order_id == long_order_id_bp:

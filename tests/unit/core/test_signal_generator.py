@@ -66,7 +66,7 @@ class TestSignalGenerator:
         mock_config = MagicMock(spec=Config)
 
         # Define side effect using nested function with type hints
-        def config_get_side_effect(key: str, default: Any = None) -> Any:
+        def config_get_side_effect(key: str, default: object | None = None) -> object | None:
             if "." in key:
                 parts = key.split(".")
                 base = parts[0]
@@ -478,7 +478,7 @@ class TestSignalGenerator:
         """Test scenario with only one exchange configured."""
 
         # Define side effect with type hints
-        def single_exchange_config_get(key: str, default: Any = None) -> Any:
+        def single_exchange_config_get(key: str, default: object | None = None) -> object | None:
             mock_single_config_dict: dict[str, Any] = {
                 "exchanges": {"hyperliquid": {"enabled": True, "symbols": {"BTC": "BTC-PERP"}}},
                 "strategy.funding_rate.min_funding_differential": "0.0002",

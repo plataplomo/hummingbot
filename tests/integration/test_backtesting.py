@@ -15,10 +15,13 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from cyberdelta.core.backtesting.backtesting import BacktestEngine
-from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
+from cyberdelta.backtesting.engine import BacktestEngine
+from cyberdelta.backtesting.strategy_adapter import StrategyAdapter
+from cyberdelta.core.models import OrderSide, SignalType, Strategy, TradeSignal
 from cyberdelta.core.models.market import Candle
-from cyberdelta.core.strategy import Strategy
+from cyberdelta.strategies.base_strategy import BacktestStrategy
+from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
+from cyberdelta.utils.synthetic_data import generate_synthetic_data
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -44,7 +47,7 @@ class TestBacktestingIntegration:
     funding_data = None
 
     @classmethod
-    def setup_class(cls):
+    def setup_class(cls) -> None:
         """Set up the test class"""
         # Use class attributes for paths
         cls.test_data_dir = TEST_DATA_DIR
@@ -59,7 +62,7 @@ class TestBacktestingIntegration:
         print(f"Saved test data to {cls.data_file_path}")
 
     @classmethod
-    def teardown_class(cls):
+    def teardown_class(cls) -> None:
         """Clean up after tests"""
         if cls.test_data_dir.exists():
             shutil.rmtree(cls.test_data_dir)
@@ -67,12 +70,12 @@ class TestBacktestingIntegration:
             shutil.rmtree(cls.test_results_dir)
         print("Cleaned up test data and results directories.")
 
-    def test_strategy_adapter_integration(self):
+    def test_strategy_adapter_integration(self) -> None:
         """Test that the StrategyAdapter works with actual strategies"""
 
         # Create a mock strategy
         class MockStrategy(Strategy):
-            def __init__(self, name, symbol):
+            def __init__(self, name: str, symbol: str) -> None:
                 super().__init__(name, symbol, {})  # Use provided symbol
                 self.entry_threshold = Decimal("0")  # Initialize attribute
                 self._target_symbol = symbol  # Store target symbol
@@ -128,13 +131,11 @@ class TestBacktestingIntegration:
             f"Expected {expected_signal_count} signal(s) based on first row close price {first_close_price} vs threshold {mock_strategy.entry_threshold}, got {len(result['signals'])}"
         )
 
-    def test_funding_rate_strategy_integration(self):
+    def test_funding_rate_strategy_integration(self) -> None:
         """Test integration with the FundingRateArbitrageStrategy"""
         # Skip if the strategy class doesn't exist yet
         try:
             from unittest.mock import MagicMock  # Import MagicMock
-
-            from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 
             # --- ADD MOCK DEPENDENCIES ---
             self.data_handler = MagicMock()  # Mock DataHandler
@@ -174,18 +175,18 @@ class TestBacktestingIntegration:
         except Exception as e:
             pytest.fail(f"Integration test failed: {e}")
 
-    def test_custom_backtest_strategy(self):
+    def test_custom_backtest_strategy(self) -> None:
         """Test with a custom BacktestStrategy implementation"""
 
         # Define a simple strategy for testing
         class SimpleTestStrategy(BacktestStrategy):
             """Simple test strategy that buys when price is below threshold"""
 
-            def __init__(self, price_threshold=30000):
+            def __init__(self, price_threshold: Decimal = Decimal("30000")) -> None:
                 super().__init__("SimpleTestStrategy")
                 self.price_threshold = price_threshold
 
-            def initialize(self, data):
+            def initialize(self, data: pd.DataFrame) -> bool:
                 # Calculate average price as threshold if not specified
                 if not hasattr(self, "initialized") or not self.initialized:
                     if "BTC" in data.columns:

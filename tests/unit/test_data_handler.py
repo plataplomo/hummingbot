@@ -412,7 +412,7 @@ class TestDataHandler:
         """Test the WebSocket connection maintenance logic."""
 
         # Mock the config.get method to return test-friendly values
-        def config_get(key: str, default: object | None = None) -> Any:
+        def config_get(key: str, default: object | None = None) -> object | None:
             return {
                 "exchanges.hyperliquid.enabled": True,
                 "exchanges.hyperliquid.symbols": ["BTC", "ETH"],

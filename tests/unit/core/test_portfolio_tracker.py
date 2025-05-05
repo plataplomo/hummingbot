@@ -925,7 +925,8 @@ class TestPortfolioTracker:
 
         # Verify mock setup
         assert mock_hl_api.get_filled_order_history.return_value == test_filled_order_history_list
-        # Assertion against internal state requires clarity on how _filled_order_history is populated.
+        # Assertion against internal state requires clarity on how
+        # _filled_order_history is populated.
         # Assuming update_order handles history:
         portfolio_tracker.update_order("hyperliquid", test_filled_order_history_list[0])
         history = portfolio_tracker.get_order_history("hyperliquid")
@@ -967,7 +968,8 @@ class TestPortfolioTracker:
         assert mock_hl_api.get_cancelled_order_history.return_value == (
             test_cancelled_order_history_list
         )
-        # Assertion against internal state requires clarity on how _cancelled_order_history is populated.
+        # Assertion against internal state requires clarity on how
+        # _cancelled_order_history is populated.
         # Assuming update_order handles history:
         portfolio_tracker.update_order("hyperliquid", test_cancelled_order_history_list[0])
         history = portfolio_tracker.get_order_history("hyperliquid")
@@ -1001,9 +1003,11 @@ class TestPortfolioTracker:
 
         # Verify mock setup
         assert mock_hl_api.get_position_history.return_value == test_position_history_list
-        # Assertion against internal state requires clarity on how _position_history is populated.
+        # Assertion against internal state requires clarity on how
+        # _position_history is populated.
         # Assuming update_position handles history or there's a separate mechanism:
-        # portfolio_tracker.update_position("hyperliquid", test_position_history_list[0]) # Example update
+        # portfolio_tracker.update_position(
+        #     "hyperliquid", test_position_history_list[0]) # Example update
         # This test likely needs adjustment based on actual position history tracking logic.
         pass  # Placeholder: Assertion needs clarification based on PortfolioTracker implementation.
 
@@ -1032,7 +1036,8 @@ class TestPortfolioTracker:
         assert mock_hl_api.get_filled_position_history.return_value == (
             test_filled_position_history_list
         )
-        # Assertion against internal state requires clarity on how _filled_position_history is populated.
+        # Assertion against internal state requires clarity on how
+        # _filled_position_history is populated.
         # This test likely needs adjustment based on actual position history tracking logic.
         pass  # Placeholder: Assertion needs clarification based on PortfolioTracker implementation.
 
@@ -1063,7 +1068,8 @@ class TestPortfolioTracker:
         assert mock_hl_api.get_cancelled_position_history.return_value == (
             test_cancelled_position_history_list
         )
-        # Assertion against internal state requires clarity on how _cancelled_position_history is populated.
+        # Assertion against internal state requires clarity on how
+        # _cancelled_position_history is populated.
         # This test likely needs adjustment based on actual position history tracking logic.
         pass  # Placeholder: Assertion needs clarification based on PortfolioTracker implementation.
 
@@ -1086,9 +1092,11 @@ class TestPortfolioTracker:
 
         # Verify mock setup
         assert mock_hl_api.get_balance_history.return_value == test_balance_history_list
-        # Assertion against internal state requires clarity on how _balance_history is populated.
+        # Assertion against internal state requires clarity on how
+        # _balance_history is populated.
         # Assuming _update_balance or similar internal method populates history:
-        # portfolio_tracker._update_balance("hyperliquid", "USDC", test_balance_history_list[0].total_quantity) # Example
+        # portfolio_tracker._update_balance(
+        #     "hyperliquid", "USDC", test_balance_history_list[0].total_quantity) # Example
         # This test likely needs adjustment based on actual balance history tracking logic.
         pass  # Placeholder: Assertion needs clarification based on PortfolioTracker implementation.
 
@@ -1113,7 +1121,8 @@ class TestPortfolioTracker:
         assert mock_hl_api.get_filled_balance_history.return_value == (
             test_filled_balance_history_list
         )
-        # Assertion against internal state requires clarity on how _filled_balance_history is populated.
+        # Assertion against internal state requires clarity on how
+        # _filled_balance_history is populated.
         # This test likely needs adjustment based on actual balance history tracking logic.
         pass  # Placeholder: Assertion needs clarification based on PortfolioTracker implementation.
 
@@ -1138,6 +1147,7 @@ class TestPortfolioTracker:
         assert mock_hl_api.get_cancelled_balance_history.return_value == (
             test_cancelled_balance_history_list
         )
-        # Assertion against internal state requires clarity on how _cancelled_balance_history is populated.
+        # Assertion against internal state requires clarity on how
+        # _cancelled_balance_history is populated.
         # This test likely needs adjustment based on actual balance history tracking logic.
         pass  # Placeholder: Assertion needs clarification based on PortfolioTracker implementation.

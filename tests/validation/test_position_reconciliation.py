@@ -32,7 +32,7 @@ class TestPositionReconciliationSystem:
             "validation.position_reconciliation.use_fill_history": False,
         }
 
-        def config_get_side_effect(key: str, default: object | None = None) -> Any:
+        def config_get_side_effect(key: str, default: object | None = None) -> object | None:
             if key in config_data:
                 return config_data[key]
             parts = key.split(".")
@@ -245,7 +245,7 @@ class TestPositionReconciliationSystem:
             tracker.config = MagicMock()
 
         # Use a named function with explicit type annotations for type safety
-        def config_get(key: str, default: object | None = None) -> Any:
+        def config_get(key: str, default: object | None = None) -> object | None:
             return {"validation.position_reconciliation.use_fill_history": False}.get(key, default)
 
         tracker.config.get.side_effect = config_get  # type: ignore[attr-defined, reportUnknownMemberType]
@@ -372,7 +372,7 @@ class TestPositionReconciliationSystem:
         """Test auto-correction of positions."""
 
         # Create system with auto-correct enabled
-        def config_get(key: str, default: object | None = None) -> Any:
+        def config_get(key: str, default: object | None = None) -> object | None:
             return {
                 "exchanges": {"hyperliquid": {}, "backpack": {}},
                 "exchanges.hyperliquid.enabled": True,
