@@ -88,8 +88,20 @@ class TestPortfolioTracker:
         """Test fetching balances from an exchange."""
         mock_hl_api = mock_api_clients["hyperliquid"]
         test_balances = {
-            "USDC": SpotBalance(asset="USDC", total=Decimal("10000.0"), free=Decimal("10000.0")),
-            "BTC": SpotBalance(asset="BTC", total=Decimal("1.0"), free=Decimal("1.0")),
+            "USDC": SpotBalance(
+                asset="USDC",
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
+                total_quantity=Decimal("10000.0"),
+                available_quantity=Decimal("10000.0"),
+            ),
+            "BTC": SpotBalance(
+                asset="BTC",
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
+                total_quantity=Decimal("1.0"),
+                available_quantity=Decimal("1.0"),
+            ),
         }
         mock_hl_api.get_balances.return_value = test_balances
         await portfolio_tracker._fetch_exchange_balances("hyperliquid")  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
@@ -111,7 +123,8 @@ class TestPortfolioTracker:
                 size=Decimal("0.5"),
                 entry_price=Decimal("40000.0"),
                 side=OrderSide.BUY,
-                id="btc_pos_test",
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
             )
         ]
         mock_hl_api.get_positions.return_value = test_positions_list
@@ -120,9 +133,9 @@ class TestPortfolioTracker:
         mock_hl_api.get_positions.assert_called_once()
         assert "hyperliquid" in portfolio_tracker._positions  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
         assert (
-            "btc_pos_test" in portfolio_tracker._positions["hyperliquid"]  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
+            "BTC" in portfolio_tracker._positions["hyperliquid"]  # noqa: SLF001 # Check for symbol BTC
         )
-        assert portfolio_tracker._positions["hyperliquid"]["btc_pos_test"] == test_positions_list[0]  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
+        assert portfolio_tracker._positions["hyperliquid"]["BTC"] == test_positions_list[0]  # noqa: SLF001 # Check value using symbol BTC
 
     @pytest.mark.asyncio()
     async def test_fetch_exchange_orders(
@@ -140,6 +153,8 @@ class TestPortfolioTracker:
                 quantity_filled=Decimal("0.0"),
                 status=OrderStatus.NEW,
                 client_order_id="test-order-123",
+                exchange="hyperliquid",
+                time_in_force="GTC",
             )
         ]
         test_orders_dict = {order.client_order_id: order for order in test_orders_list}
@@ -218,6 +233,8 @@ class TestPortfolioTracker:
             quantity_filled=Decimal("0.0"),
             status=OrderStatus.NEW,
             client_order_id="test-order-123",
+            exchange="hyperliquid",
+            time_in_force="GTC",
         )
         portfolio_tracker.update_order("hyperliquid", test_order)
         assert "test-order-123" in portfolio_tracker._orders["hyperliquid"]  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
@@ -229,8 +246,11 @@ class TestPortfolioTracker:
             price=Decimal("41000.0"),
             quantity_requested=Decimal("0.1"),
             quantity_filled=Decimal("0.1"),
+            average_fill_price=Decimal("41000.0"),
             status=OrderStatus.FILLED,
             client_order_id="test-order-123",
+            exchange="hyperliquid",
+            time_in_force="GTC",
         )
         portfolio_tracker.update_order("hyperliquid", filled_order)
         assert (
@@ -247,34 +267,56 @@ class TestPortfolioTracker:
             side=OrderSide.BUY,
             size=Decimal("0.5"),
             entry_price=Decimal("40000.0"),
-            leverage=Decimal("5.0"),
-            id="btc_pos_1",
+            exchange="hyperliquid",
+            timestamp=datetime.now(UTC),
         )
         portfolio_tracker.update_position("hyperliquid", test_position)
-        assert "hyperliquid" in portfolio_tracker._positions  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
-        assert "btc_pos_1" in portfolio_tracker._positions["hyperliquid"]  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
-        assert portfolio_tracker._positions["hyperliquid"]["btc_pos_1"] == test_position  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
+        assert "BTC" in portfolio_tracker._positions["hyperliquid"]
+        assert portfolio_tracker._positions["hyperliquid"]["BTC"] == test_position
+
+        updated_position = DerivativePosition(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            size=Decimal("0.7"),
+            entry_price=Decimal("40500.0"),
+            exchange="hyperliquid",
+            timestamp=datetime.now(UTC),
+        )
+        portfolio_tracker.update_position("hyperliquid", updated_position)
+        assert portfolio_tracker._positions["hyperliquid"]["BTC"] == updated_position
 
     def test_update_balance(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test updating a balance."""
         portfolio_tracker.update_balance("hyperliquid", "USDC", Decimal("10000.0"))
         assert "hyperliquid" in portfolio_tracker._balances  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
         assert "USDC" in portfolio_tracker._balances["hyperliquid"]  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
-        assert portfolio_tracker._balances["hyperliquid"]["USDC"].total == Decimal("10000.0")  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
+        assert portfolio_tracker._balances["hyperliquid"]["USDC"].total_quantity == Decimal(
+            "10000.0"
+        )  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
 
     def test_get_exchange_balance(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test getting an exchange balance."""
         test_balance_usdc = SpotBalance(
-            asset="USDC", total=Decimal("10000.0"), free=Decimal("10000.0")
+            asset="USDC",
+            exchange="hyperliquid",
+            timestamp=datetime.now(UTC),
+            total_quantity=Decimal("10000.0"),
+            available_quantity=Decimal("10000.0"),
         )
-        test_balance_btc = SpotBalance(asset="BTC", total=Decimal("1.0"), free=Decimal("1.0"))
+        test_balance_btc = SpotBalance(
+            asset="BTC",
+            exchange="hyperliquid",
+            timestamp=datetime.now(UTC),
+            total_quantity=Decimal("1.0"),
+            available_quantity=Decimal("1.0"),
+        )
         portfolio_tracker._balances = {
             "hyperliquid": {"USDC": test_balance_usdc, "BTC": test_balance_btc}
         }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
         balance_obj = portfolio_tracker.get_exchange_balance("hyperliquid", "USDC")
-        assert balance_obj is not None and balance_obj.total == Decimal("10000.0")
+        assert balance_obj is not None and balance_obj.total_quantity == Decimal("10000.0")
         balance_obj_btc = portfolio_tracker.get_exchange_balance("hyperliquid", "BTC")
-        assert balance_obj_btc is not None and balance_obj_btc.total == Decimal("1.0")
+        assert balance_obj_btc is not None and balance_obj_btc.total_quantity == Decimal("1.0")
         balance_obj_eth = portfolio_tracker.get_exchange_balance("hyperliquid", "ETH")
         assert balance_obj_eth is None
 
@@ -285,12 +327,33 @@ class TestPortfolioTracker:
         """Test calculating total capital."""
         mock_hl_api = mock_api_clients["hyperliquid"]
         mock_bp_api = mock_api_clients["backpack"]
+        now = datetime.now(UTC)
         portfolio_tracker._balances = {
             "hyperliquid": {
-                "USDC": SpotBalance(asset="USDC", total=Decimal("10000.0")),
-                "BTC": SpotBalance(asset="BTC", total=Decimal("1.0")),
+                "USDC": SpotBalance(
+                    asset="USDC",
+                    exchange="hyperliquid",
+                    timestamp=now,
+                    total_quantity=Decimal("10000.0"),
+                    available_quantity=Decimal("10000.0"),
+                ),
+                "BTC": SpotBalance(
+                    asset="BTC",
+                    exchange="hyperliquid",
+                    timestamp=now,
+                    total_quantity=Decimal("1.0"),
+                    available_quantity=Decimal("1.0"),
+                ),
             },
-            "backpack": {"USDC": SpotBalance(asset="USDC", total=Decimal("5000.0"))},
+            "backpack": {
+                "USDC": SpotBalance(
+                    asset="USDC",
+                    exchange="backpack",
+                    timestamp=now,
+                    total_quantity=Decimal("5000.0"),
+                    available_quantity=Decimal("5000.0"),
+                )
+            },
         }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
 
         async def mock_get_ticker_usdc(symbol: str) -> Ticker | None:
@@ -335,24 +398,36 @@ class TestPortfolioTracker:
     ) -> None:
         """Test calculating exposure on a single exchange."""
         mock_hl_api = mock_api_clients["hyperliquid"]
+        # Fix SpotBalance: add missing fields
+        now = datetime.now(UTC)
         portfolio_tracker._balances = {
-            "hyperliquid": {"USDC": SpotBalance(asset="USDC", total=Decimal("10000.0"))}
+            "hyperliquid": {
+                "USDC": SpotBalance(
+                    asset="USDC",
+                    exchange="hyperliquid",
+                    timestamp=now,
+                    total_quantity=Decimal("10000.0"),
+                    available_quantity=Decimal("10000.0"),
+                )
+            }
         }
         portfolio_tracker._positions = {
             "hyperliquid": {
-                "btc_pos_exp": DerivativePosition(
+                "BTC": DerivativePosition(
                     symbol="BTC",
                     side=OrderSide.BUY,
                     size=Decimal("0.5"),
                     entry_price=Decimal("40000"),
-                    id="btc_pos_exp",
+                    exchange="hyperliquid",
+                    timestamp=now,
                 ),
-                "eth_pos_exp": DerivativePosition(
+                "ETH": DerivativePosition(
                     symbol="ETH",
                     side=OrderSide.SELL,
-                    size=Decimal("10"),
+                    size=Decimal("-10"),
                     entry_price=Decimal("2000"),
-                    id="eth_pos_exp",
+                    exchange="hyperliquid",
+                    timestamp=now,
                 ),
             }
         }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
@@ -378,9 +453,27 @@ class TestPortfolioTracker:
         """Test calculating total exposure across all exchanges."""
         mock_hl_api = mock_api_clients["hyperliquid"]
         mock_bp_api = mock_api_clients["backpack"]
+        # Fix SpotBalance instantiations: add missing fields
+        now = datetime.now(UTC)
         portfolio_tracker._balances = {
-            "hyperliquid": {"USDT": SpotBalance(asset="USDT", total=Decimal("10000.0"))},
-            "backpack": {"USDT": SpotBalance(asset="USDT", total=Decimal("5000.0"))},
+            "hyperliquid": {
+                "USDT": SpotBalance(
+                    asset="USDT",
+                    exchange="hyperliquid",
+                    timestamp=now,
+                    total_quantity=Decimal("10000.0"),
+                    available_quantity=Decimal("10000.0"),
+                )
+            },
+            "backpack": {
+                "USDT": SpotBalance(
+                    asset="USDT",
+                    exchange="backpack",
+                    timestamp=now,
+                    total_quantity=Decimal("5000.0"),
+                    available_quantity=Decimal("5000.0"),
+                )
+            },
         }
         portfolio_tracker._positions = {
             "hyperliquid": {
@@ -439,7 +532,7 @@ class TestPortfolioTracker:
         """Test calculating realized and unrealized PNL."""
         mock_hl_api = mock_api_clients["hyperliquid"]
         portfolio_tracker._balances = {
-            "hyperliquid": {"USDC": SpotBalance(asset="USDC", total=Decimal("10000.0"))}
+            "hyperliquid": {"USDC": SpotBalance(asset="USDC", total_quantity=Decimal("10000.0"))}
         }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
         portfolio_tracker._positions = {
             "hyperliquid": {
@@ -551,7 +644,7 @@ class TestPortfolioTracker:
     def test_to_dict(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test serializing the portfolio state to a dictionary."""
         portfolio_tracker._balances = {
-            "hyperliquid": {"USDC": SpotBalance(asset="USDC", total=Decimal("10000.0"))}
+            "hyperliquid": {"USDC": SpotBalance(asset="USDC", total_quantity=Decimal("10000.0"))}
         }
         test_position = DerivativePosition(
             symbol="BTC",
@@ -584,7 +677,7 @@ class TestPortfolioTracker:
         assert "last_update_time" in state_dict
         assert "last_reconciliation_time" in state_dict
 
-        assert isinstance(state_dict["balances"]["hyperliquid"]["USDC"]["total"], str)
+        assert isinstance(state_dict["balances"]["hyperliquid"]["USDC"]["total_quantity"], str)
         assert isinstance(state_dict["positions"]["hyperliquid"]["position1"]["size"], str)
         assert isinstance(state_dict["orders"]["hyperliquid"]["test-order-1"]["price"], str)
         assert isinstance(state_dict["last_update_time"]["hyperliquid"], str)
@@ -594,6 +687,6 @@ class TestPortfolioTracker:
             json_str = json.dumps(state_dict, cls=CyberDeltaJSONEncoder)
             assert isinstance(json_str, str)
             loaded_dict = json.loads(json_str)
-            assert loaded_dict["balances"]["hyperliquid"]["USDC"]["total"] == "10000.0"
+            assert loaded_dict["balances"]["hyperliquid"]["USDC"]["total_quantity"] == "10000.0"
         except TypeError as e:
             pytest.fail(f"Failed to JSON serialize portfolio state: {e}")

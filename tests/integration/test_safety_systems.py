@@ -13,8 +13,8 @@ from cyberdelta.core.execution_handler import (
     TradeExecution,
 )
 from cyberdelta.core.models import (
+    DerivativePosition,
     OrderSide,
-    Position,  # Added Position
     SpotBalance,  # Updated from Balance
     # RiskParameters, # Removed - Not defined in models.py
     # SignalStatus, # Removed - Not defined in models.py
@@ -414,7 +414,7 @@ async def test_position_reconciler_detects_discrepancy(
     exchange_id = "mock_bp"
     symbol = "BTC-PERP"
     position_id = f"{exchange_id}_{symbol}_testpos"
-    mock_position = Position(
+    mock_position = DerivativePosition(
         id=position_id,
         symbol=symbol,
         size=Decimal("0.1"),  # Use Decimal

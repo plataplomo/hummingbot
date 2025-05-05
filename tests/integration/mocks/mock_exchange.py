@@ -9,13 +9,13 @@ from typing import Any
 # Import Fill type
 from cyberdelta.apis.base_api import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
+    DerivativePosition,
     FundingRate,
     Order,
     OrderBook,
     OrderSide,
     OrderStatus,
     OrderType,
-    Position,
     SpotBalance,
     Ticker,
     TimeInForce,
@@ -56,7 +56,7 @@ class MockExchangeAPI(ExchangeAPI):
         self.full_config = config_obj  # Store the full config object if provided
         self._order_id_counter = 1
         self._orders: dict[str, Order] = {}  # Store orders by ID
-        self._positions: dict[str, Position] = {}  # Store positions by symbol
+        self._positions: dict[str, DerivativePosition] = {}  # Store positions by symbol
         self._balances: dict[str, SpotBalance] = {}  # Store balances by asset
         self._mock_tickers: dict[str, Ticker] = {}
         self._mock_funding_rates: dict[str, FundingRate] = {}
@@ -97,7 +97,7 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Initialize balances and positions
         self.balances: dict[str, SpotBalance] = {}
-        self.positions: dict[str, Position] = {}
+        self.positions: dict[str, DerivativePosition] = {}
         self.open_orders: dict[str, Order] = {}
         self.trade_history: list[Trade] = []
         self.api_errors: list[dict[str, Any]] = []
@@ -127,7 +127,10 @@ class MockExchangeAPI(ExchangeAPI):
         trigger_after_n_calls: int | None = 0,
     ) -> None:
         """Configure an APIError to be raised by a specific method."""
-        error = APIError(message=message, code=error_code, exchange_code=self.exchange_name)
+        # DEFENSIVE CHECK: Convert enum to str for APIError
+        error = APIError(
+            message=message, code=str(error_code.value), exchange_code=self.exchange_name
+        )
         self._error_config[method_name] = (error, trigger_after_n_calls)
         self._call_counts[method_name] = 0  # Reset count when configuring
 
@@ -242,9 +245,14 @@ class MockExchangeAPI(ExchangeAPI):
         """Return mock order book data."""
         self._check_error("get_order_book")
         await self._simulate_latency()
-        # Return a basic OrderBook structure, ensuring timestamp is int
+        # Return a basic OrderBook structure, ensuring timestamp is datetime
+        # DEFENSIVE CHECK: Convert int timestamp to datetime
+        now_ts_ms = int(datetime.now(UTC).timestamp() * 1000)
         return OrderBook(
-            symbol=symbol, bids=[], asks=[], timestamp=int(datetime.now(UTC).timestamp() * 1000)
+            symbol=symbol,
+            bids=[],
+            asks=[],
+            timestamp=datetime.fromtimestamp(now_ts_ms / 1000, tz=UTC),
         )
 
     async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
@@ -267,7 +275,7 @@ class MockExchangeAPI(ExchangeAPI):
         return self._balances.copy()
 
     # Corrected override signature
-    async def get_positions(self, symbol: str | None = None) -> list[Position]:
+    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Return mock positions."""
         self._check_error("get_positions")
         await self._simulate_latency()
@@ -296,7 +304,7 @@ class MockExchangeAPI(ExchangeAPI):
 
         if order_type == OrderType.LIMIT and price is None:
             raise APIError(
-                "Price must be specified for LIMIT orders", code=APIErrorCode.INVALID_PARAMS
+                "Price must be specified for LIMIT orders", code=APIErrorCode.INVALID_PARAMS.value
             )
         if order_type == OrderType.MARKET and price is not None:
             logger.warning("Price is ignored for MARKET orders")
@@ -325,7 +333,9 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Basic validation (can be expanded)
         if quantity <= Decimal("0"):
-            raise APIError("Order quantity must be positive", code=APIErrorCode.INVALID_PARAMS)
+            raise APIError(
+                "Order quantity must be positive", code=APIErrorCode.INVALID_PARAMS.value
+            )
 
         # Create the order object - using only fields defined in models.Order
         order = Order(
@@ -444,7 +454,7 @@ class MockExchangeAPI(ExchangeAPI):
 
         order = self._orders.get(order_id)
         if not order:
-            raise APIError(f"Order {order_id} not found", code=APIErrorCode.ORDER_NOT_FOUND)
+            raise APIError(f"Order {order_id} not found", code=APIErrorCode.ORDER_NOT_FOUND.value)
 
         # Check against final statuses explicitly
         final_statuses = (
@@ -457,13 +467,13 @@ class MockExchangeAPI(ExchangeAPI):
         if order.status in final_statuses:
             logger.warning(f"Order {order_id} is already in final state: {order.status}")
             # Return success indication even if already final, mimicking some exchanges
-            return {"status": "success", "order": order.to_dict()}
+            return {"status": "success", "order": order.model_dump()}
 
         order.status = OrderStatus.CANCELED
         # order.last_update_time = datetime.now(UTC) # Order model doesn't have this
         logger.info(f"Mock {self.exchange_name}: Cancelled order {order_id}")
         # Return the cancelled order details, common practice
-        return {"status": "success", "order": order.to_dict()}
+        return {"status": "success", "order": order.model_dump()}
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
         """Get a specific order by ID (symbol param ignored in mock)."""
@@ -590,7 +600,7 @@ class MockExchangeAPI(ExchangeAPI):
         if asset:
             logger.info(f"Mock balance set for {asset} on {self.exchange_name}")
 
-    def set_mock_position(self, position: Position) -> None:
+    def set_mock_position(self, position: DerivativePosition) -> None:
         """Set a predefined position for a symbol."""
         self._check_error("set_mock_position")
         self._positions[position.symbol] = position
@@ -629,7 +639,9 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
         ticker = self._mock_tickers.get(symbol)
         if not ticker:
-            raise APIError(f"Ticker for {symbol} not found", code=APIErrorCode.SYMBOL_NOT_FOUND)
+            raise APIError(
+                f"Ticker for {symbol} not found", code=APIErrorCode.SYMBOL_NOT_FOUND.value
+            )
         return ticker
 
     async def fetch_funding_rate(self, symbol: str) -> FundingRate:
@@ -640,7 +652,7 @@ class MockExchangeAPI(ExchangeAPI):
         if not rate:
             raise APIError(
                 f"Funding rate for {symbol} not found",
-                code=APIErrorCode.FUNDING_RATE_UNAVAILABLE,
+                code=APIErrorCode.FUNDING_RATE_UNAVAILABLE.value,
             )
         return rate
 
@@ -650,7 +662,7 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
         return self._balances.copy()
 
-    async def fetch_positions(self) -> dict[str, Position]:
+    async def fetch_positions(self) -> dict[str, DerivativePosition]:
         """Fetch positions (simulated)."""
         self._check_error("fetch_positions")
         await self._simulate_latency()
@@ -835,7 +847,7 @@ class MockExchangeAPI(ExchangeAPI):
             assert trade.price is not None, "Trade price cannot be None when creating position"
 
             # Restore missing fields based on Position definition
-            new_position = Position(
+            new_position = DerivativePosition(
                 symbol=trade.symbol,
                 side=trade.side,
                 size=trade.quantity,
@@ -945,14 +957,14 @@ class MockExchangeAPI(ExchangeAPI):
 
     def parse_account_update_message(
         self, message: dict[str, Any]
-    ) -> tuple[dict[str, SpotBalance] | None, dict[str, Position] | None]:
+    ) -> tuple[dict[str, SpotBalance] | None, dict[str, DerivativePosition] | None]:
         """
         Parse account update message to extract balances and positions.
         Returns a tuple: (balances_dict, positions_dict). Dictionaries are None if not present.
         """
         # Placeholder implementation - needs logic based on actual message format
         balances: dict[str, SpotBalance] | None = None
-        positions: dict[str, Position] | None = None
+        positions: dict[str, DerivativePosition] | None = None
         # Example logic (needs adjustment based on real format):
         # if message.get("type") == "account_update":
         #     balances_data = message.get("balances")
@@ -1087,7 +1099,7 @@ class MockExchangeAPI(ExchangeAPI):
 
     def parse_position(
         self, data: dict[str, Any]
-    ) -> Position:  # Ensure implementation raises on failure
+    ) -> DerivativePosition:  # Ensure implementation raises on failure
         """Parse position data (placeholder)."""
         try:
             # Assuming data is dict-like
@@ -1132,7 +1144,7 @@ class MockExchangeAPI(ExchangeAPI):
                     logger.error(f"Could not parse close_time '{data['close_time']}'")
                     data["close_time"] = None
 
-            return Position(**data)
+            return DerivativePosition(**data)
         except Exception as err:  # Outer exception block
             logger.error(f"Mock parse_position failed for data: {data}. Error: {err}")
             raise ValueError(f"Mock parse_position failed: {err}") from err
