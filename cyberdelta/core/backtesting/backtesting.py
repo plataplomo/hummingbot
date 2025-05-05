@@ -9,17 +9,18 @@ It handles data splitting, strategy execution, performance metrics calculation,
 and results visualization.
 """
 
+import asyncio
 import logging
 import pathlib
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from cyberdelta.core.models import TradeSignal
+from cyberdelta.core.models import SignalType, TradeSignal
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.strategy import Strategy
 
@@ -54,17 +55,20 @@ class BacktestStrategy(ABC):
         return True  # Add placeholder return for ABC
 
     @abstractmethod
-    def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
+    def update(self, current_data: pd.Series[Any] | pd.DataFrame) -> dict[str, Any]:
         """
-        Update the strategy with new data and return trade signals
+        Process the current data point (row) and return signals.
 
         Args:
-            current_data: Current market data (Series or DataFrame)
+            current_data: A pandas Series or DataFrame row representing the current time step.
+                          For OHLCV data, typically includes columns like 'open', 'high', 'low', 'close', 'volume'.
+                          Index is expected to be a Timestamp.
 
         Returns:
-            Dict with trade signals and other information
+            A dictionary containing a list of signals (dicts) or an empty list if no action.
+            Example: {\"signals\": [{\"type\": \"ENTER_LONG\", \"symbol\": \"BTC\", ...}]}
         """
-        pass
+        raise NotImplementedError
 
     @property
     def name(self) -> str:
@@ -450,65 +454,81 @@ class BacktestEngine:
 
 class StrategyAdapter(BacktestStrategy):
     """
-    Adapter class to use production Strategy instances with the BacktestEngine
+    Adapts a core Strategy (designed for live trading with MarketData)
+    to work within the BacktestEngine (which uses pandas DataFrames/Series).
     """
+
+    # Use the concrete Strategy type for annotation
+    strategy: Strategy
 
     def __init__(self, strategy: Strategy) -> None:
         """
-        Initialize with a production strategy
+        Initialize the adapter.
 
         Args:
-            strategy: Production strategy instance
+            strategy: The core Strategy instance to adapt.
         """
-        super().__init__(strategy.name)
+        # Pass the adapted strategy's name to the base class
+        super().__init__(name=f"Adapter_{strategy.name}")
         self.strategy = strategy
-        self.positions: dict[str, Decimal] = {}  # Symbol -> Size
-        self._logger: logging.Logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.initialized = False  # Track initialization status
+        self._logger = logging.getLogger(f"{__name__}.StrategyAdapter.{strategy.name}")
+        self._logger.info(f"StrategyAdapter initialized for strategy '{self.strategy.name}'.")
 
     def initialize(self, data: pd.DataFrame) -> bool:
         """
-        Initialize the strategy with historical data
-
-        Args:
-            data: Historical data for training
-
-        Returns:
-            bool: True if initialization is successful
+        Initialize the adapted strategy.
+        Potentially converts historical data to Candles if the strategy needs it.
+        Checks for an optional `initialize_with_history` method.
         """
-        self._logger.info(f"Initializing adapter for strategy: {self.strategy.name}")
-        try:
-            # Call the production strategy's initialization if it has one
-            if hasattr(self.strategy, "initialize_with_history"):
-                # Call the method, but don't return its value directly
-                # as Mypy cannot infer its return type. Assume success if no exception.
-                self.strategy.initialize_with_history(data)
-                return True  # Indicate success if the call completed
-            return True  # Strategy doesn't have the method, initialization considered successful
-        except Exception as e:
-            self._logger.exception(
-                f"Error initializing core strategy '{self.strategy.name}' via adapter: {e}"
+        self._logger.info(f"Initializing adapted strategy '{self.strategy.name}'")
+
+        # Check if the strategy has a specific initialization method requiring history
+        if hasattr(self.strategy, "initialize_with_history"):
+            self._logger.debug("Strategy has 'initialize_with_history'. Converting data...")
+            try:
+                # Convert the initial DataFrame portion to Candles
+                historical_candles = self._convert_to_candles(data)
+                if not historical_candles:
+                    self._logger.warning(
+                        "No candles converted from initial data for history initialization."
+                    )
+                    # Call the strategy's specific history init method
+                    init_result = self.strategy.initialize_with_history(historical_candles)
+
+                    if asyncio.iscoroutine(init_result):
+                        self._logger.debug("'initialize_with_history' is async, running...")
+                        return asyncio.run(init_result)
+                    else:
+                        return bool(init_result)
+
+            except Exception as e:
+                self._logger.exception(f"Error during strategy history initialization: {e}")
+                return False
+        else:
+            # Default: Assume simple initialization, maybe call a standard init?
+            # Or just return True if no specific init is needed by the core strategy.
+            # For now, return True, assuming core strategy doesn't need historical data at init.
+            self._logger.debug(
+                "Strategy does not have 'initialize_with_history'. Assuming simple init."
             )
-            return False
-        # self.initialized = True # Unreachable: try block always returns
-        # The following return statement is unreachable because all paths in the
-        # preceding try/except block already return. Removing it.
+            # Optionally, could call a simple self.strategy.initialize() if it existed
+            return True
 
-    def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
+    def update(self, current_data: pd.Series[Any] | pd.DataFrame) -> dict[str, Any]:
         """
-        Update the strategy with new data
-
-        Args:
-            current_data: Current market data (Series or DataFrame)
-
-        Returns:
-            Dict with signals and other information
+        Process new data row(s) using the adapted strategy.
+        Converts pandas data to Candle(s) and calls strategy.process_data.
+        Converts resulting TradeSignal(s) back to the backtester's dict format.
+        Handles both synchronous and asynchronous process_data methods.
         """
         timestamp_info = (
-            getattr(current_data.name, "isoformat", lambda: "DataFrame Index")()
+            current_data.name
             if isinstance(current_data, pd.Series)
-            else "DataFrame"
+            else f"DF from {current_data.index.min()} to {current_data.index.max()}"
+            if not current_data.empty
+            else "Empty DF"
         )
+        data_type_info = "Series" if isinstance(current_data, pd.Series) else "DataFrame"
         self._logger.debug(
             f"Updating adapter for strategy '{self.strategy.name}' at {timestamp_info}"
         )
@@ -524,18 +544,46 @@ class StrategyAdapter(BacktestStrategy):
             # 2. Call the core strategy's process_data method for each MarketData object
             trade_signals: list[TradeSignal] = []
             for md in candle_list:
-                result = self.strategy.process_data(md)
-                # If process_data is a coroutine (async), run it synchronously for now
-                if hasattr(result, "__await__"):
-                    import asyncio
+                signal_or_coro = self.strategy.process_data(md)
 
-                    result = asyncio.get_event_loop().run_until_complete(result)
-                if result is None:
-                    continue
-                if isinstance(result, list):
-                    trade_signals.extend(result)
+                processed_signal: TradeSignal | list[TradeSignal] | None = None
+                if asyncio.iscoroutine(signal_or_coro):
+                    # Run the async process_data method
+                    try:
+                        # Use asyncio.run() for simplicity if no loop is running
+                        # Check if a loop is already running - needed if engine becomes async
+                        loop = asyncio.get_running_loop()
+                        # If loop running, create task and await (adaptation needed if engine is async)
+                        # For now, assume engine is sync, so run might be okay, but prefer creating task if possible
+                        self._logger.warning(
+                            "Running async process_data within sync backtest loop. Consider engine refactor."
+                        )
+                        task = loop.create_task(signal_or_coro)
+                        processed_signal = asyncio.get_event_loop().run_until_complete(task)
+                        # Ideally: processed_signal = await task (if adapter.update itself was async)
+
+                    except RuntimeError:  # No running event loop
+                        processed_signal = asyncio.run(signal_or_coro)
+                    except Exception as async_err:
+                        self._logger.exception(f"Error running async process_data: {async_err}")
+                        continue  # Skip this candle on async error
                 else:
-                    trade_signals.append(result)
+                    # If process_data is synchronous
+                    processed_signal = signal_or_coro
+
+                # Process the result (whether sync or awaited async)
+                if processed_signal is None:
+                    continue
+                if isinstance(processed_signal, list):
+                    # Ensure all items in the list are TradeSignals
+                    valid_signals = [s for s in processed_signal if isinstance(s, TradeSignal)]
+                    trade_signals.extend(valid_signals)
+                elif isinstance(processed_signal, TradeSignal):
+                    trade_signals.append(processed_signal)
+                else:
+                    self._logger.warning(
+                        f"process_data returned unexpected type: {type(processed_signal)}"
+                    )
 
             # 3. Convert core TradeSignal objects back to backtester's signal format (dict)
             backtest_signals: list[dict[str, Any]] = self._convert_signals(
@@ -551,19 +599,20 @@ class StrategyAdapter(BacktestStrategy):
             )
             return {"signals": []}  # Return empty signals on error
 
-    def _convert_to_candles(self, data: pd.Series | pd.DataFrame) -> list[Candle]:
+    def _convert_to_candles(self, data: pd.Series[Any] | pd.DataFrame) -> list[Candle]:
         """
         Convert pandas Series or DataFrame row(s) to a list of Candle objects.
         Handles MultiIndex (symbol, field) DataFrames common in backtesting.
         """
         candle_list: list[Candle] = []
         # Default timestamp if not available in data (should not happen with time series)
-        default_ts = pd.Timestamp.utcnow().to_pydatetime()
+        default_ts = datetime.now(tz=UTC)  # Use timezone aware default
 
         if isinstance(data, pd.Series):
             # Handle single timestamp (Series)
             timestamp = data.name  # Typically the timestamp from the index
-            if not isinstance(timestamp, datetime | pd.Timestamp):
+            # DEFENSIVE CHECK: Runtime check for timestamp type
+            if not isinstance(timestamp, (datetime, pd.Timestamp)):
                 self._logger.warning(
                     f"Input Series name is not a valid timestamp: {timestamp}. Using default."
                 )
@@ -571,18 +620,29 @@ class StrategyAdapter(BacktestStrategy):
             else:
                 if isinstance(timestamp, pd.Timestamp):
                     timestamp = timestamp.to_pydatetime()  # Convert pd.Timestamp
-                # If it's already datetime, no conversion needed
+                # If it's already datetime, ensure it's timezone-aware (assume UTC if naive)
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=UTC)
 
             if isinstance(data.index, pd.MultiIndex):
                 # Assuming MultiIndex levels are (symbol, field)
-                symbols = data.index.get_level_values(0).unique()
+                symbols = data.index.get_level_values(0).unique()  # type: ignore[union-attr]
                 for symbol in symbols:
                     row = data.loc[symbol]  # Get data for this symbol
                     try:
+                        # DEFENSIVE CHECK: Validate required fields exist
+                        required = ["open", "high", "low", "close", "volume"]
+                        if not all(field in row.index for field in required):  # type: ignore[operator]
+                            self._logger.warning(
+                                f"Missing OHLCV fields for {symbol} at {timestamp}. Skipping candle."
+                            )
+                            continue
+
                         candle = Candle(
                             symbol=str(symbol),
                             interval="1m",  # TODO: Use actual interval if available
                             open_time=timestamp,
+                            # Use .get with default 'NaN' for robustness before Decimal conversion
                             open=Decimal(str(row.get("open", "NaN"))),
                             high=Decimal(str(row.get("high", "NaN"))),
                             low=Decimal(str(row.get("low", "NaN"))),
@@ -593,31 +653,38 @@ class StrategyAdapter(BacktestStrategy):
                     except Exception as e:
                         self._logger.error(
                             f"Error converting row to Candle for symbol {symbol} "
-                            f"at {timestamp}: {e} - Row data: {row.to_dict()}"
+                            f"at {timestamp}: {e} - Row data: {row.to_dict()}"  # type: ignore[union-attr]
                         )
 
             else:
                 # Assuming single index represents symbol or just one instrument
                 symbol = data.index.name if data.index.name else "UNKNOWN_SYMBOL"
                 try:
-                    candle = Candle(
-                        symbol=str(symbol),
-                        interval="1m",  # TODO: Use actual interval if available
-                        open_time=timestamp,
-                        open=Decimal(str(data.get("open", "NaN"))),
-                        high=Decimal(str(data.get("high", "NaN"))),
-                        low=Decimal(str(data.get("low", "NaN"))),
-                        close=Decimal(str(data.get("close", "NaN"))),
-                        volume=Decimal(str(data.get("volume", "NaN"))),
-                    )
-                    candle_list.append(candle)
+                    # DEFENSIVE CHECK: Validate required fields exist
+                    required = ["open", "high", "low", "close", "volume"]
+                    if not all(field in data.index for field in required):  # type: ignore[operator]
+                        self._logger.warning(
+                            f"Missing OHLCV fields for {symbol} at {timestamp}. Skipping candle."
+                        )
+                    else:
+                        candle = Candle(
+                            symbol=str(symbol),
+                            interval="1m",  # TODO: Use actual interval if available
+                            open_time=timestamp,
+                            open=Decimal(str(data.get("open", "NaN"))),  # type: ignore[union-attr]
+                            high=Decimal(str(data.get("high", "NaN"))),  # type: ignore[union-attr]
+                            low=Decimal(str(data.get("low", "NaN"))),  # type: ignore[union-attr]
+                            close=Decimal(str(data.get("close", "NaN"))),  # type: ignore[union-attr]
+                            volume=Decimal(str(data.get("volume", "NaN"))),  # type: ignore[union-attr]
+                        )
+                        candle_list.append(candle)
                 except Exception as e:
                     self._logger.error(
                         f"Error converting Series to Candle for symbol {symbol} "
-                        f"at {timestamp}: {e} - Series data: {data.to_dict()}"
+                        f"at {timestamp}: {e} - Series data: {data.to_dict()}"  # type: ignore[union-attr]
                     )
 
-        elif isinstance(data, pd.DataFrame):
+        elif isinstance(data, pd.DataFrame):  # No longer redundant after adding Series[Any] hint
             # Handle DataFrame - less common for single updates
             self._logger.warning(
                 "Received DataFrame in _convert_to_candles, processing row by row."
@@ -629,7 +696,7 @@ class StrategyAdapter(BacktestStrategy):
         return candle_list
 
     def _convert_signals(
-        self, signals: list[TradeSignal], current_data: pd.Series | pd.DataFrame
+        self, signals: list[TradeSignal], current_data: pd.Series[Any] | pd.DataFrame
     ) -> list[dict[str, Any]]:
         """
         Convert TradeSignal objects to the dictionary format expected by BacktestEngine.
@@ -645,8 +712,10 @@ class StrategyAdapter(BacktestStrategy):
         )
         if isinstance(timestamp, pd.Timestamp):
             timestamp = timestamp.to_pydatetime()  # Ensure datetime object
+        elif isinstance(timestamp, datetime) and timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=UTC)
 
-        def get_current_price(symbol: str, data: pd.Series | pd.DataFrame) -> Decimal | None:
+        def get_current_price(symbol: str, data: pd.Series[Any] | pd.DataFrame) -> Decimal | None:
             """Helper to get current price (close) for a symbol."""
             price_val = None
             try:
@@ -684,7 +753,14 @@ class StrategyAdapter(BacktestStrategy):
                         )
 
                 if price_val is not None and not np.isnan(price_val):
-                    return Decimal(str(price_val))
+                    parsed_decimal = Decimal(str(price_val))
+                    if parsed_decimal.is_finite():
+                        return parsed_decimal
+                    else:
+                        self._logger.warning(
+                            f"Parsed price {parsed_decimal} for {symbol} is not finite."
+                        )
+                        return None
                 else:
                     self._logger.warning(f"Could not find valid current price for symbol {symbol}")
                     return None
@@ -693,38 +769,45 @@ class StrategyAdapter(BacktestStrategy):
                 return None
 
         for signal in signals:
+            # Use signal.timestamp if available and valid, otherwise fallback to current row timestamp
+            signal_timestamp = signal.timestamp
+            if not isinstance(signal_timestamp, datetime):
+                signal_timestamp = timestamp  # Fallback to row timestamp
+            elif signal_timestamp.tzinfo is None:
+                signal_timestamp = signal_timestamp.replace(tzinfo=UTC)  # Assume UTC if naive
+
             signal_dict: dict[str, Any] = {
-                "timestamp": signal.timestamp
-                or timestamp,  # Use signal ts if available, else current
+                "timestamp": signal_timestamp,
                 "symbol": signal.symbol,
                 "type": signal.signal_type.name,  # Use Enum name string
                 "side": signal.side.name,  # Use Enum name string
                 "size": signal.quantity,  # Use quantity instead of size
                 "price": signal.price,  # Execution price estimate from strategy
-                "pnl": 0.0,  # Initialize PnL
+                "pnl": Decimal("0.0"),  # Initialize PnL as Decimal
+                "commission": Decimal("0.0"),  # Initialize commission as Decimal
             }
 
             # Get current price for PnL calculation if needed
             current_price: Decimal | None = get_current_price(signal.symbol, current_data)
 
-            if current_price is not None:
-                # Use the fetched current price for PnL calc if exit signal
-                if signal.signal_type in [SignalType.EXIT_LONG, SignalType.EXIT_SHORT]:
-                    # PnL calculation based on signal alone is removed.
-                    # Backtester should simulate fills and track PnL based on position changes.
-                    pass  # PnL calculation removed
-                # This else belongs to the inner if (signal_type check)
+            # Calculate PnL for exit signals
+            is_exit = signal.signal_type in [SignalType.EXIT_LONG, SignalType.EXIT_SHORT]
+            if is_exit and signal.entry_price is not None and current_price is not None:
+                # DEFENSIVE CHECK: Ensure entry price is finite Decimal
+                if isinstance(signal.entry_price, Decimal) and signal.entry_price.is_finite():
+                    entry_price = signal.entry_price
+                    if signal.signal_type == SignalType.EXIT_LONG:  # Closing a long position
+                        signal_dict["pnl"] = (current_price - entry_price) * signal.quantity
+                    elif signal.signal_type == SignalType.EXIT_SHORT:  # Closing a short position
+                        signal_dict["pnl"] = (entry_price - current_price) * signal.quantity
                 else:
-                    signal_dict["price"] = (
-                        signal.price if signal.price is not None else float(current_price)
+                    self._logger.warning(
+                        f"Invalid entry price ({signal.entry_price}) for PnL calculation on exit signal."
                     )
-            # This elif belongs to the outer if (current_price is not None check)
-            elif signal.price is not None:
-                signal_dict["price"] = float(signal.price)
-            # This else belongs to the outer if
-            else:
-                self._logger.warning(f"Could not determine execution price for signal: {signal}")
-                signal_dict["price"] = 0.0  # Fallback price
+            elif is_exit:
+                self._logger.warning(
+                    f"Could not calculate PnL for exit signal: Missing entry price ({signal.entry_price}) or current price ({current_price})"
+                )
 
             signals_out.append(signal_dict)
 

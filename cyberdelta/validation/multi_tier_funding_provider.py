@@ -414,7 +414,8 @@ class MultiTierFundingProvider:
         tertiary: FundingData | None,
     ) -> IntegratedFundingData:
         """
-        Integrate funding data from different sources.
+        Integrate funding data from different sources using predefined weights
+        and reliability factors.
 
         Args:
             exchange: Exchange identifier
@@ -426,87 +427,107 @@ class MultiTierFundingProvider:
         Returns:
             IntegratedFundingData object
         """
-        # Collect available sources
-        available_sources: list[FundingData] = []
-        if primary:
-            available_sources.append(primary)
-        if secondary:
-            available_sources.append(secondary)
-        if tertiary:
-            available_sources.append(tertiary)
+        # Define base weights and reliability multipliers
+        base_weights = {
+            SourceType.PRIMARY: Decimal("0.6"),
+            SourceType.SECONDARY: Decimal("0.3"),
+            SourceType.TERTIARY: Decimal("0.1"),
+            SourceType.FALLBACK: Decimal("0.0"),  # Fallback shouldn't be integrated here
+        }
+        reliability_multipliers = {
+            SourceReliability.HIGH: Decimal("1.0"),
+            SourceReliability.MEDIUM: Decimal("0.8"),
+            SourceReliability.LOW: Decimal("0.5"),
+            # REMOVED UNKNOWN: SourceReliability.UNKNOWN: Decimal("0.1"),
+        }
 
-        if not available_sources:
+        # Collect available sources and calculate their actual weights
+        available_sources_data: dict[SourceType, FundingData] = {}
+        actual_weights: list[Decimal] = []
+        rates: list[Decimal] = []
+        timestamps: list[datetime] = []
+
+        sources_to_process = [
+            (SourceType.PRIMARY, primary),
+            (SourceType.SECONDARY, secondary),
+            (SourceType.TERTIARY, tertiary),
+        ]
+        for source_type, source_data in sources_to_process:
+            if source_data is not None:
+                available_sources_data[source_type] = source_data  # Store by type
+                base_weight = base_weights.get(source_type, Decimal("0"))
+                reliability_mult = reliability_multipliers.get(
+                    source_data.source_reliability,
+                    Decimal("0.1"),  # Default to low reliability if enum unknown
+                )
+                actual_weight = base_weight * reliability_mult
+
+                if actual_weight > Decimal("0"):  # Only include sources with positive weight
+                    actual_weights.append(actual_weight)
+                    rates.append(Decimal(str(source_data.rate)))
+                    # Ensure timestamp is aware
+                    ts = source_data.timestamp
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=UTC)
+                    timestamps.append(ts)
+
+        if not available_sources_data or not actual_weights or sum(actual_weights) <= Decimal("0"):
             raise FundingRateSourceError(
-                f"No funding rate data available for {exchange}:{symbol} from primary/secondary/tertiary sources"
+                f"No valid, weighted funding rate data available for {exchange}:{symbol}"
             )
 
-        # Get rates, timestamps, and raw data
-        rates: list[Decimal] = [Decimal(str(s.rate)) for s in available_sources]
-        timestamps: list[datetime] = [s.timestamp for s in available_sources]
-
-        if not rates:
-            raise FundingRateSourceError(
-                f"No valid funding rate data found for {exchange}:{symbol} from primary/secondary/tertiary sources"
-            )
-
-        # Ensure weights sum to 1 (or normalize)
-        total_weight = Decimal(str(sum(rates, Decimal("0"))))
-        if total_weight > Decimal(0):
-            normalized_weights: list[Decimal] = [r / total_weight for r in rates]
-        else:
-            normalized_weights = [Decimal("1.0") / Decimal(len(rates))] * len(rates)
-
-        # Calculate weighted average
-        weighted_sum = Decimal(
-            str(sum((r * w for r, w in zip(rates, normalized_weights, strict=True)), Decimal("0")))
+        # Calculate weighted average rate
+        total_actual_weight = sum(actual_weights, Decimal("0"))
+        weighted_rate_sum = sum(
+            (rates[i] * actual_weights[i] for i in range(len(rates))),
+            Decimal("0"),
         )
-        integrated_rate: Decimal = weighted_sum
+        integrated_rate: Decimal = weighted_rate_sum / total_actual_weight
 
         # Calculate weighted average timestamp
         epoch = datetime(1970, 1, 1, tzinfo=UTC)
-        timestamps_seconds: list[Decimal] = []
-        for ts in timestamps:
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=UTC)
-            seconds = Decimal(str((ts - epoch).total_seconds()))
-            timestamps_seconds.append(seconds)
-        min_len = min(len(timestamps_seconds), len(normalized_weights))
-        weighted_timestamp_seconds = Decimal(
-            str(
-                sum(
-                    (timestamps_seconds[i] * normalized_weights[i] for i in range(min_len)),
-                    Decimal("0"),
-                )
-            )
-        )
-        integrated_timestamp = epoch + timedelta(seconds=float(weighted_timestamp_seconds))
+        weighted_timestamp_sum_seconds = Decimal("0")
+        for i in range(len(timestamps)):
+            seconds = Decimal(str((timestamps[i] - epoch).total_seconds()))
+            weighted_timestamp_sum_seconds += seconds * actual_weights[i]
+
+        weighted_avg_seconds = weighted_timestamp_sum_seconds / total_actual_weight
+        integrated_timestamp = epoch + timedelta(seconds=float(weighted_avg_seconds))
 
         # Calculate dispersion (standard deviation of rates)
         if len(rates) > 1:
-            mean_rate = Decimal(str(sum(rates, Decimal("0")))) / Decimal(len(rates))
-            variance = Decimal(
-                str(sum(((r - mean_rate) ** 2 for r in rates), Decimal("0")))
-            ) / Decimal(len(rates))
-            rate_dispersion: float = float(variance.sqrt())
+            mean_rate = integrated_rate  # Using weighted mean
+            variance = (
+                sum(
+                    (((rates[i] - mean_rate) ** 2) * actual_weights[i] for i in range(len(rates))),
+                    Decimal("0"),
+                )
+                / total_actual_weight
+            )  # Weighted variance
+            rate_dispersion: float = float(variance.sqrt()) if variance >= 0 else 0.0
         else:
             rate_dispersion = 0.0
 
-        # Compose IntegratedFundingData, converting Decimals to float if required
+        # Correctly instantiate IntegratedFundingData based on its definition
         integrated_data = IntegratedFundingData(
             exchange=exchange,
             symbol=symbol,
-            rate=float(integrated_rate),
+            rate=float(integrated_rate),  # Convert Decimal to float as per model
             timestamp=integrated_timestamp,
-            confidence_score=0.0,  # To be calculated later
             dispersion=rate_dispersion,
-            sources_count=len(available_sources),
-            primary_available=any(s.source_type == SourceType.PRIMARY for s in available_sources),
-            secondary_available=any(
-                s.source_type == SourceType.SECONDARY for s in available_sources
-            ),
-            tertiary_available=any(s.source_type == SourceType.TERTIARY for s in available_sources),
-            source_data={s.source_type: s for s in available_sources},
+            sources_count=len(available_sources_data),
+            primary_available=SourceType.PRIMARY in available_sources_data,
+            secondary_available=SourceType.SECONDARY in available_sources_data,
+            tertiary_available=SourceType.TERTIARY in available_sources_data,
+            confidence_score=0.0,  # Set to 0.0, will be calculated later
+            source_data=available_sources_data,
+            # metadata can be added if needed
         )
+
+        # REMOVED CACHE UPDATE
+        # cache_key = (exchange, symbol)
+        # self.funding_cache[cache_key] = integrated_data
+
         return integrated_data
 
     def _calculate_confidence_factors(

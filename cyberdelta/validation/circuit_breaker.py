@@ -664,23 +664,21 @@ class CircuitBreakerSystem:
 
             # Corrected Drawdown Breaker loading logic
             drawdown_config = breakers_config.get("drawdown")
-            if isinstance(drawdown_config, dict) and bool(drawdown_config.get("enabled", False)): # type: ignore[arg-type]
+            if isinstance(drawdown_config, dict) and bool(drawdown_config.get("enabled", False)):
                 try:
-                    threshold = float(drawdown_config.get("drawdown_threshold", 0.10)) # type: ignore[arg-type]
-                    cooldown = int(drawdown_config.get("cooldown_seconds", 600)) # type: ignore[arg-type]
+                    threshold = float(drawdown_config.get("drawdown_threshold", 0.10))
+                    cooldown = int(drawdown_config.get("cooldown_seconds", 600))
                     breaker_name = f"{exchange_id}_drawdown"
-                    breaker = DrawdownBreaker(\
-                        name=breaker_name,\
-                        drawdown_threshold=threshold,\
-                        cooldown_seconds=cooldown,\
-                    )\
-                    self.register_breaker(breaker)\
-                    self.exchange_breakers.setdefault(exchange_id, {})[\
-                        "drawdown"\
-                    ] = breaker\
-                    logger.info(f"Initialized Drawdown breaker for {exchange_id}.\")\
-                except (ValueError, TypeError) as e:\
-                    logger.error(f"Invalid config for {exchange_id} Drawdown breaker: {e}")\
+                    breaker = DrawdownBreaker(
+                        name=breaker_name,
+                        drawdown_threshold=threshold,
+                        cooldown_seconds=cooldown,
+                    )
+                    self.register_breaker(breaker)
+                    self.exchange_breakers.setdefault(exchange_id, {})["drawdown"] = breaker
+                    logger.info(f"Initialized Drawdown breaker for {exchange_id}.")
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Invalid config for {exchange_id} Drawdown breaker: {e}")
 
             # TODO: Add loading logic for Liquidity breaker
 
