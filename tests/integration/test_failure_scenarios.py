@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import core components and models
-from cyberdelta.apis.base import APIError  # Import APIError for simulation
+from cyberdelta.apis.base_api import APIError  # Import APIError for simulation
 from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus
 from cyberdelta.core.models import (
     SpotBalance,

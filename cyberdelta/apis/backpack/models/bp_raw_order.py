@@ -658,23 +658,3 @@ class BackpackRawOrderUpdate(BaseModel):
                 return v
             raise ValueError(f"event_time: Invalid timestamp string '{v}' (not numeric or ISO8601)")
         raise ValueError(f"event_time: Invalid type {type(v)}, expected int, float, or ISO string")
-
-
-def parse_datetime_utc(v: int | float | str, field_name: str = "field") -> int | float | str:
-    """
-    Accepts int, float, or non-empty string as a timestamp. Raises ValueError otherwise.
-
-    Args:
-        v: The value to parse (int, float, or str).
-        field_name: Name of the field for error messages.
-    Returns:
-        The parsed timestamp value.
-    Raises:
-        ValueError: If input is not a valid timestamp type.
-    """
-    if isinstance(v, int | float):
-        return v
-    # v is str by type hint if not int or float
-    if not v.strip():
-        raise ValueError(f"{field_name}: Timestamp string cannot be empty")
-    return v

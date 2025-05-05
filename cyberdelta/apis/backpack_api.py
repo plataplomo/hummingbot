@@ -25,14 +25,14 @@ import time
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, TypeVar, cast
+from typing import Any, cast
 
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-from cyberdelta.apis.base import ExchangeAPI, MessageHandler
+from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api import (
     APIError,
@@ -55,9 +55,6 @@ from cyberdelta.utils.logging_config import get_logger
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = get_logger(__name__)
-
-# Type variable for generic response handling
-ResponseType = TypeVar("ResponseType")
 
 
 class BackpackAPI(ExchangeAPI):

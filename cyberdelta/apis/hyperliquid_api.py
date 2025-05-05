@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, TypedDict, TypeVar
+from typing import Any
 
 import aiohttp
 from aiohttp import ClientTimeout
@@ -12,7 +12,7 @@ from eth_account.messages import encode_typed_data
 from web3.auto import w3
 
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
-from cyberdelta.apis.base import ExchangeAPI, MessageHandler
+from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
 from cyberdelta.apis.hyperliquid.hl_ws_mapper import HyperliquidWebsocketMapper
 from cyberdelta.apis.models.api import APIError
@@ -31,39 +31,6 @@ from cyberdelta.core.models.market import Candle
 from cyberdelta.utils.parsing import parse_datetime_utc
 
 logger = logging.getLogger(__name__)
-
-# Type definitions for Hyperliquid responses
-T = TypeVar("T")
-
-
-class AssetContext(TypedDict, total=False):
-    name: str
-    markPx: str
-    funding: str
-
-
-class TradeData(TypedDict, total=False):
-    tid: int | str
-    px: str
-    sz: str
-    time: int
-    side: str
-
-
-class OrderStatusData(TypedDict, total=False):
-    filled: dict[str, Any]
-    resting: dict[str, Any]
-    error: str
-
-
-class OrderResponseData(TypedDict, total=False):
-    status: str
-    data: dict[str, Any]
-
-
-class OrderBookResponse(TypedDict, total=False):
-    levels: list[list[list[int | float | str]]]
-    time: int
 
 
 class HyperliquidAPI(ExchangeAPI):

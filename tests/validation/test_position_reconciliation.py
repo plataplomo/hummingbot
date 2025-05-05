@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.base import ExchangeAPI
+from cyberdelta.apis.base_api import ExchangeAPI
 from cyberdelta.core.models import OrderSide, Position
 from cyberdelta.utils.config import Config
 from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem

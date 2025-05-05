@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # Add ExchangeAPI import if needed by mock spec
-from cyberdelta.apis.base import ExchangeAPI
+from cyberdelta.apis.base_api import ExchangeAPI
 from cyberdelta.core.models import (
     Balance,
     Order,

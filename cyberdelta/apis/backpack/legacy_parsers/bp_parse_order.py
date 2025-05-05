@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.base import APIError
+from cyberdelta.apis.base_api import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType
 

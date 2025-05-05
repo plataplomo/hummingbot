@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 # Import Fill type
-from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
+from cyberdelta.apis.base_api import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
     FundingRate,
     Order,

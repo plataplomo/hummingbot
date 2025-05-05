@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cyberdelta.apis.base import APIError, APIErrorCode, ExchangeAPI
+from cyberdelta.apis.base_api import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.execution_handler import (
     CircuitBreakerSystem,
     ExecutionHandler,

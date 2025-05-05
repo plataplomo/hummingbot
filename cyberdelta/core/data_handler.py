@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
-from cyberdelta.apis.base import ExchangeAPI
+from cyberdelta.apis.base_api import ExchangeAPI
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.symbol_mapper import SymbolMapper

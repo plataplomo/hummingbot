@@ -8,7 +8,7 @@ Balance object for CyberDeltaEngine.
 from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.base import APIError
+from cyberdelta.apis.base_api import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import SpotBalance
 
