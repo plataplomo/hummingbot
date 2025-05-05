@@ -43,7 +43,9 @@ from .spot_balance import SpotBalance
 
 # from .positions import PositionInfo, PositionSide # TODO: Resolve ModuleNotFoundError
 # from .quotes import Quote # TODO: Resolve ModuleNotFoundError
-from .strategy import TradeSignal
+from .trade_signal import (
+    TradeSignal,
+)
 
 __all__ = [
     # Core Enums
