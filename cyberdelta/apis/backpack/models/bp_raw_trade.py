@@ -9,6 +9,7 @@ internal business logic.
 Models:
     - BackpackRawTrade: Validates REST trade/fill objects (id, order_id, symbol, price, quantity, time).
     - BackpackRawTradeEvent: Validates WebSocket trade event objects (event_type, event_time, symbol, price, quantity, buyer/seller order IDs, trade_id, engine_timestamp, is_buyer_the_maker).
+    - BackpackRawFill: Validates fill records from the Backpack /wapi/v1/history/fills endpoint.
 
 Validation Pattern:
     - All string fields are strictly validated for type, non-emptiness, max length, and valid UTF-8.
@@ -21,10 +22,11 @@ robustness and security at the data ingestion boundary.
 """
 
 import logging
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from .bp_raw_order import parse_decimal_value
+from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 logger = logging.getLogger("cyberdelta.models.raw")
 
@@ -290,3 +292,49 @@ class BackpackRawTradeEvent(BaseModel):
         raise ValueError(
             f"{field_name}: Invalid type {type(v)}, expected int, float, or ISO string"
         )
+
+
+# --- Raw Fill Model (from History) ---
+
+
+class BackpackRawFill(BaseModel):
+    """
+    Raw Pydantic model for a single fill record from the Backpack /wapi/v1/history/fills endpoint.
+    Corresponds to the OpenAPI schema OrderFill.
+    Performs basic type validation and parsing for numeric/boolean fields.
+    """
+
+    fee: str = Field(..., description="The fee charged on the fill.")
+    fee_symbol: str = Field(
+        ..., alias="feeSymbol", description="The asset that is charged as a fee."
+    )
+    is_maker: bool = Field(
+        ..., alias="isMaker", description="Whether the fill was made by the maker."
+    )
+    order_id: str = Field(..., alias="orderId", description="The order ID of the fill.")
+    price: str = Field(..., description="The price of the fill.")
+    quantity: str = Field(..., description="The quantity of the fill.")
+    side: str = Field(..., description="The side of the fill.")
+    symbol: str = Field(..., description="The market symbol of the fill.")
+    timestamp: str = Field(
+        ..., description="The timestamp of the fill (UTC string, e.g., YYYY-MM-DDTHH:MM:SS.ffffffZ)"
+    )
+    trade_id: int = Field(..., alias="tradeId", description="The trade ID of the fill.")
+    client_id: str | None = Field(None, alias="clientId", description="Client id of the order.")
+    # system_order_type: str | None = Field(None, alias="systemOrderType", description="Type of system order triggering fill") # Field exists but might be complex enum
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="ignore",  # Allow ignoring extra fields like system_order_type for now
+        frozen=True,
+        alias_generator=lambda field_name: field_name,  # Use alias directly
+    )
+
+    # Validators for numeric strings
+    @field_validator("fee", "price", "quantity", mode="before")
+    @classmethod
+    def validate_numeric_string(cls, v: Any) -> str:
+        s = validate_str_field(v, allow_empty=False, max_length=64)
+        # Basic check for parseability, actual Decimal conversion in mapper
+        _ = parse_decimal_value(s, allow_none=False)
+        return s

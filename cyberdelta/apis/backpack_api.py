@@ -34,7 +34,7 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRat
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import APIError
@@ -934,6 +934,124 @@ class BackpackAPI(ExchangeAPI):
             logger.warning(
                 f"[{self.exchange_name}] Cannot subscribe to {topic}, WebSocket not connected."
             )
+
+    async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]:
+        """Fetch historical orders, validated via Raw models and transformed via Mapper."""
+        request_path = "/wapi/v1/history/orders"
+        params: dict[str, Any] = {"limit": limit}
+        if symbol:
+            params["symbol"] = symbol
+
+        response_raw: object = None  # Initialize for error handling
+        try:
+            response_raw = await self._request("GET", request_path, params=params, signed=True)
+
+            # DEFENSIVE CHECK: Ensure response is a list
+            if not isinstance(response_raw, list):
+                logger.warning(
+                    f"[{self.exchange_name}] Unexpected order history response type: "
+                    f"{type(response_raw)}. Expected list. Returning empty list."
+                )
+                return []
+
+            orders: list[Order] = []
+            for order_data_raw in response_raw:
+                # Ensure item is dict before validation
+                if not isinstance(order_data_raw, dict):
+                    logger.warning(
+                        f"Skipping non-dict item in order history list: {order_data_raw}"
+                    )
+                    continue
+                try:
+                    raw_order = BackpackRawOrder.model_validate(order_data_raw)
+                    internal_order = BackpackOrderMapper.transform_raw_order_to_internal(raw_order)
+                    orders.append(internal_order)
+                except (ValidationError, ValueError) as e:
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping order in history due to validation/"
+                        f"transformation error: {e}. Data: {order_data_raw}"
+                    )
+                    continue
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected error processing historical order: {e}. "
+                        f"Data: {order_data_raw}",
+                        exc_info=True,
+                    )
+                    continue
+            return orders
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting order history: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error getting order history: {e}",
+                exc_info=True,
+            )
+            raise BackpackErrorMapper.map_error_response(
+                status_code=getattr(e, "status", None),
+                error_body=str(e),
+                request_path=request_path,
+                exchange_message=f"Error getting order history for {symbol or 'all'}: {e}",
+            ) from e
+
+    async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
+        """Fetch historical trades (fills), validated via Raw models and transformed via Mapper."""
+        request_path = "/wapi/v1/history/fills"
+        params: dict[str, Any] = {"limit": limit}
+        if symbol:
+            params["symbol"] = symbol
+
+        response_raw: object = None  # Initialize for error handling
+        try:
+            response_raw = await self._request("GET", request_path, params=params, signed=True)
+
+            # DEFENSIVE CHECK: Ensure response is a list
+            if not isinstance(response_raw, list):
+                logger.warning(
+                    f"[{self.exchange_name}] Unexpected trade history (fills) response type: "
+                    f"{type(response_raw)}. Expected list. Returning empty list."
+                )
+                return []
+
+            trades: list[Trade] = []
+            for fill_data_raw in response_raw:
+                # Ensure item is dict before validation
+                if not isinstance(fill_data_raw, dict):
+                    logger.warning(f"Skipping non-dict item in trade history list: {fill_data_raw}")
+                    continue
+                try:
+                    raw_fill = BackpackRawFill.model_validate(fill_data_raw)
+                    internal_trade = BackpackOrderMapper.transform_raw_fill_to_internal(raw_fill)
+                    trades.append(internal_trade)
+                except (ValidationError, ValueError) as e:
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping trade in history due to validation/"
+                        f"transformation error: {e}. Data: {fill_data_raw}"
+                    )
+                    continue
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected error processing historical trade: {e}. "
+                        f"Data: {fill_data_raw}",
+                        exc_info=True,
+                    )
+                    continue
+            return trades
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting trade history: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error getting trade history: {e}",
+                exc_info=True,
+            )
+            raise BackpackErrorMapper.map_error_response(
+                status_code=getattr(e, "status", None),
+                error_body=str(e),
+                request_path=request_path,
+                exchange_message=f"Error getting trade history for {symbol or 'all'}: {e}",
+            ) from e
 
     # TODO: Implement remaining abstract methods from ExchangeAPI
     #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)

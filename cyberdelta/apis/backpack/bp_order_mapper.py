@@ -7,7 +7,7 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRat
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -403,4 +403,57 @@ class BackpackOrderMapper:
             bids=bids,
             asks=asks,
             timestamp=timestamp_dt,
+        )
+
+    @staticmethod
+    def transform_raw_fill_to_internal(raw: BackpackRawFill) -> Trade:
+        """Transforms a raw Backpack fill object from history into an internal Trade.
+
+        Args:
+            raw: The validated BackpackRawFill object.
+
+        Returns:
+            The corresponding Trade object.
+
+        Raises:
+            ValueError: If essential fields (price, qty, fee, time) are missing or invalid.
+        """
+        price_dec_raw = parse_decimal_value(raw.price, allow_none=False, field_name="price")
+        quantity_dec_raw = parse_decimal_value(
+            raw.quantity, allow_none=False, field_name="quantity"
+        )
+        fee_dec_raw = parse_decimal_value(raw.fee, allow_none=False, field_name="fee")
+        timestamp_dt = parse_datetime_utc(raw.timestamp)  # Use raw string directly
+
+        # Add explicit None checks after parsing, even with allow_none=False
+        if price_dec_raw is None:
+            raise ValueError("price missing/invalid in BackpackRawFill despite allow_none=False")
+        if quantity_dec_raw is None:
+            raise ValueError("quantity missing/invalid in BackpackRawFill despite allow_none=False")
+        if fee_dec_raw is None:
+            raise ValueError("fee missing/invalid in BackpackRawFill despite allow_none=False")
+        if timestamp_dt is None:
+            raise ValueError("timestamp missing/invalid in BackpackRawFill")
+
+        price_dec = price_dec_raw
+        quantity_dec = quantity_dec_raw
+        fee_dec = fee_dec_raw
+
+        # Map side
+        side = BackpackOrderMapper.map_side_to_internal(raw.side)
+
+        # Create the internal Trade object
+        return Trade(
+            id=str(raw.trade_id),
+            exchange=ExchangeName.BACKPACK,
+            symbol=raw.symbol,
+            order_id=raw.order_id,
+            client_order_id=raw.client_id,
+            side=side,
+            price=price_dec,
+            quantity=quantity_dec,
+            fee=fee_dec,
+            fee_asset=raw.fee_symbol,
+            is_maker=raw.is_maker,
+            executed_at=timestamp_dt,
         )

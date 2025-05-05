@@ -16,6 +16,11 @@ from web3.auto import w3
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper, HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.hl_ws_mapper import HyperliquidWebsocketMapper
+from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
+    HyperliquidRawExchangeResponse,
+    HyperliquidRawExchangeStatusObject,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawTriggerInfo,
 )
@@ -26,8 +31,12 @@ from cyberdelta.core.models import (
     FundingRate,
     Order,
     OrderBook,
+    OrderSide,
+    OrderStatus,
+    OrderType,
     SpotBalance,
     Ticker,
+    TimeInForce,
     Trade,
 )
 from cyberdelta.core.models.enums import OrderStatus
@@ -819,10 +828,72 @@ class HyperliquidAPI(ExchangeAPI):
         raise NotImplementedError("get_order_history not implemented for HyperliquidAPI")
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
-        """
-        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
-        """
-        raise NotImplementedError("get_trade_history not implemented for HyperliquidAPI")
+        """Fetch user trade history (fills) using the 'userFills' info endpoint."""
+        if not self._wallet_address:
+            raise APIError(
+                "Wallet address required for fetching trade history",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        response_raw: object = None  # Initialize
+        try:
+            payload = {"type": "userFills", "user": self._wallet_address}
+            response_raw = await self._request("POST", self.INFO_URL + "/info", data=payload)
+
+            # DEFENSIVE CHECK: Ensure response is list
+            if not isinstance(response_raw, list):
+                logger.warning(
+                    f"[{self.exchange_name}] Unexpected userFills response type: "
+                    f"{type(response_raw)}. Expected list. Returning empty list."
+                )
+                return []
+
+            trades: list[Trade] = []
+            # Parse and transform each fill
+            for fill_data_raw in response_raw:
+                if not isinstance(fill_data_raw, dict):
+                    logger.warning(f"Skipping non-dict item in userFills list: {fill_data_raw}")
+                    continue
+                try:
+                    # Validate with Raw model
+                    raw_fill = HyperliquidRawFill.model_validate(fill_data_raw)
+                    # Filter by symbol if requested AFTER validation
+                    if symbol is not None and raw_fill.coin != symbol:
+                        continue
+                    # Transform using mapper
+                    internal_trade = HyperliquidMapper.transform_raw_fill_to_internal(raw_fill)
+                    trades.append(internal_trade)
+
+                except (ValidationError, ValueError) as e:
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping fill due to validation/transformation "
+                        f"error: {e}. Data: {fill_data_raw}"
+                    )
+                    continue
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected error processing user fill: {e}. "
+                        f"Data: {fill_data_raw}",
+                        exc_info=True,
+                    )
+                    continue
+
+            # Apply limit after fetching and filtering
+            # Sorting by time (descending) before limiting might be desirable
+            trades.sort(key=lambda t: t.executed_at, reverse=True)
+            return trades[:limit]
+
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting trade history: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error getting trade history: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error getting trade history: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         """
@@ -948,3 +1019,151 @@ class HyperliquidAPI(ExchangeAPI):
         except (ValidationError, ValueError, TypeError, InvalidOperation) as e:
             logger.error(f"Error parsing spot balance item: {e}. Data: {balance_data}")
             return None
+
+    async def place_order(
+        self,
+        symbol: str,
+        side: OrderSide,
+        order_type: OrderType,
+        quantity: Decimal,
+        time_in_force: TimeInForce,
+        price: Decimal | None = None,
+        client_order_id: str | None = None,
+        reduce_only: bool = False,
+        post_only: bool = False,
+    ) -> Order:
+        """Place an order on Hyperliquid."""
+        # TODO: Map internal enums/types to Hyperliquid action payload format
+        # This requires knowing the asset index, isBuy, limitPx format, sz format, etc.
+        # Placeholder for the action payload structure
+        action_payload: dict[str, Any] = {
+            # Map parameters to Hyperliquid specific fields (e.g., asset index, isBuy)
+            # ... implementation needed ...
+            "cloid": client_order_id,  # Assuming cloid mapping
+        }
+        request_data = {"type": "order", "action": action_payload}
+
+        response_raw: object = None  # Initialize
+        try:
+            response_raw = await self._request(
+                "POST", self.rest_endpoint + "/exchange", data=request_data, signed=True
+            )
+            validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
+
+            if validated_response.status != "ok" or not validated_response.data:
+                raise APIError(
+                    f"Order placement failed on exchange: {validated_response.model_dump()}",
+                    code=APIErrorCode.ORDER_REJECTED.value,
+                )
+
+            # Process statuses to find the resulting order/fill info
+            if validated_response.data.statuses:
+                first_status = validated_response.data.statuses[0]
+                if isinstance(first_status, HyperliquidRawExchangeStatusObject):
+                    if first_status.resting:
+                        # TODO: Map HyperliquidRawExchangeStatusResting back to internal Order
+                        # Requires reverse mapping or fetching order status separately
+                        logger.info(f"Order resting: {first_status.resting.oid}")
+                        # Placeholder - ideally return mapped Order
+                        return await self.get_order_status(str(first_status.resting.oid))
+                    elif first_status.filled:
+                        # TODO: Map HyperliquidRawExchangeStatusFilled back to internal Order/Trade
+                        logger.info(f"Order filled immediately: {first_status.filled.oid}")
+                        # Placeholder - ideally return mapped Order or Trade info
+                        return await self.get_order_status(str(first_status.filled.oid))
+                    elif first_status.error:
+                        raise APIError(
+                            f"Order placement error: {first_status.error}",
+                            code=APIErrorCode.ORDER_REJECTED.value,
+                        )
+
+            # Fallback if status isn't helpful or structure unexpected
+            logger.warning(f"Order placement status unclear: {validated_response.data.statuses}")
+            # Maybe fetch order status using cloid if available?
+            raise APIError("Order placement status unclear", code=APIErrorCode.UNKNOWN.value)
+
+        except ValidationError as e:
+            logger.error(
+                f"[{self.exchange_name}] Failed to validate order placement response: {e}. "
+                f"Raw: {response_raw}"
+            )
+            raise APIError(
+                f"Invalid response after placing order: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error placing order: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error placing order: {e}", exc_info=True
+            )
+            raise APIError(
+                f"Unexpected error placing order: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
+
+    async def cancel_order(
+        self, order_id: str, symbol: str | None = None
+    ) -> dict[str, Any]:  # Keep return type for now
+        """Cancel an existing order."""
+        if not symbol:
+            raise ValueError("Symbol is required to cancel Hyperliquid orders")
+        # TODO: Map symbol to asset index
+        asset_index = 0  # Placeholder
+        action_payload = {"asset": asset_index, "oid": int(order_id)}
+        request_data = {"type": "cancel", "action": action_payload}
+
+        response_raw: object = None  # Initialize
+        try:
+            response_raw = await self._request(
+                "POST", self.rest_endpoint + "/exchange", data=request_data, signed=True
+            )
+            validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
+
+            if validated_response.status != "ok" or not validated_response.data:
+                raise APIError(
+                    f"Order cancellation failed on exchange: {validated_response.model_dump()}",
+                    code=APIErrorCode.ORDER_REJECTED.value,
+                )
+
+            # Check statuses for confirmation
+            if (
+                validated_response.data.statuses
+                and validated_response.data.statuses[0] == "canceled"
+            ):
+                logger.info(f"Successfully cancelled order {order_id} for asset {asset_index}")
+                return {"success": True, "order_id": order_id, "status": "canceled"}
+            else:
+                logger.warning(
+                    f"Order cancellation status unclear: {validated_response.data.statuses}"
+                )
+                # Might have failed, or status object has details
+                first_status = validated_response.data.statuses[0]
+                if (
+                    isinstance(first_status, HyperliquidRawExchangeStatusObject)
+                    and first_status.error
+                ):
+                    raise APIError(
+                        f"Cancel failed: {first_status.error}",
+                        code=APIErrorCode.ORDER_REJECTED.value,
+                    )
+                # Fallback success even if status isn't clear string "canceled"
+                return {"success": True, "order_id": order_id, "status": "unknown"}
+
+        except ValidationError as e:
+            logger.error(
+                f"[{self.exchange_name}] Failed to validate order cancellation response: {e}. "
+                f"Raw: {response_raw}"
+            )
+            raise APIError(
+                f"Invalid response after cancelling order: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error canceling order: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error canceling order: {e}", exc_info=True
+            )
+            raise APIError(
+                f"Unexpected error canceling order: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e

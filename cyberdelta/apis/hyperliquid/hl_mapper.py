@@ -59,6 +59,8 @@ from cyberdelta.core.models.enums import (
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
+from .models.hl_raw_fill import HyperliquidRawFill
+
 logger = logging.getLogger(__name__)
 
 
@@ -735,6 +737,45 @@ class HyperliquidMapper:
         # Return type is tuple[positions, open_orders, margin_summaries, spot_balances]
         # where spot_balances is dict[str, SpotBalance]
         return positions, open_orders, margin_summaries, spot_balances
+
+    @staticmethod
+    def transform_raw_fill_to_internal(raw: HyperliquidRawFill) -> Trade:
+        """Transforms a raw Hyperliquid fill object from userFills into an internal Trade."""
+        # Defensive parsing
+        price_dec = parse_decimal_value(raw.px, allow_none=False, field_name="px")
+        quantity_dec = parse_decimal_value(raw.sz, allow_none=False, field_name="sz")
+        fee_dec = parse_decimal_value(raw.fee, allow_none=False, field_name="fee")
+        timestamp_dt = parse_datetime_utc(raw.time)  # time is ms timestamp
+
+        if price_dec is None:
+            raise ValueError("px missing/invalid in HyperliquidRawFill")
+        if quantity_dec is None:
+            raise ValueError("sz missing/invalid in HyperliquidRawFill")
+        if fee_dec is None:
+            raise ValueError("fee missing/invalid in HyperliquidRawFill")
+        if timestamp_dt is None:
+            raise ValueError("time missing/invalid in HyperliquidRawFill")
+
+        side = OrderSide.BUY if raw.side == "B" else OrderSide.SELL
+
+        # Hyperliquid doesn't provide fee asset directly, assume USDC
+        fee_asset = "USDC"
+
+        return Trade(
+            id=str(raw.tid),  # Map tid to id
+            exchange=ExchangeName.HYPERLIQUID,
+            symbol=raw.coin,
+            order_id=str(raw.oid),
+            client_order_id=raw.cloid,
+            side=side,
+            price=price_dec,
+            quantity=quantity_dec,
+            fee=fee_dec,
+            fee_asset=fee_asset,
+            is_maker=raw.is_maker,
+            executed_at=timestamp_dt,
+            liquidation_mark_price=parse_decimal_value(raw.liquidation_mark_px),
+        )
 
 
 # --- Additional Hyperliquid Mappers ---

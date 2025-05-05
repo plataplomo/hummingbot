@@ -68,45 +68,128 @@ class ExchangeAPI(ABC):
         self.exchange_name = exchange_name
         self.config = config
         self._secrets = secrets
-
-        # Extract key configurations
-        # Check for both rest_endpoint (standard) and base_url (alternative naming)
-        self.rest_endpoint = config.get("rest_endpoint", config.get("base_url"))
-        # Check for both ws_endpoint (standard) and ws_url (alternative naming)
-        self.ws_endpoint = config.get("ws_endpoint", config.get("ws_url"))
-
-        # Initialize HTTP session
+        self._loop = loop or asyncio.get_event_loop()
         self._session: aiohttp.ClientSession | None = None
-
-        # Initialize WebSocket
         self._ws_connection: aiohttp.ClientWebSocketResponse | None = None
         self._ws_handlers: dict[str, MessageHandler] = {}
-        self._ws_listener_task: asyncio.Task[None] | None = None
-        self._is_connected = False  # WebSocket connection state
+        self._is_connected = False
+        self._reconnect_task: asyncio.Task[None] | None = None
+        self._listener_task: asyncio.Task[None] | None = None
+        self._ping_task: asyncio.Task[None] | None = None
 
-        # Initialize Rate Limiters
-        rate_limit_config = config.get("rate_limits") or {}
-        default_rate = rate_limit_config.get("default_rate", 10.0)  # Default: 10 requests/sec
-        default_bucket = rate_limit_config.get("default_bucket_size", 10)  # Default: burst of 10
+        # Initialize Rate Limiters safely
+        rate_limit_config_raw = config.get("rate_limits")
+        rate_limit_config: dict[str, Any] = {}  # Default to empty dict
+        if isinstance(rate_limit_config_raw, dict):
+            rate_limit_config = rate_limit_config_raw
+        elif rate_limit_config_raw is not None:
+            logger.warning(
+                f"[{exchange_name}] Invalid 'rate_limits' config type: {type(rate_limit_config_raw)}. Using defaults."
+            )
+
+        # Safely get default rate and bucket size
+        default_rate_raw = rate_limit_config.get("default_rate", 10.0)
+        default_rate: float = 10.0
+        try:
+            default_rate = float(default_rate_raw)
+        except (ValueError, TypeError):
+            logger.warning(
+                f"[{exchange_name}] Invalid 'default_rate' value: {default_rate_raw}. Using default {default_rate}."
+            )
+
+        default_bucket_raw = rate_limit_config.get("default_bucket_size", 10)
+        default_bucket: int = 10
+        try:
+            default_bucket = int(default_bucket_raw)
+            if default_bucket <= 0:
+                raise ValueError("Bucket size must be positive")
+        except (ValueError, TypeError):
+            logger.warning(
+                f"[{exchange_name}] Invalid 'default_bucket_size' value: {default_bucket_raw}. Using default {default_bucket}."
+            )
+
         self._default_limiter_config = RateLimiterConfig(
             rate=default_rate, bucket_size=default_bucket, tokens=None, last_refill=None
         )
         self._default_limiter = TokenBucketRateLimiterRuntime(default_rate, default_bucket)
         self._endpoint_limiter_configs: dict[str, RateLimiterConfig] = {}
         self._endpoint_limiters: dict[str, TokenBucketRateLimiterRuntime] = {}
-        endpoints = rate_limit_config.get("endpoints", {})
-        for endpoint, config_dict in endpoints.items():
-            if isinstance(config_dict, dict):
-                rate = config_dict.get("rate", default_rate)
-                bucket = config_dict.get("bucket_size", default_bucket)
-                self._endpoint_limiter_configs[endpoint] = RateLimiterConfig(
+
+        endpoints_raw = rate_limit_config.get("endpoints", {})
+        endpoints: dict[str, Any] = {}
+        if isinstance(endpoints_raw, dict):
+            endpoints = endpoints_raw
+        else:
+            logger.warning(
+                f"[{exchange_name}] Invalid 'endpoints' rate limit config type: {type(endpoints_raw)}. Ignoring endpoint-specific limits."
+            )
+
+        for endpoint, config_dict_raw in endpoints.items():
+            # Endpoint key is guaranteed to be str if endpoints is dict[str, Any]
+            # No need for isinstance check if endpoints is correctly typed or asserted
+            endpoint_str = str(endpoint)  # Ensure it's treated as string
+
+            if isinstance(config_dict_raw, dict):
+                # Explicitly handle potential None from .get before float/int conversion
+                rate_raw = config_dict_raw.get("rate", default_rate)
+                rate: float = default_rate
+                try:
+                    # Add type check before conversion
+                    if isinstance(rate_raw, (int, float, str)):
+                        rate = float(rate_raw)
+                    elif rate_raw is not None:
+                        logger.warning(
+                            f"[{self.exchange_name}] Invalid type for 'rate' ({type(rate_raw)}) for endpoint '{endpoint_str}'. Using default {rate}."
+                        )
+                    # else: rate_raw is None, use default_rate
+
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"[{self.exchange_name}] Could not convert 'rate' for endpoint '{endpoint_str}': {rate_raw}. Using default {rate}."
+                    )
+
+                bucket_raw = config_dict_raw.get("bucket_size", default_bucket)
+                bucket: int = default_bucket
+                try:
+                    # Add type check before conversion
+                    if isinstance(bucket_raw, (int, float, str)):
+                        bucket = int(bucket_raw)
+                        if bucket <= 0:
+                            raise ValueError("Bucket size must be positive")
+                    elif bucket_raw is not None:
+                        logger.warning(
+                            f"[{self.exchange_name}] Invalid type for 'bucket_size' ({type(bucket_raw)}) for endpoint '{endpoint_str}'. Using default {bucket}."
+                        )
+                    # else: bucket_raw is None, use default_bucket
+
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"[{self.exchange_name}] Could not convert 'bucket_size' for endpoint '{endpoint_str}': {bucket_raw}. Using default {bucket}."
+                    )
+
+                self._endpoint_limiter_configs[endpoint_str] = RateLimiterConfig(
                     rate=rate, bucket_size=bucket, tokens=None, last_refill=None
                 )
-                self._endpoint_limiters[endpoint] = TokenBucketRateLimiterRuntime(rate, bucket)
+                self._endpoint_limiters[endpoint_str] = TokenBucketRateLimiterRuntime(rate, bucket)
             else:
                 logger.warning(
-                    f"Invalid rate limit config for endpoint '{endpoint}': {config_dict}"
+                    f"[{self.exchange_name}] Invalid rate limit config type for endpoint '{endpoint_str}': {type(config_dict_raw)}"
                 )
+
+        # Placeholder for connection state and WebSocket management attributes
+        self._ws_connection = None
+        self._ws_listener_task: asyncio.Task[None] | None = None
+        self._ws_reconnect_task: asyncio.Task[None] | None = None
+        self._ws_ping_task: asyncio.Task[None] | None = None
+        self._is_ws_connected = False
+        self._is_connecting = False
+        self._should_reconnect = True
+
+        # Extract key configurations
+        # Check for both rest_endpoint (standard) and base_url (alternative naming)
+        self.rest_endpoint = config.get("rest_endpoint", config.get("base_url"))
+        # Check for both ws_endpoint (standard) and ws_url (alternative naming)
+        self.ws_endpoint = config.get("ws_endpoint", config.get("ws_url"))
 
         # Validation
         if not self.rest_endpoint:
