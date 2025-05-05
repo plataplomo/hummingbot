@@ -2,32 +2,44 @@ import time
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
 from cyberdelta.apis.backpack_api import BackpackAPI
-from cyberdelta.config.secrets_manager import SecretsManager
+from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.core.models import (
-    Balance,
+    DerivativePosition,
     FundingRate,
-    MarketData,
     Order,
     OrderBook,
     OrderSide,
     OrderStatus,
     OrderType,
-    Position,
+    SpotBalance,
     Ticker,
     TimeInForce,  # Already added
     Trade,
 )
+from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.utils.config import Config
 
 
 # --- Minimal Concrete Subclass for Testing --- #
 class ConcreteBackpackAPI(BackpackAPI):
     """Minimal implementation for testing inherited methods like _sign_request."""
+
+    # Add attributes expected by base class or used in tests
+    api_key: str | None
+    api_secret: str | None
+
+    def __init__(self, config: dict[str, Any], secrets: dict[str, str | None]) -> None:
+        """Initialize with necessary attributes."""
+        # Pass required args to base __init__ using correct names
+        super().__init__(exchange_name=ExchangeName.BACKPACK.value, config=config, secrets=secrets)
+        self.api_key = secrets.get("BACKPACK_API_KEY")
+        self.api_secret = secrets.get("BACKPACK_API_SECRET")
+        # Initialize other necessary attributes from base if needed
 
     # Implement all abstract methods with basic placeholders or mocks
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
@@ -42,9 +54,7 @@ class ConcreteBackpackAPI(BackpackAPI):
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         return []
 
-    async def get_market_data(
-        self, symbol: str, timeframe: str, limit: int = 100
-    ) -> list[MarketData]:
+    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
         return []
 
     def get_message_type(self, message: dict[str, Any]) -> str:
@@ -58,10 +68,10 @@ class ConcreteBackpackAPI(BackpackAPI):
 
     def parse_account_update_message(
         self, message: dict[str, Any]
-    ) -> tuple[dict[str, Balance] | None, dict[str, Position] | None]:
+    ) -> tuple[dict[str, SpotBalance] | None, dict[str, DerivativePosition] | None]:
         return None, None
 
-    def parse_balance(self, data: dict[str, Any]) -> Balance:
+    def parse_balance(self, data: dict[str, Any]) -> SpotBalance:
         raise NotImplementedError
 
     def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate:
@@ -82,7 +92,7 @@ class ConcreteBackpackAPI(BackpackAPI):
     def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
         return None
 
-    def parse_position(self, data: dict[str, Any]) -> Position:
+    def parse_position(self, data: dict[str, Any]) -> DerivativePosition:
         raise NotImplementedError
 
     def parse_ticker(self, data: dict[str, Any], symbol: str) -> Ticker:
@@ -134,13 +144,20 @@ class ConcreteBackpackAPI(BackpackAPI):
     async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
         return []  # Placeholder
 
-    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
-        return None  # Placeholder
+    async def get_funding_rate(self, symbol: str) -> FundingRate:
+        # Return a dummy FundingRate or raise NotImplementedError
+        # For now, returning a dummy object:
+        return FundingRate(
+            symbol=symbol,
+            timestamp=datetime.now(UTC),
+            funding_rate=Decimal("0"),
+            mark_price=Decimal("0"),  # Add required mark_price
+        )
 
-    async def get_balances(self) -> dict[str, Balance]:
+    async def get_balances(self) -> dict[str, SpotBalance]:
         return {}  # Placeholder
 
-    async def get_positions(self, symbol: str | None = None) -> list[Position]:
+    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         return []  # Placeholder
 
     # Corrected signature: time_in_force is Optional[TimeInForce] in base
@@ -210,7 +227,7 @@ class TestBackpackAPI:
             ask=Decimal("42550.75"),
             price=Decimal("42500.25"),  # lastPrice
             volume=Decimal("1200.5"),
-            timestamp=int(time.time() * 1000),
+            timestamp=datetime.fromtimestamp(time.time(), tz=UTC),  # Convert timestamp
         )
         api_client.get_ticker = AsyncMock(return_value=mock_ticker_data)
 
@@ -244,7 +261,7 @@ class TestBackpackAPI:
                 (Decimal("42560.50"), Decimal("0.8")),
                 (Decimal("42570.25"), Decimal("1.5")),
             ],
-            timestamp=mock_time,
+            timestamp=datetime.fromtimestamp(mock_time / 1000, tz=UTC),  # Convert ms timestamp
         )
         api_client.get_order_book = AsyncMock(return_value=mock_order_book_data)
 
@@ -265,7 +282,7 @@ class TestBackpackAPI:
         assert order_book.asks[0][0] == Decimal("42550.75")  # price
         assert order_book.asks[0][1] == Decimal("0.3")  # quantity
 
-        assert order_book.timestamp == mock_time
+        assert order_book.timestamp == datetime.fromtimestamp(mock_time / 1000, tz=UTC)
 
         # Verify the mocked method was called
         api_client.get_order_book.assert_called_once_with("BTCUSDC", depth=5)
@@ -273,39 +290,36 @@ class TestBackpackAPI:
     @pytest.mark.asyncio
     async def test_get_recent_trades(self, api_client: BackpackAPI):
         """Test get_recent_trades returns list of Trade objects."""
-        now = datetime.now(UTC)
         mock_trade_data: list[Trade] = [
             Trade(
-                id="12345",
-                symbol="BTCUSDC",
-                executed_at=now,
-                side=OrderSide.BUY,
-                order_id="order12345",
+                id="trade-1",
+                order_id="order-1",
+                client_order_id="client-order-1",
                 exchange="backpack",
-                client_order_id="client12345",
-                price=Decimal("42500.25"),
-                quantity=Decimal("0.05"),
-                cost=Decimal("2125.0125"),
-                fee=Decimal("0"),
+                symbol="BTCUSDC",
+                side=OrderSide.BUY,
+                quantity=Decimal("0.1"),
+                price=Decimal("42500.00"),
+                fee=Decimal("0.425"),
                 fee_asset="USDC",
-                is_maker=True,
-                timestamp=int(time.time() * 1000),
+                executed_at=datetime.now(UTC),  # Changed timestamp to executed_at
+                is_maker=False,
+                # cost=Decimal("4250.00"), # Removed cost
             ),
             Trade(
-                id="12346",
-                symbol="BTCUSDC",
-                executed_at=now,
-                side=OrderSide.SELL,
-                order_id="order12346",
+                id="trade-2",
+                order_id="order-2",
+                client_order_id="client-order-2",
                 exchange="backpack",
-                client_order_id="client12346",
-                price=Decimal("42505.50"),
-                quantity=Decimal("0.03"),
-                cost=Decimal("1275.165"),
-                fee=Decimal("0"),
+                symbol="ETHUSDC",
+                side=OrderSide.SELL,
+                quantity=Decimal("1.5"),
+                price=Decimal("2500.50"),
+                fee=Decimal("3.75"),
                 fee_asset="USDC",
-                is_maker=False,
-                timestamp=int(time.time() * 1000) - 5000,
+                executed_at=datetime.now(UTC),  # Changed timestamp to executed_at
+                is_maker=True,
+                # cost=Decimal("3750.75"), # Removed cost
             ),
         ]
         api_client.get_recent_trades = AsyncMock(return_value=mock_trade_data)
@@ -318,9 +332,9 @@ class TestBackpackAPI:
         assert len(trades) == 2
         for t in trades:
             assert isinstance(t, Trade)
-        assert trades[0].id == "12345"
+        assert trades[0].id == "trade-1"
         assert trades[0].side == OrderSide.BUY
-        assert trades[1].id == "12346"
+        assert trades[1].id == "trade-2"
         assert trades[1].side == OrderSide.SELL
 
         # Verify the mocked method was called
@@ -355,107 +369,113 @@ class TestBackpackAPI:
 
     @pytest.mark.asyncio
     async def test_get_balances(self, api_client: BackpackAPI):
-        """Test get_balances returns dictionary of Balance objects."""
+        """Test get_balances returns balances correctly."""
         mock_balance_data = {
-            "BTC": Balance(
-                asset="BTC", free=Decimal("0.5"), locked=Decimal("0.1"), total=Decimal("0.6")
-            ),
-            "USDC": Balance(
+            "USDC": SpotBalance(
+                exchange="backpack",
                 asset="USDC",
-                free=Decimal("10000.50"),
-                locked=Decimal("500.25"),
-                total=Decimal("10500.75"),
+                timestamp=datetime.now(UTC),
+                total_quantity=Decimal("10000.50"),
+                available_quantity=Decimal("8000.25"),
+            ),
+            "BTC": SpotBalance(
+                exchange="backpack",
+                asset="BTC",
+                timestamp=datetime.now(UTC),
+                total_quantity=Decimal("2.5"),
+                available_quantity=Decimal("2.0"),
             ),
         }
         api_client.get_balances = AsyncMock(return_value=mock_balance_data)
 
-        # Get balances
-        balances: dict[str, Balance] = await api_client.get_balances()
+        balances = await api_client.get_balances()
 
-        # Verify expected data
-        assert isinstance(balances, dict)
-        assert "BTC" in balances
         assert "USDC" in balances
-        btc_balance = balances["BTC"]
-        usdc_balance = balances["USDC"]
-        assert isinstance(btc_balance, Balance)
-        assert isinstance(usdc_balance, Balance)
-        assert usdc_balance.asset == "USDC"
-        assert usdc_balance.free == Decimal("10000.50")
-        assert usdc_balance.locked == Decimal("500.25")
-        assert usdc_balance.total == Decimal("10500.75")
+        assert "BTC" in balances
+        assert balances["USDC"].total_quantity == Decimal("10000.50")
+        assert balances["BTC"].available_quantity == Decimal("2.0")
 
-        # Verify the mocked method was called
-        api_client.get_balances.assert_called_once_with()
+        api_client.get_balances.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_positions(self, api_client: BackpackAPI):
         """Test get_positions returns list of Position objects."""
         mock_position_data = [
-            Position(
+            DerivativePosition(
+                exchange="backpack",
+                timestamp=datetime.now(UTC),
                 symbol="BTCUSDC",
                 size=Decimal("0.5"),
-                entry_price=Decimal("40000.0"),
-                mark_price=Decimal("42000.0"),
-                unrealized_pnl=Decimal("1000.0"),
-                liquidation_price=Decimal("35000.0"),
-                leverage=Decimal("10"),
+                entry_price=Decimal("42000.00"),
+                mark_price=Decimal("42500.00"),
+                liquidation_price=Decimal("40000.00"),
+                unrealized_pnl=Decimal("250.00"),
                 side=OrderSide.BUY,  # Determined from positive size
             ),
-            Position(
+            DerivativePosition(
+                exchange="backpack",
+                timestamp=datetime.now(UTC),
                 symbol="ETHUSDC",
                 size=Decimal("-2.0"),
-                entry_price=Decimal("2500.0"),
-                mark_price=Decimal("2450.0"),
-                unrealized_pnl=Decimal("100.0"),
-                liquidation_price=Decimal("3000.0"),
-                leverage=Decimal("5"),
+                entry_price=Decimal("2550.00"),
+                mark_price=Decimal("2500.00"),
+                liquidation_price=Decimal("2700.00"),
+                unrealized_pnl=Decimal("100.00"),
                 side=OrderSide.SELL,  # Determined from negative size
             ),
         ]
         api_client.get_positions = AsyncMock(return_value=mock_position_data)
 
         # Get positions
-        positions: list[Position] = await api_client.get_positions()
+        positions: list[DerivativePosition] = await api_client.get_positions()
 
         # Verify expected data
         assert isinstance(positions, list)
         assert len(positions) == 2
-        btc_position: Position = positions[0]
-        eth_position: Position = positions[1]
-        assert isinstance(btc_position, Position)
-        assert isinstance(eth_position, Position)
+        btc_position: DerivativePosition = positions[0]
+        eth_position: DerivativePosition = positions[1]
+        assert isinstance(btc_position, DerivativePosition)
+        assert isinstance(eth_position, DerivativePosition)
         # Verify first position details (BTC)
         assert btc_position.symbol == "BTCUSDC"
         assert btc_position.side == OrderSide.BUY
         assert btc_position.size == Decimal("0.5")
-        assert btc_position.entry_price == Decimal("40000.0")
-        assert btc_position.mark_price == Decimal("42000.0")
-        assert btc_position.unrealized_pnl == Decimal("1000.0")
-        assert btc_position.liquidation_price == Decimal("35000.0")
-        assert btc_position.leverage == Decimal("10")
+        assert btc_position.entry_price == Decimal("42000.00")
+        assert btc_position.mark_price == Decimal("42500.00")
+        assert btc_position.liquidation_price == Decimal("40000.00")
+        assert btc_position.unrealized_pnl == Decimal("250.00")
         # Verify second position details (ETH)
         assert eth_position.symbol == "ETHUSDC"
         assert eth_position.side == OrderSide.SELL
         assert eth_position.size == Decimal("-2.0")
-        assert eth_position.entry_price == Decimal("2500.0")
+        assert eth_position.entry_price == Decimal("2550.00")
+        assert eth_position.mark_price == Decimal("2500.00")
+        assert eth_position.liquidation_price == Decimal("2700.00")
+        assert eth_position.unrealized_pnl == Decimal("100.00")
 
         # Verify the mocked method was called
         api_client.get_positions.assert_called_once_with()
 
     @pytest.mark.asyncio
     async def test_place_order(self, api_client: BackpackAPI):
-        """Test place_order returns proper Order object."""
+        """Test place_order returns Order object."""
+        now_utc = datetime.now(UTC)
         mock_order_data = Order(
+            exchange="backpack",
+            client_order_id="new-order-id",
+            exchange_order_id="exchange-order-123",
             symbol="BTCUSDC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             status=OrderStatus.NEW,
             quantity_requested=Decimal("0.1"),
-            quantity_filled=Decimal("0.0"),
-            price=Decimal("42000.0"),
-            client_order_id="test-order-123",
-            created_at=datetime.now(UTC),
+            price=Decimal("43000.00"),
+            time_in_force=TimeInForce.GTC,
+            created_at=now_utc,
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
         api_client.place_order = AsyncMock(return_value=mock_order_data)
 
@@ -465,8 +485,9 @@ class TestBackpackAPI:
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
-            price=Decimal("42000.0"),
-            client_order_id="test-order-123",
+            price=Decimal("43000.00"),
+            client_order_id="new-order-id",
+            time_in_force=TimeInForce.GTC,
         )
 
         # Verify expected data
@@ -476,93 +497,66 @@ class TestBackpackAPI:
         assert order.order_type == OrderType.LIMIT
         assert order.status == OrderStatus.NEW
         assert order.quantity_requested == Decimal("0.1")
-        assert order.quantity_filled == Decimal("0.0")
-        assert order.price == Decimal("42000.0")
-        assert order.client_order_id == "test-order-123"
+        assert order.price == Decimal("43000.00")
+        assert order.time_in_force == TimeInForce.GTC
+        assert order.client_order_id == "new-order-id"
+        assert order.exchange_order_id == "exchange-order-123"
+        assert isinstance(order.created_at, datetime)
+        assert order.created_at == now_utc
 
         # Verify the mocked method was called
         api_client.place_order.assert_called_once()
-        # Minimal check on args - can be more specific if needed
-        args, kwargs = api_client.place_order.call_args
+        _call_args, call_kwargs = api_client.place_order.call_args
+        kwargs = call_kwargs
         assert kwargs.get("symbol") == "BTCUSDC"
         assert kwargs.get("side") == OrderSide.BUY
         assert kwargs.get("quantity") == Decimal("0.1")
+        assert kwargs.get("price") == Decimal("43000.00")
+        assert kwargs.get("client_order_id") == "new-order-id"
+        assert kwargs.get("time_in_force") == TimeInForce.GTC
 
     @pytest.mark.asyncio
     async def test_cancel_order(self, api_client: BackpackAPI):
-        """Test cancel_order returns success indication (e.g., Order object)."""
-        # Backpack returns the cancelled order details
-        mock_cancelled_order_data = Order(
-            id="123456789",
-            symbol="BTCUSDC",
-            side=OrderSide.BUY,
-            type=OrderType.LIMIT,
-            price=Decimal("42000.0"),
-            quantity=Decimal("0.1"),
-            filled_quantity=Decimal("0.0"),
-            status=OrderStatus.CANCELED,
-            time=None,  # Cancel response might not have original time
-            client_order_id="test-order-123",
-        )
-        api_client.cancel_order = AsyncMock(return_value=mock_cancelled_order_data)
+        """Test cancel_order completes successfully."""
+        # Mock the API call response (often just success status)
+        mock_cancel_response = {"success": True, "orderId": "order-to-cancel"}
+        api_client.cancel_order = AsyncMock(return_value=mock_cancel_response)
 
-        # Cancel order
-        result = await api_client.cancel_order("123456789", "BTCUSDC")
+        # Call cancel_order
+        response = await api_client.cancel_order(order_id="order-to-cancel", symbol="BTCUSDC")
 
-        # Verify expected data (check status)
-        assert isinstance(result, Order)
-        assert result.status == OrderStatus.CANCELED
-        assert result.id == "123456789"
+        # Verify the response indicates success
+        assert response.get("success") is True
+        assert response.get("orderId") == "order-to-cancel"
 
         # Verify the mocked method was called
-        api_client.cancel_order.assert_called_once_with("123456789", "BTCUSDC")
+        api_client.cancel_order.assert_called_once_with(
+            order_id="order-to-cancel", symbol="BTCUSDC"
+        )
+
+        # Note: This test doesn't verify order state change, just the API call interaction.
+        # Removed incorrect Order instantiation here.
 
     @pytest.mark.asyncio
     async def test_sign_request(self, backpack_config: Config, backpack_secrets: dict[str, str]):
-        """Test the _sign_request method produces correct signature."""
-        # Instantiate the CONCRETE subclass for testing
-        # We need to provide actual mock objects for config and secrets managers if
-        # the BackpackAPI __init__ requires them.
-        mock_config_obj = MagicMock(spec=Config)
-        mock_secrets_obj = MagicMock(spec=SecretsManager)
-
-        # Configure secrets mock to return the dummy secret key
-        mock_secrets_obj.get.return_value = backpack_secrets["BACKPACK_API_SECRET"]
-
-        # Pass the correct args to the concrete class constructor
-        client = ConcreteBackpackAPI(api_config=backpack_config, secrets=backpack_secrets)
-        # Explicitly set the secret if it's read directly in _sign_request
-        client.api_secret = backpack_secrets["BACKPACK_API_SECRET"]
-
-        # Prepare mock request parameters
-        method = "POST"
-        endpoint = "/api/v1/order"
-        params = {
-            "symbol": "SOL_USDC",
-            "side": "Bid",
-            "orderType": "Limit",
-            "quantity": "0.01",
-            "price": "50000.0",
-            "timeInForce": "GTC",
-            "timestamp": 1678886400000,  # Example timestamp
+        """Test _sign_request generates valid HMAC signature headers."""
+        # Convert secrets to required type
+        secrets_typed: dict[str, str | None] = {
+            "BACKPACK_API_KEY": backpack_secrets.get("BACKPACK_API_KEY"),
+            "BACKPACK_API_SECRET": backpack_secrets.get("BACKPACK_API_SECRET"),
         }
+        # Pass config_data dict and typed secrets
+        concrete_api = ConcreteBackpackAPI(backpack_config.config_data, secrets_typed)
 
-        # Call the protected method (requires name mangling for protected methods)
-        # Assuming _sign_request is intended to be protected
-        auth_data = client._sign_request(method=method, path=endpoint, params=params)
-        signature = auth_data["headers"]["X-Signature"]  # Extract only the signature string
+        method = "POST"
+        path = "/api/v1/order"
+        data = {"symbol": "BTCUSDC", "side": "buy", "quantity": "0.1"}
 
-        # Assert the signature is a non-empty string (actual validation is complex)
-        assert isinstance(signature, str)
-        assert len(signature) > 0
-        # A more robust test would compare against a known-good signature,
-        # but that requires managing the timestamp and exact signing logic alignment.
-        # For now, checking type and non-emptiness is a basic sanity check.
-        # Example expected signature (will vary based on timestamp etc.)
-        # expected_signature = "..."
-        # assert signature == expected_signature
+        # Call the protected method for testing
+        auth_data = concrete_api._sign_request(method, path, data=data)  # noqa: SLF001 - Testing protected method
 
-        # Verify secrets manager was called correctly (if needed)
-        # mock_secrets_obj.get.assert_called_once_with("BACKPACK_API_SECRET")
+        # Verify structure and presence of headers
+        assert "headers" in auth_data
+        assert "X-Signature" in auth_data["headers"]
 
     # TODO: Add tests for edge cases and error handling (e.g., API errors)

@@ -4,12 +4,14 @@ Position Reconciliation System for the CyberDeltaEngine.
 This module provides validation between various position tracking systems to ensure consistency.
 """
 
+import asyncio
 import logging
+from collections.abc import Awaitable
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, getcontext
 from typing import Any
 
-from cyberdelta.core.models import OrderSide, Position
+from cyberdelta.core.models import DerivativePosition, OrderSide
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.utils.config import Config
 
@@ -27,7 +29,7 @@ class PositionReconciliationSystem:
     to match the authoritative source.
     """
 
-    def __init__(self, config: Config, portfolio_tracker: PortfolioTracker | None = None) -> None:
+    def __init__(self, config: Config, portfolio_tracker: PortfolioTracker) -> None:
         """
         Initialize the position reconciliation system.
 
@@ -35,8 +37,9 @@ class PositionReconciliationSystem:
             config: Application configuration
             portfolio_tracker: Reference to the portfolio tracker (optional, can be set later)
         """
-        self.config = config
-        self.portfolio_tracker = portfolio_tracker
+        self._config = config
+        self._portfolio_tracker = portfolio_tracker
+        self.latest_results: dict[str, dict[str, Any]] = {}
 
         # Configuration parameters
         self.reconciliation_threshold = config.get(
@@ -53,8 +56,35 @@ class PositionReconciliationSystem:
         # Record of discrepancies found
         self.discrepancy_history: list[dict[str, Any]] = []
 
-        # Recent results
-        self.latest_results: dict[str, dict[str, Any]] = {}
+        # Initialize last run time to a long time ago
+        getcontext().prec = 50  # Set precision for Decimal operations
+
+        # Internal state
+        self._last_reconciliation_run: datetime = datetime.min.replace(tzinfo=UTC)
+
+        # Get interval, ensuring it's a float
+        interval_val = config.get("validation.position_reconciliation.interval_seconds", 300.0)
+        if isinstance(interval_val, (int, float)):
+            self._reconciliation_interval_secs: float = float(interval_val)
+        else:
+            logger.warning(
+                f"Invalid reconciliation interval type ('{type(interval_val)}'), defaulting to 300.0 seconds."
+            )
+            self._reconciliation_interval_secs = 300.0  # Default float value
+
+        # Get threshold
+        threshold_val = config.get("validation.position_reconciliation.threshold_percent", "5.0")
+        self._discrepancy_threshold_percent: Decimal = Decimal(str(threshold_val))
+
+        # Get action mode, ensuring it's a string
+        action_mode_val = config.get("validation.position_reconciliation.action_mode", "log")
+        if isinstance(action_mode_val, str):
+            self._action_mode: str = action_mode_val
+        else:
+            logger.warning(
+                f"Invalid action mode type ('{type(action_mode_val)}'), defaulting to 'log'."
+            )
+            self._action_mode = "log"
 
     def register_portfolio_tracker(self, portfolio_tracker: PortfolioTracker) -> None:
         """
@@ -63,7 +93,7 @@ class PositionReconciliationSystem:
         Args:
             portfolio_tracker: The portfolio tracker instance
         """
-        self.portfolio_tracker = portfolio_tracker
+        self._portfolio_tracker = portfolio_tracker
 
     async def check_positions(self, force: bool = False) -> dict[str, dict[str, Any]]:
         """
@@ -82,7 +112,7 @@ class PositionReconciliationSystem:
             logger.debug("Skipping position reconciliation, not due yet")
             return self.latest_results
 
-        if self.portfolio_tracker is None:
+        if self._portfolio_tracker is None:
             logger.error("Cannot reconcile positions: Portfolio tracker not registered")
             return {}
 
@@ -91,8 +121,8 @@ class PositionReconciliationSystem:
 
         # Get all active exchanges
         exchanges: list[str] = []
-        for exchange_id in self.config.get("exchanges", {}).keys():
-            if self.config.get(f"exchanges.{exchange_id}.enabled", False):
+        for exchange_id in self._config.get("exchanges", {}).keys():
+            if self._config.get(f"exchanges.{exchange_id}.enabled", False):
                 exchanges.append(exchange_id)
 
         # Results by exchange
@@ -100,7 +130,7 @@ class PositionReconciliationSystem:
 
         # Check each exchange
         for exchange in exchanges:
-            api_client = self.portfolio_tracker.api_clients.get(exchange)
+            api_client = self._portfolio_tracker.api_clients.get(exchange)
             if not api_client:
                 logger.warning(f"No API client registered for {exchange}, skipping reconciliation")
                 continue
@@ -112,13 +142,15 @@ class PositionReconciliationSystem:
                 logger.info(f"Raw exchange positions from {exchange}: {exchange_positions}")
 
                 # 2. Fill history-derived positions (REMOVED - Incorrect dependency/method)
-                # execution_handler = self.portfolio_tracker.get_execution_handler(exchange)
+                # execution_handler = self._portfolio_tracker.get_execution_handler(exchange)
                 # fill_positions = execution_handler.get_derived_positions() \
                 #     if execution_handler else []
-                fill_positions: list[Position] = []  # Add type hint List[Position]
+                fill_positions: list[
+                    DerivativePosition
+                ] = []  # Add type hint List[DerivativePosition]
 
                 # 3. Local state tracking
-                local_positions = self.portfolio_tracker.get_positions_by_exchange(exchange)
+                local_positions = self._portfolio_tracker.get_positions_by_exchange(exchange)
 
                 # Perform the reconciliation (pass empty fill_positions)
                 exchange_results = self._reconcile_positions(
@@ -151,9 +183,9 @@ class PositionReconciliationSystem:
     def _reconcile_positions(
         self,
         exchange: str,
-        exchange_positions: list[Position],
-        fill_positions: list[Position],
-        local_positions: list[Position],
+        exchange_positions: list[DerivativePosition],
+        fill_positions: list[DerivativePosition],
+        local_positions: list[DerivativePosition],
     ) -> dict[str, Any]:
         """
         Reconcile positions from different sources for a given exchange.
@@ -190,7 +222,7 @@ class PositionReconciliationSystem:
             # Get positions from each source (or create empty position)
             exch_pos = exchange_map.get(
                 symbol,
-                Position(
+                DerivativePosition(
                     symbol=symbol,
                     size=Decimal("0"),
                     entry_price=Decimal("0"),
@@ -202,7 +234,7 @@ class PositionReconciliationSystem:
 
             local_pos = local_map.get(
                 symbol,
-                Position(
+                DerivativePosition(
                     symbol=symbol,
                     size=Decimal("0"),
                     entry_price=Decimal("0"),
@@ -314,7 +346,7 @@ class PositionReconciliationSystem:
             exchange: Exchange identifier
             results: Reconciliation results
         """
-        if not self.portfolio_tracker:
+        if not self._portfolio_tracker:
             logger.error("Cannot apply corrections: Portfolio tracker not registered")
             return
 
@@ -324,7 +356,7 @@ class PositionReconciliationSystem:
             # local_value = Decimal(discrepancy["local_value"]) # F841 Unused
 
             # Get current position
-            current_position = self.portfolio_tracker.get_position(exchange, symbol)
+            current_position = self._portfolio_tracker.get_position(exchange, symbol)
 
             if current_position is None:
                 # Create a new position with correct size
@@ -337,14 +369,14 @@ class PositionReconciliationSystem:
                     exchange_position = next(
                         (
                             p
-                            for p in self.portfolio_tracker._fetch_exchange_positions(exchange)
+                            for p in self._portfolio_tracker._fetch_exchange_positions(exchange)
                             if p.symbol == symbol
                         ),
                         None,
                     )
 
                     if exchange_position:
-                        self.portfolio_tracker.update_position(exchange, exchange_position)
+                        self._portfolio_tracker.update_position(exchange, exchange_position)
             else:
                 # Update existing position with correct size
                 if current_position.size != exchange_value:
@@ -354,7 +386,7 @@ class PositionReconciliationSystem:
                     )
 
                     # Create updated position
-                    updated_position = Position(
+                    updated_position = DerivativePosition(
                         symbol=current_position.symbol,
                         size=exchange_value,
                         entry_price=current_position.entry_price,
@@ -365,7 +397,7 @@ class PositionReconciliationSystem:
                         side=current_position.side,
                     )
 
-                    self.portfolio_tracker.update_position(exchange, updated_position)
+                    self._portfolio_tracker.update_position(exchange, updated_position)
 
             # Mark as corrected in history
             for record in self.discrepancy_history:
@@ -456,3 +488,126 @@ class PositionReconciliationSystem:
             "auto_correct_enabled": self.auto_correct,
             "reconciliation_threshold": self.reconciliation_threshold,
         }
+
+    async def run_reconciliation(self, force_run: bool = False) -> dict[str, Any]:
+        """Run the reconciliation process if the interval has passed or forced."""
+        now = datetime.now(UTC)
+        # Check if interval has passed
+        time_since_last_run = (now - self._last_reconciliation_run).total_seconds()
+
+        # interval_secs_float is already float
+        if not force_run and time_since_last_run < self._reconciliation_interval_secs:
+            logger.debug(
+                f"Skipping reconciliation run. Time since last: {time_since_last_run:.2f}s, "
+                f"Interval: {self._reconciliation_interval_secs:.2f}s"
+            )
+            return self.latest_results
+
+        self._last_reconciliation_run = now
+
+        overall_results: dict[str, Any] = {
+            "success": True,
+            "timestamp": now,
+            "discrepancies": [],
+            "symbols_checked": 0,
+            "has_discrepancies": False,
+            "exchange_results": {},  # Store individual results
+        }
+
+        # Check portfolio tracker exists
+        # Removed 'is None' check as tracker type is guaranteed by __init__
+
+        reconciliation_tasks: list[Awaitable[dict[str, Any]]] = []
+        # Ensure api_clients attribute exists and is a dict before iterating
+        api_clients_dict = getattr(self._portfolio_tracker, "api_clients", None)
+        if isinstance(api_clients_dict, dict):
+            for exchange_id in api_clients_dict.keys():  # Iterate over validated dict
+                reconciliation_tasks.append(self._reconcile_exchange(exchange_id))
+        else:
+            logger.warning(
+                "PortfolioTracker has no api_clients attribute or it's not a dict. Skipping reconciliation."
+            )
+            overall_results["success"] = False
+            overall_results["error"] = "PortfolioTracker missing or invalid api_clients"
+            return overall_results  # Return early if no clients
+
+        # Run reconciliation for all exchanges concurrently
+        results = await asyncio.gather(*reconciliation_tasks, return_exceptions=True)
+
+        # Aggregate results
+        for result in results:
+            if not result["success"]:
+                overall_results["success"] = False
+                overall_results["error"] = result["error"]
+                overall_results["discrepancies"].append(result["discrepancies"])
+                overall_results["has_discrepancies"] = True
+            else:
+                overall_results["symbols_checked"] += result["symbols_checked"]
+                overall_results["discrepancies"].extend(result["discrepancies"])
+                overall_results["exchange_results"][result["exchange"]] = result
+
+        # Record discrepancies
+        if overall_results["has_discrepancies"]:
+            self._record_discrepancy(None, overall_results)
+
+            # Auto-correct if enabled
+            if self.auto_correct:
+                self._apply_corrections(None, overall_results)
+
+        self.latest_results = overall_results
+        return overall_results
+
+    async def _reconcile_exchange(self, exchange: str) -> dict[str, Any]:
+        """Reconcile positions for a single exchange."""
+        now = datetime.now(UTC)
+
+        api_client = self._portfolio_tracker.api_clients.get(exchange)
+        if not api_client:
+            logger.warning(f"No API client registered for {exchange}, skipping reconciliation")
+            return {
+                "success": False,
+                "error": f"No API client registered for {exchange}",
+                "timestamp": now,
+                "discrepancies": [],
+            }
+
+        try:
+            # 1. Exchange API positions
+            exchange_positions = await api_client.get_positions()
+            logger.info(f"Raw exchange positions from {exchange}: {exchange_positions}")
+
+            # 2. Fill history-derived positions (REMOVED - Incorrect dependency/method)
+            # execution_handler = self._portfolio_tracker.get_execution_handler(exchange)
+            # fill_positions = execution_handler.get_derived_positions() \
+            #     if execution_handler else []
+            fill_positions: list[DerivativePosition] = []  # Add type hint List[DerivativePosition]
+
+            # 3. Local state tracking
+            local_positions = self._portfolio_tracker.get_positions_by_exchange(exchange)
+
+            # Perform the reconciliation (pass empty fill_positions)
+            exchange_results = self._reconcile_positions(
+                exchange, exchange_positions, fill_positions, local_positions
+            )
+
+            # Store the results
+            results = exchange_results
+
+            # Record any discrepancies
+            if exchange_results["discrepancies"]:
+                self._record_discrepancy(exchange, exchange_results)
+
+                # Auto-correct if enabled
+                if self.auto_correct:
+                    self._apply_corrections(exchange, exchange_results)
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Error reconciling positions for {exchange}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": now,
+                "discrepancies": [],
+            }

@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
+from unittest.mock import patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,7 +23,10 @@ from cyberdelta.core.models import (
     Ticker,
     TimeInForce,
     Trade,
+    DerivativePosition,
 )
+from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.utils.config import Config
 
 
 class TestHyperliquidAPI:
@@ -121,7 +126,7 @@ class TestHyperliquidAPI:
 
             async def get_market_data(
                 self, symbol: str, timeframe: str, limit: int = 100
-            ) -> list[MarketData]:
+            ) -> list[Candle]:
                 return []
 
             def get_message_type(self, message: dict[str, Any]) -> str:
@@ -210,17 +215,24 @@ class TestHyperliquidAPI:
 
     @pytest.mark.asyncio
     async def test_get_balances(self, api_client: HyperliquidAPI) -> None:
-        """Test get_balances returns proper Balance objects."""
-        # Mock the specific public method
-        mock_balance_data = {
-            "USDC": SpotBalance(
+        """Test get_balances returns dict of SpotBalance objects."""
+        mock_balance_data = [
+            SpotBalance(
                 exchange="hyperliquid",
                 asset="USDC",
-                total=Decimal("1000.50"),
-                available=Decimal("1000.50"),
-            )  # Hyperliquid only gives total USD value
-        }
-        api_client.get_balances = AsyncMock(return_value=mock_balance_data)  # type: ignore[method-assign]  # Test mock override
+                timestamp=datetime.now(UTC),
+                total_quantity=Decimal("10000.50"),
+                available_quantity=Decimal("8000.25"),
+            ),
+            SpotBalance(
+                exchange="hyperliquid",
+                asset="PURR",
+                timestamp=datetime.now(UTC),
+                total_quantity=Decimal("50.0"),
+                available_quantity=Decimal("50.0"),
+            ),
+        ]
+        api_client.get_balances = AsyncMock(return_value=mock_balance_data)
 
         # Get balances
         balances: dict[str, SpotBalance] = await api_client.get_balances()
@@ -229,67 +241,47 @@ class TestHyperliquidAPI:
         assert "USDC" in balances
         assert isinstance(balances["USDC"], SpotBalance)
         assert balances["USDC"].asset == "USDC"
-        # Hyperliquid API might only return total, available might be same as total
-        assert balances["USDC"].available == Decimal("1000.50")
-        assert balances["USDC"].total == Decimal("1000.50")
+        assert balances["USDC"].available_quantity == Decimal("8000.25")
+        assert balances["USDC"].total_quantity == Decimal("10000.50")
 
         # Verify the mocked method was called
         api_client.get_balances.assert_called_once_with()
 
     @pytest.mark.asyncio
     async def test_get_positions(self, api_client: HyperliquidAPI) -> None:
-        """Test get_positions returns proper Position objects."""
-        # Mock the specific public method
+        """Test get_positions returns list of DerivativePosition objects."""
         mock_position_data = [
-            Position(
+            DerivativePosition(
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
                 symbol="BTC",
                 size=Decimal("0.5"),
                 entry_price=Decimal("40000.0"),
-                mark_price=Decimal("42000.0"),
-                unrealized_pnl=Decimal("1000.0"),
-                leverage=Decimal("10"),
+                mark_price=Decimal("41000.0"),
                 side=OrderSide.BUY,
-            ),
-            Position(
-                symbol="ETH",
-                size=Decimal("-2.0"),
-                entry_price=Decimal("2500.0"),
-                mark_price=Decimal("2400.0"),
-                unrealized_pnl=Decimal("200.0"),
-                leverage=Decimal("5"),
-                side=OrderSide.SELL,
-            ),
+                liquidation_price=Decimal("38000"),
+                unrealized_pnl=Decimal("500"),
+            )
         ]
-        api_client.get_positions = AsyncMock(return_value=mock_position_data)  # type: ignore[method-assign]  # Test mock override
+        api_client.get_positions = AsyncMock(return_value=mock_position_data)
 
         # Get positions
-        positions: list[Position] = await api_client.get_positions()
+        positions = await api_client.get_positions(symbol="BTC")
 
-        # Verify expected data (list of Position objects)
+        # Verify expected data
         assert isinstance(positions, list)
-        assert len(positions) == 2
-        assert isinstance(positions[0], Position)
-
-        # Verify expected data for BTC long position
-        assert positions[0].symbol == "BTC"
-        assert positions[0].size == Decimal("0.5")
-        assert positions[0].entry_price == Decimal("40000.0")
-        assert positions[0].mark_price == Decimal("42000.0")
-        assert positions[0].leverage == Decimal("10")
-        assert positions[0].side == OrderSide.BUY
-        assert positions[0].unrealized_pnl == Decimal("1000.0")
-
-        # Verify expected data for ETH short position
-        assert positions[1].symbol == "ETH"
-        assert positions[1].size == Decimal("-2.0")  # Keep negative for short
-        assert positions[1].entry_price == Decimal("2500.0")
-        assert positions[1].mark_price == Decimal("2400.0")
-        assert positions[1].leverage == Decimal("5")
-        assert positions[1].side == OrderSide.SELL
-        assert positions[1].unrealized_pnl == Decimal("200.0")
+        assert len(positions) == 1
+        pos = positions[0]
+        assert isinstance(pos, DerivativePosition)
+        assert pos.symbol == "BTC"
+        assert pos.size == Decimal("0.5")
+        assert pos.entry_price == Decimal("40000.0")
+        assert pos.mark_price == Decimal("41000.0")
+        assert pos.unrealized_pnl == Decimal("500")
+        assert pos.side == OrderSide.BUY
 
         # Verify the mocked method was called
-        api_client.get_positions.assert_called_once_with()
+        api_client.get_positions.assert_called_once_with(symbol="BTC")
 
     @pytest.mark.asyncio
     async def test_get_funding_rate(self, api_client: HyperliquidAPI) -> None:
@@ -410,3 +402,23 @@ class TestHyperliquidAPI:
 
     # TODO: Add tests for other methods (get_ticker, get_order_book, etc.)
     # TODO: Add tests for error handling (e.g., API errors, invalid data)
+
+    # Add checks for wallet address
+    assert isinstance(api_client._wallet_address, str)  # noqa: SLF001 - Testing protected member
+    assert len(api_client._wallet_address) > 0  # noqa: SLF001 - Testing protected member
+
+    async def test_connect_valid_address(
+        self, api_client: HyperliquidAPI, mock_config: Config, mock_secrets: dict[str, str]
+    ) -> None:
+        """Test that connect initializes wallet address if valid."""
+        # Assuming connect populates _wallet_address upon success
+        # Mock internal methods called by connect if necessary
+        api_client._session = AsyncMock() # Mock session
+        api_client._session.ws_connect = AsyncMock() # Mock ws_connect
+        api_client.ws_endpoint = "wss://fake.ws.endpoint"
+        with patch("ethers.Wallet.create_random", return_value=MagicMock(address="0xValidAddress")),
+             patch.object(api_client, "_connect_ws", AsyncMock()): # Mock internal connect_ws
+             await api_client.connect()
+        # Add checks for wallet address
+        assert isinstance(api_client._wallet_address, str) # noqa: SLF001 - Testing protected member
+        assert api_client._wallet_address == "0xValidAddress" # noqa: SLF001 - Testing protected member

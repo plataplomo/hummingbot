@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 
-from cyberdelta.apis.models.api import RateLimiterConfig as RateLimiterConfigModel
+from cyberdelta.apis.models.rate_limiter_config import RateLimiterConfig as RateLimiterConfigModel
+
+# Get logger instance for this module
+logger = logging.getLogger(__name__)
 
 
 class TokenBucketRateLimiterRuntime:

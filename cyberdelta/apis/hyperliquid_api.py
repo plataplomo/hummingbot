@@ -3,19 +3,20 @@ import json
 import logging
 import time
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import aiohttp
 from aiohttp import ClientTimeout
 from eth_account.messages import encode_typed_data
+from pydantic import ValidationError
 from web3.auto import w3
 
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
 from cyberdelta.apis.hyperliquid.hl_ws_mapper import HyperliquidWebsocketMapper
-from cyberdelta.apis.models.api import APIError
+from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -28,7 +29,7 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.market import Candle
-from cyberdelta.utils.parsing import parse_datetime_utc
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
 
@@ -991,3 +992,78 @@ class HyperliquidAPI(ExchangeAPI):
         raise NotImplementedError(
             "get_market_data (kline/OHLCV) not implemented for HyperliquidAPI"
         )
+
+    def _parse_spot_balance(self, balance_data: dict[str, Any]) -> SpotBalance | None:
+        """Parse raw spot balance data into a SpotBalance object."""
+        try:
+            asset = balance_data.get("coin")
+            total_qty_str = balance_data.get("total")
+            available_qty_str = balance_data.get("available")
+
+            if not asset or total_qty_str is None or available_qty_str is None:
+                logger.warning(f"Skipping spot balance due to missing fields: {balance_data}")
+                return None
+
+            # Parse quantities to Decimal
+            total_quantity = parse_decimal_value(
+                total_qty_str, allow_none=False, field_name=f"{asset}_total"
+            )
+            available_quantity = parse_decimal_value(
+                available_qty_str, allow_none=False, field_name=f"{asset}_available"
+            )
+
+            if total_quantity is None or available_quantity is None:
+                logger.warning(f"Skipping spot balance due to invalid quantity: {balance_data}")
+                return None  # Skip if parsing failed
+
+            # Assuming no specific hl_details for spot balance for now
+            # Need to import HyperliquidSpotBalanceDetails if used
+            # from cyberdelta.core.models import HyperliquidSpotBalanceDetails
+            hl_details = None
+
+            # Correct instantiation
+            return SpotBalance(
+                exchange=self.exchange_name,
+                asset=str(asset),  # Ensure asset is string
+                timestamp=datetime.now(UTC),  # Use current time as timestamp is not in raw data
+                total_quantity=total_quantity,  # Pass parsed Decimal
+                available_quantity=available_quantity,  # Pass parsed Decimal
+                hl_details=hl_details,
+            )
+        except (ValidationError, ValueError, TypeError, InvalidOperation) as e:
+            logger.error(f"Error parsing spot balance item: {e}. Data: {balance_data}")
+            return None
+
+    # --- Core Data Fetching Implementation ---
+    async def get_ticker(self, symbol: str) -> Ticker:
+        try:
+            payload = {"type": "metaAndAssetCtxs"}
+            response = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+                HyperliquidRawMetaAndAssetCtxsResponse,
+            )
+
+            validated = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response)
+            for asset_ctx in validated.asset_ctxs:
+                if asset_ctx.name == symbol:
+                    return HyperliquidMapper.map_raw_ctx_to_ticker(asset_ctx.model_dump())
+            logger.warning(
+                f"[{self.exchange_name}] Ticker data not found for {symbol} in response: {response}"
+            )
+            raise APIError(
+                f"Ticker data not found for {symbol}",
+                code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+            )
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting ticker for {symbol}: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Error getting ticker for {symbol}: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Failed to get ticker for {symbol}: {e}",
+                code=APIErrorCode.SERVER_ERROR.value,
+                original_exception=e,
+            ) from e

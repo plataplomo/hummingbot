@@ -39,7 +39,7 @@ from .market.order import (
     HyperliquidOrderDetails,
     Order,
 )
-from .spot_balance import SpotBalance
+from .spot_balance import BackpackSpotBalanceDetails, HyperliquidSpotBalanceDetails, SpotBalance
 
 # from .positions import PositionInfo, PositionSide # TODO: Resolve ModuleNotFoundError
 # from .quotes import Quote # TODO: Resolve ModuleNotFoundError
@@ -68,6 +68,8 @@ __all__ = [
     "FundingRate",
     # Portfolio State Models
     "SpotBalance",
+    "HyperliquidSpotBalanceDetails",
+    "BackpackSpotBalanceDetails",
     "DerivativePosition",
     "HyperliquidPositionDetails",  # Derivative Position Detail
     "BackpackPositionDetails",  # Derivative Position Detail

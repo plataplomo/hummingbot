@@ -1,3 +1,8 @@
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+
 class ExchangeAPIConfig(BaseModel):
     """
     Pydantic model for configuration of an ExchangeAPI instance.

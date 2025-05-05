@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.core.models import (
+    DerivativePosition,
     FundingRate,
     OrderSide,
-    Position,
     Ticker,
     TradeSignal,
 )
@@ -64,19 +64,27 @@ def fake_get_latest_price(ex: str, sym: str) -> Decimal:
 
 def fake_get_position(ex: str, sym: str) -> Any:
     positions = {
-        ("hyperliquid", "BTC-PERP"): Position(
+        ("hyperliquid", "BTC-PERP"): DerivativePosition(
+            exchange="hyperliquid",
+            timestamp=datetime.now(UTC),
             symbol="BTC-PERP",
             size=Decimal("1.0"),
             entry_price=Decimal("29500"),
+            mark_price=Decimal("30000"),
             side=OrderSide.BUY,
-            leverage=Decimal("1"),
+            liquidation_price=Decimal("28000"),
+            unrealized_pnl=Decimal("500"),
         ),
-        ("backpack", "BTC_USDC"): Position(
+        ("backpack", "BTC_USDC"): DerivativePosition(
+            exchange="backpack",
+            timestamp=datetime.now(UTC),
             symbol="BTC_USDC",
             size=Decimal("-1.0"),
             entry_price=Decimal("29510"),
+            mark_price=Decimal("29990"),
             side=OrderSide.SELL,
-            leverage=Decimal("1"),
+            liquidation_price=Decimal("31000"),
+            unrealized_pnl=Decimal("-480"),
         ),
     }
     return positions.get((ex, sym))

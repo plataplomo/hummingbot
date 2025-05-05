@@ -10,7 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cyberdelta.apis.base_api import ExchangeAPI
-from cyberdelta.core.models import OrderSide, Position
+from cyberdelta.core.models import DerivativePosition, OrderSide
+from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.utils.config import Config
 from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
 
@@ -53,21 +54,25 @@ class TestPositionReconciliationSystem:
 
         # Mock hyperliquid positions
         hyper_positions = [
-            Position(
+            DerivativePosition(
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
                 symbol="BTC",
                 size=Decimal("1.0"),
-                entry_price=Decimal("50000.0"),
-                mark_price=Decimal("51000.0"),
+                entry_price=Decimal("50000"),
+                mark_price=Decimal("51000"),
                 liquidation_price=Decimal("45000.0"),
                 unrealized_pnl=Decimal("1000.0"),
                 leverage=Decimal("2.0"),
                 side=OrderSide.BUY,
             ),
-            Position(
+            DerivativePosition(
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
                 symbol="ETH",
                 size=Decimal("10.0"),
-                entry_price=Decimal("3000.0"),
-                mark_price=Decimal("3100.0"),
+                entry_price=Decimal("3000"),
+                mark_price=Decimal("3100"),
                 liquidation_price=Decimal("2800.0"),
                 unrealized_pnl=Decimal("1000.0"),
                 leverage=Decimal("1.0"),
@@ -77,11 +82,13 @@ class TestPositionReconciliationSystem:
 
         # Mock backpack positions
         backpack_positions = [
-            Position(
+            DerivativePosition(
+                exchange="backpack",
+                timestamp=datetime.now(UTC),
                 symbol="BTC",
                 size=Decimal("-2.0"),
-                entry_price=Decimal("50500.0"),
-                mark_price=Decimal("51000.0"),
+                entry_price=Decimal("50500"),
+                mark_price=Decimal("51000"),
                 liquidation_price=Decimal("55000.0"),
                 unrealized_pnl=Decimal("-1000.0"),
                 leverage=Decimal("1.0"),
@@ -90,7 +97,7 @@ class TestPositionReconciliationSystem:
         ]
 
         # Setup the get_position method
-        def get_position(exchange: str, symbol: str) -> Position | None:
+        def get_position(exchange: str, symbol: str) -> DerivativePosition | None:
             if exchange == "hyperliquid":
                 for pos in hyper_positions:
                     if pos.symbol == symbol:
@@ -102,7 +109,7 @@ class TestPositionReconciliationSystem:
             return None
 
         # Setup get_positions_by_exchange method
-        def get_positions_by_exchange(exchange: str) -> list[Position]:
+        def get_positions_by_exchange(exchange: str) -> list[DerivativePosition]:
             if exchange == "hyperliquid":
                 return hyper_positions
             elif exchange == "backpack":
@@ -115,21 +122,25 @@ class TestPositionReconciliationSystem:
 
         # Setup position data for API clients
         hyper_api_positions = [
-            Position(
+            DerivativePosition(
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
                 symbol="BTC",
                 size=Decimal("1.1"),  # 10% discrepancy with local (1.0)
-                entry_price=Decimal("50000.0"),
-                mark_price=Decimal("51000.0"),
+                entry_price=Decimal("50000"),
+                mark_price=Decimal("51000"),
                 liquidation_price=Decimal("45000.0"),
                 unrealized_pnl=Decimal("1000.0"),
                 leverage=Decimal("2.0"),
                 side=OrderSide.BUY,
             ),
-            Position(
+            DerivativePosition(
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
                 symbol="ETH",
                 size=Decimal("10.0"),  # Matches local
-                entry_price=Decimal("3000.0"),
-                mark_price=Decimal("3100.0"),
+                entry_price=Decimal("3000"),
+                mark_price=Decimal("3100"),
                 liquidation_price=Decimal("2800.0"),
                 unrealized_pnl=Decimal("1000.0"),
                 leverage=Decimal("1.0"),
@@ -138,11 +149,13 @@ class TestPositionReconciliationSystem:
         ]
 
         backpack_api_positions = [
-            Position(
+            DerivativePosition(
+                exchange="backpack",
+                timestamp=datetime.now(UTC),
                 symbol="BTC",
                 size=Decimal("-2.0"),  # Matches local
-                entry_price=Decimal("50500.0"),
-                mark_price=Decimal("51000.0"),
+                entry_price=Decimal("50500"),
+                mark_price=Decimal("51000"),
                 liquidation_price=Decimal("55000.0"),
                 unrealized_pnl=Decimal("-1000.0"),
                 leverage=Decimal("1.0"),
@@ -156,21 +169,25 @@ class TestPositionReconciliationSystem:
 
         # Setup fill derived positions
         hyper_fill_positions = [
-            Position(
+            DerivativePosition(
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
                 symbol="BTC",
                 size=Decimal("1.05"),  # 5% discrepancy with local (1.0)
-                entry_price=Decimal("50000.0"),
-                mark_price=Decimal("51000.0"),
+                entry_price=Decimal("50100"),
+                mark_price=Decimal("51000"),
                 liquidation_price=Decimal("45000.0"),
                 unrealized_pnl=Decimal("1000.0"),
                 leverage=Decimal("2.0"),
                 side=OrderSide.BUY,
             ),
-            Position(
+            DerivativePosition(
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
                 symbol="ETH",
                 size=Decimal("10.0"),  # Matches local
-                entry_price=Decimal("3000.0"),
-                mark_price=Decimal("3100.0"),
+                entry_price=Decimal("3000"),
+                mark_price=Decimal("3100"),
                 liquidation_price=Decimal("2800.0"),
                 unrealized_pnl=Decimal("1000.0"),
                 leverage=Decimal("1.0"),
@@ -179,21 +196,25 @@ class TestPositionReconciliationSystem:
         ]
 
         backpack_fill_positions = [
-            Position(
+            DerivativePosition(
+                exchange="backpack",
+                timestamp=datetime.now(UTC),
                 symbol="BTC",
                 size=Decimal("-1.9"),  # 5% discrepancy with local (-2.0)
-                entry_price=Decimal("50500.0"),
-                mark_price=Decimal("51000.0"),
+                entry_price=Decimal("50400"),
+                mark_price=Decimal("51000"),
                 liquidation_price=Decimal("55000.0"),
                 unrealized_pnl=Decimal("-1000.0"),
                 leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             ),
-            Position(
+            DerivativePosition(
+                exchange="backpack",
+                timestamp=datetime.now(UTC),
                 symbol="SOL",  # Position not in local state
                 size=Decimal("5.0"),
-                entry_price=Decimal("100.0"),
-                mark_price=Decimal("103.0"),
+                entry_price=Decimal("150"),
+                mark_price=Decimal("155"),
                 liquidation_price=Decimal("90.0"),
                 unrealized_pnl=Decimal("15.0"),
                 leverage=Decimal("1.0"),
@@ -238,7 +259,7 @@ class TestPositionReconciliationSystem:
             return execution_handler_hyper  # Default
 
         # Add helper method for test access to exchange positions
-        def _get_exchange_positions(exchange: str) -> list[Position]:
+        def _get_exchange_positions(exchange: str) -> list[DerivativePosition]:
             if exchange == "hyperliquid":
                 return hyper_api_positions
             elif exchange == "backpack":
@@ -404,93 +425,101 @@ class TestPositionReconciliationSystem:
 
         # Exchange API positions
         exchange_positions = [
-            Position(
+            DerivativePosition(
+                exchange="mock_exchange",
+                timestamp=datetime.now(UTC),
                 symbol="BTC",
                 side=OrderSide.BUY,
                 size=Decimal("1.0"),
                 entry_price=Decimal("50000"),
-                mark_price=Decimal("50000"),
+                mark_price=Decimal("51000"),
                 liquidation_price=Decimal("45000"),
-                unrealized_pnl=Decimal("0"),
-                leverage=Decimal("1"),
+                unrealized_pnl=Decimal("1000"),
             ),
-            Position(
+            DerivativePosition(
+                exchange="mock_exchange",
+                timestamp=datetime.now(UTC),
                 symbol="ETH",
                 side=OrderSide.SELL,
-                size=Decimal("10.0"),
+                size=Decimal("-10.0"),
                 entry_price=Decimal("3000"),
-                mark_price=Decimal("3000"),
-                liquidation_price=Decimal("2700"),
-                unrealized_pnl=Decimal("0"),
-                leverage=Decimal("1"),
+                mark_price=Decimal("2900"),
+                liquidation_price=Decimal("3300"),
+                unrealized_pnl=Decimal("1000"),
             ),
         ]
 
         # Fill history positions with discrepancy
         fill_positions = [
-            Position(
+            DerivativePosition(
+                exchange="mock_exchange",
+                timestamp=datetime.now(UTC),
                 symbol="BTC",
                 size=Decimal("0.9"),
+                entry_price=Decimal("50100"),
+                mark_price=Decimal("51000"),
                 side=OrderSide.BUY,
-                entry_price=Decimal("50000"),
-                mark_price=Decimal("50000"),  # 10% discrepancy
                 liquidation_price=Decimal("45000"),
-                unrealized_pnl=Decimal("0"),
-                leverage=Decimal("1"),
+                unrealized_pnl=Decimal("900"),
             ),
-            Position(
+            DerivativePosition(
+                exchange="mock_exchange",
+                timestamp=datetime.now(UTC),
                 symbol="ETH",
                 size=Decimal("-9.8"),
+                entry_price=Decimal("3010"),
+                mark_price=Decimal("2900"),
                 side=OrderSide.SELL,
-                entry_price=Decimal("3000"),
-                mark_price=Decimal("3000"),
-                liquidation_price=Decimal("2700"),
-                unrealized_pnl=Decimal("0"),
-                leverage=Decimal("1"),
+                liquidation_price=Decimal("3300"),
+                unrealized_pnl=Decimal("980"),
             ),
-            Position(
+            DerivativePosition(
+                exchange="mock_exchange",
+                timestamp=datetime.now(UTC),
                 symbol="SOL",
                 size=Decimal("50.0"),
+                entry_price=Decimal("150"),
+                mark_price=Decimal("155"),
                 side=OrderSide.BUY,
-                entry_price=Decimal("100"),
-                mark_price=Decimal("100"),  # Not in exchange
-                liquidation_price=Decimal("90"),
-                unrealized_pnl=Decimal("0"),
-                leverage=Decimal("1"),
+                liquidation_price=Decimal("130"),
+                unrealized_pnl=Decimal("250"),
             ),
         ]
 
         # Local positions with discrepancy
         local_positions = [
-            Position(
+            DerivativePosition(
+                exchange="mock_exchange",
+                timestamp=datetime.now(UTC),
                 symbol="BTC",
                 side=OrderSide.BUY,
                 size=Decimal("1.0"),
                 entry_price=Decimal("50000"),
-                mark_price=Decimal("50000"),
+                mark_price=Decimal("51000"),
                 liquidation_price=Decimal("45000"),
-                unrealized_pnl=Decimal("0"),
-                leverage=Decimal("1"),
+                unrealized_pnl=Decimal("1000"),
             ),
-            Position(
+            DerivativePosition(
+                exchange="mock_exchange",
+                timestamp=datetime.now(UTC),
                 symbol="ETH",
                 side=OrderSide.SELL,
-                size=Decimal("9.8"),  # Discrepancy
+                size=Decimal("-10.0"),
                 entry_price=Decimal("3000"),
-                mark_price=Decimal("3000"),
-                liquidation_price=Decimal("2700"),
-                unrealized_pnl=Decimal("0"),
-                leverage=Decimal("1"),
+                mark_price=Decimal("2900"),
+                liquidation_price=Decimal("3300"),
+                unrealized_pnl=Decimal("1000"),
             ),
-            Position(
+            DerivativePosition(
+                exchange="mock_exchange",
+                timestamp=datetime.now(UTC),
                 symbol="DOGE",
                 size=Decimal("1000.0"),
+                entry_price=Decimal("0.15"),
+                mark_price=Decimal("0.16"),
                 side=OrderSide.BUY,
-                entry_price=Decimal("0.1"),
-                mark_price=Decimal("0.1"),  # Not in exchange
-                liquidation_price=Decimal("0.08"),
-                unrealized_pnl=Decimal("0"),
-                leverage=Decimal("1"),
+                liquidation_price=Decimal("0.10"),
+                unrealized_pnl=Decimal("10"),
             ),
         ]
 

@@ -1,3 +1,6 @@
+from pydantic import BaseModel, Field
+
+
 class RateLimiterConfig(BaseModel):
     """
     Pydantic model for configuration and (optionally) serializable state of a token bucket

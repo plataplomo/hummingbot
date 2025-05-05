@@ -13,8 +13,9 @@ from typing import TYPE_CHECKING, Any, cast
 import aiohttp
 from aiohttp import ClientTimeout, ClientWSTimeout
 
-from cyberdelta.apis.models.api import APIError, RateLimiterConfig
+from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.rate_limiter_config import RateLimiterConfig
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
     # Import models only needed for type hints here
     from cyberdelta.core.models.market import Candle
 
+# Get logger instance for this module
 logger = logging.getLogger(__name__)
 
 # Type hint for WebSocket message handlers
@@ -52,6 +54,7 @@ class ExchangeAPI(ABC):
         exchange_name: str,
         config: dict[str, Any],
         secrets: dict[str, str | None],
+        loop: asyncio.AbstractEventLoop | None = None,
     ) -> None:
         """
         Initialize the exchange API client.
@@ -60,6 +63,7 @@ class ExchangeAPI(ABC):
             exchange_name: Name of the exchange (e.g., 'hyperliquid', 'backpack')
             config: Dictionary of configuration parameters including endpoints, rate limits
             secrets: Dictionary of API keys and secrets for authentication
+            loop: Optional event loop for rate limiters
         """
         self.exchange_name = exchange_name
         self.config = config
@@ -80,21 +84,10 @@ class ExchangeAPI(ABC):
         self._ws_listener_task: asyncio.Task[None] | None = None
         self._is_connected = False  # WebSocket connection state
 
-        # Set up rate limiters
-        self._setup_rate_limiters(config.get("rate_limits", {}))
-
-        # Validation
-        if not self.rest_endpoint:
-            logger.warning(f"REST endpoint not configured for {self.exchange_name}")
-        if not self.ws_endpoint:
-            logger.warning(f"WebSocket endpoint not configured for {self.exchange_name}")
-
-    def _setup_rate_limiters(self, rate_limit_config: dict[str, Any]) -> None:
-        """
-        Set up rate limiters based on configuration.
-        """
-        default_rate = rate_limit_config.get("default_rate", 1.0)
-        default_bucket = rate_limit_config.get("default_bucket", 5)
+        # Initialize Rate Limiters
+        rate_limit_config = config.get("rate_limits") or {}
+        default_rate = rate_limit_config.get("default_rate", 10.0)  # Default: 10 requests/sec
+        default_bucket = rate_limit_config.get("default_bucket_size", 10)  # Default: burst of 10
         self._default_limiter_config = RateLimiterConfig(
             rate=default_rate, bucket_size=default_bucket, tokens=None, last_refill=None
         )
@@ -102,13 +95,24 @@ class ExchangeAPI(ABC):
         self._endpoint_limiter_configs: dict[str, RateLimiterConfig] = {}
         self._endpoint_limiters: dict[str, TokenBucketRateLimiterRuntime] = {}
         endpoints = rate_limit_config.get("endpoints", {})
-        for endpoint, config in endpoints.items():
-            rate = config.get("rate", default_rate)
-            bucket = config.get("bucket", default_bucket)
-            self._endpoint_limiter_configs[endpoint] = RateLimiterConfig(
-                rate=rate, bucket_size=bucket, tokens=None, last_refill=None
-            )
-            self._endpoint_limiters[endpoint] = TokenBucketRateLimiterRuntime(rate, bucket)
+        for endpoint, config_dict in endpoints.items():
+            if isinstance(config_dict, dict):
+                rate = config_dict.get("rate", default_rate)
+                bucket = config_dict.get("bucket_size", default_bucket)
+                self._endpoint_limiter_configs[endpoint] = RateLimiterConfig(
+                    rate=rate, bucket_size=bucket, tokens=None, last_refill=None
+                )
+                self._endpoint_limiters[endpoint] = TokenBucketRateLimiterRuntime(rate, bucket)
+            else:
+                logger.warning(
+                    f"Invalid rate limit config for endpoint '{endpoint}': {config_dict}"
+                )
+
+        # Validation
+        if not self.rest_endpoint:
+            logger.warning(f"REST endpoint not configured for {self.exchange_name}")
+        if not self.ws_endpoint:
+            logger.warning(f"WebSocket endpoint not configured for {self.exchange_name}")
 
     async def _get_rate_limiter(self, method: str, path: str) -> TokenBucketRateLimiterRuntime:
         """

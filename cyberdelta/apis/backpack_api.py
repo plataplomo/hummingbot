@@ -34,9 +34,7 @@ from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.exchange_names import ExchangeName
-from cyberdelta.apis.models.api import (
-    APIError,
-)
+from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (  # Use absolute import
     DerivativePosition,
@@ -51,6 +49,7 @@ from cyberdelta.core.models import (  # Use absolute import
     TimeInForce,
     Trade,
 )
+from cyberdelta.core.models.spot_balance import SpotBalance  # Ensure SpotBalance is imported
 from cyberdelta.utils.logging_config import get_logger
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
@@ -1015,3 +1014,54 @@ class BackpackAPI(ExchangeAPI):
 
     # TODO: Implement remaining abstract methods from ExchangeAPI
     #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)
+
+    async def _fetch_balance(self, asset: str | None = None) -> list[SpotBalance]:
+        """Internal method to fetch spot balances."""
+        balances_data = await self._request("GET", "/api/v1/capital")
+        if not isinstance(balances_data, dict):
+            logger.warning("Unexpected response format from /capital endpoint")
+            return []  # Return empty list on unexpected format
+
+        now = datetime.now(UTC)
+        balances = []
+        for asset_symbol, details in balances_data.items():
+            if not isinstance(details, dict):
+                logger.warning(f"Skipping invalid balance entry for {asset_symbol}: {details}")
+                continue
+
+            # Use raw model from correct location if it exists, otherwise skip details for now
+            # Assuming a BackpackRawBalance model exists in backpack.models
+            try:
+                # Need to import the actual Raw Balance model if it exists
+                # from .models.bp_raw_balance import BackpackRawBalance # Placeholder
+                # raw_details = BackpackRawBalance.model_validate(details) # Placeholder
+
+                # Placeholder logic until Raw Model path confirmed - USE HARDCODED KEYS FOR NOW
+                available_qty = Decimal(str(details.get("available", "0")))
+                locked_qty = Decimal(str(details.get("locked", "0")))
+                staked_qty = Decimal(str(details.get("staked", "0")))
+                total_qty = available_qty + locked_qty
+
+                # Need to import the actual Details model if it exists
+                # from .models.bp_spot_balance_details import BackpackSpotBalanceDetails # Placeholder
+                bp_details_obj = None  # Placeholder
+                # bp_details_obj = BackpackSpotBalanceDetails(
+                #     open_order_quantity=locked_qty,
+                #     lend_quantity=staked_qty,
+                #     collateral_weight=None,
+                # ) # Placeholder
+
+                balance = SpotBalance(
+                    exchange=self.exchange_name,
+                    asset=asset_symbol.upper(),
+                    timestamp=now,  # Add missing timestamp
+                    total_quantity=total_qty,  # Corrected argument name
+                    available_quantity=available_qty,  # Corrected argument name
+                    bp_details=bp_details_obj,  # Use placeholder for now
+                )
+                if asset is None or balance.asset == asset.upper():
+                    balances.append(balance)
+            except (ValidationError, TypeError, KeyError, InvalidOperation) as e:
+                logger.error(f"Failed to parse balance for {asset_symbol}: {e}. Data: {details}")
+                continue
+        return balances
