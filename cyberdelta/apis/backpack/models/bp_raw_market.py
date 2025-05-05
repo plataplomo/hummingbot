@@ -23,11 +23,14 @@ These models act as a strict shield between external API data and internal busin
 robustness and security at the data ingestion boundary.
 """
 
-from typing import Any
+import logging
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+
+# Get logger for the module
+logger = logging.getLogger(__name__)
 
 
 class BackpackRawMarket(BaseModel):
@@ -203,35 +206,48 @@ class BackpackRawOrderBook(BaseModel):
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Must be a list of [price, quantity] pairs")
 
-        # Removed cast - perform runtime checks inside loop
+        # Perform runtime checks inside loop
         validated_levels: list[tuple[str, str]] = []
+        # Pyright Warning: `v` is `object` in mode='before', `enumerate` arg type is unknown.
+        # Runtime `isinstance(v, list)` check above ensures safety.
         for i, level_raw in enumerate(v):
-            # Runtime check for structure
-            if not isinstance(level_raw, list | tuple) or len(level_raw) != 2:
+            # Runtime check for structure and element types
+            # Pyright Warning: `level_raw` is `unknown`, `len` arg type is unknown.
+            # Runtime check below ensures safety.
+            if not isinstance(level_raw, (list, tuple)) or len(level_raw) != 2:
                 raise ValueError(
                     f"{field_name}[{i}]: Each level must be a list/tuple of [price, quantity]"
                 )
 
-            price_raw: Any = level_raw[0]
-            quantity_raw: Any = level_raw[1]
+            # Ensure elements are potentially processable before validation
+            # Pyright Warning: `level_raw[0/1]` access type is unknown.
+            # Runtime check above ensures `level_raw` is sequence of length 2.
+            price_raw: object = level_raw[0]
+            quantity_raw: object = level_raw[1]
 
             try:
                 # Validate price string and its content
-                price_str = validate_str_field(price_raw, f"{field_name}[{i}].price", max_length=64)
+                # Pyright Warning: `price_raw` type is unknown.
+                # Runtime check ensures it's accessed from a valid sequence element.
+                price_str = validate_str_field(
+                    price_raw, f"{field_name}[{i}].price", max_length=64, allow_empty=False
+                )
                 price_dec = parse_decimal_value(price_str, allow_none=False)
                 if price_dec is None or not price_dec.is_finite():
                     raise ValueError("Price must be a finite decimal string")
 
                 # Validate quantity string and its content (non-negative)
+                # Pyright Warning: `quantity_raw` type is unknown.
+                # Runtime check ensures it's accessed from a valid sequence element.
                 quantity_str = validate_str_field(
-                    quantity_raw, f"{field_name}[{i}].quantity", max_length=64
+                    quantity_raw, f"{field_name}[{i}].quantity", max_length=64, allow_empty=False
                 )
                 quantity_dec = parse_decimal_value(quantity_str, allow_none=False)
                 if quantity_dec is None or not quantity_dec.is_finite() or quantity_dec < 0:
                     raise ValueError("Quantity must be a non-negative finite decimal string")
 
                 validated_levels.append((price_str, quantity_str))
-            except (ValueError, TypeError) as e:
+            except (ValidationError, ValueError, TypeError) as e:
                 # Catch errors from helpers or checks above
                 raise ValueError(
                     f"{field_name}[{i}]: Invalid level format [{level_raw}]: {e}"
@@ -310,10 +326,14 @@ class BackpackRawDepthUpdateEvent(BaseModel):
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Must be a list of [price, quantity] pairs")
 
-        # No need to cast 'v', type checker knows it's a list now.
+        # Perform runtime checks inside loop
         validated_levels: list[tuple[str, str]] = []
+        # Pyright Warning: `v` is `object` in mode='before', `enumerate` arg type is unknown.
+        # Runtime `isinstance(v, list)` check above ensures safety.
         for i, level_raw in enumerate(v):
             # Runtime check for structure
+            # Pyright Warning: `level_raw` is `unknown`, `len` arg type is unknown.
+            # Runtime check below ensures safety.
             if not isinstance(level_raw, (list, tuple)) or len(level_raw) != 2:
                 # Use tuple for isinstance check, | requires Python 3.10+
                 raise ValueError(
@@ -321,17 +341,23 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                 )
 
             # Explicitly check item types before accessing
+            # Pyright Warning: `level_raw[0/1]` access type is unknown.
+            # Runtime check above ensures `level_raw` is sequence of length 2.
             price_item: object = level_raw[0]
             qty_item: object = level_raw[1]
 
             try:
                 # Extract and validate price string
+                # Pyright Warning: `price_item` type is unknown.
+                # Runtime check ensures it's accessed from a valid sequence element.
                 price_str = validate_str_field(
                     price_item, f"{field_name}[{i}].price", max_length=64, allow_empty=False
                 )
                 _ = parse_decimal_value(price_str, allow_none=False)  # Check finite
 
                 # Extract and validate quantity string
+                # Pyright Warning: `qty_item` type is unknown.
+                # Runtime check ensures it's accessed from a valid sequence element.
                 qty_str = validate_str_field(
                     qty_item, f"{field_name}[{i}].quantity", max_length=64, allow_empty=False
                 )

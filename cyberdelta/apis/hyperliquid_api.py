@@ -1,13 +1,11 @@
 import asyncio
-import json
 import logging
 import time
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
-from aiohttp import ClientTimeout
 from eth_account.messages import encode_typed_data
 from pydantic import ValidationError
 from web3.auto import w3
@@ -132,7 +130,10 @@ class HyperliquidAPI(ExchangeAPI):
         self.ws_connection: aiohttp.ClientWebSocketResponse | None = None
         self.ws_lock = asyncio.Lock()
         self._symbol_map: dict[str, str] = {}
+        # Store handler by channel key for routing
         self._ws_handlers: dict[str, MessageHandler] = {}
+        # Store original topic string and handler for resubscription
+        self._ws_subscriptions: dict[str, MessageHandler] = {}
         self._is_connected = False
 
     async def _authenticate(
@@ -240,156 +241,178 @@ class HyperliquidAPI(ExchangeAPI):
 
     # --- WebSocket Implementation --- #
 
+    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
+        """Handle raw WebSocket message, routing it for processing."""
+        # For Hyperliquid, no special pre-processing needed currently.
+        # Directly call the routing logic.
+        await self._route_ws_message(message)
+
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
-        """Route incoming WebSocket messages."""
+        """Route incoming WebSocket messages based on Hyperliquid's 'channel' field."""
         channel = message.get("channel")
         data = message.get("data")
-        if not channel or not data:
-            logger.debug(f"[{self.exchange_name}] Received unroutable message: {message}")
+        if not channel or data is None:  # Check data is not None explicitly
+            logger.debug(f"[{self.exchange_name}] Received unroutable WS message: {message}")
             return
 
-        handler = self._ws_handlers.get(channel)
-        if handler:
-            try:
-                await handler(data)
-            except Exception as e:
-                logger.error(
-                    f"[{self.exchange_name}] Error in handler for channel {channel}: {e}",
-                    exc_info=True,
-                )
+        # Ensure data is a dict for mappers that expect it
+        if not isinstance(data, dict):
+            logger.warning(
+                f"[{self.exchange_name}] Received WS data for channel {channel} is not a dict: {type(data)}"
+            )
+            return
+        # Cast data to satisfy mapper type hints (borderline use of cast due to external data format)
+        # #[CAST-REVIEW-REQUIRED] Justification: External WS data structure isn't strictly typed.
+        data_dict = cast(dict[str, Any], data)
+
+        # Map channel names to parsing functions and registered handlers
+        if channel == "l2Book":
+            handler = self._ws_handlers.get(channel)  # Get handler registered for "l2Book" key
+            if handler:
+                try:
+                    # Parse using the specific mapper function
+                    parsed_book: OrderBook | None = (
+                        HyperliquidWebsocketMapper.parse_orderbook_message(data_dict, logger)
+                    )
+                    if parsed_book:  # Pass parsed data if successful
+                        # Convert parsed object back to dict for the handler
+                        await handler(parsed_book.model_dump())
+                    else:
+                        logger.warning(
+                            f"[{self.exchange_name}] Failed to parse l2Book data: {data_dict}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Error in l2Book handler/parser: {e}", exc_info=True
+                    )
+            else:
+                logger.debug(f"[{self.exchange_name}] No handler for channel: {channel}")
+        elif channel == "trades":
+            handler = self._ws_handlers.get(channel)  # Get handler for "trades"
+            if handler:
+                try:
+                    # Parse using the specific mapper function
+                    parsed_trade: Trade | None = HyperliquidWebsocketMapper.parse_trade_message(
+                        data_dict, logger
+                    )
+                    if parsed_trade:
+                        # Convert parsed object back to dict for the handler
+                        await handler(parsed_trade.model_dump())
+                    else:
+                        logger.warning(
+                            f"[{self.exchange_name}] Failed to parse trades data: {data_dict}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Error in trades handler/parser: {e}", exc_info=True
+                    )
+            else:
+                logger.debug(f"[{self.exchange_name}] No handler for channel: {channel}")
+        elif channel == "userEvents":
+            handler = self._ws_handlers.get(channel)  # Get handler for "userEvents"
+            if handler:
+                try:
+                    # User events need specific parsing based on internal type (order, fill, etc.)
+                    # This might need a dedicated mapper function in HyperliquidWebsocketMapper
+                    # e.g., parsed_event = HyperliquidWebsocketMapper.parse_user_event(data_dict, logger)
+                    # For now, pass raw dict - handler MUST parse internally.
+                    logger.debug(
+                        f"[{self.exchange_name}] Passing raw userEvent dict data to handler."
+                    )
+                    await handler(
+                        data_dict
+                    )  # TODO: Implement parsing in handler or add mapper func
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Error in userEvents handler: {e}", exc_info=True
+                    )
+            else:
+                logger.debug(f"[{self.exchange_name}] No handler for channel: {channel}")
+        # Add more channel handlers as needed
         else:
-            logger.debug(f"[{self.exchange_name}] No handler registered for channel: {channel}")
+            logger.debug(f"[{self.exchange_name}] Unhandled WS channel: {channel}")
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
-        """Subscribe to a WebSocket topic."""
-        self._ws_handlers[topic] = handler
+        """Subscribe to a WebSocket topic (channel) using Hyperliquid format."""
+        # Map internal topic concept to Hyperliquid subscription message
+        # Example: topic might be "l2Book:BTC" or "trades:ETH"
+        # Hyperliquid subscription format might vary based on channel
+        # This needs specific mapping based on Hyperliquid docs
+        subscription_payload: dict[str, Any] = {}
+        if topic.startswith("l2Book:"):
+            coin = topic.split(":", 1)[1]
+            subscription_payload = {
+                "method": "subscribe",
+                "subscription": {"type": "l2Book", "coin": coin},
+            }
+        elif topic.startswith("trades:"):
+            coin = topic.split(":", 1)[1]
+            subscription_payload = {
+                "method": "subscribe",
+                "subscription": {"type": "trades", "coin": coin},
+            }
+        elif topic == "userEvents":
+            if not self._wallet_address:
+                logger.error(
+                    f"[{self.exchange_name}] Wallet address needed to subscribe to userEvents"
+                )
+                return
+            subscription_payload = {
+                "method": "subscribe",
+                "subscription": {"type": "userEvents", "user": self._wallet_address},
+            }
+        else:
+            logger.error(f"[{self.exchange_name}] Unsupported subscription topic format: {topic}")
+            return
+
+        # Store handler using the original topic string as the key FOR RESUBSCRIPTION
+        self._ws_subscriptions[topic] = handler
+
+        # Determine channel key for routing incoming messages and store handler FOR ROUTING
+        channel_key = topic.split(":", 1)[0]  # e.g., "l2Book", "trades", "userEvents"
+        self._ws_handlers[channel_key] = handler  # Use channel key for routing lookup
 
         if self.ws_connection and self._is_connected:
             try:
-                await self.ws_connection.send_json({"method": "subscribe", "subscription": topic})
-                logger.info(f"[{self.exchange_name}] Subscribed to {topic}")
+                await self.ws_connection.send_json(subscription_payload)
+                logger.info(f"[{self.exchange_name}] Sent subscription request for {topic}")
             except Exception as e:
                 logger.error(
-                    f"[{self.exchange_name}] Error subscribing to {topic}: {e}", exc_info=True
+                    f"[{self.exchange_name}] Error sending subscription for {topic}: {e}",
+                    exc_info=True,
                 )
+        else:
+            logger.warning(
+                f"[{self.exchange_name}] Cannot subscribe to {topic}, WebSocket not connected."
+            )
 
     async def _resubscribe(self) -> None:
         """Resubscribe to all registered topics upon reconnection."""
         logger.info(
-            f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_handlers.keys())}"
+            f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_subscriptions.keys())}\n"
         )
-        handlers_copy = self._ws_handlers.copy()
-        for topic, handler in handlers_copy.items():
-            await self.subscribe(topic, handler)
-            await asyncio.sleep(0.1)
-
-    # --- REST API Implementation --- #
-
-    async def _request(
-        self,
-        method: str,
-        path: str,
-        params: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-        signed: bool = False,
-        retry_count: int = 3,
-        timeout: float = 30.0,
-    ) -> dict[str, Any] | list[Any] | str | None:
-        """
-        Make a request to the API with proper error handling and type annotations.
-
-        Args:
-            method: HTTP method (GET, POST, etc.)
-            path: API endpoint path
-            params: Query parameters for the request (dictionary)
-            data: JSON data to send in the request body (dictionary)
-            headers: Additional headers to include (dictionary)
-            signed: Whether the request requires authentication
-            retry_count: Maximum number of retry attempts
-            timeout: Request timeout in seconds
-
-        Returns:
-            The parsed JSON response as a dict, list, string or None.
-
-        Raises:
-            APIError: If an error occurs during the request
-        """
-        try:
-            # Construct full URL
-            url = (
-                path
-                if path.startswith(("http://", "https://"))
-                else f"{self.rest_endpoint}/{path.lstrip('/')}"
+        # Iterate through the stored topic->handler mapping
+        subscriptions_copy = self._ws_subscriptions.copy()
+        if not subscriptions_copy:
+            logger.info(
+                f"[{self.exchange_name}] No subscriptions registered, nothing to resubscribe.\n"
             )
+            return
 
-            # Prepare headers
-            full_headers: dict[str, str] = {}
-            if hasattr(self, "default_headers"):
-                default_headers: dict[str, str] = self.default_headers
-                full_headers.update(default_headers)
-            if headers:
-                full_headers.update(headers)
-
-            # Ensure session is available
-            if not self._session:
-                raise APIError(
-                    "HTTP session not initialized. Call connect() first.",
-                    code=APIErrorCode.CONNECTION_ERROR.value,
+        for topic, handler in subscriptions_copy.items():
+            # Call subscribe again for each stored topic and handler
+            try:
+                logger.debug(f"[{self.exchange_name}] Attempting to resubscribe to {topic}\n")
+                # Subscribe uses the topic to generate payload AND store handler again
+                await self.subscribe(topic, handler)  # Resend subscription message
+                await asyncio.sleep(0.1)  # Small delay between resubscriptions
+            except Exception as e:
+                logger.error(
+                    f"[{self.exchange_name}] Failed to resubscribe to topic {topic}: {e}",
+                    exc_info=True,
                 )
 
-            # Create a proper ClientTimeout object
-            timeout_obj = ClientTimeout(total=timeout)
-
-            async with self._session.request(
-                method, url, params=params, json=data, headers=full_headers, timeout=timeout_obj
-            ) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    logger.error(
-                        f"[{self.exchange_name}] API error: {response.status} - {error_text}"
-                    )
-                    # Try to parse as JSON and use HyperliquidMapper.map_error_response if possible
-                    try:
-                        error_json: dict[str, Any] = json.loads(error_text)
-                        if "error" in error_json:
-                            from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper
-
-                            raise HyperliquidMapper.map_error_response(
-                                error_json, http_status=response.status
-                            )
-                    except Exception:
-                        pass
-                    # Fallback: raise generic APIError
-                    raise APIError(
-                        f"API Error: {response.status} - {error_text}",
-                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-                    )
-
-                if response.content_type == "application/json":
-                    response_data: dict[str, Any] | list[Any] = await response.json()
-                    return response_data
-                else:
-                    text_response: str = await response.text()
-                    return text_response
-
-        except aiohttp.ClientError as e:
-            logger.error(f"[{self.exchange_name}] HTTP error: {e}", exc_info=True)
-            raise APIError(
-                f"HTTP Error: {e}", code=APIErrorCode.NETWORK_ISSUE.value, original_exception=e
-            ) from e
-        except json.JSONDecodeError as e:
-            logger.error(f"[{self.exchange_name}] JSON decode error: {e}", exc_info=True)
-            raise APIError(
-                f"JSON decode error: {e}",
-                code=APIErrorCode.INVALID_REQUEST.value,
-                original_exception=e,
-            ) from e
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Request error: {e}", exc_info=True)
-            raise APIError(
-                f"Request error: {e}", code=APIErrorCode.SERVER_ERROR.value, original_exception=e
-            ) from e
+    # --- REST API Implementation --- #
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances using the user state endpoint and mapper.
@@ -704,122 +727,124 @@ class HyperliquidAPI(ExchangeAPI):
         )
 
     async def connect_websocket(self) -> None:
-        """(Placeholder) Connect to the WebSocket endpoint."""
-
-    async def _handle_websocket_message(self, message: dict[str, Any] | list[Any] | str) -> None:
-        # Accepts dict, list, or str; list[Any] is explicit for linter
-        if isinstance(message, dict):
-            await self._route_ws_message(message)
+        """Establish the WebSocket connection using the base class logic."""
+        if not self.is_connected:
+            await self._connect_ws()
         else:
-            logger.debug(f"[{self.exchange_name}] Received non-dict WS message: {type(message)}")
-
-    async def subscribe_to_account_updates(self) -> None:
-        raise NotImplementedError("subscribe_to_account_updates needs handler implementation")
-
-    async def ping_websocket(self) -> None:
-        if self._ws_connection and not self._ws_connection.closed:
-            try:
-                await self._ws_connection.ping()
-                logger.debug(f"[{self.exchange_name}] Sent WebSocket ping")
-            except Exception as e:
-                logger.warning(f"[{self.exchange_name}] Failed to send WebSocket ping: {e}")
-
-    async def _on_message(self, ws: "aiohttp.ClientWebSocketResponse", message: str) -> None:
-        """Handle WebSocket messages.
-
-        Args:
-            ws: The WebSocket connection
-            message: The message received from the WebSocket
-        """
-        if not message:
-            return
-
-        try:
-            data = json.loads(message)
-            message_type = self.get_message_type(data)
-
-            if message_type == "ping":
-                # Respond to ping message
-                await ws.send_str(json.dumps({"type": "pong"}))
-                return
-
-            if message_type == "orderbook":
-                # Parse and forward orderbook updates
-                orderbook = HyperliquidWebsocketMapper.parse_orderbook_message(data, logger)
-                if orderbook and self.orderbook_callback:
-                    # Convert OrderBook to dict to match callback signature
-                    await self.orderbook_callback({"orderbook": orderbook})
-                elif orderbook and not self.orderbook_callback:
-                    logger.warning(
-                        f"[{self.exchange_name}] Received orderbook update but no "
-                        f"orderbook_callback is set."
-                    )
-                return
-
-            if message_type == "trade":
-                # Parse and forward trade updates
-                trade = HyperliquidWebsocketMapper.parse_trade_message(data, logger)
-                if trade and self.trade_callback:
-                    # Convert Trade to dict to match callback signature
-                    await self.trade_callback({"trade": trade})
-                elif trade and not self.trade_callback:
-                    logger.warning(
-                        f"[{self.exchange_name}] Received trade update but no "
-                        f"trade_callback is set."
-                    )
-                return
-
-            if message_type == "order_update":
-                # Parse and forward order updates
-                order = HyperliquidWebsocketMapper.parse_order_update_message(
-                    data, logger, self.parse_order
-                )
-                if order and self.order_update_callback:
-                    # Convert Order to dict to match callback signature
-                    await self.order_update_callback({"order": order})
-                elif order and not self.order_update_callback:
-                    logger.warning(
-                        f"[{self.exchange_name}] Received order update but no "
-                        f"order_update_callback is set."
-                    )
-                return
-
-            if message_type == "fill":
-                # Parse and forward fill updates (trade executions)
-                fill_trades = HyperliquidWebsocketMapper.parse_fill_message(data, logger)
-                if fill_trades and self.fill_callback:
-                    for trade in fill_trades:
-                        # Convert Trade to dict to match callback signature
-                        await self.fill_callback({"trade": trade})
-                elif fill_trades and not self.fill_callback:
-                    logger.warning(
-                        f"[{self.exchange_name}] Received fill update but no fill_callback is set."
-                    )
-                return
-
-            # Log unhandled message types
-            logger.debug(f"[{self.exchange_name}] Unhandled WebSocket message type: {message_type}")
-
-        except json.JSONDecodeError:
-            logger.warning(
-                f"[{self.exchange_name}] Received invalid JSON message: {message[:100]}..."
-            )
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Error processing WebSocket message: {e}", exc_info=True
-            )
+            logger.debug(f"[{self.exchange_name}] WebSocket already connected.")
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
-        """
-        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
-        """
-        raise NotImplementedError("get_order not implemented for HyperliquidAPI")
+        """Fetch a single order by its ID.
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]:
+        Args:
+            order_id: The exchange-assigned order ID.
+            symbol: Optional market symbol (ignored by Hyperliquid for ID lookup).
+
+        Returns:
+            The Order object if found, otherwise None.
         """
-        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
+        try:
+            # Reuse get_order_status which handles fetching and transformation
+            # Symbol is ignored by Hyperliquid's get_order_status implementation
+            return await self.get_order_status(order_id=order_id, symbol=symbol)
+        except APIError as e:
+            # If get_order_status raises ORDER_NOT_FOUND, return None as per this method's contract
+            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
+                logger.debug(f"[{self.exchange_name}] Order {order_id} not found (get_order).")
+                return None
+            # Re-raise other API errors
+            logger.error(f"[{self.exchange_name}] API error fetching order {order_id}: {e}")
+            raise
+        except Exception as e:
+            # Re-raise unexpected errors
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error fetching order {order_id}: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error fetching order {order_id}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
+
+    async def cancel_all_orders(self, symbol: str | None = None) -> None:
         """
-        raise NotImplementedError("cancel_all_orders not implemented for HyperliquidAPI")
+        Cancel all open orders, optionally filtering by symbol.
+        Required by ExchangeAPI base class.
+        NOTE: Hyperliquid doesn't have a bulk cancel. This fetches open orders
+        and cancels them individually.
+        """
+        logger.info(
+            f"[{self.exchange_name}] Attempting to cancel all orders for symbol: {symbol or 'all'}"
+        )
+        try:
+            # Fetch open orders, potentially filtered by symbol
+            open_orders = await self.get_open_orders(symbol=symbol)
+
+            if not open_orders:
+                logger.info(
+                    f"[{self.exchange_name}] No open orders found for {symbol or 'all'} to cancel."
+                )
+                return
+
+            logger.info(f"[{self.exchange_name}] Found {len(open_orders)} open orders to cancel.")
+
+            cancelled_count = 0
+            failed_count = 0
+
+            # Iterate and cancel each order individually
+            for order in open_orders:
+                try:
+                    # Ensure required fields are present
+                    if order.exchange_order_id and order.symbol:
+                        logger.debug(
+                            f"[{self.exchange_name}] Cancelling order {order.exchange_order_id} for {order.symbol}"
+                        )
+                        # Call the existing cancel_order method
+                        await self.cancel_order(
+                            order_id=order.exchange_order_id, symbol=order.symbol
+                        )
+                        cancelled_count += 1
+                        # Add a small delay to avoid potential rate limiting
+                        await asyncio.sleep(0.1)
+                    else:
+                        logger.warning(
+                            f"[{self.exchange_name}] Skipping order cancellation due to missing ID or symbol: {order}"
+                        )
+                        failed_count += 1
+                except APIError as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Failed to cancel order {order.exchange_order_id}: {e}"
+                    )
+                    failed_count += 1
+                    # Continue to next order even if one fails
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected error cancelling order {order.exchange_order_id}: {e}"
+                    )
+                    failed_count += 1
+                    # Continue to next order
+
+            logger.info(
+                f"[{self.exchange_name}] Cancellation summary for {symbol or 'all'}: {cancelled_count} succeeded, {failed_count} failed."
+            )
+
+        except APIError as e:
+            # Error during get_open_orders
+            logger.error(f"[{self.exchange_name}] API Error fetching open orders to cancel: {e}")
+            raise  # Re-raise the error
+        except Exception as e:
+            # Unexpected error during the overall process
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error during cancel_all_orders for {symbol or 'all'}: {e}",
+                exc_info=True,
+            )
+            # Wrap in a generic APIError
+            raise APIError(
+                message=f"Unexpected error during cancel_all_orders: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
 
     async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]:
         """
@@ -972,12 +997,123 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_market_data(
-        self, symbol: str, timeframe: str, limit: int = 100
-    ) -> list[Candle]:  # Type hint should now work
-        raise NotImplementedError(
-            "get_market_data (kline/OHLCV) not implemented for HyperliquidAPI"
-        )
+    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
+        """Fetch historical klines (OHLCV) using the candlesSnapshot endpoint.
+
+        Args:
+            symbol: Trading symbol (e.g., 'ETH').
+            timeframe: Kline interval (e.g., '1m', '5m', '1h').
+            limit: Maximum number of candles to return.
+
+        Returns:
+            A list of Candle objects, sorted oldest to newest.
+
+        Raises:
+            APIError: If the API request fails or data validation/transformation fails.
+            ValueError: If the timeframe string is invalid for calculating start time.
+        """
+        # Calculate start/end times based on limit and timeframe
+        # This is an estimation as the snapshot endpoint requires times
+        try:
+            now_ms = int(time.time() * 1000)
+            # Simple interval parsing (improve if needed)
+            interval_seconds = {
+                "1m": 60,
+                "5m": 300,
+                "15m": 900,
+                "30m": 1800,
+                "1h": 3600,
+                "4h": 14400,
+                "12h": 43200,
+                "1d": 86400,
+            }.get(timeframe)
+
+            if interval_seconds is None:
+                raise ValueError(f"Invalid or unsupported timeframe: {timeframe}")
+
+            start_time_ms = now_ms - (limit * interval_seconds * 1000)
+
+        except ValueError as e:
+            logger.error(f"[{self.exchange_name}] Invalid timeframe for kline calculation: {e}")
+            raise
+
+        payload = {
+            "type": "candlesSnapshot",
+            "req": {
+                "coin": symbol,
+                "interval": timeframe,
+                "startTime": start_time_ms,
+                "endTime": now_ms,
+            },
+        }
+        response_raw: object = None  # Initialize for error logging
+
+        try:
+            response_raw = await self._request("POST", self.INFO_URL + "/info", data=payload)
+
+            # Import the Raw model
+            from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import (
+                HyperliquidRawCandleSnapshotResponse,
+            )
+
+            # Validate the response structure
+            validated_response = HyperliquidRawCandleSnapshotResponse.model_validate(response_raw)
+
+            candles: list[Candle] = []
+            for raw_candle in validated_response.candles:
+                try:
+                    # Transform raw candle using the mapper
+                    internal_candle = HyperliquidMapper.transform_raw_candle_to_internal(
+                        symbol=symbol, interval=timeframe, raw=raw_candle
+                    )
+                    if internal_candle:
+                        candles.append(internal_candle)
+                except (ValidationError, ValueError) as e:
+                    # Log and skip individual candle errors
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping candle due to validation/transform error: {e}. "
+                        f"Raw: {raw_candle.model_dump()}"
+                    )
+                    continue
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected error processing raw candle: {e}. "
+                        f"Raw: {raw_candle.model_dump()}",
+                        exc_info=True,
+                    )
+                    continue  # Skip candle on unexpected error
+
+            # Sort by time (oldest first) as snapshot order isn't guaranteed
+            candles.sort(key=lambda c: c.open_time)
+
+            # Apply limit again after fetching (API might return more than requested)
+            return candles[-limit:]
+
+        except (ValidationError, ValueError) as e:
+            logger.error(
+                f"[{self.exchange_name}] Error parsing/validating candle snapshot response: {e}. "
+                f"Raw: {response_raw}"
+            )
+            raise APIError(
+                f"Failed to parse candle snapshot data: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
+        except APIError as e:
+            logger.error(
+                f"[{self.exchange_name}] API Error getting klines for {symbol} ({timeframe}): {e}"
+            )
+            raise e
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error getting klines for {symbol} ({timeframe}): {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error getting klines for {symbol} ({timeframe}): {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
 
     def _parse_spot_balance(self, balance_data: dict[str, Any]) -> SpotBalance | None:
         """Parse raw spot balance data into a SpotBalance object."""
@@ -1170,4 +1306,153 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 f"Unexpected error canceling order: {e}", code=APIErrorCode.UNKNOWN.value
+            ) from e
+
+    async def subscribe_to_ticker(self, symbol: str) -> None:
+        """Prepare subscription for ticker updates."""
+        topic = f"trades:{symbol}"  # Hyperliquid uses trades for ticker-like updates
+        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
+        # Actual subscription done via self.subscribe(topic, handler)
+
+    async def subscribe_to_order_book(self, symbol: str) -> None:
+        """Prepare subscription for order book updates."""
+        topic = f"l2Book:{symbol}"
+        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
+        # Actual subscription done via self.subscribe(topic, handler)
+
+    async def subscribe_to_trades(self, symbol: str) -> None:
+        """Prepare subscription for public trade updates."""
+        topic = f"trades:{symbol}"
+        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
+        # Actual subscription done via self.subscribe(topic, handler)
+
+    async def subscribe_to_account_updates(self) -> None:
+        """Prepare subscription for user events (orders, fills)."""
+        topic = "userEvents"
+        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
+        # Actual subscription done via self.subscribe(topic, handler)
+
+    async def get_recent_fills(
+        self, symbol: str | None = None, limit: int | None = None
+    ) -> list[Trade]:
+        """Fetch recent fills/trades for the account.
+
+        Uses the existing get_trade_history method.
+        """
+        # Ensure limit is handled correctly, default in get_trade_history is 100
+        effective_limit = limit if limit is not None else 100
+        return await self.get_trade_history(symbol=symbol, limit=effective_limit)
+
+    async def ping_websocket(self) -> None:
+        # Use the default implementation from the base class
+        await super().ping_websocket()
+
+    # --- Error Mapping --- #
+
+    def _map_error_response(
+        self, status_code: int, error_body: str, error_data: dict[str, Any]
+    ) -> APIError:
+        """Override base error mapping to use HyperliquidMapper."""
+        # Pass the parsed error_data as the 'response' argument to the mapper
+        return HyperliquidMapper.map_error_response(response=error_data, http_status=status_code)
+
+    async def get_order_status(
+        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
+    ) -> Order:
+        """Fetch the status of a specific order by its OID.
+
+        Uses the /info endpoint with type='orderStatus'.
+
+        Args:
+            order_id: The exchange-assigned order ID (OID).
+            symbol: Ignored for Hyperliquid orderStatus query by OID.
+            client_order_id: Ignored, Hyperliquid queries status by OID.
+
+        Returns:
+            The Order object with its current status.
+
+        Raises:
+            APIError: If the order is not found or another API error occurs.
+        """
+        if not self._wallet_address:
+            raise APIError(
+                "Wallet address required for fetching order status",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+        if client_order_id:
+            logger.warning(f"[{self.exchange_name}] client_order_id ignored for get_order_status")
+        if symbol:
+            logger.debug(f"[{self.exchange_name}] symbol ignored for get_order_status by OID")
+
+        response_raw: object = None  # Initialize
+        try:
+            payload = {"type": "orderStatus", "user": self._wallet_address, "oid": int(order_id)}
+            response_raw = await self._request("POST", self.INFO_URL + "/info", data=payload)
+
+            # Import the new Raw model with absolute paths
+            from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+                HyperliquidRawTriggerInfo,  # Needed for mapper
+            )
+            from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
+                HyperliquidRawOrderStatusResponse,
+            )
+
+            # Validate the response structure
+            validated_response = HyperliquidRawOrderStatusResponse.model_validate(response_raw)
+
+            # Assuming the response contains the order details in validated_response.order
+            raw_order_data = validated_response.order
+
+            # Extract trigger info if present (unlikely in status response, but check)
+            # This part is speculative based on openOrders structure
+            trigger_info: HyperliquidRawTriggerInfo | None = getattr(
+                raw_order_data, "trigger", None
+            )
+
+            # Transform using the existing order mapper
+            internal_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
+                raw=raw_order_data, trigger=trigger_info
+            )
+
+            if internal_order:
+                return internal_order
+            else:
+                # Should not happen if validation and mapping work
+                raise APIError(
+                    f"Failed to map order status response for OID {order_id}",
+                    code=APIErrorCode.UNKNOWN.value,
+                )
+
+        except (ValidationError, ValueError) as e:  # Catch validation/mapping errors
+            logger.error(
+                f"[{self.exchange_name}] Error parsing/validating order status for OID {order_id}: {e}. "
+                f"Raw Response: {response_raw}"
+            )
+            # Check if the error indicates the order wasn't found
+            # Hyperliquid might return a specific error message or just empty/invalid data
+            if "Order not found" in str(e):  # Heuristic check
+                raise APIError(
+                    f"Order {order_id} not found", code=APIErrorCode.ORDER_NOT_FOUND.value
+                ) from e
+            raise APIError(
+                f"Failed to parse order status data for OID {order_id}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
+        except APIError as e:
+            # Check if it's already an OrderNotFound error from the mapper/request layer
+            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
+                raise e
+            logger.error(
+                f"[{self.exchange_name}] API Error getting order status for OID {order_id}: {e}"
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error getting order status for OID {order_id}: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error getting order status for OID {order_id}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
             ) from e

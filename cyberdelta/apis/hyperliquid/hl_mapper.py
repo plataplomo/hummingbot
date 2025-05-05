@@ -56,7 +56,7 @@ from cyberdelta.core.models.enums import (
     OrderStatus,
     OrderType,
 )
-from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market import Candle
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 from .models.hl_raw_fill import HyperliquidRawFill
@@ -776,6 +776,59 @@ class HyperliquidMapper:
             executed_at=timestamp_dt,
             liquidation_mark_price=parse_decimal_value(raw.liquidation_mark_px),
         )
+
+    @staticmethod
+    def transform_raw_candle_to_internal(
+        symbol: str, interval: str, raw: HyperliquidRawCandle
+    ) -> Candle | None:
+        """Transforms a raw Hyperliquid candle object into an internal Candle.
+
+        Args:
+            symbol: Trading symbol.
+            interval: Candle interval string.
+            raw: The raw candle data from HyperliquidRawCandle.
+
+        Returns:
+            A Candle object, or None if parsing/validation fails.
+        """
+        try:
+            # Parse timestamp (assuming milliseconds)
+            open_time = parse_datetime_utc(raw.t, field_name="candle_timestamp")
+            if open_time is None:
+                logger.warning(f"Could not parse candle timestamp: {raw.t}")
+                return None
+
+            # Parse OHLCV strings to Decimal
+            open_px = parse_decimal_value(raw.o, allow_none=False, field_name="open")
+            high_px = parse_decimal_value(raw.h, allow_none=False, field_name="high")
+            low_px = parse_decimal_value(raw.l, allow_none=False, field_name="low")
+            close_px = parse_decimal_value(raw.c, allow_none=False, field_name="close")
+            volume_val = parse_decimal_value(raw.v, allow_none=False, field_name="volume")
+
+            # Create the Candle object, relying on its internal validation
+            return Candle(
+                symbol=symbol,
+                interval=interval,
+                open_time=open_time,
+                open=open_px,
+                high=high_px,
+                low=low_px,
+                close=close_px,
+                volume=volume_val,
+            )
+
+        except (ValidationError, ValueError) as e:
+            # Log validation/parsing errors during Candle creation or Decimal parsing
+            logger.warning(
+                f"Skipping candle due to transformation/validation error: {e}. Raw: {raw.model_dump()}"
+            )
+            return None
+        except Exception as e:
+            logger.error(
+                f"Unexpected error transforming raw candle: {e}. Raw: {raw.model_dump()}",
+                exc_info=True,
+            )
+            return None  # Skip candle on unexpected error
 
 
 # --- Additional Hyperliquid Mappers ---

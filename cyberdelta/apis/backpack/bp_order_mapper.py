@@ -2,8 +2,11 @@ import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from pydantic import ValidationError
+
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
     BackpackRawOrderBook,
@@ -21,7 +24,6 @@ from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
     Order,
-    OrderBook,
     SpotBalance,
     Ticker,
     Trade,
@@ -36,6 +38,7 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
     TriggerType,
 )
+from cyberdelta.core.models.market import Candle, OrderBook
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
@@ -471,37 +474,38 @@ class BackpackOrderMapper:
 
     @staticmethod
     def transform_ws_ticker_event_to_internal(raw: BackpackRawTickerEvent) -> Ticker:
-        """Transforms a raw Backpack WS ticker event into an internal Ticker."""
+        """Transforms a raw Backpack WS ticker event into an internal Ticker.
+
+        Maps available fields (lastPrice -> price, volume). Bid/Ask are not
+        typically in ticker events, so they are left as None.
+        """
         # Assuming Ticker model can handle string inputs if validated, otherwise parse here
         # Defensive parsing for safety
-        last_price = parse_decimal_value(raw.last_price, allow_none=False, field_name="lastPrice")
-        high = parse_decimal_value(raw.high, allow_none=False, field_name="high")
-        low = parse_decimal_value(raw.low, allow_none=False, field_name="low")
-        volume = parse_decimal_value(raw.volume, allow_none=False, field_name="volume")
-        # quote_volume = parse_decimal_value(raw.quote_volume) # Ticker might not need this
-        # price_change = parse_decimal_value(raw.price_change_percent) # Ticker might not need
+        parsed_price = parse_decimal_value(raw.last_price, allow_none=False, field_name="lastPrice")
+        # high = parse_decimal_value(raw.high, allow_none=False, field_name="high") # Not in Ticker
+        # low = parse_decimal_value(raw.low, allow_none=False, field_name="low") # Not in Ticker
+        parsed_volume = parse_decimal_value(raw.volume, allow_none=False, field_name="volume")
+        # quote_volume = parse_decimal_value(raw.quote_volume) # Not in Ticker
+        # price_change = parse_decimal_value(raw.price_change_percent) # Not in Ticker
 
-        if last_price is None:
+        if parsed_price is None:
             raise ValueError("last_price missing/invalid")
-        if high is None:
-            raise ValueError("high missing/invalid")
-        if low is None:
-            raise ValueError("low missing/invalid")
-        if volume is None:
+        # if high is None:
+        #     raise ValueError("high missing/invalid")
+        # if low is None:
+        #     raise ValueError("low missing/invalid")
+        if parsed_volume is None:
             raise ValueError("volume missing/invalid")
 
-        # Assuming Ticker needs bid/ask, which aren't in the event. Use last_price?
-        # This mapping is likely incomplete/needs refinement based on Ticker definition
-        # and how WS ticker streams should update the internal state.
+        # Map fields from event to Ticker model
+        # Bid/Ask are not available in this event, set to None.
         return Ticker(
             symbol=raw.symbol,
             timestamp=datetime.now(UTC),  # Use current time as event might not have it
-            bid=last_price,  # Placeholder: Use last_price for bid
-            ask=last_price,  # Placeholder: Use last_price for ask
-            last_price=last_price,
-            volume_24h=volume,
-            high_24h=high,
-            low_24h=low,
+            price=parsed_price,  # Map lastPrice -> price
+            volume=parsed_volume,  # Map volume -> volume
+            bid=None,  # Not available in event
+            ask=None,  # Not available in event
         )
 
     @staticmethod
@@ -577,6 +581,54 @@ class BackpackOrderMapper:
             quantity=quantity_dec,
             fee=fee_dec,
             fee_asset=fee_asset,
-            is_maker=raw.is_maker if side == OrderSide.BUY else not raw.is_buyer_the_maker,
+            is_maker=not raw.is_buyer_the_maker
+            if side == OrderSide.BUY
+            else raw.is_buyer_the_maker,
             executed_at=timestamp_dt,
         )
+
+    @staticmethod
+    def transform_raw_kline_to_internal(
+        symbol: str, interval: str, raw: BackpackRawKline
+    ) -> Candle:
+        """Transforms a raw Backpack kline into an internal Candle model.
+
+        Args:
+            symbol: The trading symbol for the candle.
+            interval: The interval string (e.g., '1m', '1h').
+            raw: The validated BackpackRawKline object.
+
+        Returns:
+            A validated Candle object.
+
+        Raises:
+            ValueError: If the raw data cannot be parsed into a valid Candle.
+                      (e.g., timestamp parsing failure)
+        """
+        try:
+            # Convert start time from milliseconds to datetime object
+            open_time = parse_datetime_utc(raw.start_time_ms, field_name="start_time_ms")
+            if open_time is None:
+                # This should not happen if raw.start_time_ms is validated as int
+                raise ValueError("Parsed open_time is None unexpectedly.")
+
+            # Create the Candle object, relying on its validators for OHLC, volume, etc.
+            candle = Candle(
+                symbol=symbol,
+                interval=interval,
+                open_time=open_time,
+                open=raw.open_price,
+                high=raw.high_price,
+                low=raw.low_price,
+                close=raw.close_price,
+                volume=raw.volume,
+            )
+            return candle
+        except (ValidationError, ValueError) as e:
+            # Log and re-raise potential validation errors during Candle creation
+            logger.error(f"[{ExchangeName.BACKPACK}] Error transforming raw kline to Candle: {e}")
+            raise ValueError(f"Error transforming kline data: {e}") from e
+        except Exception as e:
+            # Catch unexpected errors during transformation
+            logger.exception(f"[{ExchangeName.BACKPACK}] Unexpected error transforming kline: {e}")
+            raise ValueError(f"Unexpected error transforming kline: {e}") from e

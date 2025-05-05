@@ -90,22 +90,32 @@ class ExchangeAPI(ABC):
         # Safely get default rate and bucket size
         default_rate_raw = rate_limit_config.get("default_rate", 10.0)
         default_rate: float = 10.0
-        try:
-            default_rate = float(default_rate_raw)
-        except (ValueError, TypeError):
+        if isinstance(default_rate_raw, (int, float, str)):
+            try:
+                default_rate = float(default_rate_raw)
+            except (ValueError, TypeError):
+                logger.warning(
+                    f"[{exchange_name}] Invalid 'default_rate' value: {default_rate_raw}. Using default {default_rate}."
+                )
+        elif default_rate_raw is not None:
             logger.warning(
-                f"[{exchange_name}] Invalid 'default_rate' value: {default_rate_raw}. Using default {default_rate}."
+                f"[{exchange_name}] Invalid type for 'default_rate': {type(default_rate_raw)}. Using default {default_rate}."
             )
 
         default_bucket_raw = rate_limit_config.get("default_bucket_size", 10)
         default_bucket: int = 10
-        try:
-            default_bucket = int(default_bucket_raw)
-            if default_bucket <= 0:
-                raise ValueError("Bucket size must be positive")
-        except (ValueError, TypeError):
+        if isinstance(default_bucket_raw, (int, str)):
+            try:
+                default_bucket = int(default_bucket_raw)
+                if default_bucket <= 0:
+                    raise ValueError("Bucket size must be positive")
+            except (ValueError, TypeError):
+                logger.warning(
+                    f"[{exchange_name}] Invalid 'default_bucket_size' value: {default_bucket_raw}. Using default {default_bucket}."
+                )
+        elif default_bucket_raw is not None:
             logger.warning(
-                f"[{exchange_name}] Invalid 'default_bucket_size' value: {default_bucket_raw}. Using default {default_bucket}."
+                f"[{exchange_name}] Invalid type for 'default_bucket_size': {type(default_bucket_raw)}. Using default {default_bucket}."
             )
 
         self._default_limiter_config = RateLimiterConfig(
@@ -133,39 +143,37 @@ class ExchangeAPI(ABC):
                 # Explicitly handle potential None from .get before float/int conversion
                 rate_raw = config_dict_raw.get("rate", default_rate)
                 rate: float = default_rate
-                try:
-                    # Add type check before conversion
-                    if isinstance(rate_raw, (int, float, str)):
+                # Check type before attempting conversion
+                if isinstance(rate_raw, (int, float, str)):
+                    try:
                         rate = float(rate_raw)
-                    elif rate_raw is not None:
+                    except (ValueError, TypeError):
                         logger.warning(
-                            f"[{self.exchange_name}] Invalid type for 'rate' ({type(rate_raw)}) for endpoint '{endpoint_str}'. Using default {rate}."
+                            f"[{exchange_name}] Could not convert 'rate' for endpoint '{endpoint_str}': {rate_raw}. Using default {rate}."
                         )
-                    # else: rate_raw is None, use default_rate
-
-                except (ValueError, TypeError):
+                elif rate_raw is not None:
                     logger.warning(
-                        f"[{self.exchange_name}] Could not convert 'rate' for endpoint '{endpoint_str}': {rate_raw}. Using default {rate}."
+                        f"[{exchange_name}] Invalid type for 'rate' ({type(rate_raw)}) for endpoint '{endpoint_str}'. Using default {rate}."
                     )
+                # else: rate_raw is None, use default_rate
 
                 bucket_raw = config_dict_raw.get("bucket_size", default_bucket)
                 bucket: int = default_bucket
-                try:
-                    # Add type check before conversion
-                    if isinstance(bucket_raw, (int, float, str)):
+                # Check type before attempting conversion
+                if isinstance(bucket_raw, (int, str)):  # Allow str for int conversion
+                    try:
                         bucket = int(bucket_raw)
                         if bucket <= 0:
                             raise ValueError("Bucket size must be positive")
-                    elif bucket_raw is not None:
+                    except (ValueError, TypeError):
                         logger.warning(
-                            f"[{self.exchange_name}] Invalid type for 'bucket_size' ({type(bucket_raw)}) for endpoint '{endpoint_str}'. Using default {bucket}."
+                            f"[{exchange_name}] Could not convert 'bucket_size' for endpoint '{endpoint_str}': {bucket_raw}. Using default {bucket}."
                         )
-                    # else: bucket_raw is None, use default_bucket
-
-                except (ValueError, TypeError):
+                elif bucket_raw is not None:  # Log if not convertible type and not None
                     logger.warning(
-                        f"[{self.exchange_name}] Could not convert 'bucket_size' for endpoint '{endpoint_str}': {bucket_raw}. Using default {bucket}."
+                        f"[{exchange_name}] Invalid type for 'bucket_size' ({type(bucket_raw)}) for endpoint '{endpoint_str}'. Using default {bucket}."
                     )
+                # else: bucket_raw is None, use default_bucket
 
                 self._endpoint_limiter_configs[endpoint_str] = RateLimiterConfig(
                     rate=rate, bucket_size=bucket, tokens=None, last_refill=None
@@ -173,7 +181,7 @@ class ExchangeAPI(ABC):
                 self._endpoint_limiters[endpoint_str] = TokenBucketRateLimiterRuntime(rate, bucket)
             else:
                 logger.warning(
-                    f"[{self.exchange_name}] Invalid rate limit config type for endpoint '{endpoint_str}': {type(config_dict_raw)}"
+                    f"[{exchange_name}] Invalid rate limit config type for endpoint '{endpoint_str}': {type(config_dict_raw)}"
                 )
 
         # Placeholder for connection state and WebSocket management attributes
@@ -321,15 +329,27 @@ class ExchangeAPI(ABC):
 
                         # Try to parse error response as JSON
                         try:
-                            error_data = json.loads(error_body)
+                            # Ensure body is str before json.loads
+                            if isinstance(error_body, str):
+                                error_data = json.loads(error_body)
+                            else:
+                                # Handle cases where error_body might not be str (e.g., bytes)
+                                # This depends on how aiohttp handles different content types
+                                logger.warning(
+                                    f"Received non-string error body type: {type(error_body)}"
+                                )
+                                error_data = {}  # Default to empty if cannot parse
+
                         except json.JSONDecodeError:
                             # Handle non-JSON error responses
-                            pass
+                            logger.debug(f"Non-JSON error body: {error_body[:200]}")  # Log snippet
+                            error_data = {}  # Ensure error_data is a dict
 
                         # Map exchange-specific error to our standard format
+                        # error_data is now guaranteed to be a dict
                         error = self._map_error_response(
                             status_code=response.status,
-                            error_body=error_body,
+                            error_body=str(error_body),  # Ensure body passed is string
                             error_data=error_data,
                         )
 
@@ -678,8 +698,8 @@ class ExchangeAPI(ABC):
                     # Parse JSON message
                     try:
                         data = json.loads(msg.data)
-                        # Process and route message to appropriate handler
-                        await self._route_ws_message(data)
+                        # Process and route message via the handler method
+                        await self._handle_websocket_message(data)
                     except json.JSONDecodeError:
                         logger.warning(
                             f"[{self.exchange_name}] Received non-JSON WebSocket message: "
@@ -787,6 +807,16 @@ class ExchangeAPI(ABC):
         """Internal method to resubscribe to topics upon WebSocket reconnection."""
         raise NotImplementedError
 
+    @abstractmethod
+    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
+        """Internal handler to process raw WebSocket messages.
+
+        Subclasses should implement this to perform initial parsing,
+        authentication checks (if applicable to WS), and routing before
+        potentially calling _route_ws_message or directly invoking handlers.
+        """
+        raise NotImplementedError
+
     # --- Core Data Fetching --- #
 
     @abstractmethod
@@ -847,8 +877,15 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]:
-        """Cancel all open orders, optionally filtered by symbol."""
+    async def cancel_all_orders(self, symbol: str | None = None) -> None:
+        """Cancel all orders for a given symbol, or all if symbol is None.
+
+        Args:
+            symbol: The trading symbol (optional, if None cancels all orders).
+
+        Raises:
+            APIError: If the API returns an error.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -892,20 +929,6 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
-        """Internal handler to process raw WebSocket messages."""
-        raise NotImplementedError
-
-    @abstractmethod
-    async def get_recent_fills(
-        self, symbol: str | None = None, limit: int | None = None
-    ) -> list[Trade]:  # Use Trade instead of Fill
-        """
-        Fetch recent fills/trades for the account, optionally filtered by symbol.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     async def subscribe_to_ticker(self, symbol: str) -> None:
         """Subscribe to ticker updates for a symbol."""
         raise NotImplementedError
@@ -928,81 +951,17 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def ping_websocket(self) -> None:
         """Send a ping frame over the WebSocket connection."""
-        raise NotImplementedError
-
-    # --- WebSocket Message Parsing Helpers --- #
-
-    @abstractmethod
-    def get_message_type(self, message: dict[str, Any]) -> str:
-        """Determine the type of a received WebSocket message."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_ticker(self, data: dict[str, Any], symbol: str) -> Ticker:
-        """Parse raw ticker data into a Ticker object."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_order_book(self, data: dict[str, Any], symbol: str) -> OrderBook:
-        """Parse raw order book data into an OrderBook object."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_trade(self, data: dict[str, Any], symbol: str) -> Trade:
-        """Parse raw trade data into a Trade object."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_balance(self, data: dict[str, Any]) -> SpotBalance:
-        """Parse raw balance data into a SpotBalance object."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_position(self, data: dict[str, Any]) -> DerivativePosition:
-        """Parse raw position data into a Position object."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_order(self, data: dict[str, Any]) -> Order:
-        """Parse raw order data into an Order object."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_funding_rate(self, data: dict[str, Any]) -> FundingRate:
-        """Parse raw funding rate data into a FundingRate object."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_ticker_message(self, message: dict[str, Any]) -> Ticker | tuple[str, Ticker] | None:
-        """Parse a WebSocket message containing ticker information."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
-        """Parse a WebSocket message containing order book information."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_trade_message(self, message: dict[str, Any]) -> Trade | None:
-        """Parse a WebSocket message containing trade information."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_account_update_message(
-        self, message: dict[str, Any]
-    ) -> tuple[dict[str, SpotBalance] | None, dict[str, DerivativePosition] | None]:
-        """Parse a WebSocket message containing account (balance/position) updates."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
-        """Parse a WebSocket message containing order updates."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
-        """Parse a WebSocket message containing funding rate updates."""
-        raise NotImplementedError
+        # Provide a default implementation, allow override if needed
+        if self._ws_connection and not self._ws_connection.closed:
+            try:
+                await self._ws_connection.ping()
+                logger.debug(f"[{self.exchange_name}] Sent WebSocket ping")
+            except Exception as e:
+                logger.warning(f"[{self.exchange_name}] Failed to send WebSocket ping: {e}")
+        else:
+            logger.warning(
+                f"[{self.exchange_name}] Cannot ping, WebSocket not connected or already closed."
+            )
 
     # --- Helper Methods --- #
 

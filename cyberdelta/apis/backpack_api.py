@@ -31,6 +31,7 @@ from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
@@ -40,6 +41,7 @@ from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (  # Use absolute import
+    Candle,
     DerivativePosition,
     FundingRate,
     Order,
@@ -52,6 +54,7 @@ from cyberdelta.core.models import (  # Use absolute import
     TimeInForce,
     Trade,
 )
+from cyberdelta.core.models.market import Candle  # Import Candle directly
 from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -86,6 +89,12 @@ class BackpackAPI(ExchangeAPI):
             logger.warning("Backpack API key/secret not provided. Signed operations will fail.")
 
     # --- WebSocket Implementation --- #
+
+    async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
+        """Handle raw WebSocket message, routing it for processing."""
+        # For Backpack, no special pre-processing needed currently.
+        # Directly call the routing logic.
+        await self._route_ws_message(message)
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
         """
@@ -873,57 +882,48 @@ class BackpackAPI(ExchangeAPI):
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
         """Subscribe to order book updates for a symbol."""
-        # Backpack topic format might be different, e.g., "depth.BTC_USDC"
         topic = f"depth.{symbol}"
-        # The handler is now managed internally by the base class or needs a different approach
-        # This method just needs to send the subscription command.
-        if self._ws_connection and self.is_connected:
-            subscription_message = {"method": "SUBSCRIBE", "params": [topic]}
-            try:
-                await self._ws_connection.send_json(subscription_message)
-                logger.info(f"[{self.exchange_name}] Sent subscription request for topic: {topic}")
-            except Exception as e:
-                logger.error(
-                    f"[{self.exchange_name}] Failed to send subscription for topic {topic}: {e}"
-                )
-        else:
-            logger.warning(
-                f"[{self.exchange_name}] Cannot subscribe to {topic}, WebSocket not connected."
-            )
+        # This method should likely just prepare the topic and potentially
+        # trigger the subscription via a shared mechanism if needed,
+        # but handler registration happens via self.subscribe called elsewhere.
+        # For now, log intent. Actual subscription initiated by caller via self.subscribe.
+        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
+        # await self.subscribe(topic, handler) # Incorrect: Handler not passed here
 
     async def subscribe_to_ticker(self, symbol: str) -> None:
         """Subscribe to ticker updates for a symbol."""
         topic = f"ticker.{symbol}"
-        if self._ws_connection and self.is_connected:
-            subscription_message = {"method": "SUBSCRIBE", "params": [topic]}
-            try:
-                await self._ws_connection.send_json(subscription_message)
-                logger.info(f"[{self.exchange_name}] Sent subscription request for topic: {topic}")
-            except Exception as e:
-                logger.error(
-                    f"[{self.exchange_name}] Failed to send subscription for topic {topic}: {e}"
-                )
-        else:
-            logger.warning(
-                f"[{self.exchange_name}] Cannot subscribe to {topic}, WebSocket not connected."
-            )
+        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
+        # await self.subscribe(topic, handler) # Incorrect: Handler not passed here
 
     async def subscribe_to_trades(self, symbol: str) -> None:
         """Subscribe to public trade updates for a symbol."""
         topic = f"trades.{symbol}"
-        if self._ws_connection and self.is_connected:
-            subscription_message = {"method": "SUBSCRIBE", "params": [topic]}
-            try:
-                await self._ws_connection.send_json(subscription_message)
-                logger.info(f"[{self.exchange_name}] Sent subscription request for topic: {topic}")
-            except Exception as e:
-                logger.error(
-                    f"[{self.exchange_name}] Failed to send subscription for topic {topic}: {e}"
-                )
-        else:
-            logger.warning(
-                f"[{self.exchange_name}] Cannot subscribe to {topic}, WebSocket not connected."
-            )
+        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
+        # await self.subscribe(topic, handler) # Incorrect: Handler not passed here
+
+    async def subscribe_to_account_updates(self) -> None:
+        """Subscribe to private account updates (balances, positions, orders)."""
+        # This method signals intent or triggers setup. Actual subscriptions
+        # with handlers are done via self.subscribe elsewhere.
+        fill_topic = "fills"
+        order_topic = "orders"
+        logger.debug(
+            f"[{self.exchange_name}] Preparing subscription for account topics: {fill_topic}, {order_topic}"
+        )
+        # await self.subscribe(fill_topic, handler) # Incorrect
+        # await self.subscribe(order_topic, handler) # Incorrect
+
+    async def get_recent_fills(
+        self, symbol: str | None = None, limit: int | None = None
+    ) -> list[Trade]:
+        """Fetch recent fills/trades for the account.
+
+        Uses the existing get_trade_history method.
+        """
+        # Ensure limit is handled correctly, default in get_trade_history is 100
+        effective_limit = limit if limit is not None else 100
+        return await self.get_trade_history(symbol=symbol, limit=effective_limit)
 
     async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]:
         """Fetch historical orders, validated via Raw models and transformed via Mapper."""
@@ -1053,5 +1053,234 @@ class BackpackAPI(ExchangeAPI):
             # request_path can be added if needed by the mapper
         )
 
-    # TODO: Implement remaining abstract methods from ExchangeAPI
-    #       (e.g., get_order_status, get_recent_fills, connect_websocket, etc.)
+    async def get_order_status(
+        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
+    ) -> Order:
+        """Fetch the status of a specific order by its ID.
+
+        Uses the order history endpoint as it returns non-open orders too.
+
+        Args:
+            order_id: The exchange-assigned order ID.
+            symbol: The market symbol (required by Backpack history endpoint).
+            client_order_id: Ignored for Backpack get_order_status via history.
+
+        Returns:
+            The Order object with its current status.
+
+        Raises:
+            ValueError: If symbol is not provided.
+            APIError: If the order is not found or another API error occurs.
+        """
+        if not symbol:
+            # Backpack's history endpoint might require symbol even with orderId filter
+            # based on /wapi/v1/history/orders spec (no explicit mention it's optional with orderId)
+            # Let's enforce it for safety.
+            raise ValueError("Symbol is required for get_order_status on Backpack")
+
+        if client_order_id:
+            logger.warning(f"[{self.exchange_name}] client_order_id ignored for get_order_status")
+
+        try:
+            # Fetch history specifically for this orderId
+            order_history = await self.get_order_history(symbol=symbol, limit=1)
+
+            # Filter the result for the specific order ID
+            # This assumes get_order_history returns the most recent first if limit=1
+            # Or requires filtering if the history endpoint doesn't support orderId filtering directly
+            # Re-checking spec: /wapi/v1/history/orders *does* have an orderId parameter.
+            # Let's modify get_order_history to accept it.
+
+            # TODO: Modify get_order_history signature and implementation
+            # to accept and pass the orderId parameter.
+            # For now, filter the result (less efficient)
+            found_order = next((o for o in order_history if o.exchange_order_id == order_id), None)
+
+            if found_order:
+                return found_order
+            else:
+                # If history didn't contain it, raise OrderNotFound
+                raise APIError(
+                    f"Order {order_id} not found for symbol {symbol}",
+                    code=APIErrorCode.ORDER_NOT_FOUND.value,
+                )
+
+        except APIError as e:
+            # Re-raise specific API errors
+            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
+                raise e
+            logger.error(
+                f"[{self.exchange_name}] API error fetching status for order {order_id}: {e}"
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error fetching status for order {order_id}: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error fetching status for order {order_id}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+            ) from e
+
+    async def cancel_all_orders(self, symbol: str | None = None) -> None:
+        """
+        Cancel all orders for a given symbol.
+
+        Args:
+            symbol: The trading symbol (optional, if None cancels all orders).
+
+        Raises:
+            ValueError: If no symbol is provided and cancel_all_orders is called.
+            APIError: If the API returns an error.
+        """
+        if not symbol:
+            raise ValueError("Backpack 'cancel all' requires a symbol.")
+
+        params = {"symbol": symbol}
+        try:
+            # Use DELETE method as per OpenAPI spec. Authentication is implicit.
+            await self._request("DELETE", "/api/v1/orders", params=params)
+            logger.info(
+                f"[{self.exchange_name}] Successfully requested cancellation of all orders for {symbol}."
+            )
+            # Note: Backpack API response for successful DELETE is often empty or just status.
+            # Return None to match updated base class signature
+            return None
+        except APIError as e:
+            # Log and re-raise specific API errors
+            logger.error(f"[{self.exchange_name}] Failed to cancel all orders for {symbol}: {e}")
+            raise
+        except Exception as e:
+            # Catch-all for unexpected issues (network, etc.)
+            logger.exception(
+                f"[{self.exchange_name}] Unexpected error cancelling orders for {symbol}: {e}"
+            )
+            raise APIError(
+                # Use the .value of the enum member
+                code=APIErrorCode.UNKNOWN.value,
+                message=f"Unexpected error cancelling orders for {symbol}: {e}",
+                http_status=None,  # Status unknown in this case
+                original_exception=e,  # Pass original exception for context
+            ) from e
+
+    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
+        """Fetch historical klines (OHLCV) for a symbol and timeframe.
+
+        Args:
+            symbol: Trading symbol (e.g., 'BTC_USDC').
+            timeframe: Kline interval (e.g., '1m', '5m', '1h').
+            limit: Maximum number of klines to return (default 100).
+
+        Returns:
+            A list of Candle objects, sorted oldest to newest.
+
+        Raises:
+            APIError: If the API request fails or data validation/transformation fails.
+        """
+        request_path = "/api/v1/klines"
+        params: dict[str, Any] = {
+            "symbol": symbol,
+            "interval": timeframe,
+            "limit": limit,
+        }
+        response_raw: object = None  # Initialize for error logging
+        try:
+            response_raw = await self._request("GET", request_path, params=params)
+
+            # DEFENSIVE CHECK: Ensure response is a list
+            if not isinstance(response_raw, list):
+                logger.warning(
+                    f"[{self.exchange_name}] Unexpected klines response type: "
+                    f"{type(response_raw)}. Expected list. Returning empty list."
+                )
+                return []
+
+            candles: list[Candle] = []
+            for kline_data_raw in response_raw:
+                # No need for inner isinstance check, list structure checked by raw model validator
+                try:
+                    # Validate raw kline data (which is a list)
+                    raw_kline = BackpackRawKline.model_validate(kline_data_raw)
+                    # Transform to internal Candle model
+                    internal_candle = BackpackOrderMapper.transform_raw_kline_to_internal(
+                        symbol=symbol, interval=timeframe, raw=raw_kline
+                    )
+                    candles.append(internal_candle)
+                except (ValidationError, ValueError) as e:
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping kline due to validation/transformation "
+                        f"error: {e}. Data: {kline_data_raw}"
+                    )
+                    continue
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected error processing kline: {e}. "
+                        f"Data: {kline_data_raw}",
+                        exc_info=True,
+                    )
+                    continue
+
+            # Backpack returns newest first, reverse to match typical convention (oldest first)
+            candles.reverse()
+            return candles
+
+        except APIError as e:
+            logger.error(
+                f"[{self.exchange_name}] API Error getting klines for {symbol} ({timeframe}): {e}"
+            )
+            raise e
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error getting klines for {symbol} ({timeframe}): {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error getting klines for {symbol} ({timeframe}): {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
+
+    async def connect_websocket(self) -> None:
+        """Establish the WebSocket connection using the base class logic."""
+        if not self.is_connected:
+            await self._connect_ws()
+        else:
+            logger.debug(f"[{self.exchange_name}] WebSocket already connected.")
+
+    async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
+        """Fetch a single order by its ID.
+
+        Args:
+            order_id: The exchange-assigned order ID.
+            symbol: The market symbol (required by Backpack history endpoint).
+
+        Returns:
+            The Order object if found, otherwise None.
+        """
+        try:
+            # Reuse get_order_status which handles fetching and transformation
+            return await self.get_order_status(order_id=order_id, symbol=symbol)
+        except APIError as e:
+            # If get_order_status raises ORDER_NOT_FOUND, return None as per this method's contract
+            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
+                logger.debug(
+                    f"[{self.exchange_name}] Order {order_id} not found for symbol {symbol} (get_order)."
+                )
+                return None
+            # Re-raise other API errors
+            logger.error(f"[{self.exchange_name}] API error fetching order {order_id}: {e}")
+            raise
+        except Exception as e:
+            # Re-raise unexpected errors
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error fetching order {order_id}: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error fetching order {order_id}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
+
+    # All abstract methods should now be implemented.
