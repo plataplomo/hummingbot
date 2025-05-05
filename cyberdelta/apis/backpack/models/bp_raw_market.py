@@ -25,7 +25,7 @@ robustness and security at the data ingestion boundary.
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
@@ -250,3 +250,103 @@ class BackpackRawOrderBook(BaseModel):
         if not isinstance(v, int):
             raise ValueError("timestamp: Must be an integer (microseconds)")
         return v
+
+
+# --- Raw WebSocket Event Models ---
+
+
+class BackpackRawTickerEvent(BaseModel):
+    """
+    Raw Pydantic model for a WebSocket ticker update event (`ticker.<symbol>`).
+    Structure is assumed based on REST ticker, confirm with actual stream data.
+    """
+
+    symbol: str = Field(..., alias="s")
+    last_price: str = Field(..., alias="lastPrice")
+    high: str = Field(..., alias="high")
+    low: str = Field(..., alias="low")
+    volume: str = Field(..., alias="volume")
+    quote_volume: str = Field(..., alias="quoteVolume")
+    price_change_percent: str = Field(..., alias="priceChangePercent")
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore", frozen=True)
+
+    # Reusing validators from BackpackRawTicker might be possible if structure is identical
+    # For now, add specific simple validators
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol_str(cls, v: object) -> str:
+        return validate_str_field(v, allow_empty=False, max_length=64)
+
+    @field_validator(
+        "last_price", "high", "low", "volume", "quote_volume", "price_change_percent", mode="before"
+    )
+    @classmethod
+    def validate_numeric_str(cls, v: object) -> str:
+        s = validate_str_field(v, allow_empty=False, max_length=64)
+        _ = parse_decimal_value(s, allow_none=False)  # Check parsability
+        return s
+
+
+class BackpackRawDepthUpdateEvent(BaseModel):
+    """
+    Raw Pydantic model for a WebSocket depth update event (`depth.<symbol>`).
+    Structure assumes a snapshot format similar to REST, confirm with actual stream data.
+    """
+
+    last_update_id: str = Field(..., alias="lastUpdateId")
+    bids: list[tuple[str, str]] = Field(..., alias="bids")
+    asks: list[tuple[str, str]] = Field(..., alias="asks")
+    # Backpack WS might include timestamp, add if observed
+    # timestamp: Optional[int] = Field(None, alias="E")
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore", frozen=True)
+
+    # Use the same robust level validator as BackpackRawOrderBook
+    @field_validator("asks", "bids", mode="before")
+    @classmethod
+    def validate_levels(cls, v: object, info: ValidationInfo) -> list[tuple[str, str]]:
+        field_name = info.field_name
+        if not isinstance(v, list):
+            raise ValueError(f"{field_name}: Must be a list of [price, quantity] pairs")
+
+        # No need to cast 'v', type checker knows it's a list now.
+        validated_levels: list[tuple[str, str]] = []
+        for i, level_raw in enumerate(v):
+            # Runtime check for structure
+            if not isinstance(level_raw, (list, tuple)) or len(level_raw) != 2:
+                # Use tuple for isinstance check, | requires Python 3.10+
+                raise ValueError(
+                    f"{field_name}[{i}]: Each level must be a list/tuple of [price, quantity]"
+                )
+
+            # Explicitly check item types before accessing
+            price_item: object = level_raw[0]
+            qty_item: object = level_raw[1]
+
+            try:
+                # Extract and validate price string
+                price_str = validate_str_field(
+                    price_item, f"{field_name}[{i}].price", max_length=64, allow_empty=False
+                )
+                _ = parse_decimal_value(price_str, allow_none=False)  # Check finite
+
+                # Extract and validate quantity string
+                qty_str = validate_str_field(
+                    qty_item, f"{field_name}[{i}].quantity", max_length=64, allow_empty=False
+                )
+                _ = parse_decimal_value(qty_str, allow_none=False)  # Check finite
+
+                validated_levels.append((price_str, qty_str))
+            # Catch specific expected errors + general Exception
+            except (ValidationError, ValueError, TypeError, IndexError) as e:
+                logger.error(
+                    f"Failed to validate level {i} for {field_name}: {e}. Level data: {level_raw}"
+                )
+                raise ValueError(f"Invalid level format at index {i} for {field_name}: {e}") from e
+        return validated_levels
+
+    @field_validator("last_update_id", mode="before")
+    @classmethod
+    def validate_update_id_str(cls, v: object) -> str:
+        return validate_str_field(v, allow_empty=False, max_length=64)

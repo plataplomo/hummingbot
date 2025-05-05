@@ -4,10 +4,18 @@ from decimal import Decimal
 
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook
+from cyberdelta.apis.backpack.models.bp_raw_market import (
+    BackpackRawDepthUpdateEvent,
+    BackpackRawOrderBook,
+    BackpackRawTickerEvent,
+)
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import (
+    BackpackRawFill,
+    BackpackRawTrade,
+    BackpackRawTradeEvent,
+)
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -15,6 +23,7 @@ from cyberdelta.core.models import (
     Order,
     OrderBook,
     SpotBalance,
+    Ticker,
     Trade,
 )
 from cyberdelta.core.models.enums import (
@@ -455,5 +464,119 @@ class BackpackOrderMapper:
             fee=fee_dec,
             fee_asset=raw.fee_symbol,
             is_maker=raw.is_maker,
+            executed_at=timestamp_dt,
+        )
+
+    # --- WebSocket Event Transformers ---
+
+    @staticmethod
+    def transform_ws_ticker_event_to_internal(raw: BackpackRawTickerEvent) -> Ticker:
+        """Transforms a raw Backpack WS ticker event into an internal Ticker."""
+        # Assuming Ticker model can handle string inputs if validated, otherwise parse here
+        # Defensive parsing for safety
+        last_price = parse_decimal_value(raw.last_price, allow_none=False, field_name="lastPrice")
+        high = parse_decimal_value(raw.high, allow_none=False, field_name="high")
+        low = parse_decimal_value(raw.low, allow_none=False, field_name="low")
+        volume = parse_decimal_value(raw.volume, allow_none=False, field_name="volume")
+        # quote_volume = parse_decimal_value(raw.quote_volume) # Ticker might not need this
+        # price_change = parse_decimal_value(raw.price_change_percent) # Ticker might not need
+
+        if last_price is None:
+            raise ValueError("last_price missing/invalid")
+        if high is None:
+            raise ValueError("high missing/invalid")
+        if low is None:
+            raise ValueError("low missing/invalid")
+        if volume is None:
+            raise ValueError("volume missing/invalid")
+
+        # Assuming Ticker needs bid/ask, which aren't in the event. Use last_price?
+        # This mapping is likely incomplete/needs refinement based on Ticker definition
+        # and how WS ticker streams should update the internal state.
+        return Ticker(
+            symbol=raw.symbol,
+            timestamp=datetime.now(UTC),  # Use current time as event might not have it
+            bid=last_price,  # Placeholder: Use last_price for bid
+            ask=last_price,  # Placeholder: Use last_price for ask
+            last_price=last_price,
+            volume_24h=volume,
+            high_24h=high,
+            low_24h=low,
+        )
+
+    @staticmethod
+    def transform_ws_depth_event_to_internal(
+        symbol: str, raw: BackpackRawDepthUpdateEvent
+    ) -> OrderBook:
+        """Transforms a raw Backpack WS depth event into an internal OrderBook."""
+        # This assumes the WS event is a snapshot. If it's a diff, logic needs change.
+        # Reuses the logic from the REST order book transformer.
+
+        # Backpack WS doesn't seem to include timestamp in depth update msg
+        timestamp_dt = datetime.now(UTC)
+
+        bids: list[tuple[Decimal, Decimal]] = []
+        asks: list[tuple[Decimal, Decimal]] = []
+
+        try:
+            for price_str, qty_str in raw.bids:
+                price = parse_decimal_value(price_str, allow_none=False, field_name="ws_bid_price")
+                qty = parse_decimal_value(qty_str, allow_none=False, field_name="ws_bid_qty")
+                if price is not None and qty is not None:
+                    bids.append((price, qty))
+            for price_str, qty_str in raw.asks:
+                price = parse_decimal_value(price_str, allow_none=False, field_name="ws_ask_price")
+                qty = parse_decimal_value(qty_str, allow_none=False, field_name="ws_ask_qty")
+                if price is not None and qty is not None:
+                    asks.append((price, qty))
+        except ValueError as e:
+            logger.error(f"[{ExchangeName.BACKPACK}] Error parsing WS order book levels: {e}")
+            raise ValueError(f"Failed to parse WS order book levels: {e}") from e
+
+        # Assume data is sorted correctly from WS
+        return OrderBook(
+            symbol=symbol,
+            bids=bids,
+            asks=asks,
+            timestamp=timestamp_dt,
+            # last_update_id=raw.last_update_id # Internal OrderBook might not have this
+        )
+
+    @staticmethod
+    def transform_ws_trade_event_to_internal(raw: BackpackRawTradeEvent) -> Trade:
+        """Transforms a raw Backpack WS trade event into an internal Trade."""
+        price_dec = parse_decimal_value(raw.price, allow_none=False, field_name="price")
+        quantity_dec = parse_decimal_value(raw.quantity, allow_none=False, field_name="quantity")
+        # Use engine_timestamp if available, else event_time
+        timestamp_raw = raw.engine_timestamp if raw.engine_timestamp is not None else raw.event_time
+        timestamp_dt = parse_datetime_utc(timestamp_raw)
+
+        if price_dec is None:
+            raise ValueError("price missing/invalid")
+        if quantity_dec is None:
+            raise ValueError("quantity missing/invalid")
+        if timestamp_dt is None:
+            raise ValueError("timestamp missing/invalid")
+
+        # Infer side: If buyer is maker, seller initiated (SELL). If seller is maker, buyer initiated (BUY).
+        # This assumes 'm' maps directly to our is_maker field definition.
+        side = OrderSide.BUY if not raw.is_buyer_the_maker else OrderSide.SELL
+
+        # WS trade event doesn't provide fee info
+        fee_dec = Decimal("0")
+        fee_asset = "USDC"  # Assume quote asset, needs confirmation
+
+        return Trade(
+            id=raw.trade_id,  # Use trade_id as internal ID
+            exchange=ExchangeName.BACKPACK,
+            symbol=raw.symbol,
+            order_id=raw.buyer_order_id if side == OrderSide.BUY else raw.seller_order_id,
+            client_order_id=None,  # Not provided in public trade stream
+            side=side,
+            price=price_dec,
+            quantity=quantity_dec,
+            fee=fee_dec,
+            fee_asset=fee_asset,
+            is_maker=raw.is_maker if side == OrderSide.BUY else not raw.is_buyer_the_maker,
             executed_at=timestamp_dt,
         )
