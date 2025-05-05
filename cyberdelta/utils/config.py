@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import cast
+from typing import Any, cast
 
 import yaml
 
@@ -15,14 +15,14 @@ class Config:
     and to access configuration values with dot notation support.
     """
 
-    def __init__(self, config_path_or_data: str | dict[str, object] | None = None) -> None:
+    def __init__(self, config_path_or_data: str | dict[str, Any] | None = None) -> None:
         """
         Initialize the configuration.
 
         Args:
             config_path_or_data: Path to YAML configuration file or a configuration dictionary
         """
-        self.config_data: dict[str, object] = {}
+        self.config_data: dict[str, Any] = {}
         self.config_path: str | None = None
 
         # Load configuration if provided
@@ -93,7 +93,7 @@ class Config:
                 self.set(config_path, typed_value)
                 logger.debug(f"Set configuration {config_path} from environment variable {key}")
 
-    def get(self, key: str, default: object | None = None) -> object | None:
+    def get(self, key: str, default: Any | None = None) -> Any | None:
         """
         Get a configuration value.
 
@@ -105,17 +105,17 @@ class Config:
             Configuration value or default
         """
         parts = key.split(".")
-        value: object = self.config_data
+        value: Any = self.config_data
 
         for part in parts:
             if isinstance(value, dict) and part in value:
-                value = value[part]
+                value = value[part]  # type: ignore [index] # Ignore potential index error on Any
             else:
                 return default
 
-        return value
+        return value  # type: ignore [return-value] # Ignore partially unknown return type
 
-    def set(self, key: str, value: object) -> None:
+    def set(self, key: str, value: Any) -> None:
         """
         Set a configuration value.
 
@@ -124,18 +124,18 @@ class Config:
             value: Value to set
         """
         parts = key.split(".")
-        current: object = self.config_data
+        current: Any = self.config_data
 
         # Navigate to the correct location
         for _i, part in enumerate(parts[:-1]):
             if not isinstance(current, dict):
                 raise TypeError(f"Cannot set key on non-dict object at {'.'.join(parts[:_i])}")
-            current_dict = current if isinstance(current, dict) else {}
+            current_dict = current if isinstance(current, dict) else {}  # type: ignore [misc] # Ignore unnecessary isinstance
             if part not in current_dict:
                 current_dict[part] = {}
             elif not isinstance(current_dict[part], dict):
                 current_dict[part] = {}
-            current = current_dict[part]
+            current = current_dict[part]  # type: ignore [index] # Ignore potential index error on Any
 
         if not isinstance(current, dict):
             raise TypeError(f"Cannot set key on non-dict object at {'.'.join(parts[:-1])}")
@@ -166,7 +166,7 @@ class Config:
             logger.error(f"Error saving configuration to {save_path}: {str(e)}")
             return False
 
-    def merge(self, config_data: dict[str, object]) -> None:
+    def merge(self, config_data: dict[str, Any]) -> None:
         """
         Merge configuration data.
 
@@ -175,7 +175,7 @@ class Config:
         """
         self._merge_dicts(self.config_data, config_data)
 
-    def _merge_dicts(self, target: dict[str, object], source: dict[str, object]) -> None:
+    def _merge_dicts(self, target: dict[str, Any], source: dict[str, Any]) -> None:
         """
         Recursively merge dictionaries.
 
@@ -187,12 +187,12 @@ class Config:
             if key in target and isinstance(target[key], dict) and isinstance(value, dict):
                 # Cast target[key] to the expected type for the recursive call
                 # We know it's a dict due to the isinstance check
-                target_dict = cast(dict[str, object], target[key])
-                self._merge_dicts(target_dict, value)
+                target_dict = cast(dict[str, Any], target[key])
+                self._merge_dicts(target_dict, value)  # type: ignore [arg-type] # Ignore partially unknown source type
             else:
                 target[key] = value
 
-    def as_dict(self) -> dict[str, object]:
+    def as_dict(self) -> dict[str, Any]:
         """
         Get the configuration as a dictionary.
 

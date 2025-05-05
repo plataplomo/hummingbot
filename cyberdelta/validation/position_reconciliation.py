@@ -64,16 +64,23 @@ class PositionReconciliationSystem:
 
         # Get interval, ensuring it's a float
         interval_val = config.get("validation.position_reconciliation.interval_seconds", 300.0)
+        # DEFENSIVE CHECK: Ensure interval_val is numeric before calculation. Mypy=[operator]
         if isinstance(interval_val, int | float):
             self._reconciliation_interval_secs: float = float(interval_val)
+            # Ensure reconciliation can happen, initialize next time
             self._next_reconciliation_time: datetime = datetime.now(UTC) + timedelta(
                 seconds=self._reconciliation_interval_secs
             )
         else:
             logger.warning(
-                f"Invalid reconciliation interval type ('{type(interval_val)}'), defaulting to 300.0 seconds."
+                f"Invalid reconciliation interval type ('{type(interval_val)}'), "
+                f"defaulting to 300.0 seconds."
             )
             self._reconciliation_interval_secs = 300.0  # Default float value
+            # Initialize even with default
+            self._next_reconciliation_time: datetime = datetime.now(UTC) + timedelta(
+                seconds=self._reconciliation_interval_secs
+            )
 
         # Get threshold
         threshold_val = config.get("validation.position_reconciliation.threshold_percent", "5.0")
@@ -613,3 +620,312 @@ class PositionReconciliationSystem:
                 "timestamp": now,
                 "discrepancies": [],
             }
+
+    async def _fetch_api_positions(self, api_clients: dict[str, ExchangeAPI]) -> dict[str, Any]:
+        """Fetch positions from all API clients concurrently."""
+        tasks = {}
+        # Check type before iterating keys
+        if isinstance(api_clients, dict):
+            for exchange_id, client in api_clients.items():
+                tasks[exchange_id] = asyncio.create_task(client.get_positions())
+        else:
+            logger.error("api_clients is not a dictionary, cannot fetch positions.")
+            return {}
+
+        # Use return_exceptions=True
+        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+
+        positions: dict[str, Any] = {}
+        # Map results back using keys
+        exchange_ids = list(tasks.keys())
+        for i, result in enumerate(results):
+            exchange_id = exchange_ids[i]
+            if isinstance(result, Exception):
+                logger.error(f"Failed to fetch positions from {exchange_id}: {result}")
+                positions[exchange_id] = {"error": str(result)}  # Store error
+            else:
+                positions[exchange_id] = (
+                    result  # Store successful result (list[DerivativePosition])
+                )
+
+        return positions
+
+    def _parse_local_position(
+        self, exchange_id: str, symbol: str, position_data: dict[str, Any]
+    ) -> DerivativePosition | None:
+        try:
+            size_dec = Decimal(str(position_data.get("size", "0")))
+            entry_price = Decimal(position_data.get("entryPrice", "0"))
+            mark_price = Decimal(position_data.get("markPrice", "0"))
+            liq_price = Decimal(position_data.get("liquidationPrice", "0"))
+            pnl = Decimal(position_data.get("unrealizedPnl", "0"))
+
+            return DerivativePosition(
+                exchange=exchange_id,
+                symbol=symbol,
+                side=OrderSide.BUY if size_dec > 0 else OrderSide.SELL,
+                size=size_dec,
+                entry_price=entry_price,
+                mark_price=mark_price,
+                liquidation_price=liq_price,
+                unrealized_pnl=pnl,
+                timestamp=datetime.now(UTC),
+            )
+        except (ValidationError, KeyError, InvalidOperation, TypeError) as e:
+            logger.error(f"Position reconciliation failed: {e}")
+            return None
+
+    def _parse_api_position(
+        self, exchange_id: str, symbol: str, position_data: Any
+    ) -> DerivativePosition | None:
+        """Parse position data from an API response (assuming DerivativePosition object)."""
+        if not isinstance(position_data, DerivativePosition):
+            logger.warning(
+                f"API position data for {symbol} on {exchange_id} is not a DerivativePosition object: {type(position_data)}"
+            )
+            return None
+
+        # If it's already a DerivativePosition, return it directly
+        # (or create a new one if you need to detach it or add timestamps)
+        # Creating a new one to ensure consistency and add timestamp
+        try:
+            return DerivativePosition(
+                exchange=exchange_id,
+                symbol=position_data.symbol,
+                side=position_data.side,
+                size=position_data.size,
+                entry_price=position_data.entry_price,
+                mark_price=position_data.mark_price,
+                liquidation_price=position_data.liquidation_price,
+                unrealized_pnl=position_data.unrealized_pnl,
+                timestamp=datetime.now(UTC),
+            )
+        except (ValidationError, AttributeError, TypeError) as e:
+            logger.warning(f"Failed to parse position data for {symbol} on {exchange_id}: {e}")
+            return None
+
+    async def reconcile_positions(
+        self, exchange_id: str, api_positions: dict[str, Any], local_positions: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Reconcile positions for a given exchange."""
+        now = datetime.now(UTC)
+
+        overall_results: dict[str, Any] = {
+            "success": True,
+            "timestamp": now,
+            "discrepancies": [],
+            "symbols_checked": 0,
+            "has_discrepancies": False,
+            "exchange_results": {},  # Store individual results
+        }
+
+        # Check portfolio tracker exists
+        # Removed 'is None' check as tracker type is guaranteed by __init__
+
+        reconciliation_tasks: list[Awaitable[dict[str, Any]]] = []
+        # Ensure api_clients attribute exists and is a dict before iterating
+        api_clients_dict = getattr(self._portfolio_tracker, "api_clients", None)
+        if isinstance(api_clients_dict, dict):
+            for symbol in api_positions:
+                reconciliation_tasks.append(
+                    self._reconcile_symbol(
+                        exchange_id, symbol, api_positions[symbol], local_positions.get(symbol)
+                    )
+                )
+        else:
+            logger.warning(
+                "PortfolioTracker has no api_clients attribute or it's not a dict. Skipping reconciliation."
+            )
+            overall_results["success"] = False
+            overall_results["error"] = "PortfolioTracker missing or invalid api_clients"
+            return overall_results  # Return early if no clients
+
+        # Run reconciliation for all symbols concurrently
+        results = await asyncio.gather(*reconciliation_tasks, return_exceptions=True)
+
+        # Aggregate results
+        for result in results:
+            if not result["success"]:
+                overall_results["success"] = False
+                overall_results["error"] = result["error"]
+                overall_results["discrepancies"].append(result["discrepancies"])
+                overall_results["has_discrepancies"] = True
+            else:
+                overall_results["symbols_checked"] += result["symbols_checked"]
+                overall_results["discrepancies"].extend(result["discrepancies"])
+                overall_results["exchange_results"][result["exchange"]] = result
+
+        # Record discrepancies
+        if overall_results["has_discrepancies"]:
+            self._record_discrepancy(exchange_id, overall_results)
+
+            # Auto-correct if enabled
+            if self.auto_correct:
+                self._apply_corrections(exchange_id, overall_results)
+
+        self.latest_results = overall_results
+        return overall_results
+
+    async def _reconcile_symbol(
+        self, exchange_id: str, symbol: str, api_position: Any, local_position: Any | None
+    ) -> dict[str, Any]:
+        """Reconcile a single position between API and local state."""
+        now = datetime.now(UTC)
+
+        # Parse API position
+        parsed_api_position = self._parse_api_position(exchange_id, symbol, api_position)
+        if parsed_api_position is None:
+            return {
+                "success": False,
+                "error": f"Failed to parse API position for {symbol} on {exchange_id}",
+                "timestamp": now,
+                "discrepancies": [],
+            }
+
+        # Parse local position
+        parsed_local_position = self._parse_local_position(exchange_id, symbol, local_position)
+        if parsed_local_position is None:
+            return {
+                "success": False,
+                "error": f"Failed to parse local position for {symbol} on {exchange_id}",
+                "timestamp": now,
+                "discrepancies": [],
+            }
+
+        # Compare positions
+        discrepancies = []
+        if parsed_api_position.size != parsed_local_position.size:
+            discrepancy_details = {
+                "symbol": symbol,
+                "type": "size",
+                "exchange_value": str(parsed_api_position.size),
+                "local_value": str(parsed_local_position.size),
+                "discrepancy": str(abs(parsed_api_position.size - parsed_local_position.size)),
+            }
+            discrepancies.append(discrepancy_details)
+            logger.warning(f"Discrepancy found for {exchange_id}/{symbol}: {discrepancy_details}")
+
+        if parsed_api_position.entry_price != parsed_local_position.entry_price:
+            discrepancy_details = {
+                "symbol": symbol,
+                "type": "entry_price",
+                "exchange_value": str(parsed_api_position.entry_price),
+                "local_value": str(parsed_local_position.entry_price),
+                "discrepancy": str(
+                    abs(parsed_api_position.entry_price - parsed_local_position.entry_price)
+                ),
+            }
+            discrepancies.append(discrepancy_details)
+            logger.warning(f"Discrepancy found for {exchange_id}/{symbol}: {discrepancy_details}")
+
+        if parsed_api_position.mark_price != parsed_local_position.mark_price:
+            discrepancy_details = {
+                "symbol": symbol,
+                "type": "mark_price",
+                "exchange_value": str(parsed_api_position.mark_price),
+                "local_value": str(parsed_local_position.mark_price),
+                "discrepancy": str(
+                    abs(parsed_api_position.mark_price - parsed_local_position.mark_price)
+                ),
+            }
+            discrepancies.append(discrepancy_details)
+            logger.warning(f"Discrepancy found for {exchange_id}/{symbol}: {discrepancy_details}")
+
+        if parsed_api_position.liquidation_price != parsed_local_position.liquidation_price:
+            discrepancy_details = {
+                "symbol": symbol,
+                "type": "liquidation_price",
+                "exchange_value": str(parsed_api_position.liquidation_price),
+                "local_value": str(parsed_local_position.liquidation_price),
+                "discrepancy": str(
+                    abs(
+                        parsed_api_position.liquidation_price
+                        - parsed_local_position.liquidation_price
+                    )
+                ),
+            }
+            discrepancies.append(discrepancy_details)
+            logger.warning(f"Discrepancy found for {exchange_id}/{symbol}: {discrepancy_details}")
+
+        if parsed_api_position.unrealized_pnl != parsed_local_position.unrealized_pnl:
+            discrepancy_details = {
+                "symbol": symbol,
+                "type": "unrealized_pnl",
+                "exchange_value": str(parsed_api_position.unrealized_pnl),
+                "local_value": str(parsed_local_position.unrealized_pnl),
+                "discrepancy": str(
+                    abs(parsed_api_position.unrealized_pnl - parsed_local_position.unrealized_pnl)
+                ),
+            }
+            discrepancies.append(discrepancy_details)
+            logger.warning(f"Discrepancy found for {exchange_id}/{symbol}: {discrepancy_details}")
+
+        return {
+            "success": True,
+            "timestamp": now,
+            "discrepancies": discrepancies,
+            "symbols_checked": 1,
+            "has_discrepancies": len(discrepancies) > 0,
+        }
+
+    def _compare_positions(
+        self, api_positions: dict[str, Any], local_positions: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Compare positions between API and local state."""
+        now = datetime.now(UTC)
+
+        overall_results: dict[str, Any] = {
+            "success": True,
+            "timestamp": now,
+            "discrepancies": [],
+            "symbols_checked": 0,
+            "has_discrepancies": False,
+            "exchange_results": {},  # Store individual results
+        }
+
+        # Check portfolio tracker exists
+        # Removed 'is None' check as tracker type is guaranteed by __init__
+
+        reconciliation_tasks: list[Awaitable[dict[str, Any]]] = []
+        # Ensure api_clients attribute exists and is a dict before iterating
+        api_clients_dict = getattr(self._portfolio_tracker, "api_clients", None)
+        if isinstance(api_clients_dict, dict):
+            for symbol in api_positions:
+                reconciliation_tasks.append(
+                    self._reconcile_symbol(
+                        None, symbol, api_positions[symbol], local_positions.get(symbol)
+                    )
+                )
+        else:
+            logger.warning(
+                "PortfolioTracker has no api_clients attribute or it's not a dict. Skipping reconciliation."
+            )
+            overall_results["success"] = False
+            overall_results["error"] = "PortfolioTracker missing or invalid api_clients"
+            return overall_results  # Return early if no clients
+
+        # Run reconciliation for all symbols concurrently
+        results = await asyncio.gather(*reconciliation_tasks, return_exceptions=True)
+
+        # Aggregate results
+        for result in results:
+            if not result["success"]:
+                overall_results["success"] = False
+                overall_results["error"] = result["error"]
+                overall_results["discrepancies"].append(result["discrepancies"])
+                overall_results["has_discrepancies"] = True
+            else:
+                overall_results["symbols_checked"] += result["symbols_checked"]
+                overall_results["discrepancies"].extend(result["discrepancies"])
+                overall_results["exchange_results"][result["exchange"]] = result
+
+        # Record discrepancies
+        if overall_results["has_discrepancies"]:
+            self._record_discrepancy(None, overall_results)
+
+            # Auto-correct if enabled
+            if self.auto_correct:
+                self._apply_corrections(None, overall_results)
+
+        self.latest_results = overall_results
+        return overall_results

@@ -1,7 +1,7 @@
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
@@ -85,65 +85,74 @@ class DataHandler:
         defaults = defaults_raw if isinstance(defaults_raw, dict) else {}
 
         default_ticker_sec = 60.0
-        if isinstance(defaults, dict):
-            ticker_val = defaults.get("ticker", 60.0)
+        # Ignore unnecessary isinstance and unknown types from .get()
+        if isinstance(defaults, dict):  # type: ignore [misc]
+            ticker_val = defaults.get("ticker", 60.0)  # type: ignore [union-attr, var-annotated]
             default_ticker_sec = float(ticker_val) if isinstance(ticker_val, (int, float)) else 60.0
 
         default_funding_sec = 3600.0
-        if isinstance(defaults, dict):
-            funding_val = defaults.get("funding_rate", 3600.0)
+        # Ignore unnecessary isinstance and unknown types from .get()
+        if isinstance(defaults, dict):  # type: ignore [misc]
+            funding_val = defaults.get("funding_rate", 3600.0)  # type: ignore [union-attr, var-annotated]
             default_funding_sec = (
                 float(funding_val) if isinstance(funding_val, (int, float)) else 3600.0
             )
 
         exchanges_conf = self.config.get("exchanges", {})
-        exchanges_dict = cast(
-            dict[str, Any], exchanges_conf if isinstance(exchanges_conf, dict) else {}
-        )
+        if not isinstance(exchanges_conf, dict):
+            logger.warning("'exchanges' config not found or not a dict. Using default staleness.")
+            return
 
-        for exchange_id in exchanges_dict.keys():
-            if self.config.get(f"exchanges.{exchange_id}.enabled", False):
-                exchange_staleness_raw = self.config.get(f"exchanges.{exchange_id}.staleness", {})
-                exchange_staleness = (
-                    exchange_staleness_raw if isinstance(exchange_staleness_raw, dict) else {}
+        # Correctly iterate and calculate timedelta
+        for exchange_id in exchanges_conf:  # type: ignore [assignment]
+            exchange_config_path = f"exchanges.{exchange_id}.data_handler.staleness"
+            exchange_staleness_raw = self.config.get(exchange_config_path, {})
+            exchange_staleness = (
+                exchange_staleness_raw if isinstance(exchange_staleness_raw, dict) else {}
+            )
+
+            # Get ticker threshold
+            ticker_thresh = default_ticker_sec
+            if isinstance(exchange_staleness, dict):  # type: ignore [misc]
+                ticker_override = exchange_staleness.get("ticker")  # type: ignore [union-attr]
+                if ticker_override is not None:
+                    try:
+                        ticker_thresh = float(ticker_override)
+                    except (ValueError, TypeError):
+                        logger.warning(
+                            f"Invalid ticker staleness for {exchange_id}: {ticker_override}"
+                        )
+
+            # Get funding rate threshold
+            funding_thresh = default_funding_sec
+            if isinstance(exchange_staleness, dict):  # type: ignore [misc]
+                funding_override = exchange_staleness.get("funding_rate")  # type: ignore [union-attr]
+                if funding_override is not None:
+                    try:
+                        funding_thresh = float(funding_override)
+                    except (ValueError, TypeError):
+                        logger.warning(
+                            f"Invalid funding_rate staleness for {exchange_id}: {funding_override}"
+                        )
+
+            # Store thresholds as timedelta
+            try:
+                self.staleness_thresholds[f"{exchange_id}_ticker"] = timedelta(
+                    seconds=ticker_thresh  # type: ignore [arg-type] # Ignore potential type issue from override
                 )
-
-                ticker_thresh = default_ticker_sec  # Default value
-                if isinstance(exchange_staleness, dict):
-                    ticker_val = exchange_staleness.get("ticker", default_ticker_sec)
-                    ticker_thresh = (
-                        float(ticker_val)
-                        if isinstance(ticker_val, (int, float))
-                        else default_ticker_sec
-                    )
-
-                funding_thresh = default_funding_sec  # Default value
-                if isinstance(exchange_staleness, dict):
-                    funding_val = exchange_staleness.get("funding_rate", default_funding_sec)
-                    funding_thresh = (
-                        float(funding_val)
-                        if isinstance(funding_val, (int, float))
-                        else default_funding_sec
-                    )
-
-                # Store thresholds as timedelta
-                try:
-                    self.staleness_thresholds[f"{exchange_id}_ticker"] = timedelta(
-                        seconds=float(ticker_thresh)
-                    )
-                    self.staleness_thresholds[f"{exchange_id}_funding"] = timedelta(
-                        seconds=float(funding_thresh)
-                    )
-                except (ValueError, TypeError) as e:
-                    logger.warning(
-                        f"Invalid staleness threshold for {exchange_id}: {e}. Using defaults."
-                    )
-                    self.staleness_thresholds[f"{exchange_id}_ticker"] = timedelta(
-                        seconds=default_ticker_sec
-                    )
-                    self.staleness_thresholds[f"{exchange_id}_funding"] = timedelta(
-                        seconds=default_funding_sec
-                    )
+                self.staleness_thresholds[f"{exchange_id}_funding"] = timedelta(
+                    seconds=funding_thresh  # type: ignore [arg-type] # Ignore potential type issue from override
+                )
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    f"Error creating timedelta for {exchange_id} staleness: {e}. Using defaults."
+                )
+                self.staleness_thresholds[f"{exchange_id}_ticker"] = timedelta(
+                    seconds=default_ticker_sec
+                )
+                self.staleness_thresholds[f"{exchange_id}_funding"] = timedelta(
+                    seconds=default_funding_sec
+                )
 
     def _setup_data_structures(self) -> None:
         """Initialize data structures for all configured exchanges and symbols."""
@@ -209,7 +218,7 @@ class DataHandler:
             dict[str, Any], exchanges_conf if isinstance(exchanges_conf, dict) else {}
         )
 
-        connect_tasks = []
+        connect_tasks: list[Awaitable[Any]] = []
         for exchange_id in exchanges_dict.keys():
             if self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 client = self.api_clients.get(exchange_id)
@@ -229,8 +238,8 @@ class DataHandler:
                     )
 
         if connect_tasks:
-            results = await asyncio.gather(*connect_tasks, return_exceptions=True)
-            for i, result in enumerate(results):
+            results = await asyncio.gather(*connect_tasks, return_exceptions=True)  # type: ignore [arg-type]
+            for i, result in enumerate(results):  # type: ignore [assignment]
                 if isinstance(result, Exception):
                     # Attempt to find corresponding exchange_id based on task order (fragile)
                     # A better approach would be to associate exchange_id with the task
@@ -244,7 +253,7 @@ class DataHandler:
         """Connect to WebSocket and subscribe to necessary channels."""
         try:
             logger.info(f"Connecting to {exchange_id} WebSocket...")
-            await client.connect_ws()
+            await client.connect()
             logger.info(f"Connected to {exchange_id} WebSocket.")
 
             # Get symbols for this exchange

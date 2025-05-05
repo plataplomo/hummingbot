@@ -18,7 +18,7 @@ from typing import Any
 
 from cyberdelta.apis.base_api import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType
+from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce
 
 
 # ANN401: Any is justified here as Backpack can send timestamps in multiple formats
@@ -112,6 +112,7 @@ def bp_parse_order(data: dict[str, Any]) -> Order:
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
+            time_in_force=TimeInForce.GTC,
         )
         # --- Ignored Backpack fields (not in core model, but available for future extension): ---
         # postOnly, reduceOnly, timeInForce, selfTradePrevention, expiryReason, stopLossTriggerPrice,

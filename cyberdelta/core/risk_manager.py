@@ -390,14 +390,10 @@ class RiskManager:
     def _check_price_sanity(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check that long and short prices are positive and valid."""
         try:
-            long_price = (
-                Decimal(str(opportunity.long_price)) if opportunity.long_price is not None else None
-            )
-            short_price = (
-                Decimal(str(opportunity.short_price))
-                if opportunity.short_price is not None
-                else None
-            )
+            # Remove redundant None checks - Pydantic guarantees Decimal
+            long_price = Decimal(str(opportunity.long_price))
+            short_price = Decimal(str(opportunity.short_price))
+
             if long_price <= ZERO:
                 self.logger.warning(
                     f"Invalid long entry price ({long_price}) for {opportunity.symbol}"
@@ -1348,6 +1344,10 @@ class RiskManager:
 
     def is_opportunity_profitable(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check if the opportunity has a positive expected profit."""
+        # Add assertion to clarify type for mypy
+        assert isinstance(opportunity.expected_profit, Decimal), (
+            f"Expected Decimal for expected_profit, got {type(opportunity.expected_profit)}"
+        )
         return opportunity.expected_profit > ZERO
 
     def adjust_order_size(self, symbol: str, requested_size: Decimal) -> Decimal:

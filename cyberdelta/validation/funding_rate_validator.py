@@ -9,7 +9,7 @@ import logging
 import math
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 # from cyberdelta.config import Config # Incorrect path
 from cyberdelta.utils.config import Config  # Correct path
@@ -245,16 +245,16 @@ class FundingRateValidator:
             "rmse": rmse,
             "mae": mae,
             "bias": bias,
-            "prediction_count": len(filtered_predictions),
-            "payment_count": len(filtered_payments),
-            "matched_count": len(merged_data),
+            "prediction_count": float(len(filtered_predictions)),
+            "payment_count": float(len(filtered_payments)),
+            "matched_count": float(len(merged_data)),
         }
 
         self.logger.info(
             f"Calculated metrics for {exchange}/{symbol}: "
             f"RMSE={rmse:.6f}, MAE={mae:.6f}, Bias={bias:.6f}"
         )
-        return metrics
+        return cast(dict[str, float | None], metrics)
 
     def get_validation_report(self, days: int = 7) -> dict[str, dict[str, dict[str, float | None]]]:
         """

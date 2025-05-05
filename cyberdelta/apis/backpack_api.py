@@ -31,7 +31,9 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
+from cyberdelta.apis.backpack.models.bp_raw_balance import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_spot_balance_details import BackpackSpotBalanceDetails
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import APIError
@@ -1054,13 +1056,10 @@ class BackpackAPI(ExchangeAPI):
                 raw_details = BackpackRawBalance.model_validate(details)  # Placeholder
 
                 # Placeholder logic until Raw Model path confirmed - USE HARDCODED KEYS FOR NOW
-                # total_raw = details.get("total", "0")
-                # available_raw = details.get("available", "0")
-                # locked_qty_raw = details.get("locked", "0")
-
-                # total = str(total_raw) if total_raw is not None else "0"
-                # available = str(available_raw) if available_raw is not None else "0"
-                # locked = str(locked_qty_raw) if locked_qty_raw is not None else "0"
+                # Remove references to undefined total/available
+                total_raw = details.get("total", "0")
+                available_raw = details.get("available", "0")
+                locked_qty_raw = details.get("locked", "0")
 
                 # Need to import the actual Details model if it exists
                 # from .models.bp_spot_balance_details import BackpackSpotBalanceDetails # Placeholder
@@ -1072,9 +1071,9 @@ class BackpackAPI(ExchangeAPI):
                 )  # Placeholder
 
                 try:
-                    # Convert to Decimal
-                    total_dec = Decimal(total)
-                    available_dec = Decimal(available)
+                    # Convert to Decimal using the raw values fetched
+                    total_dec = Decimal(str(total_raw))
+                    available_dec = Decimal(str(available_raw))
                     # locked_dec = Decimal(locked) # Assuming locked is not part of SpotBalance core
 
                     balance = SpotBalance(

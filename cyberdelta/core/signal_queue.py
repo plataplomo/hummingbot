@@ -685,7 +685,6 @@ class PrioritySignalQueue:
 
     def get_pending_signals(self) -> list[TradeSignal]:
         """Get a list of all signals currently pending in the queue."""
-        result: list[TradeSignal] = []
         # Use the threading Lock for synchronous code
         with self._sync_lock:
             # Create a sorted list for a snapshot view
