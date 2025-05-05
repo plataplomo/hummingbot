@@ -5,9 +5,11 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_market import (
+    BackpackRawDepthUpdateEvent,
     BackpackRawMarket,
     BackpackRawOpenInterest,
     BackpackRawTicker,
+    BackpackRawTickerEvent,
 )
 
 
@@ -430,3 +432,206 @@ def test_BackpackRawOpenInterest_corruption_garbled_unicode_symbol() -> None:
     p["symbol"] = "BTC_\udce2\udc28\udc00"
     with pytest.raises(ValidationError):
         BackpackRawOpenInterest.model_validate(p)
+
+
+# --- Fixtures ---
+
+
+@pytest.fixture
+def valid_ticker_event_data() -> dict[str, Any]:
+    return {
+        "s": "SOL_USDC",
+        "lastPrice": "23.50",
+        "high": "24.00",
+        "low": "22.80",
+        "volume": "100500.75",
+        "quoteVolume": "2361767.625",
+        "priceChangePercent": "1.50",
+        "e": "ticker.SOL_USDC",  # Example optional field
+        "E": 1678886400123,  # Example optional field
+    }
+
+
+@pytest.fixture
+def valid_depth_update_data() -> dict[str, Any]:
+    return {
+        "lastUpdateId": "update12345",
+        "bids": [["23.49", "10.5"], ["23.48", "5.2"]],
+        "asks": [["23.51", "8.1"], ["23.52", "12.0"]],
+        "e": "depth.SOL_USDC",  # Example optional field
+        "E": 1678886400234,  # Example optional field
+    }
+
+
+# --- Success Cases: BackpackRawTickerEvent ---
+
+
+def test_BackpackRawTickerEvent_valid(valid_ticker_event_data: dict[str, Any]) -> None:
+    ticker = BackpackRawTickerEvent.model_validate(valid_ticker_event_data)
+    assert ticker.symbol == "SOL_USDC"
+    assert ticker.last_price == "23.50"
+    assert ticker.high == "24.00"
+    assert ticker.low == "22.80"
+    assert ticker.volume == "100500.75"
+    assert ticker.quote_volume == "2361767.625"
+    assert ticker.price_change_percent == "1.50"
+    assert ticker.event_type == "ticker.SOL_USDC"
+    assert ticker.event_time == 1678886400123
+    assert ticker.model_config.get("extra") == "ignore"
+    assert ticker.model_config.get("frozen") is True
+
+
+def test_BackpackRawTickerEvent_optional_fields_none(
+    valid_ticker_event_data: dict[str, Any],
+) -> None:
+    data = valid_ticker_event_data
+    del data["e"]
+    del data["E"]
+    ticker = BackpackRawTickerEvent.model_validate(data)
+    assert ticker.event_type is None
+    assert ticker.event_time is None
+
+
+def test_BackpackRawTickerEvent_valid_event_time_formats(
+    valid_ticker_event_data: dict[str, Any],
+) -> None:
+    data = valid_ticker_event_data
+    data["E"] = "1678886400123"
+    ticker = BackpackRawTickerEvent.model_validate(data)
+    assert ticker.event_time == 1678886400123
+
+    data = valid_ticker_event_data
+    data["E"] = 1678886400123.0
+    ticker = BackpackRawTickerEvent.model_validate(data)
+    assert ticker.event_time == 1678886400123
+
+
+# --- Failure Cases: BackpackRawTickerEvent ---
+
+
+@pytest.mark.parametrize(
+    "field, value, expected_msg_part",
+    [
+        ("s", "", "String cannot be empty"),
+        ("s", None, "Field required"),
+        ("lastPrice", "inf", "finite decimal"),
+        ("high", "nan", "finite decimal"),
+        ("low", "", "String cannot be empty"),
+        ("quoteVolume", True, "Expected string"),
+        ("priceChangePercent", [], "Expected string"),
+        ("e", "", "String cannot be empty"),
+        ("e", "A" * 33, "String value too long"),
+        ("E", "not-an-int", "Expected an integer"),
+    ],
+)
+def test_BackpackRawTickerEvent_invalid_fields(
+    field: str, value: Any, expected_msg_part: str, valid_ticker_event_data: dict[str, Any]
+) -> None:
+    data = valid_ticker_event_data
+    data[field] = value
+    with pytest.raises(ValidationError) as exc_info:
+        BackpackRawTickerEvent.model_validate(data)
+    assert expected_msg_part in str(exc_info.value) or field in str(exc_info.value), (
+        f"Field: {field}, Value: {value!r}, Error: {exc_info.value}"
+    )
+
+
+def test_BackpackRawTickerEvent_extra_field_ignored(
+    valid_ticker_event_data: dict[str, Any],
+) -> None:
+    data = valid_ticker_event_data
+    data["extraField"] = 123
+    ticker = BackpackRawTickerEvent.model_validate(data)
+    assert not hasattr(ticker, "extraField")
+
+
+def test_BackpackRawTickerEvent_frozen(valid_ticker_event_data: dict[str, Any]) -> None:
+    ticker = BackpackRawTickerEvent.model_validate(valid_ticker_event_data)
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        ticker.symbol = "new_symbol"
+
+
+# --- Success Cases: BackpackRawDepthUpdateEvent ---
+
+
+def test_BackpackRawDepthUpdateEvent_valid(valid_depth_update_data: dict[str, Any]) -> None:
+    depth = BackpackRawDepthUpdateEvent.model_validate(valid_depth_update_data)
+    assert depth.last_update_id == "update12345"
+    assert depth.bids == [("23.49", "10.5"), ("23.48", "5.2")]
+    assert depth.asks == [("23.51", "8.1"), ("23.52", "12.0")]
+    assert depth.event_type == "depth.SOL_USDC"
+    assert depth.event_time == 1678886400234
+    assert depth.model_config.get("extra") == "ignore"
+    assert depth.model_config.get("frozen") is True
+
+
+def test_BackpackRawDepthUpdateEvent_optional_fields_none(
+    valid_depth_update_data: dict[str, Any],
+) -> None:
+    data = valid_depth_update_data
+    del data["e"]
+    del data["E"]
+    depth = BackpackRawDepthUpdateEvent.model_validate(data)
+    assert depth.event_type is None
+    assert depth.event_time is None
+
+
+def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[str, Any]) -> None:
+    data = valid_depth_update_data
+    data["bids"] = []
+    data["asks"] = []
+    depth = BackpackRawDepthUpdateEvent.model_validate(data)
+    assert depth.bids == []
+    assert depth.asks == []
+
+
+# --- Failure Cases: BackpackRawDepthUpdateEvent ---
+
+
+@pytest.mark.parametrize(
+    "field, value, expected_msg_part",
+    [
+        ("lastUpdateId", "", "String cannot be empty"),
+        ("lastUpdateId", None, "Field required"),
+        ("bids", None, "Field required"),
+        ("asks", "not-a-list", "Must be a list"),
+        ("bids", [[], ["1", "2"]], "length 2"),
+        ("asks", [["1"]], "length 2"),
+        ("bids", [["1", "2", "3"]], "length 2"),
+        ("asks", ["1", "2"], "Item is not a list or tuple"),
+        ("bids", [[1, "2"]], "Expected string"),
+        ("asks", [["1", 2]], "Expected string"),
+        ("bids", [["inf", "1"]], "Price must be finite"),
+        ("asks", [["1", "nan"]], "Quantity must be finite"),
+        ("bids", [["", "1"]], "String cannot be empty"),
+        ("asks", [["1", ""]], "String cannot be empty"),
+        ("bids", [["1", "-1"]], "non-negative"),
+        ("e", "", "String cannot be empty"),
+        ("E", "abc", "Expected an integer"),
+    ],
+)
+def test_BackpackRawDepthUpdateEvent_invalid_fields(
+    field: str, value: Any, expected_msg_part: str, valid_depth_update_data: dict[str, Any]
+) -> None:
+    data = valid_depth_update_data
+    data[field] = value
+    with pytest.raises(ValidationError) as exc_info:
+        BackpackRawDepthUpdateEvent.model_validate(data)
+    assert expected_msg_part in str(exc_info.value) or field in str(exc_info.value), (
+        f"Field: {field}, Value: {value!r}, Error: {exc_info.value}"
+    )
+
+
+def test_BackpackRawDepthUpdateEvent_extra_field_ignored(
+    valid_depth_update_data: dict[str, Any],
+) -> None:
+    data = valid_depth_update_data
+    data["anotherField"] = "test"
+    depth = BackpackRawDepthUpdateEvent.model_validate(data)
+    assert not hasattr(depth, "anotherField")
+
+
+def test_BackpackRawDepthUpdateEvent_frozen(valid_depth_update_data: dict[str, Any]) -> None:
+    depth = BackpackRawDepthUpdateEvent.model_validate(valid_depth_update_data)
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        depth.last_update_id = "new_id"

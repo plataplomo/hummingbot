@@ -340,100 +340,85 @@ class BackpackRawFill(BaseModel):
     #      description="Type of system order triggering fill") # Field exists but complex enum?
 
     model_config = ConfigDict(
-        populate_by_name=True,
-        extra="forbid",  # Changed from ignore/default
-        frozen=True,
-        # alias_generator=to_camel # Removed as aliases are explicit
+        populate_by_name=True, extra="forbid", frozen=True, validate_assignment=True
     )
-
-    # --- Field Validators --- #
 
     @field_validator("fee", "price", "quantity", mode="before")
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         """
-        Validates that the value is a non-empty string representing a finite decimal
-        (max 64 chars).
-        Raises ValueError if not a string, not parseable as decimal, not finite, or
-        exceeds max length.
+        Validates that the value is a non-empty string representing a finite decimal.
+        Ensures the string is valid UTF-8, not empty, and does not exceed 64 characters.
+        Raises ValueError if the value is not a string, not parseable as a decimal, or not
+        finite (NaN/inf).
         """
-        field_name = info.field_name or "decimal_field"
-        # Validate as string first (reusing logic from bp_raw_trade validator)
-        v_str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-        # Now validate parseability and finiteness
-        try:
-            dec_val = parse_decimal_value(v_str, allow_none=False, field_name=field_name)
-        except ValueError as e:
-            # Re-raise with context if parsing fails
-            raise ValueError(f"{field_name}: String '{v_str}' not parseable as Decimal: {e}") from e
-        if dec_val is None:
-            # Should not happen with allow_none=False, but defensive check
-            raise ValueError(f"{field_name}: Decimal parsing returned None unexpectedly.")
-        if not dec_val.is_finite():
-            raise ValueError(f"{field_name}: Must be a finite Decimal, got '{v_str}'.")
-        return v_str  # Return the original valid string
+        field_name = info.field_name or "field"
+        s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        return s
 
     @field_validator("fee_symbol", "order_id", "symbol", mode="before")
     @classmethod
     def validate_required_string(cls, v: object, info: ValidationInfo) -> str:
-        """Validate required, non-empty strings with max lengths."""
-        field_name = info.field_name or "unknown_string_field"
-        field_info = cls.model_fields.get(field_name)
-        # Get max_length directly from FieldInfo if available, otherwise default
-        max_len = getattr(field_info, "max_length", 128) if field_info else 128
-        # Ensure max_len is an int, provide default if None was somehow retrieved
-        max_len = max_len if max_len is not None else 128
+        """
+        Validates that the value is a non-empty UTF-8 string of max length.
+        Raises ValueError if validation fails.
+        """
+        max_len_map = {"fee_symbol": 32, "order_id": 128, "symbol": 64}
+        field_name = info.field_name or "field"
+        max_len = max_len_map.get(field_name)
         return validate_str_field(v, field_name=field_name, max_length=max_len, allow_empty=False)
 
     @field_validator("side", mode="before")
     @classmethod
     def validate_side_enum(cls, v: object, info: ValidationInfo) -> str:
-        """Validate the 'side' field against allowed values ('Bid', 'Ask')."""
-        # cyberdelta.utils.parsing: Use standard enum validator
-        return validate_enum_field(v, allowed={"Bid", "Ask"}, field_name="side")
+        field_name = info.field_name or "side"
+        return validate_enum_field(v, allowed={"Buy", "Sell"}, field_name=field_name)
 
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp_format(cls, v: object, info: ValidationInfo) -> str:
-        """Validate timestamp is a non-empty string and parseable as UTC datetime."""
-        field_name = info.field_name or "timestamp"  # Fallback for field name
-        # Validate it's a non-empty string first
-        v_str = validate_str_field(v, field_name=field_name, allow_empty=False)
-        # Attempt parsing to ensure format validity
+        """
+        Validates that the value is a non-empty string representing a parsable UTC datetime.
+        Raises ValueError if not a string, empty, or not parsable.
+        """
+        field_name = info.field_name or "timestamp"
+        s = validate_str_field(v, field_name=field_name, allow_empty=False)
         try:
-            dt = parse_datetime_utc(v_str, field_name=field_name)
-            if dt is None:
-                raise ValueError("Timestamp parsing returned None unexpectedly.")
+            _ = parse_datetime_utc(s, field_name=field_name)
         except ValueError as e:
-            raise ValueError(
-                f"{field_name}: Invalid timestamp format or value '{v_str}': {e}"
-            ) from e
-        # Return original valid string
-        return v_str
+            raise ValueError(f"{field_name}: Invalid timestamp format: {e}") from e
+        return s
 
     @field_validator("trade_id", mode="before")
     @classmethod
     def validate_trade_id(cls, v: object, info: ValidationInfo) -> int:
-        """Validate trade_id is a non-negative integer."""
+        """
+        Validates that the value is a non-negative integer.
+        Raises ValueError if not an integer or negative.
+        """
         field_name = info.field_name or "trade_id"
         if not isinstance(v, int):
-            # Try converting if string
+            # Allow integer strings
             if isinstance(v, str) and v.isdigit():
-                v_int = int(v)
+                v = int(v)
             else:
-                # Raise ValueError for Pydantic compatibility
-                raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
-        else:
-            v_int = v
-
-        if v_int < 0:
-            raise ValueError(f"{field_name}: Must be non-negative, got {v_int}")
-        return v_int
+                raise ValueError(
+                    f"{field_name}: Must be an integer or integer string, got {type(v).__name__}"
+                )
+        if v < 0:
+            raise ValueError(f"{field_name}: Must be non-negative, got {v}")
+        return v
 
     @field_validator("is_maker", mode="before")
     @classmethod
     def validate_is_maker(cls, v: object, info: ValidationInfo) -> bool:
-        """Validate is_maker is a boolean."""
+        """
+        Validates that the value is a boolean.
+        Raises ValueError if not a boolean.
+        """
         field_name = info.field_name or "is_maker"
         if not isinstance(v, bool):
             raise ValueError(f"{field_name}: Must be a boolean, got {type(v).__name__}")
@@ -442,22 +427,13 @@ class BackpackRawFill(BaseModel):
     @field_validator("client_id", mode="before")
     @classmethod
     def validate_optional_string(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """Validate optional string: must be non-empty if present."""
-        field_name = info.field_name or "client_id"
-
+        """
+        Validates that the value, if not None, is a non-empty UTF-8 string of max 128 chars.
+        Raises ValueError if not a string, is empty/whitespace-only, exceeds max length,
+        or is not valid UTF-8.
+        """
         if v is None:
             return None
-
-        # Explicitly reject empty string here after None check
-        if isinstance(v, str) and not v.strip():
-            raise ValueError(
-                f"{field_name}: Optional string cannot be empty or just whitespace if provided."
-            )
-
-        # If not None and not empty, validate type and length
-        field_info = cls.model_fields.get(field_name)
-        max_len = getattr(field_info, "max_length", 128) if field_info else 128
-        max_len = max_len if max_len is not None else 128
-
-        # Call validate_str_field ensuring allow_empty is False
-        return validate_str_field(v, field_name=field_name, max_length=max_len, allow_empty=False)
+        field_name = info.field_name or "client_id"
+        # Use allow_empty=False to ensure non-empty/whitespace string
+        return validate_str_field(v, field_name=field_name, max_length=128, allow_empty=False)

@@ -24,13 +24,14 @@ robustness and security at the data ingestion boundary.
 """
 
 import logging
+import math
 from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import (
+    parse_datetime_utc,
     parse_decimal_value,
-    validate_enum_field,
     validate_str_field,
 )
 
@@ -307,61 +308,79 @@ class BackpackRawTickerEvent(BaseModel):
     price_change_percent: str = Field(..., alias="priceChangePercent", max_length=64)
     # Assuming event time (E) and event type (e) might be present based on other streams
     event_type: str | None = Field(None, alias="e", max_length=32)
-    event_time: int | None = Field(None, alias="E")
+    event_time: int | float | str | None = Field(None, alias="E")
 
     model_config = ConfigDict(
-        populate_by_name=True, extra="ignore", frozen=True, validate_by_name=True
+        populate_by_name=True,
+        extra="ignore",
+        frozen=True,
+        validate_assignment=True,
     )
 
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_symbol_str(cls, v: object, info: ValidationInfo) -> str:
-        """Validate required symbol string."""
-        return validate_str_field(
-            v, field_name=info.field_name or "symbol", max_length=64, allow_empty=False
-        )
+        """Validate symbol is a non-empty string, max 64 chars."""
+        field_name = info.field_name or "symbol"
+        return validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
 
     @field_validator(
         "last_price", "high", "low", "volume", "quote_volume", "price_change_percent", mode="before"
     )
     @classmethod
     def validate_required_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        """Validate required, non-empty, finite decimal strings."""
+        """Validate required fields are non-empty, finite decimal strings."""
         field_name = info.field_name or "decimal_field"
         s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-        try:
-            d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-            if d is None or not d.is_finite():  # Defensive check
-                raise ValueError("Value must be a finite decimal.")
-        except ValueError as e:
-            raise ValueError(
-                f"{field_name}: Invalid finite decimal string '{s}'. Reason: {e}"
-            ) from e
+        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        # Defensive check for None before is_finite()
+        if d is None or not d.is_finite():
+            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
         return s
 
-    # Optional validators if E and e are present
     @field_validator("event_type", mode="before")
     @classmethod
     def validate_optional_event_type(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """Validate optional event_type string."""
+        """Validate optional event_type string (non-empty if present). Maximum length 32."""
         if v is None:
             return None
-        # Assuming type is 'ticker' if present
-        return validate_enum_field(
-            v, allowed={"ticker"}, field_name=info.field_name or "event_type"
-        )
+        field_name = info.field_name or "event_type"
+        # Raw model: Just validate non-empty string, max length. Don't enforce specific enum here.
+        return validate_str_field(v, field_name=field_name, max_length=32, allow_empty=False)
 
     @field_validator("event_time", mode="before")
     @classmethod
-    def validate_optional_timestamp_int(cls, v: object | None, info: ValidationInfo) -> int | None:
-        """Validate optional event_time integer."""
+    def validate_timestamp(cls, v: object | None, info: ValidationInfo) -> int | float | str | None:
+        """Validate optional event_time (int, float, or parsable string)."""
         if v is None:
             return None
-        if not isinstance(v, int):
+        field_name = info.field_name or "event_time"
+
+        if isinstance(v, int | float):
+            if isinstance(v, float) and (math.isinf(v) or math.isnan(v)):
+                raise ValueError(f"{field_name}: Numeric timestamp must be finite")
+            return v
+        elif isinstance(v, str):
+            s = validate_str_field(v, field_name=field_name, allow_empty=False)
+            try:
+                if s.isdigit():
+                    return int(s)
+                val_float = float(s)
+                if math.isinf(val_float) or math.isnan(val_float):
+                    raise ValueError(f"{field_name}: Numeric timestamp string must be finite")
+                return val_float
+            except ValueError:
+                try:
+                    _ = parse_datetime_utc(s, field_name=field_name)
+                    return s
+                except ValueError as e:
+                    raise ValueError(
+                        f"{field_name}: String timestamp '{s}' is not a valid number or ISO-like format: {e}"
+                    ) from e
+        else:
             raise ValueError(
-                f"{info.field_name or 'event_time'}: Must be an integer, got {type(v).__name__}"
+                f"{field_name}: Invalid type {type(v)}, expected int, float, or string"
             )
-        return v
 
 
 class BackpackRawDepthUpdateEvent(BaseModel):
@@ -374,7 +393,7 @@ class BackpackRawDepthUpdateEvent(BaseModel):
     bids: list[tuple[str, str]] = Field(..., alias="bids")
     asks: list[tuple[str, str]] = Field(..., alias="asks")
     event_type: str | None = Field(None, alias="e", max_length=32)
-    event_time: int | None = Field(None, alias="E")
+    event_time: int | float | str | None = Field(None, alias="E")
 
     model_config = ConfigDict(
         populate_by_name=True, extra="ignore", frozen=True, validate_by_name=True
@@ -466,22 +485,43 @@ class BackpackRawDepthUpdateEvent(BaseModel):
     @field_validator("event_type", mode="before")
     @classmethod
     def validate_optional_event_type(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """Validate optional event_type string."""
+        """Validate optional event_type string (non-empty if present). Maximum length 32."""
         if v is None:
             return None
-        # Assuming type is 'depthUpdate' if present
-        return validate_enum_field(
-            v, allowed={"depthUpdate"}, field_name=info.field_name or "event_type"
-        )
+        field_name = info.field_name or "event_type"
+        # Raw model: Just validate non-empty string, max length. Don't enforce specific enum here.
+        return validate_str_field(v, field_name=field_name, max_length=32, allow_empty=False)
 
     @field_validator("event_time", mode="before")
     @classmethod
-    def validate_optional_timestamp_int(cls, v: object | None, info: ValidationInfo) -> int | None:
-        """Validate optional event_time integer."""
+    def validate_timestamp(cls, v: object | None, info: ValidationInfo) -> int | float | str | None:
+        """Validate optional event_time (int, float, or parsable string)."""
         if v is None:
             return None
-        if not isinstance(v, int):
+        field_name = info.field_name or "event_time"
+
+        if isinstance(v, int | float):
+            if isinstance(v, float) and (math.isinf(v) or math.isnan(v)):
+                raise ValueError(f"{field_name}: Numeric timestamp must be finite")
+            return v
+        elif isinstance(v, str):
+            s = validate_str_field(v, field_name=field_name, allow_empty=False)
+            try:
+                if s.isdigit():
+                    return int(s)
+                val_float = float(s)
+                if math.isinf(val_float) or math.isnan(val_float):
+                    raise ValueError(f"{field_name}: Numeric timestamp string must be finite")
+                return val_float
+            except ValueError:
+                try:
+                    _ = parse_datetime_utc(s, field_name=field_name)
+                    return s
+                except ValueError as e:
+                    raise ValueError(
+                        f"{field_name}: String timestamp '{s}' is not a valid number or ISO-like format: {e}"
+                    ) from e
+        else:
             raise ValueError(
-                f"{info.field_name or 'event_time'}: Must be an integer, got {type(v).__name__}"
+                f"{field_name}: Invalid type {type(v)}, expected int, float, or string"
             )
-        return v
