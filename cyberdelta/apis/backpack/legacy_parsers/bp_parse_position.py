@@ -1,7 +1,8 @@
 """
 CyberDeltaEngine Backpack Position Parser
 
-This module provides a function to parse raw position data from Backpack into a standardized Position object for CyberDeltaEngine.
+This module provides a function to parse raw position data from Backpack into a
+standardized Position object for CyberDeltaEngine.
 """
 
 from datetime import UTC, datetime

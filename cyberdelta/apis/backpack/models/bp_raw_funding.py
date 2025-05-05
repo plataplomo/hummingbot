@@ -1,21 +1,26 @@
 """
-Backpack API Funding and Mark Price Models
------------------------------------------
+Backpack API Funding Rate and Mark Price Models
+------------------------------------------
 
-This module defines strict Pydantic models for validating funding rate and mark price responses from the
-Backpack Exchange API. These models are used for boundary validation and transformation, not for internal business logic.
+This module defines strict Pydantic models for validating funding rate and mark
+price responses from the Backpack Exchange API. These models are used for boundary
+validation and transformation, not for internal business logic.
 
 Models:
-    - BackpackRawFundingRate: Validates funding rate objects (symbol, funding_rate, mark_price, index_price, time).
-    - BackpackRawMarkPrice: Validates mark price and funding info objects (symbol, mark_price, funding_rate).
+    - BackpackRawFundingRate: Validates funding rate objects (symbol, funding_rate,
+      mark_price, index_price, time).
+    - BackpackRawMarkPrice: Validates mark price and funding info objects (symbol,
+      mark_price, funding_rate).
 
 Validation Pattern:
-    - All string fields must be non-empty, valid UTF-8, and <= 64 chars.
-    - All decimal fields must be valid, finite decimal strings.
-    - Timestamps must be valid int, float, or ISO8601-like strings.
+    - All string fields are strictly validated for type, non-emptiness, max length,
+      and valid UTF-8.
+    - Decimal fields are validated for parseability and finiteness.
+    - Timestamps accept int, float, or ISO8601-like strings.
+    - All extra fields are forbidden.
 
-These models act as a strict shield between external API data and internal business logic, ensuring
-robustness and security at the data ingestion boundary.
+These models act as a strict shield between external API data and internal
+business logic, ensuring robustness and security at the data ingestion boundary.
 """
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator

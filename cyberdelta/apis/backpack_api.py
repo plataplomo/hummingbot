@@ -40,21 +40,22 @@ from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.core.models import (  # Use absolute import
-    Candle,
+from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
     Order,
     OrderBook,
+    SpotBalance,
+    Ticker,
+    Trade,
+)
+from cyberdelta.core.models.enums import (
     OrderSide,
     OrderStatus,
     OrderType,
-    SpotBalance,
-    Ticker,
     TimeInForce,
-    Trade,
 )
-from cyberdelta.core.models.market import Candle  # Import Candle directly
+from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -909,7 +910,8 @@ class BackpackAPI(ExchangeAPI):
         fill_topic = "fills"
         order_topic = "orders"
         logger.debug(
-            f"[{self.exchange_name}] Preparing subscription for account topics: {fill_topic}, {order_topic}"
+            f"[{self.exchange_name}] Preparing subscription for account topics: "
+            f"{fill_topic}, {order_topic}"
         )
         # await self.subscribe(fill_topic, handler) # Incorrect
         # await self.subscribe(order_topic, handler) # Incorrect
@@ -1055,22 +1057,16 @@ class BackpackAPI(ExchangeAPI):
 
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order:
-        """Fetch the status of a specific order by its ID.
-
-        Uses the order history endpoint as it returns non-open orders too.
+    ) -> Order | None:
+        """Fetch the status of a specific order by its ID or client ID.
 
         Args:
             order_id: The exchange-assigned order ID.
-            symbol: The market symbol (required by Backpack history endpoint).
-            client_order_id: Ignored for Backpack get_order_status via history.
+            symbol: The trading symbol (required by some exchanges).
+            client_order_id: The client-assigned order ID (optional).
 
         Returns:
-            The Order object with its current status.
-
-        Raises:
-            ValueError: If symbol is not provided.
-            APIError: If the order is not found or another API error occurs.
+            The Order object if found, otherwise None.
         """
         if not symbol:
             # Backpack's history endpoint might require symbol even with orderId filter

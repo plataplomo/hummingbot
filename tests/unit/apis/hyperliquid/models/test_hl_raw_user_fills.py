@@ -4,6 +4,8 @@
 # - Strictly follows Raw Model Validation Policy
 # - Covers all edge cases, adversarial input, and structure validation
 
+from typing import Any
+
 import pytest
 from pydantic import ValidationError
 
@@ -42,6 +44,28 @@ def valid_user_fills_request_payload() -> dict[str, object]:
     # Use a valid Ethereum address (0x + 40 hex chars) for strict validation
     # Example: 0xabcdefabcdefabcdefabcdefabcdefabcdefabcd (40 hex chars)
     return {"type": "userFills", "user": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"}
+
+
+# --- Fixtures ---
+@pytest.fixture
+def valid_user_fill_data() -> dict[str, Any]:
+    """Provides a dictionary with valid raw user fill data."""
+    return {
+        "tid": 123456789,
+        "coin": "ETH",
+        "px": "2000.50",
+        "sz": "0.1",
+        "time": 1678886400123,  # Example epoch ms
+        "side": "B",
+        "oid": 987654321,
+        "startPosition": "1.0",
+        "dir": "Buy",
+        "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
+        "fee": "0.002",
+        "isMaker": False,
+        "liquidationMarkPx": None,
+        "cloid": None,
+    }
 
 
 # --- Tests for HyperliquidRawUserFill ---
@@ -370,3 +394,144 @@ def test_user_fill_frozen() -> None:
         obj.tid = 999
     with pytest.raises(ValidationError, match="Instance is frozen"):
         obj.px = "999.99"
+
+
+# --- Success Cases ---
+def test_hl_raw_user_fill_valid(valid_user_fill_data: dict[str, Any]) -> None:
+    """Test successful validation with completely valid data."""
+    fill = HyperliquidRawUserFill.model_validate(valid_user_fill_data)
+
+    assert fill.tid == 123456789
+    assert fill.coin == "ETH"
+    assert fill.px == "2000.50"
+    assert fill.sz == "0.1"
+    assert fill.time == 1678886400123
+    assert fill.side == "B"
+    assert fill.oid == 987654321
+    assert fill.start_position == "1.0"
+    assert fill.dir == "Buy"
+    assert fill.hash == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456"
+    assert fill.fee == "0.002"
+    assert fill.is_maker is False
+    assert fill.liquidation_mark_px is None
+    assert fill.cloid is None
+    assert fill.model_config.get("extra") == "forbid"
+    assert fill.model_config.get("frozen") is True
+
+
+def test_hl_raw_user_fill_optional_present(valid_user_fill_data: dict[str, Any]) -> None:
+    """Test validation succeeds when optional fields are present and valid."""
+    valid_user_fill_data["liquidationMarkPx"] = "1950.00"
+    valid_user_fill_data["cloid"] = "my-client-order-id"
+    fill = HyperliquidRawUserFill.model_validate(valid_user_fill_data)
+    assert fill.liquidation_mark_px == "1950.00"
+    assert fill.cloid == "my-client-order-id"
+
+
+# --- Failure Cases: Type Errors ---
+@pytest.mark.parametrize(
+    "field,invalid_value",
+    [
+        ("tid", "123"),
+        ("coin", 123),
+        ("px", 2000.50),
+        ("sz", 0.1),
+        ("time", "1678886400123"),
+        ("side", ["B"]),
+        ("oid", "987"),
+        ("startPosition", 1.0),
+        ("dir", True),
+        ("hash", None),
+        ("fee", 0.002),
+        ("isMaker", "false"),
+        ("liquidationMarkPx", 1950.0),
+        ("cloid", 12345),
+    ],
+)
+def test_hl_raw_user_fill_invalid_types(
+    valid_user_fill_data: dict[str, Any],
+    field: str,
+    invalid_value: Any,  # noqa: ANN401
+) -> None:
+    """Test ValidationError for incorrect field types."""
+    valid_user_fill_data[field] = invalid_value
+    with pytest.raises(ValidationError):
+        HyperliquidRawUserFill.model_validate(valid_user_fill_data)
+
+
+# --- Failure Cases: Format/Constraint Errors ---
+@pytest.mark.parametrize(
+    "field,invalid_value, expected_msg_part",
+    [
+        ("tid", -1, "Must be non-negative"),
+        ("coin", "", "String cannot be empty"),
+        ("coin", "X" * 65, "String value too long (max 64 chars)"),
+        ("px", "", "String cannot be empty"),
+        ("px", "inf", "must be a finite decimal"),
+        ("sz", "NaN", "must be a finite decimal"),
+        ("time", -1000, "Must be non-negative"),
+        ("side", "BUY", "Invalid value 'BUY'. Expected one of {'A', 'B'}"),
+        ("oid", -1, "Must be non-negative"),
+        ("startPosition", "", "String cannot be empty"),
+        ("dir", "", "String cannot be empty"),
+        ("hash", "", "String cannot be empty"),
+        ("hash", "X" * 67, "String value too long (max 66 chars)"),  # Specific max_len for hash
+        (
+            "fee",
+            "-0.1",
+            "must be a finite decimal",
+        ),  # Assume fees are non-negative? No, test finite
+        ("liquidationMarkPx", "", "String cannot be empty"),  # Optional but non-empty if present
+        ("liquidationMarkPx", "inf", "must be a finite decimal if present"),
+        ("cloid", "", "String cannot be empty"),  # Optional but non-empty if present
+        ("cloid", "Y" * 129, "String value too long (max 128 chars)"),
+    ],
+)
+def test_hl_raw_user_fill_invalid_formats(
+    valid_user_fill_data: dict[str, Any],
+    field: str,
+    invalid_value: Any,  # noqa: ANN401
+    expected_msg_part: str,
+) -> None:
+    """Test ValidationError for format/constraint violations."""
+    valid_user_fill_data[field] = invalid_value
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawUserFill.model_validate(valid_user_fill_data)
+    assert expected_msg_part in str(exc_info.value)
+
+
+# --- Failure Cases: Missing Required Fields ---
+@pytest.mark.parametrize(
+    "field_to_remove",
+    [
+        "tid",
+        "coin",
+        "px",
+        "sz",
+        "time",
+        "side",
+        "oid",
+        "startPosition",
+        "dir",
+        "hash",
+        "fee",
+        "isMaker",
+    ],
+)
+def test_hl_raw_user_fill_missing_required(
+    valid_user_fill_data: dict[str, Any], field_to_remove: str
+) -> None:
+    """Test ValidationError when required fields are missing."""
+    del valid_user_fill_data[field_to_remove]
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawUserFill.model_validate(valid_user_fill_data)
+    assert f"{field_to_remove}\n  Field required" in str(exc_info.value)
+
+
+# --- Failure Cases: Extra Fields ---
+def test_hl_raw_user_fill_extra_field(valid_user_fill_data: dict[str, Any]) -> None:
+    """Test ValidationError when extra fields are provided (extra='forbid')."""
+    valid_user_fill_data["extraField"] = 123
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawUserFill.model_validate(valid_user_fill_data)
+    assert "Extra inputs are not permitted" in str(exc_info.value)

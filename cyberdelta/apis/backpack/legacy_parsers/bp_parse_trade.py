@@ -1,7 +1,8 @@
 """
 CyberDeltaEngine Backpack Trade Parser
 
-This module provides a function to parse raw trade data from Backpack into a standardized Trade object for CyberDeltaEngine.
+This module provides a function to parse raw trade data from Backpack into a
+standardized Trade object for CyberDeltaEngine.
 """
 
 from datetime import UTC, datetime

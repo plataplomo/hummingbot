@@ -562,7 +562,8 @@ class BackpackOrderMapper:
         if timestamp_dt is None:
             raise ValueError("timestamp missing/invalid")
 
-        # Infer side: If buyer is maker, seller initiated (SELL). If seller is maker, buyer initiated (BUY).
+        # Infer side: If buyer is maker, seller initiated (SELL).
+        # If seller is maker, buyer initiated (BUY).
         # This assumes 'm' maps directly to our is_maker field definition.
         side = OrderSide.BUY if not raw.is_buyer_the_maker else OrderSide.SELL
 

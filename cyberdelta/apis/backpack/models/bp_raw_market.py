@@ -214,7 +214,7 @@ class BackpackRawOrderBook(BaseModel):
             # Runtime check for structure and element types
             # Pyright Warning: `level_raw` is `unknown`, `len` arg type is unknown.
             # Runtime check below ensures safety.
-            if not isinstance(level_raw, (list, tuple)) or len(level_raw) != 2:
+            if not isinstance(level_raw, list | tuple) or len(level_raw) != 2:
                 raise ValueError(
                     f"{field_name}[{i}]: Each level must be a list/tuple of [price, quantity]"
                 )
@@ -334,7 +334,7 @@ class BackpackRawDepthUpdateEvent(BaseModel):
             # Runtime check for structure
             # Pyright Warning: `level_raw` is `unknown`, `len` arg type is unknown.
             # Runtime check below ensures safety.
-            if not isinstance(level_raw, (list, tuple)) or len(level_raw) != 2:
+            if not isinstance(level_raw, list | tuple) or len(level_raw) != 2:
                 # Use tuple for isinstance check, | requires Python 3.10+
                 raise ValueError(
                     f"{field_name}[{i}]: Each level must be a list/tuple of [price, quantity]"

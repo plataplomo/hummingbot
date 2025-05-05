@@ -115,9 +115,10 @@ def bp_parse_order(data: dict[str, Any]) -> Order:
             time_in_force=TimeInForce.GTC,
         )
         # --- Ignored Backpack fields (not in core model, but available for future extension): ---
-        # postOnly, reduceOnly, timeInForce, selfTradePrevention, expiryReason, stopLossTriggerPrice,
-        # stopLossLimitPrice, stopLossTriggerBy, takeProfitTriggerPrice, takeProfitLimitPrice,
-        # takeProfitTriggerBy, triggerBy, triggerPrice, triggerQuantity, triggeredAt, relatedOrderId, etc.
+        # postOnly, reduceOnly, timeInForce, selfTradePrevention, expiryReason,
+        # stopLossTriggerPrice, stopLossLimitPrice, stopLossTriggerBy,
+        # takeProfitTriggerPrice, takeProfitLimitPrice, takeProfitTriggerBy, triggerBy,
+        # triggerPrice, triggerQuantity, triggeredAt, relatedOrderId, etc.
     except KeyError as e:
         raise APIError(
             f"Missing key {e} in order data", code=APIErrorCode.INVALID_PARAMS.value

@@ -197,20 +197,10 @@ class HyperliquidRawUserFill(BaseModel):
     @field_validator("is_maker", mode="before")
     @classmethod
     def validate_is_maker_bool(cls, v: object, info: ValidationInfo) -> bool:
-        """
-        Strictly enforce that is_maker is a bool (no coercion). This is required by the raw
-        model policy.
-
-        Args:
-            v (object): The value to validate (should be a bool).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            bool: The validated boolean value.
-        Raises:
-            ValueError: If the input is not a bool.
-        """
+        """Validate that is_maker is a boolean."""
+        field_name = info.field_name or "is_maker"
         if not isinstance(v, bool):
-            raise ValueError(f"is_maker: Expected bool, got {type(v).__name__}")
+            raise TypeError(f"{field_name}: Must be a boolean, got {type(v).__name__}")
         return v
 
     @field_validator("cloid", "hash", mode="before")
@@ -239,24 +229,20 @@ class HyperliquidRawUserFill(BaseModel):
     @field_validator("liquidation_mark_px", mode="before")
     @classmethod
     def validate_optional_decimal_str(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """
-        Ensure optional decimal string is valid if present (finite decimal, not NaN/inf).
-
-        Args:
-            v (object): The value to validate (should be a string or None).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            Optional[str]: The validated decimal string or None.
-        Raises:
-            ValueError: If the input is not a valid decimal string or None.
-        """
+        """Validate optional decimal strings, ensuring finiteness if present."""
         if v is None:
-            return v
-        field_name = "liquidation_mark_px"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+            return None
+
+        field_name = info.field_name or "optional_decimal_field"
+        # Validate as string first
+        s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
+
+        # Then parse and check finiteness
+        d = parse_decimal_value(
+            s, allow_none=False, field_name=field_name
+        )  # allow_none=False because v is not None here
         if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+            raise ValueError(f"{field_name}: Value '{s}' must be a finite decimal if present.")
         return s
 
 

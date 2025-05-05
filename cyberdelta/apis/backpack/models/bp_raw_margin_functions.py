@@ -63,7 +63,7 @@ class BackpackRawImfFunction(BaseModel):
         try:
             s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
             d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-            # DEFENSIVE CHECK: Ensure parse_decimal_value returned non-None Decimal. Mypy=[redundant-expr]
+            # DEFENSIVE CHECK: Ensure parse_decimal_value returned non-None Decimal.
             if d is None or not d.is_finite():
                 raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
             return s
@@ -106,7 +106,7 @@ class BackpackRawMmfFunction(BaseModel):
         try:
             s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
             d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-            # DEFENSIVE CHECK: Ensure parse_decimal_value returned non-None Decimal. Mypy=[redundant-expr]
+            # DEFENSIVE CHECK: Ensure parse_decimal_value returned non-None Decimal.
             if d is None or not d.is_finite():
                 raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
             return s

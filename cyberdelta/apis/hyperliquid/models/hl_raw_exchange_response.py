@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
@@ -21,15 +21,16 @@ class HyperliquidRawExchangeStatusResting(BaseModel):
     @field_validator("oid", mode="before")
     @classmethod
     def validate_oid(cls, v: object) -> int:
+        field_name = "oid"
         if not isinstance(v, int):
             if isinstance(v, str) and v.isdigit():
                 v_int = int(v)
             else:
-                raise TypeError(f"oid: Must be an integer, got {type(v).__name__}")
+                raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
         else:
             v_int = v
         if v_int < 0:
-            raise ValueError(f"oid: Must be non-negative, got {v_int}")
+            raise ValueError(f"{field_name}: Must be non-negative, got {v_int}")
         return v_int
 
 
@@ -46,29 +47,32 @@ class HyperliquidRawExchangeStatusFilled(BaseModel):
     @classmethod
     def validate_oid(cls, v: object) -> int:
         # Reusing validator logic
+        field_name = "oid"
         if not isinstance(v, int):
             if isinstance(v, str) and v.isdigit():
                 v_int = int(v)
             else:
-                raise TypeError(f"oid: Must be an integer, got {type(v).__name__}")
+                raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
         else:
             v_int = v
         if v_int < 0:
-            raise ValueError(f"oid: Must be non-negative, got {v_int}")
+            raise ValueError(f"{field_name}: Must be non-negative, got {v_int}")
         return v_int
 
     @field_validator("total_sz", "avg_px", mode="before")
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         """Validate required decimal strings."""
-        field_name = info.field_name or "decimal_field"
+        field_name = info.field_name or "unknown_decimal_field"  # Provide default
         v_str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
         try:
             dec_val = parse_decimal_value(v_str, allow_none=False, field_name=field_name)
             if dec_val is None or not dec_val.is_finite():
-                raise ValueError("Must be a finite Decimal")
-        except ValueError as e:
-            raise ValueError(f"String '{v_str}' not parseable as finite Decimal: {e}") from e
+                raise ValueError(f"{field_name}: Value '{v_str}' must be a finite decimal.")
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"{field_name}: String '{v_str}' not parseable as finite Decimal: {e}"
+            ) from e
         return v_str
 
 
@@ -122,6 +126,7 @@ class HyperliquidRawExchangeResponseData(BaseModel):
 
         # Iterate through the raw list provided
         for i, item_raw in enumerate(v):
+            # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType etc). Mypy=ok
             if isinstance(item_raw, str):
                 # DEFENSIVE CHECK: Assert type for checker after isinstance
                 assert isinstance(item_raw, str)
@@ -129,9 +134,15 @@ class HyperliquidRawExchangeResponseData(BaseModel):
                     validated_str = validate_enum_field(
                         item_raw, allowed=allowed_strings, field_name=f"statuses[{i}]"
                     )
-                    validated_list.append(validated_str)
+                    # Cast validated string to the Literal type for list compatibility
+                    # Justification: We just validated it belongs to the allowed set.
+                    validated_literal = cast(
+                        Literal["canceled", "modified", "success"], validated_str
+                    )
+                    validated_list.append(validated_literal)
                 except ValueError as e:
                     raise ValueError(f"statuses[{i}]: Invalid status string: {e}") from e
+            # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType etc). Mypy=ok
             elif isinstance(item_raw, dict):
                 # DEFENSIVE CHECK: Assert type for checker after isinstance
                 assert isinstance(item_raw, dict)
@@ -144,9 +155,10 @@ class HyperliquidRawExchangeResponseData(BaseModel):
                     raise ValueError(f"statuses[{i}]: Invalid status object format: {e}") from e
             else:
                 # Handle unexpected types
+                # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownArgumentType). Mypy=ok
                 raise TypeError(
-                    f"statuses[{i}]: Invalid item type {type(item_raw).__name__}. Expected str or dict."
-                )
+                    f"statuses[{i}]: Invalid type {type(item_raw).__name__}. Expected str/dict."
+                )  # Shortened more
 
         return validated_list
 
@@ -162,3 +174,9 @@ class HyperliquidRawExchangeResponse(BaseModel):
 
     # No explicit validator needed for 'status' due to Literal type hint
     # No explicit validator needed for 'data'; relies on nested model validation
+    # However, we add a validator for 'status' to ensure consistency with raw policy
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status_ok(cls, v: object) -> str:
+        """Validate the top-level status is exactly 'ok'."""
+        return validate_enum_field(v, allowed={"ok"}, field_name="status")

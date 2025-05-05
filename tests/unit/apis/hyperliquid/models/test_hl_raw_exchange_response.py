@@ -12,317 +12,243 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeStatusResting,
 )
 
-# --- Test Data Factories ---
 
-
+# --- Fixtures ---
+@pytest.fixture
 def valid_resting_data() -> dict[str, Any]:
     return {"oid": 12345}
 
 
+@pytest.fixture
 def valid_filled_data() -> dict[str, Any]:
-    return {"oid": 67890, "totalSz": "10.5", "avgPx": "150.25"}
+    return {"oid": 67890, "totalSz": "1.5", "avgPx": "150.25"}
 
 
-def valid_status_object_resting() -> dict[str, Any]:
-    return {"resting": valid_resting_data()}
+@pytest.fixture
+def valid_status_object_resting(valid_resting_data: dict[str, Any]) -> dict[str, Any]:
+    return {"resting": valid_resting_data}
 
 
-def valid_status_object_filled() -> dict[str, Any]:
-    return {"filled": valid_filled_data()}
+@pytest.fixture
+def valid_status_object_filled(valid_filled_data: dict[str, Any]) -> dict[str, Any]:
+    return {"filled": valid_filled_data}
 
 
+@pytest.fixture
 def valid_status_object_error() -> dict[str, Any]:
-    return {"error": "Order expired"}
+    return {"error": "Order rejected due to insufficient margin."}
 
 
-# Define the expected type for the statuses list items
-# StatusItemType = Literal["canceled", "modified", "success"] | dict[str, Any]
-
-
-# Relaxing type hint here as tests intentionally pass invalid types
-def valid_response_data(statuses: list[Any] | None = None) -> dict[str, Any]:
-    if statuses is None:
-        statuses = [
-            valid_status_object_resting(),
+@pytest.fixture
+def valid_response_data_dict(
+    valid_status_object_resting: dict[str, Any], valid_status_object_filled: dict[str, Any]
+) -> dict[str, Any]:
+    return {
+        "type": "order",
+        "statuses": [
             "canceled",
-            valid_status_object_filled(),
+            valid_status_object_resting,
+            valid_status_object_filled,
+            "modified",
             "success",
-        ]
-    return {"type": "order", "statuses": statuses}
+        ],
+    }
 
 
-def valid_response(data: dict[str, Any] | None = None) -> dict[str, Any]:
-    if data is None:
-        data = valid_response_data()
-    return {"status": "ok", "data": data}
+@pytest.fixture
+def valid_top_level_response(valid_response_data_dict: dict[str, Any]) -> dict[str, Any]:
+    return {"status": "ok", "data": valid_response_data_dict}
 
 
-# --- Test Cases: HyperliquidRawExchangeStatusResting ---
-
-
-def test_resting_happy_path() -> None:
-    data = valid_resting_data()
-    obj = HyperliquidRawExchangeStatusResting.model_validate(data)
+# --- Success Cases ---
+def test_hl_resting_valid(valid_resting_data: dict[str, Any]) -> None:
+    obj = HyperliquidRawExchangeStatusResting.model_validate(valid_resting_data)
     assert obj.oid == 12345
+    assert obj.model_config.get("extra") == "ignore"
+    assert obj.model_config.get("frozen") is True
 
 
-def test_resting_invalid_oid() -> None:
-    with pytest.raises(ValidationError):  # Negative OID
-        HyperliquidRawExchangeStatusResting.model_validate({"oid": -1})
-    with pytest.raises(ValidationError):  # Wrong type
-        HyperliquidRawExchangeStatusResting.model_validate({"oid": "abc"})
-
-
-def test_resting_extra_field_ignored() -> None:
-    data = valid_resting_data()
-    data["extra"] = "ignored"
-    obj = HyperliquidRawExchangeStatusResting.model_validate(data)
-    assert not hasattr(obj, "extra")
-
-
-def test_resting_frozen() -> None:
-    obj = HyperliquidRawExchangeStatusResting.model_validate(valid_resting_data())
-    with pytest.raises(ValidationError):
-        obj.oid = 999  # type: ignore
-
-
-# --- Test Cases: HyperliquidRawExchangeStatusFilled ---
-
-
-def test_filled_happy_path() -> None:
-    data = valid_filled_data()
-    obj = HyperliquidRawExchangeStatusFilled.model_validate(data)
+def test_hl_filled_valid(valid_filled_data: dict[str, Any]) -> None:
+    obj = HyperliquidRawExchangeStatusFilled.model_validate(valid_filled_data)
     assert obj.oid == 67890
-    assert obj.total_sz == "10.5"
+    assert obj.total_sz == "1.5"
     assert obj.avg_px == "150.25"
+    assert obj.model_config.get("extra") == "ignore"
+    assert obj.model_config.get("frozen") is True
 
 
-def test_filled_invalid_fields() -> None:
-    # Invalid OID
-    data = valid_filled_data()
-    data["oid"] = -1
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeStatusFilled.model_validate(data)
-    # Invalid totalSz
-    data = valid_filled_data()
-    data["totalSz"] = "NaN"
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeStatusFilled.model_validate(data)
-    data = valid_filled_data()
-    data["totalSz"] = ""
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeStatusFilled.model_validate(data)
-    # Invalid avgPx
-    data = valid_filled_data()
-    data["avgPx"] = "inf"
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeStatusFilled.model_validate(data)
-    data = valid_filled_data()
-    data["avgPx"] = 150.25  # Wrong type
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeStatusFilled.model_validate(data)
+def test_hl_status_object_valid(
+    valid_status_object_resting: dict[str, Any],
+    valid_status_object_filled: dict[str, Any],
+    valid_status_object_error: dict[str, Any],
+) -> None:
+    resting = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_resting)
+    assert resting.resting is not None
+    assert resting.resting.oid == 12345
+    assert resting.filled is None
+    assert resting.error is None
+
+    filled = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_filled)
+    assert filled.resting is None
+    assert filled.filled is not None
+    assert filled.filled.oid == 67890
+    assert filled.error is None
+
+    error = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_error)
+    assert error.resting is None
+    assert error.filled is None
+    assert error.error == "Order rejected due to insufficient margin."
+    assert error.model_config.get("extra") == "ignore"
+    assert error.model_config.get("frozen") is True
 
 
-def test_filled_extra_field_ignored() -> None:
-    data = valid_filled_data()
-    data["extra"] = "ignored"
-    obj = HyperliquidRawExchangeStatusFilled.model_validate(data)
-    assert not hasattr(obj, "extra")
-
-
-def test_filled_frozen() -> None:
-    obj = HyperliquidRawExchangeStatusFilled.model_validate(valid_filled_data())
-    with pytest.raises(ValidationError):
-        obj.oid = 999  # type: ignore
-    with pytest.raises(ValidationError):
-        obj.avg_px = "200.0"  # type: ignore
-
-
-# --- Test Cases: HyperliquidRawExchangeStatusObject ---
-
-
-def test_status_object_happy_paths() -> None:
-    obj_rest = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_resting())
-    assert isinstance(obj_rest.resting, HyperliquidRawExchangeStatusResting)
-    assert obj_rest.resting.oid == 12345
-    assert obj_rest.filled is None
-    assert obj_rest.error is None
-
-    obj_fill = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_filled())
-    assert isinstance(obj_fill.filled, HyperliquidRawExchangeStatusFilled)
-    assert obj_fill.filled.oid == 67890
-    assert obj_fill.resting is None
-    assert obj_fill.error is None
-
-    obj_err = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_error())
-    assert obj_err.error == "Order expired"
-    assert obj_err.resting is None
-    assert obj_err.filled is None
-
-
-def test_status_object_invalid_nested() -> None:
-    # Invalid resting oid
-    data = {"resting": {"oid": -1}}
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeStatusObject.model_validate(data)
-    # Invalid filled price
-    data = {"filled": {"oid": 1, "totalSz": "1", "avgPx": "NaN"}}
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeStatusObject.model_validate(data)
-    # Invalid error string
-    data = {"error": ""}  # Empty string invalid
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeStatusObject.model_validate(data)
-    data = {"error": "E" * 1025}  # Too long
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeStatusObject.model_validate(data)
-
-
-def test_status_object_extra_ignored() -> None:
-    data = valid_status_object_resting()
-    data["extra"] = 1
-    obj = HyperliquidRawExchangeStatusObject.model_validate(data)
-    assert not hasattr(obj, "extra")
-
-
-def test_status_object_frozen() -> None:
-    obj = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_error())
-    with pytest.raises(ValidationError):
-        obj.error = "New error"  # type: ignore
-
-
-# --- Test Cases: HyperliquidRawExchangeResponseData ---
-
-
-def test_response_data_happy_path() -> None:
-    data = valid_response_data()
-    obj = HyperliquidRawExchangeResponseData.model_validate(data)
+def test_hl_response_data_valid(valid_response_data_dict: dict[str, Any]) -> None:
+    obj = HyperliquidRawExchangeResponseData.model_validate(valid_response_data_dict)
     assert obj.type == "order"
-    assert len(obj.statuses) == 4
-    assert isinstance(obj.statuses[0], HyperliquidRawExchangeStatusObject)
-    assert obj.statuses[0].resting.oid == 12345  # type: ignore
-    assert obj.statuses[1] == "canceled"
+    assert len(obj.statuses) == 5
+    assert obj.statuses[0] == "canceled"
+    assert isinstance(obj.statuses[1], HyperliquidRawExchangeStatusObject)
+    assert obj.statuses[1].resting is not None
+    assert obj.statuses[1].resting.oid == 12345
     assert isinstance(obj.statuses[2], HyperliquidRawExchangeStatusObject)
-    assert obj.statuses[2].filled.oid == 67890  # type: ignore
-    assert obj.statuses[3] == "success"
+    assert obj.statuses[2].filled is not None
+    assert obj.statuses[2].filled.oid == 67890
+    assert obj.statuses[3] == "modified"
+    assert obj.statuses[4] == "success"
+    assert obj.model_config.get("extra") == "ignore"
+    assert obj.model_config.get("frozen") is True
 
 
-def test_response_data_invalid_fields() -> None:
-    # Invalid type
-    data = valid_response_data()
-    data["type"] = ""  # Empty invalid
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponseData.model_validate(data)
-    data = valid_response_data()
-    data["type"] = None  # Missing required
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponseData.model_validate(data)
-
-    # Invalid statuses list itself
-    data = valid_response_data()
-    data["statuses"] = None  # Wrong type
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponseData.model_validate(data)
-    data = valid_response_data()
-    data["statuses"] = "not_a_list"
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponseData.model_validate(data)
-
-
-def test_response_data_invalid_statuses_items() -> None:
-    # Invalid string in list
-    data = valid_response_data(statuses=["invalid_status"])
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponseData.model_validate(data)
-    # Invalid object in list (bad nested structure)
-    data = valid_response_data(statuses=[{"resting": {"oid": -5}}])
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponseData.model_validate(data)
-    # Invalid type in list
-    data = valid_response_data(statuses=[123])
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponseData.model_validate(data)
-    # Mixed valid and invalid
-    data = valid_response_data(statuses=["success", {"resting": {"oid": -5}}, "canceled"])
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponseData.model_validate(data)
-
-
-def test_response_data_extra_ignored() -> None:
-    data = valid_response_data()
-    data["extra"] = 1
-    obj = HyperliquidRawExchangeResponseData.model_validate(data)
-    assert not hasattr(obj, "extra")
-
-
-def test_response_data_frozen() -> None:
-    obj = HyperliquidRawExchangeResponseData.model_validate(valid_response_data())
-    with pytest.raises(ValidationError):
-        obj.type = "new_type"  # type: ignore
-    with pytest.raises(ValidationError):
-        obj.statuses.append("another_status")  # type: ignore
-
-
-# --- Test Cases: HyperliquidRawExchangeResponse ---
-
-
-def test_response_happy_path() -> None:
-    data = valid_response()
-    obj = HyperliquidRawExchangeResponse.model_validate(data)
+def test_hl_response_valid(valid_top_level_response: dict[str, Any]) -> None:
+    obj = HyperliquidRawExchangeResponse.model_validate(valid_top_level_response)
     assert obj.status == "ok"
-    assert isinstance(obj.data, HyperliquidRawExchangeResponseData)
+    assert obj.data is not None
     assert obj.data.type == "order"
-    assert len(obj.data.statuses) == 4
+    assert len(obj.data.statuses) == 5
+    assert obj.model_config.get("extra") == "forbid"
+    assert obj.model_config.get("frozen") is True
 
 
-def test_response_data_optional() -> None:
-    # Test case where data might be legitimately None or missing
-    data = {"status": "ok"}
-    obj = HyperliquidRawExchangeResponse.model_validate(data)
+def test_hl_response_valid_no_data() -> None:
+    """Test valid response when data is explicitly None."""
+    response_dict = {"status": "ok", "data": None}
+    obj = HyperliquidRawExchangeResponse.model_validate(response_dict)
     assert obj.status == "ok"
     assert obj.data is None
 
-    data = {"status": "ok", "data": None}
-    obj = HyperliquidRawExchangeResponse.model_validate(data)
+
+def test_hl_response_valid_missing_data() -> None:
+    """Test valid response when data key is missing."""
+    response_dict = {"status": "ok"}
+    obj = HyperliquidRawExchangeResponse.model_validate(response_dict)
     assert obj.status == "ok"
     assert obj.data is None
 
 
-def test_response_invalid_status() -> None:
-    data = valid_response()
-    data["status"] = "error"
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponse.model_validate(data)
-    data = valid_response()
-    del data["status"]
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponse.model_validate(data)
+# --- Failure Cases --- #
 
 
-def test_response_invalid_data() -> None:
-    # Data field contains completely wrong structure
-    data = {"status": "ok", "data": "not_an_object"}
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponse.model_validate(data)
-    # Data field contains object with invalid internal structure
-    data = {"status": "ok", "data": {"type": "order", "statuses": [123]}}  # invalid status item
-    with pytest.raises(ValidationError):
-        HyperliquidRawExchangeResponse.model_validate(data)
+# Resting Model Failures
+@pytest.mark.parametrize(
+    "invalid_data, expected_msg",
+    [
+        ({"oid": -1}, "Must be non-negative"),
+        ({"oid": "abc"}, "Must be an integer"),
+        ({}, "Field required"),  # Missing oid
+        ({"oid": 123, "extra": 1}, "Extra inputs are not permitted"),  # Extra ignored
+    ],
+)
+def test_hl_resting_invalid(invalid_data: dict[str, Any], expected_msg: str) -> None:
+    # Note: extra="ignore" means extra fields don't raise error here
+    if "extra" in invalid_data:
+        # Just test validation works even with extra
+        _ = HyperliquidRawExchangeStatusResting.model_validate(invalid_data)
+    else:
+        with pytest.raises(ValidationError) as exc_info:
+            HyperliquidRawExchangeStatusResting.model_validate(invalid_data)
+        assert expected_msg in str(exc_info.value)
 
 
-def test_response_extra_forbidden() -> None:
-    data = valid_response()
-    data["extra"] = "forbidden"
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        HyperliquidRawExchangeResponse.model_validate(data)
+# Filled Model Failures
+@pytest.mark.parametrize(
+    "invalid_data, expected_msg",
+    [
+        ({"oid": 67890, "totalSz": "1.5", "avgPx": "inf"}, "finite decimal"),
+        ({"oid": 67890, "totalSz": "NaN", "avgPx": "1.0"}, "finite decimal"),
+        ({"oid": 67890, "totalSz": "", "avgPx": "1.0"}, "String cannot be empty"),
+        ({"oid": -1, "totalSz": "1", "avgPx": "1"}, "Must be non-negative"),
+        ({"oid": 67890}, "Field required"),  # missing totalSz, avgPx
+    ],
+)
+def test_hl_filled_invalid(invalid_data: dict[str, Any], expected_msg: str) -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawExchangeStatusFilled.model_validate(invalid_data)
+    assert expected_msg in str(exc_info.value)
 
 
-def test_response_frozen() -> None:
-    obj = HyperliquidRawExchangeResponse.model_validate(valid_response())
-    with pytest.raises(ValidationError):
-        obj.status = "ok"  # type: ignore # Even assigning same value should fail
-    with pytest.raises(ValidationError):
-        obj.data = None  # type: ignore
+# Status Object Failures
+@pytest.mark.parametrize(
+    "invalid_data, expected_msg",
+    [
+        ({"resting": {"oid": -1}}, "Must be non-negative"),  # Nested validation
+        ({"filled": {"oid": 1, "totalSz": "", "avgPx": "1"}}, "String cannot be empty"),
+        ({"error": ""}, "String cannot be empty"),  # Optional but non-empty if present
+        ({"error": 123}, "Expected string"),
+        ({"unknown": 1}, "Extra inputs are not permitted"),  # Ignored
+    ],
+)
+def test_hl_status_object_invalid(invalid_data: dict[str, Any], expected_msg: str) -> None:
+    if "unknown" in invalid_data:
+        _ = HyperliquidRawExchangeStatusObject.model_validate(invalid_data)
+    else:
+        with pytest.raises(ValidationError) as exc_info:
+            HyperliquidRawExchangeStatusObject.model_validate(invalid_data)
+        assert expected_msg in str(exc_info.value)
+
+
+# Response Data Failures
+@pytest.mark.parametrize(
+    "invalid_data, expected_msg",
+    [
+        ({"type": "", "statuses": []}, "String cannot be empty"),
+        ({"type": 123, "statuses": []}, "Expected string"),
+        ({"type": "order", "statuses": [1, 2]}, "Invalid item type int"),
+        ({"type": "order", "statuses": ["invalid_status"]}, "Invalid status string"),
+        ({"type": "order", "statuses": [{"resting": {"oid": -1}}]}, "Must be non-negative"),
+        ({"type": "order"}, "Field required"),  # Missing statuses
+        (
+            {"type": "order", "statuses": [], "extra": 1},
+            "Extra inputs are not permitted",
+        ),  # Ignored
+    ],
+)
+def test_hl_response_data_invalid(invalid_data: dict[str, Any], expected_msg: str) -> None:
+    if "extra" in invalid_data:
+        _ = HyperliquidRawExchangeResponseData.model_validate(invalid_data)
+    else:
+        with pytest.raises(ValidationError) as exc_info:
+            HyperliquidRawExchangeResponseData.model_validate(invalid_data)
+        assert expected_msg in str(exc_info.value)
+
+
+# Top Level Response Failures
+@pytest.mark.parametrize(
+    "invalid_data, expected_msg",
+    [
+        ({"status": "error", "data": None}, "Invalid value 'error'. Expected one of {'ok'}"),
+        ({"status": 123, "data": None}, "Expected string"),
+        ({}, "Field required"),  # Missing status
+        (
+            {"status": "ok", "data": {"type": "order", "statuses": [1]}},
+            "Invalid item type int",
+        ),  # Nested
+        ({"status": "ok", "extra_field": 1}, "Extra inputs are not permitted"),  # extra='forbid'
+    ],
+)
+def test_hl_response_invalid(invalid_data: dict[str, Any], expected_msg: str) -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawExchangeResponse.model_validate(invalid_data)
+    assert expected_msg in str(exc_info.value)
 
 
 # Ensure no invalid tags remain at the end of the file

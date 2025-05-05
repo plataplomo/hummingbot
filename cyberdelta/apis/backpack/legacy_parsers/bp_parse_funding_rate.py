@@ -1,7 +1,8 @@
 """
 CyberDeltaEngine Backpack Funding Rate Parser
 
-This module provides a function to parse raw funding rate data from Backpack into a standardized FundingRate object for CyberDeltaEngine.
+Parses raw funding rate data from Backpack into a standardized FundingRate object
+for CyberDeltaEngine.
 """
 
 from datetime import UTC, datetime

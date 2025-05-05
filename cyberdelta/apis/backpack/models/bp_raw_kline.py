@@ -4,9 +4,9 @@ Backpack Raw Kline/OHLCV Model
 
 import logging
 from decimal import Decimal
-from typing import Any
+from typing import Any, Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Get logger for the module
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class BackpackRawKline(BaseModel):
     ]
     """
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
     # Define fields based on the array structure (indices)
     # Pydantic will attempt basic type coercion (e.g., str -> int/Decimal)
@@ -52,53 +52,53 @@ class BackpackRawKline(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def structure_to_dict(cls, data: Any) -> dict[str, Any]:
+    def structure_to_dict(cls, data: list | tuple) -> dict[str, Any]:
         """Convert list structure to dict, relying on Pydantic for type coercion."""
-        # Pyright Warning: `data` is `Any`, so `len` arg type is unknown.
-        # Runtime check below ensures safety.
-        if not isinstance(data, (list, tuple)) or len(data) != 12:
+        if not isinstance(data, list | tuple) or len(data) != 12:
             raise ValueError("Kline data must be a list/tuple of exactly 12 elements")
 
-        field_names = list(cls.model_fields.keys())
-        # Pyright Warning: `data` is `Any`, so `zip` arg type is unknown.
-        # Runtime check above ensures safety.
+        # Map list indices to field names (adjust field names if needed)
+        field_names = [
+            "start_time_ms",
+            "open_price",
+            "high_price",
+            "low_price",
+            "close_price",
+            "volume",
+            "end_time_ms",
+            "quote_volume",
+            "trade_count",
+            "taker_buy_base_volume",
+            "taker_buy_quote_volume",
+            "ignored",
+        ]
+
+        # Create a dictionary from the list using field names
+        # This assumes the order in the list matches field_names exactly
         return dict(zip(field_names, data, strict=False))
 
     @model_validator(mode="after")
-    def validate_ohlc_and_times(self) -> "BackpackRawKline":
-        """Perform cross-field validation after individual fields are parsed.
+    def validate_ohlc_relationship(self) -> Self:
+        """Validate basic OHLC consistency after individual fields are parsed."""
+        # DEFENSIVE CHECK: Ensure prices are finite Decimals post-parsing.
+        # Relies on 'before' validators for type conversion.
+        if not all(
+            p.is_finite()
+            for p in [self.open_price, self.high_price, self.low_price, self.close_price]
+        ):
+            raise ValueError("Internal error: Non-finite Decimal price found after parsing")
 
-        Pyright Warning: Linter may complain about incompatible signature.
-        However, `def validator(self) -> Self` is the correct signature for
-        `@model_validator(mode='after')` in Pydantic v2.
-        """
-        # Additional cross-field validation if needed (e.g., start_time <= end_time)
-        if self.start_time_ms > self.end_time_ms:
-            raise ValueError("Kline start_time_ms cannot be after end_time_ms")
-        if not all(
-            price >= Decimal(0)
-            for price in [self.open_price, self.high_price, self.low_price, self.close_price]
-        ):
-            raise ValueError("Kline prices cannot be negative")
-        if not all(
-            vol >= Decimal(0)
-            for vol in [
-                self.volume,
-                self.quote_volume,
-                self.taker_buy_base_volume,
-                self.taker_buy_quote_volume,
-            ]
-        ):
-            raise ValueError("Kline volumes cannot be negative")
-        if self.trade_count < 0:
-            raise ValueError("Kline trade_count cannot be negative")
+        # Basic OHLC checks
         if self.high_price < self.low_price:
-            raise ValueError("Kline high_price cannot be less than low_price")
-        # Relaxed OHLC check: High >= Open/Close and Low <= Open/Close is often too strict
-        # for volatile data. Ensure High >= Low is the most critical.
-        # if (self.high_price < self.open_price or
-        #      self.high_price < self.close_price or
-        #      self.low_price > self.open_price or
-        #      self.low_price > self.close_price):
-        #      raise ValueError("Kline OHLC relationship invalid (high must be >= open/close, low must be <= open/close)")
+            raise ValueError("Kline high price cannot be less than low price")
+
+        if (
+            self.high_price < self.open_price
+            or self.high_price < self.close_price
+            or self.low_price > self.open_price
+            or self.low_price > self.close_price
+        ):
+            raise ValueError(
+                "Kline OHLC relationship invalid (high >= open/close, low <= open/close)"
+            )
         return self

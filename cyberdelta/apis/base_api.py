@@ -7,6 +7,7 @@ import random
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine, Mapping
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -31,6 +32,7 @@ from cyberdelta.core.models.enums import (
     OrderType,  # Moved back
     TimeInForce,  # Moved back
 )
+from cyberdelta.core.models.market.candle import Candle
 
 if TYPE_CHECKING:
     # Import models only needed for type hints here
@@ -232,26 +234,24 @@ class ExchangeAPI(ABC):
     async def _request(
         self,
         method: str,
-        path: str,
+        endpoint: str,
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-        signed: bool = False,
-        retry_count: int = 3,
-        timeout: float = 30.0,
+        headers: dict[str, Any] | None = None,
+        is_signed: bool = False,
+        endpoint_group: str | None = None,
     ) -> dict[str, Any] | list[Any] | str | None:
         """
         Execute an API request with comprehensive error handling and retry logic.
 
         Args:
             method: HTTP method ('GET', 'POST', etc.)
-            path: API endpoint path
+            endpoint: API endpoint path
             params: URL parameters for the request
             data: Request body data
             headers: HTTP headers
-            signed: Whether the request requires authentication
-            retry_count: Maximum number of retry attempts
-            timeout: Request timeout in seconds
+            is_signed: Whether the request requires authentication
+            endpoint_group: Optional group for rate limiting
 
         Returns:
             Parsed API response
@@ -273,11 +273,11 @@ class ExchangeAPI(ABC):
             )
 
         # Construct full URL
-        url = f"{self.rest_endpoint.rstrip('/')}/{path.lstrip('/')}"
+        url = f"{self.rest_endpoint.rstrip('/')}/{endpoint.lstrip('/')}"
 
         # Handle authentication if required
-        if signed:
-            auth_data = await self._authenticate(method, path, params, data)
+        if is_signed:
+            auth_data = await self._authenticate(method, endpoint, params, data)
             # Merge auth data into request parameters
             headers = (
                 {**headers, **auth_data.get("headers", {})}
@@ -290,13 +290,13 @@ class ExchangeAPI(ABC):
             data = {**data, **auth_data.get("data", {})} if data else auth_data.get("data", {})
 
         # Apply rate limiting
-        rate_limiter = await self._get_rate_limiter(method, path)
+        rate_limiter = await self._get_rate_limiter(method, endpoint)
         await rate_limiter.acquire()
 
         last_error = None
 
         # Retry loop
-        for attempt in range(retry_count):
+        for attempt in range(3):
             try:
                 # Record request start time for logging/monitoring
                 start_time = time.monotonic()
@@ -308,19 +308,19 @@ class ExchangeAPI(ABC):
                     params=params,
                     json=data,
                     headers=headers,
-                    timeout=ClientTimeout(total=timeout),
+                    timeout=ClientTimeout(total=30.0),
                 ) as response:
                     # Calculate request duration
                     duration = time.monotonic() - start_time
 
                     # Log request details at DEBUG level
                     logger.debug(
-                        f"[{self.exchange_name}] {method} {path} completed in {duration:.3f}s "
+                        f"[{self.exchange_name}] {method} {endpoint} completed in {duration:.3f}s "
                         f"with status {response.status}"
                     )
 
                     # Store rate limit information for future adjustments
-                    self._update_rate_limit_from_headers(response.headers, method, path)
+                    self._update_rate_limit_from_headers(response.headers, method, endpoint)
 
                     # Handle HTTP errors
                     if response.status >= 400:
@@ -354,7 +354,7 @@ class ExchangeAPI(ABC):
                         )
 
                         # Handle retryable errors
-                        if error.is_retryable and attempt < retry_count - 1:
+                        if error.is_retryable and attempt < 2:
                             # Determine retry delay with exponential backoff
                             retry_delay = error.retry_after if error.retry_after else (2**attempt)
 
@@ -362,7 +362,7 @@ class ExchangeAPI(ABC):
                                 f"[{self.exchange_name}] Request failed with retryable error: "
                                 f"{error}. "
                                 f"Retrying in {retry_delay:.1f}s "
-                                f"({attempt + 1}/{retry_count})"
+                                f"({attempt + 1}/3)"
                             )
 
                             await asyncio.sleep(retry_delay)
@@ -400,12 +400,12 @@ class ExchangeAPI(ABC):
                 )
 
                 # Only retry on network errors if attempts remain
-                if attempt < retry_count - 1:
+                if attempt < 2:
                     retry_delay = 2**attempt  # Exponential backoff
 
                     logger.warning(
                         f"[{self.exchange_name}] Request failed with connection error: {error}. "
-                        f"Retrying in {retry_delay:.1f}s ({attempt + 1}/{retry_count})"
+                        f"Retrying in {retry_delay:.1f}s ({attempt + 1}/3)"
                     )
 
                     await asyncio.sleep(retry_delay)
@@ -418,7 +418,7 @@ class ExchangeAPI(ABC):
         # but as a fallback in case of unexpected flow:
         if last_error:
             raise APIError(
-                message=f"Request failed after {retry_count} attempts: {str(last_error)}",
+                message=f"Request failed after 3 attempts: {str(last_error)}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=last_error,
             )
@@ -894,8 +894,16 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]:
-        """Fetch historical order data."""
+    async def get_order_history(
+        self,
+        symbol: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
+        order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> list[Order]:
+        """Fetch historical orders, optionally filtering by symbol, time, limit, or ID."""
         raise NotImplementedError
 
     @abstractmethod
@@ -906,7 +914,7 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order:
+    ) -> Order | None:
         """
         Fetch the current status of a specific order by its ID or client_order_id.
         At least one of order_id or client_order_id should be provided by implementations.
@@ -969,3 +977,21 @@ class ExchangeAPI(ABC):
         # Implementation of _generate_client_order_id method
         # Example implementation:
         return f"cde-{self.exchange_name}-{int(time.time() * 1e6)}-{random.randint(1000, 9999)}"
+
+    @abstractmethod
+    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
+        """Fetch all open orders, optionally filtering by symbol."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_order_history(
+        self,
+        symbol: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
+        order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> list[Order]:
+        """Fetch historical orders, optionally filtering by symbol, time, limit, or ID."""
+        raise NotImplementedError

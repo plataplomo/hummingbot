@@ -1,21 +1,21 @@
 """
-Backpack API Transfer, Deposit, and Liquidation Models
------------------------------------------------------
+Backpack API Transfer (Deposit/Withdrawal) Models
+------------------------------------------------
 
-This module defines strict Pydantic models for validating withdrawal, deposit, and liquidation responses from the Backpack Exchange API. These models are used for boundary validation and transformation, not for internal business logic.
+Defines strict Pydantic models for validating deposit and withdrawal responses from
+the Backpack Exchange API. These models are used for boundary validation and
+transformation, not for internal business logic.
 
 Models:
-    - BackpackRawWithdrawal: Validates withdrawal objects (id, asset, amount, status).
-    - BackpackRawDeposit: Validates deposit objects (id, asset, amount, status).
-    - BackpackRawLiquidation: Validates liquidation event objects (symbol, price, quantity, side).
+    - BackpackRawDeposit: Validates deposit objects.
+    - BackpackRawWithdrawal: Validates withdrawal objects.
 
 Validation Pattern:
-    - All string fields are strictly validated for type, non-emptiness, max length, and valid UTF-8.
-    - Decimal fields are validated for parseability and finiteness.
-    - Enum fields (e.g., status, side) are strictly validated against allowed values.
-    - All extra fields are forbidden.
+    - Strict type, format, and constraint checks on all fields.
+    - `extra='forbid'` to reject unknown fields.
 
-These models act as a strict shield between external API data and internal business logic, ensuring robustness and security at the data ingestion boundary.
+These models act as a strict shield between external API data and internal business
+logic, ensuring robustness and security at the data ingestion boundary.
 """
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
