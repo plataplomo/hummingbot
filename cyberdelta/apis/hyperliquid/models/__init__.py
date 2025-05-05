@@ -9,6 +9,13 @@ from .hl_raw_user_state import (
     HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
 )
+from .hl_raw_ws_events import (
+    HyperliquidRawWsBookUpdate,
+    HyperliquidRawWsFillEvent,
+    HyperliquidRawWsOrderUpdate,
+    HyperliquidRawWsPositionUpdateEvent,
+    HyperliquidRawWsTradeEvent,
+)
 
 __all__ = [
     # Exchange Info
@@ -33,6 +40,4 @@ __all__ = [
     "HyperliquidRawWsOrderUpdate",
     "HyperliquidRawWsPositionUpdateEvent",
     "HyperliquidRawPositionInfo",
-]
-
 ]

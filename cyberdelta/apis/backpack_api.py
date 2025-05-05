@@ -22,8 +22,6 @@ import asyncio
 import hashlib
 import hmac
 import time
-from collections.abc import Sequence
-from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -33,6 +31,7 @@ from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
@@ -54,7 +53,6 @@ from cyberdelta.core.models import (  # Use absolute import
     Trade,
 )
 from cyberdelta.utils.logging_config import get_logger
-from cyberdelta.utils.parsing import parse_datetime_utc
 
 logger = get_logger(__name__)
 
@@ -268,113 +266,62 @@ class BackpackAPI(ExchangeAPI):
             ) from e
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
-        """
-        Fetch the order book for a given symbol, with strict type validation.
+        """Fetch the order book for a symbol, validated via Raw model and transformed via Mapper.
 
         Args:
-            symbol: Trading symbol.
-            depth: Number of levels to fetch (default 20).
+            symbol: The trading symbol (e.g., 'BTC_USDC').
+            depth: Ignored for Backpack (uses default depth). Included for interface consistency.
+
         Returns:
-            OrderBook: Validated order book model.
+            OrderBook object.
+
         Raises:
-            APIError: On error or malformed response.
+            APIError: If the order book cannot be fetched or validated.
         """
-        request_path: str = "/api/v1/depth"
-
-        def safe_list_of_pairs(raw: object) -> list[tuple[str, str]]:
-            """
-            Safely converts a list of pairs (tuples or lists of length 2) of arbitrary objects
-            into a list of string pairs. Ignores any entries that are not tuples/lists of length 2.
-
-            Args:
-                raw (object): Input expected to be a list of pairs (tuples or lists).
-
-            Returns:
-                list[tuple[str, str]]: List of pairs as (str, str).
-            """
-            if not isinstance(raw, list):
-                return []
-            result: list[tuple[str, str]] = []
-            # Explicitly declare type for static analysis
-            entry_item: Any
-            for entry_item in raw:
-                entry_item = cast(
-                    Sequence[Any], entry_item
-                )  # Pyright false positive: entry_item is always Sequence[Any] after cast
-                entry: Sequence[Any] = entry_item
-                if isinstance(entry, tuple) or isinstance(entry, list):
-                    entry_pair: Sequence[Any] = entry
-                    if len(entry_pair) == 2:
-                        a0: Any = entry_pair[0]
-                        a1: Any = entry_pair[1]
-                        result.append((str(a0), str(a1)))
-            return result
-
+        endpoint = "/api/v1/depth"
+        params = {"symbol": symbol}
+        response_raw: Any = None  # Initialize for error handling
         try:
-            params: dict[str, object] = {"symbol": symbol}
-            if depth:
-                params["limit"] = depth
-
-            response_raw: object = await self._request("GET", request_path, params=params)
-            if not isinstance(response_raw, dict):
-                raise APIError(
-                    f"Unexpected response type for order book: {type(response_raw)}",
-                    code=APIErrorCode.UNKNOWN.value,
-                )
-            response: dict[str, object] = response_raw
-            bids_raw = safe_list_of_pairs(response.get("bids", []) or [])
-            asks_raw = safe_list_of_pairs(response.get("asks", []) or [])
-            bids: list[tuple[Decimal, Decimal]] = []
-            asks: list[tuple[Decimal, Decimal]] = []
-            for price_raw, qty_raw in bids_raw:
-                try:
-                    price: Decimal = Decimal(price_raw)
-                    qty: Decimal = Decimal(qty_raw)
-                    bids.append((price, qty))
-                except Exception:
-                    continue
-            for price_raw, qty_raw in asks_raw:
-                try:
-                    price_ask: Decimal = Decimal(price_raw)
-                    qty_ask: Decimal = Decimal(qty_raw)
-                    asks.append((price_ask, qty_ask))
-                except Exception:
-                    continue
-            timestamp_raw = response.get("time", int(time.time() * 1000))
-            if isinstance(timestamp_raw, int | float | str):
-                # timestamp = int(float(timestamp_raw)) # Keep as raw for parsing
-                pass
-            else:
-                timestamp_raw = int(time.time() * 1000)  # Fallback if type is weird
-
-            # Parse timestamp to datetime
-            timestamp_dt = parse_datetime_utc(timestamp_raw, field_name="time")
-            if timestamp_dt is None:
-                # DEFENSIVE CHECK: API response missing mandatory 'time' field.
-                logger.error(
-                    f"[{self.exchange_name}] Order book response missing 'time'. "
-                    f"Using current time."
-                )
-                timestamp_dt = datetime.now(UTC)  # Use current UTC time as fallback
-
-            return OrderBook(
-                symbol=symbol,
-                bids=bids,
-                asks=asks,
-                timestamp=timestamp_dt,  # Use datetime object
+            response_raw = await self._request("GET", endpoint, params=params)
+            # Validate raw order book data using Pydantic model
+            validated_book = BackpackRawOrderBook.model_validate(response_raw)
+            # Transform validated raw data to internal model
+            internal_book = BackpackOrderMapper.transform_raw_orderbook_to_internal(
+                symbol=symbol, raw=validated_book
             )
+            # TODO: Apply depth limit if needed (Backpack provides full depth)
+            # For now, return the full book as mapped
+            return internal_book
+        except ValidationError as e:
+            logger.error(
+                f"[{self.exchange_name}] Order book validation failed for {symbol}: {e}. "
+                f"Data: {response_raw}"
+            )
+            raise APIError(
+                f"Invalid order book response for {symbol}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+            ) from e
+        except ValueError as e:  # Catches errors from transform method
+            logger.error(
+                f"[{self.exchange_name}] Order book transformation failed for {symbol}: {e}. "
+                f"Raw Data: {response_raw}"
+            )
+            raise APIError(
+                f"Order book transformation failed for {symbol}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+            ) from e
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting order book for {symbol}: {e}")
-            raise
+            raise e
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Error getting order book for {symbol}: {e}", exc_info=True
+                f"[{self.exchange_name}] Unexpected error in get_order_book: {e}", exc_info=True
             )
-            raise BackpackErrorMapper.map_error_response(
-                status_code=getattr(e, "status", None),
-                error_body=str(e),
-                request_path=request_path,
-                exchange_message=f"Error getting order book for {symbol}: {e}",
+            # Re-raise as a generic APIError
+            raise APIError(
+                f"Unexpected error fetching order book for {symbol}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
             ) from e
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
@@ -397,8 +344,8 @@ class BackpackAPI(ExchangeAPI):
 
             if not isinstance(response_raw, list):
                 logger.warning(
-                    f"[{self.exchange_name}] Unexpected trades response type: {type(response_raw)}. "
-                    f"Expected list. Returning empty list."
+                    f"[{self.exchange_name}] Unexpected trades response type: "
+                    f"{type(response_raw)}. Expected list. Returning empty list."
                 )
                 return []
 
@@ -463,11 +410,10 @@ class BackpackAPI(ExchangeAPI):
         endpoint = "/api/v1/capital"
         response_data_raw: Any = await self._request("GET", endpoint)
 
-        # DEFENSIVE CHECK: Ensure the response is a dictionary before processing.
         if not isinstance(response_data_raw, dict):
             logger.warning(
-                f"[{self.exchange_name}] Unexpected response type for balances ({type(response_data_raw)}). "
-                f"Expected dict. Returning empty balances."
+                f"[{self.exchange_name}] Unexpected response type for balances "
+                f"({type(response_data_raw)}). Expected dict. Returning empty balances."
             )
             return {}
 
@@ -489,19 +435,20 @@ class BackpackAPI(ExchangeAPI):
 
             except ValidationError as e:
                 logger.error(
-                    f"[{self.exchange_name}] Failed Pydantic validation for balance {asset_symbol}: {e}. "
-                    f"Data: {balance_details_raw}"
+                    f"[{self.exchange_name}] Failed Pydantic validation for balance "
+                    f"{asset_symbol}: {e}. Data: {balance_details_raw}"
                 )
                 continue  # Skip this asset if validation fails
             except ValueError as e:  # Catches errors from transform_raw_balance_to_internal
                 logger.error(
-                    f"[{self.exchange_name}] Failed transformation for balance {asset_symbol}: {e}. "
-                    f"Raw Data: {balance_details_raw}"
+                    f"[{self.exchange_name}] Failed transformation for balance "
+                    f"{asset_symbol}: {e}. Raw Data: {balance_details_raw}"
                 )
                 continue  # Skip this asset if transformation fails
             except Exception as e:
                 logger.error(
-                    f"[{self.exchange_name}] Unexpected error processing balance for {asset_symbol}: {e}",
+                    f"[{self.exchange_name}] Unexpected error processing balance for "
+                    f"{asset_symbol}: {e}",
                     exc_info=True,
                 )
                 continue  # Skip on unexpected errors
@@ -558,8 +505,8 @@ class BackpackAPI(ExchangeAPI):
                     continue
                 except ValueError as e:  # Catches errors from transform_raw_position_to_internal
                     logger.warning(
-                        f"[{self.exchange_name}] Skipping position due to transformation error: {e}. "
-                        f"Raw Data: {pos_data_raw}"
+                        f"[{self.exchange_name}] Skipping position due to transformation "
+                        f"error: {e}. Raw Data: {pos_data_raw}"
                     )
                     continue
                 except Exception as e:

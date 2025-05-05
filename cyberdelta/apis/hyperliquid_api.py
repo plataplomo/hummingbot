@@ -385,9 +385,8 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e
 
     async def get_balances(self) -> dict[str, SpotBalance]:
-        """Get account balances.
-        NOTE: Currently only retrieves USDC balance from clearinghouseState.
-        TODO: Refactor to use mapper once spot balance parsing in map_user_state is implemented.
+        """Get account balances using the user state endpoint and mapper.
+        NOTE: Currently relies on mapper logic that assumes accountValue is USDC total.
         """
         try:
             payload: dict[str, Any] = {"type": "clearinghouseState", "user": self._wallet_address}
@@ -397,35 +396,26 @@ class HyperliquidAPI(ExchangeAPI):
                 HyperliquidRawClearinghouseState,
             )
 
-            # Validate and parse the clearinghouse state response
-            validated = HyperliquidRawClearinghouseState.model_validate(response)
-            state_data = validated  # The validated object is the clearinghouse state
-            balances: dict[str, SpotBalance] = {}
-            if state_data and state_data.asset_positions:
-                for asset_pos in state_data.asset_positions:
-                    # Only process USDC balance from asset_positions
-                    if asset_pos.asset == "USDC" and asset_pos.position:
-                        try:
-                            total_balance = asset_pos.position.position_value
-                            total_balance_dec = Decimal(total_balance)
-                            balances["USDC"] = SpotBalance(
-                                exchange=self.exchange_name,
-                                asset="USDC",
-                                timestamp=datetime.now(UTC),  # Add timestamp
-                                total_quantity=total_balance_dec,  # Correct kwarg
-                                available_quantity=total_balance_dec,  # Assuming total=available for USDC
-                            )
-                        except (InvalidOperation, ValueError, TypeError) as parse_err:
-                            logger.error(
-                                f"[{self.exchange_name}] Error parsing USDC "
-                                f"balance from state: {parse_err}"
-                            )
-                            # Continue to return empty dict if parsing fails
-            return balances
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error getting balances: {e}")
-            raise
-        except (ValidationError, ValueError) as e:
+            # Validate the entire state response
+            validated_state = HyperliquidRawClearinghouseState.model_validate(response)
+
+            # Use mapper to extract balances (and other state parts, though ignored here)
+            _positions, _orders, _margins, spot_balances_dict = HyperliquidMapper.map_user_state(
+                validated_state
+            )
+
+            # Return the dictionary of SpotBalance objects
+            return spot_balances_dict
+
+        except ValidationError as e:
+            logger.error(f"[{self.exchange_name}] Error validating clearinghouseState: {e}")
+            raise APIError(
+                f"Failed to validate balance data structure: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
+        except (ValueError, TypeError, InvalidOperation) as e:
+            # Catch parsing/mapping errors from the mapper
             logger.error(
                 f"[{self.exchange_name}] Error parsing/mapping user state for balances: {e}"
             )
@@ -434,14 +424,18 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
+        except APIError as e:
+            # Re-raise APIErrors from _request or mapper
+            logger.error(f"[{self.exchange_name}] API Error getting balances: {e}")
+            raise e
         except Exception as e:
+            # Catch any other unexpected errors
             logger.error(
-                f"[{self.exchange_name}] Unexpected error getting balances: {e}",
-                exc_info=True,
+                f"[{self.exchange_name}] Unexpected error in get_balances: {e}", exc_info=True
             )
             raise APIError(
-                f"Unexpected error getting balances: {e}",
-                code=APIErrorCode.SERVER_ERROR.value,
+                f"Unexpected error fetching balances: {e}",
+                code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
 

@@ -4,11 +4,19 @@ from decimal import Decimal
 
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.exchange_names import ExchangeName
-from cyberdelta.core.models import DerivativePosition, FundingRate, Order, SpotBalance, Trade
+from cyberdelta.core.models import (
+    DerivativePosition,
+    FundingRate,
+    Order,
+    OrderBook,
+    SpotBalance,
+    Trade,
+)
 from cyberdelta.core.models.enums import (
     OrderExpiryReason,
     OrderSide,
@@ -313,31 +321,10 @@ class BackpackOrderMapper:
         # Since side is mandatory in core Trade model, we cannot create a valid Trade object.
         # Returning None and logging a warning.
         logger.warning(
-            f"[BackpackOrderMapper] Cannot determine trade side for raw trade {raw.id} from REST API. "
-            f"Skipping transformation. Use WebSocket stream for complete trade data."
+            f"[BackpackOrderMapper] Cannot determine trade side for raw trade {raw.id} "
+            f"from REST API. Skipping transformation. Use WebSocket stream for complete data."
         )
         return None
-
-        # --- Code below is unreachable due to return None above ---
-        # side = None # Cannot determine from raw trade data
-        # fee = Decimal("0")
-        # fee_asset = ""
-        # is_maker = None
-        #
-        # return Trade(
-        #     id=raw.id,
-        #     symbol=raw.symbol,
-        #     exchange=ExchangeName.BACKPACK,
-        #     order_id=raw.order_id,
-        #     client_order_id="", # Not provided in raw trade
-        #     side=side, # Would cause error as side cannot be None
-        #     price=price_dec,
-        #     quantity=quantity_dec,
-        #     fee=fee,
-        #     fee_asset=fee_asset,
-        #     is_maker=is_maker,
-        #     executed_at=timestamp,
-        # )
 
     @staticmethod
     def transform_raw_funding_rate_to_internal(raw: BackpackRawFundingRate) -> FundingRate:
@@ -369,4 +356,51 @@ class BackpackOrderMapper:
             funding_rate=funding_rate_dec,
             mark_price=mark_price_dec,  # Can be None
             index_price=None,  # Not directly mapped, raw.index_price exists if needed
+        )
+
+    @staticmethod
+    def transform_raw_orderbook_to_internal(symbol: str, raw: BackpackRawOrderBook) -> OrderBook:
+        """Transforms a raw Backpack order book object into an internal OrderBook.
+
+        Args:
+            symbol: The market symbol this order book belongs to.
+            raw: The validated BackpackRawOrderBook object.
+
+        Returns:
+            The corresponding OrderBook object.
+
+        Raises:
+            ValueError: If timestamp is missing/invalid or level parsing fails.
+        """
+        timestamp_dt = parse_datetime_utc(raw.timestamp)
+        if timestamp_dt is None:
+            raise ValueError("timestamp missing/invalid in BackpackRawOrderBook")
+
+        bids: list[tuple[Decimal, Decimal]] = []
+        asks: list[tuple[Decimal, Decimal]] = []
+
+        try:
+            for price_str, qty_str in raw.bids:
+                price = parse_decimal_value(price_str, allow_none=False, field_name="bid_price")
+                qty = parse_decimal_value(qty_str, allow_none=False, field_name="bid_qty")
+                if (
+                    price is not None and qty is not None
+                ):  # Defensive, though validator should prevent
+                    bids.append((price, qty))
+            for price_str, qty_str in raw.asks:
+                price = parse_decimal_value(price_str, allow_none=False, field_name="ask_price")
+                qty = parse_decimal_value(qty_str, allow_none=False, field_name="ask_qty")
+                if price is not None and qty is not None:
+                    asks.append((price, qty))
+        except ValueError as e:
+            logger.error(f"[{ExchangeName.BACKPACK}] Error parsing order book levels: {e}")
+            # Re-raise or handle as appropriate - for now, re-raise to signal failure
+            raise ValueError(f"Failed to parse order book levels: {e}") from e
+
+        # Backpack order book data is already sorted by price (highest bid first, lowest ask first)
+        return OrderBook(
+            symbol=symbol,
+            bids=bids,
+            asks=asks,
+            timestamp=timestamp_dt,
         )
