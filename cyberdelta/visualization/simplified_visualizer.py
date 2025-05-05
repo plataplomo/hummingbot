@@ -6,11 +6,11 @@ without dependencies on complex web frameworks.
 """
 
 import logging
+import math
 import os
 import random
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -110,23 +110,32 @@ def generate_example_data(
 
 
 # Add a utility method for safe decimal to float conversion
-def _decimal_to_float(value: Any) -> float:
+def _decimal_to_float(value: Decimal | int | float | str | None) -> float:
     """
     Safely convert a value to float for visualization purposes.
-
-    This is necessary because matplotlib requires float values.
-    We convert at the last possible moment to maintain precision
-    as long as possible.
-
-    Args:
-        value: Value to convert (Decimal, str, or other numeric type)
-
-    Returns:
-        float: The converted value
+    Handles Decimal, int, float, string representations, and None.
+    Returns NaN for invalid or None inputs.
     """
+    if value is None:
+        return float("nan")
     if isinstance(value, Decimal):
-        return float(str(value))
-    return float(value)
+        # Convert Decimal to float
+        if value.is_finite():
+            return float(value)
+        else:
+            return float("nan")  # Represent non-finite Decimals as NaN
+    if isinstance(value, (int, float)):
+        # Already float or int, ensure it's finite
+        return float(value) if math.isfinite(value) else float("nan")
+    if isinstance(value, str):
+        try:
+            # Try converting string to float
+            f_value = float(value)
+            return f_value if math.isfinite(f_value) else float("nan")
+        except ValueError:
+            return float("nan")  # Invalid string format
+    # Fallback for other unexpected types
+    return float("nan")
 
 
 class SimpleVisualizer:

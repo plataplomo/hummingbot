@@ -291,13 +291,18 @@ def mock_exchange_api() -> AsyncMock:
     # Configure common methods
     mock_api.get_balances.return_value = {
         "USDC": SpotBalance(
-            exchange="mock_exchange",
             asset="USDC",
-            total=Decimal("10000.0"),
-            available=Decimal("10000.0"),
+            exchange="mock_hl",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         ),
         "BTC": SpotBalance(
-            exchange="mock_exchange", asset="BTC", total=Decimal("1.0"), available=Decimal("1.0")
+            asset="BTC",
+            exchange="mock_hl",
+            total_quantity=Decimal("1"),
+            available_quantity=Decimal("1"),
+            timestamp=datetime.now(UTC),
         ),
     }
 

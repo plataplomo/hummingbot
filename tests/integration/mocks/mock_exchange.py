@@ -7,6 +7,9 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+# Added import for ValidationError
+from pydantic import ValidationError
+
 # Import Fill type
 from cyberdelta.apis.base_api import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
@@ -501,42 +504,82 @@ class MockExchangeAPI(ExchangeAPI):
         )
         return order
 
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
-        """Simulate cancelling an order."""
+    async def cancel_order(
+        self, order_id: str, symbol: str | None = None  # client_order_id: str | None = None <-- Removed unused param
+    ) -> dict[str, Any]:
+        """
+        Cancel an existing order by its ID or client_order_id.
+
+        Args:
+            order_id: The exchange order ID or client order ID to cancel.
+            symbol: The symbol (unused in this mock, but kept for signature).
+            # Removed client_order_id parameter
+
+        Returns:
+            A dictionary indicating success or failure.
+        """
+        logger.debug(f"Mock {self.exchange_name}: Attempting to cancel order: ID={order_id}")
         self._check_error("cancel_order")
         await self._simulate_latency()
 
-        order = self._orders.get(str(order_id))
-        if not order:
-            # If client_order_id provided, try finding by that
-            found_by_client_id = False
-            if client_order_id:
-                for o in self._orders.values():
-                    if o.client_order_id == str(client_order_id):
-                        order = o
-                        found_by_client_id = True
+        # Find the order by either exchange_order_id or client_order_id
+        order_to_cancel: Order | None = None
+        order_key_found: str | None = None
+
+        # Try finding by client_order_id first if it matches format, then exchange_order_id
+        # This assumes client_order_ids are distinct enough or exchange_order_ids have a prefix
+        if order_id in self._orders:  # Treat order_id as the primary key (could be client or exchange ID)
+            order_to_cancel = self._orders[order_id]
+            order_key_found = order_id
+        else:
+            # Search by client_order_id if not found as primary key
+            for key, o in self._orders.items():
+                if o.client_order_id == order_id:
+                    order_to_cancel = o
+                    order_key_found = key  # Store the key used to find it
+                    break
+            # If still not found, try by exchange_order_id field (less likely)
+            if order_to_cancel is None:
+                for key, o in self._orders.items():
+                    if o.exchange_order_id == order_id:
+                        order_to_cancel = o
+                        order_key_found = key
                         break
-            if not found_by_client_id:
-                raise APIError("Order not found", code=APIErrorCode.ORDER_NOT_FOUND.value)
 
-        # Assert order is not None after potentially finding it by client_order_id
-        assert order is not None
+        if order_to_cancel and order_key_found:
+            if order_to_cancel.status.is_terminal():
+                logger.warning(
+                    f"Mock {self.exchange_name}: Order {order_key_found} is already in terminal state: {order_to_cancel.status.name}"
+                )
+                return {"success": False, "message": "Order already terminated"}
 
-        # Simulate updates if needed (e.g., status change)
-        # For simplicity, just return the found order
-        order.status = OrderStatus.CANCELED
-        order.updated_at = datetime.now(UTC)  # Update timestamp on cancel
-        logger.info(f"Mock {self.exchange_name}: Cancelled order {order_id}")
-        # Return the cancelled order details, common practice - use model_dump()
-        return {"status": "success", "order": order.model_dump()}
+            order_to_cancel.status = OrderStatus.CANCELLED
+            order_to_cancel.updated_at = datetime.now(UTC)
+            logger.info(f"Mock {self.exchange_name}: Marked order {order_key_found} as CANCELLED.")
+            # Optionally remove from _orders if needed for test logic
+            # del self._orders[order_key_found]
+            return {"success": True}
+        else:
+            logger.warning(f"Mock {self.exchange_name}: Order with ID '{order_id}' not found.")
+            # Simulate exchange error for not found
+            raise APIError(
+                message=f"Order not found: {order_id}",
+                code=APIErrorCode.ORDER_NOT_FOUND.value,
+                exchange_code=self.exchange_name,
+            )
 
-    async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
-        """Retrieve a specific order by its ID."""
+    async def get_order(
+        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
+    ) -> Order | None:
+        """Get order details by exchange ID or client ID."""
+        logger.debug(
+            f"Mock {self.exchange_name}: Getting order: ID={order_id}, ClientID={client_order_id}"
+        )
         self._check_error("get_order")
         await self._simulate_latency()
-        target_order_id = str(order_id)
-        # Try finding by exchange order ID first
-        order = self._orders.get(target_order_id)
+
+        # Prioritize finding by exchange order ID (assuming order_id param is exchange ID)
+        order = self._orders.get(order_id)
 
         # If not found by exchange ID and client_order_id is provided, try that
         if not order and client_order_id:
@@ -546,11 +589,22 @@ class MockExchangeAPI(ExchangeAPI):
                     order = o
                     break
 
-        if not order:
-            raise APIError("Order not found", code=APIErrorCode.ORDER_NOT_FOUND.value)
+        # Optionally check symbol match if provided
+        if order and symbol and order.symbol != symbol:
+            logger.warning(
+                f"Order found by ID ({order_id} or {client_order_id}) but symbol mismatch: requested '{symbol}', found '{order.symbol}'"
+            )
+            return None  # Or raise an error, depending on desired mock behavior
 
-        # Simulate updates if needed (e.g., status change)
-        # For simplicity, just return the found order
+        if not order:
+            logger.warning(
+                f"Mock {self.exchange_name}: Order not found for ID={order_id}, ClientID={client_order_id}"
+            )
+            # Simulate exchange error for not found
+            # raise APIError(message=f"Order not found: {order_id}/{client_order_id}", code=APIErrorCode.ORDER_NOT_FOUND, exchange_code=self.exchange_name)
+            return None  # Return None if not found
+
+        logger.debug(f"Mock {self.exchange_name}: Found order: {order}")
         return order
 
     async def get_order_status(
@@ -559,7 +613,9 @@ class MockExchangeAPI(ExchangeAPI):
         symbol: str | None = None,
         client_order_id: str | None = None,
     ) -> Order:
-        """Get a specific order by ID or raise KeyError if not found (params ignored)."""
+        """
+        Get a specific order by ID or raise KeyError if not found (params ignored).
+        """
         # Mark params as unused if necessary for linters
         _ = symbol
         _ = client_order_id
@@ -752,344 +808,253 @@ class MockExchangeAPI(ExchangeAPI):
             f"Updating balance and position for trade: {trade.id} ({trade.side} {trade.quantity} {trade.symbol} @ {trade.price})"
         )
 
-        # --- Balance Update --- (Existing logic, ensure robustness)
-        # Assume trade.price and trade.quantity are non-None based on Mypy unreachable error
-        cost = trade.cost
+        symbol = trade.symbol
+        base_asset, quote_asset = self._split_symbol(symbol)
+        quantity = trade.quantity
+        price = trade.price
         fee = trade.fee
-        fee_asset = trade.fee_asset
+        fee_asset = trade.fee_asset or self.fee_asset  # Use trade fee asset or default
+        side = trade.side
 
-        # Determine the asset involved (base or quote)
-        base_asset, quote_asset = self._split_symbol(trade.symbol)
-
-        # Update quote currency balance (e.g., USD, USDC)
-        quote_balance = self._balances.get(
-            quote_asset, SpotBalance(asset=quote_asset, total=Decimal("0"), available=Decimal("0"))
-        )
-        quote_balance.total = Decimal(quote_balance.total or 0)
-        quote_balance.available = Decimal(quote_balance.available or 0)
-        if trade.side == OrderSide.BUY:
-            quote_balance.total -= cost
-            quote_balance.available -= cost  # Assuming cost reflects available reduction
-        elif trade.side == OrderSide.SELL:
-            quote_balance.total += cost
-            quote_balance.available += cost
-
-        # Update fee asset balance
-        if fee > 0:
-            fee_balance = self._balances.get(
-                fee_asset, SpotBalance(asset=fee_asset, total=Decimal("0"), available=Decimal("0"))
+        # Ensure base and quote assets exist in balances, initialize if not
+        if base_asset not in self._balances:
+            self._balances[base_asset] = SpotBalance(
+                asset=base_asset, exchange=self.exchange_name, total_quantity=Decimal(0), available_quantity=Decimal(0), timestamp=trade.timestamp
             )
-            fee_balance.total = Decimal(fee_balance.total or 0)
-            fee_balance.available = Decimal(fee_balance.available or 0)
-            fee_balance.total -= fee
-            fee_balance.available -= fee
-            self._balances[fee_asset] = fee_balance
-            logger.debug(f"Applied fee: {fee} {fee_asset}")
+        if quote_asset not in self._balances:
+            self._balances[quote_asset] = SpotBalance(
+                asset=quote_asset, exchange=self.exchange_name, total_quantity=Decimal(0), available_quantity=Decimal(0), timestamp=trade.timestamp
+            )
+        if fee_asset not in self._balances:
+            self._balances[fee_asset] = SpotBalance(
+                asset=fee_asset, exchange=self.exchange_name, total_quantity=Decimal(0), available_quantity=Decimal(0), timestamp=trade.timestamp
+            )
 
-        # Update base currency balance
-        base_balance = self._balances.get(
-            base_asset, SpotBalance(asset=base_asset, total=Decimal("0"), available=Decimal("0"))
-        )
-        base_balance.total = Decimal(base_balance.total or 0)
-        base_balance.available = Decimal(base_balance.available or 0)
-        if trade.side == OrderSide.BUY:
-            base_balance.total += trade.quantity
-            base_balance.available += trade.quantity  # Simplified
-        elif trade.side == OrderSide.SELL:
-            base_balance.total -= trade.quantity
-            base_balance.available -= trade.quantity  # Simplified
+        # Update Balances
+        cost = quantity * price
+        if side == OrderSide.BUY:
+            # Increase base asset, decrease quote asset
+            self._balances[base_asset].total_quantity += quantity
+            self._balances[base_asset].available_quantity += quantity
+            self._balances[quote_asset].total_quantity -= cost
+            self._balances[quote_asset].available_quantity -= cost
+        else:  # SELL
+            # Decrease base asset, increase quote asset
+            self._balances[base_asset].total_quantity -= quantity
+            self._balances[base_asset].available_quantity -= quantity
+            self._balances[quote_asset].total_quantity += cost
+            self._balances[quote_asset].available_quantity += cost
 
-        self._balances[quote_asset] = quote_balance
-        self._balances[base_asset] = base_balance
-
-        logger.debug(f"Updated balances: {self._balances}")
-
-        # --- Position Update ---
-        existing_position = self._positions.get(trade.symbol)
-
-        if existing_position:
-            logger.debug(f"Updating existing position for {trade.symbol}: {existing_position}")
-            # Assume existing_position.size, entry_price and trade.quantity, price are non-None
-            # based on Mypy unreachable error and logic creating these objects.
-            assert existing_position.size is not None
-            assert existing_position.entry_price is not None
-            assert trade.quantity is not None
-            assert trade.price is not None
-
-            if existing_position.side == trade.side:
-                # Increasing position size
-                new_size = existing_position.size + trade.quantity
-                trade_fee_adj = fee  # Fee affects cost basis when increasing
-                trade_cost_basis_adjustment = trade.price * trade.quantity
-                if trade.side == OrderSide.BUY:
-                    trade_cost_basis_adjustment += trade_fee_adj
-                else:  # SELL
-                    trade_cost_basis_adjustment -= trade_fee_adj
-
-                if new_size.copy_abs() < Decimal("1e-12"):  # Use tolerance for zero check
-                    new_avg_entry = Decimal("0.0")
-                else:
-                    original_cost = existing_position.size * existing_position.entry_price
-                    # New average entry = (Original Cost + New Trade Cost Adjustment) / New Size
-                    new_avg_entry = (original_cost + trade_cost_basis_adjustment) / new_size
-
-                existing_position.entry_price = new_avg_entry
-                existing_position.size = new_size
-                logger.debug(
-                    f"Increased position size. New Avg Entry: {new_avg_entry}, New Size: {new_size}"
-                )
+        # Deduct Fee
+        if fee > 0:
+            if fee_asset not in self._balances:
+                logger.error(f"Fee asset {fee_asset} not found in balances for trade {trade.id}")
             else:
-                # Reducing or flipping position
-                trade_fee_realized = fee  # Fee is realized on close/reduce
-                if (
-                    trade.quantity >= existing_position.size.copy_abs()
-                ):  # Use absolute size for comparison
-                    # Closing or flipping position
-                    close_quantity = existing_position.size.copy_abs()  # Use absolute size
-                    # Calculate PNL considering fee
-                    if existing_position.side == OrderSide.BUY:  # Selling to close LONG
-                        pnl = (trade.price * close_quantity - trade_fee_realized) - (
-                            existing_position.entry_price * close_quantity
-                        )
-                    else:  # Buying to close SHORT
-                        pnl = (existing_position.entry_price * close_quantity) - (
-                            trade.price * close_quantity + trade_fee_realized
-                        )
+                self._balances[fee_asset].total_quantity -= fee
+                self._balances[fee_asset].available_quantity -= fee
 
-                    logger.debug(
-                        f"Position closed/flipped. Realized PNL (approx, incl. fee): {pnl}"
-                    )
-                    # TODO: Track realized PNL
+        # Update Timestamps for affected balances
+        self._balances[base_asset].timestamp = trade.timestamp
+        self._balances[quote_asset].timestamp = trade.timestamp
+        if fee > 0:
+            self._balances[fee_asset].timestamp = trade.timestamp
 
-                    remaining_trade_qty = trade.quantity - close_quantity
-                    if remaining_trade_qty > Decimal("1e-12"):  # Flipped
-                        assert trade.side is not None, (
-                            "Trade side cannot be None when flipping position"
-                        )
-                        existing_position.side = trade.side
-                        existing_position.size = remaining_trade_qty
-                        existing_position.entry_price = (
-                            trade.price
-                        )  # New entry price is the flip price
-                        logger.debug(f"Position flipped to {existing_position.side}")
-                    else:
-                        # Position closed exactly or dust remaining
-                        logger.debug(f"Position closed for {trade.symbol}")
-                        del self._positions[trade.symbol]
-                        existing_position = None  # Mark as deleted
+        # Update Position (Simplified: assumes perpetuals use same base/quote logic)
+        current_position = self._positions.get(symbol)
+        if current_position:
+            if side == OrderSide.BUY:
+                new_size = current_position.size + quantity
+            else:  # SELL
+                new_size = current_position.size - quantity
+
+            # Calculate new average entry price (Weighted average)
+            if new_size.is_zero():
+                new_entry_price = Decimal(0)
+            # Handle case where previous size was zero
+            elif current_position.size.is_zero():
+                new_entry_price = price
+            else:
+                # Ensure sides match for averaging, otherwise it's a reduction/flip
+                if (current_position.size > 0 and side == OrderSide.BUY) or
+                   (current_position.size < 0 and side == OrderSide.SELL):
+                    new_entry_price = ((current_position.size * current_position.entry_price) + (quantity * price)) / new_size
                 else:
-                    # Reducing position size
-                    reduce_quantity = trade.quantity
-                    # Calculate realized PNL for the reduced portion
-                    if existing_position.side == OrderSide.BUY:  # Selling to reduce LONG
-                        pnl = (trade.price * reduce_quantity - trade_fee_realized) - (
-                            existing_position.entry_price * reduce_quantity
-                        )
-                    else:  # Buying to reduce SHORT
-                        pnl = (existing_position.entry_price * reduce_quantity) - (
-                            trade.price * reduce_quantity + trade_fee_realized
-                        )
+                    # Position reduction or flip - entry price remains the same until flip
+                    # More complex logic needed for accurate PNL tracking on partial closes/flips
+                    new_entry_price = current_position.entry_price # Simplification
 
-                    logger.debug(f"Position size reduced. Realized PNL (approx, incl. fee): {pnl}")
-                    # TODO: Track realized PNL
-                    existing_position.size -= reduce_quantity  # Reduce size (maintains sign)
-                    logger.debug(f"Reduced position size. New Size: {existing_position.size}")
+            # Update the position object in place (if mutable) or replace it (if immutable)
+            # Assuming DerivativePosition is mutable for simplicity here
+            current_position.size = new_size
+            # Update entry price only if size is non-zero
+            if not new_size.is_zero():
+                current_position.entry_price = new_entry_price
+            else:
+                current_position.entry_price = Decimal(0) # Reset entry price if position is closed
 
             # Update timestamp or other fields if needed
-            if existing_position:  # Check if not deleted
-                # existing_position.timestamp = trade.timestamp # Position model doesn't have timestamp directly? Check model.
-                # Update unrealized PNL if mark price is available
-                ticker = self._mock_tickers.get(trade.symbol)
-                if ticker and ticker.price is not None:  # Check if ticker and its price exist
-                    existing_position.mark_price = ticker.price
-                    existing_position.calculate_unrealized_pnl(ticker.price)
-                logger.debug(f"Updated position: {existing_position}")
+            ticker = self._mock_tickers.get(trade.symbol)
+            if ticker and ticker.price is not None:
+                 current_position.mark_price = ticker.price # Update mark price
+                 if not current_position.size.is_zero():
+                     if current_position.size > 0: # Long
+                         current_position.unrealized_pnl = (ticker.price - current_position.entry_price) * current_position.size
+                     else: # Short
+                         current_position.unrealized_pnl = (current_position.entry_price - ticker.price) * abs(current_position.size)
+                 else:
+                      current_position.unrealized_pnl = Decimal(0) # Reset PNL if size is zero
+            else:
+                 # Keep existing mark price or set PNL to zero if no ticker
+                 current_position.unrealized_pnl = Decimal(0)
 
         else:
-            # Creating a new position
-            # Assume trade.side, quantity, price are non-None based on Mypy unreachable error
-            assert trade.side is not None, "Trade side cannot be None when creating position"
-            assert trade.quantity is not None, (
-                "Trade quantity cannot be None when creating position"
-            )
-            assert trade.price is not None, "Trade price cannot be None when creating position"
-
-            # Restore missing fields based on Position definition
+            # New position
+            entry_price = price
+            size = quantity if side == OrderSide.BUY else -quantity
+            # Initial PNL is zero
+            unrealized_pnl = Decimal(0)
             new_position = DerivativePosition(
-                symbol=trade.symbol,
-                side=trade.side,
-                size=trade.quantity,
-                entry_price=trade.price,
-                leverage=Decimal("1"),  # Default leverage
-                # timestamp=trade.timestamp, # Position model doesn't have timestamp directly?
-                margin_type="cross",  # Default margin type
-                unrealized_pnl=Decimal("0.0"),  # Initial PNL is zero
-                # Add other optional fields as needed, defaulting to None
-                id=None,
-                status=None,  # Status might be 'OPEN' implicitly
-                mark_price=trade.price,  # Initial mark price can be entry price
-                liquidation_price=None,
-                realized_pnl=None,
-                margin_used=None,
-                strategy_name=None,
-                close_price=None,
-                close_time=None,
-                pnl=None,
+                exchange=self.exchange_name,
+                symbol=symbol,
+                side=side, # Side of the *initial* trade creating the position
+                size=size,
+                entry_price=entry_price,
+                timestamp=trade.timestamp, # Add required timestamp
+                unrealized_pnl=unrealized_pnl,
+                # Add other required fields with default values if needed
+                mark_price=entry_price, # Initial mark price can be entry price
+                liquidation_price=None, # Cannot calculate easily
+                margin=None, # Cannot calculate easily
+                leverage=None, # Not applicable directly here
             )
-            self._positions[trade.symbol] = new_position
-            logger.debug(f"Created new position: {new_position}")
+            self._positions[symbol] = new_position
 
-    # --- WebSocket Simulation ---
+        logger.debug(f"Updated state for {symbol}: Balance={self._balances.get(base_asset)}, Position={self._positions.get(symbol)}")
 
     async def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]:
-        """Simulate cancelling all orders."""
+        """Cancel all open orders, optionally filtered by symbol."""
         self._check_error("cancel_all_orders")
         await self._simulate_latency()
+        orders_to_remove = []
         cancelled_count = 0
-        final_statuses = (
-            OrderStatus.FILLED,
-            OrderStatus.CANCELED,
-            OrderStatus.REJECTED,
-            OrderStatus.EXPIRED,
-            OrderStatus.FAILED,
-        )
         for order_id, order in self._orders.items():
-            if order.status not in final_statuses and (symbol is None or order.symbol == symbol):
-                order.status = OrderStatus.CANCELED
-                # order.last_update_time = datetime.now(UTC) # Order model doesn't have this
-                cancelled_count += 1
-                # Don't remove immediately, just mark as cancelled
-                logger.debug(f"Mock {self.exchange_name}: Marked order {order_id} as cancelled.")
+            if symbol is None or order.symbol == symbol:
+                if not order.status.is_terminal():
+                    order.status = OrderStatus.CANCELLED
+                    order.updated_at = datetime.now(UTC)
+                    cancelled_count += 1
+                    logger.debug(f"Mock {self.exchange_name}: Marked order {order_id} as cancelled.")
 
         # If the test needs orders removed from the dict, do it here, but usually just marking is enough
         # for order_id in orders_to_remove:
         #     del self._orders[order_id]
 
-        logger.info(f"Mock {self.exchange_name}: Cancelled {cancelled_count} orders.")
-        return {"status": "success", "cancelled_count": cancelled_count}
+        logger.info(f"Mock {self.exchange_name}: Cancelled {cancelled_count} orders for symbol {symbol or 'all'}.")
+        return {"success": True, "cancelled_count": cancelled_count}
 
     async def connect_websocket(self) -> None:
-        """Simulate connecting to WebSocket."""
+        """Simulate connecting to the WebSocket."""
+        logger.info(f"Mock {self.exchange_name}: Simulating WebSocket connect.")
         self._check_error("connect_websocket")
         await self._simulate_latency()
-        logger.info(f"Mock {self.exchange_name}: WebSocket connected (simulated).")
-        self._is_connected = True  # Assuming _is_connected is tracked
+        # No actual connection needed for mock
 
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
-        """Return mock funding rates."""
+        """Get funding rates for specified symbols or all tracked."""
         self._check_error("get_funding_rates")
         await self._simulate_latency()
         if symbols:
-            return [self._mock_funding_rates[s] for s in symbols if s in self._mock_funding_rates]
+            return [rate for sym, rate in self._mock_funding_rates.items() if sym in symbols]
         return list(self._mock_funding_rates.values())
 
     async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
-        """Return mock market data as Candle objects."""
+        """Simulate fetching market data (candles). Returns empty list for now."""
+        logger.debug(f"Mock {self.exchange_name}: get_market_data called for {symbol} {timeframe} (limit {limit}) - returning empty list.")
         self._check_error("get_market_data")
         await self._simulate_latency()
-        # Placeholder: Return empty list matching list[Candle]
-        # Real implementation would fetch OHLCV data.
-        return []
+        return [] # TODO: Implement mock candle generation if needed
 
     def get_message_type(self, message: dict[str, Any]) -> str:
-        """Determine message type (placeholder)."""
-        # Ensure a string is always returned, raise if type cannot be determined
-        msg_type = message.get("type") or message.get("e")
-        if not isinstance(msg_type, str):
-            raise ValueError(f"Could not determine message type from message: {message}")
-        return msg_type
+        """Determine the type of a simulated WebSocket message."""
+        # Simplified logic based on expected keys
+        if "e" in message: # Assuming Binance-like structure
+            return message["e"]
+        if "channel" in message and "data" in message: # Assuming Hyperliquid-like
+            return message["channel"]
+        return "unknown"
 
     async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]:
-        """Return mock order history."""
+        """
+        Simulate fetching order history. Returns current orders, optionally filtered.
+        NOTE: A real implementation would fetch historical, not just current.
+        """
+        logger.debug(f"Mock {self.exchange_name}: get_order_history called for {symbol or 'all'} (limit {limit}). Returning current orders.")
         self._check_error("get_order_history")
         await self._simulate_latency()
-        history = sorted(
-            self._orders.values(),
-            key=lambda o: o.created_at or datetime.min.replace(tzinfo=UTC),
-            reverse=True,
-        )
-        if symbol:
-            history = [o for o in history if o.symbol == symbol]
-        return history[:limit]
+        filtered_orders = [
+            order for order in self._orders.values() if symbol is None or order.symbol == symbol
+        ]
+        return filtered_orders[-limit:] # Apply limit
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
-        """Return mock trade history."""
+        """
+        Simulate fetching trade history.
+        """
+        logger.debug(f"Mock {self.exchange_name}: get_trade_history called for {symbol or 'all'} (limit {limit}). Returning simulated trades.")
         self._check_error("get_trade_history")
         await self._simulate_latency()
-        history = sorted(
-            self._trades, key=lambda t: t.timestamp if t.timestamp is not None else 0, reverse=True
-        )
-        if symbol:
-            history = [t for t in history if t.symbol == symbol]
-        return history[:limit]
+        filtered_trades = [
+            trade for trade in self._trades if symbol is None or trade.symbol == symbol
+        ]
+        return filtered_trades[-limit:]
 
     def parse_account_update_message(
         self, message: dict[str, Any]
     ) -> tuple[dict[str, SpotBalance] | None, dict[str, DerivativePosition] | None]:
-        """
-        Parse account update message to extract balances and positions.
-        Returns a tuple: (balances_dict, positions_dict). Dictionaries are None if not present.
-        """
-        # Placeholder implementation - assumes message contains 'balances' and/or 'positions' keys
-        # Needs adaptation based on actual WebSocket message format
-        updated_balances = None
-        updated_positions = None
+        """Parse a simulated account update message (balances/positions)."""
+        # This needs a specific format based on what tests will simulate
+        # Example: Assuming separate keys for balances and positions
+        balances = None
+        positions = None
+        if "balances" in message and isinstance(message["balances"], list):
+            balances = {}
+            for bal_data in message["balances"]:
+                try:
+                    balance = self.parse_balance(bal_data)
+                    balances[balance.asset] = balance
+                except Exception as e:
+                    logger.error(f"Failed to parse balance update: {bal_data}. Error: {e}")
 
-        if "balances" in message:
-            try:
-                # Assume message["balances"] is dict[str, dict]
-                parsed_balances = {}
-                for asset, data in message["balances"].items():
-                    # Add exchange for parsing consistency
-                    data["exchange"] = self.exchange_name
-                    parsed_balances[asset] = self.parse_balance(data)
-                updated_balances = parsed_balances
-            except Exception as e:
-                logger.error(f"Failed to parse balances from WS message: {e}", exc_info=True)
+        if "positions" in message and isinstance(message["positions"], list):
+            positions = {}
+            for pos_data in message["positions"]:
+                try:
+                    position = self.parse_position(pos_data)
+                    positions[position.symbol] = position
+                except Exception as e:
+                    logger.error(f"Failed to parse position update: {pos_data}. Error: {e}")
 
-        if "positions" in message:
-            try:
-                # Assume message["positions"] is list[dict] or dict[str, dict]
-                parsed_positions = {}
-                pos_data = message["positions"]
-                # Use isinstance checks that work with generics
-                if isinstance(pos_data, list):
-                    for data in pos_data:
-                        # Add exchange for parsing consistency
-                        if isinstance(data, dict):
-                            data["exchange"] = self.exchange_name
-                            pos = self.parse_position(data)
-                            parsed_positions[pos.symbol] = pos  # Use symbol as key
-                        parsed_positions[pos.symbol] = pos  # Use symbol as key
-                elif isinstance(pos_data, dict):  # Handle dict of positions (symbol -> data)
-                    for symbol, data in pos_data.items():
-                        # Add exchange for parsing consistency
-                        data["exchange"] = self.exchange_name
-                        parsed_positions[symbol] = self.parse_position(data)
-                updated_positions = parsed_positions
-            except Exception as e:
-                logger.error(f"Failed to parse positions from WS message: {e}", exc_info=True)
-
-        return updated_balances, updated_positions
+        return balances, positions
 
     def parse_balance(
         self, data: dict[str, Any]
-    ) -> SpotBalance:  # Updated return type, Ensure implementation raises on failure
-        """Parse balance data, raising ValueError on failure."""
+    ) -> SpotBalance: # Updated return type, Ensure implementation raises on failure
+        """Parse raw balance data into a SpotBalance model."""
+        # Add basic validation and conversion
+        required_fields = ["asset", "total", "available"]
+        if not all(field in data for field in required_fields):
+            raise ValueError(f"Missing required fields for SpotBalance: {data}")
         try:
-            # Ensure required fields are present before passing to SpotBalance
-            required_fields = ["asset", "total_quantity", "available_quantity", "timestamp"]
-            if "exchange" not in data:
-                data["exchange"] = self.exchange_name  # Add if missing
-
-            for field in required_fields:
-                if field not in data:
-                    raise ValueError(f"Missing required balance field: {field}")
-
-            # Perform necessary type conversions (e.g., string to Decimal)
-            data["total_quantity"] = Decimal(str(data["total_quantity"]))
-            data["available_quantity"] = Decimal(str(data["available_quantity"]))
-            # Assuming timestamp is correctly formatted or handled by Pydantic
+            # Convert numeric strings to Decimal
+            data["total_quantity"] = Decimal(str(data["total"]))
+            data["available_quantity"] = Decimal(str(data["available"]))
+            data["exchange"] = self.exchange_name # Inject exchange name
+            # Ensure timestamp exists, default if necessary
+            if "timestamp" not in data:
+                data["timestamp"] = datetime.now(UTC)
+            # Remove original fields if they conflict with model
+            del data["total"]
+            del data["available"]
 
             return SpotBalance(**data)
         except (ValidationError, KeyError, TypeError, InvalidOperation) as e:
@@ -1098,40 +1063,32 @@ class MockExchangeAPI(ExchangeAPI):
 
     def parse_funding_rate(
         self, data: dict[str, Any]
-    ) -> FundingRate:  # Ensure implementation raises on failure
-        """Parse funding rate data (placeholder)."""
-        try:
-            # Assuming data is dict-like
-            return FundingRate(**data)
-        except Exception as err:
-            logger.error(f"Mock parse_funding_rate failed for data: {data}. Error: {err}")
-            raise ValueError(f"Mock parse_funding_rate failed: {err}") from err
+    ) -> FundingRate: # Ensure implementation raises on failure
+        """Parse raw funding rate data into a FundingRate model."""
+        # Add validation and conversion
+        # TODO: Implement proper parsing for funding rate data
+        # return FundingRate(**data)
+        raise NotImplementedError # Keep as not implemented
 
     def parse_funding_rate_message(self, message: dict[str, Any]) -> FundingRate | None:
-        """Parse funding rate message (placeholder)."""
-        # Depends heavily on exchange message format
+        """Parse a funding rate update message from WebSocket."""
+        # Assuming a structure like {'type': 'funding', 'data': {...}}
+        if message.get("type") == "funding" and "data" in message:
+            try:
+                return self.parse_funding_rate(message["data"])
+            except Exception as e:
+                logger.error(f"Failed to parse funding rate message: {message}. Error: {e}")
         return None
 
-    def parse_order(self, data: dict[str, Any]) -> Order:  # Ensure implementation raises on failure
-        """Parse order data (placeholder)."""
+    def parse_order(self, data: dict[str, Any]) -> Order: # Ensure implementation raises on failure
+        """Parse raw order data into an Order model."""
         try:
-            # Assuming data is dict-like
-            # Convert fields as needed
-            if "side" in data and isinstance(data["side"], str):
-                data["side"] = OrderSide(data["side"])
-            if "type" in data and isinstance(data["type"], str):
-                data["type"] = OrderType(data["type"])
-            if "status" in data and isinstance(data["status"], str):
-                data["status"] = OrderStatus(data["status"])
-            if "time_in_force" in data and isinstance(data["time_in_force"], str):
-                data["time_in_force"] = TimeInForce(data["time_in_force"])
-            # Convert numeric fields
-            for field in [
-                "price",
-                "quantity",
-                "filled_quantity",
-                "average_fill_price",
-            ]:  # Removed fee, cost
+            # Inject exchange name if missing
+            if "exchange" not in data:
+                data["exchange"] = self.exchange_name
+
+            # Convert numeric strings/floats to Decimal
+            for field in ["price", "quantity_requested", "quantity_filled", "average_fill_price"]:
                 if field in data and data[field] is not None:
                     try:
                         data[field] = Decimal(str(data[field]))
@@ -1140,117 +1097,156 @@ class MockExchangeAPI(ExchangeAPI):
                             f"Could not convert order field '{field}' value '{data[field]}' to Decimal."
                         )
                         # Raise error instead of returning None
-                        raise ValueError(f"Invalid Decimal value for field '{field}'")
-            # Convert timestamps
-            for field in ["created_at"]:  # Removed last_update_time
-                if field in data and data[field] is not None:
-                    # Assuming datetime object or compatible string/int
-                    try:
-                        if isinstance(data[field], int | float):
-                            ts_sec = int(data[field]) / 1000
-                            data[field] = datetime.fromtimestamp(ts_sec, tz=UTC)
-                        elif isinstance(data[field], str):
-                            data[field] = datetime.fromisoformat(data[field].replace("Z", "+00:00"))
-                        # If already datetime, do nothing
-                    except (ValueError, TypeError, OSError):
-                        logger.error(
-                            f"Could not convert order timestamp '{data[field]}' for field '{field}'"
-                        )
-                        data[field] = None  # Or raise error if timestamp is mandatory
+                        raise ValueError(f"Invalid Decimal value for field '{field}'\") from None
 
-            return Order(**data)
-        except Exception as err:
-            logger.error(f"Mock parse_order failed for data: {data}. Error: {err}")
-            raise ValueError(f"Mock parse_order failed: {err}") from err
+            # Convert timestamps
+            for field in ["created_at"]: # Removed last_update_time
+                if field in data and data[field]:
+                    # Assuming timestamp is in ms or seconds epoch, or ISO string
+                    # This needs robust parsing logic based on actual API format
+                    try:
+                        # Example: handle ms epoch int/float or ISO string
+                        ts_val = data[field]
+                        if isinstance(ts_val, (int, float)):
+                            data[field] = datetime.fromtimestamp(ts_val / 1000, UTC)
+                        elif isinstance(ts_val, str):
+                            data[field] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                        # Add other format checks if needed
+                    except (ValueError, TypeError):
+                        logger.error(f"Could not parse timestamp for order field '{field}': {data[field]}")
+                        data[field] = datetime.now(UTC) # Fallback or raise
+
+            # Convert enums (assuming string values from API)
+            if "side" in data: data["side"] = OrderSide(data["side"])
+            if "order_type" in data: data["order_type"] = OrderType(data["order_type"])
+            if "status" in data: data["status"] = OrderStatus(data["status"])
+            if "time_in_force" in data: data["time_in_force"] = TimeInForce(data["time_in_force"])
+
+            # Add defaults for missing required fields if applicable
+            # These should match the Order model defaults or be handled explicitly
+            data.setdefault("updated_at", data.get("created_at", datetime.now(UTC)))
+            data.setdefault("triggered_at", None)
+            data.setdefault("strategy_name", None)
+            data.setdefault("signal_id", None)
+
+            # Validate using Pydantic
+            # return Order(**data) # Direct init requires exact fields
+            return Order.model_validate(data)
+        except (ValidationError, KeyError, TypeError, ValueError, InvalidOperation) as e:
+            logger.error(f"Failed to parse order data: {data}. Error: {e}", exc_info=True)
+            raise ValueError(f"Failed to parse order data: {e}") from e
 
     def parse_order_book(
         self, data: dict[str, Any], symbol: str
-    ) -> OrderBook:  # Ensure implementation raises on failure
-        """Parse order book data (placeholder)."""
+    ) -> OrderBook: # Ensure implementation raises on failure
+        """Parse raw order book data into an OrderBook model."""
         try:
-            # Assuming data has 'bids' and 'asks' lists
-            # Convert price/quantity pairs to Decimal
-            bids = [(Decimal(str(p)), Decimal(str(q))) for p, q in data.get("bids", [])]
-            asks = [(Decimal(str(p)), Decimal(str(q))) for p, q in data.get("asks", [])]
-            ts_raw = data.get("timestamp", datetime.now(UTC).timestamp() * 1000)
-            ts = int(ts_raw) if ts_raw is not None else None  # Convert to int
-            return OrderBook(symbol=symbol, bids=bids, asks=asks, timestamp=ts)
-        except Exception as err:
-            logger.error(f"Mock parse_order_book failed for data: {data}. Error: {err}")
-            raise ValueError(f"Mock parse_order_book failed: {err}") from err
+            # Convert bid/ask lists to list of tuples of Decimals
+            data["bids"] = [(Decimal(str(p)), Decimal(str(q))) for p, q in data.get("bids", [])]
+            data["asks"] = [(Decimal(str(p)), Decimal(str(q))) for p, q in data.get("asks", [])]
+            data["symbol"] = symbol # Inject symbol
+            # Parse timestamp (similar logic as parse_order)
+            if "timestamp" in data and data["timestamp"]:
+                ts_val = data["timestamp"]
+                if isinstance(ts_val, (int, float)):
+                    data["timestamp"] = datetime.fromtimestamp(ts_val / 1000, UTC)
+                elif isinstance(ts_val, str):
+                    data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                else:
+                    data["timestamp"] = datetime.now(UTC) # Fallback
+            else:
+                data["timestamp"] = datetime.now(UTC)
+
+            #return OrderBook(**data)
+            return OrderBook.model_validate(data)
+        except (ValidationError, KeyError, TypeError, ValueError, InvalidOperation) as e:
+            logger.error(f"Failed to parse order book data for {symbol}: {data}. Error: {e}")
+            raise ValueError(f"Failed to parse order book data: {e}") from e
 
     def parse_order_update_message(self, message: dict[str, Any]) -> Order | None:
-        """Parse order update message (placeholder)."""
-        # Depends heavily on exchange message format
-        # Should ideally call self.parse_order if data structure matches
-        try:
-            # Example: Assuming message contains the order data directly
-            if "order_data" in message:
-                return self.parse_order(message["order_data"])
-            return None  # Or raise if format is unknown/invalid
-        except Exception as err:
-            logger.error(f"Failed to parse order update message: {message}, Error: {err}")
-            return None  # Keep returning None for WS messages if parsing fails
+        """Parse an order update message from WebSocket."""
+        # Assuming structure like {'type': 'orderUpdate', 'data': {...}}
+        # Or based on specific exchange format (e.g., Binance 'e': 'executionReport')
+        msg_type = self.get_message_type(message)
+
+        if msg_type in ["orderUpdate", "executionReport"] and "data" in message:
+            try:
+                # The 'data' might be the order itself or contain order info
+                order_data = message["data"]
+                # Adapt if the structure is different (e.g., Binance puts fields at top level)
+                if msg_type == "executionReport":
+                    order_data = message # Use the whole message for Binance-like
+
+                return self.parse_order(order_data)
+            except Exception as e:
+                logger.error(f"Failed to parse order update message: {message}. Error: {e}")
+        return None
 
     def parse_orderbook_message(self, message: dict[str, Any]) -> OrderBook | None:
-        """Parse order book message (placeholder)."""
-        # Depends heavily on exchange message format
-        # Should ideally call self.parse_order_book if data structure matches
-        try:
-            if "symbol" in message and ("bids" in message or "asks" in message):
-                return self.parse_order_book(message, message["symbol"])
-            return None
-        except Exception as err:
-            logger.error(f"Failed to parse orderbook message: {message}, Error: {err}")
-            return None  # Keep returning None for WS messages
+        """Parse an order book update message from WebSocket."""
+        # Assuming structure like {'type': 'depthUpdate', 'symbol': 'BTC-PERP', 'data': {...}}
+        msg_type = self.get_message_type(message)
+        if msg_type == "depthUpdate" and "data" in message and "symbol" in message:
+            try:
+                symbol = message["symbol"]
+                # The 'data' usually contains bids/asks updates
+                # Mock parsing might just return a full OrderBook snapshot based on the update
+                # For simplicity, let's assume 'data' IS the full book structure here
+                return self.parse_order_book(message["data"], symbol)
+            except Exception as e:
+                logger.error(f"Failed to parse order book message: {message}. Error: {e}")
+        return None
 
     def parse_position(
         self, data: dict[str, Any]
-    ) -> DerivativePosition:  # Ensure implementation raises on failure
-        """Parse position data, raising ValueError on failure."""
+    ) -> DerivativePosition: # Ensure implementation raises on failure
+        """Parse raw position data into a DerivativePosition model."""
         try:
-            # Ensure required fields
-            required_fields = ["symbol", "side", "size", "entry_price"]
-            if "exchange" not in data:
-                data["exchange"] = self.exchange_name
+            data["exchange"] = self.exchange_name # Inject exchange name
 
-            for field in required_fields:
-                if field not in data:
-                    raise ValueError(f"Missing required position field: {field}")
+            # Convert numeric fields to Decimal
+            for field in ["size", "entry_price", "mark_price", "liquidation_price", "unrealized_pnl", "margin", "leverage"]:
+                if field in data and data[field] is not None:
+                    try:
+                        data[field] = Decimal(str(data[field]))
+                    except InvalidOperation:
+                        logger.error(f"Could not convert position field '{field}' value '{data[field]}' to Decimal.")
+                        raise ValueError(f"Invalid Decimal value for position field '{field}'\") from None
 
-            # Convert types
-            data["side"] = OrderSide(data["side"])
-            data["size"] = Decimal(str(data["size"]))
-            data["entry_price"] = Decimal(str(data["entry_price"]))
-            if "mark_price" in data and data["mark_price"] is not None:
-                data["mark_price"] = Decimal(str(data["mark_price"]))
-            if "unrealized_pnl" in data and data["unrealized_pnl"] is not None:
-                data["unrealized_pnl"] = Decimal(str(data["unrealized_pnl"]))
-            if "realized_pnl" in data and data["realized_pnl"] is not None:
-                data["realized_pnl"] = Decimal(str(data["realized_pnl"]))
-            if "liquidation_price" in data and data["liquidation_price"] is not None:
-                data["liquidation_price"] = Decimal(str(data["liquidation_price"]))
-            if "initial_margin" in data and data["initial_margin"] is not None:
-                data["initial_margin"] = Decimal(str(data["initial_margin"]))
-            if "maintenance_margin" in data and data["maintenance_margin"] is not None:
-                data["maintenance_margin"] = Decimal(str(data["maintenance_margin"]))
-            if "leverage" in data and data["leverage"] is not None:
-                data["leverage"] = Decimal(str(data["leverage"]))
-            # Assuming timestamp is handled by Pydantic if present
+            # Parse timestamp
+            if "timestamp" in data and data["timestamp"]:
+                ts_val = data["timestamp"]
+                if isinstance(ts_val, (int, float)):
+                    data["timestamp"] = datetime.fromtimestamp(ts_val / 1000, UTC)
+                elif isinstance(ts_val, str):
+                    data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                else:
+                    data["timestamp"] = datetime.now(UTC) # Fallback
+            else:
+                data["timestamp"] = datetime.now(UTC) # Add timestamp if missing
 
-            return DerivativePosition(**data)
+            # Handle 'side' based on 'size'
+            if "size" in data:
+                size_dec = data["size"]
+                if size_dec > 0: data["side"] = OrderSide.BUY
+                elif size_dec < 0: data["side"] = OrderSide.SELL
+                else: data["side"] = OrderSide.BUY # Or None? Needs clarification for zero size
+
+            #return DerivativePosition(**data)
+            return DerivativePosition.model_validate(data)
         except (ValidationError, KeyError, TypeError, InvalidOperation, ValueError) as e:
             logger.error(f"Failed to parse position data: {data}. Error: {e}", exc_info=True)
             raise ValueError(f"Failed to parse position data: {e}") from e
 
     def parse_ticker(
         self, data: dict[str, Any], symbol: str
-    ) -> Ticker:  # Ensure implementation raises on failure
-        """Parse ticker data (placeholder)."""
+    ) -> Ticker: # Ensure implementation raises on failure
+        """Parse raw ticker data into a Ticker model."""
         try:
-            # Assuming data is dict-like
-            # Convert numeric fields
-            for field in ["price", "bid", "ask", "volume"]:
+            data["symbol"] = symbol # Inject symbol
+
+            # Convert numeric fields to Decimal
+            for field in ["bid", "ask", "price", "volume"]: # Added volume
                 if field in data and data[field] is not None:
                     try:
                         data[field] = Decimal(str(data[field]))
@@ -1261,102 +1257,164 @@ class MockExchangeAPI(ExchangeAPI):
                         # Raise error instead of returning None
                         raise ValueError(
                             f"Could not convert ticker field '{field}' value '{data[field]}' to Decimal."
-                        )
-            return Ticker(**data)
+                        ) from None
+            # Parse timestamp
+            if "timestamp" in data and data["timestamp"]:
+                ts_val = data["timestamp"]
+                if isinstance(ts_val, (int, float)):
+                    data["timestamp"] = datetime.fromtimestamp(ts_val / 1000, UTC)
+                elif isinstance(ts_val, str):
+                    data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                else:
+                    data["timestamp"] = datetime.now(UTC) # Fallback
+            else:
+                data["timestamp"] = datetime.now(UTC)
+
+            #return Ticker(**data)
+            return Ticker.model_validate(data)
         except Exception as err:
-            logger.error(f"Mock parse_ticker failed for data: {data}. Error: {err}")
-            raise ValueError(f"Mock parse_ticker failed: {err}") from err
+            logger.error(f"Failed to parse ticker data for {symbol}: {data}. Error: {err}")
+            raise ValueError(f"Failed to parse ticker data: {err}") from err
 
     def parse_ticker_message(self, message: dict[str, Any]) -> tuple[str, Ticker] | Ticker | None:
-        """Parse ticker message (placeholder)."""
-        # Depends heavily on exchange message format
-        # Might return Ticker directly or (symbol, Ticker) tuple
+        """Parse a ticker update message from WebSocket."""
+        # Example: {'type': 'ticker', 'symbol': 'BTC-PERP', 'data': {...}}
+        # Or Binance: {'e': '24hrTicker', 's': 'BTCUSDT', 'c': '50000', ...}
+        msg_type = self.get_message_type(message)
+        if msg_type in ["ticker", "24hrTicker"] :
+            try:
+                if msg_type == "24hrTicker": # Binance style
+                    symbol = message["s"]
+                    # Map Binance fields to Ticker model fields
+                    data = {
+                        "bid": message.get("b"),
+                        "ask": message.get("a"),
+                        "price": message.get("c"), # Last price
+                        "volume": message.get("v"), # Total traded base asset volume
+                        "timestamp": message.get("E") # Event time
+                    }
+                    return symbol, self.parse_ticker(data, symbol)
+                elif "data" in message and "symbol" in message: # Generic/Hyperliquid style
+                    symbol = message["symbol"]
+                    return symbol, self.parse_ticker(message["data"], symbol)
+            except Exception as e:
+                logger.error(f"Failed to parse ticker message: {message}. Error: {e}")
         return None
 
     def parse_trade(
         self, data: dict[str, Any], symbol: str
-    ) -> Trade:  # Ensure implementation raises on failure
-        """Parse trade data, raising ValueError on failure."""
+    ) -> Trade: # Ensure implementation raises on failure
+        """Parse raw trade data into a Trade model."""
         try:
-            # Ensure required fields
-            required_fields = [
-                "id",
-                "order_id",
-                "price",
-                "quantity",
-                "side",
-                "timestamp",
-                "is_maker",
-            ]
-            if "exchange" not in data:
-                data["exchange"] = self.exchange_name
+            data["symbol"] = symbol # Inject symbol
+            data["exchange"] = self.exchange_name # Inject exchange
 
-            for field in required_fields:
-                if field not in data:
-                    raise ValueError(f"Missing required trade field: {field}")
+            # Convert numeric fields to Decimal
+            for field in ["price", "quantity", "fee"]:
+                if field in data and data[field] is not None:
+                    try:
+                        data[field] = Decimal(str(data[field]))
+                    except InvalidOperation:
+                        logger.error(f"Could not convert trade field '{field}' value '{data[field]}' to Decimal.")
+                        raise ValueError(f"Invalid Decimal value for trade field '{field}'\") from None
 
-            # Convert types
-            data["symbol"] = symbol  # Add symbol if missing
-            data["price"] = Decimal(str(data["price"]))
-            data["quantity"] = Decimal(str(data["quantity"]))
-            data["side"] = OrderSide(data["side"])
-            if "fee" in data and data["fee"] is not None:
-                data["fee"] = Decimal(str(data["fee"]))
-            # Assuming timestamp is handled by Pydantic
-            # Ensure is_maker is bool
-            data["is_maker"] = bool(data["is_maker"])
+            # Parse timestamp
+            if "timestamp" in data and data["timestamp"]:
+                ts_val = data["timestamp"]
+                if isinstance(ts_val, (int, float)):
+                    data["timestamp"] = datetime.fromtimestamp(ts_val / 1000, UTC)
+                elif isinstance(ts_val, str):
+                    data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                else:
+                    data["timestamp"] = datetime.now(UTC) # Fallback
+            else:
+                data["timestamp"] = datetime.now(UTC)
 
-            return Trade(**data)
-        except (ValidationError, KeyError, TypeError, InvalidOperation, ValueError) as e:
-            logger.error(f"Failed to parse trade data: {data}. Error: {e}", exc_info=True)
+            # Convert side enum
+            if "side" in data: data["side"] = OrderSide(data["side"])
+
+            # Ensure required fields like 'id' exist or generate mock ones
+            data.setdefault("id", f"mock-trade-{uuid.uuid4()}")
+            data.setdefault("order_id", f"mock-order-{uuid.uuid4()}")
+            data.setdefault("fee_asset", self.fee_asset) # Use exchange default fee asset
+            # Add 'executed_at' if missing, use timestamp
+            data.setdefault("executed_at", data.get("timestamp", datetime.now(UTC)))
+            # Add 'is_maker' if missing, default to False
+            data.setdefault("is_maker", False)
+
+            #return Trade(**data)
+            return Trade.model_validate(data)
+        except (ValidationError, KeyError, TypeError, ValueError, InvalidOperation) as e:
+            logger.error(f"Failed to parse trade data for {symbol}: {data}. Error: {e}", exc_info=True)
             raise ValueError(f"Failed to parse trade data: {e}") from e
 
     def parse_trade_message(
         self, message: dict[str, Any]
-    ) -> Trade | None:  # Return type was already correct
-        """Parse trade message (placeholder)."""
-        # Depends heavily on exchange message format
-        # Might contain single trade or list of trades
+    ) -> Trade | None: # Return type was already correct
+        """Parse a trade update message from WebSocket."""
+        # Example: {'type': 'trade', 'symbol': 'BTC-PERP', 'data': {...}}
+        # Binance: {'e': 'trade', 's': 'BTCUSDT', 'p': '50001', 'q': '0.01', ...}
+        msg_type = self.get_message_type(message)
+        if msg_type == "trade":
+            try:
+                if msg_type == "trade" and "s" in message: # Binance style
+                    symbol = message["s"]
+                    # Map Binance fields to Trade model fields
+                    data = {
+                        "id": message.get("t"), # Trade ID
+                        "order_id": message.get("a"), # Aggregated trade ID? Or use order IDs? Needs check. Assume order ID for now.
+                        "price": message.get("p"),
+                        "quantity": message.get("q"),
+                        "side": "buy" if message.get("m") is False else "sell", # m=False is buyer maker
+                        "timestamp": message.get("T"), # Trade time
+                        "fee": None, # Binance WS doesn't typically include fee in trade message
+                        "fee_asset": None,
+                    }
+                    return self.parse_trade(data, symbol)
+                elif "data" in message and "symbol" in message: # Generic style
+                    symbol = message["symbol"]
+                    return self.parse_trade(message["data"], symbol)
+            except Exception as e:
+                logger.error(f"Failed to parse trade message: {message}. Error: {e}")
         return None
 
     async def ping_websocket(self) -> None:
-        """Simulate sending a WebSocket ping."""
+        """Simulate sending a ping and receiving a pong."""
+        logger.debug(f"Mock {self.exchange_name}: Simulating WebSocket ping/pong.")
         self._check_error("ping_websocket")
         await self._simulate_latency()
-        logger.debug(f"Mock {self.exchange_name}: Sent WebSocket ping (simulated).")
+        # No actual action needed
 
     async def subscribe_to_account_updates(self) -> None:
         """Simulate subscribing to account updates."""
+        logger.info(f"Mock {self.exchange_name}: Simulating subscribe to account updates.")
         self._check_error("subscribe_to_account_updates")
         await self._simulate_latency()
-        logger.info(f"Mock {self.exchange_name}: Subscribed to account updates (simulated).")
+        # Add handler or topic tracking if needed
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
-        """Simulate subscribing to order book."""
+        """Simulate subscribing to order book updates."""
+        # Add symbol validation if needed
+        logger.info(f"Mock {self.exchange_name}: Simulating subscribe to order book for {symbol}.")
         self._check_error("subscribe_to_order_book")
         await self._simulate_latency()
-        logger.info(
-            f"Mock {self.exchange_name}: Subscribed to order book for {symbol} (simulated)."
-        )
 
     async def subscribe_to_ticker(self, symbol: str) -> None:
-        """Simulate subscribing to ticker."""
+        """Simulate subscribing to ticker updates."""
+        logger.info(f"Mock {self.exchange_name}: Simulating subscribe to ticker for {symbol}.")
         self._check_error("subscribe_to_ticker")
         await self._simulate_latency()
-        logger.info(f"Mock {self.exchange_name}: Subscribed to ticker for {symbol} (simulated).")
 
     async def subscribe_to_trades(self, symbol: str) -> None:
-        """Simulate subscribing to trades."""
+        """Simulate subscribing to trade updates."""
+        logger.info(f"Mock {self.exchange_name}: Simulating subscribe to trades for {symbol}.")
         self._check_error("subscribe_to_trades")
         await self._simulate_latency()
-        logger.info(f"Mock {self.exchange_name}: Subscribed to trades for {symbol} (simulated).")
 
-    # Corrected signature to match base class
     def _update_rate_limit_from_headers(
         self, headers: Mapping[str, str], method: str, path: str
     ) -> None:
-        """Mock implementation - does nothing (ignores method/path)."""
-        # Mark params as unused if necessary for linters
+        """Simulate updating rate limit info (no-op for mock)."""
         _ = method
         _ = path
         logger.debug(

@@ -202,13 +202,15 @@ class ArbitrageOpportunity(BaseModel):
         short_funding_rate (Decimal): Funding rate on short exchange.
         net_funding_differential (Decimal): Net funding advantage (long - short).
         timestamp (datetime): UTC timestamp of opportunity detection.
-        expected_profit (Decimal | None): Optional expected profit.
-        basis_volatility (float | None): Optional basis volatility metric.
+        expected_profit (Decimal | None): Optional expected profit estimate.
+        basis_volatility (float | None): Optional basis volatility measure.
         utility_score (float | None): Optional utility score for ranking.
         optimal_size (Decimal | None): Optional optimal trade size.
         confidence_score (float | None): Optional confidence score (model-derived or validation).
-        integrated_funding_data (IntegratedFundingData | None): Optional reference to integrated funding data.
-        adjusted_thresholds (dict[str, float] | None): Optional adjusted thresholds for risk/validation.
+        integrated_funding_data (IntegratedFundingData | None): Optional reference to\
+            integrated funding data.
+        adjusted_thresholds (dict[str, float] | None): Optional adjusted thresholds for\
+            risk/validation.
         metadata (dict[str, Any] | None): Optional extra metadata for analytics/debugging.
         expiration_timestamp (float | None): Optional expiry (epoch seconds).
         id (str): Unique identifier (UUID).

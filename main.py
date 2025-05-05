@@ -9,16 +9,18 @@ from typing import Any
 
 import structlog
 
-import cyberdelta.apis.backpack
-import cyberdelta.apis.hyperliquid
+import cyberdelta.apis.backpack_api import BackpackAPI
+import cyberdelta.apis.hyperliquid_api import HyperliquidAPI
 from cyberdelta.apis.base import ExchangeAPI
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.engine import Engine
+from cyberdelta.core.engine import TradingEngine
 from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio_tracker import PortfolioTracker, PortfolioTrackerProtocol
 from cyberdelta.core.risk_manager import ConfigError, RiskManager
-from cyberdelta.core.strategy import Strategy
+from cyberdelta.core.signal_generator import SignalGenerator
+from cyberdelta.core.strategy_manager import StrategyManager
+from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.utils.config import load_config
 from cyberdelta.utils.logging_config import setup_logging
@@ -141,7 +143,7 @@ async def main() -> None:
         app_state["state_manager"] = state_manager
 
         # PortfolioTracker expects Config
-        portfolio_tracker = PortfolioTracker(config)
+        portfolio_tracker: PortfolioTrackerProtocol = PortfolioTracker(config)
         app_state["portfolio_tracker"] = portfolio_tracker
 
         # CircuitBreakerSystem expects Config
@@ -149,10 +151,7 @@ async def main() -> None:
         app_state["circuit_breaker"] = circuit_breaker
 
         # SymbolMapper is required for ExecutionHandler (assume import and instantiation)
-        from cyberdelta.core.symbol_mapper import SymbolMapper
-
-        # SymbolMapper expects a raw dict, not a Config object
-        symbol_mapper = SymbolMapper(config.as_dict())
+        symbol_mapper = SymbolMapper(config)
         app_state["symbol_mapper"] = symbol_mapper
 
         # ExecutionHandler expects:
@@ -186,12 +185,22 @@ async def main() -> None:
         app_state["signal_queue"] = signal_queue
 
         # Engine expects name (optional)
-        engine = Engine(name="CyberDeltaEngine_Core")
+        engine = TradingEngine(name="CyberDeltaEngine_Core")
         app_state["engine"] = engine
 
         # DataHandler expects Config
-        data_handler = DataHandler(config)
+        data_handler = DataHandler(config=config, symbol_mapper=symbol_mapper)
         app_state["data_handler"] = data_handler
+
+        # Initialize StrategyManager
+        strategy_manager = StrategyManager(
+            config=config,
+            signal_queue=engine.signal_queue, # Pass signal queue
+            risk_manager=risk_manager,
+            portfolio_tracker=portfolio_tracker,
+            symbol_mapper=symbol_mapper # Pass symbol_mapper
+        )
+        app_state["strategy_manager"] = strategy_manager
 
         logger.info("Core components initialized.")
 
@@ -227,12 +236,12 @@ async def main() -> None:
                 continue
             logger.debug(f"Attempting to initialize API for {exchange_name}...")
             if exchange_name == ExchangeName.HYPERLIQUID:
-                client = cyberdelta.apis.hyperliquid.HyperliquidAPI(
-                    api_config, secrets[ExchangeName.HYPERLIQUID]
+                client = HyperliquidAPI(
+                    exchange_name, api_config, secrets[ExchangeName.HYPERLIQUID], config
                 )
             elif exchange_name == ExchangeName.BACKPACK:
-                client = cyberdelta.apis.backpack.BackpackAPI(
-                    api_config, secrets[ExchangeName.BACKPACK]
+                client = BackpackAPI(
+                    exchange_name, api_config, secrets[ExchangeName.BACKPACK], config
                 )
             else:
                 logger.warning(f"Unsupported exchange: {exchange_name}")
@@ -277,8 +286,9 @@ async def main() -> None:
                 if strategy_type == "FundingRateArbitrage":
                     symbol = strategy_config.get("symbol")
                     if not symbol:
-                        logger.error(
-                            f"Strategy '{strategy_name}' missing required 'symbol' in config. Skipping."
+                        logger.error(\
+                            f\"Strategy '{strategy_name}' missing required \'symbol\' \"
+                            f\"in config. Skipping.\"\
                         )
                         continue
                     strategy = FundingRateArbitrageStrategy(
@@ -355,7 +365,9 @@ async def main() -> None:
         # Add other component run loops if needed
 
         # Start the engine (now ready to receive data and forward signals)
-        engine.start()
+        logger.info("Starting Trading Engine...")
+        # engine.run() # This would block if run directly
+        asyncio.run(engine.run_async()) # Run the async version
         logger.info("Engine started. Entering main monitoring loop.")
 
         # Set up signal handling for graceful shutdown

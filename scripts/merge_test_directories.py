@@ -6,12 +6,16 @@ This consolidates all tests into a single directory structure
 """
 
 import glob
+import logging
 import os
 import shutil
 import sys
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
-def ensure_directory_exists(directory):
+def ensure_directory_exists(directory: str | Path) -> None:
     """
     Ensure the specified directory exists, create it if it doesn't
     """
@@ -20,7 +24,7 @@ def ensure_directory_exists(directory):
         print(f"Created directory: {directory}")
 
 
-def merge_directories(source_dir, target_dir):
+def merge_directories(source_dir: str | Path, target_dir: str | Path) -> None:
     """
     Merge all files from source_dir into target_dir
     """
@@ -50,8 +54,10 @@ def merge_directories(source_dir, target_dir):
                 if target_file.endswith(".py"):
                     update_imports(target_file)
 
+    logger.info(f"Successfully merged {len(source_files)} files from {source_dir} to {target_dir}")
 
-def update_imports(file_path):
+
+def update_imports(file_path: str | Path) -> None:
     """
     Update imports in the file to reflect the new directory structure
     """
@@ -74,7 +80,7 @@ def update_imports(file_path):
         print(f"Updated imports in: {file_path}")
 
 
-def main():
+def main() -> None:
     """
     Main function to merge test directories
     """

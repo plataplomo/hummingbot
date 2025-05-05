@@ -64,16 +64,53 @@ class MultiTierFundingProvider:
         self.default_accuracy_score = config.get("default_accuracy_score", 0.5)
 
         # Weight configuration for confidence scoring
-        self.historical_accuracy_weight = config.get("historical_accuracy_weight", 0.4)
-        self.source_count_weight = config.get("source_count_weight", 0.2)
-        self.dispersion_weight = config.get("dispersion_weight", 0.3)
-        self.freshness_weight = config.get("freshness_weight", 0.1)
+        weights = config.get("funding_data.weights", {})
+        if not isinstance(weights, dict):
+            logger.warning("Invalid 'funding_data.weights' format in config, using defaults.")
+            weights = {}
+
+        self.historical_accuracy_weight = self._validate_float_config(
+            weights, "historical", default=0.4
+        )
+        self.source_count_weight = self._validate_float_config(weights, "source_count", default=0.2)
+        self.dispersion_weight = self._validate_float_config(weights, "dispersion", default=0.3)
+        self.freshness_weight = self._validate_float_config(weights, "freshness", default=0.1)
 
         # Register data sources
         self.primary_sources: dict[str, Callable[..., Any]] = {}
         self.secondary_sources: dict[str, Callable[..., Any]] = {}
         self.tertiary_sources: dict[str, Callable[..., Any]] = {}
         self.fallback_sources: dict[str, Callable[..., Any]] = {}
+
+        # --- Threshold Configuration with Type Validation ---
+        thresholds = config.get("funding_data.thresholds", {})
+        if not isinstance(thresholds, dict):
+            logger.warning("Invalid 'funding_data.thresholds' format in config, using defaults.")
+            thresholds = {}
+
+        # DEFENSIVE CHECK: Ensure thresholds is a dict before passing. Mypy=[arg-type]
+        if isinstance(thresholds, dict):
+            self.min_confidence_score = self._validate_float_config(
+                thresholds, "min_confidence_score", default=0.6
+            )
+            # max_staleness_hours: Needs careful handling if converting to seconds
+            max_staleness_hours = self._validate_float_config(
+                thresholds, "max_staleness_hours", default=1.0
+            )
+            self.max_staleness_seconds = max_staleness_hours * 3600.0
+
+            self.max_dispersion_std_dev = self._validate_float_config(
+                thresholds, "max_dispersion_std_dev", default=0.0005
+            )
+            self.min_source_count = self._validate_int_config(
+                thresholds, "min_source_count", default=2
+            )
+        else:  # Should not happen due to check above, but handles edge case
+            logger.error("Thresholds configuration is not a dictionary, using defaults.")
+            self.min_confidence_score = 0.6
+            self.max_staleness_seconds = 1.0 * 3600.0
+            self.max_dispersion_std_dev = 0.0005
+            self.min_source_count = 2
 
         logger.info("Initialized multi-tier funding rate provider")
 
@@ -632,3 +669,36 @@ class MultiTierFundingProvider:
             logger.debug(f"Cleared {len(stale_keys)} stale cache entries")
 
         return len(stale_keys)
+
+    def _validate_float_config(
+        self, config_dict: dict[str, Any], key: str, default: float
+    ) -> float:
+        """Safely get and validate a float config value."""
+        value = config_dict.get(key, default)
+        if isinstance(value, float):
+            return value
+        elif isinstance(value, int) and value.is_integer():
+            logger.warning(f"Config value '{key}' is int ({value}), converting to float.")
+            return float(value)
+        else:
+            logger.warning(
+                f"Invalid type for config value '{key}' ({type(value)}), using default: {default}"
+            )
+        return default
+
+    def _validate_int_config(self, config_dict: dict[str, Any], key: str, default: int) -> int:
+        """Safely get and validate an integer config value."""
+        value = config_dict.get(key, default)
+        if isinstance(value, int):
+            return value
+        elif isinstance(value, float) and value.is_integer():
+            logger.warning(f"Config value '{key}' is float ({value}), converting to int.")
+            return int(value)
+        else:
+            logger.warning(
+                f"Invalid type for config value '{key}' ({type(value)}), using default: {default}"
+            )
+        return default
+
+    async def add_funding_rate(self, source_name: str, funding_rate_data: FundingData) -> None:
+        """Adds new funding rate data from a specific source."""

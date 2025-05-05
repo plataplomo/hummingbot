@@ -64,8 +64,11 @@ class PositionReconciliationSystem:
 
         # Get interval, ensuring it's a float
         interval_val = config.get("validation.position_reconciliation.interval_seconds", 300.0)
-        if isinstance(interval_val, (int, float)):
+        if isinstance(interval_val, int | float):
             self._reconciliation_interval_secs: float = float(interval_val)
+            self._next_reconciliation_time: datetime = datetime.now(UTC) + timedelta(
+                seconds=self._reconciliation_interval_secs
+            )
         else:
             logger.warning(
                 f"Invalid reconciliation interval type ('{type(interval_val)}'), defaulting to 300.0 seconds."
@@ -277,12 +280,11 @@ class PositionReconciliationSystem:
                 size_threshold_amount = Decimal("0.0")
             else:
                 # Threshold is a percentage of the larger absolute size
-                size_threshold_amount = size_threshold_dec * max_abs_size
+                size_threshold_amount = size_threshold_dec * max_abs_size + Decimal("0.00001")
             # Add a small absolute minimum threshold to catch discrepancies when positions are very small
             # or one is zero (e.g., detecting 0 vs 0.001)
             # This value should be configurable or based on asset precision.
-            minimum_absolute_threshold = Decimal("0.000001")
-            final_threshold = max(size_threshold_amount, minimum_absolute_threshold)
+            final_threshold = max(size_threshold_amount, Decimal("0.000001"))
             # --- End Threshold calculation fix ---
 
             # Use the final calculated threshold for comparison

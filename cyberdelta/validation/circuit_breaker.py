@@ -825,39 +825,6 @@ class CircuitBreakerSystem:
         if exchange_breaker_name in self.breakers:
             breaker = self.breakers[exchange_breaker_name]
             if isinstance(breaker, APIErrorBreaker):
-                breaker.record_error(error_message)
-                breaker.check()
-                recorded = True
-
-        # Also record in global API breaker if present
-        if "global_api_errors" in self.breakers:
-            breaker = self.breakers["global_api_errors"]
-            if isinstance(breaker, APIErrorBreaker):
-                breaker.record_error(f"{exchange}: {error_message}")
-                breaker.check()
-                recorded = True
-
-        if not recorded:
-            logger.warning(f"No API error breakers found to record error for {exchange}")
-
-    def record_api_success(self, exchange: str, context: str = "") -> None:
-        """
-        Record an API success which can help reset error counters.
-
-        This is especially important for exchanges with sporadic errors
-        that shouldn't trigger circuit breakers.
-
-        Args:
-            exchange: Exchange identifier
-            context: Optional context (e.g., symbol, operation type)
-        """
-        logger.debug(f"Recording API success for {exchange}{' for ' + context if context else ''}")
-
-        # Check exchange-specific breaker
-        exchange_breaker_name = f"{exchange}_api_errors"
-        if exchange_breaker_name in self.breakers:
-            breaker = self.breakers[exchange_breaker_name]
-            if isinstance(breaker, APIErrorBreaker):
                 # If breaker is open, consider transitioning it
                 if breaker.state == BreakerState.OPEN:
                     # Only transition to HALF_OPEN if cooldown period has passed
@@ -880,12 +847,18 @@ class CircuitBreakerSystem:
                         )
                     else:
                         logger.info(
-                            f"API success not sufficient for recovery: {exchange_breaker_name} remains in OPEN state"
+                            f"Exchange breaker {exchange_breaker_name} remains in HALF_OPEN after successful check.\"
                         )
-
-                # Record success in error tracking (might reduce counter in some implementations)
-                if hasattr(breaker, "record_success") and callable(breaker.record_success):
-                    breaker.record_success()
+                        # Keep state HALF_OPEN, reset success count
+                        self._recovery_success_counts[exchange_breaker_name] = 0
+                else:
+                    logger.info(\
+                        f\"API success not sufficient for recovery: \"
+                        f\"{exchange_breaker_name} remains in OPEN state\"\
+                    )
+            else:
+                # Not OPEN or HALF_OPEN, success doesn\'t change state
+                pass
 
         # Also update global API breaker if present
         if "global_api_errors" in self.breakers:
@@ -895,13 +868,18 @@ class CircuitBreakerSystem:
                 if breaker.state == BreakerState.HALF_OPEN:
                     recovery_success = breaker.test_recovery()
                     if recovery_success:
-                        logger.info(
-                            "API success confirmed recovery: global_api_errors reset to CLOSED state"
+                        logger.info("API success confirmed recovery: global_api_errors reset to CLOSED state")
+                    else:
+                        logger.info(\
+                            f\"API success not sufficient for recovery: \"
+                            f\"global_api_errors remains in {global_breaker.state.name} state\"\
                         )
+                else:
+                    # Not OPEN or HALF_OPEN, success doesn\'t change state
+                    pass
 
-                # Record success in error tracking
-                if hasattr(breaker, "record_success") and callable(breaker.record_success):
-                    breaker.record_success()
+        if not recorded:
+            logger.warning(f"No API error breakers found to record error for {exchange}")
 
     def record_critical_failure(self, exchange: str, error_message: str) -> None:
         """
@@ -925,7 +903,7 @@ class CircuitBreakerSystem:
 
         # If we have any exchange-specific volatility breakers, trip those too
         # as a critical failure might indicate market conditions are unstable
-        for breaker_name, breaker in self.exchange_breakers.get(exchange, {}).items():
+        for _breaker_name, breaker in self.exchange_breakers.get(exchange, {}).items():
             if isinstance(breaker, VolatilityBreaker):
                 breaker.trip(f"Critical failure triggered volatility breaker: {error_message}")
 

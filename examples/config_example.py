@@ -26,16 +26,48 @@ The configuration system supports:
 
 import argparse
 import os
-import sys
+import time
 from pathlib import Path
+from typing import Any
 
-# Add the parent directory to sys.path for relative imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Assuming the script is run from the project root, no need to modify sys.path
+# If run from examples/, the relative import might work, but absolute is safer
+# Correct imports based on project structure
+from cyberdelta.utils.config import Config
+from cyberdelta.utils.secrets import SecretsManager
 
-from cyberdelta.config import ConfigManager, SecretsManager
+# Get project root assuming the script is run from the project root
+# or adjust relative path accordingly.
+PROJECT_ROOT = Path(__file__).parent.parent
+CYBERDELTA_DIR = PROJECT_ROOT / "cyberdelta"
+EXAMPLES_DIR = PROJECT_ROOT / "examples"
+
+# Configuration paths (as used by the application)
+DEFAULT_CONFIG_DIR = CYBERDELTA_DIR / "config"
+USER_CONFIG_DIR = Path.home() / ".cyberdelta"
+DEFAULT_SECRETS_FILE = USER_CONFIG_DIR / "secrets.yaml"
+
+# Example file paths (within the examples directory)
+EXAMPLE_CONFIG_BASE = EXAMPLES_DIR / "config_base.yaml"
+EXAMPLE_CONFIG_CYBERDELTA = EXAMPLES_DIR / "config_cyberdelta.yaml"
+EXAMPLE_SECRETS = EXAMPLES_DIR / "secrets_example.yaml"
+
+# --- Helper Functions ---
 
 
-def main():
+def _print_dict(d: dict[str, Any], indent: int = 0) -> None:
+    """Recursively prints a dictionary with indentation."""
+    for key, value in d.items():
+        print("  " * indent + f"{key}:", end="")
+        if isinstance(value, dict):
+            print()
+            _print_dict(value, indent + 1)
+        else:
+            print(f" {value}")
+
+
+def main() -> None:
+    """Main function to demonstrate configuration loading."""
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Configuration system example")
     parser.add_argument(
@@ -87,7 +119,7 @@ def main():
         return
 
     print(f"Loading configuration from: {config_path}")
-    config = ConfigManager(config_path)
+    config = Config(config_path=config_path)
     if not config.load():
         print("Failed to load configuration")
         return
@@ -96,7 +128,7 @@ def main():
     # Set environment variable for SecretsManager
     os.environ["CYBERDELTA_SECRETS_PATH"] = secrets_path
     # Create secrets manager
-    secrets = SecretsManager()
+    secrets = SecretsManager(secrets_file_path=secrets_path)
     if not secrets.load_secrets():
         print("Failed to load secrets")
         return
@@ -171,15 +203,53 @@ def main():
         print(f"    API Key: {'Present' if has_key else 'Missing'}")
         print(f"    API Secret: {'Present' if has_secret else 'Missing'}")
 
+    # --- Display Loaded Config ---
+    print("\n--- Final Merged Configuration: ---")
+    # Use helper to print, assuming config.data holds the dict
+    if config and hasattr(config, "data") and isinstance(config.data, dict):
+        _print_dict(config.data)
+    else:
+        print("(Configuration object is empty or not loaded correctly)")
 
-def create_example_files():
+    # --- Display Loaded Secrets (Keys Only) ---
+    print("\n--- Loaded Secrets (Keys Only): ---")
+    if (
+        secrets and hasattr(secrets, "_secrets") and isinstance(secrets._secrets, dict)
+    ):  # Access internal for demo
+        for key in secrets._secrets.keys():
+            print(f"- {key}")
+    else:
+        print("(No secrets loaded or secrets object invalid)")
+
+    # --- Example Access ---
+    print("\n--- Example Access: ---")
+    if config:
+        db_host = config.get("database.host", "default_host")
+        strategy_threshold = config.get("strategy.funding_rate.min_profit_threshold", 0.001)
+        print(f"Database Host: {db_host}")
+        print(f"Strategy Threshold: {strategy_threshold}")
+    else:
+        print("Cannot access config values.")
+
+    if secrets:
+        # Use default value if key might be missing
+        api_key = secrets.get("exchanges.mock_hl.api_key", "<NOT_SET>")
+        print(f"Mock HL API Key: {api_key}")
+    else:
+        print("Cannot access secrets values.")
+
+    print(f"\nConfig file(s) used: {config.config_files_loaded}")
+    print(f"User secrets file used: {secrets.secrets_file_path if secrets else 'None'}")
+
+
+def create_example_files() -> None:
     """Create example configuration and secrets files in the correct locations."""
     # Define the primary config directory used by the application
-    cyberdelta_config_dir = Path(__file__).parent.parent / "cyberdelta" / "config"
+    cyberdelta_config_dir = CYBERDELTA_DIR / "config"
     os.makedirs(cyberdelta_config_dir, exist_ok=True)
 
     # Define the recommended user secrets directory
-    user_secrets_dir = Path.home() / ".cyberdelta"
+    user_secrets_dir = USER_CONFIG_DIR
     os.makedirs(user_secrets_dir, exist_ok=True)
 
     # Example configuration content (ensure this matches the latest structure)
@@ -322,57 +392,73 @@ notifications:
 
     print("\nIMPORTANT:")
     print(
-        f"1. Copy {cyberdelta_config_example_path} to {cyberdelta_config_dir / 'config.yaml'} and customize."
+        f"1. Review the example config: {cyberdelta_config_example_path}"  # No copy needed
     )
     print(
-        f"2. Copy {user_secrets_example_path} to {user_secrets_dir / 'secrets.yaml'} (recommended) or another secure location."
+        f"2. Create/edit your user config: {user_config_dir / 'config.yaml'}"  # Example: config_base.yaml
     )
-    print("3. Add your actual API keys/secrets to your secrets file.")
     print(
-        "4. Ensure the CYBERDELTA_SECRETS_PATH environment variable points to your actual secrets file if not using the default ~/.cyberdelta/secrets.yaml."
+        f"3. Copy {user_secrets_example_path} to "
+        f"{user_secrets_dir / 'secrets.yaml'} (recommended) or another secure location."
+    )
+    print("4. Add your actual API keys/secrets to your secrets file.")
+    print(
+        "5. Ensure 'secrets_file' in your user config.yaml points to your actual "
+        "secrets file if not using the default ~/.cyberdelta/secrets.yaml."
     )
 
 
-def run_benchmark(config_path, secrets_path):
+def run_benchmark(config_path: Path | str | None, secrets_path: Path | str | None) -> None:
     """Run a simple benchmark of the configuration system."""
-    import time
+    n_iterations = 1000
 
     print("Running Configuration System Benchmark")
     print("======================================")
+    print(f"Config Path: {config_path}")
+    print(f"Secrets Path: {secrets_path}")
 
-    # Measure configuration loading time
-    start_time = time.time()
-    config = ConfigManager(config_path)
-    config.load()
-    config_load_time = time.time() - start_time
+    # Initialize Config and SecretsManager
+    # Convert Path objects to string if necessary for Config/SecretsManager init
+    config_path_str = (
+        str(config_path) if config_path and isinstance(config_path, Path) else config_path
+    )
+    secrets_path_str = (
+        str(secrets_path) if secrets_path and isinstance(secrets_path, Path) else secrets_path
+    )
 
-    # Measure secrets loading time
+    # --- Benchmark Instantiation ---
     start_time = time.time()
-    secrets = SecretsManager()
-    os.environ["CYBERDELTA_SECRETS_PATH"] = secrets_path
-    secrets.load_secrets()
-    secrets_load_time = time.time() - start_time
+    # Config likely loads automatically on instantiation
+    config = Config(config_path=config_path_str)
+    instantiation_time = time.time() - start_time
+
+    start_time = time.time()
+    # SecretsManager likely loads automatically on instantiation
+    secrets = SecretsManager(secrets_file_path=secrets_path_str)  # Use correct parameter name
+    secrets_instantiation_time = time.time() - start_time
+
+    # --- Benchmark Value Access ---
 
     # Measure config value access time (1000 lookups)
     start_time = time.time()
-    for _ in range(1000):
+    for _ in range(n_iterations):
         config.get("strategies.hl_perp_bp_spot.params.funding_threshold")
     config_access_time = time.time() - start_time
 
     # Measure secrets value access time (1000 lookups)
     start_time = time.time()
-    for _ in range(1000):
+    for _ in range(n_iterations):
         secrets.get("exchanges.hyperliquid.api_key")
     secrets_access_time = time.time() - start_time
 
     # Print results
     print("\nResults:")
-    print(f"  Config load time: {config_load_time:.6f} seconds")
-    print(f"  Secrets load time: {secrets_load_time:.6f} seconds")
+    print(f"  Config load time: {instantiation_time:.6f} seconds")
+    print(f"  Secrets load time: {secrets_instantiation_time:.6f} seconds")
     print(f"  Config access time (1000 lookups): {config_access_time:.6f} seconds")
     print(f"  Secrets access time (1000 lookups): {secrets_access_time:.6f} seconds")
-    print(f"  Average config lookup: {(config_access_time / 1000) * 1000000:.2f} ns")
-    print(f"  Average secrets lookup: {(secrets_access_time / 1000) * 1000000:.2f} ns")
+    print(f"  Average config lookup: {(config_access_time / n_iterations) * 1000000:.2f} ns")
+    print(f"  Average secrets lookup: {(secrets_access_time / n_iterations) * 1000000:.2f} ns")
 
 
 if __name__ == "__main__":

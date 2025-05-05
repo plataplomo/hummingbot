@@ -262,61 +262,90 @@ def test_clear(mock_config: Config, sample_signal: TradeSignal) -> None:
 @patch(
     "cyberdelta.core.models.datetime"
 )  # Patch datetime used within the model methods (like is_valid)
-@patch("unittest.mock.patch")  # Added missing import for patch decorator
 def test_clean_expired_signals(
-    mock_patch: MagicMock, mock_models_dt: MagicMock, mock_queue_dt: MagicMock, mock_config: Config
-) -> None:  # Added mock_patch arg
-    """Test cleaning expired signals from the queue."""
-    # Use a fixed time for consistency
-    fixed_now = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
-    mock_models_dt.now.return_value = fixed_now
-    mock_queue_dt.now.return_value = fixed_now
-    # Ensure side effect is None if needed by other parts of datetime
-    mock_models_dt.side_effect = None
-    mock_queue_dt.side_effect = None
-
+    mock_models_dt: MagicMock, mock_queue_dt: MagicMock, mock_config: Config
+) -> None:
+    """Test cleaning up expired signals."""
     queue = PrioritySignalQueue(mock_config)
 
-    # Create signals relative to fixed_now
-    # Expired signal
-    expired = TradeSignal(
+    # Mock current time
+    now = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+    mock_queue_dt.now.return_value = now
+    mock_models_dt.now.return_value = now
+
+    # Add signals with different expiration times
+    valid_signal = TradeSignal(
+        timestamp=now - timedelta(seconds=10),
         symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("49999"),
-        quantity=Decimal("0.5"),
-        expiration=fixed_now - timedelta(seconds=10),  # Already expired
-        exchange="mock_exchange_exp",
+        price=Decimal("50000"),
+        quantity=Decimal("1"),
+        source_strategy="test",
+        metadata={"utility_score": 0.8},
+        expiration=(now + timedelta(seconds=30)),  # Explicit future expiration
+        exchange="mock_exchange",
     )
-
-    # Valid signal
-    valid = TradeSignal(
+    expired_signal = TradeSignal(
+        timestamp=now - timedelta(seconds=70),
         symbol="ETH/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("50001"),
-        quantity=Decimal("0.5"),
-        expiration=fixed_now + timedelta(seconds=30),  # Not expired
-        exchange="mock_exchange_valid",
+        price=Decimal("3000"),
+        quantity=Decimal("1"),
+        source_strategy="test",
+        metadata={"utility_score": 0.7},
+        expiration=(now - timedelta(seconds=10)),  # Explicit past expiration
+        exchange="mock_exchange",
+    )
+    default_expired_signal = TradeSignal(
+        timestamp=now - timedelta(seconds=70),  # Created > 60s ago
+        symbol="SOL/USDT",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,
+        price=Decimal("100"),
+        quantity=Decimal("10"),
+        source_strategy="test",
+        metadata={"utility_score": 0.6},
+        # No explicit expiration, should use default (60s)
+        exchange="mock_exchange",
+    )
+    lowest_priority_signal = TradeSignal(
+        timestamp=now - timedelta(seconds=10),
+        symbol="LOW_PRIORITY",
+        signal_type=SignalType.ENTER_LONG,
+        side=OrderSide.BUY,
+        price=Decimal("1"),
+        quantity=Decimal("1"),
+        source_strategy="test",
+        metadata={"utility_score": 0.1},
+        expiration=(now + timedelta(seconds=30)),
+        exchange="mock_exchange",
     )
 
-    queue.add_signal(expired)
-    queue.add_signal(valid)
+    queue.add_signal(valid_signal)
+    queue.add_signal(expired_signal)
+    queue.add_signal(default_expired_signal)
+    queue.add_signal(lowest_priority_signal)
 
-    # Use internal queue length check before cleanup as count() calls cleanup
-    assert len(queue.signal_queue) == 2
+    assert queue.count() == 4
 
     # Clean expired signals
-    removed_count = queue._clean_expired_signals()
-    assert removed_count == 1  # Check that one was reported removed
+    cleaned_count = queue.clean_expired_signals()
 
-    # Now check count AFTER cleanup
-    assert queue.count() == 1  # This calls cleanup again, but should be idempotent
-    assert len(queue.signal_queue) == 1  # Check internal length again
+    assert cleaned_count == 2
+    assert queue.count() == 2
 
-    signals = queue.get_signals()
-    assert len(signals) == 1
-    assert signals[0].symbol == "ETH/USDT"
+    # Verify remaining signals
+    remaining_signals = [s for _, _, s in queue.signal_queue]
+    symbols = {s.symbol for s in remaining_signals}
+    assert "BTC/USDT" in symbols
+    assert "LOW_PRIORITY" in symbols
+    assert "ETH/USDT" not in symbols
+    assert "SOL/USDT" not in symbols
+    # Verify lowest priority signal is still present
+    # lowest_priority_signal should be defined within this scope or passed as fixture
+    assert lowest_priority_signal.symbol == "LOW_PRIORITY"
 
 
 def test_trim_queue(mock_config: Config) -> None:

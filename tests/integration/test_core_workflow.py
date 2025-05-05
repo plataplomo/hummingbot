@@ -571,12 +571,12 @@ async def test_happy_path_full_cycle(
             # time_dt = datetime.fromtimestamp(time_int / 1000, UTC) if isinstance(time_int, int) else time_int
             time_dt = time_int  # Assume it's already datetime
             # Ensure timestamp is not None, use start_time if next_funding_time is None
-            funding_timestamp = time_dt if time_dt is not None else start_time
+            next_funding_time = time_dt or start_time
             funding_rate_obj = FundingRate(
                 symbol=sym,
                 funding_rate=rate,
-                next_funding_time=time_dt,
-                timestamp=funding_timestamp,  # Add timestamp
+                next_funding_time=next_funding_time,
+                timestamp=next_funding_time,  # Add timestamp
             )
             sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
 
@@ -1326,7 +1326,7 @@ async def test_execution_failure_compensation(
             internal_sym = symbol_key  # Use the internal symbol defined in the test
             rate, time_int = rate_data  # Unpack the tuple
             # time_dt = datetime.fromtimestamp(time_int / 1000, UTC) if isinstance(time_int, int) else time_int
-            time_dt = time_int  # Assume already datetime
+            time_dt = time_int  # Assume it's already datetime
             # Ensure timestamp is not None, use now if next_funding_time is None
             funding_timestamp = time_dt if time_dt is not None else now
             funding_rate_obj = FundingRate(
