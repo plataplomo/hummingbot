@@ -5,7 +5,7 @@ from unittest.mock import create_autospec
 
 import pytest
 
-from cyberdelta.core.data_handler import DataHandler
+from cyberdelta.core.data_handler import DataHandler, Ticker
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import FundingRateValidatorProtocol, PortfolioTrackerProtocol
@@ -23,20 +23,18 @@ from tests.integration.mocks.mock_exchange import MockExchangeAPI
 # Moved from test_core_workflow.py
 def create_mock_ticker(
     symbol: str,
-    bid: float,
-    ask: float,
-    price: float,
-    timestamp: int,
-) -> ArbitrageOpportunity:
+    bid: str | float | Decimal,  # Allow various inputs
+    ask: str | float | Decimal,
+    price: str | float | Decimal,
+    timestamp: datetime,  # Expect datetime object
+) -> Ticker:  # Return Ticker object
     """Helper to create a Ticker object with Decimal conversion."""
-    # This should ideally be moved from test_core_workflow.py
-    # For now, defining it here if not already moved.
-    return ArbitrageOpportunity(
+    return Ticker(
         symbol=symbol,
-        bid=Decimal(str(bid)),  # Ensure conversion from potential float/int
+        bid=Decimal(str(bid)),
         ask=Decimal(str(ask)),
         price=Decimal(str(price)),
-        timestamp=timestamp,
+        timestamp=timestamp,  # Pass datetime directly
     )
 
 

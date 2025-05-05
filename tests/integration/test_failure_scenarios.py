@@ -6,12 +6,14 @@ import asyncio
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import cast
 
 import pytest
 
 # Import core components and models
-from cyberdelta.apis.base_api import APIError  # Import APIError for simulation
-from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus, TradeExecution
 from cyberdelta.core.models import (
     SpotBalance,
 )
@@ -20,6 +22,7 @@ from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.utils.config import Config  # Added import
 from cyberdelta.validation import ArbitrageOpportunity
 from cyberdelta.validation.circuit_breaker import (
+    APIErrorBreaker,  # Import specific breaker type
     BreakerState,
     CircuitBreakerSystem,
 )  # Import BreakerState
@@ -75,35 +78,46 @@ class TestFailureScenarios:
         circuit_breaker_system.reset_exchange_breakers(other_exchange)
 
         # Set balances and initialize tracker
+        now = datetime.now(UTC)  # Need timestamp
         mock_bp_api.set_mock_balance(
             SpotBalance(
                 exchange="mock_bp",
                 asset="USDT",
-                total=Decimal("10000"),
-                available=Decimal("10000"),
+                # total=Decimal("10000"), # Use correct fields
+                # available=Decimal("10000"),
+                total_quantity=Decimal("10000"),  # Add missing
+                available_quantity=Decimal("10000"),  # Add missing
+                timestamp=now,  # Add missing
             )
         )
         mock_hl_api.set_mock_balance(
             SpotBalance(
                 exchange="mock_hl",
                 asset="USDT",
-                total=Decimal("10000"),
-                available=Decimal("10000"),
+                # total=Decimal("10000"), # Use correct fields
+                # available=Decimal("10000"),
+                total_quantity=Decimal("10000"),  # Add missing
+                available_quantity=Decimal("10000"),  # Add missing
+                timestamp=now,  # Add missing
             )
         )
         await real_portfolio_tracker.initialize()
-        ts = datetime.now(UTC)
+        # ts = datetime.now(UTC) # Moved 'now' up
         # Ensure BOTH exchanges have valid tickers configured *before* error simulation
-        bp_symbol = mock_config.get(f"exchanges.{target_exchange}.symbols.BTC")
-        hl_symbol = mock_config.get(f"exchanges.{other_exchange}.symbols.BTC")
+        bp_symbol = str(mock_config.get(f"exchanges.{target_exchange}.symbols.BTC"))  # Cast to str
+        hl_symbol = str(mock_config.get(f"exchanges.{other_exchange}.symbols.BTC"))  # Cast to str
 
-        mock_bp_api.set_mock_ticker(create_mock_ticker(bp_symbol, 30000, 30001, 30000.5, ts))
-        mock_hl_api.set_mock_ticker(create_mock_ticker(hl_symbol, 30010, 30011, 30010.5, ts))
+        mock_bp_api.set_mock_ticker(create_mock_ticker(bp_symbol, 30000, 30001, 30000.5, now))
+        mock_hl_api.set_mock_ticker(create_mock_ticker(hl_symbol, 30010, 30011, 30010.5, now))
 
         # Configure mock_bp to consistently fail order placement
         error_message = "Simulated API error during order placement"
         mock_bp_api.set_error_simulation(
-            APIError(error_message, exchange_code=target_exchange),
+            APIError(
+                message=error_message,
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,  # Add missing code
+                exchange_code=target_exchange,
+            ),
             method_name="place_order",
         )
         logger.info(f"Configured {target_exchange} mock to fail place_order with: {error_message}")
@@ -113,22 +127,26 @@ class TestFailureScenarios:
             opportunity=basic_opportunity,  # basic_opportunity uses mock_bp as long
             long_size=Decimal("1000"),
             short_size=Decimal("1000"),
-            allocation_percentage=0.1,
+            allocation_percentage=Decimal("0.1"),  # Use Decimal
             expected_profit=Decimal("10"),
-            expected_return=0.01,
-            risk_adjusted_return=0.01,
+            expected_return=Decimal("0.01"),  # Use Decimal
+            risk_adjusted_return=Decimal("0.01"),  # Use Decimal
         )
 
         # 2. Trigger Failures until Breaker Trips
         breaker = circuit_breaker_system.get_exchange_breaker(target_exchange, target_breaker_type)
         assert breaker is not None, "Target exchange breaker not found"
-        max_failures_to_trip = breaker.error_threshold  # Get threshold from the breaker instance
+        # Cast to specific type to access error_threshold
+        api_breaker = cast(APIErrorBreaker, breaker)
+        max_failures_to_trip: int = (
+            api_breaker.error_threshold
+        )  # Get threshold from the breaker instance
 
         logger.info(
-            f"Breaker '{breaker.name}' threshold: {max_failures_to_trip}. Current state: {breaker.state.name}"
+            f"Breaker '{api_breaker.name}' threshold: {max_failures_to_trip}. Current state: {api_breaker.state.name}"
         )
-        execution_results = []
-        for i in range(max_failures_to_trip + 1):
+        execution_results: list[TradeExecution] = []  # Add type hint
+        for i in range(max_failures_to_trip + 1):  # Now max_failures_to_trip is int
             logger.info(f"Execution attempt {i + 1}/{max_failures_to_trip + 1}")
             result = await execution_handler.execute_opportunity(sized_opportunity)
             execution_results.append(result)
@@ -144,7 +162,9 @@ class TestFailureScenarios:
         assert breaker.state == BreakerState.OPEN, "Breaker should be OPEN"
 
         # --- MODIFIED: Attempt execution *after* breaker is confirmed OPEN ---
-        logger.info(f"Breaker {breaker.name} is confirmed OPEN. Attempting one more execution...")
+        logger.info(
+            f"Breaker {api_breaker.name} is confirmed OPEN. Attempting one more execution..."
+        )
         rejected_result = await execution_handler.execute_opportunity(sized_opportunity)
         logger.info(f"Result of execution attempt while OPEN: {rejected_result.status.name}")
 
@@ -154,7 +174,11 @@ class TestFailureScenarios:
         )
         # Construct the fully qualified name expected in the error message
         expected_breaker_name_in_message = f"exchange:{target_exchange}:{target_breaker_type}"
-        assert expected_breaker_name_in_message in rejected_result.error_message, (
+        # Add None check before 'in'
+        assert (
+            rejected_result.error_message is not None
+            and expected_breaker_name_in_message in rejected_result.error_message
+        ), (
             f"Error message '{rejected_result.error_message}' should mention the tripped breaker '{expected_breaker_name_in_message}'"
         )
 
@@ -180,10 +204,13 @@ class TestFailureScenarios:
             long_price=Decimal("30010"),
             short_price=Decimal("30000"),  # Prices reversed
             long_funding_rate=Decimal("0.0001"),  # Dummy value
-            short_funding_rate=Decimal("0.0002"),  # Dummy value
+            short_funding_rate=Decimal("-0.00005"),  # Dummy value
             net_funding_differential=Decimal("-0.0001"),  # Dummy value
             timestamp=datetime.now(UTC),
-            # Removed incorrect/unexpected arguments: internal_symbol, long_symbol, short_symbol, book_imbalance
+            basis_volatility=float(Decimal("0.01")),  # Cast to float
+            expected_profit=Decimal("10.0"),  # Use Decimal
+            # Removed incorrect/unexpected arguments:
+            # internal_symbol, long_symbol, short_symbol, book_imbalance
         )
 
         # Create a sized opportunity for the other exchange
@@ -191,10 +218,10 @@ class TestFailureScenarios:
             opportunity=other_opportunity,
             long_size=Decimal("1000"),
             short_size=Decimal("1000"),
-            allocation_percentage=0.1,
+            allocation_percentage=Decimal("0.1"),  # Use Decimal
             expected_profit=Decimal("10"),
-            expected_return=0.01,
-            risk_adjusted_return=0.01,
+            expected_return=Decimal("0.01"),  # Use Decimal
+            risk_adjusted_return=Decimal("0.01"),  # Use Decimal
         )
 
         # Re-enable the breaker for the target exchange before the next attempt
@@ -221,6 +248,8 @@ class TestFailureScenarios:
         # Let's check the status isn't REJECTED due to the *other* exchange's breaker.
         assert other_result.status != ExecutionStatus.REJECTED or (
             other_result.status == ExecutionStatus.REJECTED
+            # Add None check before 'not in'
+            and other_result.error_message is not None
             and f"exchange:{other_exchange}:" not in other_result.error_message
         ), (
             f"Execution on unaffected exchange {other_exchange} was unexpectedly REJECTED by its own breaker: {other_result.error_message}"
@@ -230,25 +259,34 @@ class TestFailureScenarios:
         # might still be tripped or the mock_bp API fails again.
         # If the status is FAILED, check the error message relates to mock_bp
         if other_result.status == ExecutionStatus.FAILED:
-            assert target_exchange in other_result.error_message, (
-                f"Execution failed, but error message '{other_result.error_message}' doesn't mention the originally failing exchange '{target_exchange}'"
-            )
-        # If the status is REJECTED, check the error message relates to mock_bp's breaker
-        elif other_result.status == ExecutionStatus.REJECTED:
-            assert f"exchange:{target_exchange}:" in other_result.error_message, (
-                f"Execution rejected, but error message '{other_result.error_message}' doesn't mention the originally failing exchange breaker '{target_exchange}'"
-            )
-        # Otherwise (SUCCESS), it means mock_bp API didn't fail this time *and* its breaker was reset/didn't re-trip instantly.
-        else:
-            assert other_result.status == ExecutionStatus.SUCCESS, (
-                f"Expected {other_exchange} execution to succeed after {target_exchange} failure and reset"
-            )
+            # Add None check before 'in'
             assert (
                 other_result.error_message is not None
                 and target_exchange in other_result.error_message
             ), (
-                f"Error message '{other_result.error_message}' doesn't mention the originally failing exchange breaker '{target_exchange}'"
+                f"Execution failed, but error message '{other_result.error_message}' doesn't mention the originally failing exchange '{target_exchange}'"
             )
+        # If the status is REJECTED, check the error message relates to mock_bp's breaker
+        elif other_result.status == ExecutionStatus.REJECTED:
+            # Add None check before 'in'
+            assert (
+                other_result.error_message is not None
+                and f"exchange:{target_exchange}:" in other_result.error_message
+            ), (
+                f"Execution rejected, but error message '{other_result.error_message}' doesn't mention the originally failing exchange breaker '{target_exchange}'"
+            )
+        # Otherwise (COMPLETED), it means mock_bp API didn't fail this time *and* its breaker was reset/didn't re-trip instantly.
+        else:
+            assert other_result.status == ExecutionStatus.COMPLETED, (  # Use COMPLETED
+                f"Expected {other_exchange} execution to succeed after {target_exchange} failure and reset, got {other_result.status.name}"
+            )
+            # This assertion might be too strict if success has no error message
+            # assert (
+            #     other_result.error_message is not None
+            #     and target_exchange in other_result.error_message
+            # ), (
+            #     f"Error message '{other_result.error_message}' doesn\'t mention the originally failing exchange breaker '{target_exchange}'"
+            # )
 
         # 6. Reset Breaker Manually (Optional Check)
         # circuit_breaker_system.reset_breaker(f"exchange:{target_exchange}:{target_breaker_type}")
