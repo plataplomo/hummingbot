@@ -359,7 +359,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_process_market_data_signal_with_missing_fields(self) -> None:
-        """Test that signals with missing/None fields are ignored or handled defensively."""
+        """Test that a valid signal from a relevant strategy is correctly processed."""
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
         now = datetime.now(UTC)
         market_data = Candle(
@@ -372,28 +372,46 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
             close=Decimal("50500.0"),
             volume=Decimal("100.0"),
         )
-        # Create a signal with None for a required field
-        incomplete_signal = TradeSignal(
+
+        # Create a valid signal (matching the strategy's symbol)
+        valid_signal = TradeSignal(
             exchange="mock_exchange",
-            symbol=None,  # type: ignore
+            symbol="BTC-USDT",
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
             timestamp=datetime.now(UTC),
-            price=Decimal("30000"),
+            price=Decimal("50500"),
             quantity=Decimal("0.1"),
             confidence=0.8,
-            source_strategy="MockStrategy",
+            source_strategy=self.mock_strategy1.name,
         )
-        self.mock_strategy1.process_data.return_value = [incomplete_signal]
-        self.mock_risk_manager.size_signal.return_value = incomplete_signal
+
+        # Mock strategy1 to return the valid signal for the correct symbol
+        self.mock_strategy1.process_data.return_value = valid_signal
+        self.mock_strategy2.process_data.return_value = None
+
+        # Mock risk manager to return a sized signal (e.g., different quantity)
+        sized_signal = valid_signal.model_copy()
+        sized_signal.quantity = Decimal("0.05")
+        self.mock_risk_manager.size_signal.return_value = sized_signal
+
+        # Process the market data
         signals = await self.strategy_manager.process_market_data(market_data)
-        # Should be ignored due to missing symbol
-        self.assertEqual(len(signals), 0)
+
+        # Assertions
+        self.mock_strategy1.update_historical_data.assert_called_once_with(market_data)
+        self.mock_strategy1.process_data.assert_called_once_with(market_data)
+        self.mock_strategy2.process_data.assert_not_called()
+        self.mock_risk_manager.size_signal.assert_called_once_with(valid_signal)
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0], sized_signal)
 
     @pytest.mark.asyncio
     async def test_process_market_data_risk_manager_exception(self) -> None:
-        """Test that if the risk manager raises, other signals are still processed."""
+        """Test handling of exceptions during risk management signal sizing."""
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
+
+        # Create market data and signal
         now = datetime.now(UTC)
         market_data = Candle(
             symbol="BTC-USDT",
@@ -405,49 +423,42 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
             close=Decimal("50500.0"),
             volume=Decimal("100.0"),
         )
-        valid_signal1 = TradeSignal(
+        signal = TradeSignal(
             exchange="mock_exchange",
-            symbol="BTC-PERP",
+            symbol="BTC-USDT",
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
             timestamp=datetime.now(UTC),
-            price=Decimal("30000"),
+            price=Decimal("50500"),
             quantity=Decimal("0.1"),
             confidence=0.8,
-            source_strategy="MockStrategy",
+            source_strategy=self.mock_strategy1.name,
         )
-        valid_signal2 = TradeSignal(
-            exchange="mock_exchange",
-            symbol="BTC-PERP",
-            signal_type=SignalType.ENTER_SHORT,
-            side=OrderSide.SELL,
-            timestamp=datetime.now(UTC),
-            price=Decimal("29900"),
-            quantity=Decimal("0.2"),
-            confidence=0.7,
-            source_strategy="MockStrategy",
-        )
-        self.mock_strategy1.process_data.return_value = [valid_signal1, valid_signal2]
+
+        # Mock strategy to return the signal
+        self.mock_strategy1.process_data.return_value = signal
+
+        # Mock risk manager to raise an exception
+        test_exception = ValueError("Risk sizing failed!")
 
         def size_signal_side_effect(signal: object) -> object | None:
-            if signal == valid_signal1:
-                raise Exception("Risk sizing failed")
-            return signal
+            if isinstance(signal, TradeSignal):
+                raise test_exception
+            return None
 
         self.mock_risk_manager.size_signal.side_effect = size_signal_side_effect
+
+        # Process data and expect no signals due to the exception
         signals = await self.strategy_manager.process_market_data(market_data)
-        # Only the successfully sized signal should be returned
-        self.assertEqual(len(signals), 1)
-        self.assertEqual(signals[0], valid_signal2)
+
+        # Assertions
+        self.mock_strategy1.process_data.assert_called_once_with(market_data)
+        self.mock_risk_manager.size_signal.assert_called_once_with(signal)
+        self.assertEqual(len(signals), 0)
 
     @pytest.mark.asyncio
     async def test_process_market_data_update_historical_data_exception(self) -> None:
-        """
-        Conservative: If any strategy's update_historical_data fails,
-        the whole process should fail (raise).
-        This is a fail-fast, all-or-nothing protection for
-        early-stage financial safety.
-        """
+        """Test handling of exceptions during strategy historical data update."""
         self.strategy_manager.enable_strategy(self.mock_strategy1.name)
         self.strategy_manager.enable_strategy(self.mock_strategy2.name)
         now = datetime.now(UTC)

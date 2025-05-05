@@ -857,11 +857,10 @@ class TestExecutionHandler:
             post_only: bool = False,
             **kwargs: object,
         ) -> Order:
-            nonlocal comp_order
             await asyncio.sleep(0.01)
             if exchange_id == "hyperliquid" and side == OrderSide.BUY:
                 return Order(**long_order.model_dump())
-            elif exchange_id == "backpack" and side == OrderSide.SELL:
+            if exchange_id == "backpack" and side == OrderSide.SELL:
                 raise short_order_failure
             elif exchange_id == "hyperliquid" and side == OrderSide.SELL and reduce_only:
                 comp_order_placed_dict = comp_order.model_dump()

@@ -557,150 +557,132 @@ class CircuitBreakerSystem:
 
     def _load_config(self) -> None:
         """Load circuit breaker configuration."""
-        # Load global settings
-        global_enabled = self.config.get("validation.circuit_breaker.enabled", True)
-        if not global_enabled:
-            logger.warning("Circuit breaker system is globally disabled")
+        # === ADDED: Load Global API Error ===
+        global_api_config_path = "validation.circuit_breaker.global.api_errors"
+        global_api_config = self.config.get(global_api_config_path)
+
+        if isinstance(global_api_config, dict):
+            try:
+                # Add type ignores as config.get return type is Any
+                threshold = int(global_api_config.get("error_threshold", 3))  # type: ignore[arg-type]
+                window = int(global_api_config.get("window_seconds", 60))  # type: ignore[arg-type]
+                cooldown = int(global_api_config.get("cooldown_seconds", 300))  # type: ignore[arg-type]
+                enabled = bool(global_api_config.get("enabled", True))  # type: ignore[arg-type]
+
+                if enabled:
+                    self.global_api_error_breaker = APIErrorBreaker(
+                        name="global_api_errors",
+                        error_threshold=threshold,
+                        window_seconds=window,
+                        cooldown_seconds=cooldown,
+                    )
+                    logger.info("Initialized global API error breaker.")
+                else:
+                    logger.info("Global API error breaker is disabled in config.")
+            except (ValueError, TypeError) as e:
+                logger.error(
+                    f"Invalid config for global API error breaker at '{global_api_config_path}': {e}"
+                )
+        elif global_api_config is not None:
+            logger.warning(
+                f"Expected dict for global API config at '{global_api_config_path}', got {type(global_api_config)}. Skipping."
+            )
+
+        # Load exchange-specific breakers
+        exchanges_config = self.config.get("exchanges")
+        if not isinstance(exchanges_config, dict):
+            logger.warning(
+                "No 'exchanges' config found or it is not a dictionary. Cannot load exchange breakers."
+            )
             return
 
-        # === ADDED: Load Global API Error Breaker ===
-        global_api_config_path = (
-            "validation.circuit_breaker.global.api_errors"  # Assuming config path
-        )
-        if self.config.get(f"{global_api_config_path}.enabled", True):
-            error_threshold = self.config.get(
-                f"{global_api_config_path}.threshold", 5
-            )  # Example threshold
-            window_seconds = self.config.get(f"{global_api_config_path}.window_seconds", 120)
-            cooldown_seconds = self.config.get(f"{global_api_config_path}.cooldown_seconds", 600)
-            global_api_breaker = APIErrorBreaker(
-                name="global_api_error",
-                error_threshold=error_threshold,
-                window_seconds=window_seconds,
-                cooldown_seconds=cooldown_seconds,
-            )
-            self.register_breaker(global_api_breaker)
-            logger.info("Initialized global API error breaker.")
-        # === END ADDED ===
-
-        # Load exchange-specific settings
-        for exchange_id in self.config.get("exchanges", {}).keys():
-            if not self.config.get(f"exchanges.{exchange_id}.enabled", False):
+        # Assuming exchanges_config.items() yields str, dict based on structure
+        for exchange_id, exchange_config in exchanges_config.items():  # type: ignore [attr-defined]
+            if not isinstance(exchange_config, dict):
+                logger.warning(f"Config for exchange '{exchange_id}' is not a dict. Skipping.")
                 continue
 
-            exchange_enabled = self.config.get(
-                f"validation.circuit_breaker.exchanges.{exchange_id}.enabled", True
-            )
-
-            if not exchange_enabled:
-                logger.info(f"Circuit breakers disabled for {exchange_id}")
+            breakers_config_path = f"exchanges.{exchange_id}.validation.circuit_breaker"
+            breakers_config = self.config.get(breakers_config_path)
+            if not isinstance(breakers_config, dict):
+                logger.debug(
+                    f"No circuit breaker config found for exchange '{exchange_id}' at '{breakers_config_path}'."
+                )
                 continue
 
-            # Initialize exchange breakers dictionary
-            self.exchange_breakers[exchange_id] = {}
+            # Example: Load API Error Breaker for the exchange
+            api_error_config = breakers_config.get("api_errors")
+            if isinstance(api_error_config, dict):
+                try:
+                    # Add type ignores as config.get return type is Any
+                    threshold = int(api_error_config.get("error_threshold", 5))  # type: ignore[arg-type]
+                    window = int(api_error_config.get("window_seconds", 120))  # type: ignore[arg-type]
+                    cooldown = int(api_error_config.get("cooldown_seconds", 600))  # type: ignore[arg-type]
+                    enabled = bool(api_error_config.get("enabled", True))  # type: ignore[arg-type]
 
-            # Create API error breaker
-            if self.config.get(
-                f"validation.circuit_breaker.exchanges.{exchange_id}.api_errors.enabled",
-                True,
-            ):
-                error_threshold = self.config.get(
-                    f"validation.circuit_breaker.exchanges.{exchange_id}.api_errors.threshold",
-                    3,
-                )
-                window_seconds = self.config.get(
-                    f"validation.circuit_breaker.exchanges.{exchange_id}.api_errors.window_seconds",
-                    60,
-                )
-                cooldown_seconds = self.config.get(
-                    f"validation.circuit_breaker.exchanges.{exchange_id}.api_errors.cooldown_seconds",
-                    300,
-                )
-
-                api_breaker = APIErrorBreaker(
-                    name=f"{exchange_id}_api_errors",
-                    error_threshold=error_threshold,
-                    window_seconds=window_seconds,
-                    cooldown_seconds=cooldown_seconds,
-                )
-
-                self.exchange_breakers[exchange_id]["api_errors"] = api_breaker
-
-            # Create volatility breakers for each trading pair
-            if self.config.get(
-                f"validation.circuit_breaker.exchanges.{exchange_id}.volatility.enabled",
-                True,
-            ):
-                volatility_threshold = self.config.get(
-                    f"validation.circuit_breaker.exchanges.{exchange_id}.volatility.threshold",
-                    0.05,
-                )
-                lookback_periods = self.config.get(
-                    f"validation.circuit_breaker.exchanges.{exchange_id}.volatility.lookback_periods",
-                    12,
-                )
-                cooldown_seconds = self.config.get(
-                    f"validation.circuit_breaker.exchanges.{exchange_id}.volatility.cooldown_seconds",
-                    300,
+                    if enabled:
+                        breaker_name = f"{exchange_id}_api_errors"
+                        breaker = APIErrorBreaker(
+                            name=breaker_name,
+                            error_threshold=threshold,
+                            window_seconds=window,
+                            cooldown_seconds=cooldown,
+                        )
+                        self.register_breaker(breaker)
+                        self.exchange_breakers.setdefault(exchange_id, {})["api_errors"] = breaker
+                        logger.info(f"Initialized API error breaker for {exchange_id}.")
+                    else:
+                        logger.info(f"API error breaker for {exchange_id} is disabled.")
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Invalid config for {exchange_id} API error breaker: {e}")
+            elif api_error_config is not None:
+                logger.warning(
+                    f"Expected dict for {exchange_id} API error breaker config, got {type(api_error_config)}. Skipping."
                 )
 
-                # Create breaker for each symbol
-                for symbol in self.config.get(f"exchanges.{exchange_id}.symbols", []):
-                    vol_breaker = VolatilityBreaker(
-                        name=f"{exchange_id}_{symbol}_volatility",
-                        lookback_periods=lookback_periods,
-                        volatility_threshold=volatility_threshold,
-                        cooldown_seconds=cooldown_seconds,
+            # TODO: Add loading logic for other breaker types (Volatility, Drawdown, Liquidity)
+            # Example placeholder for VolatilityBreaker
+            vol_config = breakers_config.get("volatility")
+            if isinstance(vol_config, dict) and bool(vol_config.get("enabled", False)):  # type: ignore[arg-type]
+                try:
+                    # Add type ignores as config.get return type is Any
+                    lookback = int(vol_config.get("lookback_periods", 12))  # type: ignore[arg-type]
+                    vol_threshold = float(vol_config.get("volatility_threshold", 0.05))  # type: ignore[arg-type]
+                    cooldown = int(vol_config.get("cooldown_seconds", 300))  # type: ignore[arg-type]
+                    breaker_name = f"{exchange_id}_volatility"
+                    breaker = VolatilityBreaker(
+                        name=breaker_name,
+                        lookback_periods=lookback,
+                        volatility_threshold=vol_threshold,
+                        cooldown_seconds=cooldown,
                     )
+                    self.register_breaker(breaker)
+                    self.exchange_breakers.setdefault(exchange_id, {})["volatility"] = breaker
+                    logger.info(f"Initialized Volatility breaker for {exchange_id}.")
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Invalid config for {exchange_id} Volatility breaker: {e}")
 
-                    self.exchange_breakers[exchange_id][f"{symbol}_volatility"] = vol_breaker
+            # Corrected Drawdown Breaker loading logic
+            drawdown_config = breakers_config.get("drawdown")
+            if isinstance(drawdown_config, dict) and bool(drawdown_config.get("enabled", False)): # type: ignore[arg-type]
+                try:
+                    threshold = float(drawdown_config.get("drawdown_threshold", 0.10)) # type: ignore[arg-type]
+                    cooldown = int(drawdown_config.get("cooldown_seconds", 600)) # type: ignore[arg-type]
+                    breaker_name = f"{exchange_id}_drawdown"
+                    breaker = DrawdownBreaker(\
+                        name=breaker_name,\
+                        drawdown_threshold=threshold,\
+                        cooldown_seconds=cooldown,\
+                    )\
+                    self.register_breaker(breaker)\
+                    self.exchange_breakers.setdefault(exchange_id, {})[\
+                        "drawdown"\
+                    ] = breaker\
+                    logger.info(f"Initialized Drawdown breaker for {exchange_id}.\")\
+                except (ValueError, TypeError) as e:\
+                    logger.error(f"Invalid config for {exchange_id} Drawdown breaker: {e}")\
 
-            # Create drawdown breakers
-            if self.config.get(
-                f"validation.circuit_breaker.exchanges.{exchange_id}.drawdown.enabled",
-                True,
-            ):
-                drawdown_threshold = self.config.get(
-                    f"validation.circuit_breaker.exchanges.{exchange_id}.drawdown.threshold",
-                    0.10,
-                )
-                cooldown_seconds = self.config.get(
-                    f"validation.circuit_breaker.exchanges.{exchange_id}.drawdown.cooldown_seconds",
-                    600,
-                )
-
-                # Create exchange-wide drawdown breaker
-                draw_breaker = DrawdownBreaker(
-                    name=f"{exchange_id}_drawdown",
-                    drawdown_threshold=drawdown_threshold,
-                    cooldown_seconds=cooldown_seconds,
-                )
-
-                self.exchange_breakers[exchange_id]["drawdown"] = draw_breaker
-
-            # Create liquidity breakers for each trading pair
-            if self.config.get(
-                f"validation.circuit_breaker.exchanges.{exchange_id}.liquidity.enabled",
-                True,
-            ):
-                # Get symbols and their minimum liquidity requirements
-                for symbol in self.config.get(f"exchanges.{exchange_id}.symbols", []):
-                    min_liquidity = self.config.get(
-                        f"validation.circuit_breaker.exchanges.{exchange_id}.liquidity.{symbol}.min_liquidity",
-                        100000,  # Default to $100k if not specified
-                    )
-                    cooldown_seconds = self.config.get(
-                        f"validation.circuit_breaker.exchanges.{exchange_id}.liquidity.cooldown_seconds",
-                        300,
-                    )
-
-                    liq_breaker = LiquidityBreaker(
-                        name=f"{exchange_id}_{symbol}_liquidity",
-                        min_liquidity=min_liquidity,
-                        cooldown_seconds=cooldown_seconds,
-                    )
-
-                    self.exchange_breakers[exchange_id][f"{symbol}_liquidity"] = liq_breaker
+            # TODO: Add loading logic for Liquidity breaker
 
         logger.info(f"Initialized circuit breakers for {len(self.exchange_breakers)} exchanges")
         logger.info(f"Exchange Breakers Content: {self.exchange_breakers}")
@@ -778,11 +760,6 @@ class CircuitBreakerSystem:
             for breaker_type, breaker in self.exchange_breakers[exchange].items():
                 breaker_name = f"exchange:{exchange}:{breaker_type}"
 
-                # === DEBUG LOGGING REMOVED ===
-                # if breaker.name == "mock_bp_api_errors":
-                #     logger.critical(f"[DEBUG CB TEST] Checking {breaker.name}. Current State: {breaker.state.name}")
-                # === END DEBUG LOGGING ===
-
                 if not breaker.allow_operation():
                     reason = f"Exchange breaker '{breaker_name}' for {exchange} is OPEN due to: {breaker.trip_reason}"
                     logger.warning(f"Execution blocked for {exchange}: {reason}")
@@ -806,7 +783,7 @@ class CircuitBreakerSystem:
 
     def record_api_error(self, exchange: str, error_message: str) -> None:
         """
-        Record an API error for tracking in API error breakers.
+        Record an API error for the specified exchange and globally.
 
         Args:
             exchange: Exchange identifier
@@ -815,6 +792,36 @@ class CircuitBreakerSystem:
         logger.debug(f"Recording API error for {exchange}: {error_message}")
         recorded = False
 
+        # Record with global breaker if it exists
+        if self.global_api_error_breaker:
+            self.global_api_error_breaker.record_error(error_message)
+            # Check if global breaker tripped
+            if not self.global_api_error_breaker.allow_operation():
+                logger.critical(
+                    f"Global API Error circuit breaker tripped: {self.global_api_error_breaker.trip_reason}"
+                )
+
+        # Record with exchange-specific breaker
+        breaker = self.get_exchange_breaker(exchange, "api_errors")
+        if isinstance(breaker, APIErrorBreaker):
+            breaker.record_error(error_message)
+            # Check if exchange breaker tripped
+            if not breaker.allow_operation():
+                logger.warning(
+                    f"API Error circuit breaker for {exchange} tripped: {breaker.trip_reason}"
+                )
+        else:
+            logger.debug(f"No APIErrorBreaker configured for exchange: {exchange}")
+
+    def record_api_success(self, exchange: str, context: str = "") -> None:
+        """
+        Record a successful API interaction for an exchange.
+        This can help reset error counts or test recovery in HALF_OPEN state.
+
+        Args:
+            exchange: Exchange identifier
+            context: Optional context about the successful operation
+        """
         # Record in exchange-specific breaker
         exchange_breaker_name = f"{exchange}_api_errors"
         if exchange_breaker_name in self.breakers:
@@ -1012,48 +1019,3 @@ class CircuitBreakerSystem:
         for breaker in self.exchange_breakers[exchange].values():
             breaker.reset()
             reset_count += 1
-
-        return reset_count
-
-    def get_status(self) -> dict[str, Any]:
-        """
-        Get the current status of all circuit breakers.
-
-        Returns:
-            Status as a dictionary
-        """
-        status: dict[str, dict[str, Any]] = {"global_breakers": {}, "exchange_breakers": {}}
-
-        # Add global breakers
-        for name, breaker in self.breakers.items():
-            status["global_breakers"][name] = breaker.get_status()
-
-        # Add exchange breakers
-        for exchange, breakers in self.exchange_breakers.items():
-            status["exchange_breakers"][exchange] = {}
-            for name, breaker in breakers.items():
-                status["exchange_breakers"][exchange][name] = breaker.get_status()
-
-        return status
-
-    def get_tripped_breakers(self) -> list[dict[str, Any]]:
-        """
-        Get a list of all currently tripped breakers.
-
-        Returns:
-            List of tripped breaker status dictionaries
-        """
-        tripped_breakers: list[dict[str, Any]] = []
-
-        # Check global breakers
-        for _name, breaker in self.breakers.items():
-            if breaker.state == BreakerState.OPEN:
-                tripped_breakers.append(breaker.get_status())
-
-        # Check exchange breakers
-        for _exchange, breakers in self.exchange_breakers.items():
-            for _name, breaker in breakers.items():
-                if breaker.state == BreakerState.OPEN:
-                    tripped_breakers.append(breaker.get_status())
-
-        return tripped_breakers

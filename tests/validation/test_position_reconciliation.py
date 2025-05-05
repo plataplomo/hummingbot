@@ -62,7 +62,6 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("51000"),
                 liquidation_price=Decimal("45000.0"),
                 unrealized_pnl=Decimal("1000.0"),
-                leverage=Decimal("2.0"),
                 side=OrderSide.BUY,
             ),
             DerivativePosition(
@@ -74,7 +73,6 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("3100"),
                 liquidation_price=Decimal("2800.0"),
                 unrealized_pnl=Decimal("1000.0"),
-                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             ),
         ]
@@ -90,7 +88,6 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("51000"),
                 liquidation_price=Decimal("55000.0"),
                 unrealized_pnl=Decimal("-1000.0"),
-                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             )
         ]
@@ -130,7 +127,6 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("51000"),
                 liquidation_price=Decimal("45000.0"),
                 unrealized_pnl=Decimal("1000.0"),
-                leverage=Decimal("2.0"),
                 side=OrderSide.BUY,
             ),
             DerivativePosition(
@@ -142,7 +138,6 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("3100"),
                 liquidation_price=Decimal("2800.0"),
                 unrealized_pnl=Decimal("1000.0"),
-                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             ),
         ]
@@ -157,7 +152,6 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("51000"),
                 liquidation_price=Decimal("55000.0"),
                 unrealized_pnl=Decimal("-1000.0"),
-                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             )
         ]
@@ -177,7 +171,6 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("51000"),
                 liquidation_price=Decimal("45000.0"),
                 unrealized_pnl=Decimal("1000.0"),
-                leverage=Decimal("2.0"),
                 side=OrderSide.BUY,
             ),
             DerivativePosition(
@@ -189,7 +182,6 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("3100"),
                 liquidation_price=Decimal("2800.0"),
                 unrealized_pnl=Decimal("1000.0"),
-                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             ),
         ]
@@ -204,7 +196,6 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("51000"),
                 liquidation_price=Decimal("55000.0"),
                 unrealized_pnl=Decimal("-1000.0"),
-                leverage=Decimal("1.0"),
                 side=OrderSide.SELL,
             ),
             DerivativePosition(
@@ -216,7 +207,6 @@ class TestPositionReconciliationSystem:
                 mark_price=Decimal("155"),
                 liquidation_price=Decimal("90.0"),
                 unrealized_pnl=Decimal("15.0"),
-                leverage=Decimal("1.0"),
                 side=OrderSide.BUY,
             ),
         ]
@@ -341,12 +331,21 @@ class TestPositionReconciliationSystem:
 
     @pytest.mark.asyncio
     async def test_check_positions_no_portfolio_tracker(self, config: Config) -> None:
-        """Test check_positions with no portfolio tracker registered."""
-        # Create system without portfolio tracker
-        system = PositionReconciliationSystem(config)
+        """Test check_positions when portfolio tracker fails to provide data."""
+        # Create system, passing a mock tracker to satisfy __init__
+        mock_tracker = MagicMock()
+        # Configure the mock tracker to simulate failure/unavailability
+        mock_tracker.get_positions_by_exchange.return_value = (
+            None  # Simulate tracker unable to provide data
+        )
+        mock_tracker.api_clients = {}  # Simulate no clients registered
 
-        # Should return empty dictionary
-        results = await system.check_positions()
+        system = PositionReconciliationSystem(config, portfolio_tracker=mock_tracker)
+
+        # Run check_positions
+        results = await system.check_positions(force=True)  # Force check
+
+        # Expect empty results and an error logged
         assert results == {}
 
     @pytest.mark.asyncio

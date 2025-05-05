@@ -488,93 +488,77 @@ ConfigValue = str | int | float | bool | dict[str, Any] | list[Any] | None
 
 @pytest.fixture
 def mock_config() -> Config:
-    """Provides a MagicMock Config object with specific return values for get."""
+    """Provides a generic mock Config for circuit breaker tests."""
     cfg = MagicMock(spec=Config)
 
-    # Create a nested dictionary for simulated config values
-    mock_values: dict[str, Any] = {
-        "validation": {
-            "circuit_breakers": {
-                "enabled": True,
-                "default_cooldown_seconds": 300,
-            }
-        },
+    # Default side effect (can be overridden in tests)
+    def config_side_effect(key: str, default: Any | None = None) -> Any:
+        # Provide some basic defaults if needed, otherwise return the default argument
+        base_configs = {
+            "validation.circuit_breaker.global.api_errors.enabled": True,
+            "validation.circuit_breaker.global.api_errors.error_threshold": 3,
+            "validation.circuit_breaker.global.api_errors.window_seconds": 60,
+            "validation.circuit_breaker.global.api_errors.cooldown_seconds": 300,
+        }
+        return base_configs.get(key, default)
+
+    cfg.get.side_effect = config_side_effect
+    return cfg
+
+
+# Define a more specific config fixture for tests needing exchange structure
+@pytest.fixture
+def mock_config_with_exchanges() -> Config:
+    cfg = MagicMock(spec=Config)
+
+    test_config = {
         "exchanges": {
             "test_exchange": {
+                "enabled": True,
                 "validation": {
-                    "circuit_breakers": {
+                    "circuit_breaker": {
                         "api_errors": {
                             "enabled": True,
                             "error_threshold": 5,
-                            "window_seconds": 60,
-                        },
-                        "drawdown": {
-                            "enabled": True,
-                            "drawdown_threshold": 0.15,
+                            "window_seconds": 120,
+                            "cooldown_seconds": 600,
                         },
                         "volatility": {
-                            "enabled": True,
-                            "volatility_threshold": 0.08,
-                            "lookback_periods": 12,
-                        },
-                        "liquidity": {
-                            "enabled": True,
-                            "min_liquidity": 100000,
+                            "enabled": False  # Example: disabled
                         },
                     }
                 },
-                "symbols": ["BTC"],  # Symbol list for the test exchange
-            }
+            },
+            "another_exchange": {
+                "enabled": True,
+                "validation": {
+                    "circuit_breaker": {
+                        "api_errors": {"enabled": False}  # Example: disabled
+                    }
+                },
+            },
+        },
+        "validation.circuit_breaker.global.api_errors": {  # Also include global
+            "enabled": True,
+            "error_threshold": 3,
+            "window_seconds": 60,
+            "cooldown_seconds": 300,
         },
     }
 
-    # Define side_effect to handle nested gets correctly
-    def config_side_effect(key: str, default: ConfigValue | None = None) -> ConfigValue:
-        """
-        Traverse the mock_values dict using dot notation to simulate config.get().
-        Args:
-            key: Dot-separated config key.
-            default: Value to return if key is not found.
-        Returns:
-            The config value or default.
-        """
+    def specific_side_effect(key: str, default: Any | None = None) -> Any:
         parts = key.split(".")
-        current_data: Any = mock_values
+        value = test_config
         try:
             for part in parts:
-                # Type assertion for type checker: current_data is dict[str, Any] here
-                assert isinstance(current_data, dict), (
-                    f"Expected dict at part '{part}', got {type(current_data)}"
-                )
-                value = current_data.get(part)
-                if value is None:
-                    return default if default is not None else None
-                current_data = value
-            # Explicit cast to ConfigValue to satisfy type checker
-            return (
-                current_data
-                if isinstance(current_data, str | int | float | bool | dict | list)
-                else None
-            )
-        except (KeyError, TypeError, AssertionError):
-            return default if default is not None else None
+                if isinstance(value, dict):
+                    value = value[part]
+                else:
+                    return default  # Key path not found
+            return value
+        except KeyError:
+            return default
 
-    # Explicitly handle the top-level 'exchanges' key for the loop
-    def specific_side_effect(key: str, default: ConfigValue | None = None) -> ConfigValue:
-        """
-        Special-case for 'exchanges' key to ensure a dict is always returned.
-        Args:
-            key: Config key.
-            default: Default value if not found.
-        Returns:
-            The config value or default.
-        """
-        if key == "exchanges":
-            exchanges: dict[str, Any] = mock_values.get("exchanges", {})
-            return exchanges
-        return config_side_effect(key, default)
-
-    # Configure the mock
     cfg.get.side_effect = specific_side_effect
     return cfg
 
@@ -582,9 +566,10 @@ def mock_config() -> Config:
 class TestCircuitBreakerSystem:
     """Test suite for the CircuitBreakerSystem class."""
 
-    def test_init_and_load_config(self, mock_config: Config) -> None:
+    def test_init_and_load_config(self, mock_config_with_exchanges: Config) -> None:
         """Test initialization and configuration loading."""
-        system = CircuitBreakerSystem(mock_config)  # Instantiate directly
+        # Use the fixture that provides exchange configs
+        system = CircuitBreakerSystem(mock_config_with_exchanges)
 
         # Verify breakers were created for the test exchange
         assert "test_exchange" in system.exchange_breakers
