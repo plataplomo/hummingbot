@@ -22,6 +22,7 @@ import asyncio
 import hashlib
 import hmac
 import time
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -507,7 +508,7 @@ class BackpackAPI(ExchangeAPI):
                 "but Backpack API currently fetches all positions."
             )
         try:
-            response_raw: object = await self._request("GET", request_path, signed=True)
+            response_raw: object = await self._request("GET", request_path, is_signed=True)
             # DEFENSIVE CHECK: Ensure response is list
             if not isinstance(response_raw, list):
                 logger.warning(
@@ -625,7 +626,7 @@ class BackpackAPI(ExchangeAPI):
             if reduce_only:
                 order_data["reduceOnly"] = True
 
-            response = await self._request("POST", request_path, data=order_data, signed=True)
+            response = await self._request("POST", request_path, data=order_data, is_signed=True)
 
             if not response or not isinstance(response, dict) or "id" not in response:
                 raise APIError(
@@ -664,7 +665,7 @@ class BackpackAPI(ExchangeAPI):
         response: object = None  # Initialize
         try:
             params = {"symbol": symbol, "orderId": order_id}
-            response = await self._request("DELETE", request_path, params=params, signed=True)
+            response = await self._request("DELETE", request_path, params=params, is_signed=True)
             logger.info(f"[{self.exchange_name}] Canceled order {order_id} for {symbol}")
             # Return more specific success dict
             return {
@@ -691,7 +692,7 @@ class BackpackAPI(ExchangeAPI):
             params: dict[str, str] = {}
             if symbol:
                 params["symbol"] = symbol
-            response = await self._request("GET", request_path, params=params, signed=True)
+            response = await self._request("GET", request_path, params=params, is_signed=True)
             orders: list[Order] = []
             if not isinstance(response, list):
                 logger.warning(
@@ -847,7 +848,7 @@ class BackpackAPI(ExchangeAPI):
         # This method is just an example; Backpack might not have this exact endpoint.
         request_path = "/api/v1/account"
         try:
-            response: object = await self._request("GET", request_path, signed=True)
+            response: object = await self._request("GET", request_path, is_signed=True)
             # TODO: Define BackpackRawAccountInfo if structure is known and stable.
             # For now, perform basic type check and return as dict[str, object]
             if not isinstance(response, dict):
@@ -927,16 +928,54 @@ class BackpackAPI(ExchangeAPI):
         effective_limit = limit if limit is not None else 100
         return await self.get_trade_history(symbol=symbol, limit=effective_limit)
 
-    async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]:
-        """Fetch historical orders, validated via Raw models and transformed via Mapper."""
+    async def get_order_history(
+        self,
+        symbol: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = 100,
+        order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> list[Order]:
+        """Fetches historical orders from Backpack.
+
+        Args:
+            symbol: Optional symbol filter.
+            start_time: Optional start time filter (datetime UTC).
+            end_time: Optional end time filter (datetime UTC).
+            limit: Maximum number of orders to return (default 100).
+            order_id: Optional filter by exchange order ID.
+            client_order_id: Optional filter by client order ID.
+
+        Returns:
+            List of Order objects.
+
+        Raises:
+            APIError: If the request fails or the response is invalid.
+        """
         request_path = "/wapi/v1/history/orders"
-        params: dict[str, Any] = {"limit": limit}
+        # Corrected: Allow None for limit value type
+        params: dict[str, str | int | None] = {}
+        # Initialize limit first if not None
+        if limit is not None:
+            # Mypy struggles with conditional assignment to Union type dict value
+            params["limit"] = limit  # type: ignore[dict-item]
+        # Add other params
         if symbol:
             params["symbol"] = symbol
+        if order_id:
+            params["orderId"] = order_id
+        if client_order_id:
+            params["clientId"] = client_order_id
+        if start_time:
+            params["startTime"] = int(start_time.timestamp() * 1000)
+        if end_time:
+            params["endTime"] = int(end_time.timestamp() * 1000)
 
-        response_raw: object = None  # Initialize for error handling
+        response_raw: object = None
+        orders: list[Order] = []
         try:
-            response_raw = await self._request("GET", request_path, params=params, signed=True)
+            response_raw = await self._request("GET", request_path, params=params, is_signed=True)
 
             # DEFENSIVE CHECK: Ensure response is a list
             if not isinstance(response_raw, list):
@@ -946,7 +985,6 @@ class BackpackAPI(ExchangeAPI):
                 )
                 return []
 
-            orders: list[Order] = []
             for order_data_raw in response_raw:
                 # Ensure item is dict before validation
                 if not isinstance(order_data_raw, dict):
@@ -994,7 +1032,7 @@ class BackpackAPI(ExchangeAPI):
 
         response_raw: object = None  # Initialize for error handling
         try:
-            response_raw = await self._request("GET", request_path, params=params, signed=True)
+            response_raw = await self._request("GET", request_path, params=params, is_signed=True)
 
             # DEFENSIVE CHECK: Ensure response is a list
             if not isinstance(response_raw, list):

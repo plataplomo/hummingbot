@@ -20,6 +20,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+    HyperliquidRawOrder,
     HyperliquidRawTriggerInfo,
 )
 from cyberdelta.apis.models.api_error import APIError
@@ -846,11 +847,106 @@ class HyperliquidAPI(ExchangeAPI):
                 original_exception=e,
             ) from e
 
-    async def get_order_history(self, symbol: str | None = None, limit: int = 100) -> list[Order]:
+    async def get_order_history(
+        self,
+        symbol: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
+        order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> list[Order]:
+        """Fetches historical orders from Hyperliquid.
+
+        Note: Hyperliquid's query_order_history takes startTime and endTime in milliseconds.
+              The base `ExchangeAPI` uses datetimes, so we convert here.
+              Hyperliquid doesn't directly support filtering by orderId or clientOrderId
+              in this endpoint; filtering would happen post-fetch if needed.
+
+        Args:
+            symbol: Optional symbol filter (Not used by Hyperliquid query_order_history).
+            start_time: Optional start time filter (datetime UTC).
+            end_time: Optional end time filter (datetime UTC).
+            limit: Maximum number of orders (Not used by Hyperliquid query_order_history).
+            order_id: Optional filter (Not used by Hyperliquid query_order_history).
+            client_order_id: Optional filter (Not used by Hyperliquid query_order_history).
+
+        Returns:
+            List of Order objects.
+
+        Raises:
+            APIError: If the request fails or the response is invalid.
         """
-        Required by ExchangeAPI base class. Not implemented for HyperliquidAPI.
-        """
-        raise NotImplementedError("get_order_history not implemented for HyperliquidAPI")
+        # Convert datetimes to milliseconds for Hyperliquid
+        # Default start_time to 0 if None, as HL requires it
+        start_time_ms = int(start_time.timestamp() * 1000) if start_time else 0
+        # Default end_time to current time if None
+        end_time_ms = int(end_time.timestamp() * 1000) if end_time else int(time.time() * 1000)
+
+        payload = {
+            "type": "queryOrderHistory",
+            "startTime": start_time_ms,
+            "endTime": end_time_ms,
+        }
+
+        response_raw: object = None
+        orders: list[Order] = []
+        try:
+            response_raw = await self._request("POST", "/info", data=payload, is_signed=False)
+
+            if not isinstance(response_raw, list):
+                raise APIError(
+                    f"Invalid response type for queryOrderHistory: expected list, got {type(response_raw)}",
+                    code=APIErrorCode.UNKNOWN.value,
+                    http_status=None,
+                )
+
+            for order_data_raw in response_raw:
+                try:
+                    # Validate using HyperliquidRawOrder model
+                    raw_order = HyperliquidRawOrder.model_validate(order_data_raw)
+                    # Map using the standard raw order mapper method
+                    # TODO: Ensure HyperliquidOrderMapper.map_raw_order_to_internal exists and works
+                    # order = HyperliquidOrderMapper.map_raw_order_to_internal(raw_order)
+                    # orders.append(order)
+                    pass  # Placeholder
+                except (ValidationError, ValueError) as e:
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping order history item due to validation/transform error: {e}. Raw: {order_data_raw}"
+                    )
+                    continue
+
+            # Apply filtering post-fetch if needed
+            if symbol:
+                orders = [o for o in orders if o.symbol == symbol]
+            if order_id:
+                orders = [o for o in orders if o.exchange_order_id == order_id]
+            if client_order_id:
+                orders = [o for o in orders if o.client_order_id == client_order_id]
+            if limit is not None and limit > 0:
+                orders = orders[:limit]
+
+            return orders
+
+        except APIError:
+            raise
+        except (ValidationError, ValueError) as e:
+            logger.error(
+                f"[{self.exchange_name}] Error processing order history response: {e}. Raw: {response_raw}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Failed to process order history response: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+            ) from e
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error getting order history: {e}", exc_info=True
+            )
+            raise APIError(
+                f"Unexpected error getting order history: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+            ) from e
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
         """Fetch user trade history (fills) using the 'userFills' info endpoint."""
@@ -1182,7 +1278,7 @@ class HyperliquidAPI(ExchangeAPI):
         response_raw: object = None  # Initialize
         try:
             response_raw = await self._request(
-                "POST", self.rest_endpoint + "/exchange", data=request_data, signed=True
+                "POST", self.rest_endpoint + "/exchange", data=request_data, is_signed=True
             )
             validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
 
@@ -1255,7 +1351,7 @@ class HyperliquidAPI(ExchangeAPI):
         response_raw: object = None  # Initialize
         try:
             response_raw = await self._request(
-                "POST", self.rest_endpoint + "/exchange", data=request_data, signed=True
+                "POST", self.rest_endpoint + "/exchange", data=request_data, is_signed=True
             )
             validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
 

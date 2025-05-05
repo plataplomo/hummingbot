@@ -220,7 +220,7 @@ class BackpackRawOrderBook(BaseModel):
             # Check item structure
             # Use Any type hint for item_raw and rely on runtime checks
             item: Any = item_raw
-            if not isinstance(item, (list, tuple)):
+            if not isinstance(item, list | tuple):
                 raise ValueError(f"{current_item_desc}: Item is not a list or tuple.")
 
             # DEFENSIVE CHECK: Runtime check ensures item is sized. Pyright=[reportUnknownArgumentType]
@@ -419,7 +419,7 @@ class BackpackRawDepthUpdateEvent(BaseModel):
             # Check item structure
             # Use Any type hint for item_raw and rely on runtime checks
             item: Any = item_raw
-            if not isinstance(item, (list, tuple)):
+            if not isinstance(item, list | tuple):
                 raise ValueError(f"{current_item_desc}: Item is not a list or tuple.")
 
             # DEFENSIVE CHECK: Runtime check ensures item is sized. Pyright=[reportUnknownArgumentType]

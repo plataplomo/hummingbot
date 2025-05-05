@@ -38,6 +38,14 @@ if TYPE_CHECKING:
     # Import models only needed for type hints here
     from cyberdelta.core.models.market import Candle
 
+# Define what is explicitly exported by this module
+__all__ = [
+    "ExchangeAPI",
+    "APIError",  # Export APIError
+    "APIErrorCode",  # Export APIErrorCode (already likely used but good practice)
+    "MessageHandler",
+]
+
 # Get logger instance for this module
 logger = logging.getLogger(__name__)
 
@@ -78,6 +86,9 @@ class ExchangeAPI(ABC):
         self._reconnect_task: asyncio.Task[None] | None = None
         self._listener_task: asyncio.Task[None] | None = None
         self._ping_task: asyncio.Task[None] | None = None
+        self.max_retries: int = config.get(
+            "max_retries", 2
+        )  # Default to 2 retries (3 total attempts)
 
         # Initialize Rate Limiters safely
         rate_limit_config_raw = config.get("rate_limits")
@@ -145,8 +156,8 @@ class ExchangeAPI(ABC):
                 # Explicitly handle potential None from .get before float/int conversion
                 rate_raw = config_dict_raw.get("rate", default_rate)
                 rate: float = default_rate
-                # Check type before attempting conversion
-                if isinstance(rate_raw, (int, float, str)):
+                # Corrected UP038
+                if isinstance(rate_raw, int | float | str):
                     try:
                         rate = float(rate_raw)
                     except (ValueError, TypeError):
@@ -161,8 +172,8 @@ class ExchangeAPI(ABC):
 
                 bucket_raw = config_dict_raw.get("bucket_size", default_bucket)
                 bucket: int = default_bucket
-                # Check type before attempting conversion
-                if isinstance(bucket_raw, (int, str)):  # Allow str for int conversion
+                # Corrected UP038
+                if isinstance(bucket_raw, int | str):
                     try:
                         bucket = int(bucket_raw)
                         if bucket <= 0:
@@ -198,14 +209,39 @@ class ExchangeAPI(ABC):
         # Extract key configurations
         # Check for both rest_endpoint (standard) and base_url (alternative naming)
         self.rest_endpoint = config.get("rest_endpoint", config.get("base_url"))
+        if not self.rest_endpoint or not isinstance(self.rest_endpoint, str):
+            raise ValueError(
+                f"[{exchange_name}] Missing or invalid 'rest_endpoint' or 'base_url' in config"
+            )
         # Check for both ws_endpoint (standard) and ws_url (alternative naming)
-        self.ws_endpoint = config.get("ws_endpoint", config.get("ws_url"))
+        self.ws_endpoint = config.get("ws_endpoint")
+        if not self.ws_endpoint or not isinstance(self.ws_endpoint, str):
+            logger.warning(
+                f"[{exchange_name}] Missing or invalid 'ws_endpoint' in config. WebSocket functionality disabled."
+            )
+            self.ws_endpoint = None  # Explicitly set to None if invalid
 
         # Validation
         if not self.rest_endpoint:
             logger.warning(f"REST endpoint not configured for {self.exchange_name}")
         if not self.ws_endpoint:
             logger.warning(f"WebSocket endpoint not configured for {self.exchange_name}")
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get the existing aiohttp ClientSession or create a new one."""
+        if self._session is None or self._session.closed:
+            # Consider adding timeout configurations from self.config if available
+            timeout = ClientTimeout(total=self.config.get("request_timeout", 30))  # Default 30s
+            self._session = aiohttp.ClientSession(timeout=timeout)
+            logger.debug(f"[{self.exchange_name}] Created new aiohttp ClientSession.")
+        # Ensure session is returned even if it existed but was closed
+        if self._session.closed:
+            self._session = aiohttp.ClientSession(
+                timeout=ClientTimeout(total=self.config.get("request_timeout", 30))
+            )
+            logger.debug(f"[{self.exchange_name}] Recreated closed aiohttp ClientSession.")
+
+        return self._session
 
     async def _get_rate_limiter(self, method: str, path: str) -> TokenBucketRateLimiterRuntime:
         """
@@ -293,16 +329,17 @@ class ExchangeAPI(ABC):
         rate_limiter = await self._get_rate_limiter(method, endpoint)
         await rate_limiter.acquire()
 
-        last_error = None
+        session = await self._get_session()
+        last_error: Exception | None = None
+        attempt = -1  # Initialize attempt before the loop
 
-        # Retry loop
-        for attempt in range(3):
+        for attempt in range(self.max_retries + 1):
             try:
                 # Record request start time for logging/monitoring
                 start_time = time.monotonic()
 
                 # Execute the request
-                async with self._session.request(
+                async with session.request(
                     method=method,
                     url=url,
                     params=params,
@@ -362,7 +399,7 @@ class ExchangeAPI(ABC):
                                 f"[{self.exchange_name}] Request failed with retryable error: "
                                 f"{error}. "
                                 f"Retrying in {retry_delay:.1f}s "
-                                f"({attempt + 1}/3)"
+                                f"({attempt + 1}/{self.max_retries + 1})"
                             )
 
                             await asyncio.sleep(retry_delay)
@@ -405,7 +442,7 @@ class ExchangeAPI(ABC):
 
                     logger.warning(
                         f"[{self.exchange_name}] Request failed with connection error: {error}. "
-                        f"Retrying in {retry_delay:.1f}s ({attempt + 1}/3)"
+                        f"Retrying in {retry_delay:.1f}s ({attempt + 1}/{self.max_retries + 1})"
                     )
 
                     await asyncio.sleep(retry_delay)
@@ -414,18 +451,15 @@ class ExchangeAPI(ABC):
                 # Max retries exceeded
                 raise error from last_error  # Chain the original connection/timeout error
 
-        # This should typically not be reached due to the raise in the loop,
-        # but as a fallback in case of unexpected flow:
-        if last_error:
-            raise APIError(
-                message=f"Request failed after 3 attempts: {str(last_error)}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=last_error,
-            )
-
+        # This path should ideally not be reached if the loop always raises
+        # Raise a generic error if loop finishes without success or expected exception
+        logger.error(
+            f"[{self.exchange_name}] _request loop completed unexpectedly for {method} {endpoint}"
+        )
         raise APIError(
-            message=f"Request failed after {retry_count} attempts due to unknown error",
+            message=f"Request failed unexpectedly after {attempt + 1} attempts.",
             code=APIErrorCode.UNKNOWN.value,
+            original_exception=last_error,  # Keep last generic error
         )
 
     @abstractmethod
@@ -981,17 +1015,4 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Fetch all open orders, optionally filtering by symbol."""
-        raise NotImplementedError
-
-    @abstractmethod
-    async def get_order_history(
-        self,
-        symbol: str | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int | None = None,
-        order_id: str | None = None,
-        client_order_id: str | None = None,
-    ) -> list[Order]:
-        """Fetch historical orders, optionally filtering by symbol, time, limit, or ID."""
         raise NotImplementedError

@@ -6,7 +6,7 @@ import logging
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -19,18 +19,25 @@ class HyperliquidRawCandle(BaseModel):
     Assumes fields like 't' (timestamp), 'o', 'h', 'l', 'c', 'v'.
     """
 
-    model_config = {"extra": "ignore"}  # Allow extra fields initially
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
-    t: int = Field(..., description="Timestamp (likely milliseconds)")
+    t: int = Field(..., description="Timestamp (Unix milliseconds)")
     o: str = Field(..., description="Open price (string)")
     h: str = Field(..., description="High price (string)")
-    l: str = Field(..., description="Low price (string)")
+    low_price: str = Field(..., alias="l", description="Low price (string)")
     c: str = Field(..., description="Close price (string)")
     v: str = Field(..., description="Volume (string)")
-    # n: Optional[int] = Field(None, description="Number of trades (optional)")
+    n: int = Field(..., description="Number of trades")
 
-    # Add validators if needed, e.g., to parse decimals
-    @field_validator("o", "h", "l", "c", "v", mode="before")
+    @field_validator("t", "n", mode="before")
+    @classmethod
+    def validate_non_negative_int(cls, v: Any, info: ValidationInfo) -> int:
+        """Ensure timestamp and number of trades are non-negative integers."""
+        if not isinstance(v, int) or v < 0:
+            raise ValueError(f"Expected non-negative integer for {info.field_name}, got {type(v)}")
+        return v
+
+    @field_validator("o", "h", "low_price", "c", "v", mode="before")
     @classmethod
     def validate_decimal_strings(cls, v: Any) -> str:
         """Ensure price/volume fields are valid decimal strings."""
