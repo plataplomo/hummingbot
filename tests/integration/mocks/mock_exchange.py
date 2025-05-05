@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 from collections import defaultdict
 from collections.abc import Callable, Coroutine, Mapping
 from datetime import UTC, datetime
@@ -113,6 +114,49 @@ class MockExchangeAPI(ExchangeAPI):
             f"Initialized MockExchangeAPI for {exchange_name} (Maker Fee: {self.maker_fee}, "
             f"Taker Fee: {self.taker_fee}, Fee Asset: {self.fee_asset})"
         )
+
+    # --- Internal Helper: Create Mock Order ---
+    def _create_internal_mock_order(
+        self,
+        client_order_id: str,
+        symbol: str,
+        side: OrderSide,
+        order_type: OrderType,
+        status: OrderStatus,
+        qty_req: Decimal,
+        qty_fill: Decimal,
+        avg_price: Decimal | None,
+        price: Decimal | None,
+        time_in_force: TimeInForce,
+        ts: datetime,
+        strategy: str | None = "mock_strategy",
+        signal: str | None = "mock_signal",
+    ) -> Order:
+        # Helper to create Order instances with all required fields
+        # Use model_validate to handle potential extra fields gracefully if needed
+        order_data = {
+            "client_order_id": client_order_id,
+            "exchange": self.exchange_name,
+            "symbol": symbol,
+            "side": side,
+            "order_type": order_type,
+            "status": status,
+            "quantity_requested": qty_req,
+            "quantity_filled": qty_fill,
+            "price": price,
+            "average_fill_price": avg_price,
+            "time_in_force": time_in_force,
+            "created_at": ts,
+            "updated_at": ts,  # Sensible default
+            "triggered_at": None,  # Sensible default
+            "strategy_name": strategy,
+            "signal_id": signal,
+            # Add defaults for other optional base fields if needed
+            "exchange_order_id": f"mock-ex-{uuid.uuid4()}",  # Mock exchange ID
+            "trades": [],
+        }
+        # return Order(**order_data) # Direct init requires exact fields
+        return Order.model_validate(order_data)
 
     async def _simulate_latency(self) -> None:
         """Simulate network latency."""
@@ -309,142 +353,152 @@ class MockExchangeAPI(ExchangeAPI):
         if order_type == OrderType.MARKET and price is not None:
             logger.warning("Price is ignored for MARKET orders")
 
-        order_id = f"{self.exchange_name.lower()}-{self._order_id_counter}"
+        order_id: str = str(client_order_id) if client_order_id else str(uuid.uuid4())
         self._order_id_counter += 1
+        now = datetime.now(UTC)
 
-        # Determine fill price for market orders or use limit price
-        fill_price = price
-        if order_type == OrderType.MARKET:
-            # Simulate market price based on mock ticker or a default
-            ticker = self._mock_tickers.get(symbol)
-            if ticker and ticker.price:
-                # Simulate some slippage for market orders
-                slippage_factor = Decimal("0.001")  # 0.1% slippage
-                if side == OrderSide.BUY:
-                    fill_price = ticker.price * (Decimal("1") + slippage_factor)
-                else:
-                    fill_price = ticker.price * (Decimal("1") - slippage_factor)
-            else:
-                # Fallback if no ticker price
-                fill_price = price if price else Decimal("100.0")  # Arbitrary fallback
-                logger.warning(
-                    f"No mock ticker price for {symbol}, using fallback fill price: {fill_price}"
-                )
+        # Simulate order status based on behavior config
+        order_status = OrderStatus.NEW  # Default
+        qty_filled = Decimal("0.0")
+        avg_fill_price = None
 
-        # Basic validation (can be expanded)
-        if quantity <= Decimal("0"):
-            raise APIError(
-                "Order quantity must be positive", code=APIErrorCode.INVALID_PARAMS.value
+        # Basic balance check (improve this based on actual needs)
+        base_asset, quote_asset = self._split_symbol(symbol)
+        required_balance = Decimal("0")  # Initialize
+        asset_to_check = ""
+
+        if side == OrderSide.BUY:
+            asset_to_check = quote_asset
+            # Approximate quote needed (can be refined)
+            required_balance = quantity * (
+                price
+                if price
+                else self._mock_tickers.get(
+                    symbol, Ticker(symbol=symbol, price=Decimal("0"), timestamp=now)
+                ).price
+                or Decimal("0")
             )
+        else:  # SELL
+            asset_to_check = base_asset
+            required_balance = quantity
 
-        # Create the order object - using only fields defined in models.Order
-        order = Order(
+        current_balance = self._balances.get(
+            asset_to_check,
+            SpotBalance(
+                asset=asset_to_check,
+                total_quantity=Decimal("0"),
+                available_quantity=Decimal("0"),
+                exchange=self.exchange_name,
+                timestamp=now,
+            ),
+        ).available_quantity
+
+        if current_balance < required_balance:
+            logger.warning(f"Mock {self.exchange_name}: Insufficient balance for order {order_id}")
+            # Raise error or return rejected order
+            raise APIError("Insufficient balance", code=APIErrorCode.INSUFFICIENT_FUNDS.value)
+            # Or create a REJECTED order:
+            # order = self._create_internal_mock_order(... status=OrderStatus.REJECTED ...)
+            # self._orders[order_id] = order
+            # return order
+
+        if self._open_orders_behavior == "fill_immediately":
+            order_status = OrderStatus.FILLED
+            qty_filled = quantity
+            # Use provided price for LIMIT, or mock ticker price for MARKET
+            avg_fill_price = (
+                price
+                if order_type == OrderType.LIMIT
+                else (
+                    self._mock_tickers.get(
+                        symbol, Ticker(symbol=symbol, price=Decimal("0"), timestamp=now)
+                    ).price
+                    or Decimal("0")
+                )
+            )
+        elif self._open_orders_behavior == "partial_fill":
+            order_status = OrderStatus.PARTIALLY_FILLED
+            qty_filled = quantity / 2  # Example partial fill
+            avg_fill_price = (
+                price
+                if order_type == OrderType.LIMIT
+                else (
+                    self._mock_tickers.get(
+                        symbol, Ticker(symbol=symbol, price=Decimal("0"), timestamp=now)
+                    ).price
+                    or Decimal("0")
+                )
+            )
+        else:  # default or keep_open
+            order_status = OrderStatus.OPEN  # Or NEW?
+
+        # Create the order using the helper method
+        order = self._create_internal_mock_order(
+            client_order_id=order_id,  # Use the generated/provided ID
             symbol=symbol,
             side=side,
             order_type=order_type,
-            quantity_requested=quantity,
-            client_order_id=client_order_id or f"mock-{order_id}",
-            status=OrderStatus.OPEN,  # Initial status
-            price=price,  # Limit price
-            quantity_filled=Decimal("0.0"),
-            average_fill_price=None,
-            exchange_order_id=order_id,
+            status=order_status,
+            qty_req=quantity,
+            qty_fill=qty_filled,
+            avg_price=avg_fill_price,
+            price=price,
+            time_in_force=time_in_force,
+            ts=now,
+            strategy="mock_strategy",  # Example
+            signal="mock_signal",  # Example
+            # Pass reduce_only, post_only if needed by helper or add here
         )
+        # Add reduce_only and post_only after creation if not in helper
+        order.reduce_only = reduce_only
+        order.post_only = post_only
 
-        self._orders[order_id] = order
-        logger.info(f"Mock {self.exchange_name}: Placed order {order_id}: {order}")
+        # Store the order
+        self._orders[order.client_order_id] = order
+        if order.status in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]:
+            self.open_orders[order.client_order_id] = order
 
-        # Simulate immediate fill for market orders or based on behavior
-        trade_cost: Decimal | None = None
-        trade_fee: Decimal | None = None
-        trade_fee_asset: str | None = None
-        trade_timestamp: datetime | None = None
+        # Simulate fills/trades if filled
+        if order.status in [OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED]:
+            trade_fee_rate = self.taker_fee  # Assume taker for market/aggressive limit
+            if order_type == OrderType.LIMIT and post_only:
+                trade_fee_rate = self.maker_fee
 
-        if order_type == OrderType.MARKET or self._open_orders_behavior == "fill_immediately":
-            if fill_price is None:
-                # This should ideally not happen for market orders if logic is correct
-                raise ValueError("Cannot fill market order without a fill price")
+            # Use avg_fill_price if available, otherwise fallback
+            fill_price_for_trade = avg_fill_price if avg_fill_price is not None else order.price
+            if fill_price_for_trade is None:
+                logger.warning(
+                    f"Cannot determine fill price for trade simulation for order {order.client_order_id}. Using 0."
+                )
+                fill_price_for_trade = Decimal("0")
 
-            order.status = OrderStatus.FILLED
-            order.quantity_filled = quantity
-            order.average_fill_price = fill_price
-            trade_timestamp = datetime.now(UTC)  # Use a consistent time for the fill/trade
-
-            # Calculate cost and fee
-            trade_cost = order.quantity_filled * order.average_fill_price
-            # Determine fee rate (simplified: assume taker for market orders)
-            trade_fee_rate = self.taker_fee
+            trade_cost = qty_filled * fill_price_for_trade
             trade_fee = trade_cost * trade_fee_rate
-            trade_fee_asset = self.fee_asset
 
-            logger.info(f"Mock {self.exchange_name}: Order {order_id} filled immediately.")
-
-            # Create and record the trade
-            assert order.average_fill_price is not None  # Ensure fill price is set
-            assert trade_timestamp is not None  # Ensure timestamp is set
-            trade_to_record = Trade(
-                id=f"trade-{order_id}",
-                order_id=order_id,
-                exchange=self.exchange_name,  # Trade model has exchange
+            trade = Trade(
+                id=f"mock_trade_{order.client_order_id}",
+                order_id=order.client_order_id,
+                exchange=self.exchange_name,
                 symbol=symbol,
+                price=fill_price_for_trade,
+                quantity=qty_filled,
                 side=side,
-                price=order.average_fill_price,
-                quantity=order.quantity_filled,
                 fee=trade_fee,
-                fee_asset=trade_fee_asset or "",  # Ensure string, never None
-                cost=trade_cost,
-                timestamp=int(trade_timestamp.timestamp() * 1000),  # Convert to int ms
-                is_maker=False,  # Assume taker for market fills
-                executed_at=trade_timestamp,
-                client_order_id=order.client_order_id,
+                fee_asset=self.fee_asset,
+                timestamp=now,
+                is_maker=(trade_fee_rate == self.maker_fee),
+                # Add optional detail slots if needed
             )
-            self._trades.append(trade_to_record)
+            self.trade_history.append(trade)
+            self._trades.append(trade)  # Also add to internal list if used elsewhere
+            # Update timestamp on order when trade occurs
+            order.updated_at = now
             # Update balances and positions based on the trade
-            self._update_balance_and_position(trade_to_record)
+            self._update_balance_and_position(trade)
 
-        elif self._open_orders_behavior == "partial_fill":
-            if fill_price is None:
-                raise ValueError("Cannot partially fill order without a fill price")
-
-            # Simulate partial fill (e.g., 50%)
-            partial_fill_qty = quantity / Decimal("2")
-            order.status = OrderStatus.PARTIALLY_FILLED
-            order.quantity_filled = partial_fill_qty
-            order.average_fill_price = fill_price  # Use simulated fill price
-            trade_timestamp = datetime.now(UTC)  # Use a consistent time for the fill/trade
-
-            # Calculate cost and fee for partial fill
-            trade_cost = order.quantity_filled * order.average_fill_price
-            trade_fee_rate = self.taker_fee  # Assume taker for simplicity
-            trade_fee = trade_cost * trade_fee_rate
-            trade_fee_asset = self.fee_asset
-
-            logger.info(f"Mock {self.exchange_name}: Order {order_id} partially filled.")
-
-            # Create and record the partial trade
-            assert order.average_fill_price is not None  # Ensure fill price is set
-            assert trade_timestamp is not None  # Ensure timestamp is set
-            trade_to_record = Trade(
-                id=f"trade-{order_id}-p1",
-                order_id=order_id,
-                exchange=self.exchange_name,  # Trade model has exchange
-                symbol=symbol,
-                side=side,
-                price=order.average_fill_price,
-                quantity=order.quantity_filled,
-                fee=trade_fee,
-                fee_asset=trade_fee_asset or "",  # Ensure string, never None
-                cost=trade_cost,
-                timestamp=int(trade_timestamp.timestamp() * 1000),  # Convert to int ms
-                is_maker=False,
-                executed_at=trade_timestamp,
-                client_order_id=order.client_order_id,
-            )
-            self._trades.append(trade_to_record)
-            self._update_balance_and_position(trade_to_record)
-
-        # If behavior is 'keep_open', the order remains in self._orders with status OPEN
-
+        logger.debug(
+            f"Mock {self.exchange_name}: Placed order {order.client_order_id}: {order.status}"
+        )
         return order
 
     async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
@@ -452,36 +506,52 @@ class MockExchangeAPI(ExchangeAPI):
         self._check_error("cancel_order")
         await self._simulate_latency()
 
-        order = self._orders.get(order_id)
+        order = self._orders.get(str(order_id))
         if not order:
-            raise APIError(f"Order {order_id} not found", code=APIErrorCode.ORDER_NOT_FOUND.value)
+            # If client_order_id provided, try finding by that
+            found_by_client_id = False
+            if client_order_id:
+                for o in self._orders.values():
+                    if o.client_order_id == str(client_order_id):
+                        order = o
+                        found_by_client_id = True
+                        break
+            if not found_by_client_id:
+                raise APIError("Order not found", code=APIErrorCode.ORDER_NOT_FOUND.value)
 
-        # Check against final statuses explicitly
-        final_statuses = (
-            OrderStatus.FILLED,
-            OrderStatus.CANCELED,
-            OrderStatus.REJECTED,
-            OrderStatus.EXPIRED,
-            OrderStatus.FAILED,
-        )
-        if order.status in final_statuses:
-            logger.warning(f"Order {order_id} is already in final state: {order.status}")
-            # Return success indication even if already final, mimicking some exchanges
-            return {"status": "success", "order": order.model_dump()}
+        # Assert order is not None after potentially finding it by client_order_id
+        assert order is not None
 
+        # Simulate updates if needed (e.g., status change)
+        # For simplicity, just return the found order
         order.status = OrderStatus.CANCELED
-        # order.last_update_time = datetime.now(UTC) # Order model doesn't have this
+        order.updated_at = datetime.now(UTC)  # Update timestamp on cancel
         logger.info(f"Mock {self.exchange_name}: Cancelled order {order_id}")
-        # Return the cancelled order details, common practice
+        # Return the cancelled order details, common practice - use model_dump()
         return {"status": "success", "order": order.model_dump()}
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
-        """Get a specific order by ID (symbol param ignored in mock)."""
-        # Mark symbol as unused if necessary for linters
-        _ = symbol
+        """Retrieve a specific order by its ID."""
         self._check_error("get_order")
         await self._simulate_latency()
-        return self._orders.get(order_id)
+        target_order_id = str(order_id)
+        # Try finding by exchange order ID first
+        order = self._orders.get(target_order_id)
+
+        # If not found by exchange ID and client_order_id is provided, try that
+        if not order and client_order_id:
+            target_client_order_id = str(client_order_id)
+            for o in self._orders.values():
+                if o.client_order_id == target_client_order_id:
+                    order = o
+                    break
+
+        if not order:
+            raise APIError("Order not found", code=APIErrorCode.ORDER_NOT_FOUND.value)
+
+        # Simulate updates if needed (e.g., status change)
+        # For simplicity, just return the found order
+        return order
 
     async def get_order_status(
         self,
@@ -506,19 +576,17 @@ class MockExchangeAPI(ExchangeAPI):
         """Return mock open orders, optionally filtered by symbol."""
         self._check_error("get_open_orders")
         await self._simulate_latency()
-        final_statuses = (
-            OrderStatus.FILLED,
-            OrderStatus.CANCELED,
-            OrderStatus.REJECTED,
-            OrderStatus.EXPIRED,
-            OrderStatus.FAILED,
-        )
-        open_orders = [
-            o
-            for o in self._orders.values()
-            if o.status not in final_statuses and (symbol is None or o.symbol == symbol)
-        ]
-        return open_orders
+        try:
+            orders_to_return: list[Order] = []
+            for order in self._orders.values():
+                # Filter by symbol if provided
+                order_symbol: str | None = getattr(order, "symbol", None)
+                if symbol is None or order_symbol == symbol:
+                    orders_to_return.append(order)
+            return orders_to_return
+        except Exception as e:
+            logger.exception(f"Error in mock get_open_orders: {e}")
+            return []
 
     # --- Mock Data Setup ---
 
@@ -962,32 +1030,71 @@ class MockExchangeAPI(ExchangeAPI):
         Parse account update message to extract balances and positions.
         Returns a tuple: (balances_dict, positions_dict). Dictionaries are None if not present.
         """
-        # Placeholder implementation - needs logic based on actual message format
-        balances: dict[str, SpotBalance] | None = None
-        positions: dict[str, DerivativePosition] | None = None
-        # Example logic (needs adjustment based on real format):
-        # if message.get("type") == "account_update":
-        #     balances_data = message.get("balances")
-        #     positions_data = message.get("positions")
-        #     if balances_data:
-        #         balances = {b["asset"]: self.parse_balance(b) for b in balances_data}
-        #     if positions_data:
-        #         positions = {p["symbol"]: self.parse_position(p) for p in positions_data}
-        return balances, positions
+        # Placeholder implementation - assumes message contains 'balances' and/or 'positions' keys
+        # Needs adaptation based on actual WebSocket message format
+        updated_balances = None
+        updated_positions = None
+
+        if "balances" in message:
+            try:
+                # Assume message["balances"] is dict[str, dict]
+                parsed_balances = {}
+                for asset, data in message["balances"].items():
+                    # Add exchange for parsing consistency
+                    data["exchange"] = self.exchange_name
+                    parsed_balances[asset] = self.parse_balance(data)
+                updated_balances = parsed_balances
+            except Exception as e:
+                logger.error(f"Failed to parse balances from WS message: {e}", exc_info=True)
+
+        if "positions" in message:
+            try:
+                # Assume message["positions"] is list[dict] or dict[str, dict]
+                parsed_positions = {}
+                pos_data = message["positions"]
+                # Use isinstance checks that work with generics
+                if isinstance(pos_data, list):
+                    for data in pos_data:
+                        # Add exchange for parsing consistency
+                        if isinstance(data, dict):
+                            data["exchange"] = self.exchange_name
+                            pos = self.parse_position(data)
+                            parsed_positions[pos.symbol] = pos  # Use symbol as key
+                        parsed_positions[pos.symbol] = pos  # Use symbol as key
+                elif isinstance(pos_data, dict):  # Handle dict of positions (symbol -> data)
+                    for symbol, data in pos_data.items():
+                        # Add exchange for parsing consistency
+                        data["exchange"] = self.exchange_name
+                        parsed_positions[symbol] = self.parse_position(data)
+                updated_positions = parsed_positions
+            except Exception as e:
+                logger.error(f"Failed to parse positions from WS message: {e}", exc_info=True)
+
+        return updated_balances, updated_positions
 
     def parse_balance(
         self, data: dict[str, Any]
     ) -> SpotBalance:  # Updated return type, Ensure implementation raises on failure
-        """Parse raw balance data into a SpotBalance object."""
+        """Parse balance data, raising ValueError on failure."""
         try:
-            # Add exchange if missing, using the mock API's name
+            # Ensure required fields are present before passing to SpotBalance
+            required_fields = ["asset", "total_quantity", "available_quantity", "timestamp"]
             if "exchange" not in data:
-                data["exchange"] = self.exchange_name
+                data["exchange"] = self.exchange_name  # Add if missing
+
+            for field in required_fields:
+                if field not in data:
+                    raise ValueError(f"Missing required balance field: {field}")
+
+            # Perform necessary type conversions (e.g., string to Decimal)
+            data["total_quantity"] = Decimal(str(data["total_quantity"]))
+            data["available_quantity"] = Decimal(str(data["available_quantity"]))
+            # Assuming timestamp is correctly formatted or handled by Pydantic
+
             return SpotBalance(**data)
-        except Exception as e:
-            logger.error(f"Failed to parse balance data: {data}. Error: {e}")
-            # Re-raise as a specific error type or handle as needed
-            raise MockAPIError(f"Failed to parse balance data: {e}") from e
+        except (ValidationError, KeyError, TypeError, InvalidOperation) as e:
+            logger.error(f"Failed to parse balance data: {data}. Error: {e}", exc_info=True)
+            raise ValueError(f"Failed to parse balance data: {e}") from e
 
     def parse_funding_rate(
         self, data: dict[str, Any]
@@ -1100,54 +1207,41 @@ class MockExchangeAPI(ExchangeAPI):
     def parse_position(
         self, data: dict[str, Any]
     ) -> DerivativePosition:  # Ensure implementation raises on failure
-        """Parse position data (placeholder)."""
+        """Parse position data, raising ValueError on failure."""
         try:
-            # Assuming data is dict-like
-            if "side" in data and isinstance(data["side"], str):
-                data["side"] = OrderSide(data["side"])
-            # Convert numeric fields
-            for field in [
-                "size",
-                "entry_price",
-                "mark_price",
-                "liquidation_price",
-                "leverage",
-                "unrealized_pnl",
-                "realized_pnl",
-                "margin_used",
-                "pnl",
-                "close_price",
-            ]:
-                if field in data and data[field] is not None:
-                    try:
-                        data[field] = Decimal(str(data[field]))
-                    except InvalidOperation:
-                        logger.error(
-                            f"Could not convert position field '{field}' value '{data[field]}' to Decimal."
-                        )
-                        raise ValueError(f"Invalid Decimal value for field '{field}'")
-            # Convert timestamps (Position model doesn't have timestamp directly)
-            # if "timestamp" in data and data["timestamp"] is not None:
-            #      try:
-            #          ts_sec = int(data["timestamp"]) / 1000
-            #          data["timestamp"] = datetime.fromtimestamp(ts_sec, tz=UTC)
-            #      except (ValueError, TypeError, OSError):
-            #          logger.error(f"Could not convert position timestamp '{data['timestamp']}'")
-            #          data["timestamp"] = None
-            if "close_time" in data and data["close_time"] is not None:
-                try:
-                    # Attempt parsing assuming ISO format string
-                    data["close_time"] = datetime.fromisoformat(
-                        data["close_time"].replace("Z", "+00:00")
-                    )
-                except (ValueError, TypeError):
-                    logger.error(f"Could not parse close_time '{data['close_time']}'")
-                    data["close_time"] = None
+            # Ensure required fields
+            required_fields = ["symbol", "side", "size", "entry_price"]
+            if "exchange" not in data:
+                data["exchange"] = self.exchange_name
+
+            for field in required_fields:
+                if field not in data:
+                    raise ValueError(f"Missing required position field: {field}")
+
+            # Convert types
+            data["side"] = OrderSide(data["side"])
+            data["size"] = Decimal(str(data["size"]))
+            data["entry_price"] = Decimal(str(data["entry_price"]))
+            if "mark_price" in data and data["mark_price"] is not None:
+                data["mark_price"] = Decimal(str(data["mark_price"]))
+            if "unrealized_pnl" in data and data["unrealized_pnl"] is not None:
+                data["unrealized_pnl"] = Decimal(str(data["unrealized_pnl"]))
+            if "realized_pnl" in data and data["realized_pnl"] is not None:
+                data["realized_pnl"] = Decimal(str(data["realized_pnl"]))
+            if "liquidation_price" in data and data["liquidation_price"] is not None:
+                data["liquidation_price"] = Decimal(str(data["liquidation_price"]))
+            if "initial_margin" in data and data["initial_margin"] is not None:
+                data["initial_margin"] = Decimal(str(data["initial_margin"]))
+            if "maintenance_margin" in data and data["maintenance_margin"] is not None:
+                data["maintenance_margin"] = Decimal(str(data["maintenance_margin"]))
+            if "leverage" in data and data["leverage"] is not None:
+                data["leverage"] = Decimal(str(data["leverage"]))
+            # Assuming timestamp is handled by Pydantic if present
 
             return DerivativePosition(**data)
-        except Exception as err:  # Outer exception block
-            logger.error(f"Mock parse_position failed for data: {data}. Error: {err}")
-            raise ValueError(f"Mock parse_position failed: {err}") from err
+        except (ValidationError, KeyError, TypeError, InvalidOperation, ValueError) as e:
+            logger.error(f"Failed to parse position data: {data}. Error: {e}", exc_info=True)
+            raise ValueError(f"Failed to parse position data: {e}") from e
 
     def parse_ticker(
         self, data: dict[str, Any], symbol: str
@@ -1182,44 +1276,40 @@ class MockExchangeAPI(ExchangeAPI):
     def parse_trade(
         self, data: dict[str, Any], symbol: str
     ) -> Trade:  # Ensure implementation raises on failure
-        """Parse trade data (placeholder)."""
+        """Parse trade data, raising ValueError on failure."""
         try:
-            # Assuming data is dict-like
-            if "side" in data and isinstance(data["side"], str):
-                data["side"] = OrderSide(data["side"])
-            # Convert numeric fields
-            for field in ["price", "quantity", "fee", "cost"]:
-                if field in data and data[field] is not None:
-                    try:
-                        data[field] = Decimal(str(data[field]))
-                    except InvalidOperation:
-                        logger.error(
-                            f"Could not convert trade field '{field}' value '{data[field]}' to Decimal."
-                        )
-                        # Raise error instead of returning None
-                        raise ValueError(
-                            f"Could not convert trade field '{field}' value '{data[field]}' to Decimal."
-                        )
-            # Convert timestamp
-            if "timestamp" in data and data["timestamp"] is not None:
-                # Assuming int ms timestamp
-                try:
-                    # Ensure it's converted to int
-                    data["timestamp"] = int(data["timestamp"])
-                except (ValueError, TypeError):
-                    logger.error(
-                        f"Could not convert trade timestamp '{data['timestamp']}' to int ms"
-                    )
-                    # Raise error if timestamp is mandatory and invalid
-                    raise ValueError(f"Invalid timestamp format for trade: {data['timestamp']}")
+            # Ensure required fields
+            required_fields = [
+                "id",
+                "order_id",
+                "price",
+                "quantity",
+                "side",
+                "timestamp",
+                "is_maker",
+            ]
+            if "exchange" not in data:
+                data["exchange"] = self.exchange_name
 
-            # Remove 'datetime' if it exists from previous attempts, Trade expects 'timestamp' (int)
-            data.pop("datetime", None)
+            for field in required_fields:
+                if field not in data:
+                    raise ValueError(f"Missing required trade field: {field}")
+
+            # Convert types
+            data["symbol"] = symbol  # Add symbol if missing
+            data["price"] = Decimal(str(data["price"]))
+            data["quantity"] = Decimal(str(data["quantity"]))
+            data["side"] = OrderSide(data["side"])
+            if "fee" in data and data["fee"] is not None:
+                data["fee"] = Decimal(str(data["fee"]))
+            # Assuming timestamp is handled by Pydantic
+            # Ensure is_maker is bool
+            data["is_maker"] = bool(data["is_maker"])
 
             return Trade(**data)
-        except Exception as err:  # Outer exception block
-            logger.error(f"Mock parse_trade failed for data: {data}. Error: {err}")
-            raise ValueError(f"Mock parse_trade failed: {err}") from err
+        except (ValidationError, KeyError, TypeError, InvalidOperation, ValueError) as e:
+            logger.error(f"Failed to parse trade data: {data}. Error: {e}", exc_info=True)
+            raise ValueError(f"Failed to parse trade data: {e}") from e
 
     def parse_trade_message(
         self, message: dict[str, Any]
