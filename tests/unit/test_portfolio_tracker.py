@@ -10,12 +10,12 @@ import pytest
 # Add ExchangeAPI import if needed by mock spec
 from cyberdelta.apis.base_api import ExchangeAPI
 from cyberdelta.core.models import (
-    Balance,
+    DerivativePosition,
     Order,
     OrderSide,
     OrderStatus,
     OrderType,
-    Position,
+    SpotBalance,
     Ticker,
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
@@ -88,8 +88,8 @@ class TestPortfolioTracker:
         """Test fetching balances from an exchange."""
         mock_hl_api = mock_api_clients["hyperliquid"]
         test_balances = {
-            "USDC": Balance(asset="USDC", total=Decimal("10000.0"), free=Decimal("10000.0")),
-            "BTC": Balance(asset="BTC", total=Decimal("1.0"), free=Decimal("1.0")),
+            "USDC": SpotBalance(asset="USDC", total=Decimal("10000.0"), free=Decimal("10000.0")),
+            "BTC": SpotBalance(asset="BTC", total=Decimal("1.0"), free=Decimal("1.0")),
         }
         mock_hl_api.get_balances.return_value = test_balances
         await portfolio_tracker._fetch_exchange_balances("hyperliquid")  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
@@ -106,7 +106,7 @@ class TestPortfolioTracker:
         """Test fetching positions from an exchange."""
         mock_hl_api = mock_api_clients["hyperliquid"]
         test_positions_list = [
-            Position(
+            DerivativePosition(
                 symbol="BTC",
                 size=Decimal("0.5"),
                 entry_price=Decimal("40000.0"),
@@ -242,7 +242,7 @@ class TestPortfolioTracker:
 
     def test_update_position(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test updating a position."""
-        test_position = Position(
+        test_position = DerivativePosition(
             symbol="BTC",
             side=OrderSide.BUY,
             size=Decimal("0.5"),
@@ -264,8 +264,10 @@ class TestPortfolioTracker:
 
     def test_get_exchange_balance(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test getting an exchange balance."""
-        test_balance_usdc = Balance(asset="USDC", total=Decimal("10000.0"), free=Decimal("10000.0"))
-        test_balance_btc = Balance(asset="BTC", total=Decimal("1.0"), free=Decimal("1.0"))
+        test_balance_usdc = SpotBalance(
+            asset="USDC", total=Decimal("10000.0"), free=Decimal("10000.0")
+        )
+        test_balance_btc = SpotBalance(asset="BTC", total=Decimal("1.0"), free=Decimal("1.0"))
         portfolio_tracker._balances = {
             "hyperliquid": {"USDC": test_balance_usdc, "BTC": test_balance_btc}
         }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
@@ -285,10 +287,10 @@ class TestPortfolioTracker:
         mock_bp_api = mock_api_clients["backpack"]
         portfolio_tracker._balances = {
             "hyperliquid": {
-                "USDC": Balance(asset="USDC", total=Decimal("10000.0")),
-                "BTC": Balance(asset="BTC", total=Decimal("1.0")),
+                "USDC": SpotBalance(asset="USDC", total=Decimal("10000.0")),
+                "BTC": SpotBalance(asset="BTC", total=Decimal("1.0")),
             },
-            "backpack": {"USDC": Balance(asset="USDC", total=Decimal("5000.0"))},
+            "backpack": {"USDC": SpotBalance(asset="USDC", total=Decimal("5000.0"))},
         }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
 
         async def mock_get_ticker_usdc(symbol: str) -> Ticker | None:
@@ -334,18 +336,18 @@ class TestPortfolioTracker:
         """Test calculating exposure on a single exchange."""
         mock_hl_api = mock_api_clients["hyperliquid"]
         portfolio_tracker._balances = {
-            "hyperliquid": {"USDC": Balance(asset="USDC", total=Decimal("10000.0"))}
+            "hyperliquid": {"USDC": SpotBalance(asset="USDC", total=Decimal("10000.0"))}
         }
         portfolio_tracker._positions = {
             "hyperliquid": {
-                "btc_pos_exp": Position(
+                "btc_pos_exp": DerivativePosition(
                     symbol="BTC",
                     side=OrderSide.BUY,
                     size=Decimal("0.5"),
                     entry_price=Decimal("40000"),
                     id="btc_pos_exp",
                 ),
-                "eth_pos_exp": Position(
+                "eth_pos_exp": DerivativePosition(
                     symbol="ETH",
                     side=OrderSide.SELL,
                     size=Decimal("10"),
@@ -377,12 +379,12 @@ class TestPortfolioTracker:
         mock_hl_api = mock_api_clients["hyperliquid"]
         mock_bp_api = mock_api_clients["backpack"]
         portfolio_tracker._balances = {
-            "hyperliquid": {"USDT": Balance(asset="USDT", total=Decimal("10000.0"))},
-            "backpack": {"USDT": Balance(asset="USDT", total=Decimal("5000.0"))},
+            "hyperliquid": {"USDT": SpotBalance(asset="USDT", total=Decimal("10000.0"))},
+            "backpack": {"USDT": SpotBalance(asset="USDT", total=Decimal("5000.0"))},
         }
         portfolio_tracker._positions = {
             "hyperliquid": {
-                "btc_pos_tot": Position(
+                "btc_pos_tot": DerivativePosition(
                     symbol="BTC",
                     side=OrderSide.BUY,
                     size=Decimal("0.5"),
@@ -391,7 +393,7 @@ class TestPortfolioTracker:
                 )
             },
             "backpack": {
-                "eth_pos_tot": Position(
+                "eth_pos_tot": DerivativePosition(
                     symbol="ETH",
                     side=OrderSide.SELL,
                     size=Decimal("10"),
@@ -437,11 +439,11 @@ class TestPortfolioTracker:
         """Test calculating realized and unrealized PNL."""
         mock_hl_api = mock_api_clients["hyperliquid"]
         portfolio_tracker._balances = {
-            "hyperliquid": {"USDC": Balance(asset="USDC", total=Decimal("10000.0"))}
+            "hyperliquid": {"USDC": SpotBalance(asset="USDC", total=Decimal("10000.0"))}
         }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
         portfolio_tracker._positions = {
             "hyperliquid": {
-                "btc_pos_pnl": Position(
+                "btc_pos_pnl": DerivativePosition(
                     symbol="BTC",
                     side=OrderSide.BUY,
                     size=Decimal("0.5"),
@@ -449,7 +451,7 @@ class TestPortfolioTracker:
                     realized_pnl=Decimal("100.0"),
                     id="btc_pos_pnl",
                 ),
-                "eth_pos_pnl": Position(
+                "eth_pos_pnl": DerivativePosition(
                     symbol="ETH",
                     side=OrderSide.SELL,
                     size=Decimal("10"),
@@ -477,7 +479,7 @@ class TestPortfolioTracker:
 
     def test_get_position(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test getting a position by ID."""
-        test_position = Position(
+        test_position = DerivativePosition(
             symbol="BTC",
             side=OrderSide.BUY,
             size=Decimal("0.5"),
@@ -492,28 +494,28 @@ class TestPortfolioTracker:
 
     def test_get_positions_by_symbol(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test getting positions by symbol."""
-        position1 = Position(
+        position1 = DerivativePosition(
             symbol="BTC",
             side=OrderSide.BUY,
             size=Decimal("0.5"),
             entry_price=Decimal("40000"),
             id="btc_pos_1",
         )
-        position2 = Position(
+        position2 = DerivativePosition(
             symbol="BTC",
             side=OrderSide.SELL,
             size=Decimal("0.2"),
             entry_price=Decimal("42000"),
             id="btc_pos_2",
         )
-        position_eth = Position(
+        position_eth = DerivativePosition(
             symbol="ETH",
             side=OrderSide.BUY,
             size=Decimal("10"),
             entry_price=Decimal("2000"),
             id="eth_pos_1",
         )
-        position_btc_bp = Position(
+        position_btc_bp = DerivativePosition(
             symbol="BTC",
             side=OrderSide.BUY,
             size=Decimal("0.1"),
@@ -549,9 +551,9 @@ class TestPortfolioTracker:
     def test_to_dict(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test serializing the portfolio state to a dictionary."""
         portfolio_tracker._balances = {
-            "hyperliquid": {"USDC": Balance(asset="USDC", total=Decimal("10000.0"))}
+            "hyperliquid": {"USDC": SpotBalance(asset="USDC", total=Decimal("10000.0"))}
         }
-        test_position = Position(
+        test_position = DerivativePosition(
             symbol="BTC",
             side=OrderSide.BUY,
             size=Decimal("0.5"),

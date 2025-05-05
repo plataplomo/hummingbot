@@ -7,17 +7,20 @@ without dependencies on complex web frameworks.
 
 import logging
 import os
+import random
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
 import matplotlib
-import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.axes import Axes
+from matplotlib.dates import DateFormatter, MonthLocator
+from matplotlib.figure import Figure
 
-from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
+from cyberdelta.core.models import OrderSide, SignalType, Trade, TradeSignal
 from cyberdelta.monitoring.simplified_performance_tracker import (
     SimplePerformanceAnalyzer,
     SimplePerformanceTracker,
@@ -35,87 +38,73 @@ def generate_example_data(
     num_trades: int = 30,
     base_time: datetime | None = None,
 ) -> SimplePerformanceTracker:
-    """
-    Generate example data for testing visualization functions.
-
-    Args:
-        strategy_name: Name of the strategy
-        output_dir: Directory to save exported data
-        num_trades: Number of example trades to generate
-        base_time: Starting time for the trades (default: now - 60 days)
-
-    Returns:
-        Tracker instance with example data
-    """
-    # Create a tracker
+    """Generate sample data for testing the performance tracker and visualizer."""
     tracker = SimplePerformanceTracker(strategy_name, output_dir=output_dir)
+    if base_time is None:
+        base_time = datetime.now(UTC)
 
-    # Set base time
-    now = datetime.now(UTC)
-    base_time = base_time or (now - timedelta(days=60))
-
-    # Create trading signals with all required parameters
-    signal1 = TradeSignal(
-        symbol="BTC-USDT",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,
-        price=Decimal("50000.0"),
-        quantity=Decimal("1.0"),
-        timestamp=now,
-        confidence=0.95,
-        source_strategy=strategy_name,
-        metadata={},
-    )
-
-    signal2 = TradeSignal(
-        symbol="ETH-USDT",
-        signal_type=SignalType.ENTER_SHORT,
-        side=OrderSide.SELL,
-        price=Decimal("3000.0"),
-        quantity=Decimal("10.0"),
-        timestamp=now,
-        confidence=0.85,
-        source_strategy=strategy_name,
-        metadata={},
-    )
-
-    # Track signals
-    signal1_metrics = tracker.track_signal(signal1)
-    signal2_metrics = tracker.track_signal(signal2)
-
-    # Use the generated signal IDs
-    tracker.track_signal_execution(signal1_metrics.signal_id, True)
-    tracker.track_signal_execution(signal2_metrics.signal_id, False)
-
-    # Track a few main trades
-    tracker.track_trade(
-        "trade1", "BTC-USDT", "Binance", "LONG", 1.0, 50000.0, now, signal1_metrics.signal_id
-    )
-    tracker.track_trade("trade2", "ETH-USDT", "Binance", "SHORT", 10.0, 3000.0, now)
-
-    # Track trade exits
-    tracker.track_trade_exit("trade1", 52000.0, now + timedelta(days=1), 2000.0)
-    tracker.track_trade_exit("trade2", 2800.0, now + timedelta(days=2), 2000.0)
-
-    # Create more trade data for realistic plots
+    # Generate trade signals and completed trades
     for i in range(num_trades):
-        trade_time = base_time + timedelta(days=i * 2)
-        exit_time = trade_time + timedelta(days=1)
+        trade_time = base_time - timedelta(days=num_trades - i)
+        exit_time = trade_time + timedelta(hours=random.randint(1, 24))
+        symbol = random.choice(["BTC-USDT", "ETH-USDT"])
+        side = random.choice([OrderSide.BUY, OrderSide.SELL])
+        entry_price = Decimal(random.uniform(40000, 60000)).quantize(Decimal("0.01"))
+        pnl_factor = random.uniform(-0.05, 0.05)
+        exit_price = entry_price * (1 + Decimal(pnl_factor))
+        quantity = Decimal("1.0")
+        fee_decimal = entry_price * quantity * Decimal("0.001")
+        pnl = (exit_price - entry_price) * quantity * (
+            1 if side == OrderSide.BUY else -1
+        ) - fee_decimal
 
-        # Alternate between winning and losing trades with some randomness
-        pnl = 1000 + np.random.normal(0, 500) if i % 2 == 0 else -800 + np.random.normal(0, 300)
+        # Create TradeSignal
+        signal = TradeSignal(
+            signal_id=f"sig_{i}",
+            exchange="mock_exchange",
+            symbol=symbol,
+            signal_type=SignalType.ENTER_LONG if side == OrderSide.BUY else SignalType.ENTER_SHORT,
+            side=side,
+            price=entry_price,
+            quantity=quantity,
+            timestamp=trade_time,
+            source_strategy=strategy_name,
+            confidence=random.uniform(0.5, 1.0),
+            metadata={},
+        )
+        tracker.track_signal(signal)
 
-        # Alternate symbols and directions
-        trade_id = f"trade_{i + 3}"
-        symbol = "BTC-USDT" if i % 3 != 0 else "ETH-USDT"
-        direction = "LONG" if i % 2 == 0 else "SHORT"
+        # Create corresponding Trade object
+        trade = Trade(
+            id=f"trade_{i}",
+            exchange="mock_exchange",
+            symbol=symbol,
+            order_id=f"order_{i}",
+            side=side,
+            quantity=quantity,
+            price=entry_price,
+            fee=fee_decimal,
+            fee_asset="USDT",
+            executed_at=trade_time,
+        )
+        tracker.track_trade(
+            trade_id=trade.id,
+            symbol=trade.symbol,
+            exchange=trade.exchange,
+            direction=side.name,
+            size=float(quantity),
+            entry_price=float(entry_price),
+            entry_time=trade.executed_at,
+            signal_id=signal.signal_id,
+        )
 
-        # Track trade and exit
-        tracker.track_trade(trade_id, symbol, "Binance", direction, 1.0, 50000.0, trade_time)
-        tracker.track_trade_exit(trade_id, 51000.0, exit_time, pnl)
-
-    # Generate some example daily returns and funding rates for the last 30 days
-    # This would be implemented if we were tracking these metrics
+        # Track exit - Requires float conversion for now
+        tracker.track_trade_exit(
+            trade_id=trade.id,
+            exit_price=float(exit_price),
+            exit_time=exit_time,
+            realized_pnl=float(pnl),
+        )
 
     return tracker
 
@@ -169,24 +158,22 @@ class SimpleVisualizer:
 
     # --- Helper Methods ---
 
-    def _setup_plot(self, title: str, xlabel: str, ylabel: str) -> tuple[plt.Figure, plt.Axes]:
-        """Sets up a standard matplotlib figure and axes."""
-        fig, ax = plt.subplots()
-        ax.set_title(f"{title} ({self.tracker.strategy_name})", fontsize=14, fontweight="bold")
+    def _setup_plot(self, title: str, xlabel: str, ylabel: str) -> tuple[Figure, Axes]:
+        """Helper to create a standard plot figure and axes."""
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.set_title(title, fontsize=14, fontweight="bold")
         ax.set_xlabel(xlabel, fontsize=12)
         ax.set_ylabel(ylabel, fontsize=12)
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, linestyle="--", alpha=0.6)
         return fig, ax
 
-    def _format_xaxis_date(self, fig: plt.Figure, ax: plt.Axes) -> None:
-        """Formats the x-axis to display dates nicely."""
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+    def _format_xaxis_date(self, fig: Figure, ax: Axes) -> None:
+        """Formats the x-axis for date plotting."""
+        ax.xaxis.set_major_locator(MonthLocator(bymonthday=1))
+        ax.xaxis.set_major_formatter(DateFormatter("%b-%Y"))
         fig.autofmt_xdate()
 
-    def _finalize_plot(
-        self, fig: plt.Figure, ax: plt.Axes, plot_name: str, save: bool, show: bool
-    ) -> None:
+    def _finalize_plot(self, fig: Figure, ax: Axes, plot_name: str, save: bool, show: bool) -> None:
         """Applies final layout adjustments, saves, shows, and closes the plot."""
         plt.tight_layout()
         if save:
@@ -205,7 +192,7 @@ class SimpleVisualizer:
 
     # --- Plotting Methods ---
 
-    def plot_cumulative_pnl(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_cumulative_pnl(self, save: bool = False, show: bool = True) -> Figure | None:
         """
         Plot cumulative PnL over time.
 
@@ -293,7 +280,7 @@ class SimpleVisualizer:
 
         return fig  # Return the figure object (though it's closed if not shown live)
 
-    def plot_drawdown(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_drawdown(self, save: bool = False, show: bool = True) -> Figure | None:
         """
         Plot drawdown percentage over time.
 
@@ -362,7 +349,7 @@ class SimpleVisualizer:
 
         return fig
 
-    def plot_trade_distribution(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_trade_distribution(self, save: bool = False, show: bool = True) -> Figure | None:
         """
         Plot distribution of trade PnL.
 
@@ -416,9 +403,7 @@ class SimpleVisualizer:
 
         return fig
 
-    def plot_winning_vs_losing_trades(
-        self, save: bool = False, show: bool = True
-    ) -> plt.Figure | None:
+    def plot_winning_vs_losing_trades(self, save: bool = False, show: bool = True) -> Figure | None:
         """
         Plot winning vs. losing trades for the strategy.
 
@@ -501,11 +486,11 @@ class SimpleVisualizer:
         ax.tick_params(axis="x", which="both", bottom=False, top=False, labelbottom=True)
 
         # Finalize plot
-        self._finalize_plot(fig, ax, "winning_losing_trades", save, show)
+        self._finalize_plot(fig, ax, "win_loss_ratio", save, show)
 
         return fig
 
-    def plot_monthly_performance(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_monthly_performance(self, save: bool = False, show: bool = True) -> Figure | None:
         """
         Plot monthly PnL performance.
 
@@ -634,7 +619,7 @@ class SimpleVisualizer:
             logger.error(f"Error generating performance summary: {e}")
             return "Error generating performance summary. See logs for details."
 
-    def plot_performance_metrics(self, save: bool = False, show: bool = True) -> plt.Figure | None:
+    def plot_performance_metrics(self, save: bool = False, show: bool = True) -> Figure | None:
         """
         Plot key performance metrics as a bar chart.
 

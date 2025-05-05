@@ -393,7 +393,12 @@ class TestExecutionHandler:
         mock_config: MagicMock,
     ) -> None:
         """Test successful compensation placement."""
-        mock_ticker = Ticker(symbol="BTC-PERP", bid=Decimal("40900"), ask=Decimal("40950"))
+        mock_ticker = Ticker(
+            symbol="BTC-PERP",
+            timestamp=datetime.now(UTC),
+            bid=Decimal("40900"),
+            ask=Decimal("40950"),
+        )
         mock_hl_api.get_ticker.return_value = mock_ticker
 
         limit_price_offset_pct_str = mock_config.get(
@@ -513,6 +518,12 @@ class TestExecutionHandler:
 
         mock_config.get.side_effect = config_get_side_effect_conc
 
+        mock_hl_api.get_ticker.return_value = Ticker(
+            symbol="BTC-PERP",
+            timestamp=datetime.now(UTC),
+            bid=Decimal("41000"),
+            ask=Decimal("41050"),
+        )
         hl_ticker = Ticker(symbol="BTC-PERP", bid=Decimal("41000"), ask=Decimal("41050"))
         bp_ticker = Ticker(symbol="BTC_USDC", bid=Decimal("41100"), ask=Decimal("41150"))
         mock_hl_api.get_ticker.return_value = hl_ticker

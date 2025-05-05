@@ -48,6 +48,7 @@ class TestSimpleVisualizer(unittest.TestCase):
 
         # Track some signals
         signal1 = TradeSignal(
+            exchange="mock_exchange",
             symbol="BTC-USDT",
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
@@ -59,6 +60,7 @@ class TestSimpleVisualizer(unittest.TestCase):
             metadata={},
         )
         signal2 = TradeSignal(
+            exchange="mock_exchange",
             symbol="ETH-USDT",
             signal_type=SignalType.ENTER_SHORT,
             side=OrderSide.SELL,

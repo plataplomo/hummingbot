@@ -152,8 +152,8 @@ def hyperliquid_secrets() -> dict[str, str]:
         derived_address = "0xMockAddressCreationFailed"  # Provide a fallback
 
     return {
-        "HYPERLIQUID_WALLET_PRIVATE_KEY": dummy_private_key,
-        "HYPERLIQUID_WALLET_ADDRESS": derived_address,
+        "private_key": dummy_private_key,
+        "wallet_address": derived_address,
     }
 
 

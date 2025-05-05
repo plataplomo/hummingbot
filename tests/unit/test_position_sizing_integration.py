@@ -119,7 +119,7 @@ async def test_position_sizing_integration(
     mock_logger.error = MagicMock()
 
     # Mock _check_opportunity to return our test opportunity
-    strategy_with_risk_manager._check_opportunity = AsyncMock(return_value=mock_opportunity)
+    strategy_with_risk_manager._check_opportunity = AsyncMock(return_value=mock_opportunity)  # noqa: SLF001 - Test mock
 
     # Mock TradeSignal creation
     mock_trade_signal = MagicMock(spec=TradeSignal)
@@ -143,8 +143,8 @@ async def test_position_sizing_integration(
         }
     }
 
-    # Mock _generate_entry_signal
-    strategy_with_risk_manager._generate_entry_signal = MagicMock(return_value=mock_trade_signal)
+    # Mock _generate_entry_signal to return a list
+    strategy_with_risk_manager._generate_entry_signal = MagicMock(return_value=[mock_trade_signal])  # noqa: SLF001 - Test mock
 
     # Setup risk manager to return a sized opportunity
     mock_sized_opportunity = SizedOpportunity(
@@ -161,7 +161,7 @@ async def test_position_sizing_integration(
     )
 
     # Call the method to generate a signal with position sizing
-    signals = await strategy_with_risk_manager._check_and_generate_signal()
+    signals = await strategy_with_risk_manager._check_and_generate_signal()  # noqa: SLF001 - Test call
 
     # Verify that risk manager was called
     setup_dependencies["risk_manager"].size_opportunity.assert_called_once()
@@ -243,11 +243,13 @@ def test_fallback_without_risk_manager(
     ]
     mock_trade_signal.metadata = {"position_sizing": {"enhanced": False}}
 
-    # Mock _generate_entry_signal
-    strategy_without_risk_manager._generate_entry_signal = MagicMock(return_value=mock_trade_signal)
+    # Mock _generate_entry_signal to return a list
+    strategy_without_risk_manager._generate_entry_signal = MagicMock(
+        return_value=[mock_trade_signal]
+    )  # noqa: SLF001 - Test mock
 
     # Generate a signal
-    signals = strategy_without_risk_manager._generate_entry_signal(mock_opportunity)
+    signals = strategy_without_risk_manager._generate_entry_signal(mock_opportunity)  # noqa: SLF001 - Test call
 
     # Use the first signal for assertions (perp leg)
     signal = signals[0]

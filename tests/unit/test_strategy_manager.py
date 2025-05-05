@@ -124,6 +124,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
 
         # Create mock signal (removed id)
         signal = TradeSignal(
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
@@ -165,6 +166,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
         self.mock_strategy2.process_data.reset_mock()
         self.mock_risk_manager.size_signal.reset_mock()
         signal2 = TradeSignal(
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             signal_type=SignalType.ENTER_SHORT,
             side=OrderSide.SELL,
@@ -301,6 +303,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
             volume=Decimal("100.0"),
         )
         valid_signal = TradeSignal(
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
@@ -336,6 +339,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
             volume=Decimal("100.0"),
         )
         valid_signal = TradeSignal(
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
@@ -370,6 +374,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
         )
         # Create a signal with None for a required field
         incomplete_signal = TradeSignal(
+            exchange="mock_exchange",
             symbol=None,  # type: ignore
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
@@ -401,6 +406,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
             volume=Decimal("100.0"),
         )
         valid_signal1 = TradeSignal(
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
@@ -411,6 +417,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
             source_strategy="MockStrategy",
         )
         valid_signal2 = TradeSignal(
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             signal_type=SignalType.ENTER_SHORT,
             side=OrderSide.SELL,
@@ -454,6 +461,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
         )
         self.mock_strategy1.update_historical_data.side_effect = Exception("History update failed")
         valid_signal = TradeSignal(
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
@@ -527,6 +535,7 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
             volume=Decimal("100.0"),
         )
         valid_signal = TradeSignal(
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,

@@ -58,6 +58,7 @@ def sample_signal() -> TradeSignal:
         quantity=Decimal("1"),
         source_strategy="test_strategy",
         metadata={"utility_score": 0.8},
+        exchange="mock_exchange",
     )
 
 
@@ -79,6 +80,7 @@ def sample_opportunity() -> ArbitrageOpportunity:
         expected_profit=Decimal("1.5"),
         basis_volatility=0.0005,
         confidence_score=0.85,
+        exchange="mock_exchange",
     )
 
 
@@ -109,6 +111,7 @@ def test_add_signal(mock_config: Config, sample_signal: TradeSignal) -> None:
     assert priority == -0.8  # Negative for max-heap
     assert signal.symbol == "BTC/USDT"
     assert signal.expiration is not None
+    assert signal.exchange == "mock_exchange"
 
 
 def test_add_signal_with_circuit_breaker(
