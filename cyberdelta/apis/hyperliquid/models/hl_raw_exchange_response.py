@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -110,8 +110,8 @@ class HyperliquidRawExchangeResponseData(BaseModel):
     @classmethod
     def validate_statuses_list(
         cls,
-        v: object,
-        info: ValidationInfo,  # Input must be object for raw validation
+        v: list[Any],
+        info: ValidationInfo,
     ) -> list[str | HyperliquidRawExchangeStatusObject]:
         """
         Validate the 'statuses' list which can contain simple strings or complex status objects.
@@ -119,8 +119,9 @@ class HyperliquidRawExchangeResponseData(BaseModel):
         avoiding the use of `cast`.
         """
         field_name = info.field_name or "statuses"
-        # DEFENSIVE CHECK: Ensure input is a list.
-        if not isinstance(v, list):
+        # DEFENSIVE CHECK: Ensure input is a list (redundant if type hint is list[Any] but safe).
+        # Pyright=[reportUnnecessaryIsInstance]
+        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
 
         # Proceed with iteration now that we know v is a list

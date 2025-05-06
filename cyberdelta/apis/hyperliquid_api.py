@@ -550,7 +550,8 @@ class HyperliquidAPI(ExchangeAPI):
                 order_data: HyperliquidRawOrder = order_obj.order
                 order_symbol: str = order_data.asset
                 if symbol is None or order_symbol == symbol:
-                    # Extract trigger info if present (might require extra parsing logic if nested differently in history)
+                    # Extract trigger info if present
+                    # (might require extra parsing logic if nested differently in history)
                     trigger_info: HyperliquidRawTriggerInfo | None = getattr(
                         order_obj, "trigger", None
                     )
@@ -926,7 +927,8 @@ class HyperliquidAPI(ExchangeAPI):
                 try:
                     # Validate using Raw model (imported at top level)
                     raw_order = HyperliquidRawOrder.model_validate(order_data_raw)
-                    # Extract trigger info if present (might require extra parsing logic if nested differently in history)
+                    # Extract trigger info if present
+                    # (might require extra parsing logic if nested differently in history)
                     trigger_info_raw = order_data_raw.get("trigger")
                     trigger_info = (
                         HyperliquidRawTriggerInfo.model_validate(trigger_info_raw)
@@ -1169,7 +1171,8 @@ class HyperliquidAPI(ExchangeAPI):
                 )
 
             # DEFENSIVE CHECK: response_raw is Any. Runtime check needed for safety.
-            # Pyright=[reportUnknownVariableType, reportUnknownArgumentType, reportUnknownMemberType]
+            # Pyright=[reportUnknownVariableType,
+            # reportUnknownArgumentType, reportUnknownMemberType]
             if not isinstance(raw_response, dict):
                 raise APIError(
                     f"Unexpected response format for candle snapshot: {type(raw_response)}",
