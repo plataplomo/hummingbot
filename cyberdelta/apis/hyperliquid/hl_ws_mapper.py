@@ -1,27 +1,24 @@
 import logging
-import time
-from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 
 import structlog
 
+from cyberdelta.apis.exchange_names import ExchangeName
+from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidOrderMapper
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsBookUpdate,
     HyperliquidRawWsFillEvent,
-    HyperliquidRawWsOrderUpdate,
     HyperliquidRawWsTradeEvent,
 )
 from cyberdelta.core.models import (
     Order,
     OrderBook,
-    OrderSide,
-    OrderStatus,
-    OrderType,
-    TimeInForce,
     Trade,
 )
+from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 
 logger = structlog.get_logger(__name__)
 
@@ -34,88 +31,107 @@ class HyperliquidWebsocketMapper:
     """
 
     @staticmethod
-    def parse_fill_message(message: dict[str, Any], logger: logging.Logger) -> list[Trade]:
-        trades: list[Trade] = []
-        if message.get("type") == "userFill":
-            fill_data_raw = message.get("data", {})
-            try:
-                validated = HyperliquidRawWsFillEvent.model_validate(fill_data_raw)
-            except Exception as e:
-                logger.warning(
-                    f"[Hyperliquid] Invalid fill event (dropped): {e} | Data: {fill_data_raw}"
-                )
-                return trades
-            coin = validated.coin
-            side_str = validated.side
-            px_str = validated.px
-            sz_str = validated.sz
-            time_ms = validated.time
-            order_id = str(validated.oid)
-            try:
-                side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
-                price = Decimal(str(px_str))
-                quantity = Decimal(str(sz_str))
-                trade = Trade(
-                    id=f"{order_id}_{time_ms}",
-                    symbol=coin,
-                    executed_at=datetime.fromtimestamp(time_ms / 1000, tz=UTC),
-                    side=side,
-                    order_id=order_id,
-                    exchange="hyperliquid",
-                    client_order_id=validated.cloid or "",
-                    price=price,
-                    quantity=quantity,
-                    fee=Decimal("0"),
-                    fee_asset="USDC",
-                    is_maker=validated.is_maker,
-                )
-                trades.append(trade)
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Error parsing validated fill data: {e}")
-        return trades
-
-    @staticmethod
-    def parse_trade_message(message: dict[str, Any], logger: logging.Logger) -> Trade | None:
-        if message.get("channel") == "allMids":
+    def parse_fill_message(message: dict[str, Any], logger: logging.Logger) -> Trade | None:
+        """Parses a single user fill event from a WebSocket message.
+        Input `message` is expected to be the raw fill data dictionary.
+        """
+        try:
+            validated_fill = HyperliquidRawWsFillEvent.model_validate(message)
+        except Exception as e:
             logger.warning(
-                "[Hyperliquid] parse_ticker_message needs specific implementation "
-                "for 'allMids' structure."
+                f"[HyperliquidWsMapper] Invalid raw fill data (dropped): {e} | Data: {message!r}"
             )
             return None
+
+        try:
+            side = HyperliquidOrderMapper.map_side_to_internal(validated_fill.side)
+            price = Decimal(validated_fill.px)
+            quantity = Decimal(validated_fill.sz)
+            executed_at = datetime.fromtimestamp(validated_fill.time / 1000, tz=UTC)
+
+            details = HyperliquidTradeDetails(
+                trade_hash=validated_fill.hash,
+                liquidation_mark_px=None,
+                start_position=None,
+                dir=None,
+            )
+
+            return Trade(
+                id=validated_fill.hash,
+                symbol=validated_fill.coin,
+                executed_at=executed_at,
+                side=side,
+                order_id=str(validated_fill.oid),
+                exchange=ExchangeName.HYPERLIQUID.value,
+                client_order_id=validated_fill.cloid,
+                price=price,
+                quantity=quantity,
+                fee=Decimal("0"),
+                fee_asset=None,
+                is_maker=validated_fill.is_maker,
+                hl_details=details,
+            )
+        except (ValueError, TypeError, Exception) as e:
+            logger.warning(
+                f"[HyperliquidWsMapper] Error parsing validated fill data: {e}. Data: {validated_fill.model_dump()!r}"
+            )
+            return None
+
+    @staticmethod
+    def parse_trade_message(message: dict[str, Any], logger: logging.Logger) -> list[Trade]:
+        """Parses a list of public trades from a WebSocket message."""
+        trades: list[Trade] = []
         if "channel" in message and message["channel"] == "trades":
-            data_raw: list[Any] = message.get("data", [])
-            for trade_dict_any_item in data_raw:
-                if not isinstance(trade_dict_any_item, dict):
-                    continue
-                trade_dict: dict[str, Any] = cast(dict[str, Any], trade_dict_any_item)
-                try:
-                    validated = HyperliquidRawWsTradeEvent.model_validate(trade_dict)
-                except Exception as e:
+            data_raw_list: list[Any] = message.get("data", [])
+            for trade_dict_item in data_raw_list:
+                if not isinstance(trade_dict_item, dict):
                     logger.warning(
-                        f"[Hyperliquid] Invalid trade event (dropped): {e} | Data: {trade_dict}"
+                        f"[HyperliquidWsMapper] Skipping non-dict item in public trades list: {trade_dict_item!r}"
                     )
                     continue
                 try:
-                    side = OrderSide.BUY if validated.side == "B" else OrderSide.SELL
-                    price = Decimal(validated.px)
-                    quantity = Decimal(validated.sz)
-                    return Trade(
-                        id=validated.hash,
-                        symbol=validated.coin,
-                        executed_at=datetime.fromtimestamp(validated.time / 1000, tz=UTC),
+                    validated_trade = HyperliquidRawWsTradeEvent.model_validate(trade_dict_item)
+                except Exception as e:
+                    logger.warning(
+                        f"[HyperliquidWsMapper] Invalid raw public trade event (dropped): {e} | Data: {trade_dict_item!r}"
+                    )
+                    continue  # Skip this trade, process others
+
+                try:
+                    side = HyperliquidOrderMapper.map_side_to_internal(validated_trade.side)
+                    price = Decimal(validated_trade.px)
+                    quantity = Decimal(validated_trade.sz)
+                    executed_at = datetime.fromtimestamp(validated_trade.time / 1000, tz=UTC)
+
+                    details = HyperliquidTradeDetails(
+                        trade_hash=validated_trade.hash,
+                        liquidation_mark_px=None,
+                        start_position=None,
+                        dir=None,
+                    )
+
+                    trade_obj = Trade(
+                        id=validated_trade.hash,
+                        symbol=validated_trade.coin,
+                        executed_at=executed_at,
                         side=side,
-                        order_id="",
-                        exchange="hyperliquid",
-                        client_order_id="",
+                        order_id="UNKNOWN_PUBLIC_TRADE",
+                        exchange=ExchangeName.HYPERLIQUID.value,
+                        client_order_id=None,
                         price=price,
                         quantity=quantity,
                         fee=Decimal("0"),
-                        fee_asset="USDC",
+                        fee_asset=None,
                         is_maker=None,
+                        hl_details=details,
                     )
-                except Exception as e:
-                    logger.warning(f"[Hyperliquid] Error parsing validated trade event: {e}")
-        return None
+                    trades.append(trade_obj)
+                except (ValueError, TypeError, Exception) as e:
+                    logger.warning(
+                        f"[HyperliquidWsMapper] Error parsing validated public trade event: {e}. Data: {validated_trade.model_dump()!r}"
+                    )
+                    # Continue to process other trades in the list
+        return trades
 
     @staticmethod
     def parse_orderbook_message(
@@ -153,107 +169,39 @@ class HyperliquidWebsocketMapper:
 
     @staticmethod
     def parse_order_update_message(
-        message: dict[str, Any],
+        event_order_payload: dict[str, Any],
         logger: logging.Logger,
-        parse_order_fn: "Callable[[dict[str, Any]], Order]",
     ) -> Order | None:
         """
-        Parse an order update message using Pydantic validation and a provided order parsing
-        function.
-        Args:
-            message: The WebSocket message dict.
-            logger: Logger for warnings/errors.
-            parse_order_fn: Callable that parses order data dict to Order.
-        Returns:
-            Order object or None if not found/invalid.
-        """
-        if "type" in message and message["type"] == "userEvent" and "userEvents" in message:
-            events_raw = message.get("userEvents", [])
-            for event in events_raw:
-                try:
-                    validated = HyperliquidRawWsOrderUpdate.model_validate(event)
-                except Exception as e:
-                    logger.warning(
-                        f"[Hyperliquid] Invalid order update event (dropped): {e} | Data: {event}"
-                    )
-                    continue
-                if validated.event_type == "order":
-                    order_data = validated.data
-                    try:
-                        order = parse_order_fn(order_data)
-                        return order
-                    except Exception as e:
-                        logger.error(f"Error parsing order update message: {e}")
-        return None
+        Parse an order update payload from a WebSocket user event.
+        Validates the payload using HyperliquidRawOrder and transforms it using HyperliquidOrderMapper.
 
-    @staticmethod
-    def parse_order(
-        data: dict[str, Any],
-    ) -> Order:
-        """
-        Parse exchange-specific order format to standard Order object.
         Args:
-            data: Exchange-specific order data (dictionary)
+            event_order_payload: The raw dictionary payload for the order, extracted from
+                                 the 'data' field of a validated HyperliquidRawWsOrderUpdate event.
+            logger: Logger for warnings/errors.
         Returns:
-            Standardized Order object
+            Order object or None if parsing/transformation fails.
         """
-        if not data:
-            raise ValueError("Invalid order data provided")
         try:
-            order_id = str(data.get("oid", ""))
-            if not order_id:
-                raise ValueError("Order ID missing from order data")
-            symbol = data.get("coin", "")
-            if not symbol:
-                raise ValueError("Symbol missing from order data")
-            side_str = data.get("side", "B")
-            type_str = data.get("orderType", "limit").lower()
-            status_str = data.get("status", "open").lower()
-            price_str = data.get("limitPx", "0")
-            size_str = data.get("sz", "0")
-            remaining_str = data.get("remainingSz", size_str)
-            filled_qty = (
-                Decimal(str(size_str)) - Decimal(str(remaining_str))
-                if remaining_str
-                else Decimal("0")
-            )
-            timestamp = data.get("time", int(time.time() * 1000))
-            side = OrderSide.BUY if side_str == "B" else OrderSide.SELL
-            order_type = OrderType.LIMIT
-            if type_str == "market":
-                order_type = OrderType.MARKET
-            elif type_str == "postonly":
-                order_type = OrderType.LIMIT  # Post-only is a flag, not an order type
-            status = OrderStatus.OPEN
-            if status_str == "filled":
-                status = OrderStatus.FILLED
-            elif status_str in ["cancelled", "canceled"]:
-                status = OrderStatus.CANCELED
-            elif status_str == "rejected":
-                status = OrderStatus.REJECTED
-            elif Decimal(str(remaining_str)) < Decimal(str(size_str)):
-                status = OrderStatus.PARTIALLY_FILLED
-            return Order(
-                client_order_id=data.get("cloid", order_id),
-                exchange_order_id=order_id,
-                related_order_id=None,
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                status=status,
-                quantity_requested=Decimal(str(size_str)),
-                quantity_filled=filled_qty,
-                price=Decimal(str(price_str)),
-                average_fill_price=None,  # Set if available
-                created_at=datetime.fromtimestamp(timestamp / 1000, tz=UTC),
-                exchange="hyperliquid",
-                trigger_by=None,
-                updated_at=None,
-                triggered_at=None,
-                strategy_name=None,
-                signal_id=None,
-                time_in_force=TimeInForce.GTC,  # Default assumption
-            )
+            # Validate the raw order payload (which is event_order_payload here)
+            raw_order_obj = HyperliquidRawOrder.model_validate(event_order_payload)
         except Exception as e:
-            logger.error(f"Error parsing order data: {e}")
-            raise ValueError(f"Failed to parse order: {e}") from e
+            logger.warning(
+                f"[HyperliquidWsMapper] Invalid order data in WS order update (dropped): {e} | Data: {event_order_payload!r}"
+            )
+            return None
+
+        try:
+            # Transform using the robust HyperliquidOrderMapper.
+            # Trigger info is typically not part of WS order update payload in this flat structure.
+            internal_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
+                raw_order_obj, trigger=None
+            )
+            return internal_order
+        except Exception as e:
+            logger.error(
+                f"[HyperliquidWsMapper] Error transforming raw order object from WS event: {e}. Raw: {raw_order_obj.model_dump()!r}",
+                exc_info=True,
+            )
+            return None

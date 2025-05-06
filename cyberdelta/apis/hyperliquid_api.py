@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 from collections.abc import Mapping
 from datetime import datetime
@@ -43,10 +44,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
     HyperliquidRawWithdrawalToL1ActionPayload,
-)
-from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
-    HyperliquidRawWsFillEvent,
-    HyperliquidRawWsOrderUpdate,
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -153,6 +150,8 @@ class HyperliquidAPI(ExchangeAPI):
             except Exception as e:
                 logger.error(f"Error initializing Ethereum account: {e}")
                 raise ValueError(f"Invalid private key: {e}") from e
+        else:
+            self._account = None  # Ensure _account is None if no private key
 
         self.ws_connection: aiohttp.ClientWebSocketResponse | None = None
         self.ws_lock = asyncio.Lock()
@@ -226,96 +225,128 @@ class HyperliquidAPI(ExchangeAPI):
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
-        Sign a request using EIP-712 and wallet private key.
+        Sign a request using EIP-712 and wallet private key for Hyperliquid.
+        The signature protects the action payload via connectionId.
 
         Args:
-            method: HTTP method
-            path: API endpoint
-            params: URL parameters (dictionary)
-            data: Request body (dictionary)
+            method: HTTP method (unused for HL agent signing).
+            path: API endpoint (unused for HL agent signing).
+            params: URL parameters (unused for HL agent signing for /exchange).
+            data: Request body (the action payload for /exchange, used for connectionId).
 
         Returns:
-            Authentication data for the request
+            Dictionary with headers for authentication.
         """
         if not self._account:
-            if "test" in path or (data and data.get("test")):
-                logger.info(
-                    f"[{self.exchange_name}] Using mock authentication for test environment "
-                    f"(no private key)"
-                )
-                timestamp_str = str(int(time.time() * 1000))
-                nonce_str = "12345"
-                signature = "0x" + "0" * 130  # Mock signature
+            if "test" in path or (data and data.get("test_mode")):
+                logger.info(f"[{self.exchange_name}] Using mock authentication (no private key).")
+                timestamp_ms = int(time.time() * 1000)
+                if data:  # If there's data, its presence might be logged or affect other mock logic
+                    pass  # Placeholder if data check is needed for other reasons; otherwise, this if block could be simplified.
+
+                # Generate a unique nonce for the mock request header
+                async with self._nonce_lock:
+                    self._nonce_counter += 1
+                    nonce_val = self._nonce_counter
+
+                mock_signature = "0x" + "1" * 130  # Distinguishable mock signature
                 return {
                     "headers": {
-                        "X-HL-Signature": signature,
-                        "X-HL-Timestamp": timestamp_str,
-                        "X-HL-Nonce": nonce_str,
+                        "X-HL-Signature": mock_signature,
+                        "X-HL-Timestamp": str(timestamp_ms),
+                        "X-HL-Nonce": str(nonce_val),
                     },
-                    "params": params,
-                    "data": data,
+                    "params": params,  # Pass through
+                    "data": data,  # Pass through
                 }
             else:
                 raise APIError(
-                    "Private key not provided for signing",
+                    "Private key not provided for signing real requests",
                     code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 )
 
+        # Actual signing logic
+        timestamp_ms = int(time.time() * 1000)
         async with self._nonce_lock:
             self._nonce_counter += 1
-            nonce = self._nonce_counter
+            nonce_val = self._nonce_counter
 
-        timestamp = int(time.time() * 1000)
+        # For /exchange actions, `data` is the JSON action payload.
+        # connectionId must be keccak256 hash of this action JSON string.
+        if data is None:
+            # This should not happen for /exchange calls which always have a body (action).
+            # If other signed endpoints exist that don't have a body, this needs reconsideration.
+            logger.error(
+                f"[{self.exchange_name}] Signing attempted for an action, but no 'data' (action payload) was provided."
+            )
+            raise APIError(
+                "Action payload (data) is required for signing Hyperliquid exchange requests.",
+                code=APIErrorCode.INVALID_PARAMS.value,
+            )
 
-        # Separate the type definitions from the data to be signed
-        eip712_types = {
-            "EIP712Domain": [
-                {"name": "name", "type": "string"},
-                {"name": "version", "type": "string"},
-                {"name": "chainId", "type": "uint256"},
-                {"name": "verifyingContract", "type": "address"},
-            ],
-            "Agent": [
-                {"name": "source", "type": "string"},
-                {"name": "connectionId", "type": "bytes32"},
-            ],
-        }
+        try:
+            action_json_string = json.dumps(data, separators=(",", ":"))
+        except TypeError as e:
+            logger.error(
+                f"[{self.exchange_name}] Failed to serialize action data to JSON for hashing: {e}. Data: {data!r}",
+                exc_info=True,
+            )
+            raise APIError(
+                "Failed to serialize action data for signing",
+                code=APIErrorCode.INVALID_PARAMS.value,
+            ) from e
 
-        # Data structure for signing (domain and message)
+        connection_id_bytes = w3.keccak(text=action_json_string)
+
+        # EIP-712 structure for Hyperliquid Agent signature
+        # Source: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/methods#signing-eip-712
         structured_data_to_sign = {
-            "types": eip712_types,
+            "types": {
+                "EIP712Domain": [
+                    {"name": "name", "type": "string"},
+                    {"name": "version", "type": "string"},
+                    {"name": "chainId", "type": "uint256"},
+                    {"name": "verifyingContract", "type": "address"},
+                ],
+                "Agent": [
+                    {"name": "source", "type": "string"},
+                    {"name": "connectionId", "type": "bytes32"},
+                    {"name": "timestamp", "type": "uint64"},
+                ],
+            },
             "primaryType": "Agent",
             "domain": {
                 "name": "Hyperliquid",
                 "version": "1",
-                "chainId": self.CHAIN_ID,
-                "verifyingContract": "0x0000000000000000000000000000000000000000",
+                "chainId": self.CHAIN_ID,  # Make sure self.CHAIN_ID is correct (e.g., 1337 for Hyperliquid L1)
+                "verifyingContract": "0x0000000000000000000000000000000000000000",  # Zero address
             },
             "message": {
-                "source": "aix",
-                "connectionId": b"\x00" * 32,
-                "timestamp": timestamp,
+                "source": "Hyperliquid",  # Per documentation, or can be "aix"
+                "connectionId": connection_id_bytes,
+                "timestamp": timestamp_ms,
             },
         }
 
         try:
-            # Pass the structured data including types to encode_typed_data
             signable_message = encode_typed_data(full_message=structured_data_to_sign)
             signed_message = self._account.sign_message(signable_message)
-            signature = signed_message.signature.hex()
+            signature_hex = signed_message.signature.hex()
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error signing message: {e}", exc_info=True)
+            logger.error(
+                f"[{self.exchange_name}] Error signing EIP-712 message: {e}", exc_info=True
+            )
             raise APIError(
-                "Failed to sign message",
+                "Failed to sign EIP-712 message for Hyperliquid action",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
 
         return {
             "headers": {
-                "X-HL-Signature": signature,
-                "X-HL-Timestamp": str(timestamp),
-                "X-HL-Nonce": str(nonce),
+                "X-HL-Signature": signature_hex,
+                "X-HL-Timestamp": str(timestamp_ms),
+                "X-HL-Nonce": str(nonce_val),
             },
             "params": params,
             "data": data,
@@ -356,11 +387,10 @@ class HyperliquidAPI(ExchangeAPI):
                         HyperliquidWebsocketMapper.parse_orderbook_message(data_dict, logger)
                     )
                     if parsed_book:  # Pass parsed data if successful
-                        # Convert parsed object back to dict for the handler
                         await handler(parsed_book.model_dump())
                     else:
                         logger.warning(
-                            f"[{self.exchange_name}] Failed to parse l2Book data: {data_dict}"
+                            f"[{self.exchange_name}] Failed to parse l2Book data: {data_dict!r}"
                         )
                 except Exception as e:
                     logger.error(
@@ -372,16 +402,20 @@ class HyperliquidAPI(ExchangeAPI):
             handler = self._ws_handlers.get(channel)  # Get handler for "trades"
             if handler:
                 try:
-                    # Parse using the specific mapper function
-                    parsed_trade: Trade | None = HyperliquidWebsocketMapper.parse_trade_message(
-                        data_dict, logger
+                    # parse_trade_message now returns list[Trade]
+                    parsed_trades_list: list[Trade] = (
+                        HyperliquidWebsocketMapper.parse_trade_message(
+                            message,
+                            logger,  # Pass the whole message as parse_trade_message expects channel and data fields
+                        )
                     )
-                    if parsed_trade:
-                        # Convert parsed object back to dict for the handler
-                        await handler(parsed_trade.model_dump())
+                    if parsed_trades_list:
+                        for trade_item in parsed_trades_list:
+                            await handler(trade_item.model_dump())
                     else:
-                        logger.warning(
-                            f"[{self.exchange_name}] Failed to parse trades data: {data_dict}"
+                        # This condition might be hit if the list is empty, which is not an error
+                        logger.debug(
+                            f"[{self.exchange_name}] No trades parsed from trades data: {data_dict!r}"
                         )
                 except Exception as e:
                     logger.error(
@@ -394,84 +428,67 @@ class HyperliquidAPI(ExchangeAPI):
             if handler:
                 user_events_data_raw: Any = data_dict.get("userEvents")
                 if isinstance(user_events_data_raw, list):
-                    for event_item_obj in user_events_data_raw:  # event_item_obj is initially Any
-                        if not isinstance(event_item_obj, dict):
+                    for event_item_obj_raw in (
+                        user_events_data_raw
+                    ):  # Reverted to original, Pylance may still flag type as unknown here
+                        if not isinstance(event_item_obj_raw, dict):
                             logger.warning(
-                                f"[{self.exchange_name}] Skipping non-dict item in userEvents list: {event_item_obj}"
+                                f"[{self.exchange_name}] Skipping non-dict item in userEvents list: {event_item_obj_raw!r}"
                             )
                             continue
-                        # Now, event_item_obj is known to be a dict.
-                        event_item_dict: dict[str, Any] = event_item_obj
+                        event_item_dict: dict[str, Any] = (
+                            event_item_obj_raw  # event_item_obj is now event_item_dict
+                        )
 
-                        event_type_raw: Any = event_item_dict.get(
-                            "type"
-                        )  # Safely get 'type' from the dict
+                        event_type_raw = event_item_dict.get("event")
                         if not isinstance(event_type_raw, str):
                             logger.warning(
-                                f"[{self.exchange_name}] Skipping userEvent item with non-string type: {event_type_raw}. Item: {event_item_dict}"
+                                f"[{self.exchange_name}] Skipping userEvent item with non-string type: {event_type_raw!r}. Item: {event_item_dict!r}"
                             )
                             continue
-                        event_type: str = event_type_raw  # Now event_type is a str
+                        event_type: str = event_type_raw
 
-                        mapped_object_dict: dict[str, Any] | None = None
+                        mapped_object: Any = None  # Initialize for this event item
                         try:
                             if event_type == "fill":
-                                # Assuming HyperliquidWsEventMapper should be used here based on original logic
-                                # If it was intentionally removed, this needs to point to HyperliquidWebsocketMapper.parse_fill_message
-                                # For now, let's assume HyperliquidWsEventMapper and its model is intended.
-                                from cyberdelta.apis.hyperliquid.hl_mapper import (
-                                    HyperliquidWsEventMapper,  # Re-add import here for clarity
+                                # parse_fill_message expects the fill data dict directly
+                                mapped_object = HyperliquidWebsocketMapper.parse_fill_message(
+                                    event_item_dict, logger
                                 )
-
-                                validated_fill_event = HyperliquidRawWsFillEvent.model_validate(
-                                    event_item_dict  # Use the typed dict here
-                                )
-                                mapped_fill_trade = HyperliquidWsEventMapper.map_fill_event(
-                                    validated_fill_event
-                                )
-                                if mapped_fill_trade:
-                                    mapped_object_dict = mapped_fill_trade.model_dump(
-                                        exclude_none=True
-                                    )
-
                             elif event_type == "order":
-                                validated_order_update_event = (
-                                    HyperliquidRawWsOrderUpdate.model_validate(
-                                        event_item_dict
-                                    )  # Use the typed dict here
-                                )
-                                # HyperliquidWebsocketMapper.parse_order expects a dict (validated_order_update_event.data)
-                                # and returns an Order object.
-                                mapped_order_obj = HyperliquidWebsocketMapper.parse_order(
-                                    validated_order_update_event.data
-                                )
-                                if mapped_order_obj:
-                                    mapped_object_dict = mapped_order_obj.model_dump(
-                                        exclude_none=True
+                                order_payload_dict = event_item_dict.get("data")
+                                if isinstance(order_payload_dict, dict):
+                                    actual_order_payload: dict[str, Any] = order_payload_dict
+                                    mapped_object = (
+                                        HyperliquidWebsocketMapper.parse_order_update_message(
+                                            actual_order_payload, logger
+                                        )
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"[{self.exchange_name}] 'data' field missing or not a dict in order event: {event_item_dict!r}"
                                     )
                             else:
                                 logger.debug(
-                                    f"[{self.exchange_name}] Unhandled userEvent type: {event_type}. Data: {event_item_dict}"
+                                    f"[{self.exchange_name}] Unhandled userEvent type: {event_type}. Data: {event_item_dict!r}"
                                 )
 
-                            if mapped_object_dict:
-                                await handler(mapped_object_dict)
+                            if mapped_object:  # Check moved inside try, before specific excepts
+                                await handler(mapped_object.model_dump(exclude_none=True))
 
                         except ValidationError as ve:
                             logger.warning(
-                                f"[{self.exchange_name}] Validation failed for userEvent type '{event_type}': {ve}. Data: {event_item_dict}"
+                                f"[{self.exchange_name}] Validation failed for userEvent type '{event_type}': {ve}. Data: {event_item_dict!r}"
                             )
                         except Exception as e:
                             logger.error(
-                                f"[{self.exchange_name}] Error processing userEvent type '{event_type}': {e}. Data: {event_item_dict}",
+                                f"[{self.exchange_name}] Error processing userEvent type '{event_type}': {e}. Data: {event_item_dict!r}",
                                 exc_info=True,
                             )
                 else:
                     logger.warning(
-                        f"[{self.exchange_name}] 'userEvents' field in data is not a list or missing: {data_dict}"
+                        f"[{self.exchange_name}] 'userEvents' field in data is not a list or missing: {data_dict!r}"
                     )
-            else:
-                logger.debug(f"[{self.exchange_name}] No handler for channel: {channel}")
         # Add more channel handlers as needed
         else:
             logger.debug(f"[{self.exchange_name}] Unhandled WS channel: {channel}")
@@ -574,8 +591,8 @@ class HyperliquidAPI(ExchangeAPI):
             # Validate the entire state response
             validated_state = HyperliquidRawClearinghouseState.model_validate(response)
 
-            # Use mapper to extract balances (and other state parts, though ignored here)
-            _positions, _orders, _margins, spot_balances_dict = HyperliquidMapper.map_user_state(
+            # Use specific mapper for spot balances
+            spot_balances_dict = HyperliquidMapper.map_raw_clearinghouse_state_to_spot_balances(
                 validated_state
             )
 
@@ -626,8 +643,8 @@ class HyperliquidAPI(ExchangeAPI):
 
             validated_state = HyperliquidRawClearinghouseState.model_validate(response)
 
-            # Use mapper to extract positions
-            positions_dict, _orders, _margins, _balances = HyperliquidMapper.map_user_state(
+            # Use specific mapper for derivative positions
+            positions_dict = HyperliquidMapper.map_raw_clearinghouse_state_to_derivative_positions(
                 validated_state
             )
 
@@ -723,7 +740,9 @@ class HyperliquidAPI(ExchangeAPI):
             validated = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response)
             for asset_ctx in validated.asset_ctxs:
                 if asset_ctx.name == symbol:
-                    return HyperliquidMapper.map_raw_ctx_to_ticker(asset_ctx.model_dump())
+                    return HyperliquidMapper.map_raw_ctx_to_ticker(
+                        asset_ctx
+                    )  # Pass asset_ctx directly
             logger.warning(
                 f"[{self.exchange_name}] Ticker data not found for {symbol} in response: {response}"
             )
@@ -757,7 +776,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
 
             validated = HyperliquidRawL2Book.model_validate(response)
-            return HyperliquidMapper.map_raw_order_book(symbol, validated.model_dump(), depth)
+            return HyperliquidMapper.map_raw_order_book(validated, depth)  # Corrected call
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting order book for {symbol}: {e}")
             raise
@@ -786,8 +805,9 @@ class HyperliquidAPI(ExchangeAPI):
             validated: HyperliquidRawRecentTradesResponse = (
                 HyperliquidRawRecentTradesResponse.model_validate(response)
             )
-            trade_dicts: list[dict[str, Any]] = [t.model_dump() for t in validated.items]
-            return HyperliquidMapper.map_raw_trades(symbol, trade_dicts, limit)
+            return HyperliquidMapper.map_raw_trades(
+                validated.items, limit
+            )  # Pass validated.items directly
         except APIError as e:
             logger.error(
                 f"[{self.exchange_name}] API Error getting recent trades for {symbol}: {e}"
@@ -821,8 +841,8 @@ class HyperliquidAPI(ExchangeAPI):
                 logger.warning(f"[{self.exchange_name}] No asset context found for {symbol}.")
                 return None
             return HyperliquidMapper.map_raw_ctx_to_funding_rate(
-                symbol, asset_ctx.model_dump(by_alias=True)
-            )
+                asset_ctx
+            )  # Pass asset_ctx directly
         except APIError as e:
             logger.error(
                 f"[{self.exchange_name}] API Error getting funding rate for {symbol}: {e}",
@@ -1338,43 +1358,60 @@ class HyperliquidAPI(ExchangeAPI):
             payload = {"type": "allMeta"}
             response_raw: object = await self._request("POST", url, data=payload)
 
-            # DEFENSIVE CHECK: Runtime check before validation
+            # DEFENSIVE CHECK: Runtime check for allMeta structure
+            # allMeta typically returns: [{"universe": [...]}, [assetCtx1, assetCtx2, ...]]
             if (
                 not isinstance(response_raw, list)
-                or len(response_raw) != 1
-                or not isinstance(response_raw[0], dict)
+                or len(response_raw) != 2
+                or not isinstance(response_raw[0], dict)  # meta part
+                or not isinstance(response_raw[1], list)  # asset contexts part
             ):
                 raise APIError(
-                    f"Unexpected response structure for allMeta: {type(response_raw)}",
+                    f"Unexpected response structure for allMeta: {type(response_raw)}, length {len(response_raw) if isinstance(response_raw, list) else 'N/A'}",
                     code=APIErrorCode.UNKNOWN.value,
                 )
 
             from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
-                HyperliquidRawMetaResponse,
+                HyperliquidRawAssetCtx,  # For validating individual asset contexts
             )
 
-            validated_meta = HyperliquidRawMetaResponse.model_validate(response_raw[0])
-
+            asset_ctx_list_raw: list[Any] = response_raw[1]
             result: list[FundingRate] = []
-            for asset_def in validated_meta.universe:
-                market_symbol: str = asset_def.name
-                # If symbols list is provided, only include markets from that list
-                if symbols is not None and market_symbol not in symbols:
+
+            for asset_ctx_raw in asset_ctx_list_raw:
+                if not isinstance(asset_ctx_raw, dict):
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping non-dict asset_ctx in allMeta response: {asset_ctx_raw!r}"
+                    )
                     continue
+                try:
+                    # Validate each asset context individually
+                    validated_asset_ctx = HyperliquidRawAssetCtx.model_validate(asset_ctx_raw)
+                    market_symbol: str = validated_asset_ctx.name
 
-                # Use mapper to transform asset definition to FundingRate
-                # Note: This assumes asset_def contains funding info.
-                # The mapper function handles missing keys or parsing errors.
-                funding_rate = HyperliquidMapper.transform_raw_asset_def_to_funding_rate(
-                    asset_def.model_dump()  # Pass the dict representation
-                )
+                    if symbols is not None and market_symbol not in symbols:
+                        continue
 
-                if funding_rate:
-                    result.append(funding_rate)
+                    # Use the correct mapper for AssetCtx
+                    funding_rate = HyperliquidMapper.map_raw_ctx_to_funding_rate(
+                        validated_asset_ctx
+                    )
+
+                    if funding_rate:
+                        result.append(funding_rate)
+                except ValidationError as ve_ctx:
+                    logger.warning(
+                        f"[{self.exchange_name}] Failed to validate asset_ctx for funding rate: {ve_ctx}. Data: {asset_ctx_raw!r}"
+                    )
+                except Exception as e_map:
+                    logger.error(
+                        f"[{self.exchange_name}] Error mapping asset_ctx to funding rate: {e_map}. Data: {asset_ctx_raw!r}",
+                        exc_info=True,
+                    )
 
             return result
 
-        except (ValidationError, ValueError) as e:  # Catch validation/mapping errors
+        except (ValidationError, ValueError) as e:  # Catch outer validation/mapping errors
             logger.error(
                 f"[{self.exchange_name}] Error parsing/mapping allMeta response "
                 f"for funding rates: {e}"

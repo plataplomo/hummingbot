@@ -22,7 +22,7 @@ API response against the strict Raw Pydantic models.
 
 import logging
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
@@ -30,13 +30,20 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
+from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+    HyperliquidRawAssetCtx,
+    # HyperliquidRawAssetDefinition # No longer needed here if method is removed
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
     HyperliquidRawTriggerInfo,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
+from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawClearinghouseState,
+    HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
@@ -46,7 +53,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 )
 from cyberdelta.core.models import (
     DerivativePosition,
-    FundingRate,
     HyperliquidMarginDetails,
     HyperliquidSpotBalanceDetails,
     MarginAccountSummary,
@@ -63,6 +69,7 @@ from cyberdelta.core.models.enums import (
     OrderType,
 )
 from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market.funding_rate import FundingRate, HyperliquidFundingDetails
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
@@ -209,308 +216,491 @@ class HyperliquidOrderMapper:
 
 class HyperliquidMapper:
     @staticmethod
-    def map_raw_ctx_to_ticker(ctx: dict[str, Any]) -> Ticker:
+    def map_raw_ctx_to_ticker(raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
         """
-        Map a raw asset context dict from Hyperliquid to a Ticker business logic model.
+        Map a raw Hyperliquid Asset Context to an internal Ticker model.
+
+        Args:
+            raw_asset_ctx: The validated HyperliquidRawAssetCtx object.
+
+        Returns:
+            An internal Ticker object.
         """
-        mark_px = ctx.get("markPx")
-        bid = parse_decimal_value(str(mark_px), allow_none=True)
-        ask = parse_decimal_value(str(mark_px), allow_none=True)
-        symbol = ctx.get("name", "")
-        from datetime import datetime
+        # mark_px is the best proxy for last_price, bid, and ask from AssetCtx
+        price_val = parse_decimal_value(
+            raw_asset_ctx.mark_px, allow_none=True, field_name="mark_px_for_price"
+        )
+        bid_val = parse_decimal_value(
+            raw_asset_ctx.mark_px, allow_none=True, field_name="mark_px_for_bid"
+        )
+        ask_val = parse_decimal_value(
+            raw_asset_ctx.mark_px, allow_none=True, field_name="mark_px_for_ask"
+        )
+
+        # day_ntl_vlm is notional volume. Ticker.volume expects base volume typically.
+        # Mapping it for now, but acknowledge it's notional.
+        # Alternatively, set to None if strict base volume is required.
+        volume_val = parse_decimal_value(
+            raw_asset_ctx.day_ntl_vlm, allow_none=True, field_name="day_ntl_vlm_for_volume"
+        )
 
         return Ticker(
-            symbol=symbol,
-            bid=bid,
-            ask=ask,
-            timestamp=datetime.now(UTC),
+            symbol=raw_asset_ctx.name,
+            timestamp=datetime.now(UTC),  # AssetCtx doesn't provide a snapshot time
+            price=price_val,
+            bid=bid_val,
+            ask=ask_val,
+            volume=volume_val,
         )
 
     @staticmethod
-    def map_raw_order_book(
-        symbol: str, data: dict[str, Any], depth: int | None = None
-    ) -> OrderBook:
+    def map_raw_order_book(raw_book: HyperliquidRawL2Book, depth: int | None = None) -> OrderBook:
         """
-        Map a raw Hyperliquid order book response to an internal OrderBook model.
-        Defensive: Handles malformed or missing data gracefully.
+        Map a raw Hyperliquid L2 Book snapshot to an internal OrderBook model.
+
+        Args:
+            raw_book: The validated HyperliquidRawL2Book object.
+            depth: Optional maximum number of bids/asks levels to include.
+
+        Returns:
+            An internal OrderBook object.
         """
-        # DEFENSIVE CHECK: data is dict[str,Any], data.get() returns Any.
-        # Pyright=[reportUnknownVariableType]
-        levels_raw = data.get("levels")
-        # DEFENSIVE CHECK: levels_raw is Any. Runtime check + list[Any] needed.
-        # Pyright=[reportUnknownVariableType]
-        levels: list[Any] = levels_raw if isinstance(levels_raw, list) else []
         bids: list[tuple[Decimal, Decimal]] = []
         asks: list[tuple[Decimal, Decimal]] = []
 
-        if levels and len(levels) == 2:  # Assuming levels contains [bids_list, asks_list]
-            # DEFENSIVE CHECK: levels is list[Any], so levels[0] is Any.
-            # Pyright=[reportUnknownVariableType]
-            bid_levels_raw = levels[0]
-            # DEFENSIVE CHECK: bid_levels_raw is Any. Runtime check + list[Any] needed.
-            # Pyright=[reportUnknownVariableType]
-            bid_levels: list[Any] = bid_levels_raw if isinstance(bid_levels_raw, list) else []
+        if raw_book.levels and len(raw_book.levels) == 2:
+            raw_bids = raw_book.levels[0]
+            raw_asks = raw_book.levels[1]
 
-            for level_raw in bid_levels:  # level_raw is Any from list[Any]
-                # DEFENSIVE CHECK: level_raw is Any. Runtime check needed.
-                # Pyright=[reportUnknownArgumentType, reportUnknownVariableType]
-                if not isinstance(level_raw, list):
-                    logger.warning(
-                        f"[{symbol}] Skipping invalid bid level (not a list): {level_raw}"
-                    )
-                    continue
-                # DEFENSIVE CHECK: Pyright infers level_typed as list[Unknown]
-                #                  despite runtime check.
-                # Pyright=[reportUnknownVariableType]
-                level_typed: list[Any] = level_raw
-                if len(level_typed) >= 2:
-                    # DEFENSIVE CHECK: level_typed[0] and level_typed[1] are Any.
-                    # parse_decimal_value handles str|Any. Pyright=[reportUnknownArgumentType]
+            for level in raw_bids:
+                try:
                     price = parse_decimal_value(
-                        level_typed[0], allow_none=False, field_name="orderbook.bid.price"
+                        level.px, allow_none=False, field_name=f"bid_px_{level.px}"
                     )
                     size = parse_decimal_value(
-                        level_typed[1], allow_none=False, field_name="orderbook.bid.size"
+                        level.sz, allow_none=False, field_name=f"bid_sz_{level.sz}"
                     )
                     if (
                         price is not None
                         and size is not None
                         and price.is_finite()
                         and size.is_finite()
-                        and size >= Decimal(0)
+                        and size > Decimal(0)
                     ):
                         bids.append((price, size))
                     else:
-                        logger.warning(f"[{symbol}] Invalid bid level content: {level_typed}")
-
-            # DEFENSIVE CHECK: levels is list[Any], so levels[1] is Any.
-            # Pyright=[reportUnknownVariableType]
-            ask_levels_raw = levels[1]
-            # DEFENSIVE CHECK: ask_levels_raw is Any. Runtime check + list[Any] needed.
-            # Pyright=[reportUnknownVariableType]
-            ask_levels: list[Any] = ask_levels_raw if isinstance(ask_levels_raw, list) else []
-
-            for level_raw_ask in ask_levels:  # level_raw_ask is Any from list[Any]
-                # DEFENSIVE CHECK: level_raw_ask is Any. Runtime check needed.
-                # Pyright=[reportUnknownArgumentType, reportUnknownVariableType]
-                if not isinstance(level_raw_ask, list):
+                        logger.warning(
+                            f"[HyperliquidMapper] Skipping invalid bid level: Px={level.px}, Sz={level.sz}"
+                        )
+                except (ValueError, TypeError, InvalidOperation) as e:
                     logger.warning(
-                        f"[{symbol}] Skipping invalid ask level (not a list): {level_raw_ask}"
+                        f"[HyperliquidMapper] Error parsing bid level (Px={level.px}, Sz={level.sz}): {e}"
                     )
-                    continue
-                # DEFENSIVE CHECK: Pyright infers level_typed_ask as list[Unknown]
-                #                  despite runtime check.
-                # Pyright=[reportUnknownVariableType]
-                level_typed_ask: list[Any] = level_raw_ask
-                if len(level_typed_ask) >= 2:
-                    # DEFENSIVE CHECK: level_typed_ask[0] and [1] are Any.
-                    # parse_decimal_value handles str|Any. Pyright=[reportUnknownArgumentType]
-                    price_ask = parse_decimal_value(
-                        level_typed_ask[0], allow_none=False, field_name="orderbook.ask.price"
+
+            for level in raw_asks:
+                try:
+                    price = parse_decimal_value(
+                        level.px, allow_none=False, field_name=f"ask_px_{level.px}"
                     )
-                    size_ask = parse_decimal_value(
-                        level_typed_ask[1], allow_none=False, field_name="orderbook.ask.size"
+                    size = parse_decimal_value(
+                        level.sz, allow_none=False, field_name=f"ask_sz_{level.sz}"
                     )
                     if (
-                        price_ask is not None
-                        and size_ask is not None
-                        and price_ask.is_finite()
-                        and size_ask.is_finite()
-                        and size_ask >= Decimal(0)
+                        price is not None
+                        and size is not None
+                        and price.is_finite()
+                        and size.is_finite()
+                        and size > Decimal(0)
                     ):
-                        asks.append((price_ask, size_ask))
+                        asks.append((price, size))
                     else:
-                        logger.warning(f"[{symbol}] Invalid ask level content: {level_typed_ask}")
+                        logger.warning(
+                            f"[HyperliquidMapper] Skipping invalid ask level: Px={level.px}, Sz={level.sz}"
+                        )
+                except (ValueError, TypeError, InvalidOperation) as e:
+                    logger.warning(
+                        f"[HyperliquidMapper] Error parsing ask level (Px={level.px}, Sz={level.sz}): {e}"
+                    )
+        else:
+            logger.warning(
+                f"[HyperliquidMapper] Raw book for {raw_book.coin} has invalid levels structure: {raw_book.levels}"
+            )
 
-        # Sort bids descending, asks ascending
+        # Sort bids descending, asks ascending by price
         bids.sort(key=lambda x: x[0], reverse=True)
         asks.sort(key=lambda x: x[0])
+
         if depth is not None and depth > 0:
             bids = bids[:depth]
             asks = asks[:depth]
-        from datetime import datetime
 
-        timestamp = datetime.now(UTC)
+        book_timestamp = parse_datetime_utc(raw_book.time, field_name="raw_book.time")
+        if book_timestamp is None:  # Should not happen if raw_book.time is always valid int
+            logger.error(
+                f"[HyperliquidMapper] Failed to parse timestamp from raw_book.time: {raw_book.time}. Using current time."
+            )
+            book_timestamp = datetime.now(UTC)
+
         return OrderBook(
-            symbol=symbol,
+            symbol=raw_book.coin,
+            timestamp=book_timestamp,
             bids=bids,
             asks=asks,
-            timestamp=timestamp,
+            # exchange field is not part of OrderBook core model as per definition checked
         )
 
     @staticmethod
-    def map_raw_trades(symbol: str, data: list[Any], limit: int | None = None) -> list[Trade]:
+    def transform_raw_public_trade_to_internal(raw_trade: HyperliquidRawPublicTrade) -> Trade:
         """
-        Map a list of raw Hyperliquid trade dicts to a list of internal Trade models.
-        Defensive: Handles malformed or missing data gracefully.
+        Transforms a single raw public trade into an internal Trade model.
+        Public trades lack fee, OID, and maker status, so these are set to None.
+        """
+        try:
+            side = HyperliquidOrderMapper.map_side_to_internal(raw_trade.side)
+            price = parse_decimal_value(raw_trade.px, allow_none=False, field_name="px")
+            quantity = parse_decimal_value(raw_trade.sz, allow_none=False, field_name="sz")
+            executed_at = parse_datetime_utc(raw_trade.time, field_name="time")
+
+            if price is None or quantity is None or executed_at is None:
+                # This case should ideally be caught by allow_none=False in parse_decimal_value/
+                # parse_datetime_utc, which raise ValueError. Adding for defensiveness.
+                raise ValueError(
+                    "Essential fields (price, quantity, executed_at) could not be parsed."
+                )
+
+            details = HyperliquidTradeDetails(
+                trade_hash=raw_trade.hash, liquidation_mark_px=None, start_position=None, dir=None
+            )
+
+            return Trade(
+                id=raw_trade.hash,
+                symbol=raw_trade.coin,
+                executed_at=executed_at,
+                side=side,
+                order_id="UNKNOWN_PUBLIC_TRADE",  # order_id is str, not Optional[str]
+                exchange=ExchangeName.HYPERLIQUID.value,
+                price=price,
+                quantity=quantity,
+                client_order_id=None,
+                fee=Decimal("0"),
+                fee_asset=None,
+                is_maker=None,
+                hl_details=details,
+            )
+        except (ValueError, TypeError, InvalidOperation) as e:
+            logger.error(
+                f"[HyperliquidMapper] Error transforming raw public trade: {e}. Data: {raw_trade.model_dump()!r}",
+                exc_info=True,
+            )
+            raise  # Re-raise to be caught by caller or map_raw_trades
+
+    @staticmethod
+    def map_raw_trades(
+        raw_public_trades: list[HyperliquidRawPublicTrade], limit: int | None = None
+    ) -> list[Trade]:
+        """
+        Map a list of raw Hyperliquid public trades to a list of internal Trade models.
+
+        Args:
+            raw_public_trades: A list of validated HyperliquidRawPublicTrade objects.
+            limit: Optional maximum number of trades to return.
+
+        Returns:
+            A list of internal Trade objects.
         """
         trades: list[Trade] = []
-        for trade_item in data:
-            if not isinstance(trade_item, dict):
-                continue
-            trade_dict: dict[str, Any] = cast(dict[str, Any], trade_item)
-            trade_id = str(trade_dict.get("tid", ""))
-            price = parse_decimal_value(
-                trade_dict.get("px", "0"), allow_none=False, field_name="trade.price"
-            )
-            quantity = parse_decimal_value(
-                trade_dict.get("sz", "0"), allow_none=False, field_name="trade.qty"
-            )
-            timestamp_val = trade_dict.get("time", 0)
-            executed_at = parse_datetime_utc(timestamp_val, field_name="trade.time")
-            side_hl = str(trade_dict.get("side", "B"))
-            if price is None or quantity is None or executed_at is None:
-                continue
-            side = OrderSide.BUY if side_hl == "B" else OrderSide.SELL
-            trades.append(
-                Trade(
-                    id=trade_id,
-                    symbol=symbol,
-                    executed_at=executed_at,
-                    side=side,
-                    order_id=trade_id,
-                    exchange="hyperliquid",
-                    client_order_id="",
-                    price=price,
-                    quantity=quantity,
-                    fee=Decimal("0"),
-                    fee_asset="USDC",
-                    is_maker=False,
+        for raw_trade in raw_public_trades:
+            try:
+                trade = HyperliquidMapper.transform_raw_public_trade_to_internal(raw_trade)
+                trades.append(trade)
+            except Exception as e:  # Catch errors from transform_raw_public_trade_to_internal
+                logger.warning(
+                    f"[HyperliquidMapper] Skipping public trade due to transformation error: {e}. Raw: {raw_trade.model_dump()!r}"
                 )
-            )
+                # Continue to process other trades
+
+        # Apply limit if specified
         if limit is not None and limit > 0:
-            trades = trades[:limit]
+            return trades[:limit]
         return trades
 
     @staticmethod
-    def map_raw_ctx_to_funding_rate(symbol: str, ctx: dict[str, Any]) -> FundingRate | None:
+    def map_raw_ctx_to_funding_rate(raw_asset_ctx: HyperliquidRawAssetCtx) -> FundingRate | None:
         """
-        Map a raw asset context dict from Hyperliquid to a FundingRate business logic model.
-        Defensive: Returns None if parsing fails.
-        """
-        try:
-            funding_rate = parse_decimal_value(
-                ctx.get("funding", "0"), allow_none=False, field_name="funding_rate"
-            )
-            mark_price = parse_decimal_value(
-                ctx.get("markPx", "0"), allow_none=False, field_name="mark_price"
-            )
-            from datetime import datetime, timedelta
+        Map a raw Hyperliquid Asset Context to an internal FundingRate model.
 
-            now = datetime.now(UTC)
-            # Next funding time: next full hour
-            next_funding_time = (now + timedelta(hours=1)).replace(
-                minute=0, second=0, microsecond=0
-            )
-            if funding_rate is None or mark_price is None:
-                return None
-            return FundingRate(
-                symbol=symbol,
-                timestamp=now,
-                funding_rate=funding_rate,
-                mark_price=mark_price,
-                next_funding_time=next_funding_time,
-            )
-        except (ValueError, TypeError, KeyError):
-            return None
+        Args:
+            raw_asset_ctx: The validated HyperliquidRawAssetCtx object.
 
-    @staticmethod
-    def transform_raw_asset_def_to_funding_rate(
-        raw_asset_def: dict[str, Any],
-    ) -> FundingRate | None:
-        """Map a raw asset definition dict from Hyperliquid 'allMeta' to FundingRate.
-        Assumes the dict contains necessary funding info similar to AssetCtx.
+        Returns:
+            An internal FundingRate object, or None if parsing fails.
         """
         try:
-            symbol = raw_asset_def.get("name")
-            if not symbol or not isinstance(symbol, str):
-                logger.warning(f"Missing or invalid symbol in raw asset def: {raw_asset_def}")
-                return None
-
-            # Attempt to parse funding rate (assuming same key as in AssetCtx)
-            # NOTE: This assumes the structure is similar; needs verification.
-            funding_str = raw_asset_def.get("funding")  # Check if this key exists!
-            if funding_str is None:
-                logger.warning(f"Missing 'funding' key for {symbol} in allMeta response.")
-                return None  # Cannot create FundingRate without the rate
-
-            funding_rate_dec = parse_decimal_value(
-                str(funding_str), allow_none=False, field_name=f"{symbol}_funding"
+            mark_price_val = parse_decimal_value(
+                raw_asset_ctx.mark_px, allow_none=True, field_name="mark_px"
             )
-            if funding_rate_dec is None:  # Should be unreachable
-                raise ValueError("Funding rate parsed to None unexpectedly.")
 
-            # Convert funding rate from hourly basis (if needed, check HL docs)
-            # funding_rate_dec = funding_rate_dec * 8 # Example if rate is hourly
+            hourly_funding_str = raw_asset_ctx.funding
+            hourly_funding_val = parse_decimal_value(
+                hourly_funding_str, allow_none=True, field_name="funding"
+            )
 
-            # Mark price might be available under a different key, e.g., "markPx"
-            mark_price_str = raw_asset_def.get("markPx")
-            mark_price_dec = parse_decimal_value(str(mark_price_str)) if mark_price_str else None
+            funding_rate_8hr = None
+            if hourly_funding_val is not None:
+                funding_rate_8hr = hourly_funding_val * Decimal("8")
+
+            # Calculate next funding time (start of the next hour)
+            now_utc = datetime.now(UTC)
+            next_funding_time_val = now_utc.replace(minute=0, second=0, microsecond=0) + timedelta(
+                hours=1
+            )
+
+            details = HyperliquidFundingDetails(
+                hl_funding_hourly=hourly_funding_val,
+                hl_prev_day_px=parse_decimal_value(
+                    raw_asset_ctx.prev_day_px, allow_none=True, field_name="prev_day_px"
+                ),
+                hl_day_ntl_vlm=parse_decimal_value(
+                    raw_asset_ctx.day_ntl_vlm, allow_none=True, field_name="day_ntl_vlm"
+                ),
+                hl_impact_px=parse_decimal_value(
+                    raw_asset_ctx.impact_px, allow_none=True, field_name="impact_px"
+                ),
+            )
 
             return FundingRate(
-                symbol=symbol,
-                timestamp=datetime.now(UTC),  # Use current time as not provided per-asset
-                funding_rate=funding_rate_dec,
-                mark_price=mark_price_dec,
+                symbol=raw_asset_ctx.name,
+                timestamp=now_utc,  # Snapshot time
+                funding_rate=funding_rate_8hr,
+                predicted_rate=None,  # Not available from AssetCtx
+                mark_price=mark_price_val,
+                index_price=None,  # Not available from AssetCtx
+                next_funding_time=next_funding_time_val,
+                hl_details=details,
             )
-        except (ValidationError, ValueError, TypeError, InvalidOperation) as e:
+        except (ValueError, TypeError, InvalidOperation) as e:
             logger.error(
-                f"Error mapping raw asset definition to FundingRate: {e}. Data: {raw_asset_def}"
+                f"[HyperliquidMapper] Error mapping raw asset context to FundingRate for "
+                f"'{raw_asset_ctx.name}': {e}. Data: {raw_asset_ctx.model_dump()!r}",
+                exc_info=True,
             )
             return None
 
     @staticmethod
-    def _map_asset_positions(
-        raw_asset_positions: list[Any],
+    def map_raw_clearinghouse_state_to_derivative_positions(
+        raw_state: HyperliquidRawClearinghouseState,
     ) -> dict[str, DerivativePosition]:
-        """Helper to map raw asset positions list to internal models."""
-        positions: dict[str, DerivativePosition] = {}
-        item: dict[str, Any]
-        for item in raw_asset_positions:
-            # Assuming item structure corresponds to HyperliquidRawAssetPosition
-            # which contains 'asset' and 'position' (HyperliquidRawPositionInfo)
-            asset_symbol = item.get("asset")
-            position_data = item.get("position")
+        """
+        Maps asset positions from the raw clearinghouse state to a dictionary of
+        internal DerivativePosition models.
 
-            if not isinstance(asset_symbol, str) or not asset_symbol:
-                logger.warning(f"Skipping asset position with missing/invalid asset: {item}")
-                continue
-            if not isinstance(position_data, dict):
+        Args:
+            raw_state: The validated HyperliquidRawClearinghouseState object.
+
+        Returns:
+            A dictionary mapping asset symbols to DerivativePosition objects.
+        """
+        derivative_positions: dict[str, DerivativePosition] = {}
+        if not raw_state or not raw_state.asset_positions:
+            logger.warning("[HyperliquidMapper] No asset positions found in raw_state to map.")
+            return derivative_positions
+
+        for (
+            raw_asset_pos
+        ) in raw_state.asset_positions:  # raw_asset_pos is HyperliquidRawAssetPosition
+            # The isinstance check for HyperliquidRawAssetPosition previously here was redundant.
+            if not raw_asset_pos.position:
                 logger.warning(
-                    f"Skipping asset position with missing/invalid position data: {item}"
+                    f"[HyperliquidMapper] Skipping invalid raw_asset_pos (missing position details): {raw_asset_pos.asset}"
                 )
                 continue
 
+            # raw_asset_pos.position is HyperliquidRawPositionInfo
             try:
-                # Validate the inner position data using the raw model
-                # Assuming HyperliquidRawPositionInfo is the correct model here
-                # Need to import it if not already available
-                from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
-                    HyperliquidRawPositionInfo,
-                )
-
-                raw_pos_info = HyperliquidRawPositionInfo.model_validate(position_data)
-                # Map validated raw model to internal DerivativePosition using existing mapper
-                internal_pos = HyperliquidPositionMapper.map(
-                    raw_pos_info
-                )  # Pass the validated Pydantic model
-                if internal_pos:
-                    positions[asset_symbol] = internal_pos
+                mapped_pos = HyperliquidPositionMapper.map(raw_asset_pos.position)
+                if mapped_pos:
+                    derivative_positions[mapped_pos.symbol] = mapped_pos
                 else:
                     logger.warning(
-                        f"Failed to map position for asset {asset_symbol}. Data: {position_data}"
+                        f"[HyperliquidMapper] Failed to map position for asset "
+                        f"'{raw_asset_pos.asset}'. Raw position info: {raw_asset_pos.position.model_dump()}"
                     )
-            except ValidationError as e:
+            except (ValueError, TypeError, InvalidOperation) as e:
                 logger.error(
-                    f"Validation error parsing position for asset {asset_symbol}: {e}. "
-                    f"Data: {position_data}"
+                    f"[HyperliquidMapper] Error mapping position for asset "
+                    f"'{raw_asset_pos.asset}': {e}. Raw position info: {raw_asset_pos.position.model_dump()}",
+                    exc_info=True,
                 )
-            except Exception as e:
-                logger.error(
-                    f"Unexpected error mapping position for asset {asset_symbol}: {e}. "
-                    f"Data: {position_data}"
+        return derivative_positions
+
+    @staticmethod
+    def map_raw_clearinghouse_state_to_margin_summary(
+        raw_state: HyperliquidRawClearinghouseState,
+    ) -> MarginAccountSummary:
+        """
+        Maps the margin summary from the raw clearinghouse state to an internal
+        MarginAccountSummary model.
+
+        Args:
+            raw_state: The validated HyperliquidRawClearinghouseState object.
+
+        Returns:
+            An internal MarginAccountSummary object.
+
+        Raises:
+            ValueError: If essential numeric fields cannot be parsed.
+        """
+        if not raw_state or not raw_state.margin_summary:
+            logger.error("[HyperliquidMapper] Raw state or margin_summary is missing for mapping.")
+            raise ValueError(
+                "Raw state or margin_summary missing, cannot map MarginAccountSummary."
+            )
+
+        raw_margin_summary: HyperliquidRawMarginSummary = raw_state.margin_summary
+
+        total_equity_val = parse_decimal_value(
+            raw_margin_summary.account_value,
+            allow_none=False,
+            field_name="margin_summary.account_value",
+        )
+        total_notional_val = parse_decimal_value(
+            raw_margin_summary.total_ntl_pos,
+            allow_none=False,
+            field_name="margin_summary.total_ntl_pos",
+        )
+        available_for_withdrawal_val = parse_decimal_value(
+            raw_state.withdrawable,
+            allow_none=False,
+            field_name="withdrawable",
+        )
+        cross_mmr_val = parse_decimal_value(
+            raw_state.cross_maintenance_margin_used,
+            allow_none=False,
+            field_name="cross_maintenance_margin_used",
+        )
+        isolated_mmr_val = parse_decimal_value(
+            raw_state.isolated_maintenance_margin_used,
+            allow_none=False,
+            field_name="isolated_maintenance_margin_used",
+        )
+        total_initial_margin_val = parse_decimal_value(
+            raw_margin_summary.total_margin_used,
+            allow_none=False,
+            field_name="margin_summary.total_margin_used",
+        )
+
+        if total_equity_val is None:  # Should be caught by allow_none=False in helper
+            raise ValueError("Failed to parse total_equity (account_value).")
+        if total_notional_val is None:
+            raise ValueError("Failed to parse total_notional_value (total_ntl_pos).")
+        if available_for_withdrawal_val is None:
+            raise ValueError("Failed to parse available_for_withdrawal (withdrawable).")
+        if cross_mmr_val is None:
+            raise ValueError("Failed to parse cross_mmr (cross_maintenance_margin_used).")
+        if isolated_mmr_val is None:
+            raise ValueError("Failed to parse isolated_mmr (isolated_maintenance_margin_used).")
+        if total_initial_margin_val is None:
+            raise ValueError("Failed to parse total_initial_margin (total_margin_used).")
+
+        total_maintenance_margin_val = cross_mmr_val + isolated_mmr_val
+
+        total_unrealized_pnl_val = Decimal("0")
+        if raw_state.asset_positions:
+            for asset_pos in raw_state.asset_positions:
+                if asset_pos.position and asset_pos.position.unrealized_pnl:
+                    pnl = parse_decimal_value(
+                        asset_pos.position.unrealized_pnl,
+                        allow_none=True,  # PNL can be missing for an asset if no position
+                        field_name=f"asset_positions.{asset_pos.asset}.unrealized_pnl",
+                    )
+                    if pnl is not None:
+                        total_unrealized_pnl_val += pnl
+
+        # HyperliquidMarginDetails takes cross_maintenance_margin_used and isolated_maintenance_margin_used
+        hyperliquid_details = HyperliquidMarginDetails(
+            cross_maintenance_margin_used=cross_mmr_val,
+            isolated_maintenance_margin_used=isolated_mmr_val,
+        )
+
+        return MarginAccountSummary(
+            exchange=ExchangeName.HYPERLIQUID.value,
+            timestamp=datetime.now(UTC),  # Raw state doesn't provide a snapshot timestamp
+            total_equity=total_equity_val,
+            available_equity=available_for_withdrawal_val,  # Mapping available_for_withdrawal to available_equity
+            total_initial_margin_required=total_initial_margin_val,
+            total_maintenance_margin_required=total_maintenance_margin_val,
+            total_position_notional=total_notional_val,
+            total_unrealized_pnl=total_unrealized_pnl_val,
+            hl_details=hyperliquid_details,
+        )
+
+    @staticmethod
+    def map_raw_clearinghouse_state_to_spot_balances(
+        raw_state: HyperliquidRawClearinghouseState,
+    ) -> dict[str, SpotBalance]:
+        """
+        Maps relevant fields from the raw clearinghouse state to a dictionary of
+        internal SpotBalance models. For Hyperliquid, this primarily means USDC.
+
+        Args:
+            raw_state: The validated HyperliquidRawClearinghouseState object.
+
+        Returns:
+            A dictionary mapping asset symbols (e.g., "USDC") to SpotBalance objects.
+        """
+        spot_balances: dict[str, SpotBalance] = {}
+
+        if not raw_state or not raw_state.margin_summary:
+            logger.warning(
+                "[HyperliquidMapper] Raw state or margin_summary missing, cannot map spot balances."
+            )
+            return spot_balances
+
+        usdc_total_balance = parse_decimal_value(
+            raw_state.margin_summary.account_value,
+            allow_none=True,  # Allow parsing to fail gracefully if data is bad
+            field_name="margin_summary.account_value (for spot total)",
+        )
+        usdc_available_balance = parse_decimal_value(
+            raw_state.withdrawable,
+            allow_none=True,  # Allow parsing to fail gracefully
+            field_name="withdrawable (for spot available)",
+        )
+
+        if usdc_total_balance is not None:
+            effective_available = (
+                usdc_available_balance if usdc_available_balance is not None else Decimal("0")
+            )
+            # Ensure available is not more than total
+            if effective_available > usdc_total_balance:
+                logger.warning(
+                    f"Available balance {effective_available} for USDC exceeded total {usdc_total_balance}. Clamping to total."
                 )
-        return positions
+                effective_available = usdc_total_balance
+            if effective_available < Decimal("0") and usdc_total_balance >= Decimal("0"):
+                logger.warning(
+                    f"Available balance {effective_available} for USDC is negative while total {usdc_total_balance} is not. Setting available to 0."
+                )
+                effective_available = Decimal("0")
+
+            # HyperliquidSpotBalanceDetails is currently an empty model
+            details = HyperliquidSpotBalanceDetails()
+
+            spot_balances["USDC"] = SpotBalance(
+                exchange=ExchangeName.HYPERLIQUID.value,
+                asset="USDC",
+                timestamp=datetime.now(UTC),  # Raw state doesn't provide a snapshot timestamp
+                total_quantity=usdc_total_balance,
+                available_quantity=effective_available,
+                hl_details=details,
+            )
+        else:
+            logger.warning(
+                "[HyperliquidMapper] Could not parse 'account_value' from margin_summary "
+                "to determine USDC total spot balance."
+            )
+
+        return spot_balances
 
     @staticmethod
     def _map_open_orders(raw_open_orders: list[Any]) -> dict[str, list[Order]]:
@@ -536,126 +726,6 @@ class HyperliquidMapper:
             except Exception as e:
                 logger.error(f"Unexpected error mapping open order: {e}. Data: {item}")
         return dict(open_orders)  # Convert back to regular dict
-
-    @staticmethod
-    def map_user_state(
-        raw_state: HyperliquidRawClearinghouseState,
-    ) -> tuple[
-        dict[str, DerivativePosition],
-        dict[str, list[Order]],
-        dict[str, MarginAccountSummary],
-        dict[str, SpotBalance],
-    ]:
-        """Map raw user state (ClearinghouseState) to internal models."""
-        positions = HyperliquidMapper._map_asset_positions(raw_state.asset_positions)
-        # Assuming openOrders is available directly on raw_state or fetched separately
-        # If not, this needs adjustment.
-        # For now, let's assume it's accessible like asset_positions
-        # Need to check HyperliquidRawClearinghouseState definition again if this fails.
-        open_orders_raw = getattr(raw_state, "openOrders", [])  # Default to empty list if not found
-        open_orders = HyperliquidMapper._map_open_orders(open_orders_raw)
-
-        # Map Margin Summary
-        margin_summaries: dict[str, MarginAccountSummary] = {}
-        exchange_key = "hyperliquid::USER"
-        raw_margin_summary = raw_state.margin_summary
-        if raw_margin_summary:
-            try:
-                # Instantiate HL details with correct fields from raw_state, parsed to Decimal
-                hl_details = HyperliquidMarginDetails(
-                    cross_maintenance_margin_used=parse_decimal_value(
-                        raw_state.cross_maintenance_margin_used,
-                        allow_none=False,
-                        field_name="cross_maintenance_margin_used",
-                    )
-                    or Decimal("0"),  # Default on parse failure for required field
-                    isolated_maintenance_margin_used=parse_decimal_value(
-                        raw_state.isolated_maintenance_margin_used,
-                        allow_none=False,
-                        field_name="isolated_maintenance_margin_used",
-                    )
-                    or Decimal("0"),  # Default on parse failure for required field
-                )
-                # Instantiate internal summary with correct fields mapped from raw summary, parsed
-                margin_summary = MarginAccountSummary(
-                    exchange="hyperliquid",
-                    timestamp=datetime.now(
-                        UTC
-                    ),  # Use current time as raw state doesn't seem to have it
-                    total_equity=parse_decimal_value(
-                        raw_margin_summary.account_value,
-                        allow_none=False,
-                        field_name="account_value",
-                    )
-                    or Decimal("0"),  # Default on parse failure
-                    available_equity=parse_decimal_value(
-                        raw_state.withdrawable, allow_none=False, field_name="withdrawable"
-                    )
-                    or Decimal("0"),  # Default on parse failure
-                    # Map optional core fields, parsing if available
-                    total_initial_margin_required=None,
-                    # Placeholder - Check raw model for equivalent
-                    total_maintenance_margin_required=parse_decimal_value(  # Summing cross and iso
-                        str(
-                            hl_details.cross_maintenance_margin_used
-                            + hl_details.isolated_maintenance_margin_used
-                        ),
-                        allow_none=False,
-                        field_name="total_maintenance_margin_required",
-                    )
-                    or Decimal("0"),
-                    total_position_notional=parse_decimal_value(
-                        raw_margin_summary.total_ntl_pos,
-                        allow_none=True,
-                        field_name="total_ntl_pos",
-                    ),  # Optional, no default needed if None
-                    total_unrealized_pnl=None,  # Placeholder - Check raw model for equivalent
-                    hl_details=hl_details,
-                )
-                margin_summaries[exchange_key] = margin_summary
-            except (ValidationError, TypeError, InvalidOperation) as e:
-                logger.error(f"Error parsing Hyperliquid margin summary: {e}")
-
-        # Parse Spot Balances - ASSUMING accountValue IS USDC total_quantity
-        spot_balances: dict[str, SpotBalance] = {}
-        if raw_margin_summary:
-            try:
-                usdc_total_raw = raw_margin_summary.account_value
-                usdc_total_dec = parse_decimal_value(
-                    usdc_total_raw, allow_none=False, field_name="usdc_total (accountValue)"
-                )
-                usdc_available_raw = raw_state.withdrawable
-                usdc_available_dec = parse_decimal_value(
-                    usdc_available_raw, allow_none=False, field_name="usdc_available (withdrawable)"
-                )
-
-                if usdc_total_dec is not None and usdc_available_dec is not None:
-                    hl_spot_details = HyperliquidSpotBalanceDetails()
-                    spot_balance = SpotBalance(
-                        exchange=ExchangeName.HYPERLIQUID,
-                        asset="USDC",
-                        timestamp=datetime.now(UTC),  # Use current time
-                        total_quantity=usdc_total_dec,
-                        available_quantity=usdc_available_dec,
-                        hl_details=hl_spot_details,
-                    )
-                    # Use asset symbol as key
-                    spot_balances["USDC"] = spot_balance
-                else:
-                    if usdc_total_dec is None:
-                        logger.error("Failed to parse total USDC balance (accountValue)")
-                    if usdc_available_dec is None:
-                        logger.error("Failed to parse available USDC balance (withdrawable)")
-
-            except (ValidationError, TypeError, InvalidOperation) as e:
-                logger.error(f"Error parsing Hyperliquid USDC spot balance: {e}")
-        else:
-            logger.warning("Cannot parse spot balances: margin_summary missing in raw state.")
-
-        # Change return type hint to match actual return
-        # Return type is tuple[positions, open_orders, margin_summaries, spot_balances]
-        # where spot_balances is dict[str, SpotBalance]
-        return positions, open_orders, margin_summaries, spot_balances
 
     @staticmethod
     def transform_raw_fill_to_internal(raw: HyperliquidRawFill) -> Trade:
