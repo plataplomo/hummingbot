@@ -366,23 +366,27 @@ class ExchangeAPI(ABC):
                     self._update_rate_limit_from_headers(response.headers, method, endpoint)
 
                     if response.status >= 400:
-                        error_body = await response.text()
-                        # Try to parse error body as JSON
+                        error_body_text = await response.text()
+                        parsed_error_data: dict[str, Any] | None = None  # Initialize to None
                         try:
-                            # DEFENSIVE CHECK: error_body is str, json.loads can return Any.
-                            # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
-                            error_data = json.loads(error_body)
-                            if not isinstance(error_data, dict):
-                                # If not a dict, treat as if no structured data
-                                error_data = None
+                            # Attempt to parse the error body as JSON
+                            json_content: Any = json.loads(error_body_text)
+                            # If parsing is successful and the result is a dictionary, use it
+                            if isinstance(json_content, dict):
+                                parsed_error_data = json_content
+                            else:
+                                # Log if valid JSON but not a dict (e.g., a list or string error)
+                                logger.debug(
+                                    f"[{self.exchange_name}] Error response body is valid JSON "
+                                    f"but not a dict: {error_body_text}"
+                                )
                         except json.JSONDecodeError:
+                            # Log if the error body is not valid JSON
                             logger.debug(
                                 f"[{self.exchange_name}] Error response body is not "
-                                f"valid JSON: {error_body}"
+                                f"valid JSON: {error_body_text}"
                             )
-                            error_data = None
-                        else:
-                            error_data = None
+                        # parsed_error_data is now either a dict or None
 
                         # error_data is now dict[str, Any] | None for the _map_error_response call
                         # DEFENSIVE CHECK: error_data could be None or dict with Any values.
@@ -390,8 +394,8 @@ class ExchangeAPI(ABC):
                         # Pyright=[reportUnknownArgumentType] (for error_data when passed)
                         error = self._map_error_response(
                             status_code=response.status,
-                            error_body=error_body,
-                            error_data=error_data,  # Can be None
+                            error_body=error_body_text,  # Pass the original text
+                            error_data=parsed_error_data,  # Pass the dict or None
                         )
 
                         if error.is_retryable and attempt < self.max_retries:
@@ -884,6 +888,7 @@ class ExchangeAPI(ABC):
         quantity: Decimal,
         time_in_force: TimeInForce,
         price: Decimal | None = None,
+        stop_price: Decimal | None = None,
         client_order_id: str | None = None,
         reduce_only: bool = False,
         post_only: bool = False,

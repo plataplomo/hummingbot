@@ -28,10 +28,12 @@ Example:
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import (
@@ -46,6 +48,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawTrade,
     BackpackRawTradeEvent,
 )
+from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -867,3 +870,51 @@ class BackpackOrderMapper:
             # Catch unexpected errors during transformation
             logger.exception(f"[{ExchangeName.BACKPACK}] Unexpected error transforming kline: {e}")
             raise ValueError(f"Unexpected error transforming kline: {e}") from e
+
+    @staticmethod
+    def transform_raw_account_summary_to_internal(
+        raw: BackpackRawAccountSummary,
+    ) -> dict[str, Any]:
+        """
+        Transforms a validated `BackpackRawAccountSummary` object into a dictionary
+        representing an internal account summary.
+
+        TODO: Define a specific internal Pydantic model for AccountSummary and map to it.
+              For now, returns raw.model_dump().
+
+        Args:
+            raw (BackpackRawAccountSummary): The validated raw account summary data.
+
+        Returns:
+            dict[str, Any]: A dictionary representation of the account summary.
+        """
+        # Placeholder: Implement detailed mapping to a future internal AccountSummary model
+        # For now, just dump the raw model.
+        logger.debug(
+            f"[BackpackOrderMapper] Transforming BackpackRawAccountSummary. Raw data: {raw.model_dump(exclude_none=True)}"
+        )
+        return raw.model_dump(by_alias=True, exclude_none=True)
+
+    @staticmethod
+    def transform_raw_withdrawal_response_to_internal(
+        raw: BackpackRawWithdrawalResponse,
+    ) -> dict[str, Any]:
+        """
+        Transforms a validated `BackpackRawWithdrawalResponse` object into a dictionary
+        representing an internal withdrawal confirmation.
+
+        TODO: Define a specific internal Pydantic model for WithdrawalConfirmation and map to it.
+              For now, returns raw.model_dump().
+
+        Args:
+            raw (BackpackRawWithdrawalResponse): The validated raw withdrawal response data.
+
+        Returns:
+            dict[str, Any]: A dictionary representation of the withdrawal confirmation.
+        """
+        # Placeholder: Implement detailed mapping to a future internal WithdrawalConfirmation model
+        # For now, just dump the raw model.
+        logger.debug(
+            f"[BackpackOrderMapper] Transforming BackpackRawWithdrawalResponse. Raw data: {raw.model_dump(exclude_none=True)}"
+        )
+        return raw.model_dump(by_alias=True, exclude_none=True)

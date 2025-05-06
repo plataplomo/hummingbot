@@ -22,6 +22,7 @@ import asyncio
 import hashlib
 import hmac
 import time
+from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -31,12 +32,17 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
+    BackpackRawWithdrawalRequest,
+    BackpackRawWithdrawalResponse,
+)
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import APIError
@@ -44,8 +50,6 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
-    Order,
-    OrderBook,
     SpotBalance,
     Ticker,
     Trade,
@@ -57,6 +61,8 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
 )
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -64,16 +70,15 @@ logger = get_logger(__name__)
 
 class BackpackAPI(ExchangeAPI):
     """
-    Asynchronous API client for Backpack Exchange (REST + WebSocket).
+    Backpack Exchange API Client.
 
-    - Implements all required ExchangeAPI methods for order, market data, and account management.
-    - Uses strict Pydantic validation for all responses and error payloads.
-    - All error handling is routed through BackpackErrorMapper for normalization and propagation.
-    - Designed for extensibility and robust, production-grade operation.
+    Implements connectivity and data handling for the Backpack exchange,
+    adhering to the ExchangeAPI interface.
 
-    Usage:
-        api = BackpackAPI(api_config, secrets)
-        await api.get_ticker("BTC_USDC")
+    Handles REST API requests and WebSocket connections for market data and account updates.
+    Rate limit handling is currently a placeholder as Backpack's OpenAPI specification
+    does not clearly define standard rate limit response headers. Further investigation
+    or documentation from Backpack would be needed to implement robust rate limiting.
     """
 
     def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
@@ -576,6 +581,7 @@ class BackpackAPI(ExchangeAPI):
         quantity: Decimal,
         time_in_force: TimeInForce,
         price: Decimal | None = None,
+        stop_price: Decimal | None = None,  # Added to match ExchangeAPI base method
         client_order_id: str | None = None,
         reduce_only: bool = False,
         post_only: bool = False,
@@ -588,12 +594,12 @@ class BackpackAPI(ExchangeAPI):
             side: Order side (BUY or SELL)
             order_type: Order type (LIMIT, MARKET, etc.)
             quantity: Order quantity (as Decimal)
-            time_in_force: Time in force (GTC, IOC, FOK). Defaults to GTC if None.
+            time_in_force: Time in force (GTC, IOC, FOK).
             price: Order price (required for limit orders, as Decimal)
+            stop_price: Stop price for stop orders (currently NOT supported by Backpack for basic order placement via this method).
             client_order_id: Custom client order ID
             reduce_only: Whether this is a reduce-only order (bool)
-            post_only: Whether this is a post-only order (bool) - currently ignored
-                if not supported by API call
+            post_only: Whether this is a post-only order (bool)
 
         Returns:
             Order object if successful.
@@ -611,6 +617,8 @@ class BackpackAPI(ExchangeAPI):
                 "quantity": str(quantity),
             }
 
+            # Handle TimeInForce - Backpack uses string values like "GTC", "IOC", "FOK"
+            # The enum OrderType already provides these as .value
             tif_value = time_in_force.value
             order_data["timeInForce"] = tif_value
 
@@ -619,7 +627,17 @@ class BackpackAPI(ExchangeAPI):
                     raise ValueError("Price is required for LIMIT orders")
                 order_data["price"] = str(price)
                 if post_only:
+                    # Backpack API uses `postOnly: true` for post-only limit orders
                     order_data["postOnly"] = True
+
+            # Note: stop_price is part of the signature for ExchangeAPI compatibility,
+            # but Backpack's standard POST /api/v1/order endpoint for market/limit orders
+            # does not take a stopPrice. Trigger orders might be a separate endpoint or type.
+            if stop_price is not None:
+                logger.warning(
+                    f"[{self.exchange_name}] 'stop_price' was provided for a Backpack order, "
+                    f"but it is not used by the standard order placement endpoint. Ensure this is intended."
+                )
 
             if client_order_id:
                 order_data["clientId"] = client_order_id
@@ -835,44 +853,212 @@ class BackpackAPI(ExchangeAPI):
     # --- Account Management --- #
     async def get_account_info(
         self,
-    ) -> dict[str, object]:  # Return dict[str, object] instead of Any
-        """Get general account information (Example)."""
-        # This method is just an example; Backpack might not have this exact endpoint.
+    ) -> dict[str, Any]:  # Updated return type, TODO: Define internal AccountSummary model
+        """Get general account information, mapped to an internal representation."""
         request_path = "/api/v1/account"
+        response_raw: object = None  # Initialize for error logging
         try:
-            response: object = await self._request("GET", request_path, is_signed=True)
-            # TODO: Define BackpackRawAccountInfo if structure is known and stable.
-            # For now, perform basic type check and return as dict[str, object]
-            if not isinstance(response, dict):
-                logger.warning(
-                    f"[{self.exchange_name}] Unexpected response type for account info: "
-                    f"{type(response)}. Returning empty dict."
+            response_raw = await self._request("GET", request_path, is_signed=True)
+
+            # DEFENSIVE CHECK: Ensure response_raw is a dict before validation
+            if not isinstance(response_raw, dict):
+                logger.error(
+                    f"[{self.exchange_name}] get_account_info response is not a dict: {type(response_raw)}. Raw: {response_raw}"
                 )
-                return {}
-            return response  # Known to be dict now
+                raise APIError(
+                    "Invalid response format from get_account_info (not a dict)",
+                    code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                )
+
+            validated_account_summary = BackpackRawAccountSummary.model_validate(response_raw)
+            # TODO: Define a proper internal AccountSummary model and map fully.
+            # For now, using BackpackOrderMapper to return a dict.
+            return BackpackOrderMapper.transform_raw_account_summary_to_internal(
+                validated_account_summary
+            )
+        except ValidationError as e:
+            logger.error(
+                f"[{self.exchange_name}] Account info validation failed: {e}. Data: {response_raw}"
+            )
+            raise APIError(
+                f"Invalid account info response: {e}",
+                code=APIErrorCode.UNKNOWN.value,  # Use UNKNOWN for validation errors
+                original_exception=e,
+            ) from e
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error getting account info: {e}")
-            raise e
+            raise e  # Re-raise mapped APIError from _request
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error getting account info: {e}")
-            # Let _request handle mapping via overridden _map_error_response
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error getting account info: {e}",
+                exc_info=True,
+            )
             raise APIError(
-                f"Error getting account info: {e}", code=APIErrorCode.UNKNOWN.value
+                f"Unexpected error getting account info: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
             ) from e
 
     async def transfer(
-        self, asset: str, amount: Decimal, from_account: str, to_account: str
-    ) -> dict[str, Any]:
-        """Transfer funds between accounts."""
-        logger.warning("Backpack API might not support internal transfers.")
-        raise NotImplementedError("Backpack internal transfers not implemented.")
+        self,
+        asset: str,
+        amount: Decimal,
+        from_account_type: str,  # e.g., "spot", "futures" - specific values TBD by exchange
+        to_account_type: str,  # e.g., "spot", "futures" - specific values TBD by exchange
+        client_transfer_id: str | None = None,
+    ) -> dict[str, Any]:  # Return type TBD by actual API response structure
+        """
+        Initiate an internal transfer of assets between user accounts (e.g., spot to futures).
+
+        Backpack's OpenAPI specification (as of review) does not explicitly detail a separate
+        endpoint for internal account transfers distinct from general withdrawals/deposits.
+        If such functionality exists, it may be part of a subaccount system or implicitly handled
+        via specific parameters in deposit/withdrawal flows to other owned accounts/addresses.
+        This method remains as a placeholder for potential future implementation if a dedicated
+        API for internal transfers is identified or becomes available.
+
+        Args:
+            asset: The asset to transfer (e.g., "USDC").
+            amount: The amount of the asset to transfer.
+            from_account_type: The type of account to transfer from.
+            to_account_type: The type of account to transfer to.
+            client_transfer_id: Optional client-provided ID for the transfer.
+
+        Returns:
+            A dictionary containing the API response upon successful transfer.
+
+        Raises:
+            NotImplementedError: As this specific functionality is not clearly defined in Backpack's API.
+            APIError: For API-level errors encountered during the request.
+        """
+        logger.warning(
+            f"[{self.exchange_name}] The 'transfer' method is not implemented. Backpack API "
+            f"does not clearly define a separate internal transfer endpoint. Consider using "
+            f"withdraw/deposit mechanisms if applicable."
+        )
+        # Per OpenAPI, there is no dedicated internal transfer endpoint distinct from deposit/withdrawals.
+        # If transfers between subaccounts or to other owned accounts are needed, they likely use
+        # the withdrawal mechanism with specific parameters or target addresses.
+        raise NotImplementedError(
+            "Backpack API does not provide a dedicated internal transfer endpoint. "
+            "Use withdrawal/deposit with appropriate parameters if applicable."
+        )
 
     async def withdraw(
-        self, asset: str, address: str, amount: Decimal, network: str | None = None
-    ) -> dict[str, Any] | None:
-        """Withdraw funds."""
-        logger.warning(f"[{self.exchange_name}] withdraw not implemented for Backpack.")
-        return None
+        self,
+        asset: str,
+        amount: Decimal,
+        address: str,
+        network: str | None = None,  # Blockchain network
+        tag: str | None = None,  # Destination tag / memo, if required
+        client_withdrawal_id: str | None = None,  # Optional client-provided ID
+        two_factor_token: str | None = None,  # Optional 2FA token
+        **kwargs: Any,  # For additional exchange-specific parameters like autoBorrow
+    ) -> dict[str, Any]:  # Return validated raw response
+        """Initiate a withdrawal of assets from the exchange.
+
+        Args:
+            asset: The asset symbol to withdraw (e.g., "USDC").
+            amount: The amount of the asset to withdraw.
+            address: The destination address for the withdrawal.
+            network: The blockchain network to use (e.g., "Solana", "Ethereum").
+                     This maps to `blockchain` in the Backpack API.
+            tag: Optional destination tag or memo, if required by the address/network.
+                 (Note: Backpack API does not explicitly show a 'tag' field in AccountWithdrawalPayload,
+                  this might need to be part of the 'address' or handled differently).
+            client_withdrawal_id: Optional client-provided ID for the withdrawal.
+                                  Maps to `clientId`.
+            two_factor_token: Optional 2FA token if required by user settings.
+            **kwargs: Additional keyword arguments for exchange-specific options,
+                      e.g., `auto_borrow: bool`, `auto_lend_redeem: bool`.
+
+        Returns:
+            A BackpackRawWithdrawalResponse object containing the API response upon successful withdrawal.
+
+        Raises:
+            APIError: For API-level errors encountered during the request.
+            ValueError: If required parameters like `network` are missing.
+        """
+        request_path = "/wapi/v1/capital/withdrawals"
+
+        if not network:
+            raise ValueError("Network (blockchain) is required for withdrawal on Backpack.")
+
+        # Prepare the payload using the Pydantic request model
+        # This also validates the input types for asset and blockchain against Literals
+        try:
+            payload_data = {
+                "address": address,
+                "blockchain": network,  # Map `network` to `blockchain`
+                "quantity": amount,
+                "symbol": asset,
+                "clientId": client_withdrawal_id,
+                "twoFactorToken": two_factor_token,
+                # Pass through any additional kwargs that are part of the model
+                "autoBorrow": kwargs.get("auto_borrow"),
+                "autoLendRedeem": kwargs.get("auto_lend_redeem"),
+            }
+            # Filter out None values for optional fields before creating the model
+            filtered_payload_data = {k: v for k, v in payload_data.items() if v is not None}
+
+            # Create and validate the request object
+            # The model_validate method will raise ValidationError if inputs are bad
+            withdrawal_request = BackpackRawWithdrawalRequest.model_validate(filtered_payload_data)
+        except ValidationError as e:
+            logger.error(f"[{self.exchange_name}] Withdrawal request validation error: {e}")
+            raise ValueError(f"Invalid parameters for withdrawal: {e}") from e
+
+        response_raw: object = None  # For logging in case of error
+        try:
+            # Pydantic models by default exclude None values when dumping to dict if `exclude_none=True`
+            # is used, but here we create the dict first, then model, so Nones are already filtered.
+            response_raw = await self._request(
+                "POST",
+                request_path,
+                data=withdrawal_request.model_dump(by_alias=True, exclude_none=True),
+                is_signed=True,
+            )
+
+            if not isinstance(response_raw, dict):
+                logger.error(
+                    f"[{self.exchange_name}] Unexpected response type for withdrawal: "
+                    f"{type(response_raw)}. Expected dict. Raw response: {response_raw}"
+                )
+                raise APIError(
+                    f"Unexpected response structure for withdrawal: {response_raw}",
+                    code=APIErrorCode.UNKNOWN.value,
+                )
+
+            # Validate response with Pydantic model
+            validated_response = BackpackRawWithdrawalResponse.model_validate(response_raw)
+            # TODO: Define a proper internal WithdrawalConfirmation model and map fully.
+            # For now, using BackpackOrderMapper to return a dict.
+            return BackpackOrderMapper.transform_raw_withdrawal_response_to_internal(
+                validated_response
+            )
+
+        except ValidationError as e:
+            logger.error(
+                f"[{self.exchange_name}] Withdrawal response validation failed: {e}. "
+                f"Data: {response_raw}"
+            )
+            raise APIError(
+                f"Invalid withdrawal response: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
+        except APIError as e:  # Catch errors from _request or previous APIError
+            logger.error(f"[{self.exchange_name}] API Error during withdrawal: {e}")
+            raise
+        except Exception as e:  # Catch any other unexpected errors
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error during withdrawal: {e}", exc_info=True
+            )
+            raise APIError(
+                f"Unexpected error during withdrawal: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
         """Subscribe to order book updates for a symbol."""
@@ -1095,61 +1281,81 @@ class BackpackAPI(ExchangeAPI):
 
         Args:
             order_id: The exchange-assigned order ID.
-            symbol: The trading symbol (required by some exchanges).
-            client_order_id: The client-assigned order ID (optional).
+            symbol: The trading symbol (required by Backpack for order lookup).
+            client_order_id: The client-assigned order ID (optional, can be used if order_id is not known).
 
         Returns:
             The Order object if found, otherwise None.
         """
         if not symbol:
-            # Backpack's history endpoint might require symbol even with orderId filter
-            # based on /wapi/v1/history/orders spec (no explicit mention it's optional with orderId)
-            # Let's enforce it for safety.
-            raise ValueError("Symbol is required for get_order_status on Backpack")
+            raise ValueError("Symbol is required for get_order_status on Backpack.")
 
-        if client_order_id:
-            logger.warning(f"[{self.exchange_name}] client_order_id ignored for get_order_status")
+        request_path = "/api/v1/order"
+        params: dict[str, str] = {"symbol": symbol}
 
+        if order_id:
+            params["orderId"] = order_id
+        elif client_order_id:
+            params["clientId"] = client_order_id
+        else:
+            raise ValueError("Either order_id or client_order_id must be provided.")
+
+        response_raw: object = None
         try:
-            # Fetch history specifically for this orderId
-            order_history = await self.get_order_history(symbol=symbol, limit=1)
+            response_raw = await self._request("GET", request_path, params=params, is_signed=True)
 
-            # Filter the result for the specific order ID
-            # This assumes get_order_history returns the most recent first if limit=1
-            # Or requires filtering if history endpoint doesn't support orderId filtering.
-            # Re-checking spec: /wapi/v1/history/orders *does* have an orderId parameter.
-            found_order = next((o for o in order_history if o.exchange_order_id == order_id), None)
-
-            if found_order:
-                return found_order
-            else:
-                # If history didn't contain it, raise OrderNotFound
-                raise APIError(
-                    f"Order {order_id} not found for symbol {symbol}",
-                    code=APIErrorCode.ORDER_NOT_FOUND.value,
+            # If _request returns None (e.g., 204 or other non-error empty response),
+            # or if the response is not a dict (unexpected for a single order response),
+            # treat as order not found or error.
+            if not isinstance(response_raw, dict):
+                logger.warning(
+                    f"[{self.exchange_name}] Unexpected response type for get_order_status: "
+                    f"{type(response_raw)}. Expected dict. Params: {params}, Raw: {response_raw}"
                 )
+                # This could be an OrderNotFound if the API returns 404, which _request would raise as APIError.
+                # If it gets here with non-dict, it's an unexpected success response format.
+                raise APIError(
+                    f"Unexpected response structure for order status: {response_raw}",
+                    code=APIErrorCode.UNKNOWN.value,
+                )
+
+            raw_order = BackpackRawOrder.model_validate(response_raw)
+            internal_order = BackpackOrderMapper.transform_raw_order_to_internal(raw_order)
+            return internal_order
 
         except APIError as e:
-            # Re-raise specific API errors
+            # Specifically handle ORDER_NOT_FOUND from _request (e.g., on 404)
             if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
                 logger.debug(
-                    f"[{self.exchange_name}] Order {order_id} not found for symbol "
-                    f"{symbol} (get_order)."
+                    f"[{self.exchange_name}] Order not found via {request_path}. "
+                    f"Params: {params}, Error: {e}"
                 )
-                return None
+                return None  # As per method contract
             logger.error(
-                f"[{self.exchange_name}] API error fetching status for order {order_id}: {e}"
+                f"[{self.exchange_name}] API error fetching order status via {request_path}. "
+                f"Params: {params}, Error: {e}"
             )
-            raise
+            raise  # Re-raise other APIErrors
+        except ValidationError as e:
+            logger.error(
+                f"[{self.exchange_name}] Failed to validate order status response: {e}. "
+                f"Params: {params}, Raw: {response_raw}"
+            )
+            raise APIError(
+                "Failed to parse order status response from exchange.",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error fetching status for "
-                f"order {order_id}: {e}",
+                f"[{self.exchange_name}] Unexpected error in get_order_status. "
+                f"Params: {params}, Error: {e}",
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error fetching status for order {order_id}: {e}",
+                f"Unexpected error fetching order status: {e}",
                 code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
             ) from e
 
     async def cancel_all_orders(self, symbol: str | None = None) -> None:
@@ -1316,3 +1522,108 @@ class BackpackAPI(ExchangeAPI):
             ) from e
 
     # All abstract methods should now be implemented.
+
+    # --- Abstract Method Implementations ---
+    def _update_rate_limit_from_headers(
+        self,
+        headers: Mapping[str, str],
+        method: str,
+        path: str,
+    ) -> None:
+        """
+        Update rate limit information based on response headers.
+        Backpack does not typically provide rate limit info in standard headers.
+        This is a placeholder implementation.
+        """
+        # Backpack does not seem to provide standard rate limit headers.
+        # If specific headers are discovered, they could be parsed here.
+        logger.debug(
+            f"[{self.exchange_name}] _update_rate_limit_from_headers called (no-op for Backpack). "
+            f"Headers: {headers}, Method: {method}, Path: {path}"
+        )
+        pass  # No specific Backpack headers known for this
+
+    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
+        """Fetch all open orders, optionally filtering by symbol."""
+        # Backpack's get_open_orders handles symbol=None to fetch all.
+        return await self.get_open_orders(symbol=symbol)
+
+    async def ping_websocket(self) -> None:
+        """Send a WebSocket ping. Uses base class default implementation."""
+        await super().ping_websocket()
+
+    async def get_historical_trades(
+        self, symbol: str, limit: int = 100, from_id: str | None = None
+    ) -> list[Trade]:
+        """Fetch historical trades for a symbol, mapped to internal Trade objects.
+
+        Corresponds to Backpack's /api/v1/trades/history endpoint.
+        The `from_id` parameter for Backpack corresponds to `offset`.
+        """
+        request_path = "/api/v1/trades/history"
+        params: dict[str, Any] = {"symbol": symbol, "limit": limit}
+        if from_id:
+            params["fromId"] = from_id
+
+        response_raw: object = None
+        try:
+            response_raw = await self._request("GET", request_path, params=params)
+
+            if not isinstance(response_raw, list):
+                logger.warning(
+                    f"[{self.exchange_name}] Unexpected trades history response type: "
+                    f"{type(response_raw)}. Expected list. Returning empty list."
+                )
+                return []
+
+            internal_trades: list[Trade] = []
+            for trade_data_raw in response_raw:
+                if not isinstance(trade_data_raw, dict):
+                    logger.warning(
+                        f"Skipping non-dict item in trades history list: {trade_data_raw}"
+                    )
+                    continue
+                try:
+                    # Validate raw trade data first
+                    raw_trade_model = BackpackRawTrade.model_validate(trade_data_raw)
+                    # Then transform to internal model
+                    internal_trade = BackpackOrderMapper.transform_raw_trade_to_internal(
+                        raw_trade_model
+                    )
+                    if internal_trade:  # Mapper returns Trade | None
+                        internal_trades.append(internal_trade)
+                    else:
+                        logger.warning(
+                            f"[{self.exchange_name}] Skipping trade in history due to transformation "
+                            f"failure (mapper returned None). Data: {trade_data_raw}"
+                        )
+                except (
+                    ValidationError,
+                    ValueError,
+                ) as e:  # Catch Pydantic and other validation errors
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping trade in history due to validation/"
+                        f"transformation error: {e}. Data: {trade_data_raw}"
+                    )
+                    continue
+                except Exception as e:  # Catch any other unexpected errors during item processing
+                    logger.error(
+                        f"[{self.exchange_name}] Unexpected error processing historical "
+                        f"trade: {e}. Data: {trade_data_raw}",
+                        exc_info=True,
+                    )
+                    continue  # Continue with the next trade item
+            return internal_trades
+        except APIError as e:
+            logger.error(f"[{self.exchange_name}] API Error getting trades history: {e}")
+            raise e
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error getting trades history: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error getting trades history for {symbol or 'all'}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e

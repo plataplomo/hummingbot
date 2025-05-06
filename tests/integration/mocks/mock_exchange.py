@@ -156,8 +156,8 @@ class MockExchangeAPI(ExchangeAPI):
             "strategy_name": strategy,
             "signal_id": signal,
             # Add defaults for other optional base fields if needed
-            "exchange_order_id": f"mock-ex-{uuid.uuid4()}",  # Mock exchange ID
-            "trades": [],
+            "exchange_order_id": f"mock-ex-{uuid.uuid4()!s}",  # Mock exchange ID, ensure str
+            "trades": [],  # Initialize trades as an empty list of Trade
         }
         # Refine type hint if specific structure is known, otherwise Any is acceptable for internal helper
         # order_data: dict[str, Any] = { ... } # Example if refining
@@ -523,9 +523,8 @@ class MockExchangeAPI(ExchangeAPI):
                 side=side,
                 fee=trade_fee,
                 fee_asset=self.fee_asset,
-                timestamp=now,
                 is_maker=(trade_fee_rate == self.maker_fee),
-                executed_at=now,  # Add missing executed_at
+                executed_at=now,  # Ensure executed_at is present
                 # Add optional detail slots if needed
             )
             self.trade_history.append(trade)
@@ -682,3 +681,17 @@ class MockExchangeAPI(ExchangeAPI):
         except Exception as e:
             logger.exception(f"Error in mock get_all_open_orders: {e}")
             return []
+
+    # --- Placeholder for balance and position update --- #
+    def _update_balance_and_position(self, trade: Trade) -> None:
+        """Placeholder to simulate updating balances and positions after a trade."""
+        logger.info(
+            f"Mock {self.exchange_name}: Simulating balance/position update for trade: {trade.id} "
+            f"({trade.side} {trade.quantity} {trade.symbol} @ {trade.price})"
+        )
+        # TODO: Implement actual balance and position update logic if needed for tests.
+        # This would involve:
+        # 1. Identifying base and quote assets from trade.symbol.
+        # 2. Adjusting balances for base and quote assets based on trade side, quantity, price, fee.
+        # 3. Updating or creating a position for the symbol.
+        pass
