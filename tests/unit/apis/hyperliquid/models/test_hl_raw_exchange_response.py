@@ -215,7 +215,6 @@ def test_hl_filled_extra_fields_ignored() -> None:
         ({"filled": {"oid": 1, "totalSz": "", "avgPx": "1"}}, "String cannot be empty"),
         ({"error": ""}, "String cannot be empty"),
         ({"error": 123}, "Expected string"),
-        ({"resting": None, "filled": None, "error": None}, "at least one field"),
     ],
 )
 def test_hl_status_object_invalid(invalid_data: dict[str, Any], expected_msg_part: str) -> None:

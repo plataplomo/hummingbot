@@ -514,6 +514,18 @@ def test_BackpackRawFill_invalid_formats_and_values() -> None:
                 raise  # Re-raise the expected ValidationError
 
 
+def test_BackpackRawFill_invalid_client_id_empty_string() -> None:
+    """Test failure when clientId is an empty string."""
+    p = valid_fill_data().copy()
+    p["clientId"] = ""
+    with pytest.raises(ValidationError) as exc_info:
+        BackpackRawFill.model_validate(p)
+    # Check for the specific error message from the mode='after' validator
+    assert "clientId cannot be an empty or whitespace-only string if provided" in str(
+        exc_info.value
+    )
+
+
 def test_BackpackRawFill_extra_field_forbidden() -> None:
     """Test ValidationError when extra fields are provided (extra='forbid')."""
     data = valid_fill_data()
