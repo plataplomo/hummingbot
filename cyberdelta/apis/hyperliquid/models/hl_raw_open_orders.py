@@ -383,3 +383,21 @@ class HyperliquidRawExchangeActionResponse(BaseModel):
     status: str = Field(..., alias="status")
     data: HyperliquidRawExchangeResponseData = Field(..., alias="data")
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class HyperliquidRawOrderStatusResponse(BaseModel):
+    """
+    Pydantic model for the response structure from Hyperliquid's /info endpoint
+    when querying order status (type='orderStatus').
+
+    Ensures the presence of the 'order' field and that it conforms to the
+    HyperliquidRawOrder model. Enforces immutability and forbids extra fields.
+    """
+
+    order: HyperliquidRawOrder = Field(..., description="The details of the queried order.")
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        validate_assignment=True,
+    )

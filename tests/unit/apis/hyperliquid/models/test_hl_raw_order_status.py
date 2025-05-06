@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 # Import the actual HyperliquidRawOrder model to reference its fields
-from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrderStatusResponse,
 )
 
@@ -87,28 +87,31 @@ def test_order_field_not_a_dictionary() -> None:
     """Test validation fails if the 'order' field is not a dictionary."""
     # Test with string
     invalid_data_str = {"order": "not_a_dict"}
-    with pytest.raises(TypeError) as exc_info_str:
+    with pytest.raises(ValidationError) as exc_info_str:
         HyperliquidRawOrderStatusResponse.model_validate(invalid_data_str)
-    assert "Field 'order' must be a dictionary, got str." in str(exc_info_str.value)
+    assert "Input should be a valid dictionary" in str(exc_info_str.value)
+    assert "order" in str(exc_info_str.value)
 
     # Test with list
     invalid_data_list = {"order": [1, 2, 3]}
-    with pytest.raises(TypeError) as exc_info_list:
+    with pytest.raises(ValidationError) as exc_info_list:
         HyperliquidRawOrderStatusResponse.model_validate(invalid_data_list)
-    assert "Field 'order' must be a dictionary, got list." in str(exc_info_list.value)
+    assert "Input should be a valid dictionary" in str(exc_info_list.value)
+    assert "order" in str(exc_info_list.value)
 
     # Test with integer
     invalid_data_int = {"order": 123}
-    with pytest.raises(TypeError) as exc_info_int:
+    with pytest.raises(ValidationError) as exc_info_int:
         HyperliquidRawOrderStatusResponse.model_validate(invalid_data_int)
-    assert "Field 'order' must be a dictionary, got int." in str(exc_info_int.value)
+    assert "Input should be a valid dictionary" in str(exc_info_int.value)
+    assert "order" in str(exc_info_int.value)
 
-    # Test with None (if None is not allowed by HyperliquidRawOrder, Pydantic will catch later)
-    # The current validator only checks for dict type, so None would pass this specific validator
-    # but fail HyperliquidRawOrder validation if it's not optional there.
-    # If HyperliquidRawOrder can be None, this test would need adjustment or be covered elsewhere.
-    # For now, assuming HyperliquidRawOrder is not Optional[...].
+    # Test with None
     invalid_data_none = {"order": None}
-    with pytest.raises(TypeError) as exc_info_none:  # Expecting TypeError from our validator
+    with pytest.raises(ValidationError) as exc_info_none:
         HyperliquidRawOrderStatusResponse.model_validate(invalid_data_none)
-    assert "Field 'order' must be a dictionary, got NoneType." in str(exc_info_none.value)
+    assert "Input should be a valid dictionary or instance of HyperliquidRawOrder" in str(
+        exc_info_none.value
+    )
+    assert "order" in str(exc_info_none.value)
+    assert "input_type=NoneType" in str(exc_info_none.value)

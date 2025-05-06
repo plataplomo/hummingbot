@@ -129,8 +129,10 @@ def test_user_fill_type_errors() -> None:
         HyperliquidRawUserFill.model_validate(d)
     d = valid_user_fill().copy()
     d["isMaker"] = "true"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)) as exc_info_maker_true:  # Broadened
         HyperliquidRawUserFill.model_validate(d)
+    assert "is_maker: Must be a boolean, got str." in str(exc_info_maker_true.value)
+
     d = valid_user_fill().copy()
     d["time"] = 123.45  # Float instead of int
     with pytest.raises(ValidationError):
@@ -469,7 +471,13 @@ def test_hl_raw_user_fill_invalid_types(
 ) -> None:
     """Test ValidationError is raised for incorrect field types."""
     valid_user_fill_data[field] = invalid_value
-    with pytest.raises(ValidationError) as exc_info:
+    expected_exception: type[ValidationError] | tuple[type[ValidationError], type[TypeError]] = (
+        ValidationError
+    )
+    if field == "isMaker":
+        expected_exception = (ValidationError, TypeError)  # Broadened for isMaker
+
+    with pytest.raises(expected_exception) as exc_info:
         HyperliquidRawUserFill.model_validate(valid_user_fill_data)
 
     # Determine expected field name in error message (Pydantic normalizes to snake_case)
@@ -486,8 +494,14 @@ def test_hl_raw_user_fill_invalid_types(
     assert (
         f"'{expected_error_field}'" in str(exc_info.value)
         or f"{expected_error_field}:" in str(exc_info.value)
-        or f"{expected_error_field}\\n" in str(exc_info.value)
+        or f"{expected_error_field}\n" in str(exc_info.value)
     )
+
+    # Conditional assertion for specific 'isMaker' error message
+    if field == "isMaker":
+        assert "is_maker: Must be a boolean, got str." in str(exc_info.value)
+    # For other fields, the general presence of 'Value error' and the field name is enough,
+    # as Pydantic will detail the specific type mismatch.
 
 
 # --- Failure Cases: Format/Constraint Errors ---

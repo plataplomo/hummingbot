@@ -34,7 +34,7 @@ and real-time price series.
 """
 
 from decimal import Decimal
-from typing import Self
+from typing import Any, Self
 
 from pydantic import (
     BaseModel,
@@ -46,6 +46,7 @@ from pydantic import (
 )
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+from cyberdelta.utils.typing import is_sequence_of_any
 
 
 class HyperliquidRawCandleSnapshot(BaseModel):
@@ -92,12 +93,14 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     def validate_timestamp_list(cls, val: object, info: ValidationInfo) -> list[int]:
         """Validates 't' field: list of non-negative integer timestamps."""
         field_name = info.field_name or "t"
-        if not isinstance(val, list):  # pyright: ignore[reportUnnecessaryIsInstance]
+        if not is_sequence_of_any(val):
+            raise TypeError(f"{field_name}: Must be a list, got {type(val).__name__}.")
+        if not isinstance(val, list):
             raise TypeError(f"{field_name}: Must be a list, got {type(val).__name__}.")
 
         validated_list: list[int] = []
         for i, item_raw in enumerate(val):
-            item = item_raw
+            item: Any = item_raw
             if not isinstance(item, int):
                 raise TypeError(
                     f"{field_name}[{i}]: Must be an integer, got {type(item).__name__}."
@@ -113,12 +116,14 @@ class HyperliquidRawCandleSnapshot(BaseModel):
         """Validates price fields ('o','h','l','c'): list of finite decimal strings
         (max 64 chars)."""
         field_name = info.field_name or "price_list"
-        if not isinstance(val, list):  # pyright: ignore[reportUnnecessaryIsInstance]
+        if not is_sequence_of_any(val):
+            raise TypeError(f"{field_name}: Must be a list, got {type(val).__name__}.")
+        if not isinstance(val, list):
             raise TypeError(f"{field_name}: Must be a list, got {type(val).__name__}.")
 
         validated_list: list[str] = []
         for i, item_raw in enumerate(val):
-            item = item_raw
+            item: Any = item_raw
             current_item_desc = f"{field_name}[{i}]"
             str_item = validate_str_field(
                 item,
@@ -137,9 +142,10 @@ class HyperliquidRawCandleSnapshot(BaseModel):
                         f"{current_item_desc}: Value '{str_item}' must represent a finite decimal."
                     )
             except ValueError as e:
-                raise ValueError(
+                error_message = (
                     f"{current_item_desc}: Invalid finite decimal string '{str_item}'. Reason: {e}"
-                ) from e
+                )
+                raise ValueError(error_message) from e
             validated_list.append(str_item)
         return validated_list
 
@@ -148,12 +154,14 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     def validate_volume_list(cls, val: object, info: ValidationInfo) -> list[str]:
         """Validates 'v' field: list of non-negative finite decimal strings (max 64 chars)."""
         field_name = info.field_name or "v"
-        if not isinstance(val, list):  # pyright: ignore[reportUnnecessaryIsInstance]
+        if not is_sequence_of_any(val):
+            raise TypeError(f"{field_name}: Must be a list, got {type(val).__name__}.")
+        if not isinstance(val, list):
             raise TypeError(f"{field_name}: Must be a list, got {type(val).__name__}.")
 
         validated_list: list[str] = []
         for i, item_raw in enumerate(val):
-            item = item_raw
+            item: Any = item_raw
             current_item_desc = f"{field_name}[{i}]"
             str_item = validate_str_field(
                 item,
@@ -171,14 +179,16 @@ class HyperliquidRawCandleSnapshot(BaseModel):
                     raise ValueError(
                         f"{current_item_desc}: Value '{str_item}' must represent a finite decimal."
                     )
-                if parsed_decimal < Decimal(0):  # pyright: ignore[reportUnknownOperatorType]
+                if parsed_decimal < Decimal(0):
                     raise ValueError(
                         f"{current_item_desc}: Value '{str_item}' must be non-negative."
                     )
             except ValueError as e:
-                raise ValueError(
-                    f"{current_item_desc}: Invalid non-negative finite decimal string '{str_item}'. Reason: {e}"  # Shortened line
-                ) from e
+                error_message = (
+                    f"{current_item_desc}: Invalid non-negative finite decimal string '{str_item}'. "
+                    f"Reason: {e}"
+                )
+                raise ValueError(error_message) from e
             validated_list.append(str_item)
         return validated_list
 

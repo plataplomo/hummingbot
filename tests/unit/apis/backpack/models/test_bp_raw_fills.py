@@ -126,9 +126,12 @@ def test_backpack_raw_fill_invalid_types(
         ("side", "Buy", ("Invalid value 'Buy'", "Expected one of")),
         ("timestamp", "not-a-valid-iso-date", "timestamp: Cannot parse ISO datetime string"),
         ("timestamp", "", "timestamp: String cannot be empty"),
-        ("tradeId", -1, "tradeId: Must be non-negative"),
-        # Empty clientId should be rejected by the 'after' validator
-        ("clientId", "", "clientId cannot be an empty string if provided"),
+        ("tradeId", -1, "Value error, trade_id: Must be >= 0, got -1"),
+        (
+            "clientId",
+            "",
+            "Value error, clientId cannot be an empty or whitespace-only string if provided.",
+        ),
         ("clientId", "C" * 129, "String value too long (max 128 chars)"),
     ],
 )
