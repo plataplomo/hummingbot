@@ -225,16 +225,20 @@ class BackpackRawOrderBook(BaseModel):
                 raise ValueError(f"{current_item_desc}: Must be a list or tuple")
             # DEFENSIVE CHECK: Runtime check ensures item is sized before element access.
             # Pyright complains arg-type is partially unknown, Mypy is OK.
-            # Ignoring for Pyright as isinstance above guarantees sequence type.
-            if len(item) != 2:  # type: ignore[arg-type]
+            # Providing specific tuple hint after length check.
+            if len(item) != 2:
+                # PYRIGHT: reportUnknownArgumentType - Acceptable: `item` confirmed sequence
+                # by isinstance, but element types unknown pre-validation.
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 "
                     f"(price, quantity), got {len(item)}"
                 )
+            # Hint as sequence of two objects after length check
+            typed_item: list[object] | tuple[object, object] = item
 
             # Runtime checks above ensure item is indexable
-            price_raw: Any = item[0]
-            quantity_raw: Any = item[1]
+            price_raw: Any = typed_item[0]
+            quantity_raw: Any = typed_item[1]
 
             # Validate Price String
             try:
@@ -431,16 +435,20 @@ class BackpackRawDepthUpdateEvent(BaseModel):
 
             # DEFENSIVE CHECK: Runtime check ensures item is sized before element access.
             # Pyright complains arg-type is partially unknown, Mypy is OK.
-            # Ignoring for Pyright as isinstance above guarantees sequence type.
-            if len(item) != 2:  # type: ignore[arg-type]
+            # Providing specific tuple hint after length check.
+            if len(item) != 2:
+                # PYRIGHT: reportUnknownArgumentType - Acceptable: `item` confirmed sequence
+                # by isinstance, but element types unknown pre-validation.
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 "
                     f"(price, quantity), got {len(item)}"
                 )
+            # Hint as sequence of two objects after length check
+            typed_item: list[object] | tuple[object, object] = item
 
             # Runtime checks above ensure item is indexable
-            price_raw: Any = item[0]
-            quantity_raw: Any = item[1]
+            price_raw: Any = typed_item[0]
+            quantity_raw: Any = typed_item[1]
 
             # Validate Price String
             try:

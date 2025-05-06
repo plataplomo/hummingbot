@@ -68,10 +68,25 @@ class BackpackRawKline(BaseModel):
         # Use modern `isinstance` syntax
         if not isinstance(data, list | tuple):
             raise TypeError(f"Expected list or tuple input, got {type(data).__name__}")
-        # PYRIGHT: reportUnknownArgumentType on `len(data)` below is acceptable here
-        # as `data` is confirmed list/tuple, but element types are unknown pre-validation.
-        if len(data) != 12:
-            raise ValueError(f"Expected 12 elements in kline data list, got {len(data)}")
+
+        # --- Pyright Fix Attempt ---
+        # Add runtime length check *before* trying to access length for error message,
+        # and provide a more specific type hint after length validation.
+        try:
+            # PYRIGHT: reportUnknownArgumentType - Acceptable: `data` confirmed
+            # list/tuple by isinstance, but element types unknown pre-validation.
+            data_len = len(data)
+        except TypeError:
+            # Should not happen due to isinstance check, but defensive.
+            raise TypeError("Input data does not support len()") from None
+
+        if data_len != 12:
+            raise ValueError(f"Expected 12 elements in kline data list, got {data_len}")
+
+        # Now we know it's a sequence of length 12. Hint it as such.
+        # Using object allows list/tuple, slightly more specific than Any.
+        typed_data: list[object] | tuple[object, ...] = data
+        # -------------------------
 
         # Map list elements to field names based on Backpack API order
         # Note: We use field *names* here, Pydantic handles alias population later
@@ -81,11 +96,8 @@ class BackpackRawKline(BaseModel):
             raise RuntimeError("BackpackRawKline model definition has incorrect number of fields.")
 
         # The values are still raw (str, int potentially), hence Dict[str, Any]
-        # PYRIGHT: reportUnknownVariableType/reportUnknownArgumentType
-        # on `raw_kline_list` and `zip` args below are acceptable here
-        # as element types are unknown pre-validation.
-        raw_kline_list: list[Any] | tuple[Any, ...] = data
-        return dict(zip(field_names, raw_kline_list, strict=False))
+        # Use the more specific typed_data here for zip
+        return dict(zip(field_names, typed_data, strict=False))
 
     # --- Field Validators (Raw Type/Format Validation) ---
     # These run *after* structure_to_dict but *before* Pydantic's final coercion.
@@ -93,7 +105,8 @@ class BackpackRawKline(BaseModel):
 
     @field_validator("start_time_ms", "end_time_ms", "trade_count", mode="before")
     @classmethod
-    def validate_non_negative_int(cls, v: Any, info: ValidationInfo) -> int:
+    def validate_non_negative_int(cls, v: object, info: ValidationInfo) -> int:
+        # ANN401 Fix: Changed Any to object. Runtime checks handle specific type.
         """Validate required non-negative integer fields from raw input."""
         field_name = info.field_name or "unknown_int_field"
         # DEFENSIVE CHECK: Runtime type check from Dict[str, Any]
@@ -116,7 +129,8 @@ class BackpackRawKline(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_finite_decimal_str(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_finite_decimal_str(cls, v: object, info: ValidationInfo) -> str:
+        # ANN401 Fix: Changed Any to object. Runtime checks handle specific type.
         """Validate required, non-empty, finite decimal strings (max_length=64).
 
         Returns validated string.
@@ -142,7 +156,8 @@ class BackpackRawKline(BaseModel):
 
     @field_validator("ignored", mode="before")
     @classmethod
-    def validate_ignored_str(cls, v: Any, info: ValidationInfo) -> str:
+    def validate_ignored_str(cls, v: object, info: ValidationInfo) -> str:
+        # ANN401 Fix: Changed Any to object. Runtime checks handle specific type.
         """Validate the 'ignored' field as a required, non-empty string (max_length=64)."""
         field_name = info.field_name or "ignored"
         # DEFENSIVE CHECK: Runtime type check from Dict[str, Any]
