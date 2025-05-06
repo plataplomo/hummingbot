@@ -224,8 +224,7 @@ class BackpackRawOrderBook(BaseModel):
                 raise ValueError(f"{current_item_desc}: Item is not a list or tuple.")
 
             # DEFENSIVE CHECK: Runtime check ensures item is sized.
-            # Pyright=[arg-type] reports unknown type due to item: Any.
-            # Mypy=[unused-ignore] flags this ignore as unused.
+            # Pyright=[arg-type] Mypy=[unused-ignore] - Keeping ignore for Pyright
             if len(item) != 2:  # type: ignore[arg-type]
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 "
@@ -429,8 +428,7 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                 raise ValueError(f"{current_item_desc}: Item is not a list or tuple.")
 
             # DEFENSIVE CHECK: Runtime check ensures item is sized.
-            # Pyright=[arg-type] reports unknown type due to item: Any.
-            # Mypy=[unused-ignore] flags this ignore as unused.
+            # Pyright=[arg-type] Mypy=[unused-ignore] - Keeping ignore for Pyright
             if len(item) != 2:  # type: ignore[arg-type]
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 "

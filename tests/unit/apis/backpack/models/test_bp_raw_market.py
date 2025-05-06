@@ -525,7 +525,10 @@ def test_BackpackRawTickerEvent_valid_event_time_formats(
     ],
 )
 def test_BackpackRawTickerEvent_invalid_fields(
-    field: str, value: Any, expected_msg_part: str, valid_ticker_event_data: dict[str, Any]
+    field: str,
+    value: Any,
+    expected_msg_part: str,
+    valid_ticker_event_data: dict[str, Any],
 ) -> None:
     data = valid_ticker_event_data
     data[field] = value
@@ -611,7 +614,10 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
     ],
 )
 def test_BackpackRawDepthUpdateEvent_invalid_fields(
-    field: str, value: Any, expected_msg_part: str, valid_depth_update_data: dict[str, Any]
+    field: str,
+    value: Any,
+    expected_msg_part: str,
+    valid_depth_update_data: dict[str, Any],
 ) -> None:
     data = valid_depth_update_data
     data[field] = value

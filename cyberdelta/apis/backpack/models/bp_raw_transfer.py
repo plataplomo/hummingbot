@@ -9,10 +9,12 @@ transformation, not for internal business logic.
 Models:
     - BackpackRawDeposit: Validates deposit objects.
     - BackpackRawWithdrawal: Validates withdrawal objects.
+    - BackpackRawLiquidation: Validates liquidation event objects.
 
 Validation Pattern:
     - Strict type, format, and constraint checks on all fields.
     - `extra='forbid'` to reject unknown fields.
+    - `frozen=True` to ensure immutability after validation.
 
 These models act as a strict shield between external API data and internal business
 logic, ensuring robustness and security at the data ingestion boundary.
@@ -33,7 +35,7 @@ class BackpackRawWithdrawal(BaseModel):
     Attributes:
         id (str): Withdrawal ID.
         asset (str): Asset symbol.
-        amount (str): Withdrawal amount (as string).
+        amount (str): Withdrawal amount (as string, non-negative finite decimal).
         status (str): Withdrawal status (e.g., 'pending', 'completed').
     """
 
@@ -41,7 +43,9 @@ class BackpackRawWithdrawal(BaseModel):
     asset: str = Field(..., alias="asset", max_length=32)
     amount: str = Field(..., alias="amount", max_length=64)
     status: str = Field(..., alias="status", max_length=32)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
+    )
 
     @field_validator("id", "asset", mode="before")
     @classmethod
@@ -57,6 +61,8 @@ class BackpackRawWithdrawal(BaseModel):
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
         if d is None or not d.is_finite():
             raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        if d < 0:
+            raise ValueError(f"{field_name}: Withdrawal amount cannot be negative")
         return s
 
     @field_validator("status", mode="before")
@@ -76,7 +82,7 @@ class BackpackRawDeposit(BaseModel):
     Attributes:
         id (str): Deposit ID.
         asset (str): Asset symbol.
-        amount (str): Deposit amount (as string).
+        amount (str): Deposit amount (as string, non-negative finite decimal).
         status (str): Deposit status (e.g., 'pending', 'completed').
     """
 
@@ -84,7 +90,9 @@ class BackpackRawDeposit(BaseModel):
     asset: str = Field(..., alias="asset", max_length=32)
     amount: str = Field(..., alias="amount", max_length=64)
     status: str = Field(..., alias="status", max_length=32)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
+    )
 
     @field_validator("id", "asset", mode="before")
     @classmethod
@@ -100,6 +108,8 @@ class BackpackRawDeposit(BaseModel):
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
         if d is None or not d.is_finite():
             raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        if d < 0:
+            raise ValueError(f"{field_name}: Deposit amount cannot be negative")
         return s
 
     @field_validator("status", mode="before")
@@ -118,16 +128,18 @@ class BackpackRawLiquidation(BaseModel):
 
     Attributes:
         symbol (str): Trading symbol. (max_length=64, per OpenAPI spec)
-        price (str): Liquidation price (as string).
-        quantity (str): Liquidated quantity (as string).
-        side (str): Side ('buy', 'sell', etc.).
+        price (str): Liquidation price (as string, non-negative finite decimal).
+        quantity (str): Liquidated quantity (as string, non-negative finite decimal).
+        side (str): Side ('buy', 'sell').
     """
 
     symbol: str = Field(..., alias="symbol", max_length=64)
     price: str = Field(..., alias="price", max_length=64)
     quantity: str = Field(..., alias="quantity", max_length=64)
     side: str = Field(..., alias="side", max_length=16)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True, extra="forbid", validate_by_name=True, frozen=True
+    )
 
     @field_validator("symbol", mode="before")
     @classmethod
@@ -142,6 +154,8 @@ class BackpackRawLiquidation(BaseModel):
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
         if d is None or not d.is_finite():
             raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
+        if d < 0:
+            raise ValueError(f"{field_name}: Liquidation {field_name} cannot be negative")
         return s
 
     @field_validator("side", mode="before")

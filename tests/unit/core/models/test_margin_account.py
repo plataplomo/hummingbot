@@ -154,7 +154,7 @@ def test_margin_summary_creation_with_strings(base_margin_summary_data: dict[str
 def test_margin_summary_invalid_field_inputs(
     base_margin_summary_data: dict[str, Any],
     field: str,
-    value: Any,  # noqa: ANN401
+    value: Any,
     error_match: str,
 ) -> None:
     """Test validation failures for individual core field invalid inputs."""
@@ -249,7 +249,7 @@ def test_hyperliquid_margin_details_creation_and_immutability(
 def test_hyperliquid_margin_details_invalid_fields(
     valid_hl_margin_details_data: dict[str, Any],
     field: str,
-    value: Any,  # noqa: ANN401
+    value: Any,
     error_match: str,
 ) -> None:
     """Test validation failures for HyperliquidMarginDetails."""
@@ -300,7 +300,7 @@ def test_backpack_margin_details_creation_and_immutability(
 def test_backpack_margin_details_invalid_fields(
     valid_bp_margin_details_data: dict[str, Any],
     field: str,
-    value: Any,  # noqa: ANN401
+    value: Any,
     error_match: str,
 ) -> None:
     """Test validation failures for BackpackMarginDetails."""

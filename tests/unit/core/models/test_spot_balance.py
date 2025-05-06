@@ -143,7 +143,7 @@ def test_spot_balance_creation_with_strings(
 def test_spot_balance_invalid_core_field_values(
     base_spot_balance_data: dict[str, Any],
     field: str,
-    value: Any,  # noqa: ANN401
+    value: Any,
     error_match: str,
 ) -> None:
     """Test core validation failures for various invalid field inputs."""
@@ -243,7 +243,7 @@ def test_bp_details_creation_and_immutability(
 def test_bp_details_invalid_field_values(
     valid_bp_spot_details_data: dict[str, Any],
     field: str,
-    value: Any,  # noqa: ANN401
+    value: Any,
     error_match: str,
 ) -> None:
     """Test validation failures for BackpackSpotBalanceDetails."""

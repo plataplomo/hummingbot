@@ -30,7 +30,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 class MockResponse:
     def __init__(
         self,
-        data: Any,  # noqa: ANN401 - Mock data can be anything
+        data: Any,  # Mock data can be anything
         status: int = 200,
         headers: dict[str, str] | None = None,
         content_type: str = "application/json",
@@ -41,7 +41,7 @@ class MockResponse:
         self.content_type = content_type
         self._raise_for_status_called = False
 
-    async def json(self) -> Any:  # noqa: ANN401 - Mock data can be anything
+    async def json(self) -> Any:  # Mock data can be anything
         return self._data
 
     async def text(self) -> str:
@@ -72,7 +72,7 @@ class MockClientSession:
         responses: dict[tuple[str, str], MockResponse] | None = None,
     ) -> None:
         self.responses = responses or {}
-        self.requests: list[dict[str, Any]] = []  # noqa: ANN401 - Flexible for test requests
+        self.requests: list[dict[str, Any]] = []  # Flexible for test requests
         self.closed = False
 
     async def __aenter__(self) -> MockClientSession:
@@ -89,7 +89,9 @@ class MockClientSession:
     async def close(self) -> None:
         self.closed = True
 
-    async def _request(self, method: str, url: str, **kwargs: Any) -> MockResponse:  # noqa: ANN401 - Accepts any kwargs
+    async def _request(
+        self, method: str, url: str, **kwargs: Any
+    ) -> MockResponse:  # Accepts any kwargs
         self.requests.append({"method": method, "url": url, "kwargs": kwargs})
 
         # Find match in responses
@@ -104,16 +106,16 @@ class MockClientSession:
         # Default response if no match
         return MockResponse({}, status=404)
 
-    async def get(self, url: str, **kwargs: Any) -> MockResponse:  # noqa: ANN401 - Accepts any kwargs
+    async def get(self, url: str, **kwargs: Any) -> MockResponse:  # Accepts any kwargs
         return await self._request("GET", url, **kwargs)
 
-    async def post(self, url: str, **kwargs: Any) -> MockResponse:  # noqa: ANN401 - Accepts any kwargs
+    async def post(self, url: str, **kwargs: Any) -> MockResponse:  # Accepts any kwargs
         return await self._request("POST", url, **kwargs)
 
-    async def put(self, url: str, **kwargs: Any) -> MockResponse:  # noqa: ANN401 - Accepts any kwargs
+    async def put(self, url: str, **kwargs: Any) -> MockResponse:  # Accepts any kwargs
         return await self._request("PUT", url, **kwargs)
 
-    async def delete(self, url: str, **kwargs: Any) -> MockResponse:  # noqa: ANN401 - Accepts any kwargs
+    async def delete(self, url: str, **kwargs: Any) -> MockResponse:  # Accepts any kwargs
         return await self._request("DELETE", url, **kwargs)
 
 
@@ -276,11 +278,11 @@ def mock_config() -> MagicMock:
         "data": {"staleness_thresholds": {"ticker": 60, "funding_rate": 300, "orderbook": 60}},
     }
 
-    def getter(key: str, default: Any | None = None) -> Any | None:  # noqa: ANN401 - Config getter mock
+    def getter(key: str, default: Any | None = None) -> Any | None:
         return _deep_get(config_data, key, default)
 
     mock_cfg = MagicMock(spec=Config)
-    mock_cfg.get = getter  # noqa: ANN401 - Assigning mock method
+    mock_cfg.get = getter
     mock_cfg.config_data = config_data
     return mock_cfg
 
@@ -438,7 +440,7 @@ def mock_arbitrage_opportunity() -> MagicMock:
     return opportunity
 
 
-def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any | None:  # noqa: ANN401 - Config helper mock # type: ignore[reportUnknownVariableType]
+def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any | None:
     """Helper to get nested dictionary values."""
     keys_list = keys.split(".")
     val: Any = d  # Initialize val with type Any

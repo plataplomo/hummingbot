@@ -50,11 +50,15 @@ def test_BackpackRawWithdrawal_wrong_type_fields() -> None:
 def test_BackpackRawWithdrawal_invalid_format_fields() -> None:
     p: dict[str, Any] = valid_withdrawal().copy()
     p["amount"] = "1..0"
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="Invalid literal for Decimal"):
         BackpackRawWithdrawal.model_validate(p)
     p = valid_withdrawal().copy()
     p["status"] = "notastatus"
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="Value must be one of"):
+        BackpackRawWithdrawal.model_validate(p)
+    p = valid_withdrawal().copy()
+    p["amount"] = "-50.0"
+    with pytest.raises(ValidationError, match="Withdrawal amount cannot be negative"):
         BackpackRawWithdrawal.model_validate(p)
 
 
@@ -105,7 +109,7 @@ def test_BackpackRawWithdrawal_corruption_cases() -> None:
     for val in ["-100.0", "0", "NaN", "inf", "-inf"]:
         p = valid_withdrawal().copy()
         p["amount"] = val
-        if val in ["NaN", "inf", "-inf"]:
+        if val in ["-100.0", "NaN", "inf", "-inf"]:
             with pytest.raises(ValidationError):
                 BackpackRawWithdrawal.model_validate(p)
         else:
@@ -120,6 +124,15 @@ def test_BackpackRawWithdrawal_corruption_cases() -> None:
     bad_json = '{"id": "wd_123", "asset": "USDC"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
+
+
+def test_BackpackRawWithdrawal_frozen() -> None:
+    """Test that BackpackRawWithdrawal model is immutable (frozen=True)."""
+    obj = BackpackRawWithdrawal.model_validate(valid_withdrawal())
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        obj.id = "new_id"
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        obj.amount = "200.0"
 
 
 def valid_deposit() -> dict[str, Any]:
@@ -161,11 +174,15 @@ def test_BackpackRawDeposit_wrong_type_fields() -> None:
 def test_BackpackRawDeposit_invalid_format_fields() -> None:
     p: dict[str, Any] = valid_deposit().copy()
     p["amount"] = "1..0"
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="Invalid literal for Decimal"):
         BackpackRawDeposit.model_validate(p)
     p = valid_deposit().copy()
     p["status"] = "notastatus"
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="Value must be one of"):
+        BackpackRawDeposit.model_validate(p)
+    p = valid_deposit().copy()
+    p["amount"] = "-0.1"
+    with pytest.raises(ValidationError, match="Deposit amount cannot be negative"):
         BackpackRawDeposit.model_validate(p)
 
 
@@ -216,7 +233,7 @@ def test_BackpackRawDeposit_corruption_cases() -> None:
     for val in ["-0.5", "0", "NaN", "inf", "-inf"]:
         p = valid_deposit().copy()
         p["amount"] = val
-        if val in ["NaN", "inf", "-inf"]:
+        if val in ["-0.5", "NaN", "inf", "-inf"]:
             with pytest.raises(ValidationError):
                 BackpackRawDeposit.model_validate(p)
         else:
@@ -231,6 +248,15 @@ def test_BackpackRawDeposit_corruption_cases() -> None:
     bad_json = '{"id": "dp_456", "asset": "BTC"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
+
+
+def test_BackpackRawDeposit_frozen() -> None:
+    """Test that BackpackRawDeposit model is immutable (frozen=True)."""
+    obj = BackpackRawDeposit.model_validate(valid_deposit())
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        obj.id = "new_id"
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        obj.amount = "1.0"
 
 
 def valid_liquidation() -> dict[str, Any]:
@@ -272,11 +298,23 @@ def test_BackpackRawLiquidation_wrong_type_fields() -> None:
 def test_BackpackRawLiquidation_invalid_format_fields() -> None:
     p: dict[str, Any] = valid_liquidation().copy()
     p["price"] = "1..0"
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="Invalid literal for Decimal"):
         BackpackRawLiquidation.model_validate(p)
     p = valid_liquidation().copy()
-    p["side"] = "notaside"
-    with pytest.raises(ValidationError):
+    p["quantity"] = "nan"
+    with pytest.raises(ValidationError, match="Value must be a finite decimal"):
+        BackpackRawLiquidation.model_validate(p)
+    p = valid_liquidation().copy()
+    p["side"] = "sideways"
+    with pytest.raises(ValidationError, match="Value must be one of"):
+        BackpackRawLiquidation.model_validate(p)
+    p = valid_liquidation().copy()
+    p["quantity"] = "-0.001"
+    with pytest.raises(ValidationError, match="Liquidation quantity cannot be negative"):
+        BackpackRawLiquidation.model_validate(p)
+    p = valid_liquidation().copy()
+    p["price"] = "-100.0"
+    with pytest.raises(ValidationError, match="Liquidation price cannot be negative"):
         BackpackRawLiquidation.model_validate(p)
 
 
@@ -337,6 +375,15 @@ def test_BackpackRawLiquidation_corruption_cases() -> None:
     bad_json = '{"symbol": "BTC_USDC", "price": "45000.0"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
+
+
+def test_BackpackRawLiquidation_frozen() -> None:
+    """Test that BackpackRawLiquidation model is immutable (frozen=True)."""
+    obj = BackpackRawLiquidation.model_validate(valid_liquidation())
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        obj.symbol = "ETH_USDC"
+    with pytest.raises(ValidationError, match="Instance is frozen"):
+        obj.quantity = "0.1"
 
 
 def test_BackpackRawWithdrawal_real_json_edge_case() -> None:

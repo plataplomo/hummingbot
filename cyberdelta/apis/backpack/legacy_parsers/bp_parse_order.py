@@ -24,7 +24,7 @@ from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, Tim
 # ANN401: Any is justified here as Backpack can send timestamps in multiple formats
 # (int ms, int µs, float ms, float µs, ISO string) which is difficult to type precisely
 # without significant complexity or runtime overhead.
-def _parse_backpack_timestamp(ts: Any) -> datetime:  # noqa: ANN401
+def _parse_backpack_timestamp(ts: Any) -> datetime:
     """
     Convert Backpack timestamp (ms, µs, or ISO string) to UTC datetime.
     """

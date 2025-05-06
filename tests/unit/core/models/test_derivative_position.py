@@ -221,7 +221,7 @@ def test_derivative_position_mutability(
 def test_derivative_position_invalid_field_inputs(
     base_derivative_position_data: dict[str, Any],
     field: str,
-    value: Any,  # noqa: ANN401
+    value: Any,
     error_match: str,
 ) -> None:
     """Test validation failures for individual field invalid inputs."""
@@ -363,7 +363,7 @@ def test_hyperliquid_details_creation_and_immutability(
 def test_hyperliquid_details_invalid_fields(
     valid_hl_details_data: dict[str, Any],
     field: str,
-    value: Any,  # noqa: ANN401
+    value: Any,
     error_match: str,
 ) -> None:
     """Test validation failures for HyperliquidPositionDetails."""
@@ -406,7 +406,7 @@ def test_backpack_details_creation_and_immutability(valid_bp_details_data: dict[
 def test_backpack_details_invalid_fields(
     valid_bp_details_data: dict[str, Any],
     field: str,
-    value: Any,  # noqa: ANN401
+    value: Any,
     error_match: str,
 ) -> None:
     """Test validation failures for BackpackPositionDetails."""

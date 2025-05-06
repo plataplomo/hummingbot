@@ -82,7 +82,7 @@ def test_backpack_raw_fill_optional_client_id_missing(valid_fill_data: dict[str,
 def test_backpack_raw_fill_invalid_types(
     valid_fill_data: dict[str, Any],
     field: str,
-    invalid_value: Any,  # noqa: ANN401
+    invalid_value: Any,
 ) -> None:
     """Test ValidationError is raised for incorrect field types."""
     valid_fill_data[field] = invalid_value
@@ -134,7 +134,7 @@ def test_backpack_raw_fill_invalid_types(
 def test_backpack_raw_fill_invalid_formats(
     valid_fill_data: dict[str, Any],
     field: str,
-    invalid_value: Any,  # noqa: ANN401
+    invalid_value: Any,
     expected_msg_part: str | tuple[str, str],
 ) -> None:
     """Test ValidationError for format/constraint violations."""

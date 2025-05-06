@@ -465,7 +465,7 @@ def test_hl_raw_user_fill_optional_present(valid_user_fill_data: dict[str, Any])
 def test_hl_raw_user_fill_invalid_types(
     valid_user_fill_data: dict[str, Any],
     field: str,
-    invalid_value: Any,  # noqa: ANN401
+    invalid_value: Any,
 ) -> None:
     """Test ValidationError is raised for incorrect field types."""
     valid_user_fill_data[field] = invalid_value
@@ -517,7 +517,7 @@ def test_hl_raw_user_fill_invalid_types(
 def test_hl_raw_user_fill_invalid_formats(
     valid_user_fill_data: dict[str, Any],
     field: str,
-    invalid_value: Any,  # noqa: ANN401
+    invalid_value: Any,
     expected_msg_part: str | tuple[str, str],  # Allow tuple for multi-part checks
 ) -> None:
     """Test ValidationError for format/constraint violations."""
