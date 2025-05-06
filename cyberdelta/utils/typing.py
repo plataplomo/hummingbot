@@ -8,10 +8,10 @@ to assist with static analysis and type narrowing in complex validation scenario
 
 from collections.abc import Sequence
 from decimal import Decimal
-from typing import Any, TypeGuard, Union
+from typing import Any, TypeGuard
 
 # Type alias for types that can potentially be parsed into a Decimal
-PotentialDecimalInput = Union[str, int, float, Decimal]
+PotentialDecimalInput = str | int | float | Decimal
 
 # Type alias for a sequence (list or tuple) expected to hold price/quantity pairs
 LevelSequence = Sequence[Any]  # Using Sequence for broader compatibility
@@ -31,7 +31,7 @@ def is_sequence_of_any(val: object) -> TypeGuard[Sequence[Any]]:
         True if val is a Sequence, False otherwise.
     """
     # Broad check, relying on Sequence protocol primarily
-    return isinstance(val, Sequence) and not isinstance(val, (str, bytes))
+    return isinstance(val, Sequence) and not isinstance(val, str | bytes)
 
 
 def is_potential_decimal_input(val: object) -> TypeGuard[PotentialDecimalInput]:
@@ -44,4 +44,4 @@ def is_potential_decimal_input(val: object) -> TypeGuard[PotentialDecimalInput]:
     Returns:
         True if the value is a str, int, float, or Decimal, False otherwise.
     """
-    return isinstance(val, (str, int, float, Decimal))
+    return isinstance(val, str | int | float | Decimal)

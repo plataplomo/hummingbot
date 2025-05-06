@@ -160,11 +160,12 @@ class BackpackRawMarket(BaseModel):
                     f"{info.field_name or 'field'}: Invalid integer timestamp string '{v}': {e}"
                 ) from e
 
-        # Corrected f-string for length
-        raise TypeError(
+        # Corrected f-string for length - splitting the message
+        msg = (
             f"{info.field_name or 'field'}: Must be an int, float, or parsable string, "
             f"got {type(v).__name__}"
         )
+        raise TypeError(msg)
 
     @field_validator("asks", "bids", mode="before")
     @classmethod
@@ -332,10 +333,9 @@ class BackpackRawTicker(BaseModel):
                 # Adjusted f-string for length
                 raise ValueError(f"{field_name}: Invalid timestamp format '{v}': {e}") from e
 
-        # Corrected f-string for length
-        raise TypeError(
-            f"{field_name}: Must be an int, float, or parsable string, got {type(v).__name__}"
-        )
+        # Corrected f-string for length - splitting the message
+        msg = f"{field_name}: Must be an int, float, or parsable string, got {type(v).__name__}"
+        raise TypeError(msg)
 
 
 class BackpackRawOpenInterest(BaseModel):

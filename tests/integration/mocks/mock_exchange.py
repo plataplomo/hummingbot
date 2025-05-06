@@ -1,9 +1,10 @@
 import asyncio
 import logging
+import math
 import uuid
 from collections import defaultdict
 from collections.abc import Callable, Coroutine, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -553,7 +554,7 @@ class MockExchangeAPI(ExchangeAPI):
                         break
 
         if order_to_cancel and order_key_found:
-            # Replace is_terminal() check
+            # Check if order is already in a terminal state
             if order_to_cancel.status in [
                 OrderStatus.FILLED,
                 OrderStatus.CANCELLED,
@@ -565,12 +566,11 @@ class MockExchangeAPI(ExchangeAPI):
                 )
                 return {"success": False, "message": "Order already terminated"}
 
-            # Use correct Enum member access
+            # Handle different types of orders differently if needed
+            # For simplicity, just mark as CANCELLED
             order_to_cancel.status = OrderStatus.CANCELLED
             order_to_cancel.updated_at = datetime.now(UTC)
-            logger.info(f"Mock {self.exchange_name}: Marked order {order_key_found} as CANCELLED.")
-            # Optionally remove from _orders if needed for test logic
-            # del self._orders[order_key_found]
+            logger.info(f"Mock {self.exchange_name}: Cancelled order {order_key_found}")
             return {"success": True}
         else:
             logger.warning(f"Mock {self.exchange_name}: Order with ID '{order_id}' not found.")
@@ -996,7 +996,6 @@ class MockExchangeAPI(ExchangeAPI):
         """Cancel all open orders, optionally filtered by symbol."""
         self._check_error("cancel_all_orders")
         await self._simulate_latency()
-        orders_to_remove = []
         cancelled_count = 0
         for order_id, order in self._orders.items():
             if symbol is None or order.symbol == symbol:
@@ -1007,10 +1006,6 @@ class MockExchangeAPI(ExchangeAPI):
                     logger.debug(
                         f"Mock {self.exchange_name}: Marked order {order_id} as cancelled."
                     )
-
-        # If the test needs orders removed from the dict, do it here, but usually just marking is enough
-        # for order_id in orders_to_remove:
-        #     del self._orders[order_id]
 
         logger.info(
             f"Mock {self.exchange_name}: Cancelled {cancelled_count} orders for symbol {symbol or 'all'}."
@@ -1173,21 +1168,22 @@ class MockExchangeAPI(ExchangeAPI):
             # Convert timestamps
             for field in ["created_at"]:  # Removed last_update_time
                 if field in data and data[field]:
-                    # Assuming timestamp is in ms or seconds epoch, or ISO string
-                    # This needs robust parsing logic based on actual API format
-                    try:
-                        # Example: handle ms epoch int/float or ISO string
-                        ts_val = data[field]
-                        if isinstance(ts_val, (int, float)):
-                            data[field] = datetime.fromtimestamp(ts_val / 1000, UTC)
-                        elif isinstance(ts_val, str):
+                    # Example: handle ms epoch int/float or ISO string
+                    ts_val = data[field]
+                    # DEFENSIVE CHECK: Ensure ts_val is appropriate type before conversion.
+                    if isinstance(ts_val, int | float):
+                        # DEFENSIVE CHECK: Ensure finiteness for floats.
+                        if isinstance(ts_val, float) and (math.isinf(ts_val) or math.isnan(ts_val)):
+                            raise ValueError(
+                                f"Invalid timestamp format for field '{field}': {ts_val}"
+                            )
+                        data[field] = datetime.fromtimestamp(ts_val / 1000, UTC)
+                    elif isinstance(ts_val, str):
+                        # Assume ISO-like string, attempt parsing
+                        try:
                             data[field] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
-                        # Add other format checks if needed
-                    except (ValueError, TypeError):
-                        logger.error(
-                            f"Could not parse timestamp for order field '{field}': {data[field]}"
-                        )
-                        data[field] = datetime.now(UTC)  # Fallback or raise
+                        except ValueError:
+                            data[field] = datetime.now(UTC)  # Fallback
 
             # Convert enums (assuming string values from API)
             if "side" in data:
@@ -1225,12 +1221,20 @@ class MockExchangeAPI(ExchangeAPI):
             # Parse timestamp (similar logic as parse_order)
             if "timestamp" in data and data["timestamp"]:
                 ts_val = data["timestamp"]
-                if isinstance(ts_val, (int, float)):
+                # DEFENSIVE CHECK: Ensure ts_val is appropriate type before conversion.
+                if isinstance(ts_val, int | float):
+                    # DEFENSIVE CHECK: Ensure finiteness for floats.
+                    if isinstance(ts_val, float) and (math.isinf(ts_val) or math.isnan(ts_val)):
+                        raise ValueError(
+                            f"Invalid timestamp format for field 'timestamp': {ts_val}"
+                        )
                     data["timestamp"] = datetime.fromtimestamp(ts_val / 1000, UTC)
                 elif isinstance(ts_val, str):
-                    data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
-                else:
-                    data["timestamp"] = datetime.now(UTC)  # Fallback
+                    # Assume ISO-like string, attempt parsing
+                    try:
+                        data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                    except ValueError:
+                        data["timestamp"] = datetime.now(UTC)  # Fallback
             else:
                 data["timestamp"] = datetime.now(UTC)
 
@@ -1305,12 +1309,20 @@ class MockExchangeAPI(ExchangeAPI):
             # Parse timestamp
             if "timestamp" in data and data["timestamp"]:
                 ts_val = data["timestamp"]
-                if isinstance(ts_val, (int, float)):
+                # DEFENSIVE CHECK: Ensure ts_val is appropriate type before conversion.
+                if isinstance(ts_val, int | float):
+                    # DEFENSIVE CHECK: Ensure finiteness for floats.
+                    if isinstance(ts_val, float) and (math.isinf(ts_val) or math.isnan(ts_val)):
+                        raise ValueError(
+                            f"Invalid timestamp format for field 'timestamp': {ts_val}"
+                        )
                     data["timestamp"] = datetime.fromtimestamp(ts_val / 1000, UTC)
                 elif isinstance(ts_val, str):
-                    data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
-                else:
-                    data["timestamp"] = datetime.now(UTC)  # Fallback
+                    # Assume ISO-like string, attempt parsing
+                    try:
+                        data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                    except ValueError:
+                        data["timestamp"] = datetime.now(UTC)  # Fallback
             else:
                 data["timestamp"] = datetime.now(UTC)
 
@@ -1353,12 +1365,20 @@ class MockExchangeAPI(ExchangeAPI):
             # Parse timestamp
             if "timestamp" in data and data["timestamp"]:
                 ts_val = data["timestamp"]
-                if isinstance(ts_val, (int, float)):
+                # DEFENSIVE CHECK: Ensure ts_val is appropriate type before conversion.
+                if isinstance(ts_val, int | float):
+                    # DEFENSIVE CHECK: Ensure finiteness for floats.
+                    if isinstance(ts_val, float) and (math.isinf(ts_val) or math.isnan(ts_val)):
+                        raise ValueError(
+                            f"Invalid timestamp format for field 'timestamp': {ts_val}"
+                        )
                     data["timestamp"] = datetime.fromtimestamp(ts_val / 1000, UTC)
                 elif isinstance(ts_val, str):
-                    data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
-                else:
-                    data["timestamp"] = datetime.now(UTC)  # Fallback
+                    # Assume ISO-like string, attempt parsing
+                    try:
+                        data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                    except ValueError:
+                        data["timestamp"] = datetime.now(UTC)  # Fallback
             else:
                 data["timestamp"] = datetime.now(UTC)
 
@@ -1417,12 +1437,20 @@ class MockExchangeAPI(ExchangeAPI):
             # Parse timestamp
             if "timestamp" in data and data["timestamp"]:
                 ts_val = data["timestamp"]
-                if isinstance(ts_val, (int, float)):
+                # DEFENSIVE CHECK: Ensure ts_val is appropriate type before conversion.
+                if isinstance(ts_val, int | float):
+                    # DEFENSIVE CHECK: Ensure finiteness for floats.
+                    if isinstance(ts_val, float) and (math.isinf(ts_val) or math.isnan(ts_val)):
+                        raise ValueError(
+                            f"Invalid timestamp format for field 'timestamp': {ts_val}"
+                        )
                     data["timestamp"] = datetime.fromtimestamp(ts_val / 1000, UTC)
                 elif isinstance(ts_val, str):
-                    data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
-                else:
-                    data["timestamp"] = datetime.now(UTC)  # Fallback
+                    # Assume ISO-like string, attempt parsing
+                    try:
+                        data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                    except ValueError:
+                        data["timestamp"] = datetime.now(UTC)  # Fallback
             else:
                 data["timestamp"] = datetime.now(UTC)
 
@@ -1524,3 +1552,80 @@ class MockExchangeAPI(ExchangeAPI):
             f"Mock {self.exchange_name}: _update_rate_limit_from_headers called (no-op) with headers: {headers}"
         )
         # No actual rate limiting logic needed for the mock
+
+    def _parse_field_value(self, field: str, value: Any, data: dict[str, Any]) -> None:
+        """Parses a single field value, handling Decimal and datetime conversions."""
+        decimal_fields = ["price", "quantity", "filled_quantity", "average_fill_price"]
+        # Remove 'timestamp' from direct decimal conversion
+        # timestamp_fields = ["timestamp", "created_at", "updated_at"]
+
+        if field in decimal_fields:
+            if value is not None:
+                try:
+                    data[field] = Decimal(str(value))
+                except InvalidOperation:
+                    logger.error(
+                        f"Could not convert order field '{field}' value '{value}' to Decimal."
+                    )
+                    # Raise error instead of returning None
+                    raise ValueError(
+                        f"Could not convert order field '{field}' value '{value}' to Decimal."
+                    ) from None
+        elif field in ["created_at", "updated_at", "triggered_at"]:
+            if value is not None:
+                # Example: handle ms epoch int/float or ISO string
+                ts_val = value # Use the original value passed
+                # DEFENSIVE CHECK: Ensure ts_val is appropriate type before conversion.
+                if isinstance(ts_val, int | float):
+                    # DEFENSIVE CHECK: Ensure finiteness for floats.
+                    if isinstance(ts_val, float) and (math.isinf(ts_val) or math.isnan(ts_val)):
+                        raise ValueError(
+                            f"Invalid timestamp format for field '{field}': {ts_val}"
+                        )
+                    data[field] = datetime.fromtimestamp(ts_val / 1000, UTC)
+                elif isinstance(ts_val, str):
+                    # Assume ISO-like string, attempt parsing
+                    try:
+                        data[field] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                    except ValueError:
+                        data[field] = datetime.now(UTC)  # Fallback
+            # Convert timestamp if present
+            if "timestamp" in data and data["timestamp"]:
+                ts_val = data["timestamp"]
+                # DEFENSIVE CHECK: Ensure ts_val is appropriate type before conversion.
+                if isinstance(ts_val, int | float):
+                    # DEFENSIVE CHECK: Ensure finiteness for floats.
+                    if isinstance(ts_val, float) and (math.isinf(ts_val) or math.isnan(ts_val)):
+                        raise ValueError(
+                            f"Invalid timestamp format for field 'timestamp': {ts_val}"
+                        )
+                    data["timestamp"] = datetime.fromtimestamp(ts_val / 1000, UTC)
+                elif isinstance(ts_val, str):
+                    # Assume ISO-like string, attempt parsing
+                    try:
+                        data["timestamp"] = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                    except ValueError:
+                        data["timestamp"] = datetime.now(UTC)  # Fallback
+            # Convert enums (assuming string values from API)
+            if "side" in data:
+                data["side"] = OrderSide(data["side"])
+            if "order_type" in data:
+                data["order_type"] = OrderType(data["order_type"])
+            if "status" in data:
+                data["status"] = OrderStatus(data["status"])
+            if "time_in_force" in data:
+                data["time_in_force"] = TimeInForce(data["time_in_force"])
+
+            # Add defaults for missing required fields if applicable
+            # These should match the Order model defaults or be handled explicitly
+            data.setdefault("updated_at", data.get("created_at", datetime.now(UTC)))
+            data.setdefault("triggered_at", None)
+            data.setdefault("strategy_name", None)
+            data.setdefault("signal_id", None)
+
+            # Validate using Pydantic
+            # return Order(**data) # Direct init requires exact fields
+            return Order.model_validate(data)
+        except (ValidationError, KeyError, TypeError, ValueError, InvalidOperation) as e:
+            logger.error(f"Failed to parse order data: {data}. Error: {e}", exc_info=True)
+            raise ValueError(f"Failed to parse order data: {e}") from e
