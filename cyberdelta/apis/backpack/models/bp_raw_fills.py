@@ -3,7 +3,13 @@ CyberDeltaEngine: Backpack API Raw Models (User Fills)
 -------------------------------------------------------
 
 Strict Pydantic models for validating the *raw* structure of Backpack Exchange API responses
-related to user fills (trades). Adheres to the Raw Model Policy.
+related to user fills (trades) from the `/wapi/v1/history/fills` endpoint.
+Adheres to the Raw Model Policy:
+- Validates external contract for individual fill records.
+- Validates raw data types and basic formats (non-empty, length, finite numeric, specific enums).
+- Uses `model_config(extra="forbid", frozen=True)`.
+- Field validators operate on raw input and return validated raw types or raise errors.
+- Contains NO business logic.
 """
 
 from datetime import UTC, datetime
@@ -26,10 +32,32 @@ from cyberdelta.utils.parsing import (
 # --- Core Backpack Fill Model ---
 class BackpackRawFill(BaseModel):
     """
-    Strict boundary model for a user fill (trade) object from Backpack API.
+    Strict boundary Pydantic model for a single user fill (trade) object from the Backpack API
+    endpoint `/wapi/v1/history/fills`. Corresponds to the `OrderFill` schema in Backpack's OpenAPI.
 
-    Validates structure, types, and basic formats (non-empty, length, numeric format).
-    Rejects extra fields. Immutable.
+    This model validates the structure, raw data types, and basic formats (e.g., non-empty strings,
+    valid numeric representations, boolean types, specific enum values) of individual fill records.
+    It enforces immutability (`frozen=True`) and forbids extra fields (`extra='forbid').
+
+    Field validators (`@field_validator(..., mode='before')`) operate on the raw input values.
+    They ensure adherence to expected raw types and formats before Pydantic performs its
+    final coercion (e.g., string to `Decimal`, string to `datetime`).
+
+    This model adheres to the Raw Model Policy, focusing solely on validating the external API
+    contract and raw data integrity for fill records.
+
+    Attributes (after Pydantic processing):
+        fee (str): The fee charged for the fill (validated as a decimal string).
+        fee_symbol (str): The asset symbol in which the fee was charged.
+        is_maker (bool): Indicates if the fill was for a maker order.
+        order_id (str): The ID of the order associated with this fill.
+        price (str): The execution price of the fill (validated as a decimal string).
+        quantity (str): The executed quantity for this fill (validated as a decimal string).
+        side (str): The side of the order ('Bid' or 'Ask').
+        symbol (str): The trading symbol.
+        timestamp (str): The execution timestamp in ISO 8601 format (e.g., "YYYY-MM-DDTHH:MM:SS.ffffffZ").
+        trade_id (int): The unique ID for this trade/fill.
+        client_id (str | None): Optional client-provided order ID.
     """
 
     fee: str = Field(...)
@@ -55,7 +83,21 @@ class BackpackRawFill(BaseModel):
     @field_validator("fee", "price", "quantity", mode="before")
     @classmethod
     def validate_required_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        """Validate required, non-empty, finite decimal strings (max_length=64)."""
+        """
+        Validates that the raw input `v` for required decimal string fields (fee, price, quantity)
+        is a non-empty string, has a max length of 64, and represents a finite decimal number.
+
+        Args:
+            v (object): The raw input value.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            str: The validated raw string, confirmed to be a parsable finite decimal string.
+
+        Raises:
+            TypeError: If `v` is not a string.
+            ValueError: If `v` is empty, exceeds max length, or not a finite decimal string.
+        """
         field_name = info.field_name or "unknown_decimal_field"
         # Reuse parsing utils for consistency
         s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
@@ -68,7 +110,21 @@ class BackpackRawFill(BaseModel):
     @field_validator("fee_symbol", "order_id", "symbol", mode="before")
     @classmethod
     def validate_required_str(cls, v: object, info: ValidationInfo) -> str:
-        """Validate required, non-empty strings with specific max lengths."""
+        """
+        Validates that the raw input `v` for required string fields (fee_symbol, order_id, symbol)
+        is a non-empty string and adheres to its specified maximum length.
+
+        Args:
+            v (object): The raw input value.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            str: The validated raw string value.
+
+        Raises:
+            TypeError: If `v` is not a string.
+            ValueError: If `v` is empty or exceeds its defined max length.
+        """
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is required for validation metadata.")
@@ -84,7 +140,23 @@ class BackpackRawFill(BaseModel):
     @field_validator("client_id", mode="before")
     @classmethod
     def validate_optional_str(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """Validate optional strings with specific max lengths (non-empty if provided)."""
+        """
+        Validates the raw input `v` for the optional `client_id` string field.
+        If provided, ensures it's a string and adheres to its max length.
+        Allows an empty string at this 'before' stage; a subsequent 'after' validator
+        will reject an empty string if that's the policy for non-None values.
+
+        Args:
+            v (object | None): The raw input value, which can be None.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            str | None: The validated raw string value, or None if input was None.
+
+        Raises:
+            TypeError: If `v` is not a string (and not None).
+            ValueError: If `v` is a string but exceeds its defined max length.
+        """
         if v is None:
             return None
         field_name = info.field_name
@@ -104,19 +176,47 @@ class BackpackRawFill(BaseModel):
     @field_validator("client_id", mode="after")
     @classmethod
     def check_client_id_not_empty_str(cls, v: str | None) -> str | None:
-        """Ensure clientId is not an empty string after initial validation/assignment."""
+        """
+        Ensures that if `clientId` is provided (i.e., not None after 'before' validation),
+        it is not an empty or whitespace-only string.
+
+        This runs *after* Pydantic assigns None or the (potentially empty) validated string
+        from the `mode='before'` validator.
+
+        Args:
+            v (str | None): The value of `clientId` after 'before' validation and assignment.
+
+        Returns:
+            str | None: The validated `clientId` (will not be an empty/whitespace string if not None).
+
+        Raises:
+            ValueError: If `v` is a string but consists only of whitespace or is empty.
+        """
         # This runs after Pydantic assigns None or the validated string from the 'before' validator.
-        if v == "":  # Check specifically for empty string post-assignment
+        if v is not None and not v.strip():
             # This case should theoretically be caught by allow_empty=False
             # in the 'before' validator, but this provides an explicit,
             # redundant check as mandated.
-            raise ValueError("clientId cannot be an empty string if provided.")
+            raise ValueError("clientId cannot be an empty or whitespace-only string if provided.")
         return v
 
     @field_validator("is_maker", mode="before")
     @classmethod
     def validate_bool(cls, v: object, info: ValidationInfo) -> bool:
-        """Validate boolean field."""
+        """
+        Validates that the raw input `v` for the boolean `is_maker` field is a boolean.
+
+        Args:
+            v (object): The raw input value.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            bool: The validated boolean value.
+
+        Raises:
+            ValueError: If `v` is not a boolean (Pydantic uses ValueError for type mismatches
+                        at this stage if strict coercion is not enabled globally for bools).
+        """
         field_name = info.field_name or "unknown_bool_field"
         if not isinstance(v, bool):
             # Use ValueError for Pydantic compatibility
@@ -126,23 +226,49 @@ class BackpackRawFill(BaseModel):
     @field_validator("side", mode="before")
     @classmethod
     def validate_side_enum(cls, v: object, info: ValidationInfo) -> str:
-        """Validate side enum ('Bid' or 'Ask')."""
+        """
+        Validates that the raw input `v` for the `side` field is one of the allowed
+        enum values ('Bid' or 'Ask').
+
+        Args:
+            v (object): The raw input value.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            str: The validated side string ('Bid' or 'Ask').
+
+        Raises:
+            TypeError: If `v` is not a string.
+            ValueError: If `v` is not 'Bid' or 'Ask'.
+        """
         field_name = info.field_name or "unknown_enum_field"
         return validate_enum_field(v, allowed={"Bid", "Ask"}, field_name=field_name)
 
     @field_validator("trade_id", mode="before")
     @classmethod
     def validate_non_negative_int(cls, v: object, info: ValidationInfo) -> int:
-        """Validate required non-negative integer fields."""
+        """
+        Validates that the raw input `v` for the `trade_id` field is a non-negative integer.
+        Allows integer strings.
+
+        Args:
+            v (object): The raw input value.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            int: The validated non-negative integer value.
+
+        Raises:
+            TypeError: If `v` is not an integer or a string representing an integer.
+            ValueError: If `v` is negative.
+        """
         field_name = info.field_name or "unknown_int_field"
-        if not isinstance(v, int):
-            # Allow numeric strings if they represent valid integers
-            if isinstance(v, str) and v.isdigit():
-                v_int = int(v)
-            else:
-                raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
-        else:
+        if isinstance(v, int):
             v_int = v
+        elif isinstance(v, str) and v.isdigit():
+            v_int = int(v)
+        else:
+            raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
 
         # Check non-negativity using the Field constraint (ge=0) if possible,
         # otherwise explicitly check here.
@@ -163,7 +289,21 @@ class BackpackRawFill(BaseModel):
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_iso_timestamp_str(cls, v: object, info: ValidationInfo) -> str:
-        """Validate the timestamp string is ISO format and parseable to UTC datetime."""
+        """
+        Validates that the raw input `v` for the `timestamp` field is a non-empty string
+        representing a parseable ISO 8601 datetime.
+
+        Args:
+            v (object): The raw input value.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            str: The validated ISO 8601 timestamp string.
+
+        Raises:
+            TypeError: If `v` is not a string.
+            ValueError: If `v` is empty or not a valid ISO 8601 timestamp string.
+        """
         field_name = info.field_name or "timestamp"
         # First, basic string validation
         ts_str = validate_str_field(v, field_name=field_name, allow_empty=False, max_length=30)
@@ -200,6 +340,3 @@ class BackpackRawFill(BaseModel):
             raise ValueError(
                 f"{field_name}: Failed to parse timestamp string '{ts_str}'. Error: {e}"
             ) from e
-
-
-# Add __init__.py exports if needed later

@@ -1,3 +1,25 @@
+"""
+CyberDeltaEngine: Backpack API Error Mapper
+-------------------------------------------
+
+This module defines the `BackpackErrorMapper` class, responsible for translating
+raw error responses from the Backpack Exchange API into CyberDeltaEngine's standardized
+`APIError` exceptions and `APIErrorCode` enums.
+
+Core Responsibilities:
+- Parsing raw error data (typically a dictionary with `code` and `message` fields)
+  using the `BackpackRawApiError` Pydantic model for initial validation.
+- Mapping specific Backpack error code strings (e.g., "INVALID_SIGNATURE") to the
+  appropriate internal `APIErrorCode` (e.g., `APIErrorCode.AUTHENTICATION_FAILED`).
+- Constructing a fully populated `APIError` object, ensuring consistent error structure
+  and information (HTTP status, exchange-specific codes, messages) for upstream handling.
+- Logging unmapped or ambiguous Backpack error codes to aid in diagnostics and future
+  enhancements to the error mapping logic.
+
+The `map_error_response` static method is the primary entry point, designed to be used
+by the `BackpackAPI` client when handling non-2xx HTTP responses or other error conditions.
+"""
+
 import logging
 from typing import Any
 
@@ -30,14 +52,18 @@ class BackpackErrorMapper:
         """
         Map Backpack error responses (body, data, status) to standardized APIErrorCode.
 
-        - Uses BackpackRawApiError for strict code extraction if possible.
-        - Falls back to heuristics if parsing fails.
-        - Logs unmapped/ambiguous codes for diagnostics.
+        Attempts to parse `error_data` using `BackpackRawApiError` to extract a structured
+        error code. If parsing succeeds, it maps known Backpack codes to internal `APIErrorCode`s.
+        If `error_data` is unavailable or parsing fails, it may rely on `status_code` or
+        heuristics from `error_body` (though current implementation primarily uses parsed code).
+        Unmapped or ambiguous codes are logged, and `APIErrorCode.EXCHANGE_SPECIFIC` is returned.
 
         Args:
             error_body: Raw error body as string (for fallback/logging).
-            error_data: Parsed error data as dict (if available).
-            status_code: HTTP status code (if available).
+            error_data: Parsed error data as dict (if available and expected to contain
+                        `code` and `message` fields per Backpack standard).
+            status_code: HTTP status code (if available, currently primarily used for logging
+                         context if direct code mapping fails).
 
         Returns:
             APIErrorCode: Canonical error code for internal handling.
@@ -103,23 +129,27 @@ class BackpackErrorMapper:
         original_exception: Exception | None = None,
     ) -> APIError:
         """
-        Map Backpack error responses to a standardized APIError, including error code
-        mapping and full validation.
+        Map Backpack error responses to a standardized `APIError` exception object.
 
-        - Always validates and normalizes error data using APIErrorResponse.
-        - Ensures all error propagation is type-safe and consistent.
-        - Handles edge cases: unmapped codes, malformed payloads, chained exceptions.
+        This method orchestrates the error mapping process:
+        1. Determines the internal `APIErrorCode` using `map_error_code`.
+        2. Extracts or defaults the primary error message.
+        3. Constructs an `APIErrorResponse` object to normalize error details.
+        4. Converts the `APIErrorResponse` into an `APIError` exception, ready to be raised.
+
+        Ensures all error propagation within the system uses the standardized `APIError`,
+        carrying consistent information like HTTP status, exchange codes, and messages.
 
         Args:
-            status_code: HTTP status code (if available).
-            error_body: Raw error body as string.
-            error_data: Parsed error data as dict (if available).
-            request_path: API endpoint path (for diagnostics).
-            exchange_message: Exchange-provided error message (if available).
-            original_exception: Chained exception (if any).
+            status_code: HTTP status code from the response, if available.
+            error_body: Raw error response body string.
+            error_data: Parsed error data dictionary from the response, if available.
+            request_path: The API endpoint path that was called (for diagnostic metadata).
+            exchange_message: Overrides message extracted from `error_body` or `error_data` if provided.
+            original_exception: The original exception if this mapping is due to a caught error.
 
         Returns:
-            APIError: Exception ready to be raised or propagated.
+            APIError: A fully populated `APIError` exception object.
         """
         mapped_code = BackpackErrorMapper.map_error_code(
             error_body=error_body, error_data=error_data, status_code=status_code

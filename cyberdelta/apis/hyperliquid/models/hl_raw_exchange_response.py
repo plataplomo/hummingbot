@@ -1,3 +1,28 @@
+"""
+CyberDeltaEngine: Hyperliquid API Raw Models (Exchange Action Response)
+----------------------------------------------------------------------
+
+This module defines Pydantic models for validating the *raw* structure of responses from
+the Hyperliquid Exchange API's `/exchange` endpoint, which is used for actions like
+placing, modifying, or canceling orders.
+
+Models:
+    - HyperliquidRawExchangeStatusResting: Validates a 'resting' order status object.
+    - HyperliquidRawExchangeStatusFilled: Validates a 'filled' order status object.
+    - HyperliquidRawExchangeStatusObject: Validates a general status object which can be one of
+      `resting`, `filled`, or an `error` string. Uses `extra="ignore"` as these are sub-components.
+    - HyperliquidRawExchangeResponseData: Validates the `data` field within a successful exchange
+      response, expecting a `type` (e.g., "order") and a `statuses` list. The `statuses` list
+      can contain simple strings (e.g., "canceled") or `HyperliquidRawExchangeStatusObject` instances.
+      Uses `extra="ignore"`.
+    - HyperliquidRawExchangeResponse: Validates the top-level exchange action response, expecting
+      a `status` (typically "ok") and an optional `data` field of type
+      `HyperliquidRawExchangeResponseData`. Uses `extra="forbid"` for strict top-level validation.
+
+These models adhere to the Raw Model Policy, focusing on validating the external contract,
+raw data types, and basic formats without incorporating business logic.
+"""
+
 from typing import Any, Literal
 
 from pydantic import (
@@ -28,6 +53,19 @@ class HyperliquidRawExchangeStatusResting(BaseModel):
     @field_validator("oid", mode="before")
     @classmethod
     def validate_oid(cls, v: object, info: ValidationInfo) -> int:
+        """
+        Validates that the raw input `v` for the `oid` (Order ID) field is a non-negative integer.
+
+        Args:
+            v (object): The raw input value.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            int: The validated non-negative integer OID.
+
+        Raises:
+            ValueError: If `v` is not an integer or is negative.
+        """
         field_name = info.field_name or "oid"
         if not isinstance(v, int):
             raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
@@ -58,6 +96,21 @@ class HyperliquidRawExchangeStatusFilled(BaseModel):
     @field_validator("total_sz", "avg_px", mode="before")
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the raw input `v` for decimal string fields (e.g., `totalSz`, `avgPx`)
+        is a non-empty string, has a max length of 64, and represents a finite decimal number.
+
+        Args:
+            v (object): The raw input value.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            str: The validated raw string, confirmed to be a parsable finite decimal string.
+
+        Raises:
+            TypeError: If `v` is not a string.
+            ValueError: If `v` is empty, exceeds max length, or not a finite decimal string.
+        """
         field_name = info.field_name or "unknown_decimal_field"
         v_str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
         try:
@@ -85,6 +138,21 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
     @field_validator("error", mode="before")
     @classmethod
     def validate_optional_error_string(cls, v: object | None, info: ValidationInfo) -> str | None:
+        """
+        Validates the raw input `v` for the optional `error` string field.
+        If provided, ensures it's a non-empty string and adheres to its max length (1024 chars).
+
+        Args:
+            v (object | None): The raw input value, which can be None.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            str | None: The validated raw error string, or None if input was None.
+
+        Raises:
+            TypeError: If `v` is not a string (and not None).
+            ValueError: If `v` is an empty string or exceeds max length.
+        """
         if v is None:
             return None
         field_name = info.field_name or "error"
@@ -103,6 +171,21 @@ class HyperliquidRawExchangeResponseData(BaseModel):
     @field_validator("type", mode="before")
     @classmethod
     def validate_type_string(cls, v: object, info: ValidationInfo) -> str:
+        """
+        Validates that the raw input `v` for the `type` string field (e.g., "order")
+        is a non-empty string and adheres to its max length (32 chars).
+
+        Args:
+            v (object): The raw input value.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            str: The validated raw type string.
+
+        Raises:
+            TypeError: If `v` is not a string.
+            ValueError: If `v` is an empty string or exceeds max length.
+        """
         field_name = info.field_name or "type"
         return validate_str_field(v, field_name=field_name, max_length=32, allow_empty=False)
 
@@ -116,7 +199,20 @@ class HyperliquidRawExchangeResponseData(BaseModel):
         """
         Validate the 'statuses' list which can contain simple strings or complex status objects.
         Uses isinstance checks to determine the type of each item and validates accordingly,
-        avoiding the use of `cast`.
+        avoiding the use of `cast`. The input `v` is expected to be a list of raw items.
+
+        Args:
+            v (list[Any]): The raw input list of statuses.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            list[str | HyperliquidRawExchangeStatusObject]: A new list containing validated
+                string statuses (e.g., "canceled") or `HyperliquidRawExchangeStatusObject` instances.
+
+        Raises:
+            TypeError: If `v` is not a list, or if an item within the list is not a string or dictionary.
+            ValueError: If a string item is not an allowed status string (e.g., "canceled"),
+                        or if a dictionary item fails validation against `HyperliquidRawExchangeStatusObject`.
         """
         field_name = info.field_name or "statuses"
         # DEFENSIVE CHECK: Ensure input is a list (redundant if type hint is list[Any] but safe).
@@ -178,6 +274,20 @@ class HyperliquidRawExchangeResponse(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def validate_status_ok(cls, v: object, info: ValidationInfo) -> str:
-        """Validate the top-level status is exactly 'ok'."""
+        """
+        Validates the top-level `status` field of the exchange response.
+        Ensures it is a string and its value is exactly "ok".
+
+        Args:
+            v (object): The raw input value for the status.
+            info (ValidationInfo): Pydantic validation context.
+
+        Returns:
+            str: The validated status string ("ok").
+
+        Raises:
+            TypeError: If `v` is not a string.
+            ValueError: If `v` is not "ok".
+        """
         field_name = info.field_name or "status"
         return validate_enum_field(v, allowed={"ok"}, field_name=field_name)

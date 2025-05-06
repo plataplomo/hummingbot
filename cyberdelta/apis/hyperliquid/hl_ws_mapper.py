@@ -1,5 +1,3 @@
-__all__ = ["HyperliquidWebsocketMapper"]
-
 import logging
 import time
 from collections.abc import Callable

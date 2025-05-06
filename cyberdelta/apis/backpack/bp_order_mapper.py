@@ -1,3 +1,30 @@
+"""
+CyberDeltaEngine: Backpack Order & Market Data Mapper
+-----------------------------------------------------
+
+This module provides the `BackpackOrderMapper` class, a utility responsible for
+transforming raw data structures received from the Backpack Exchange API into
+CyberDeltaEngine's internal, standardized domain models.
+
+Core Responsibilities:
+- Mapping Backpack-specific string enum values (e.g., for order side, status, type)
+  to CyberDeltaEngine's internal Python enums (`OrderSide`, `OrderStatus`, `OrderType`, etc.).
+- Parsing and validating numeric strings into `Decimal` objects for prices and quantities.
+- Converting timestamp formats (e.g., ISO strings, millisecond epochs) into UTC `datetime` objects.
+- Assembling validated and transformed data into internal models like `Order`, `SpotBalance`,
+  `DerivativePosition`, `Trade`, `FundingRate`, `OrderBook`, and `Candle`.
+- Handling potential `None` values or variations in raw data defensively to prevent errors
+  during transformation.
+
+Usage:
+  The methods in this class are typically called by `BackpackAPI` after raw API responses
+  have been initially validated by their respective `BackpackRaw*` Pydantic models.
+  All transformation methods are static and expect validated raw Pydantic models as input.
+
+Example:
+  `internal_order = BackpackOrderMapper.transform_raw_order_to_internal(validated_raw_order)`
+"""
+
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -46,15 +73,32 @@ logger = logging.getLogger(__name__)
 
 class BackpackOrderMapper:
     """
-    Utility for transforming Backpack raw order/event models to CyberDeltaEngine internal models.
+    Utility class containing static methods for transforming raw Backpack API data models
+    (e.g., `BackpackRawOrder`, `BackpackRawFill`, `BackpackRawTickerEvent`) into CyberDeltaEngine's
+    standardized internal domain models (e.g., `Order`, `Trade`, `Ticker`).
 
-    - Maps Backpack string enums to internal enums (OrderSide, OrderStatus, etc.).
-    - Handles defensive parsing and validation of all fields.
-    - Used by BackpackAPI for all order-related transformations.
+    Each `transform_raw_*_to_internal` method takes a validated raw Pydantic model as input
+    and returns a corresponding internal domain model. These methods handle:
+    - Enum mapping (e.g., "BUY" -> `OrderSide.BUY`).
+    - String to `Decimal` conversion for financial figures.
+    - Timestamp string/integer to `datetime` object conversion.
+    - Defensive handling of optional fields and potential inconsistencies in raw data.
     """
 
     @staticmethod
     def map_side_to_internal(bp_side: str) -> OrderSide:
+        """
+        Maps a raw Backpack order side string to the internal `OrderSide` enum.
+
+        Handles variations like "Buy", "Sell", "Bid", "Ask" (case-insensitive).
+
+        Args:
+            bp_side (str): The raw order side string from Backpack.
+
+        Returns:
+            OrderSide: The corresponding internal `OrderSide` enum value.
+                       Defaults to `OrderSide.BUY` and logs a warning if mapping fails.
+        """
         side_lower = bp_side.lower() if bp_side else ""
         if side_lower in ("buy", "bid"):
             return OrderSide.BUY
@@ -65,6 +109,17 @@ class BackpackOrderMapper:
 
     @staticmethod
     def map_status_to_internal(bp_status: str) -> OrderStatus:
+        """
+        Maps a raw Backpack order status string to the internal `OrderStatus` enum.
+        Performs a case-insensitive match against known Backpack status strings.
+
+        Args:
+            bp_status (str): The raw order status string from Backpack (e.g., "FILLED", "CANCELLED").
+
+        Returns:
+            OrderStatus: The corresponding internal `OrderStatus` enum value.
+                         Defaults to `OrderStatus.UNKNOWN` and logs a warning if mapping fails.
+        """
         status_upper = (bp_status or "").upper()
         mapping = {
             "NEW": OrderStatus.NEW,
@@ -86,6 +141,17 @@ class BackpackOrderMapper:
 
     @staticmethod
     def map_type_to_internal(bp_type: str) -> OrderType:
+        """
+        Maps a raw Backpack order type string to the internal `OrderType` enum.
+        Performs a case-insensitive match against known Backpack order type strings.
+
+        Args:
+            bp_type (str): The raw order type string from Backpack (e.g., "LIMIT", "MARKET").
+
+        Returns:
+            OrderType: The corresponding internal `OrderType` enum value.
+                       Defaults to `OrderType.LIMIT` and logs a warning if mapping fails.
+        """
         type_upper = (bp_type or "").upper()
         mapping = {
             "LIMIT": OrderType.LIMIT,
@@ -104,6 +170,17 @@ class BackpackOrderMapper:
 
     @staticmethod
     def map_tif_to_internal(bp_tif: str | None) -> TimeInForce:
+        """
+        Maps a raw Backpack TimeInForce string to the internal `TimeInForce` enum.
+        Handles common TIF values like "GTC", "IOC". Case-insensitive.
+
+        Args:
+            bp_tif (str | None): The raw TimeInForce string (e.g., "GTC", "IOC"), or None.
+
+        Returns:
+            TimeInForce: The corresponding internal `TimeInForce` enum value.
+                         Defaults to `TimeInForce.GTC` if input is None or mapping fails.
+        """
         if not bp_tif:
             return TimeInForce.GTC
         try:
@@ -114,6 +191,17 @@ class BackpackOrderMapper:
 
     @staticmethod
     def map_trigger_by_to_internal(trigger_by: str | None) -> TriggerType | None:
+        """
+        Maps a raw Backpack trigger type string (e.g., "lastPrice", "markPrice")
+        to the internal `TriggerType` enum.
+
+        Args:
+            trigger_by (str | None): The raw trigger type string, or None.
+
+        Returns:
+            TriggerType | None: The corresponding internal `TriggerType` enum value, or None.
+                                Logs a warning and returns None if mapping fails.
+        """
         if not trigger_by:
             return None
         try:
@@ -126,6 +214,17 @@ class BackpackOrderMapper:
 
     @staticmethod
     def map_stp_to_internal(stp: str | None) -> SelfTradePrevention | None:
+        """
+        Maps a raw Backpack Self-Trade Prevention (STP) string to the internal
+        `SelfTradePrevention` enum.
+
+        Args:
+            stp (str | None): The raw STP string (e.g., "aggressive", "passive"), or None.
+
+        Returns:
+            SelfTradePrevention | None: The corresponding internal `SelfTradePrevention` enum value, or None.
+                                        Logs a warning and returns None if mapping fails.
+        """
         if not stp:
             return None
         try:
@@ -138,6 +237,16 @@ class BackpackOrderMapper:
 
     @staticmethod
     def map_expiry_reason_to_internal(reason: str | None) -> OrderExpiryReason | None:
+        """
+        Maps a raw Backpack order expiry reason string to the internal `OrderExpiryReason` enum.
+
+        Args:
+            reason (str | None): The raw expiry reason string, or None.
+
+        Returns:
+            OrderExpiryReason | None: The corresponding internal `OrderExpiryReason` enum value, or None.
+                                      Logs a warning and returns None if mapping fails.
+        """
         if not reason:
             return None
         try:
@@ -150,6 +259,16 @@ class BackpackOrderMapper:
 
     @staticmethod
     def map_origin_to_internal(origin: str | None) -> OrderUpdateOrigin | None:
+        """
+        Maps a raw Backpack order update origin string to the internal `OrderUpdateOrigin` enum.
+
+        Args:
+            origin (str | None): The raw origin string (e.g., "USER_ACTION", "SYSTEM"), or None.
+
+        Returns:
+            OrderUpdateOrigin | None: The corresponding internal `OrderUpdateOrigin` enum value, or None.
+                                        Logs a warning and returns None if mapping fails.
+        """
         if not origin:
             return None
         try:
@@ -160,6 +279,24 @@ class BackpackOrderMapper:
 
     @staticmethod
     def transform_raw_order_to_internal(raw: BackpackRawOrder) -> Order:
+        """
+        Transforms a validated `BackpackRawOrder` object into an internal `Order` domain model.
+
+        This method performs enum mappings, decimal conversions, and datetime parsing using
+        helper methods and utility functions. It assumes `raw` has already been validated by the
+        `BackpackRawOrder` Pydantic model, ensuring structural integrity and basic format checks.
+
+        Args:
+            raw (BackpackRawOrder): The validated raw order data from Backpack.
+
+        Returns:
+            Order: The corresponding internal `Order` object, populated with transformed data.
+
+        Raises:
+            ValueError: If essential fields (e.g., quantity, createdAt) from the raw model
+                        are missing or cannot be parsed correctly, despite prior raw validation.
+                        This indicates an unexpected issue or change in the raw model's guarantees.
+        """
         # Defensive: ensure required fields are present and valid
         parsed_quantity = parse_decimal_value(raw.quantity, allow_none=False)
         if parsed_quantity is None:
@@ -202,17 +339,24 @@ class BackpackOrderMapper:
     def transform_raw_balance_to_internal(
         asset_symbol: str, raw: BackpackRawBalance
     ) -> SpotBalance:
-        """Transforms a raw Backpack balance object into an internal SpotBalance.
+        """
+        Transforms a validated `BackpackRawBalance` object for a specific asset into an
+        internal `SpotBalance` domain model.
+
+        Parses numeric strings for total and available quantities into Decimals.
+        The timestamp for the balance is set to the current UTC time as Backpack's raw balance
+        data does not include a timestamp.
 
         Args:
-            asset_symbol: The symbol of the asset (e.g., 'USDC').
-            raw: The validated BackpackRawBalance object.
+            asset_symbol (str): The symbol of the asset (e.g., 'USDC', 'SOL').
+            raw (BackpackRawBalance): The validated raw balance data for the asset.
 
         Returns:
-            The corresponding SpotBalance object.
+            SpotBalance: The corresponding internal `SpotBalance` object.
 
         Raises:
-            ValueError: If essential numeric fields (total, available) are missing or invalid.
+            ValueError: If essential numeric fields (`total`, `available`) are missing from the
+                        raw model or cannot be parsed correctly, despite prior raw validation.
         """
         # Defensive parsing of numeric strings
         parsed_total = parse_decimal_value(
@@ -246,16 +390,23 @@ class BackpackOrderMapper:
 
     @staticmethod
     def transform_raw_position_to_internal(raw: BackpackRawPosition) -> DerivativePosition:
-        """Transforms a raw Backpack position object into an internal DerivativePosition.
+        """
+        Transforms a validated `BackpackRawPosition` object into an internal
+        `DerivativePosition` domain model.
+
+        Handles parsing of numeric strings to Decimals, determination of position side
+        (BUY/SELL) based on `net_quantity`, and sets the timestamp to current UTC time.
+        Placeholder for `BackpackPositionDetails` if specific extended fields are needed.
 
         Args:
-            raw: The validated BackpackRawPosition object.
+            raw (BackpackRawPosition): The validated raw position data from Backpack.
 
         Returns:
-            The corresponding DerivativePosition object.
+            DerivativePosition: The corresponding internal `DerivativePosition` object.
 
         Raises:
-            ValueError: If essential numeric fields are missing or invalid.
+            ValueError: If essential numeric fields (e.g., net_quantity) are missing or cannot
+                        be parsed correctly from the raw model, despite prior raw validation.
         """
         # Parse core numeric fields defensively
         size_dec = parse_decimal_value(
@@ -302,18 +453,26 @@ class BackpackOrderMapper:
 
     @staticmethod
     def transform_raw_trade_to_internal(raw: BackpackRawTrade) -> Trade | None:
-        """Transforms a raw Backpack trade object into an internal Trade.
+        """
+        Transforms a validated `BackpackRawTrade` object (typically from REST API /trades endpoint)
+        into an internal `Trade` domain model.
 
-        Returns None if essential information (like side) cannot be determined from raw data.
+        Note: The Backpack REST API for trades (`/api/v1/trades`) typically lacks information
+        like trade side, fee details, and maker status. This method attempts to map available
+        fields. If critical information like `side` cannot be determined or isn't provided,
+        it returns `None` and logs a warning, as a complete `Trade` object cannot be formed.
+        For full trade details, WebSocket streams or fill history endpoints are usually required.
 
         Args:
-            raw: The validated BackpackRawTrade object.
+            raw (BackpackRawTrade): The validated raw trade data from Backpack.
 
         Returns:
-            The corresponding Trade object, or None if side cannot be determined.
+            Trade | None: The corresponding internal `Trade` object, or `None` if essential information
+                          (like side) cannot be determined from the raw data.
 
         Raises:
-            ValueError: If essential fields (price, qty, time) are missing or invalid.
+            ValueError: If essential fields (price, qty, time) are missing or cannot be parsed,
+                        despite prior raw validation.
         """
         price_dec = parse_decimal_value(raw.price, allow_none=False, field_name="price")
         quantity_dec = parse_decimal_value(raw.quantity, allow_none=False, field_name="quantity")
@@ -340,16 +499,22 @@ class BackpackOrderMapper:
 
     @staticmethod
     def transform_raw_funding_rate_to_internal(raw: BackpackRawFundingRate) -> FundingRate:
-        """Transforms a raw Backpack funding rate object into an internal FundingRate.
+        """
+        Transforms a validated `BackpackRawFundingRate` object into an internal
+        `FundingRate` domain model.
+
+        Parses numeric strings for funding rate and mark price to Decimals, and the timestamp
+        string to a datetime object.
 
         Args:
-            raw: The validated BackpackRawFundingRate object.
+            raw (BackpackRawFundingRate): The validated raw funding rate data from Backpack.
 
         Returns:
-            The corresponding FundingRate object.
+            FundingRate: The corresponding internal `FundingRate` object.
 
         Raises:
-            ValueError: If essential fields are missing or invalid.
+            ValueError: If essential fields (`funding_rate`, `time`) are missing or cannot be parsed,
+                        despite prior raw validation.
         """
         funding_rate_dec = parse_decimal_value(
             raw.funding_rate, allow_none=False, field_name="funding_rate"
@@ -372,17 +537,23 @@ class BackpackOrderMapper:
 
     @staticmethod
     def transform_raw_orderbook_to_internal(symbol: str, raw: BackpackRawOrderBook) -> OrderBook:
-        """Transforms a raw Backpack order book object into an internal OrderBook.
+        """
+        Transforms a validated `BackpackRawOrderBook` object (from REST API /depth endpoint)
+        into an internal `OrderBook` domain model.
+
+        Parses price and quantity strings from bids and asks lists into (Decimal, Decimal) tuples.
+        Converts the raw timestamp to a datetime object. Assumes bid/ask lists are correctly
+        sorted by the exchange (highest bid first, lowest ask first).
 
         Args:
-            symbol: The market symbol this order book belongs to.
-            raw: The validated BackpackRawOrderBook object.
+            symbol (str): The market symbol this order book belongs to.
+            raw (BackpackRawOrderBook): The validated raw order book data from Backpack.
 
         Returns:
-            The corresponding OrderBook object.
+            OrderBook: The corresponding internal `OrderBook` object.
 
         Raises:
-            ValueError: If timestamp is missing/invalid or level parsing fails.
+            ValueError: If the timestamp is missing/invalid or if parsing of bid/ask levels fails.
         """
         timestamp_dt = parse_datetime_utc(raw.timestamp)
         if timestamp_dt is None:
@@ -419,16 +590,23 @@ class BackpackOrderMapper:
 
     @staticmethod
     def transform_raw_fill_to_internal(raw: BackpackRawFill) -> Trade:
-        """Transforms a raw Backpack fill object from history into an internal Trade.
+        """
+        Transforms a validated `BackpackRawFill` object (from REST API /history/fills endpoint)
+        into an internal `Trade` domain model.
+
+        This method handles comprehensive mapping, including parsing numeric strings (price, quantity, fee)
+        to Decimals, ISO timestamp string to datetime, and mapping the side string to `OrderSide` enum.
+        Assumes `raw` has been validated by `BackpackRawFill` Pydantic model.
 
         Args:
-            raw: The validated BackpackRawFill object.
+            raw (BackpackRawFill): The validated raw fill data from Backpack.
 
         Returns:
-            The corresponding Trade object.
+            Trade: The corresponding internal `Trade` object.
 
         Raises:
-            ValueError: If essential fields (price, qty, fee, time) are missing or invalid.
+            ValueError: If essential fields (price, quantity, fee, timestamp) are missing or
+                        cannot be parsed correctly from the raw model, despite prior raw validation.
         """
         price_dec_raw = parse_decimal_value(raw.price, allow_none=False, field_name="price")
         quantity_dec_raw = parse_decimal_value(
@@ -474,10 +652,23 @@ class BackpackOrderMapper:
 
     @staticmethod
     def transform_ws_ticker_event_to_internal(raw: BackpackRawTickerEvent) -> Ticker:
-        """Transforms a raw Backpack WS ticker event into an internal Ticker.
+        """
+        Transforms a validated raw Backpack WebSocket ticker event (`BackpackRawTickerEvent`)
+        into an internal `Ticker` domain model.
 
-        Maps available fields (lastPrice -> price, volume). Bid/Ask are not
-        typically in ticker events, so they are left as None.
+        Maps available fields (e.g., `lastPrice` to `price`, `volume`). Bid and Ask prices are
+        typically not included in Backpack ticker events and are set to `None` in the internal model.
+        The timestamp is set to the current UTC time as ticker events may not provide one.
+
+        Args:
+            raw (BackpackRawTickerEvent): The validated raw WebSocket ticker event data.
+
+        Returns:
+            Ticker: The corresponding internal `Ticker` object.
+
+        Raises:
+            ValueError: If essential numeric fields (`lastPrice`, `volume`) are missing from the
+                        raw model or cannot be parsed correctly, despite prior raw validation.
         """
         # Assuming Ticker model can handle string inputs if validated, otherwise parse here
         # Defensive parsing for safety
@@ -512,7 +703,25 @@ class BackpackOrderMapper:
     def transform_ws_depth_event_to_internal(
         symbol: str, raw: BackpackRawDepthUpdateEvent
     ) -> OrderBook:
-        """Transforms a raw Backpack WS depth event into an internal OrderBook."""
+        """
+        Transforms a validated raw Backpack WebSocket depth update event (`BackpackRawDepthUpdateEvent`)
+        into an internal `OrderBook` domain model.
+
+        This method assumes the WebSocket event provides a snapshot of order book levels.
+        If it were a differential update, the logic would need significant changes.
+        The timestamp is set to the current UTC time as Backpack WebSocket depth events often do not
+        include an explicit event timestamp in the main payload structure mapped here.
+
+        Args:
+            symbol (str): The market symbol for the order book.
+            raw (BackpackRawDepthUpdateEvent): The validated raw WebSocket depth event data.
+
+        Returns:
+            OrderBook: The corresponding internal `OrderBook` object.
+
+        Raises:
+            ValueError: If parsing of bid/ask levels from the raw event fails.
+        """
         # This assumes the WS event is a snapshot. If it's a diff, logic needs change.
         # Reuses the logic from the REST order book transformer.
 
@@ -548,7 +757,26 @@ class BackpackOrderMapper:
 
     @staticmethod
     def transform_ws_trade_event_to_internal(raw: BackpackRawTradeEvent) -> Trade:
-        """Transforms a raw Backpack WS trade event into an internal Trade."""
+        """
+        Transforms a validated raw Backpack WebSocket trade event (`BackpackRawTradeEvent`)
+        into an internal `Trade` domain model.
+
+        Infers trade side based on the `is_buyer_the_maker` flag from the event.
+        Assumes fee is zero and fee asset is 'USDC' (quote asset placeholder) as these details
+        are typically not provided in the public WebSocket trade stream.
+        The `order_id` in the resulting `Trade` object is populated based on the inferred side
+        (buyer's order ID if a BUY, seller's if a SELL).
+
+        Args:
+            raw (BackpackRawTradeEvent): The validated raw WebSocket trade event data.
+
+        Returns:
+            Trade: The corresponding internal `Trade` object.
+
+        Raises:
+            ValueError: If essential fields (price, quantity, timestamp) are missing or cannot be parsed,
+                        despite prior raw validation.
+        """
         price_dec = parse_decimal_value(raw.price, allow_none=False, field_name="price")
         quantity_dec = parse_decimal_value(raw.quantity, allow_none=False, field_name="quantity")
         # Use engine_timestamp if available, else event_time
@@ -592,19 +820,25 @@ class BackpackOrderMapper:
     def transform_raw_kline_to_internal(
         symbol: str, interval: str, raw: BackpackRawKline
     ) -> Candle:
-        """Transforms a raw Backpack kline into an internal Candle model.
+        """
+        Transforms a validated `BackpackRawKline` object into an internal `Candle` domain model.
+
+        Converts the raw kline data, including parsing the millisecond start time to a
+        datetime object and mapping prices/volume to Decimals (coercion handled by `Candle` model
+        if raw kline fields are correctly validated strings/ints).
 
         Args:
-            symbol: The trading symbol for the candle.
-            interval: The interval string (e.g., '1m', '1h').
-            raw: The validated BackpackRawKline object.
+            symbol (str): The trading symbol for the candle (e.g., "SOL_USDC").
+            interval (str): The interval string for the candle (e.g., '1m', '1h').
+            raw (BackpackRawKline): The validated raw kline data from Backpack.
 
         Returns:
-            A validated Candle object.
+            Candle: A validated `Candle` object representing the kline data.
 
         Raises:
-            ValueError: If the raw data cannot be parsed into a valid Candle.
-                      (e.g., timestamp parsing failure)
+            ValueError: If the raw data cannot be parsed into a valid `Candle` (e.g., timestamp
+                        parsing failure, or if internal `Candle` validation fails for OHLC,
+                        volume, etc., though most raw parsing is done by `BackpackRawKline`).
         """
         try:
             # Convert start time from milliseconds to datetime object
