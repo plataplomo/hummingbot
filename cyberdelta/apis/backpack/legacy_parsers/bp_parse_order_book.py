@@ -1,7 +1,8 @@
 """
 CyberDeltaEngine Backpack Order Book Parser
 
-This module provides a function to parse raw order book data from Backpack into a standardized OrderBook object for CyberDeltaEngine.
+This module provides a function to parse raw order book data from Backpack into a standardized
+OrderBook object for CyberDeltaEngine.
 """
 
 from datetime import UTC, datetime

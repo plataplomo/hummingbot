@@ -1,12 +1,13 @@
 """
-Hyperliquid API Error Handling
+Hyperliquid API Error Mapping
 -----------------------------
 
-Hyperliquid does NOT provide official error codes or enums. All errors are returned as free-form strings
-in the 'error' field of the response (see: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/exchange-endpoint).
+Hyperliquid does NOT provide official error codes or enums. All errors are returned as
+free-form strings in the 'error' field of the response
+(see: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/exchange-endpoint).
 
-This module provides a mapping of known error substrings to internal error codes for robust handling,
-but always falls back to a generic error for unknown/unexpected messages.
+This module provides a mapping of known error substrings to internal error codes for
+robust handling, but always falls back to a generic error for unknown/unexpected messages.
 
 References:
     - https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/exchange-endpoint

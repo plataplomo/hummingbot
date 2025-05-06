@@ -257,13 +257,14 @@ class HyperliquidAPI(ExchangeAPI):
             logger.debug(f"[{self.exchange_name}] Received unroutable WS message: {message}")
             return
 
-        # Ensure data is a dict for mappers that expect it
         if not isinstance(data, dict):
             logger.warning(
-                f"[{self.exchange_name}] Received WS data for channel {channel} is not a dict: {type(data)}"
+                f"[{self.exchange_name}] Received WS data for channel {channel} "
+                f"is not a dict: {type(data)}"
             )
             return
-        # Cast data to satisfy mapper type hints (borderline use of cast due to external data format)
+        # Cast data to satisfy mapper type hints (borderline use of cast due to
+        # external data format)
         # #[CAST-REVIEW-REQUIRED] Justification: External WS data structure isn't strictly typed.
         data_dict = cast(dict[str, Any], data)
 
@@ -316,7 +317,9 @@ class HyperliquidAPI(ExchangeAPI):
                 try:
                     # User events need specific parsing based on internal type (order, fill, etc.)
                     # This might need a dedicated mapper function in HyperliquidWebsocketMapper
-                    # e.g., parsed_event = HyperliquidWebsocketMapper.parse_user_event(data_dict, logger)
+                    # e.g., parsed_event = HyperliquidWebsocketMapper.parse_user_event(
+                    #    data_dict, logger
+                    # )
                     # For now, pass raw dict - handler MUST parse internally.
                     logger.debug(
                         f"[{self.exchange_name}] Passing raw userEvent dict data to handler."
@@ -391,7 +394,8 @@ class HyperliquidAPI(ExchangeAPI):
     async def _resubscribe(self) -> None:
         """Resubscribe to all registered topics upon reconnection."""
         logger.info(
-            f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_subscriptions.keys())}\n"
+            f"[{self.exchange_name}] Resubscribing to topics: "
+            f"{list(self._ws_subscriptions.keys())}\n"
         )
         # Iterate through the stored topic->handler mapping
         subscriptions_copy = self._ws_subscriptions.copy()
@@ -800,7 +804,8 @@ class HyperliquidAPI(ExchangeAPI):
                     # Ensure required fields are present
                     if order.exchange_order_id and order.symbol:
                         logger.debug(
-                            f"[{self.exchange_name}] Cancelling order {order.exchange_order_id} for {order.symbol}"
+                            f"[{self.exchange_name}] Cancelling order "
+                            f"{order.exchange_order_id} for {order.symbol}"
                         )
                         # Call the existing cancel_order method
                         await self.cancel_order(
@@ -811,24 +816,28 @@ class HyperliquidAPI(ExchangeAPI):
                         await asyncio.sleep(0.1)
                     else:
                         logger.warning(
-                            f"[{self.exchange_name}] Skipping order cancellation due to missing ID or symbol: {order}"
+                            f"[{self.exchange_name}] Skipping order cancellation "
+                            f"due to missing ID or symbol: {order}"
                         )
                         failed_count += 1
                 except APIError as e:
                     logger.error(
-                        f"[{self.exchange_name}] Failed to cancel order {order.exchange_order_id}: {e}"
+                        f"[{self.exchange_name}] Failed to cancel order "
+                        f"{order.exchange_order_id}: {e}"
                     )
                     failed_count += 1
                     # Continue to next order even if one fails
                 except Exception as e:
                     logger.error(
-                        f"[{self.exchange_name}] Unexpected error cancelling order {order.exchange_order_id}: {e}"
+                        f"[{self.exchange_name}] Unexpected error cancelling order "
+                        f"{order.exchange_order_id}: {e}"
                     )
                     failed_count += 1
                     # Continue to next order
 
             logger.info(
-                f"[{self.exchange_name}] Cancellation summary for {symbol or 'all'}: {cancelled_count} succeeded, {failed_count} failed."
+                f"[{self.exchange_name}] Cancellation summary for {symbol or 'all'}: "
+                f"{cancelled_count} succeeded, {failed_count} failed."
             )
 
         except APIError as e:
@@ -838,7 +847,8 @@ class HyperliquidAPI(ExchangeAPI):
         except Exception as e:
             # Unexpected error during the overall process
             logger.error(
-                f"[{self.exchange_name}] Unexpected error during cancel_all_orders for {symbol or 'all'}: {e}",
+                f"[{self.exchange_name}] Unexpected error during cancel_all_orders "
+                f"for {symbol or 'all'}: {e}",
                 exc_info=True,
             )
             # Wrap in a generic APIError
@@ -897,7 +907,8 @@ class HyperliquidAPI(ExchangeAPI):
 
             if not isinstance(response_raw, list):
                 raise APIError(
-                    f"Invalid response type for queryOrderHistory: expected list, got {type(response_raw)}",
+                    f"Invalid response type for queryOrderHistory: expected list, "
+                    f"got {type(response_raw)}",
                     code=APIErrorCode.UNKNOWN.value,
                     http_status=None,
                 )
@@ -913,7 +924,8 @@ class HyperliquidAPI(ExchangeAPI):
                     pass  # Placeholder
                 except (ValidationError, ValueError) as e:
                     logger.warning(
-                        f"[{self.exchange_name}] Skipping order history item due to validation/transform error: {e}. Raw: {order_data_raw}"
+                        f"[{self.exchange_name}] Skipping order history item due to "
+                        f"validation/transform error: {e}. Raw: {order_data_raw}"
                     )
                     continue
 
@@ -933,7 +945,8 @@ class HyperliquidAPI(ExchangeAPI):
             raise
         except (ValidationError, ValueError) as e:
             logger.error(
-                f"[{self.exchange_name}] Error processing order history response: {e}. Raw: {response_raw}",
+                f"[{self.exchange_name}] Error processing order history response: {e}. "
+                f"Raw: {response_raw}",
                 exc_info=True,
             )
             raise APIError(
@@ -1168,8 +1181,8 @@ class HyperliquidAPI(ExchangeAPI):
                 except (ValidationError, ValueError) as e:
                     # Log and skip individual candle errors
                     logger.warning(
-                        f"[{self.exchange_name}] Skipping candle due to validation/transform error: {e}. "
-                        f"Raw: {raw_candle.model_dump()}"
+                        f"[{self.exchange_name}] Skipping candle due to validation/transform "
+                        f"error: {e}. Raw: {raw_candle.model_dump()}"
                     )
                     continue
                 except Exception as e:
@@ -1522,8 +1535,8 @@ class HyperliquidAPI(ExchangeAPI):
 
         except (ValidationError, ValueError) as e:  # Catch validation/mapping errors
             logger.error(
-                f"[{self.exchange_name}] Error parsing/validating order status for OID {order_id}: {e}. "
-                f"Raw Response: {response_raw}"
+                f"[{self.exchange_name}] Error parsing/validating order status for "
+                f"OID {order_id}: {e}. Raw Response: {response_raw}"
             )
             # Check if the error indicates the order wasn't found
             # Hyperliquid might return a specific error message or just empty/invalid data
@@ -1546,7 +1559,8 @@ class HyperliquidAPI(ExchangeAPI):
             raise
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error getting order status for OID {order_id}: {e}",
+                f"[{self.exchange_name}] Unexpected error getting order status for "
+                f"OID {order_id}: {e}",
                 exc_info=True,
             )
             raise APIError(

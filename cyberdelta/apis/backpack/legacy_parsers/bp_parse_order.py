@@ -1,15 +1,15 @@
 """
 CyberDeltaEngine Backpack Order Parser (Spec-Compliant)
 
-This parser converts raw order data from Backpack (REST or WebSocket) into a standardized Order object for CyberDeltaEngine.
+This parser converts raw order data from Backpack (REST or WebSocket) into a standardized
+Order object for CyberDeltaEngine.
 It is fully compliant with the official Backpack OpenAPI spec and order update stream:
 - Supports both REST and WebSocket field names and types.
-- Handles ms, µs, and ISO timestamps for created_at/updated_at.
-- Maps all required and relevant optional fields to the CyberDeltaEngine Order model.
-- Documents any Backpack fields not mapped to the core model.
-- Ensures robust type conversion and error handling.
-
-Backpack fields not present in the core model (e.g., postOnly, reduceOnly, timeInForce, selfTradePrevention, expiryReason, etc.) are ignored but can be added in the future if needed.
+- Handles required fields and common optional fields (e.g., clientId).
+- Parses timestamps and numeric strings into appropriate internal types (Decimal, datetime).
+- Performs basic validation (non-empty strings, enum checks, finite decimals).
+- Optional fields like stopPrice, triggerPrice, timeInForce, selfTradePrevention,
+  expiryReason, etc.) are ignored but can be added in the future if needed.
 """
 
 from datetime import UTC, datetime

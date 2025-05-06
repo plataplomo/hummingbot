@@ -44,7 +44,7 @@ class BackpackRawKline(BaseModel):
     trade_count: int = Field(..., description="Number of trades")
     taker_buy_base_volume: Decimal = Field(..., description="Taker buy base asset volume")
     taker_buy_quote_volume: Decimal = Field(..., description="Taker buy quote asset volume")
-    ignore: str = Field(..., description="Ignore field")  # Spec shows string '0'
+    ignored: str = Field(..., description="Ignore field")  # Renamed from ignore
 
     @model_validator(mode="before")
     @classmethod

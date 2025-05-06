@@ -97,7 +97,8 @@ class ExchangeAPI(ABC):
             rate_limit_config = rate_limit_config_raw
         elif rate_limit_config_raw is not None:
             logger.warning(
-                f"[{exchange_name}] Invalid 'rate_limits' config type: {type(rate_limit_config_raw)}. Using defaults."
+                f"[{exchange_name}] Invalid 'rate_limits' config type: "
+                f"{type(rate_limit_config_raw)}. Using defaults."
             )
 
         # Safely get default rate and bucket size
@@ -108,11 +109,13 @@ class ExchangeAPI(ABC):
                 default_rate = float(default_rate_raw)
             except (ValueError, TypeError):
                 logger.warning(
-                    f"[{exchange_name}] Invalid 'default_rate' value: {default_rate_raw}. Using default {default_rate}."
+                    f"[{exchange_name}] Invalid 'default_rate' value: "
+                    f"{default_rate_raw}. Using default {default_rate}."
                 )
         elif default_rate_raw is not None:
             logger.warning(
-                f"[{exchange_name}] Invalid type for 'default_rate': {type(default_rate_raw)}. Using default {default_rate}."
+                f"[{exchange_name}] Invalid type for 'default_rate': "
+                f"{type(default_rate_raw)}. Using default {default_rate}."
             )
 
         default_bucket_raw: Any = rate_limit_config.get("default_bucket_size", 10)
@@ -123,11 +126,13 @@ class ExchangeAPI(ABC):
                 default_bucket = int(default_bucket_raw)
             except (ValueError, TypeError):
                 logger.warning(
-                    f"[{exchange_name}] Invalid 'default_bucket_size' value: {default_bucket_raw}. Using default {default_bucket}."
+                    f"[{exchange_name}] Invalid 'default_bucket_size' value: "
+                    f"{default_bucket_raw}. Using default {default_bucket}."
                 )
         elif default_bucket_raw is not None:
             logger.warning(
-                f"[{exchange_name}] Invalid type for 'default_bucket_size': {type(default_bucket_raw)}. Using default {default_bucket}."
+                f"[{exchange_name}] Invalid type for 'default_bucket_size': "
+                f"{type(default_bucket_raw)}. Using default {default_bucket}."
             )
 
         self._default_limiter_config = RateLimiterConfig(
@@ -143,7 +148,8 @@ class ExchangeAPI(ABC):
             endpoints = endpoints_raw
         else:
             logger.warning(
-                f"[{exchange_name}] Invalid 'endpoints' rate limit config type: {type(endpoints_raw)}. Ignoring endpoint-specific limits."
+                f"[{exchange_name}] Invalid 'endpoints' rate limit config type: "
+                f"{type(endpoints_raw)}. Ignoring endpoint-specific limits."
             )
 
         for endpoint, config_dict_raw in endpoints.items():
@@ -158,11 +164,13 @@ class ExchangeAPI(ABC):
                         rate = float(rate_raw)
                     except (ValueError, TypeError):
                         logger.warning(
-                            f"[{exchange_name}] Could not convert 'rate' for endpoint '{endpoint_str}': {rate_raw}. Using default {rate}."
+                            f"[{exchange_name}] Could not convert 'rate' for endpoint "
+                            f"'{endpoint_str}': {rate_raw}. Using default {rate}."
                         )
                 elif rate_raw is not None:
                     logger.warning(
-                        f"[{exchange_name}] Invalid type for 'rate' ({type(rate_raw)}) for endpoint '{endpoint_str}'. Using default {rate}."
+                        f"[{exchange_name}] Invalid type for 'rate' ({type(rate_raw)}) "
+                        f"for endpoint '{endpoint_str}'. Using default {rate}."
                     )
                 # else: rate_raw is None, use default_rate
 
@@ -176,11 +184,13 @@ class ExchangeAPI(ABC):
                             raise ValueError("Bucket size must be positive")
                     except (ValueError, TypeError):
                         logger.warning(
-                            f"[{exchange_name}] Could not convert 'bucket_size' for endpoint '{endpoint_str}': {bucket_raw}. Using default {bucket}."
+                            f"[{exchange_name}] Could not convert 'bucket_size' for endpoint "
+                            f"'{endpoint_str}': {bucket_raw}. Using default {bucket}."
                         )
                 elif bucket_raw is not None:  # Log if not convertible type and not None
                     logger.warning(
-                        f"[{exchange_name}] Invalid type for 'bucket_size' ({type(bucket_raw)}) for endpoint '{endpoint_str}'. Using default {bucket}."
+                        f"[{exchange_name}] Invalid type for 'bucket_size' ({type(bucket_raw)}) "
+                        f"for endpoint '{endpoint_str}'. Using default {bucket}."
                     )
                 # else: bucket_raw is None, use default_bucket
 
@@ -190,7 +200,8 @@ class ExchangeAPI(ABC):
                 self._endpoint_limiters[endpoint_str] = TokenBucketRateLimiterRuntime(rate, bucket)
             else:
                 logger.warning(
-                    f"[{exchange_name}] Invalid rate limit config type for endpoint '{endpoint_str}': {type(config_dict_raw)}"
+                    f"[{exchange_name}] Invalid rate limit config type for endpoint "
+                    f"'{endpoint_str}': {type(config_dict_raw)}"
                 )
 
         # Placeholder for connection state and WebSocket management attributes
@@ -213,7 +224,8 @@ class ExchangeAPI(ABC):
         self.ws_endpoint = config.get("ws_endpoint")
         if not self.ws_endpoint or not isinstance(self.ws_endpoint, str):
             logger.warning(
-                f"[{exchange_name}] Missing or invalid 'ws_endpoint' in config. WebSocket functionality disabled."
+                f"[{exchange_name}] Missing or invalid 'ws_endpoint' in config. "
+                f"WebSocket functionality disabled."
             )
             self.ws_endpoint = None  # Explicitly set to None if invalid
 
@@ -414,7 +426,8 @@ class ExchangeAPI(ABC):
                                 return json_data  # Type is str
                             else:
                                 raise APIError(
-                                    f"Expected JSON dictionary or list, got {type(json_data).__name__}",
+                                    f"Expected JSON dictionary or list, "
+                                    f"got {type(json_data).__name__}",
                                     # Use INVALID_REQUEST for unexpected JSON structure
                                     code=APIErrorCode.INVALID_REQUEST.value,
                                     http_status=response.status,

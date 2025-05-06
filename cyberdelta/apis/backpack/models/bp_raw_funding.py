@@ -90,15 +90,18 @@ class BackpackRawFundingRate(BaseModel):
 
 class BackpackRawMarkPrice(BaseModel):
     """
-    Pydantic model for a raw mark price and funding info object from `/api/v1/markPrice` (Backpack REST API).
+    Pydantic model for a raw mark price and funding info object
+    from `/api/v1/markPrice` (Backpack REST API).
 
     This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
-    Use this model to validate and parse mark price payloads received from the exchange.
+    Use this model to validate and parse mark price/funding payloads received from the exchange.
 
     Attributes:
         symbol (str): Trading symbol.
         mark_price (str): Mark price (as string).
-        funding_rate (str): Funding rate (as string).
+        index_price (str): Index price (as string).
+        funding_rate (str): Estimated next funding rate (as string).
+        funding_time (int | str | float | None): Timestamp of next funding.
     """
 
     symbol: str = Field(..., alias="symbol", max_length=64)

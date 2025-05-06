@@ -888,7 +888,8 @@ class HyperliquidUserFillMapper:
 
 class HyperliquidPositionMapper:
     """
-    Utility for mapping raw position data (likely from WebSocket events) to the internal Position model.
+    Utility for mapping raw position data (likely from WebSocket events)
+    to the internal Position model.
     """
 
     @staticmethod

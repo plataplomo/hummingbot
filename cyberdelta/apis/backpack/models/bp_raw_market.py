@@ -228,7 +228,8 @@ class BackpackRawOrderBook(BaseModel):
             # Mypy=[unused-ignore] flags this ignore as unused.
             if len(item) != 2:  # type: ignore[arg-type]
                 raise ValueError(
-                    f"{current_item_desc}: Must be a list/tuple of length 2 [price_str, quantity_str]."
+                    f"{current_item_desc}: Must be a list/tuple of length 2 "
+                    f"[price_str, quantity_str]."
                 )
 
             # Runtime checks above ensure item is indexable
@@ -251,7 +252,8 @@ class BackpackRawOrderBook(BaseModel):
                     raise ValueError("Price must be finite.")
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{current_item_desc}[0](price): Invalid finite decimal string '{price_raw}'. {e}"
+                    f"{current_item_desc}[0](price): Invalid finite decimal string "
+                    f"'{price_raw}'. {e}"
                 ) from e
 
             # Validate Quantity String
@@ -270,7 +272,8 @@ class BackpackRawOrderBook(BaseModel):
                     raise ValueError("Quantity must be finite and non-negative.")
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{current_item_desc}[1](quantity): Invalid non-negative finite decimal string '{quantity_raw}'. {e}"
+                    f"{current_item_desc}[1](quantity): Invalid non-negative finite "
+                    f"decimal string '{quantity_raw}'. {e}"
                 ) from e
 
             validated_levels.append((price_str, quantity_str))
@@ -377,7 +380,8 @@ class BackpackRawTickerEvent(BaseModel):
                     return s
                 except ValueError as e:
                     raise ValueError(
-                        f"{field_name}: String timestamp '{s}' is not a valid number or ISO-like format: {e}"
+                        f"{field_name}: String timestamp '{s}' is not a valid number "
+                        f"or ISO-like format: {e}"
                     ) from e
         else:
             raise ValueError(
@@ -429,7 +433,8 @@ class BackpackRawDepthUpdateEvent(BaseModel):
             # Mypy=[unused-ignore] flags this ignore as unused.
             if len(item) != 2:  # type: ignore[arg-type]
                 raise ValueError(
-                    f"{current_item_desc}: Must be a list/tuple of length 2 [price_str, quantity_str]."
+                    f"{current_item_desc}: Must be a list/tuple of length 2 "
+                    f"[price_str, quantity_str]."
                 )
 
             # Runtime checks above ensure item is indexable
@@ -452,7 +457,8 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                     raise ValueError("Price must be finite.")
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{current_item_desc}[0](price): Invalid finite decimal string '{price_raw}'. {e}"
+                    f"{current_item_desc}[0](price): Invalid finite decimal string "
+                    f"'{price_raw}'. {e}"
                 ) from e
 
             # Validate Quantity String
@@ -471,7 +477,8 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                     raise ValueError("Quantity must be finite and non-negative.")
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{current_item_desc}[1](quantity): Invalid non-negative finite decimal string '{quantity_raw}'. {e}"
+                    f"{current_item_desc}[1](quantity): Invalid non-negative finite "
+                    f"decimal string '{quantity_raw}'. {e}"
                 ) from e
 
             validated_levels.append((price_str, quantity_str))
@@ -523,7 +530,8 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                     return s
                 except ValueError as e:
                     raise ValueError(
-                        f"{field_name}: String timestamp '{s}' is not a valid number or ISO-like format: {e}"
+                        f"{field_name}: String timestamp '{s}' is not a valid number "
+                        f"or ISO-like format: {e}"
                     ) from e
         else:
             raise ValueError(

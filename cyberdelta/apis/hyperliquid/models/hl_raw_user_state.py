@@ -100,10 +100,11 @@ class HyperliquidRawLeverage(BaseModel):
 # --- Position Info Submodel ---
 class HyperliquidRawPositionInfo(BaseModel):
     """
-    Strict boundary model for detailed user position information as returned in user state endpoints.
+    Strict boundary model for detailed user position information as returned
+    in user state endpoints.
 
-    This model validates the structure and content of a user's position for a given asset, enforcing
-    strict type and format constraints for all fields. Never use for internal business logic.
+    This model validates the structure and content of a user's position for a given asset,
+    enforcing strict type and format constraints. Never use for internal business logic.
 
     Fields:
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
@@ -183,7 +184,8 @@ class HyperliquidRawPositionInfo(BaseModel):
     @classmethod
     def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
         """
-        Validates a required decimal string field, ensuring it is a valid decimal string of max length 64.
+        Validates a required decimal string field, ensuring it is a valid
+        decimal string of max length 64.
 
         Args:
             v (object): The value to validate (should be a string).
@@ -228,10 +230,12 @@ class HyperliquidRawPositionInfo(BaseModel):
 # --- Asset Position Submodel ---
 class HyperliquidRawAssetPosition(BaseModel):
     """
-    Strict boundary model for a user's position details for a specific asset as returned in user state endpoints.
+    Strict boundary model for a user's position details for a specific asset
+    as returned in user state endpoints.
 
-    This model validates the structure and content of a user's asset position, enforcing strict type and
-    format constraints. Never use for internal business logic.
+    This model validates the structure and content of a user's asset position,
+    enforcing strict type and format constraints.
+    Never use for internal business logic.
 
     Fields:
         asset (str): Asset symbol (e.g., 'ETH', 'BTC').
@@ -268,8 +272,9 @@ class HyperliquidRawMarginSummary(BaseModel):
     """
     Strict boundary model for a margin summary as returned in user state endpoints.
 
-    This model validates the structure and content of a user's margin summary, enforcing strict type and
-    format constraints for all fields. Never use for internal business logic.
+    This model validates the structure and content of a user's margin summary,
+    enforcing strict type and format constraints for all fields.
+    Never use for internal business logic.
 
     Fields:
         account_value (str): Account value for the user as a decimal string.
@@ -312,7 +317,8 @@ class HyperliquidRawMarginSummary(BaseModel):
     @classmethod
     def validate_total_margin_used(cls, v: object, info: ValidationInfo) -> str:
         """
-        Validates the 'total_margin_used' field to ensure it is a valid decimal string of max length 64.
+        Validates the 'total_margin_used' field to ensure it is a valid
+        decimal string of max length 64.
 
         Args:
             v (object): The value to validate (should be a string).
