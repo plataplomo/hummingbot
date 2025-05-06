@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from cyberdelta.apis.base_api import ExchangeAPI
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import FundingRate, Ticker
 from cyberdelta.core.models.market.candle import Candle
@@ -582,15 +583,15 @@ class TestDataHandler:
         # Assert connect_ws was called twice (initial fail + retry)
         assert mock_client.connect_ws.call_count == 2
 
-    def get_price(self, symbol: str) -> float | None:
-        if symbol == "BTC-USDC":
-            return 50000.0
-        return None
+    # def get_price(self, symbol: str) -> float | None:
+    #     if symbol == "BTC-USDC":
+    #         return 50000.0
+    #     return None
 
-    # data_handler.get_asset_price_in_base = get_price # Cannot assign to method
-    # Mock the internal method or the API call it relies on
-    data_handler._get_asset_price_in_base = AsyncMock(
-        return_value=Decimal("50000.0")
-    )  # Example mock
+    # # data_handler.get_asset_price_in_base = get_price # Cannot assign to method
+    # # Mock the internal method or the API call it relies on
+    # data_handler._get_asset_price_in_base = AsyncMock( # type: ignore[attr-defined]
+    #     return_value=Decimal("50000.0")
+    # )  # Example mock
 
-    price = await data_handler._get_asset_price_in_base("mock_exchange", "BTC", "USDC")
+    # price = await data_handler._get_asset_price_in_base("mock_exchange", "BTC", "USDC") # type: ignore[attr-defined]

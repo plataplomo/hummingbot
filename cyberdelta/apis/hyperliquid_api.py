@@ -30,6 +30,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
+    HyperliquidRawOrderStatusResponse,
     HyperliquidRawTriggerInfo,
 )
 from cyberdelta.apis.models.api_error import APIError
@@ -1513,101 +1514,89 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order:
-        """Fetch the status of a specific order by its OID.
-
-        Uses the /info endpoint with type='orderStatus'.
-
-        Args:
-            order_id: The exchange-assigned order ID (OID).
-            symbol: Ignored for Hyperliquid orderStatus query by OID.
-            client_order_id: Ignored, Hyperliquid queries status by OID.
-
-        Returns:
-            The Order object with its current status.
-
-        Raises:
-            APIError: If the order is not found or another API error occurs.
-        """
+        """Fetches the status of a specific order."""
         if not self._wallet_address:
             raise APIError(
                 "Wallet address required for fetching order status",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        if client_order_id:
-            logger.warning(f"[{self.exchange_name}] client_order_id ignored for get_order_status")
-        if symbol:
-            logger.debug(f"[{self.exchange_name}] symbol ignored for get_order_status by OID")
 
-        response_raw: object = None  # Initialize
+        payload = {
+            "type": "orderStatus",
+            "user": self._wallet_address,
+            "oid": int(order_id),
+        }
+
         try:
-            payload = {"type": "orderStatus", "user": self._wallet_address, "oid": int(order_id)}
-            response_raw = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            response_data = await self._request("POST", self.INFO_URL + "/info", data=payload)
 
-            # Import the new Raw model with absolute paths
-            from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
-                HyperliquidRawTriggerInfo,  # Needed for mapper
-            )
-            from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
-                HyperliquidRawOrderStatusResponse,
-            )
-
-            # Validate the response structure
-            validated_response = HyperliquidRawOrderStatusResponse.model_validate(response_raw)
-
-            # Assuming the response contains the order details in validated_response.order
-            raw_order_data = validated_response.order
-
-            # Extract trigger info if present (unlikely in status response, but check)
-            # This part is speculative based on openOrders structure
-            trigger_info: HyperliquidRawTriggerInfo | None = getattr(
-                raw_order_data, "trigger", None
-            )
-
-            # Transform using the existing order mapper
-            internal_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
-                raw=raw_order_data, trigger=trigger_info
-            )
-
-            if internal_order:
-                return internal_order
-            else:
-                # Should not happen if validation and mapping work
+            if not response_data or not isinstance(response_data, list):
                 raise APIError(
-                    f"Failed to map order status response for OID {order_id}",
-                    code=APIErrorCode.UNKNOWN.value,
+                    f"Unexpected response format from get_order_status: {response_data}",
+                    code=APIErrorCode.INVALID_REQUEST.value,
                 )
 
-        except (ValidationError, ValueError) as e:  # Catch validation/mapping errors
-            logger.error(
-                f"[{self.exchange_name}] Error parsing/validating order status for "
-                f"OID {order_id}: {e}. Raw Response: {response_raw}"
-            )
-            # Check if the error indicates the order wasn't found
-            # Hyperliquid might return a specific error message or just empty/invalid data
-            if "Order not found" in str(e):  # Heuristic check
+            status_part_raw = response_data[0]
+
+            if isinstance(status_part_raw, str):
+                if status_part_raw.lower() == "order not found":
+                    raise APIError(
+                        f"Order not found: id={order_id}", code=APIErrorCode.ORDER_NOT_FOUND.value
+                    )
+                # Handle other potential string error messages if necessary
                 raise APIError(
-                    f"Order {order_id} not found", code=APIErrorCode.ORDER_NOT_FOUND.value
+                    f"Received string error from get_order_status: {status_part_raw}",
+                    code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                )
+
+            if not isinstance(status_part_raw, dict):
+                raise APIError(
+                    f"Unexpected status object format, expected dict: {status_part_raw}",
+                    code=APIErrorCode.INVALID_REQUEST.value,
+                )
+
+            validated_status_response: HyperliquidRawOrderStatusResponse
+            try:
+                validated_status_response = HyperliquidRawOrderStatusResponse.model_validate(
+                    status_part_raw
+                )
+            except ValidationError as e:
+                logger.error(
+                    f"[{self.exchange_name}] Failed to validate raw order status response: {e}. Data: {status_part_raw}"
+                )
+                raise APIError(
+                    message="Failed to parse order status response from exchange.",
+                    code=APIErrorCode.UNKNOWN.value,
+                    original_exception=e,
                 ) from e
+
+            # validated_status_response.order is HyperliquidRawOrder
+            # transform_raw_order_to_internal expects raw order and optional trigger
+            # For single order status, trigger is usually not part of the direct order object
+            internal_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
+                raw=validated_status_response.order, trigger=None
+            )
+
+            return internal_order
+
+        except APIError:
+            raise
+        except ValidationError as e:
+            logger.error(
+                f"[{self.exchange_name}] Outer Pydantic validation error in get_order_status: {e}. Payload: {payload}"
+            )
             raise APIError(
-                f"Failed to parse order status data for OID {order_id}: {e}",
+                message="Outer Pydantic validation error processing order status.",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
-        except APIError as e:
-            # Check if it's already an OrderNotFound error from the mapper/request layer
-            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
-                raise e
-            logger.error(
-                f"[{self.exchange_name}] API Error getting order status for OID {order_id}: {e}"
-            )
-            raise
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error getting order status for "
-                f"OID {order_id}: {e}",
+                f"[{self.exchange_name}] Unexpected error in get_order_status for oid {order_id}: {e}",
                 exc_info=True,
             )
             raise APIError(
-                f"Unexpected error getting order status for OID {order_id}: {e}",
+                message=f"Unexpected error fetching order status: {e}",
                 code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
             ) from e
