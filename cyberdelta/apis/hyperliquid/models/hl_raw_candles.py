@@ -105,7 +105,7 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
         # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
         # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
-        if not isinstance(v, list):
+        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
 
         validated_list: list[int] = []
@@ -127,7 +127,7 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
         # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
         # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
-        if not isinstance(v, list):
+        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
 
         validated_list: list[str] = []
@@ -157,7 +157,7 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
         # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
         # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
-        if not isinstance(v, list):
+        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
 
         validated_list: list[str] = []

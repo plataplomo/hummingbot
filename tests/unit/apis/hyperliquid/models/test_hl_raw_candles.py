@@ -119,7 +119,7 @@ def test_invalid_list_element_format(
             found_match = True
     # For ValidationErrors (wrapping ValueErrors, etc.)
     # DEFENSIVE CHECK: Distinguish TypeError from ValidationError for assertion. Mypy=[misc]
-    elif isinstance(exc_info.value, ValidationError):
+    elif isinstance(exc_info.value, ValidationError):  # pyright: ignore[reportUnnecessaryIsInstance]
         for error in exc_info.value.errors():
             error_msg = error.get("msg", "")
             if isinstance(match_pattern, Pattern):
@@ -162,15 +162,11 @@ def test_status_string_validation() -> None:
     # Corrected assertion for wrong type using errors()
     found_match_type = False
     for error in exc_info_type.value.errors():
-        # Pydantic v2 error message for wrong type is usually 'Input should be...' or 'Value error, ... Expected string'
-        if "Expected string" in error.get(
-            "msg", ""
-        ) or "Input should be a valid string" in error.get("msg", ""):
+        # Pydantic v2 error msg is like 'Input should be...' or 'Expected string...'
+        if "Expected string" in error.get("msg", ""):
             found_match_type = True
             break
-    assert found_match_type, (
-        f"Expected string type error not found in messages: {exc_info_type.value.errors()}"
-    )
+    assert found_match_type, "Expected string type error not found in messages"
 
     # Test too long (assuming max_length=32 based on validator)
     invalid_data_long: dict[str, Any] = VALID_CANDLE_DATA.copy()

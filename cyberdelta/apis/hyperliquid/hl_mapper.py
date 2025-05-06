@@ -8,7 +8,8 @@ domain models (from `cyberdelta.core.models`).
 
 Responsibilities:
 - Type Conversion: Convert raw types (strings, ints) to internal types (Decimal, datetime, Enums).
-- Field Renaming: Map API field names (e.g., `totalSz`) to internal names (e.g., `quantity_requested`).
+- Field Renaming: Map API field names (e.g., `totalSz`) to internal names
+        (e.g., `quantity_requested`).
 - Enum Mapping: Convert API status/type strings (e.g., "B") to internal enums (e.g., OrderSide.BUY).
 - Data Transformation: Perform necessary calculations (e.g., calculating filled quantity).
 - Error Handling: Gracefully handle potential parsing errors, logging issues, and returning

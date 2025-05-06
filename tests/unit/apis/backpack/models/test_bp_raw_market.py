@@ -660,7 +660,8 @@ def test_BackpackRawDepthUpdateEvent_invalid_fields(
             f"Failed for field '{field}' with value {value!r}. "
             f"Expected '{expected_msg_part}' in TypeError: {str(exc_info.value)}"
         )
-    elif isinstance(exc_info.value, ValidationError):
+    # DEFENSIVE CHECK: Distinguish exception types for assertion. Mypy=[misc]
+    elif isinstance(exc_info.value, ValidationError):  # pyright: ignore[reportUnnecessaryIsInstance]
         found_match = False
         for error in exc_info.value.errors():
             if expected_msg_part in error.get("msg", ""):

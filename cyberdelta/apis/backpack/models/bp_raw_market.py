@@ -170,10 +170,9 @@ class BackpackRawMarket(BaseModel):
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
 
-        # Reinstate initial list check for robustness with mode='before'
         # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
-        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
-        if not isinstance(v, list):
+        # as Pydantic might pass non-list for mode='before'.
+        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError(f"{field_name_for_msg}: Must be a list, got {type(v).__name__}.")
 
         validated_levels: list[tuple[str, str]] = []
@@ -230,7 +229,7 @@ class BackpackRawMarket(BaseModel):
                     f"'{price_input}': {e}"  # Use input value in error
                 ) from e
 
-            # Validate Quantity (item[1]) - Must be string convertible to finite non-negative Decimal
+            # Validate Quantity (item[1]) - String convertible to finite non-negative Decimal
             if not isinstance(quantity_input, str):  # ADD CHECK: Input must be string
                 raise TypeError(
                     f"{field_name_for_msg}[{item_index}][1](quantity): Expected string, got "
@@ -336,7 +335,8 @@ class BackpackRawTicker(BaseModel):
                 return v  # Return original string if parsable
             except ValueError as e:
                 # Adjusted f-string for length
-                raise ValueError(f"{field_name}: Invalid timestamp format '{v}': {e}") from e
+                msg_part1 = f"{field_name}: Invalid timestamp format '{v}':"
+                raise ValueError(f"{msg_part1} {e}") from e
 
         # Corrected f-string for length - splitting the message
         msg = f"{field_name}: Must be an int, float, or parsable string, got {type(v).__name__}"
@@ -404,10 +404,9 @@ class BackpackRawOrderBook(BaseModel):
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
 
-        # Reinstate initial list check for robustness with mode='before'
         # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
         # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
-        if not isinstance(v, list):
+        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError(f"{field_name_for_msg}: Must be a list, got {type(v).__name__}.")
 
         validated_levels: list[tuple[str, str]] = []
@@ -464,7 +463,7 @@ class BackpackRawOrderBook(BaseModel):
                     f"'{price_input}': {e}"  # Use input value in error
                 ) from e
 
-            # Validate Quantity (item[1]) - Must be string convertible to finite non-negative Decimal
+            # Validate Quantity (item[1]) - String convertible to finite non-negative Decimal
             if not isinstance(quantity_input, str):  # ADD CHECK: Input must be string
                 raise TypeError(
                     f"{field_name_for_msg}[{item_index}][1](quantity): Expected string, got "
@@ -596,12 +595,9 @@ class BackpackRawTickerEvent(BaseModel):
                     _ = parse_datetime_utc(s, field_name=field_name_val)
                     return s
                 except ValueError as e:
-                    # Break long line
-                    error_msg_part1 = (
-                        f"{field_name_val}: String timestamp '{s}' is not a valid number "
-                    )
-                    error_msg_part2 = f"or ISO-like format: {e}"
-                    raise ValueError(f"{error_msg_part1}{error_msg_part2}") from e
+                    # Adjusted f-string for length
+                    msg_part1 = f"{field_name_val}: Invalid timestamp format '{s}':"
+                    raise ValueError(f"{msg_part1} {e}") from e
         else:
             # Break long line
             error_msg = (
@@ -632,10 +628,9 @@ class BackpackRawDepthUpdateEvent(BaseModel):
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
 
-        # Reinstate initial list check for robustness with mode='before'
         # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
         # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
-        if not isinstance(v, list):
+        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError(f"{field_name_for_msg}: Must be a list, got {type(v).__name__}.")
 
         validated_levels: list[tuple[str, str]] = []
@@ -692,7 +687,7 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                     f"'{price_input}': {e}"  # Use input value in error
                 ) from e
 
-            # Validate Quantity (item[1]) - Must be string convertible to finite non-negative Decimal
+            # Validate Quantity (item[1]) - String convertible to finite non-negative Decimal
             if not isinstance(quantity_input, str):  # ADD CHECK: Input must be string
                 raise TypeError(
                     f"{field_name_for_msg}[{item_index}][1](quantity): Expected string, got "
