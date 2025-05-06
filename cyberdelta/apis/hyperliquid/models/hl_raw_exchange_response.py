@@ -1,6 +1,14 @@
-from typing import Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
@@ -84,6 +92,16 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
         # Revert to allow_empty=False to match test expectation
         return validate_str_field(v, field_name=field_name, max_length=1024, allow_empty=False)
 
+    @model_validator(mode="after")
+    def check_at_least_one_status_field(self) -> Self:
+        """Ensures at least one status field (resting, filled, error) is not None."""
+        # Use explicit `is None` checks
+        if self.resting is None and self.filled is None and self.error is None:
+            raise ValueError(
+                "StatusObject must have at least one field (resting, filled, or error) populated."
+            )
+        return self
+
 
 class HyperliquidRawExchangeResponseData(BaseModel):
     """Raw model for the 'data' part of an exchange action response."""
@@ -102,7 +120,7 @@ class HyperliquidRawExchangeResponseData(BaseModel):
     @field_validator("statuses", mode="before")
     @classmethod
     def validate_statuses_list(
-        cls, v: object, info: ValidationInfo
+        cls, v: list[Any], info: ValidationInfo
     ) -> list[str | HyperliquidRawExchangeStatusObject]:
         """
         Validate the 'statuses' list which can contain simple strings or complex status objects.
@@ -111,15 +129,18 @@ class HyperliquidRawExchangeResponseData(BaseModel):
         """
         field_name = info.field_name or "statuses"
         # Check if it's a list first
+        # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
+        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
         if not isinstance(v, list):
             raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
 
-        # Now we know v is a list, but Pyright might complain below
+        # Now we know v is a list, Pyright should infer item_raw as Any
         validated_list: list[str | HyperliquidRawExchangeStatusObject] = []
         allowed_strings: set[str] = {"canceled", "modified", "success"}
 
-        for i, item_raw in enumerate(v):
+        for i, item_raw in enumerate(v):  # Pyright should handle item_raw (Any) now
             current_field = f"{field_name}[{i}]"
+            # DEFENSIVE CHECK: Check type within loop. Mypy=[misc]
             if isinstance(item_raw, str):
                 # Validate string against allowed literals
                 try:
@@ -133,7 +154,7 @@ class HyperliquidRawExchangeResponseData(BaseModel):
                     raise ValueError(
                         f"{current_field}: Invalid status string '{item_raw}'. {e}"
                     ) from e
-
+            # DEFENSIVE CHECK: Check type within loop. Mypy=[misc]
             elif isinstance(item_raw, dict):
                 # Validate dictionary against the StatusObject model
                 try:

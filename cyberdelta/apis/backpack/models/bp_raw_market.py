@@ -170,7 +170,11 @@ class BackpackRawMarket(BaseModel):
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
 
-        # Initial list check is now handled by Pydantic and the type hint v: list[Any]
+        # Reinstate initial list check for robustness with mode='before'
+        # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
+        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
+        if not isinstance(v, list):
+            raise TypeError(f"{field_name_for_msg}: Must be a list, got {type(v).__name__}.")
 
         validated_levels: list[tuple[str, str]] = []
         for item_index, item_raw in enumerate(v):
@@ -371,45 +375,6 @@ class BackpackRawOpenInterest(BaseModel):
             raise ValueError("{field_name}: Value must be a finite decimal (not NaN or inf)")
         return s
 
-    @field_validator("open_interest", mode="before")
-    @classmethod
-    def validate_timestamp(cls, v: object | None, info: ValidationInfo) -> int | float | str | None:
-        """Validate optional timestamp: allow int, float, ISO8601 str, or None."""
-        if v is None:
-            return None
-        field_name_val = info.field_name or "field"
-        if isinstance(v, int | float):
-            # DEFENSIVE CHECK: Ensure finiteness for floats. Mypy=[misc] Ruff=[none]
-            if isinstance(v, float) and (math.isinf(v) or math.isnan(v)):
-                raise ValueError(f"{field_name_val}: Float timestamp must be finite, got {v}")
-            if v < 0:
-                raise ValueError(f"{field_name_val}: Timestamp cannot be negative")
-            return v
-        if isinstance(v, str):
-            # Try parsing as int first (common case for ms timestamps)
-            if v.isdigit():
-                try:
-                    parsed_int = int(v)
-                    if parsed_int < 0:
-                        raise ValueError("Timestamp cannot be negative")
-                    return parsed_int
-                except ValueError as e:
-                    raise ValueError(
-                        f"{field_name_val}: Invalid integer timestamp string '{v}': {e}"
-                    ) from e
-            # Try parsing as datetime string
-            try:
-                _ = parse_datetime_utc(v)  # Check if parsable
-                return v  # Return original string if parsable
-            except ValueError as e:
-                # Adjusted f-string for length
-                msg_part1 = f"{field_name_val}: Invalid timestamp format '{v}':"
-                raise ValueError(f"{msg_part1} {e}") from e
-
-        raise TypeError(
-            f"{field_name_val}: Must be an int, float, or parsable string, got {type(v).__name__}"
-        )
-
 
 class BackpackRawOrderBook(BaseModel):
     """
@@ -439,7 +404,11 @@ class BackpackRawOrderBook(BaseModel):
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
 
-        # Initial list check is now handled by Pydantic and the type hint v: list[Any]
+        # Reinstate initial list check for robustness with mode='before'
+        # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
+        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
+        if not isinstance(v, list):
+            raise TypeError(f"{field_name_for_msg}: Must be a list, got {type(v).__name__}.")
 
         validated_levels: list[tuple[str, str]] = []
         for item_index, item_raw in enumerate(v):
@@ -663,7 +632,11 @@ class BackpackRawDepthUpdateEvent(BaseModel):
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
 
-        # Initial list check is now handled by Pydantic and the type hint v: list[Any]
+        # Reinstate initial list check for robustness with mode='before'
+        # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
+        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
+        if not isinstance(v, list):
+            raise TypeError(f"{field_name_for_msg}: Must be a list, got {type(v).__name__}.")
 
         validated_levels: list[tuple[str, str]] = []
         for item_index, item_raw in enumerate(v):

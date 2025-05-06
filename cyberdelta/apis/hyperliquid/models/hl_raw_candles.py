@@ -32,9 +32,16 @@ price series.
     # ...then transform to internal candle model
 """
 
-from typing import Any, TypeGuard
+from typing import Any, Self, TypeGuard
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
@@ -96,6 +103,11 @@ class HyperliquidRawCandleSnapshot(BaseModel):
         """Validate 't' is a list of non-negative integers."""
         field_name = info.field_name or "timestamp_list"
 
+        # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
+        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
+        if not isinstance(v, list):
+            raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
+
         validated_list: list[int] = []
         for i, item in enumerate(v):
             if not isinstance(item, int):
@@ -112,6 +124,11 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     def validate_price_list(cls, v: list[Any], info: ValidationInfo) -> list[str]:
         """Validate price lists ('o', 'h', 'l', 'c') contain finite decimal strings."""
         field_name = info.field_name or "price_list"
+
+        # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
+        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
+        if not isinstance(v, list):
+            raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
 
         validated_list: list[str] = []
         for i, item in enumerate(v):
@@ -137,6 +154,11 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     def validate_volume_list(cls, v: list[Any], info: ValidationInfo) -> list[str]:
         """Validate 'v' list contains non-negative, finite decimal strings."""
         field_name = info.field_name or "volume_list"
+
+        # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
+        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
+        if not isinstance(v, list):
+            raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
 
         validated_list: list[str] = []
         for i, item in enumerate(v):
@@ -165,6 +187,23 @@ class HyperliquidRawCandleSnapshot(BaseModel):
         """Validate 's' status string is non-empty, max_length 32."""
         field_name = info.field_name or "status"
         return validate_str_field(v, field_name=field_name, max_length=32, allow_empty=False)
+
+    @model_validator(mode="after")
+    def check_list_lengths(self) -> Self:
+        """Ensure all OHLCV lists have the same length as the timestamp list."""
+        list_lengths = {
+            len(self.t),
+            len(self.o),
+            len(self.h),
+            len(self.l),
+            len(self.c),
+            len(self.v),
+        }
+        if len(list_lengths) > 1:
+            raise ValueError(
+                "Candle snapshot lists (t, o, h, l, c, v) must all have the same length."
+            )
+        return self
 
 
 class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):

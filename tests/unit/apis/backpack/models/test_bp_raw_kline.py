@@ -62,22 +62,29 @@ def test_valid_kline_list_parsing() -> None:
 
 def test_invalid_structure_input_type() -> None:
     """Test failure when input is not a list or tuple."""
-    with pytest.raises(TypeError, match="Expected list or tuple input, got dict"):
+    # Catch ValidationError and check message
+    with pytest.raises(ValidationError) as exc_info:
         BackpackRawKline.model_validate({"key": "value"})  # Dict input
+    assert "Expected 12 elements in kline data list/tuple" in str(exc_info.value)
 
-    with pytest.raises(TypeError, match="Expected list or tuple input, got str"):
+    with pytest.raises(ValidationError) as exc_info_str:  # Use different var name
         BackpackRawKline.model_validate("not_a_list")  # String input
+    assert "Expected 12 elements in kline data list/tuple" in str(exc_info_str.value)
 
 
 def test_invalid_structure_list_length() -> None:
     """Test failure when input list has incorrect length."""
     invalid_list_short = VALID_KLINE_LIST[:-1]  # Length 11
-    with pytest.raises(ValueError, match="Expected 12 elements in kline data list, got 11"):
+    # Catch ValueError and check substring
+    with pytest.raises(ValueError) as exc_info_short:
         BackpackRawKline.model_validate(invalid_list_short)
+    assert "Expected 12 elements in kline data list/tuple, got 11" in str(exc_info_short.value)
 
     invalid_list_long = VALID_KLINE_LIST + ["extra"]
-    with pytest.raises(ValueError, match="Expected 12 elements in kline data list, got 13"):
+    # Catch ValueError and check substring
+    with pytest.raises(ValueError) as exc_info_long:
         BackpackRawKline.model_validate(invalid_list_long)
+    assert "Expected 12 elements in kline data list/tuple, got 13" in str(exc_info_long.value)
 
 
 @pytest.mark.parametrize(

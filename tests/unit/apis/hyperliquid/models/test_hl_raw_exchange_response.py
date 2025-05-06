@@ -219,8 +219,6 @@ def test_hl_filled_extra_fields_ignored() -> None:
     ],
 )
 def test_hl_status_object_invalid(invalid_data: dict[str, Any], expected_msg_part: str) -> None:
-    if "at least one field" in expected_msg_part:
-        pytest.skip("Skipping test requiring model-level validation for StatusObject")
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawExchangeStatusObject.model_validate(invalid_data)
     assert expected_msg_part in str(exc_info.value)

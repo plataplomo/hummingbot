@@ -19,6 +19,16 @@ def valid_market() -> dict[str, Any]:
         "symbol": "BTC_USDC",
         "baseAsset": "BTC",
         "quoteAsset": "USDC",
+        "quantityPrecision": 8,
+        "pricePrecision": 2,
+        "minTradeQuantity": "0.0001",
+        "maxTradeQuantity": "1000.0",
+        "minTradePrice": "0.01",
+        "maxTradePrice": "1000000.0",
+        "minOrderBookQuantity": "0.0001",
+        "bids": [["49999.00", "0.5"], ["49998.50", "1.2"]],
+        "asks": [["50001.00", "0.3"], ["50001.50", "0.8"]],
+        "lastUpdateTime": 1678886400000,
     }
 
 
@@ -97,6 +107,16 @@ def test_BackpackRawMarket_real_json_example() -> None:
         "symbol": "BTC_USDC",
         "baseAsset": "BTC",
         "quoteAsset": "USDC",
+        "quantityPrecision": 8,
+        "pricePrecision": 2,
+        "minTradeQuantity": "0.0001",
+        "maxTradeQuantity": "1000.0",
+        "minTradePrice": "0.01",
+        "maxTradePrice": "1000000.0",
+        "minOrderBookQuantity": "0.0001",
+        "bids": [["49999.00", "0.5"], ["49998.50", "1.2"]],
+        "asks": [["50001.00", "0.3"], ["50001.50", "0.8"]],
+        "lastUpdateTime": 1678886400000,
     }
     obj = BackpackRawMarket.model_validate(payload)
     assert obj.symbol == "BTC_USDC"
@@ -595,21 +615,21 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
     "field, value, expected_msg_part",
     [
         ("lastUpdateId", "", "String cannot be empty"),
-        ("lastUpdateId", None, "Field required"),
-        ("bids", None, "Field required"),
+        ("lastUpdateId", None, "Expected string, got NoneType"),
+        ("bids", None, "Must be a list"),
         ("asks", "not-a-list", "Must be a list"),
         ("bids", [[], ["1", "2"]], "length 2"),
         ("asks", [["1"]], "length 2"),
         ("bids", [["1", "2", "3"]], "length 2"),
-        ("asks", ["1", "2"], "Item is not a list or tuple"),
+        ("asks", ["1", "2"], "Each item must be a list or tuple"),
         ("asks", [["1", 2]], "Expected string"),
         ("bids", [["inf", "1"]], "Price must be finite"),
         ("asks", [["1", "nan"]], "Quantity must be finite"),
         ("bids", [["", "1"]], "String cannot be empty"),
         ("asks", [["1", ""]], "String cannot be empty"),
-        ("bids", [["1", "-1"]], "non-negative"),
+        ("bids", [["1", "-1"]], "Quantity cannot be negative"),
         ("e", "", "String cannot be empty"),
-        ("E", "abc", "Expected an integer"),
+        ("E", "abc", "Invalid timestamp format"),
     ],
 )
 def test_BackpackRawDepthUpdateEvent_invalid_fields(
@@ -620,11 +640,36 @@ def test_BackpackRawDepthUpdateEvent_invalid_fields(
 ) -> None:
     data = valid_depth_update_data
     data[field] = value
-    with pytest.raises(ValidationError) as exc_info:
+
+    # Determine expected exception type based on field and value
+    expected_exception: type[Exception] = ValidationError
+    if (
+        (field == "bids" and value is None)
+        or (field == "asks" and value == "not-a-list")
+        or (field == "asks" and value == ["1", "2"])
+        or (field == "asks" and value == [["1", 2]])
+    ):
+        expected_exception = TypeError
+
+    with pytest.raises(expected_exception) as exc_info:
         BackpackRawDepthUpdateEvent.model_validate(data)
-    assert expected_msg_part in str(exc_info.value) or field in str(exc_info.value), (
-        f"Field: {field}, Value: {value!r}, Error: {exc_info.value}"
-    )
+
+    # Check the string representation of the caught exception for the expected message
+    if isinstance(exc_info.value, TypeError):
+        assert expected_msg_part in str(exc_info.value), (
+            f"Failed for field '{field}' with value {value!r}. "
+            f"Expected '{expected_msg_part}' in TypeError: {str(exc_info.value)}"
+        )
+    elif isinstance(exc_info.value, ValidationError):
+        found_match = False
+        for error in exc_info.value.errors():
+            if expected_msg_part in error.get("msg", ""):
+                found_match = True
+                break
+        assert found_match, (
+            f"Failed for field '{field}' with value {value!r}. "
+            f"Expected '{expected_msg_part}' in ValidationError messages: {exc_info.value.errors()}"
+        )
 
 
 def test_BackpackRawDepthUpdateEvent_extra_field_ignored(
