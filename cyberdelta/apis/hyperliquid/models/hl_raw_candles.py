@@ -83,7 +83,7 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     t: list[int] = Field(..., alias="t")
     o: list[str] = Field(..., alias="o")
     h: list[str] = Field(..., alias="h")
-    l: list[str] = Field(..., alias="l")
+    l: list[str] = Field(..., alias="l")  # noqa: E741
     c: list[str] = Field(..., alias="c")
     v: list[str] = Field(..., alias="v")
     s: str = Field(..., alias="s")
@@ -103,7 +103,7 @@ class HyperliquidRawCandleSnapshot(BaseModel):
                     f"{field_name}[{i}]: Must be an integer, got {type(item).__name__}."
                 )
             if item < 0:
-                raise ValueError(f"{field_name}[{i}]: Timestamp cannot be negative, got {item}.")
+                raise ValueError(f"{field_name}[{i}]: Timestamp cannot be negative.")
             validated_list.append(item)
         return validated_list
 
@@ -115,23 +115,21 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
         validated_list: list[str] = []
         for i, item in enumerate(v):
-            # 1. Check raw type is string
             if not isinstance(item, str):
                 raise TypeError(f"{field_name}[{i}]: Must be a string, got {type(item).__name__}.")
-            # 2. Validate string format (non-empty, max_length)
-            s = validate_str_field(
-                item, field_name=f"{field_name}[{i}]", max_length=64, allow_empty=False
-            )
-            # 3. Validate parseable as finite Decimal
+
             try:
+                s = validate_str_field(
+                    item, field_name=f"{field_name}[{i}]", allow_empty=False, max_length=64
+                )
                 d = parse_decimal_value(s, allow_none=False)
                 if d is None or not d.is_finite():
                     raise ValueError("Decimal value must be finite.")
+                validated_list.append(s)
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{field_name}[{i}]: Invalid finite decimal string '{s}': {e}"
+                    f"{field_name}[{i}]: Invalid finite decimal string '{item}': {e}"
                 ) from e
-            validated_list.append(s)  # Append the validated string
         return validated_list
 
     @field_validator("v", mode="before")
@@ -142,25 +140,23 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
         validated_list: list[str] = []
         for i, item in enumerate(v):
-            # 1. Check raw type is string
             if not isinstance(item, str):
                 raise TypeError(f"{field_name}[{i}]: Must be a string, got {type(item).__name__}.")
-            # 2. Validate string format (non-empty, max_length)
-            s = validate_str_field(
-                item, field_name=f"{field_name}[{i}]", max_length=64, allow_empty=False
-            )
-            # 3. Validate parseable as finite, non-negative Decimal
+
             try:
+                s = validate_str_field(
+                    item, field_name=f"{field_name}[{i}]", allow_empty=False, max_length=64
+                )
                 d = parse_decimal_value(s, allow_none=False)
                 if d is None or not d.is_finite():
                     raise ValueError("Decimal value must be finite.")
                 if d < 0:
                     raise ValueError("Volume cannot be negative.")
+                validated_list.append(s)
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{field_name}[{i}]: Invalid non-negative finite decimal string '{s}': {e}"
+                    f"{field_name}[{i}]: Invalid non-negative finite decimal string '{item}': {e}"
                 ) from e
-            validated_list.append(s)  # Append the validated string
         return validated_list
 
     @field_validator("s", mode="before")

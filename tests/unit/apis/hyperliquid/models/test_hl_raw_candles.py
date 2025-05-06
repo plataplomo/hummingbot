@@ -100,6 +100,7 @@ def test_invalid_list_element_format(
     else:
         pytest.skip(f"Test setup error: Cannot modify {field}[{list_index}] in test data.")
 
+    # Expect ValidationError even if underlying exception is TypeError/ValueError
     with pytest.raises(ValidationError, match=match_pattern):
         HyperliquidRawCandleSnapshot.model_validate(invalid_data)
 

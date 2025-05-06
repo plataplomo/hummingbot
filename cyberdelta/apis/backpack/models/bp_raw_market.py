@@ -26,7 +26,7 @@ robustness and security at the data ingestion boundary.
 import logging
 import math  # Re-added for isnan/isinf
 from decimal import Decimal  # Ensure Decimal is imported
-from typing import Any  # Import Any
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -36,7 +36,6 @@ from cyberdelta.utils.parsing import (
     validate_str_field,
 )
 from cyberdelta.utils.typing import (
-    is_potential_decimal_input,
     is_sequence_of_any,
 )
 
@@ -161,11 +160,9 @@ class BackpackRawMarket(BaseModel):
                 ) from e
 
         # Corrected f-string for length - splitting the message
-        msg = (
-            f"{info.field_name or 'field'}: Must be an int, float, or parsable string, "
-            f"got {type(v).__name__}"
-        )
-        raise TypeError(msg)
+        msg_part1 = f"{info.field_name or 'field'}: Must be an int, float, or parsable string,"
+        msg_part2 = f"got {type(v).__name__}"
+        raise TypeError(f"{msg_part1} {msg_part2}")
 
     @field_validator("asks", "bids", mode="before")
     @classmethod
@@ -173,9 +170,10 @@ class BackpackRawMarket(BaseModel):
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
 
+        # Initial list check is now handled by Pydantic and the type hint v: list[Any]
+
         validated_levels: list[tuple[str, str]] = []
         for item_index, item_raw in enumerate(v):
-            # Pyright cannot infer item_raw type here (reportUnknownVariableType)
             # Use TypeGuard to check if it's a sequence, then check length
             if not is_sequence_of_any(item_raw):
                 raise TypeError(
@@ -184,10 +182,11 @@ class BackpackRawMarket(BaseModel):
             # Now Pyright knows item_raw is a Sequence
             if len(item_raw) != 2:
                 # Corrected f-string and line length
-                raise ValueError(
+                msg = (
                     f"{field_name_for_msg}[{item_index}]: Must be a list/tuple of length 2 "
                     f"(price, quantity), got {len(item_raw)}."
                 )
+                raise ValueError(msg)
 
             # Access elements - Pyright should now know item_raw is indexable
             try:
@@ -198,17 +197,18 @@ class BackpackRawMarket(BaseModel):
                     f"{field_name_for_msg}[{item_index}]: IndexError accessing elements."
                 ) from None
 
-            # Validate Price (item[0])
-            # Use TypeGuard before checking type name
-            if not is_potential_decimal_input(price_input):
+            # Validate Price (item[0]) - Must be string convertible to finite non-negative Decimal
+            if not isinstance(price_input, str):  # ADD CHECK: Input must be string
                 raise TypeError(
-                    f"{field_name_for_msg}[{item_index}][0](price): Unsupported type "
+                    f"{field_name_for_msg}[{item_index}][0](price): Expected string, got "
                     f"{type(price_input).__name__}"
                 )
-            # Now Pyright knows price_input is str | int | float | Decimal
+            # Use TypeGuard before checking type name - Not needed after isinstance check
+            # if not is_potential_decimal_input(price_input):
+            #     raise TypeError(...)
             try:
                 price_str = validate_str_field(
-                    str(price_input),
+                    price_input,  # Pass original string
                     field_name=f"{field_name_for_msg}[{item_index}][0](price)",
                     max_length=64,
                     allow_empty=False,
@@ -226,17 +226,18 @@ class BackpackRawMarket(BaseModel):
                     f"'{price_input}': {e}"  # Use input value in error
                 ) from e
 
-            # Validate Quantity (item[1])
-            # Use TypeGuard before checking type name
-            if not is_potential_decimal_input(quantity_input):
+            # Validate Quantity (item[1]) - Must be string convertible to finite non-negative Decimal
+            if not isinstance(quantity_input, str):  # ADD CHECK: Input must be string
                 raise TypeError(
-                    f"{field_name_for_msg}[{item_index}][1](quantity): Unsupported type "
+                    f"{field_name_for_msg}[{item_index}][1](quantity): Expected string, got "
                     f"{type(quantity_input).__name__}"
                 )
-            # Now Pyright knows quantity_input is str | int | float | Decimal
+            # Use TypeGuard before checking type name - Not needed after isinstance check
+            # if not is_potential_decimal_input(quantity_input):
+            #     raise TypeError(...)
             try:
                 quantity_str = validate_str_field(
-                    str(quantity_input),
+                    quantity_input,  # Pass original string
                     field_name=f"{field_name_for_msg}[{item_index}][1](quantity)",
                     max_length=64,
                     allow_empty=False,
@@ -376,14 +377,13 @@ class BackpackRawOpenInterest(BaseModel):
         """Validate optional timestamp: allow int, float, ISO8601 str, or None."""
         if v is None:
             return None
+        field_name_val = info.field_name or "field"
         if isinstance(v, int | float):
             # DEFENSIVE CHECK: Ensure finiteness for floats. Mypy=[misc] Ruff=[none]
             if isinstance(v, float) and (math.isinf(v) or math.isnan(v)):
-                raise ValueError(
-                    f"{info.field_name or 'field'}: Float timestamp must be finite, got {v}"
-                )
+                raise ValueError(f"{field_name_val}: Float timestamp must be finite, got {v}")
             if v < 0:
-                raise ValueError(f"{info.field_name or 'field'}: Timestamp cannot be negative")
+                raise ValueError(f"{field_name_val}: Timestamp cannot be negative")
             return v
         if isinstance(v, str):
             # Try parsing as int first (common case for ms timestamps)
@@ -395,7 +395,7 @@ class BackpackRawOpenInterest(BaseModel):
                     return parsed_int
                 except ValueError as e:
                     raise ValueError(
-                        f"{info.field_name or 'field'}: Invalid integer timestamp string '{v}': {e}"
+                        f"{field_name_val}: Invalid integer timestamp string '{v}': {e}"
                     ) from e
             # Try parsing as datetime string
             try:
@@ -403,12 +403,11 @@ class BackpackRawOpenInterest(BaseModel):
                 return v  # Return original string if parsable
             except ValueError as e:
                 # Adjusted f-string for length
-                raise ValueError(
-                    f"{info.field_name or 'field'}: Invalid timestamp format '{v}': {e}"
-                ) from e
+                msg_part1 = f"{field_name_val}: Invalid timestamp format '{v}':"
+                raise ValueError(f"{msg_part1} {e}") from e
 
         raise TypeError(
-            f"{info.field_name or 'field'}: Must be an int, float, or parsable string, got {type(v).__name__}"
+            f"{field_name_val}: Must be an int, float, or parsable string, got {type(v).__name__}"
         )
 
 
@@ -440,9 +439,10 @@ class BackpackRawOrderBook(BaseModel):
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
 
+        # Initial list check is now handled by Pydantic and the type hint v: list[Any]
+
         validated_levels: list[tuple[str, str]] = []
         for item_index, item_raw in enumerate(v):
-            # Pyright cannot infer item_raw type here (reportUnknownVariableType)
             # Use TypeGuard to check if it's a sequence, then check length
             if not is_sequence_of_any(item_raw):
                 raise TypeError(
@@ -451,10 +451,11 @@ class BackpackRawOrderBook(BaseModel):
             # Now Pyright knows item_raw is a Sequence
             if len(item_raw) != 2:
                 # Corrected f-string and line length
-                raise ValueError(
+                msg = (
                     f"{field_name_for_msg}[{item_index}]: Must be a list/tuple of length 2 "
                     f"(price, quantity), got {len(item_raw)}."
                 )
+                raise ValueError(msg)
 
             # Access elements - Pyright should now know item_raw is indexable
             try:
@@ -465,18 +466,18 @@ class BackpackRawOrderBook(BaseModel):
                     f"{field_name_for_msg}[{item_index}]: IndexError accessing elements."
                 ) from None
 
-            # Validate Price String (convertibility, finite, non-negative)
-            # Use TypeGuard before checking type name
-            if not is_potential_decimal_input(price_input):
+            # Validate Price (item[0]) - Must be string convertible to finite non-negative Decimal
+            if not isinstance(price_input, str):  # ADD CHECK: Input must be string
                 raise TypeError(
-                    f"{field_name_for_msg}[{item_index}][0](price): Unsupported type "
+                    f"{field_name_for_msg}[{item_index}][0](price): Expected string, got "
                     f"{type(price_input).__name__}"
                 )
-            # Now Pyright knows price_input is str | int | float | Decimal
+            # Use TypeGuard before checking type name - Not needed after isinstance check
+            # if not is_potential_decimal_input(price_input):
+            #     raise TypeError(...)
             try:
-                # Validate basic structure/type first (must be convertible to str)
                 price_str = validate_str_field(
-                    str(price_input),
+                    price_input,  # Pass original string
                     field_name=f"{field_name_for_msg}[{item_index}][0](price)",
                     max_length=64,
                     allow_empty=False,
@@ -490,22 +491,22 @@ class BackpackRawOrderBook(BaseModel):
                     raise ValueError("Price cannot be negative.")
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{field_name_for_msg}[{item_index}][0](price): Invalid finite decimal string "
+                    f"{field_name_for_msg}[{item_index}][0](price): Invalid price value "
                     f"'{price_input}': {e}"  # Use input value in error
                 ) from e
 
-            # Validate Quantity String (convertibility, finite, non-negative)
-            # Use TypeGuard before checking type name
-            if not is_potential_decimal_input(quantity_input):
+            # Validate Quantity (item[1]) - Must be string convertible to finite non-negative Decimal
+            if not isinstance(quantity_input, str):  # ADD CHECK: Input must be string
                 raise TypeError(
-                    f"{field_name_for_msg}[{item_index}][1](quantity): Unsupported type "
+                    f"{field_name_for_msg}[{item_index}][1](quantity): Expected string, got "
                     f"{type(quantity_input).__name__}"
                 )
-            # Now Pyright knows quantity_input is str | int | float | Decimal
+            # Use TypeGuard before checking type name - Not needed after isinstance check
+            # if not is_potential_decimal_input(quantity_input):
+            #     raise TypeError(...)
             try:
-                # Validate basic structure/type first (must be convertible to str)
                 quantity_str = validate_str_field(
-                    str(quantity_input),
+                    quantity_input,  # Pass original string
                     field_name=f"{field_name_for_msg}[{item_index}][1](quantity)",
                     max_length=64,
                     allow_empty=False,
@@ -519,8 +520,8 @@ class BackpackRawOrderBook(BaseModel):
                     raise ValueError("Quantity cannot be negative.")
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{field_name_for_msg}[{item_index}][1](quantity): Invalid non-negative "
-                    f"finite decimal string '{quantity_input}': {e}"  # Use input value in error
+                    f"{field_name_for_msg}[{item_index}][1](quantity): Invalid quantity value "
+                    f"'{quantity_input}': {e}"  # Use input value in error
                 ) from e
 
             validated_levels.append((price_str, quantity_str))
@@ -606,35 +607,37 @@ class BackpackRawTickerEvent(BaseModel):
         """Validate optional event_time (int, float, or parsable string)."""
         if v is None:
             return None
-        field_name = info.field_name or "event_time"
+        field_name_val = info.field_name or "event_time"
 
         if isinstance(v, int | float):
             if isinstance(v, float) and (math.isinf(v) or math.isnan(v)):
-                raise ValueError("{field_name}: Numeric timestamp must be finite")
+                raise ValueError(f"{field_name_val}: Numeric timestamp must be finite")
             return v
         elif isinstance(v, str):
-            s = validate_str_field(v, field_name=field_name, allow_empty=False)
+            s = validate_str_field(v, field_name=field_name_val, allow_empty=False)
             try:
                 if s.isdigit():
                     return int(s)
                 val_float = float(s)
                 if math.isinf(val_float) or math.isnan(val_float):
-                    raise ValueError("{field_name}: Numeric timestamp string must be finite")
+                    raise ValueError(f"{field_name_val}: Numeric timestamp string must be finite")
                 return val_float
             except ValueError:
                 try:
-                    _ = parse_datetime_utc(s, field_name=field_name)
+                    _ = parse_datetime_utc(s, field_name=field_name_val)
                     return s
                 except ValueError as e:
                     # Break long line
-                    error_msg = (
-                        f"{field_name}: String timestamp '{s}' is not a valid number "
-                        f"or ISO-like format: {e}"
+                    error_msg_part1 = (
+                        f"{field_name_val}: String timestamp '{s}' is not a valid number "
                     )
-                    raise ValueError(error_msg) from e
+                    error_msg_part2 = f"or ISO-like format: {e}"
+                    raise ValueError(f"{error_msg_part1}{error_msg_part2}") from e
         else:
             # Break long line
-            error_msg = "{field_name}: Invalid type {type(v)}, expected int, float, or string"
+            error_msg = (
+                f"{field_name_val}: Invalid type {type(v).__name__}, expected int, float, or string"
+            )
             raise ValueError(error_msg)
 
 
@@ -660,9 +663,10 @@ class BackpackRawDepthUpdateEvent(BaseModel):
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
 
+        # Initial list check is now handled by Pydantic and the type hint v: list[Any]
+
         validated_levels: list[tuple[str, str]] = []
         for item_index, item_raw in enumerate(v):
-            # Pyright cannot infer item_raw type here (reportUnknownVariableType)
             # Use TypeGuard to check if it's a sequence, then check length
             if not is_sequence_of_any(item_raw):
                 raise TypeError(
@@ -671,10 +675,11 @@ class BackpackRawDepthUpdateEvent(BaseModel):
             # Now Pyright knows item_raw is a Sequence
             if len(item_raw) != 2:
                 # Corrected f-string and line length
-                raise ValueError(
+                msg = (
                     f"{field_name_for_msg}[{item_index}]: Must be a list/tuple of length 2 "
                     f"(price, quantity), got {len(item_raw)}."
                 )
+                raise ValueError(msg)
 
             # Access elements - Pyright should now know item_raw is indexable
             try:
@@ -685,18 +690,18 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                     f"{field_name_for_msg}[{item_index}]: IndexError accessing elements."
                 ) from None
 
-            # Validate Price String (convertibility, finite, non-negative)
-            # Use TypeGuard before checking type name
-            if not is_potential_decimal_input(price_input):
+            # Validate Price (item[0]) - Must be string convertible to finite non-negative Decimal
+            if not isinstance(price_input, str):  # ADD CHECK: Input must be string
                 raise TypeError(
-                    f"{field_name_for_msg}[{item_index}][0](price): Unsupported type "
+                    f"{field_name_for_msg}[{item_index}][0](price): Expected string, got "
                     f"{type(price_input).__name__}"
                 )
-            # Now Pyright knows price_input is str | int | float | Decimal
+            # Use TypeGuard before checking type name - Not needed after isinstance check
+            # if not is_potential_decimal_input(price_input):
+            #     raise TypeError(...)
             try:
-                # Validate basic structure/type first (must be convertible to str)
                 price_str = validate_str_field(
-                    str(price_input),
+                    price_input,  # Pass original string
                     field_name=f"{field_name_for_msg}[{item_index}][0](price)",
                     max_length=64,
                     allow_empty=False,
@@ -710,22 +715,22 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                     raise ValueError("Price cannot be negative.")
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{field_name_for_msg}[{item_index}][0](price): Invalid finite decimal string "
+                    f"{field_name_for_msg}[{item_index}][0](price): Invalid price value "
                     f"'{price_input}': {e}"  # Use input value in error
                 ) from e
 
-            # Validate Quantity String (convertibility, finite, non-negative)
-            # Use TypeGuard before checking type name
-            if not is_potential_decimal_input(quantity_input):
+            # Validate Quantity (item[1]) - Must be string convertible to finite non-negative Decimal
+            if not isinstance(quantity_input, str):  # ADD CHECK: Input must be string
                 raise TypeError(
-                    f"{field_name_for_msg}[{item_index}][1](quantity): Unsupported type "
+                    f"{field_name_for_msg}[{item_index}][1](quantity): Expected string, got "
                     f"{type(quantity_input).__name__}"
                 )
-            # Now Pyright knows quantity_input is str | int | float | Decimal
+            # Use TypeGuard before checking type name - Not needed after isinstance check
+            # if not is_potential_decimal_input(quantity_input):
+            #     raise TypeError(...)
             try:
-                # Validate basic structure/type first (must be convertible to str)
                 quantity_str = validate_str_field(
-                    str(quantity_input),
+                    quantity_input,  # Pass original string
                     field_name=f"{field_name_for_msg}[{item_index}][1](quantity)",
                     max_length=64,
                     allow_empty=False,
@@ -739,8 +744,8 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                     raise ValueError("Quantity cannot be negative.")
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{field_name_for_msg}[{item_index}][1](quantity): Invalid non-negative "
-                    f"finite decimal string '{quantity_input}': {e}"  # Use input value in error
+                    f"{field_name_for_msg}[{item_index}][1](quantity): Invalid quantity value "
+                    f"'{quantity_input}': {e}"  # Use input value in error
                 ) from e
 
             validated_levels.append((price_str, quantity_str))
@@ -771,14 +776,13 @@ class BackpackRawDepthUpdateEvent(BaseModel):
         """Validate optional timestamp: allow int, float, ISO8601 str, or None."""
         if v is None:
             return None
+        field_name_val = info.field_name or "field"
         if isinstance(v, int | float):
             # DEFENSIVE CHECK: Ensure finiteness for floats. Mypy=[misc] Ruff=[none]
             if isinstance(v, float) and (math.isinf(v) or math.isnan(v)):
-                raise ValueError(
-                    f"{info.field_name or 'field'}: Float timestamp must be finite, got {v}"
-                )
+                raise ValueError(f"{field_name_val}: Float timestamp must be finite, got {v}")
             if v < 0:
-                raise ValueError(f"{info.field_name or 'field'}: Timestamp cannot be negative")
+                raise ValueError(f"{field_name_val}: Timestamp cannot be negative")
             return v
         if isinstance(v, str):
             # Try parsing as int first (common case for ms timestamps)
@@ -790,7 +794,7 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                     return parsed_int
                 except ValueError as e:
                     raise ValueError(
-                        f"{info.field_name or 'field'}: Invalid integer timestamp string '{v}': {e}"
+                        f"{field_name_val}: Invalid integer timestamp string '{v}': {e}"
                     ) from e
             # Try parsing as datetime string
             try:
@@ -798,11 +802,9 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                 return v  # Return original string if parsable
             except ValueError as e:
                 # Adjusted f-string for length
-                raise ValueError(
-                    f"{info.field_name or 'field'}: Invalid timestamp format '{v}': {e}"
-                ) from e
+                msg_part1 = f"{field_name_val}: Invalid timestamp format '{v}':"
+                raise ValueError(f"{msg_part1} {e}") from e
 
         raise TypeError(
-            f"{info.field_name or 'field'}: Must be an int, float, or parsable string, "
-            f"got {type(v).__name__}"
+            f"{field_name_val}: Must be an int, float, or parsable string, got {type(v).__name__}"
         )

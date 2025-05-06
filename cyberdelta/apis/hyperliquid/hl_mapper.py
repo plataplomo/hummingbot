@@ -1,6 +1,22 @@
 """
-HyperliquidOrderMapper: Maps validated Hyperliquid raw order models to
-CyberDeltaEngine's internal Order model.
+CyberDeltaEngine: Hyperliquid API Data Mapper
+-------------------------------------------
+
+This module provides functions to map raw Hyperliquid API response models
+(from `cyberdelta.apis.hyperliquid.models`) to the internal CyberDeltaEngine
+domain models (from `cyberdelta.core.models`).
+
+Responsibilities:
+- Type Conversion: Convert raw types (strings, ints) to internal types (Decimal, datetime, Enums).
+- Field Renaming: Map API field names (e.g., `totalSz`) to internal names (e.g., `quantity_requested`).
+- Enum Mapping: Convert API status/type strings (e.g., "B") to internal enums (e.g., OrderSide.BUY).
+- Data Transformation: Perform necessary calculations (e.g., calculating filled quantity).
+- Error Handling: Gracefully handle potential parsing errors, logging issues, and returning
+  appropriate types (e.g., None for optional fields, default values).
+
+Usage:
+These mappers are used by the Hyperliquid API client implementation after validating the raw
+API response against the strict Raw Pydantic models.
 """
 
 import logging
@@ -18,7 +34,6 @@ from cyberdelta.apis.hyperliquid.hl_api_error import (
     HyperliquidAPIErrorCategory,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_error import HyperliquidRawApiError
-from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import HyperliquidRawCandle
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
@@ -57,7 +72,10 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.parsing import (
+    parse_datetime_utc,
+    parse_decimal_value,
+)
 
 from .models.hl_raw_fill import HyperliquidRawFill
 
@@ -189,7 +207,7 @@ class HyperliquidOrderMapper:
             reduce_only=raw.reduce_only,
             post_only=(time_in_force == TimeInForce.ALO),
             created_at=created_at,
-            updated_at=updated_at,
+            updated_at=updated_at or created_at,  # Default updated_at to created_at if None
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
@@ -803,51 +821,6 @@ class HyperliquidMapper:
             bp_details=None,  # No backpack details for HL fills
         )
 
-    @staticmethod
-    def transform_raw_candle_to_internal(
-        symbol: str, interval: str, raw: HyperliquidRawCandle
-    ) -> Candle | None:
-        """
-        Transforms a validated HyperliquidRawCandle object into an internal Candle object.
-
-        Returns None if any required OHLCV value fails parsing or is invalid.
-        """
-        # Parse Decimal values, handling potential None
-        open_price = parse_decimal_value(raw.o, field_name=f"{symbol}:{interval}:open")
-        high_price = parse_decimal_value(raw.h, field_name=f"{symbol}:{interval}:high")
-        # Corrected: Access renamed field low_price
-        low_price = parse_decimal_value(raw.low_price, field_name=f"{symbol}:{interval}:low")
-        close_price = parse_decimal_value(raw.c, field_name=f"{symbol}:{interval}:close")
-        volume = parse_decimal_value(raw.v, field_name=f"{symbol}:{interval}:volume")
-
-        # Convert timestamp (ms) to datetime
-        open_time_dt = datetime.fromtimestamp(raw.t / 1000, tz=UTC)
-
-        # Ensure all required fields are not None before creating Candle
-        if (
-            open_price is None
-            or high_price is None
-            or low_price is None
-            or close_price is None
-            or volume is None
-        ):
-            logger.warning(f"Skipping candle due to missing required price/volume field: {raw}")
-            return None
-
-        return Candle(
-            symbol=symbol,
-            interval=interval,
-            open_time=open_time_dt,
-            open=open_price,
-            high=high_price,
-            low=low_price,  # Pass corrected low_price
-            close=close_price,
-            volume=volume,
-            # Timestamp and num trades are part of Candle, but likely set via attributes
-            # or handled differently, not direct constructor args typically.
-            # Reverted incorrect additions from previous edit.
-        )
-
 
 # --- Additional Hyperliquid Mappers ---
 
@@ -949,27 +922,31 @@ class HyperliquidCandleMapper:
         n = len(raw.t)
         for i in range(n):
             try:
-                open_time = parse_datetime_utc(raw.t[i], field_name="open_time")
+                # Use parse_datetime_utc for millisecond timestamp
+                open_time_dt = parse_datetime_utc(raw.t[i], field_name="open_time")
                 open_ = parse_decimal_value(raw.o[i], allow_none=False, field_name="open")
                 high = parse_decimal_value(raw.h[i], allow_none=False, field_name="high")
-                low = parse_decimal_value(raw.low[i], allow_none=False, field_name="low")
+                low = parse_decimal_value(raw.l[i], allow_none=False, field_name="low")
                 close = parse_decimal_value(raw.c[i], allow_none=False, field_name="close")
                 volume = parse_decimal_value(raw.v[i], allow_none=False, field_name="volume")
-                if None in (open_time, open_, high, low, close, volume):
+
+                if None in (open_time_dt, open_, high, low, close, volume):
                     logger.warning(f"Skipping candle at index {i} due to None value(s)")
                     continue
-                # DEFENSIVE CHECK: All values checked above for None.
-                # Mypy=[arg-type] Ruff=[arg-type]
-                assert open_time is not None
+
+                # Ensure Non-None after check for MyPy
+                assert open_time_dt is not None
                 assert open_ is not None
                 assert high is not None
                 assert low is not None
                 assert close is not None
                 assert volume is not None
+
+                # Correct argument name: use open_time
                 candle = Candle(
                     symbol=symbol,
                     interval=interval,
-                    open_time=open_time,
+                    open_time=open_time_dt,
                     open=open_,
                     high=high,
                     low=low,
@@ -1097,3 +1074,80 @@ class HyperliquidApiErrorMapper:
     def map(raw: dict[str, Any]) -> Exception:
         # TODO: Implement error mapping logic
         return Exception("Unmapped Hyperliquid API error: " + str(raw))
+
+
+def map_raw_candle_snapshot_to_candles(
+    raw_candle_snapshot: HyperliquidRawCandleSnapshot,
+    symbol: str,
+    interval: str,
+) -> list[Candle]:
+    """Maps a raw candle snapshot (list-based) to a list of internal Candle models."""
+    candles: list[Candle] = []
+    if raw_candle_snapshot.s != "ok":
+        logger.warning(
+            f"Received non-ok status in candle snapshot for {symbol} "
+            f"{interval}: {raw_candle_snapshot.s}"
+        )
+        return candles
+
+    if not raw_candle_snapshot.t:
+        logger.warning(f"Received empty candle lists in snapshot for {symbol} {interval}")
+        return candles
+
+    list_len = len(raw_candle_snapshot.t)
+    for i in range(list_len):
+        try:
+            # Use parse_datetime_utc for millisecond timestamp
+            timestamp = parse_datetime_utc(
+                raw_candle_snapshot.t[i], field_name=f"raw_candle_snapshot.t[{i}]"
+            )
+            open_price = parse_decimal_value(
+                raw_candle_snapshot.o[i], field_name=f"raw_candle_snapshot.o[{i}]", allow_none=False
+            )
+            high_price = parse_decimal_value(
+                raw_candle_snapshot.h[i], field_name=f"raw_candle_snapshot.h[{i}]", allow_none=False
+            )
+            low_price = parse_decimal_value(
+                raw_candle_snapshot.l[i], field_name=f"raw_candle_snapshot.l[{i}]", allow_none=False
+            )
+            close_price = parse_decimal_value(
+                raw_candle_snapshot.c[i], field_name=f"raw_candle_snapshot.c[{i}]", allow_none=False
+            )
+            volume = parse_decimal_value(
+                raw_candle_snapshot.v[i], field_name=f"raw_candle_snapshot.v[{i}]", allow_none=False
+            )
+
+            if (
+                timestamp is None
+                or open_price is None
+                or high_price is None
+                or low_price is None
+                or close_price is None
+                or volume is None
+            ):
+                raise ValueError("Parsing resulted in None unexpectedly")
+            if not all(
+                d.is_finite() for d in [open_price, high_price, low_price, close_price, volume]
+            ):
+                raise ValueError("Parsed decimal value is not finite")
+
+            # Correct argument name: use open_time
+            candle = Candle(
+                symbol=symbol,
+                interval=interval,
+                open_time=timestamp,  # Map timestamp to open_time
+                open=open_price,
+                high=high_price,
+                low=low_price,
+                close=close_price,
+                volume=volume,
+            )
+            candles.append(candle)
+        except (IndexError, ValueError, TypeError) as e:
+            logger.error(
+                f"Error mapping raw candle at index {i} for {symbol} {interval}: {e}",
+                exc_info=True,
+            )
+            continue
+
+    return candles
