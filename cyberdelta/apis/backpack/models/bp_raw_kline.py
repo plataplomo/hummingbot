@@ -69,9 +69,8 @@ class BackpackRawKline(BaseModel):
         if not isinstance(data, list | tuple):
             raise TypeError(f"Expected list or tuple input, got {type(data).__name__}")
 
-        # --- Pyright Fix Attempt ---
-        # Add runtime length check *before* trying to access length for error message,
-        # and provide a more specific type hint after length validation.
+        # --- Pyright Fix Attempt Reverted ---
+        # Check length after confirming type. Add comment for Pyright limitation.
         try:
             # PYRIGHT: reportUnknownArgumentType - Acceptable: `data` confirmed
             # list/tuple by isinstance, but element types unknown pre-validation.

@@ -221,19 +221,21 @@ class BackpackRawOrderBook(BaseModel):
             # Use Any type hint for item_raw and rely on runtime checks
             item: Any = item_raw
             # This check ensures 'item' is indexable before accessing elements.
+            # Use standard isinstance check
             if not isinstance(item, list | tuple):
                 raise ValueError(f"{current_item_desc}: Must be a list or tuple")
             # DEFENSIVE CHECK: Runtime check ensures item is sized before element access.
             # Pyright complains arg-type is partially unknown, Mypy is OK.
-            # Providing specific tuple hint after length check.
+            # Add comment acknowledging Pyright limitation.
+            # PYRIGHT: reportUnknownArgumentType - Acceptable: `item` confirmed sequence
+            # by isinstance, but element types unknown pre-validation.
             if len(item) != 2:
-                # PYRIGHT: reportUnknownArgumentType - Acceptable: `item` confirmed sequence
-                # by isinstance, but element types unknown pre-validation.
+                # PYRIGHT: reportUnknownArgumentType - Acceptable: Re-checking length for message
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 "
                     f"(price, quantity), got {len(item)}"
                 )
-            # Hint as sequence of two objects after length check
+            # Hint as sequence of two objects after length check (Keep this part)
             typed_item: list[object] | tuple[object, object] = item
 
             # Runtime checks above ensure item is indexable
@@ -430,20 +432,22 @@ class BackpackRawDepthUpdateEvent(BaseModel):
             # Use Any type hint for item_raw and rely on runtime checks
             item: Any = item_raw
             # This check ensures 'item' is indexable before accessing elements.
+            # Use standard isinstance check
             if not isinstance(item, list | tuple):
                 raise ValueError(f"{current_item_desc}: Must be a list or tuple")
 
             # DEFENSIVE CHECK: Runtime check ensures item is sized before element access.
             # Pyright complains arg-type is partially unknown, Mypy is OK.
-            # Providing specific tuple hint after length check.
+            # Add comment acknowledging Pyright limitation.
+            # PYRIGHT: reportUnknownArgumentType - Acceptable: `item` confirmed sequence
+            # by isinstance, but element types unknown pre-validation.
             if len(item) != 2:
-                # PYRIGHT: reportUnknownArgumentType - Acceptable: `item` confirmed sequence
-                # by isinstance, but element types unknown pre-validation.
+                # PYRIGHT: reportUnknownArgumentType - Acceptable: Re-checking length for message
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 "
                     f"(price, quantity), got {len(item)}"
                 )
-            # Hint as sequence of two objects after length check
+            # Hint as sequence of two objects after length check (Keep this part)
             typed_item: list[object] | tuple[object, object] = item
 
             # Runtime checks above ensure item is indexable
