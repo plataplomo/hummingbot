@@ -25,9 +25,11 @@ robustness and security at the data ingestion boundary.
 
 import logging
 import math
+from decimal import Decimal  # Ensure Decimal is imported
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic_core import PydanticCustomError
 
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
@@ -52,16 +54,174 @@ class BackpackRawMarket(BaseModel):
         quote_asset (str): Quote asset symbol.
     """
 
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
     symbol: str = Field(..., alias="symbol", max_length=64)
     base_asset: str = Field(..., alias="baseAsset", max_length=64)
     quote_asset: str = Field(..., alias="quoteAsset", max_length=64)
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
+
+    quantity_precision: int = Field(..., alias="quantityPrecision")
+    price_precision: int = Field(..., alias="pricePrecision")
+
+    min_trade_quantity: Decimal = Field(..., alias="minTradeQuantity")
+    max_trade_quantity: Decimal = Field(..., alias="maxTradeQuantity")
+    min_trade_price: Decimal = Field(..., alias="minTradePrice")
+    max_trade_price: Decimal = Field(..., alias="maxTradePrice")
+    min_order_book_quantity: Decimal = Field(..., alias="minOrderBookQuantity")
+
+    # Book Depth related (assuming part of Market data)
+    bids: list[tuple[str, str]] = Field(..., alias="bids")
+    asks: list[tuple[str, str]] = Field(..., alias="asks")
+    last_update_time: int = Field(..., alias="lastUpdateTime")
+
+    # --- Validators for Raw Structure/Types ---
 
     @field_validator("symbol", "base_asset", "quote_asset", mode="before")
     @classmethod
-    def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = getattr(info, "field_name", None) or "field"
+    def validate_raw_strings(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "unknown_field"
         return validate_str_field(v, field_name=field_name, max_length=64)
+
+    @field_validator("quantity_precision", "price_precision", mode="before")
+    @classmethod
+    def validate_raw_int(cls, v: object, info: ValidationInfo) -> int:
+        field_name = info.field_name or "unknown_field"
+        if not isinstance(v, int):
+            if isinstance(v, str) and v.isdigit():
+                try:
+                    parsed_int = int(v)
+                    if parsed_int < 0:
+                        raise ValueError("Integer precision cannot be negative")
+                    return parsed_int
+                except ValueError as e:
+                    error_msg = f"{field_name}: Invalid integer string '{v}': {e}"
+                    raise PydanticCustomError("value_error", error_msg, {"value": v}) from e
+            error_msg = f"{field_name}: Must be an integer, got {type(v).__name__}"
+            raise PydanticCustomError("int_type", error_msg)
+        if v < 0:
+            error_msg = f"{field_name}: Integer precision cannot be negative"
+            raise PydanticCustomError("value_error", error_msg)
+        return v
+
+    @field_validator(
+        "min_trade_quantity",
+        "max_trade_quantity",
+        "min_trade_price",
+        "max_trade_price",
+        "min_order_book_quantity",
+        mode="before",
+    )
+    @classmethod
+    def validate_raw_decimal_str(cls, v: object, info: ValidationInfo) -> Decimal:
+        field_name = info.field_name or "unknown_field"
+        raw_str = validate_str_field(v, field_name=field_name, max_length=64)
+        try:
+            dec_val = parse_decimal_value(raw_str, allow_none=False)
+            if dec_val is None:
+                raise ValueError("parse_decimal_value returned None unexpectedly")
+            if not dec_val.is_finite():
+                raise ValueError("Decimal value must be finite")
+            if (
+                info.field_name
+                in [
+                    "min_trade_quantity",
+                    "max_trade_quantity",
+                    "min_order_book_quantity",
+                ]
+                and dec_val < 0
+            ):
+                raise ValueError("Quantity/Size related fields cannot be negative")
+            if info.field_name == "min_trade_price" and dec_val < 0:
+                raise ValueError("Minimum price cannot be negative")
+            return dec_val
+        except (ValueError, TypeError) as e:
+            error_msg = f"{field_name}: Invalid decimal string '{v}': {e}"
+            raise PydanticCustomError("value_error", error_msg, {"value": v}) from e
+
+    @field_validator("last_update_time", mode="before")
+    @classmethod
+    def validate_raw_timestamp_int(cls, v: object, info: ValidationInfo) -> int:
+        field_name = info.field_name or "unknown_field"
+        if isinstance(v, int):
+            if v < 0:
+                error_msg = f"{field_name}: Timestamp cannot be negative"
+                raise PydanticCustomError("value_error", error_msg)
+            return v
+        elif isinstance(v, str) and v.isdigit():
+            try:
+                parsed_int = int(v)
+                if parsed_int < 0:
+                    raise ValueError("Timestamp cannot be negative")
+                return parsed_int
+            except ValueError as e:
+                error_msg = f"{field_name}: Invalid integer timestamp string '{v}': {e}"
+                raise PydanticCustomError("value_error", error_msg, {"value": v}) from e
+
+        error_msg = f"{field_name}: Must be an integer or digit string, got {type(v).__name__}"
+        raise PydanticCustomError("int_type", error_msg)
+
+    @field_validator("asks", "bids", mode="before")
+    @classmethod
+    def validate_levels(cls, v: object, info: ValidationInfo) -> list[tuple[str, str]]:
+        field_name = info.field_name or "unknown_field"
+        if not isinstance(v, list):
+            raise ValueError(f"{field_name}: Must be a list of [price_str, quantity_str] pairs.")
+
+        raw_list: list[Any] = v
+        validated_levels: list[tuple[str, str]] = []
+
+        for i, item_raw in enumerate(raw_list):
+            current_item_desc = f"{field_name}[{i}]"
+            item: Any = item_raw
+            if not isinstance(item, list | tuple):
+                raise ValueError(f"{current_item_desc}: Must be a list or tuple")
+            if len(item) != 2:
+                raise ValueError(
+                    f"{current_item_desc}: Must be a list/tuple of length 2 "
+                    f"(price, quantity), got {len(item)}"
+                )
+            price_raw: Any = item[0]
+            quantity_raw: Any = item[1]
+            try:
+                if not isinstance(price_raw, str | int | float | Decimal):
+                    raise TypeError(f"Unsupported type {type(price_raw).__name__}")
+                price_str = validate_str_field(
+                    str(price_raw),
+                    field_name=f"{current_item_desc}[0](price)",
+                    max_length=64,
+                    allow_empty=False,
+                )
+                price_dec = parse_decimal_value(price_str, allow_none=False)
+                if price_dec is None:
+                    raise ValueError("Price parsing unexpectedly returned None.")
+                if not price_dec.is_finite():
+                    raise ValueError("Price must be finite.")
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"{current_item_desc}[0](price): Invalid finite decimal value "
+                    f"'{price_raw}'. {e}"
+                ) from e
+            try:
+                if not isinstance(quantity_raw, str | int | float | Decimal):
+                    raise TypeError(f"Unsupported type {type(quantity_raw).__name__}")
+                quantity_str = validate_str_field(
+                    str(quantity_raw),
+                    field_name=f"{current_item_desc}[1](quantity)",
+                    max_length=64,
+                    allow_empty=False,
+                )
+                quantity_dec = parse_decimal_value(quantity_str, allow_none=False)
+                if quantity_dec is None:
+                    raise ValueError("Quantity parsing unexpectedly returned None.")
+                if not quantity_dec.is_finite() or quantity_dec < 0:
+                    raise ValueError("Quantity must be finite and non-negative.")
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"{current_item_desc}[1](quantity): Invalid non-negative finite "
+                    f"decimal value '{quantity_raw}'. {e}"
+                ) from e
+            validated_levels.append((price_str, quantity_str))
+        return validated_levels
 
 
 class BackpackRawTicker(BaseModel):
@@ -198,18 +358,19 @@ class BackpackRawOrderBook(BaseModel):
         Ensures:
             - Input `v` is a list.
             - Each item in `v` is a list/tuple of exactly 2 elements.
-            - Both elements are non-empty strings (max_length=64).
+            - Both elements are potentially strings/numbers convertible to non-empty strings (max_length=64).
             - Both elements parse to finite Decimals.
             - Quantity string parses to a non-negative Decimal.
 
         Returns:
-            List[Tuple[str, str]]: The validated list of string pairs.
+            List[Tuple[str, str]]: The validated list of string pairs, ready for Pydantic's list[tuple[str, str]] parsing.
 
         Raises:
             ValueError: If validation fails at any step.
         """
         field_name = info.field_name
         if not isinstance(v, list):
+            # Pydantic v2 might handle this, but explicit check is safer for raw boundary
             raise ValueError(f"{field_name}: Must be a list of [price_str, quantity_str] pairs.")
 
         raw_list: list[Any] = v
@@ -218,71 +379,72 @@ class BackpackRawOrderBook(BaseModel):
         for i, item_raw in enumerate(raw_list):
             current_item_desc = f"{field_name}[{i}]"
             # Check item structure
-            # Use Any type hint for item_raw and rely on runtime checks
-            item: Any = item_raw
-            # This check ensures 'item' is indexable before accessing elements.
-            # Use standard isinstance check
+            item: Any = item_raw  # Keep item as Any, as element types are truly unknown
+
+            # Use standard isinstance check for list or tuple container
             if not isinstance(item, list | tuple):
                 raise ValueError(f"{current_item_desc}: Must be a list or tuple")
-            # DEFENSIVE CHECK: Runtime check ensures item is sized before element access.
-            # Pyright complains arg-type is partially unknown, Mypy is OK.
-            # Add comment acknowledging Pyright limitation.
-            # PYRIGHT: reportUnknownArgumentType - Acceptable: `item` confirmed sequence
-            # by isinstance, but element types unknown pre-validation.
+
+            # Basic length check after type confirmation
+            # Pyright error here is likely unavoidable without cast/ignore
             if len(item) != 2:
-                # PYRIGHT: reportUnknownArgumentType - Acceptable: Re-checking length for message
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 "
                     f"(price, quantity), got {len(item)}"
                 )
-            # Hint as sequence of two objects after length check (Keep this part)
-            typed_item: list[object] | tuple[object, object] = item
 
-            # Runtime checks above ensure item is indexable
-            price_raw: Any = typed_item[0]
-            quantity_raw: Any = typed_item[1]
+            # We don't hint item as Sequence[Any] here as it didn't help Pyright
+            # Indexing into 'item' directly, acknowledging Pyright might infer Any
+            price_raw: Any = item[0]
+            quantity_raw: Any = item[1]
 
-            # Validate Price String
+            # Validate Price String (convertibility & finite)
             try:
+                # Validate basic structure/type first (must be convertible to str)
+                if not isinstance(price_raw, str | int | float | Decimal):
+                    raise TypeError(f"Unsupported type {type(price_raw).__name__}")
                 price_str = validate_str_field(
-                    price_raw,
+                    str(price_raw),  # Convert to string before validation
                     field_name=f"{current_item_desc}[0](price)",
                     max_length=64,
                     allow_empty=False,
                 )
                 price_dec = parse_decimal_value(price_str, allow_none=False)
-                # Add explicit check for None before is_finite
                 if price_dec is None:
-                    raise ValueError("Price parsing unexpectedly returned None.")
+                    raise ValueError("Price parsing unexpectedly returned None.")  # Defensive
                 if not price_dec.is_finite():
                     raise ValueError("Price must be finite.")
             except (ValueError, TypeError) as e:
                 raise ValueError(
-                    f"{current_item_desc}[0](price): Invalid finite decimal string "
+                    f"{current_item_desc}[0](price): Invalid finite decimal value "
                     f"'{price_raw}'. {e}"
                 ) from e
 
-            # Validate Quantity String
+            # Validate Quantity String (convertibility, finite, non-negative)
             try:
+                # Validate basic structure/type first (must be convertible to str)
+                if not isinstance(quantity_raw, str | int | float | Decimal):
+                    raise TypeError(f"Unsupported type {type(quantity_raw).__name__}")
                 quantity_str = validate_str_field(
-                    quantity_raw,
+                    str(quantity_raw),  # Convert to string before validation
                     field_name=f"{current_item_desc}[1](quantity)",
                     max_length=64,
                     allow_empty=False,
                 )
                 quantity_dec = parse_decimal_value(quantity_str, allow_none=False)
-                # Add explicit check for None before is_finite and comparison
                 if quantity_dec is None:
-                    raise ValueError("Quantity parsing unexpectedly returned None.")
+                    raise ValueError("Quantity parsing unexpectedly returned None.")  # Defensive
                 if not quantity_dec.is_finite() or quantity_dec < 0:
                     raise ValueError("Quantity must be finite and non-negative.")
             except (ValueError, TypeError) as e:
                 raise ValueError(
                     f"{current_item_desc}[1](quantity): Invalid non-negative finite "
-                    f"decimal string '{quantity_raw}'. {e}"
+                    f"decimal value '{quantity_raw}'. {e}"
                 ) from e
 
             validated_levels.append((price_str, quantity_str))
+        # Return the list of string tuples, Pydantic will handle final conversion
+        # to the model's list[tuple[str, str]] type hint.
         return validated_levels
 
     @field_validator("last_update_id", mode="before")
@@ -385,14 +547,16 @@ class BackpackRawTickerEvent(BaseModel):
                     _ = parse_datetime_utc(s, field_name=field_name)
                     return s
                 except ValueError as e:
-                    raise ValueError(
+                    # Break long line
+                    error_msg = (
                         f"{field_name}: String timestamp '{s}' is not a valid number "
                         f"or ISO-like format: {e}"
-                    ) from e
+                    )
+                    raise ValueError(error_msg) from e
         else:
-            raise ValueError(
-                f"{field_name}: Invalid type {type(v)}, expected int, float, or string"
-            )
+            # Break long line
+            error_msg = f"{field_name}: Invalid type {type(v)}, expected int, float, or string"
+            raise ValueError(error_msg)
 
 
 class BackpackRawDepthUpdateEvent(BaseModel):
@@ -429,28 +593,21 @@ class BackpackRawDepthUpdateEvent(BaseModel):
         for i, item_raw in enumerate(raw_list):
             current_item_desc = f"{field_name}[{i}]"
             # Check item structure
-            # Use Any type hint for item_raw and rely on runtime checks
             item: Any = item_raw
-            # This check ensures 'item' is indexable before accessing elements.
             # Use standard isinstance check
             if not isinstance(item, list | tuple):
                 raise ValueError(f"{current_item_desc}: Must be a list or tuple")
 
-            # DEFENSIVE CHECK: Runtime check ensures item is sized before element access.
-            # Pyright complains arg-type is partially unknown, Mypy is OK.
-            # Add comment acknowledging Pyright limitation.
-            # PYRIGHT: reportUnknownArgumentType - Acceptable: `item` confirmed sequence
-            # by isinstance, but element types unknown pre-validation.
+            # Basic length check after type confirmation
             if len(item) != 2:
-                # PYRIGHT: reportUnknownArgumentType - Acceptable: Re-checking length for message
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 "
                     f"(price, quantity), got {len(item)}"
                 )
-            # Hint as sequence of two objects after length check (Keep this part)
+            # Standard hint
             typed_item: list[object] | tuple[object, object] = item
 
-            # Runtime checks above ensure item is indexable
+            # Indexing with typed_item
             price_raw: Any = typed_item[0]
             quantity_raw: Any = typed_item[1]
 
@@ -542,11 +699,13 @@ class BackpackRawDepthUpdateEvent(BaseModel):
                     _ = parse_datetime_utc(s, field_name=field_name)
                     return s
                 except ValueError as e:
-                    raise ValueError(
+                    # Break long line
+                    error_msg = (
                         f"{field_name}: String timestamp '{s}' is not a valid number "
                         f"or ISO-like format: {e}"
-                    ) from e
+                    )
+                    raise ValueError(error_msg) from e
         else:
-            raise ValueError(
-                f"{field_name}: Invalid type {type(v)}, expected int, float, or string"
-            )
+            # Break long line
+            error_msg = f"{field_name}: Invalid type {type(v)}, expected int, float, or string"
+            raise ValueError(error_msg)

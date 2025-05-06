@@ -49,8 +49,9 @@ __all__ = [
 # Get logger instance for this module
 logger = logging.getLogger(__name__)
 
-# Type hint for WebSocket message handlers
-MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
+# Use `type` keyword for type aliases (PEP 695)
+type MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
+type ParsedJsonResponse = dict[str, Any] | list[Any] | str
 
 
 class ExchangeAPI(ABC):
@@ -154,11 +155,12 @@ class ExchangeAPI(ABC):
 
         for endpoint, config_dict_raw in endpoints.items():
             endpoint_str = str(endpoint)
+            # Check that config_dict_raw is actually a dict before using .get
             if isinstance(config_dict_raw, dict):
-                # Explicitly handle potential None from .get before float/int conversion
-                rate_raw: Any = config_dict_raw.get("rate", default_rate)
+                # Ensure type checker knows config_dict_raw is a dict here
+                config_dict: dict[str, Any] = config_dict_raw
+                rate_raw: Any = config_dict.get("rate", default_rate)
                 rate: float = default_rate
-                # Corrected UP038
                 if isinstance(rate_raw, int | float | str):
                     try:
                         rate = float(rate_raw)
@@ -172,11 +174,11 @@ class ExchangeAPI(ABC):
                         f"[{exchange_name}] Invalid type for 'rate' ({type(rate_raw)}) "
                         f"for endpoint '{endpoint_str}'. Using default {rate}."
                     )
-                # else: rate_raw is None, use default_rate
 
-                bucket_raw: Any = config_dict_raw.get("bucket_size", default_bucket)
+                # Ensure type checker knows config_dict_raw is a dict here
+                config_dict_typed: dict[str, Any] = config_dict_raw
+                bucket_raw: Any = config_dict_typed.get("bucket_size", default_bucket)
                 bucket: int = default_bucket
-                # Corrected UP038
                 if isinstance(bucket_raw, int | str):
                     try:
                         bucket = int(bucket_raw)
@@ -187,12 +189,11 @@ class ExchangeAPI(ABC):
                             f"[{exchange_name}] Could not convert 'bucket_size' for endpoint "
                             f"'{endpoint_str}': {bucket_raw}. Using default {bucket}."
                         )
-                elif bucket_raw is not None:  # Log if not convertible type and not None
+                elif bucket_raw is not None:
                     logger.warning(
                         f"[{exchange_name}] Invalid type for 'bucket_size' ({type(bucket_raw)}) "
                         f"for endpoint '{endpoint_str}'. Using default {bucket}."
                     )
-                # else: bucket_raw is None, use default_bucket
 
                 self._endpoint_limiter_configs[endpoint_str] = RateLimiterConfig(
                     rate=rate, bucket_size=bucket, tokens=None, last_refill=None
@@ -284,7 +285,7 @@ class ExchangeAPI(ABC):
         headers: dict[str, Any] | None = None,
         is_signed: bool = False,
         endpoint_group: str | None = None,
-    ) -> dict[str, Any] | list[Any] | str | None:
+    ) -> ParsedJsonResponse | None:
         """
         Execute an API request with comprehensive error handling and retry logic.
 
@@ -298,55 +299,40 @@ class ExchangeAPI(ABC):
             endpoint_group: Optional group for rate limiting
 
         Returns:
-            Parsed API response
+            Parsed API response (dict, list, str) or None for empty responses.
 
         Raises:
             APIError: If the request fails after retries
         """
-        if not self._session:
-            raise APIError(
-                "HTTP session not initialized. Call connect() first.",
-                code=APIErrorCode.CONNECTION_ERROR.value,
-            )
+        session = await self._get_session()
 
-        # Check for missing endpoint configuration
         if not self.rest_endpoint:
             raise APIError(
                 f"REST endpoint not configured for {self.exchange_name}. Check configuration.",
                 code=APIErrorCode.CONNECTION_ERROR.value,
             )
 
-        # Construct full URL
         url = f"{self.rest_endpoint.rstrip('/')}/{endpoint.lstrip('/')}"
 
-        # Handle authentication if required
         if is_signed:
             auth_data = await self._authenticate(method, endpoint, params, data)
-            # Merge auth data into request parameters
-            headers = (
-                {**headers, **auth_data.get("headers", {})}
-                if headers
-                else auth_data.get("headers", {})
-            )
-            params = (
-                {**params, **auth_data.get("params", {})} if params else auth_data.get("params", {})
-            )
-            data = {**data, **auth_data.get("data", {})} if data else auth_data.get("data", {})
+            # Remove cast, accept potential Pyright warning on .get
+            auth_headers = auth_data.get("headers", {})
+            auth_params = auth_data.get("params", {})
+            auth_data_body = auth_data.get("data", {})
+            headers = {**headers, **auth_headers} if headers else auth_headers
+            params = {**params, **auth_params} if params else auth_params
+            data = {**data, **auth_data_body} if data else auth_data_body
 
-        # Apply rate limiting
         rate_limiter = await self._get_rate_limiter(method, endpoint)
         await rate_limiter.acquire()
 
-        session = await self._get_session()
         last_error: Exception | None = None
-        attempt = -1  # Initialize attempt before the loop
+        attempt = -1
 
         for attempt in range(self.max_retries + 1):
             try:
-                # Record request start time for logging/monitoring
                 start_time = time.monotonic()
-
-                # Execute the request
                 async with session.request(
                     method=method,
                     url=url,
@@ -355,96 +341,74 @@ class ExchangeAPI(ABC):
                     headers=headers,
                     timeout=ClientTimeout(total=30.0),
                 ) as response:
-                    # Calculate request duration
                     duration = time.monotonic() - start_time
-
-                    # Log request details at DEBUG level
                     logger.debug(
                         f"[{self.exchange_name}] {method} {endpoint} completed in {duration:.3f}s "
                         f"with status {response.status}"
                     )
 
-                    # Store rate limit information for future adjustments
                     self._update_rate_limit_from_headers(response.headers, method, endpoint)
 
-                    # Handle HTTP errors
                     if response.status >= 400:
                         error_body = await response.text()
-                        error_data: dict[str, Any] = {}  # Initialize with specific type
-
-                        # Try to parse error response as JSON
+                        # Initialize error_data as None
+                        error_data: dict[str, Any] | None = None
                         try:
-                            # Remove the check, error_body is always str
-                            # if isinstance(error_body, str):
                             loaded_json = json.loads(error_body)
                             if isinstance(loaded_json, dict):
-                                error_data = loaded_json  # Assign only if it's a dict
+                                error_data = loaded_json  # Assign only if dict
                             else:
                                 logger.warning(
                                     f"Expected dict from JSON error body, got {type(loaded_json)}"
                                 )
                         except json.JSONDecodeError:
                             logger.debug(f"Non-JSON error body: {error_body[:200]}")
-                            error_data = {}  # Ensure it's an empty dict if parsing fails
 
-                        # Map exchange-specific error to our standard format
-                        # error_data is now guaranteed to be dict[str, Any]
+                        # Pass potentially None error_data
                         error = self._map_error_response(
                             status_code=response.status,
-                            error_body=str(error_body),
-                            error_data=error_data,  # Type is now known
+                            error_body=error_body,
+                            error_data=error_data,  # Can be None
                         )
 
-                        # Handle retryable errors
-                        if error.is_retryable and attempt < 2:
-                            # Determine retry delay with exponential backoff
+                        if error.is_retryable and attempt < self.max_retries:
                             retry_delay = error.retry_after if error.retry_after else (2**attempt)
-
                             logger.warning(
                                 f"[{self.exchange_name}] Request failed with retryable error: "
-                                f"{error}. "
-                                f"Retrying in {retry_delay:.1f}s "
+                                f"{error}. Retrying in {retry_delay:.1f}s "
                                 f"({attempt + 1}/{self.max_retries + 1})"
                             )
-
                             await asyncio.sleep(retry_delay)
                             continue
-
-                        # Non-retryable error or max retries exceeded
                         raise error
 
-                    # Process based on expected content type
+                    # Success (status < 400)
                     content_type = response.headers.get("Content-Type", "").lower()
+                    if response.status == 204:  # Handle No Content specifically
+                        return None
                     if "application/json" in content_type:
                         try:
-                            # aiohttp response.json() returns Any
-                            json_data: Any = await response.json()
-                            # Add runtime checks for common structures before returning
-                            if isinstance(json_data, dict | list):
-                                return json_data  # Type is dict | list
-                            elif isinstance(json_data, str):
-                                return json_data  # Type is str
-                            else:
-                                raise APIError(
-                                    f"Expected JSON dictionary or list, "
-                                    f"got {type(json_data).__name__}",
-                                    # Use INVALID_REQUEST for unexpected JSON structure
-                                    code=APIErrorCode.INVALID_REQUEST.value,
-                                    http_status=response.status,
-                                )
+                            # Use a variable with explicit ParsedJsonResponse hint
+                            raw_json_data: ParsedJsonResponse = await response.json()
+                            # Now check the type and return with the specific type
+                            if isinstance(raw_json_data, dict):
+                                return raw_json_data
+                            elif isinstance(raw_json_data, list):
+                                return raw_json_data
+                            # Type system guarantees str here due to ParsedJsonResponse type hint
+                            # and prior checks, so direct return is safe.
+                            return raw_json_data
                         except aiohttp.ContentTypeError:
-                            # Handle cases where content type says JSON but body is not valid JSON
+                            # Return raw text if parsing fails despite content-type header
                             raw_text = await response.text()
-                            # Return raw text if JSON parser fails
                             return raw_text
-
-                    # Empty response
-                    return {}
+                    else:
+                        # Handle non-JSON success responses (e.g., plain text, HTML)
+                        raw_text = await response.text()
+                        return raw_text
 
             except (TimeoutError, aiohttp.ClientError) as e:
-                # Handle network/timeout errors
                 last_error = e
-
                 error = APIError(
                     message=f"Connection error: {str(e)}",
                     code=APIErrorCode.TIMEOUT.value
@@ -452,32 +416,24 @@ class ExchangeAPI(ABC):
                     else APIErrorCode.CONNECTION_ERROR.value,
                     original_exception=e,
                 )
-
-                # Only retry on network errors if attempts remain
-                if attempt < 2:
-                    retry_delay = 2**attempt  # Exponential backoff
-
+                if attempt < self.max_retries:
+                    retry_delay = 2**attempt
                     logger.warning(
                         f"[{self.exchange_name}] Request failed with connection error: {error}. "
                         f"Retrying in {retry_delay:.1f}s ({attempt + 1}/{self.max_retries + 1})"
                     )
-
                     await asyncio.sleep(retry_delay)
                     continue
+                raise error from last_error
 
-                # Max retries exceeded
-                raise error from last_error  # Chain the original connection/timeout error
-
-        # This path should ideally not be reached if the loop always raises
-        # Raise a generic error if loop finishes without success or expected exception
-        # DEFENSIVE CHECK: Unreachable in theory if loop always raises, safety net.
+        # Should be unreachable if loop always raises or returns
         logger.error(
             f"[{self.exchange_name}] _request loop completed unexpectedly for {method} {endpoint}"
         )
         raise APIError(
             message=f"Request failed unexpectedly after {attempt + 1} attempts.",
             code=APIErrorCode.UNKNOWN.value,
-            original_exception=last_error,  # Keep last generic error
+            original_exception=last_error,
         )
 
     @abstractmethod
@@ -498,7 +454,11 @@ class ExchangeAPI(ABC):
         pass
 
     def _map_error_response(
-        self, status_code: int, error_body: str, error_data: dict[str, Any]
+        self,
+        status_code: int,
+        error_body: str,
+        # Update signature to accept None
+        error_data: dict[str, Any] | None,
     ) -> APIError:
         """
         Map exchange-specific error responses to standardized APIError.
@@ -541,7 +501,7 @@ class ExchangeAPI(ABC):
         exchange_code = None
         retry_after = None
 
-        # error_data is always dict[str, Any] by type contract
+        # Check if error_data is not None before accessing
         if error_data:
             # Handle various message field names in different exchange responses
             message = (
@@ -732,79 +692,64 @@ class ExchangeAPI(ABC):
         )
 
     async def _ws_listener(self) -> None:
-        """
-        Main WebSocket message handling loop.
-        Processes incoming messages and routes them to appropriate handlers.
-        """
-        import aiohttp
-
-        if not self._ws_connection:
-            logger.error(f"[{self.exchange_name}] WebSocket listener started without connection")
+        # Adjust type hint for e to accommodate CancelledError
+        e: BaseException | None = None  # Define e outside the except block for finally
+        if not self._ws_connection or self._ws_connection.closed:
+            logger.error(
+                f"[{self.exchange_name}] WebSocket listener started without a valid connection"
+            )
+            self._is_connected = False
+            if self._should_reconnect and (
+                self._reconnect_task is None or self._reconnect_task.done()
+            ):
+                self._reconnect_task = asyncio.create_task(self._reconnect_ws())
             return
-
         logger.info(f"[{self.exchange_name}] WebSocket listener started")
-
         try:
             async for msg in self._ws_connection:
                 if msg.type == aiohttp.WSMsgType.TEXT:
-                    # Parse JSON message
                     try:
                         data = json.loads(msg.data)
-                        # Process and route message via the handler method
                         await self._handle_websocket_message(data)
                     except json.JSONDecodeError:
                         logger.warning(
                             f"[{self.exchange_name}] Received non-JSON WebSocket message: "
                             f"{msg.data[:100]}..."
                         )
-                    except Exception as e:
-                        logger.error(
-                            f"[{self.exchange_name}] Error processing WebSocket message: {e}",
-                            exc_info=True,
+                    except Exception as e_inner:
+                        logger.exception(
+                            f"[{self.exchange_name}] Error processing WebSocket message: {e_inner}"
                         )
-
-                elif msg.type == aiohttp.WSMsgType.BINARY:
-                    logger.debug(f"[{self.exchange_name}] Received binary WebSocket message")
-                    # Some exchanges use binary messages - subclasses can override _route_ws_message
-                    # to handle these appropriately
-
                 elif msg.type == aiohttp.WSMsgType.ERROR:
-                    logger.error(
-                        f"[{self.exchange_name}] WebSocket connection error: "
-                        f"{self._ws_connection.exception()}"
+                    # Use ws_connection.exception() which returns Exception | None
+                    ws_exception = self._ws_connection.exception()
+                    if ws_exception:
+                        e = ws_exception  # Assign if not None
+                        logger.error(f"[{self.exchange_name}] WebSocket connection error: {e}")
+                    else:
+                        logger.error(
+                            f"[{self.exchange_name}] WebSocket connection error "
+                            f"reported, but exception is None."
+                        )
+                    break
+                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING):
+                    logger.warning(
+                        f"[{self.exchange_name}] WebSocket connection closed by server or closing."
                     )
                     break
-
-                elif msg.type == aiohttp.WSMsgType.CLOSED:
-                    logger.warning(f"[{self.exchange_name}] WebSocket connection closed by server")
-                    break
-
-                elif msg.type == aiohttp.WSMsgType.CLOSING:
-                    logger.info(f"[{self.exchange_name}] WebSocket connection closing")
-                    break
-
-        except asyncio.CancelledError:
-            # Task cancellation is expected during shutdown
+        except asyncio.CancelledError as e_cancel:
+            e = e_cancel
             logger.info(f"[{self.exchange_name}] WebSocket listener task cancelled")
-            raise
-
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error in WebSocket listener: {e}",
-                exc_info=True,
-            )
-
+        except Exception as e_outer:
+            e = e_outer
+            logger.exception(f"[{self.exchange_name}] Unexpected error in WebSocket listener: {e}")
         finally:
-            # Mark connection as closed
+            logger.warning(f"[{self.exchange_name}] WebSocket listener stopped.")
             self._is_connected = False
-            logger.warning(f"[{self.exchange_name}] WebSocket listener stopped")
-
-            # Schedule reconnection if not during shutdown
-            try:
-                if self._session is not None and not self._session.closed:
-                    asyncio.create_task(self._reconnect_ws())
-            except Exception:
-                pass
+            # Check type of e before deciding to reconnect
+            if self._should_reconnect and not isinstance(e, asyncio.CancelledError):
+                if self._reconnect_task is None or self._reconnect_task.done():
+                    self._reconnect_task = asyncio.create_task(self._reconnect_ws())
 
     async def close(self) -> None:
         """
@@ -955,7 +900,10 @@ class ExchangeAPI(ABC):
         order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> list[Order]:
-        """Fetch historical orders, optionally filtering by symbol, time, limit, or ID."""
+        """Fetch historical orders.
+
+        Optionally filter by symbol, time range, limit, order ID, or client order ID.
+        """
         raise NotImplementedError
 
     @abstractmethod
