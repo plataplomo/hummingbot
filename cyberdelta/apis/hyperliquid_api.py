@@ -12,8 +12,15 @@ from web3.auto import w3
 
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
-from cyberdelta.apis.hyperliquid.hl_mapper import HyperliquidMapper, HyperliquidOrderMapper
+from cyberdelta.apis.hyperliquid.hl_mapper import (
+    HyperliquidMapper,
+    HyperliquidOrderMapper,
+    map_raw_candle_snapshot_to_candles,
+)
 from cyberdelta.apis.hyperliquid.hl_ws_mapper import HyperliquidWebsocketMapper
+from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
+    HyperliquidRawCandleSnapshot,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
     HyperliquidRawExchangeStatusObject,
@@ -1108,120 +1115,79 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e
 
     async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
-        """Fetch historical klines (OHLCV) using the candlesSnapshot endpoint.
+        """
+        Fetches historical market data (candlesticks) for a given symbol and timeframe.
 
         Args:
-            symbol: Trading symbol (e.g., 'ETH').
-            timeframe: Kline interval (e.g., '1m', '5m', '1h').
-            limit: Maximum number of candles to return.
+            symbol: Trading symbol (e.g., 'BTC', 'ETH').
+            timeframe: Candlestick interval (e.g., '1m', '1h', '1d').
+            limit: Number of candles to retrieve (exchange-specific limits may apply).
 
         Returns:
-            A list of Candle objects, sorted oldest to newest.
+            A list of Candle objects.
 
         Raises:
-            APIError: If the API request fails or data validation/transformation fails.
-            ValueError: If the timeframe string is invalid for calculating start time.
+            APIError: If the request fails or the response is malformed.
         """
-        # Calculate start/end times based on limit and timeframe
-        # This is an estimation as the snapshot endpoint requires times
-        try:
-            now_ms = int(time.time() * 1000)
-            # Simple interval parsing (improve if needed)
-            interval_seconds = {
-                "1m": 60,
-                "5m": 300,
-                "15m": 900,
-                "30m": 1800,
-                "1h": 3600,
-                "4h": 14400,
-                "12h": 43200,
-                "1d": 86400,
-            }.get(timeframe)
-
-            if interval_seconds is None:
-                raise ValueError(f"Invalid or unsupported timeframe: {timeframe}")
-
-            start_time_ms = now_ms - (limit * interval_seconds * 1000)
-
-        except ValueError as e:
-            logger.error(f"[{self.exchange_name}] Invalid timeframe for kline calculation: {e}")
-            raise
-
         payload = {
-            "type": "candlesSnapshot",
+            "type": "candleSnapshot",
             "req": {
-                "coin": symbol,
+                "coin": symbol.upper(),  # Ensure coin is uppercase as per typical API expectations
                 "interval": timeframe,
-                "startTime": start_time_ms,
-                "endTime": now_ms,
+                "startTime": 0,  # HL API takes startTime = 0 for latest `limit` candles
+                "endTime": int(time.time() * 1000),  # Current time in ms for endTime
             },
         }
-        response_raw: object = None  # Initialize for error logging
+        # Note: Hyperliquid's candleSnapshot doesn't directly use a 'limit' in request body.
+        # It returns candles between startTime/endTime or a fixed number if startTime=0.
+        # The 'limit' param is conceptual; actual data points depend on API.
+        # For "latest N candles", startTime=0 is often used.
 
         try:
-            response_raw = await self._request("POST", self.INFO_URL + "/info", data=payload)
+            # Use self.INFO_URL for candle snapshots
+            raw_response = await self._request("POST", "/info", data=payload, endpoint_group="info")
+            if raw_response is None:
+                raise APIError(
+                    f"No response received for candle snapshot {symbol} {timeframe}",
+                    code=APIErrorCode.TIMEOUT.value,
+                )
 
-            # Import the Raw model
-            from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import (
-                HyperliquidRawCandleSnapshotResponse,
-            )
+            # DEFENSIVE CHECK: response_raw is Any. Runtime check needed for safety.
+            # Pyright=[reportUnknownVariableType, reportUnknownArgumentType, reportUnknownMemberType]
+            if not isinstance(raw_response, dict):
+                raise APIError(
+                    f"Unexpected response format for candle snapshot: {type(raw_response)}",
+                    code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                )
 
-            # Validate the response structure
-            validated_response = HyperliquidRawCandleSnapshotResponse.model_validate(response_raw)
+            # Validate the entire snapshot
+            # Assuming raw_response is the snapshot dict itself
+            raw_snapshot = HyperliquidRawCandleSnapshot.model_validate(raw_response)
 
-            candles: list[Candle] = []
-            for raw_candle in validated_response.candles:
-                try:
-                    # Transform raw candle using the mapper
-                    internal_candle = HyperliquidMapper.transform_raw_candle_to_internal(
-                        symbol=symbol, interval=timeframe, raw=raw_candle
-                    )
-                    if internal_candle:
-                        candles.append(internal_candle)
-                except (ValidationError, ValueError) as e:
-                    # Log and skip individual candle errors
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping candle due to validation/transform "
-                        f"error: {e}. Raw: {raw_candle.model_dump()}"
-                    )
-                    continue
-                except Exception as e:
-                    logger.error(
-                        f"[{self.exchange_name}] Unexpected error processing raw candle: {e}. "
-                        f"Raw: {raw_candle.model_dump()}",
-                        exc_info=True,
-                    )
-                    continue  # Skip candle on unexpected error
+            # Map the validated snapshot to a list of internal Candle objects
+            # The mapper expects the interval, which is `timeframe` here.
+            internal_candles = map_raw_candle_snapshot_to_candles(raw_snapshot, symbol, timeframe)
 
-            # Sort by time (oldest first) as snapshot order isn't guaranteed
-            candles.sort(key=lambda c: c.open_time)
+            # Apply limit if necessary (though HL API might not support it directly)
+            # This is post-processing.
+            if limit > 0 and len(internal_candles) > limit:
+                internal_candles = internal_candles[-limit:]
 
-            # Apply limit again after fetching (API might return more than requested)
-            return candles[-limit:]
+            return internal_candles
 
-        except (ValidationError, ValueError) as e:
-            logger.error(
-                f"[{self.exchange_name}] Error parsing/validating candle snapshot response: {e}. "
-                f"Raw: {response_raw}"
-            )
+        except ValidationError as e:
+            logger.error(f"Pydantic validation error for {symbol} candles: {e}")
             raise APIError(
-                f"Failed to parse candle snapshot data: {e}",
-                code=APIErrorCode.UNKNOWN.value,
+                "Failed to validate candle data from exchange",
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
                 original_exception=e,
             ) from e
-        except APIError as e:
-            logger.error(
-                f"[{self.exchange_name}] API Error getting klines for {symbol} ({timeframe}): {e}"
-            )
-            raise e
+        except APIError:  # Re-raise APIErrors
+            raise
         except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error getting klines for {symbol} "
-                f"({timeframe}): {e}",
-                exc_info=True,
-            )
+            logger.error(f"Error fetching or processing {symbol} candles: {e}", exc_info=True)
             raise APIError(
-                f"Unexpected error getting klines for {symbol} ({timeframe}): {e}",
+                f"An unexpected error occurred while fetching candles for {symbol}",
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
@@ -1461,11 +1427,18 @@ class HyperliquidAPI(ExchangeAPI):
     # --- Error Mapping --- #
 
     def _map_error_response(
-        self, status_code: int, error_body: str, error_data: dict[str, Any]
+        self,
+        status_code: int,
+        error_body: str,
+        error_data: dict[str, Any] | None,
     ) -> APIError:
-        """Override base error mapping to use HyperliquidMapper."""
-        # Pass the parsed error_data as the 'response' argument to the mapper
-        return HyperliquidMapper.map_error_response(response=error_data, http_status=status_code)
+        """Maps Hyperliquid specific error responses to a standardized APIError."""
+        return HyperliquidMapper.map_error_response(
+            error_body=error_body,
+            response_data=error_data,
+            http_status=status_code,
+            # original_exception can be added if available from the calling context in _request
+        )
 
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None

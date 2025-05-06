@@ -464,7 +464,7 @@ class BackpackRawOrderBook(BaseModel):
 
     @field_validator("bids", "asks", mode="before")
     @classmethod
-    def validate_bids_asks(cls, v: object) -> list[list[str]]:
+    def validate_bids_asks(cls, v: object, info: ValidationInfo) -> list[list[str]]:
         """
         Validates that bids/asks are lists of [str, str] pairs representing price and quantity.
         Raises ValueError if not a list, not pairs, or not valid decimals.

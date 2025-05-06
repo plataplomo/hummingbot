@@ -1082,14 +1082,17 @@ class BackpackAPI(ExchangeAPI):
     # --- Override Base Error Mapping --- #
 
     def _map_error_response(
-        self, status_code: int, error_body: str, error_data: dict[str, Any]
+        self,
+        status_code: int,
+        error_body: str,
+        error_data: dict[str, Any] | None,  # Corrected name and kept None type
     ) -> APIError:
-        """Override base error mapping to use BackpackErrorMapper."""
+        """Maps Backpack specific error responses to a standardized APIError."""
         # Use the dedicated mapper for Backpack errors
         return BackpackErrorMapper.map_error_response(
             status_code=status_code,
             error_body=error_body,
-            error_data=error_data,
+            error_data=error_data,  # Use corrected name
             # request_path can be added if needed by the mapper
         )
 
@@ -1121,13 +1124,8 @@ class BackpackAPI(ExchangeAPI):
 
             # Filter the result for the specific order ID
             # This assumes get_order_history returns the most recent first if limit=1
-            # Or requires filtering if the history endpoint doesn't support orderId filtering directly
+            # Or requires filtering if history endpoint doesn't support orderId filtering.
             # Re-checking spec: /wapi/v1/history/orders *does* have an orderId parameter.
-            # Let's modify get_order_history to accept it.
-
-            # TODO: Modify get_order_history signature and implementation
-            # to accept and pass the orderId parameter.
-            # For now, filter the result (less efficient)
             found_order = next((o for o in order_history if o.exchange_order_id == order_id), None)
 
             if found_order:

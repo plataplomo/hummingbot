@@ -93,6 +93,8 @@ class ExchangeAPI(ABC):
 
         # Initialize Rate Limiters safely
         rate_limit_config_raw = config.get("rate_limits")
+        # DEFENSIVE CHECK: config is dict[str, Any], so rate_limit_config_raw is Any.
+        # Runtime check needed. Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
         rate_limit_config: dict[str, Any] = {}  # Initialize as empty dict
         if isinstance(rate_limit_config_raw, dict):
             rate_limit_config = rate_limit_config_raw
@@ -144,6 +146,8 @@ class ExchangeAPI(ABC):
         self._endpoint_limiters: dict[str, TokenBucketRateLimiterRuntime] = {}
 
         endpoints_raw = rate_limit_config.get("endpoints", {})
+        # DEFENSIVE CHECK: rate_limit_config values are Any. Runtime check needed.
+        # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
         endpoints: dict[str, Any] = {}  # Initialize as empty dict
         if isinstance(endpoints_raw, dict):
             endpoints = endpoints_raw
@@ -156,6 +160,8 @@ class ExchangeAPI(ABC):
         for endpoint, config_dict_raw in endpoints.items():
             endpoint_str = str(endpoint)
             # Check that config_dict_raw is actually a dict before using .get
+            # DEFENSIVE CHECK: endpoints values are Any. Runtime check needed.
+            # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
             if isinstance(config_dict_raw, dict):
                 # Ensure type checker knows config_dict_raw is a dict here
                 config_dict: dict[str, Any] = config_dict_raw
@@ -176,6 +182,8 @@ class ExchangeAPI(ABC):
                     )
 
                 # Ensure type checker knows config_dict_raw is a dict here
+                # DEFENSIVE CHECK: config_dict_raw is confirmed dict, but values still Any.
+                # Pyright=[reportUnknownVariableType]
                 config_dict_typed: dict[str, Any] = config_dict_raw
                 bucket_raw: Any = config_dict_typed.get("bucket_size", default_bucket)
                 bucket: int = default_bucket
@@ -351,20 +359,27 @@ class ExchangeAPI(ABC):
 
                     if response.status >= 400:
                         error_body = await response.text()
-                        # Initialize error_data as None
-                        error_data: dict[str, Any] | None = None
+                        # Try to parse error body as JSON
                         try:
-                            loaded_json = json.loads(error_body)
-                            if isinstance(loaded_json, dict):
-                                error_data = loaded_json  # Assign only if dict
-                            else:
-                                logger.warning(
-                                    f"Expected dict from JSON error body, got {type(loaded_json)}"
-                                )
+                            # DEFENSIVE CHECK: error_body is str, json.loads can return Any.
+                            # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
+                            error_data = json.loads(error_body)
+                            if not isinstance(error_data, dict):
+                                # If not a dict, treat as if no structured data
+                                error_data = None
                         except json.JSONDecodeError:
-                            logger.debug(f"Non-JSON error body: {error_body[:200]}")
+                            logger.debug(
+                                f"[{self.exchange_name}] Error response body is not "
+                                f"valid JSON: {error_body}"
+                            )
+                            error_data = None
+                        else:
+                            error_data = None
 
-                        # Pass potentially None error_data
+                        # error_data is now dict[str, Any] | None for the _map_error_response call
+                        # DEFENSIVE CHECK: error_data could be None or dict with Any values.
+                        # The _map_error_response method is typed to handle this.
+                        # Pyright=[reportUnknownArgumentType] (for error_data when passed)
                         error = self._map_error_response(
                             status_code=response.status,
                             error_body=error_body,

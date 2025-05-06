@@ -243,56 +243,89 @@ class HyperliquidMapper:
         Map a raw Hyperliquid order book response to an internal OrderBook model.
         Defensive: Handles malformed or missing data gracefully.
         """
+        # DEFENSIVE CHECK: data is dict[str,Any], data.get() returns Any.
+        # Pyright=[reportUnknownVariableType]
         levels_raw = data.get("levels")
-        # Explicitly check if levels_raw is a list
-        # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType). Mypy=ok
+        # DEFENSIVE CHECK: levels_raw is Any. Runtime check + list[Any] needed.
+        # Pyright=[reportUnknownVariableType]
         levels: list[Any] = levels_raw if isinstance(levels_raw, list) else []
         bids: list[tuple[Decimal, Decimal]] = []
         asks: list[tuple[Decimal, Decimal]] = []
 
-        if len(levels) > 1:
+        if levels and len(levels) == 2:  # Assuming levels contains [bids_list, asks_list]
+            # DEFENSIVE CHECK: levels is list[Any], so levels[0] is Any.
+            # Pyright=[reportUnknownVariableType]
             bid_levels_raw = levels[0]
-            # Check if bid_levels_raw is a list
-            # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType). Mypy=ok
+            # DEFENSIVE CHECK: bid_levels_raw is Any. Runtime check + list[Any] needed.
+            # Pyright=[reportUnknownVariableType]
             bid_levels: list[Any] = bid_levels_raw if isinstance(bid_levels_raw, list) else []
-            for level_raw in bid_levels:
-                # Check if level_raw is a list
+
+            for level_raw in bid_levels:  # level_raw is Any from list[Any]
+                # DEFENSIVE CHECK: level_raw is Any. Runtime check needed.
+                # Pyright=[reportUnknownArgumentType, reportUnknownVariableType]
                 if not isinstance(level_raw, list):
+                    logger.warning(
+                        f"[{symbol}] Skipping invalid bid level (not a list): {level_raw}"
+                    )
                     continue
-                # Removed cast
-                # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType). Mypy=ok
+                # level_typed is now list[Any]
                 level_typed: list[Any] = level_raw
                 if len(level_typed) >= 2:
+                    # DEFENSIVE CHECK: level_typed[0] and level_typed[1] are Any.
+                    # parse_decimal_value handles str|Any. Pyright=[reportUnknownArgumentType]
                     price = parse_decimal_value(
                         level_typed[0], allow_none=False, field_name="orderbook.bid.price"
                     )
                     size = parse_decimal_value(
                         level_typed[1], allow_none=False, field_name="orderbook.bid.size"
                     )
-                    if price is not None and size is not None:
+                    if (
+                        price is not None
+                        and size is not None
+                        and price.is_finite()
+                        and size.is_finite()
+                        and size >= Decimal(0)
+                    ):
                         bids.append((price, size))
+                    else:
+                        logger.warning(f"[{symbol}] Invalid bid level content: {level_typed}")
 
+            # DEFENSIVE CHECK: levels is list[Any], so levels[1] is Any.
+            # Pyright=[reportUnknownVariableType]
             ask_levels_raw = levels[1]
-            # Check if ask_levels_raw is a list
-            # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType). Mypy=ok
+            # DEFENSIVE CHECK: ask_levels_raw is Any. Runtime check + list[Any] needed.
+            # Pyright=[reportUnknownVariableType]
             ask_levels: list[Any] = ask_levels_raw if isinstance(ask_levels_raw, list) else []
-            for level_raw_ask in ask_levels:
-                # Check if level_raw is a list
+
+            for level_raw_ask in ask_levels:  # level_raw_ask is Any from list[Any]
+                # DEFENSIVE CHECK: level_raw_ask is Any. Runtime check needed.
+                # Pyright=[reportUnknownArgumentType, reportUnknownVariableType]
                 if not isinstance(level_raw_ask, list):
+                    logger.warning(
+                        f"[{symbol}] Skipping invalid ask level (not a list): {level_raw_ask}"
+                    )
                     continue
-                # DEFENSIVE CHECK: Runtime check needed (Pyright reportUnknownVariableType). Mypy=ok
+                # level_typed_ask is now list[Any]
                 level_typed_ask: list[Any] = level_raw_ask
                 if len(level_typed_ask) >= 2:
+                    # DEFENSIVE CHECK: level_typed_ask[0] and [1] are Any.
+                    # parse_decimal_value handles str|Any. Pyright=[reportUnknownArgumentType]
                     price_ask = parse_decimal_value(
-                        level_typed_ask[0],
-                        allow_none=False,
-                        field_name="orderbook.ask.price",
+                        level_typed_ask[0], allow_none=False, field_name="orderbook.ask.price"
                     )
                     size_ask = parse_decimal_value(
                         level_typed_ask[1], allow_none=False, field_name="orderbook.ask.size"
                     )
-                    if price_ask is not None and size_ask is not None:
+                    if (
+                        price_ask is not None
+                        and size_ask is not None
+                        and price_ask.is_finite()
+                        and size_ask.is_finite()
+                        and size_ask >= Decimal(0)
+                    ):
                         asks.append((price_ask, size_ask))
+                    else:
+                        logger.warning(f"[{symbol}] Invalid ask level content: {level_typed_ask}")
 
         # Sort bids descending, asks ascending
         bids.sort(key=lambda x: x[0], reverse=True)
@@ -526,45 +559,64 @@ class HyperliquidMapper:
 
     @staticmethod
     def map_error_response(
-        response: dict[str, Any],
+        error_body: str,
+        response_data: dict[str, Any] | None,
         http_status: int | None = None,
         original_exception: Exception | None = None,
     ) -> APIError:
         """
         Transform a raw Hyperliquid error response into a standardized APIError.
         This is the single entry point for mapping/categorizing/normalizing Hyperliquid errors.
+
         Args:
-            response: The raw error response dict from Hyperliquid (should contain 'error').
+            error_body: The raw error string from the response body.
+            response_data: The parsed JSON error response dict, if available
+                           (e.g., {"error": "msg"}).
             http_status: Optional HTTP status code from the response.
             original_exception: Optional original exception for chaining.
+
         Returns:
             APIError: The standardized internal error model for business logic.
         """
-        try:
-            error_obj = HyperliquidRawApiError.model_validate(response)
-            category = HyperliquidMapper.categorize_hyperliquid_error(error_obj.error)
-        except ValidationError:
-            category = HyperliquidAPIErrorCategory.UNKNOWN
-            error_obj = None
+        extracted_message = error_body
+        category = HyperliquidAPIErrorCategory.UNKNOWN
 
-        code = HyperliquidMapper.map_category_to_api_error_code(category)
-        message = getattr(error_obj, "error", str(response))
-        error_response = APIErrorResponse.from_exchange_error(
-            message=message,
-            code=code.value,
+        if response_data:
+            try:
+                error_obj = HyperliquidRawApiError.model_validate(response_data)
+                extracted_message = error_obj.error
+                category = HyperliquidMapper.categorize_hyperliquid_error(extracted_message)
+            except ValidationError:
+                logger.warning(
+                    f"Failed to validate Hyperliquid error response_data: {response_data}. "
+                    f"Falling back to error_body: '{error_body}'"
+                )
+                category = HyperliquidMapper.categorize_hyperliquid_error(error_body)
+        else:
+            category = HyperliquidMapper.categorize_hyperliquid_error(error_body)
+
+        if not extracted_message:
+            extracted_message = "Unknown Hyperliquid error"
+
+        api_error_code = HyperliquidMapper.map_category_to_api_error_code(category)
+
+        api_err_response_obj = APIErrorResponse.from_exchange_error(
+            message=extracted_message,
+            code=api_error_code.value,
             http_status=http_status,
             exchange_code=None,
-            exchange_message=message,
+            exchange_message=extracted_message,
             original_exception=original_exception,
         )
+
         return APIError(
-            message=error_response.message,
-            code=error_response.code,
-            http_status=error_response.http_status,
-            exchange_code=error_response.exchange_code,
-            exchange_message=error_response.exchange_message,
-            retry_after=error_response.retry_after,
-            original_exception=error_response.original_exception,
+            message=api_err_response_obj.message,
+            code=api_err_response_obj.code,
+            http_status=api_err_response_obj.http_status,
+            exchange_code=api_err_response_obj.exchange_code,
+            exchange_message=api_err_response_obj.exchange_message,
+            retry_after=api_err_response_obj.retry_after,
+            original_exception=api_err_response_obj.original_exception,
         )
 
     @staticmethod
