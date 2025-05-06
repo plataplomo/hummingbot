@@ -72,109 +72,64 @@ def test_invalid_structure_input_type() -> None:
 def test_invalid_structure_list_length() -> None:
     """Test failure when input list has incorrect length."""
     invalid_list_short = VALID_KLINE_LIST[:-1]  # Length 11
-    with pytest.raises(ValidationError) as exc_info:
+    with pytest.raises(ValueError, match="Expected 12 elements in kline data list, got 11"):
         BackpackRawKline.model_validate(invalid_list_short)
-    assert "Expected 12 elements in kline data list, got 11" in str(exc_info.value)
 
     invalid_list_long = VALID_KLINE_LIST + ["extra"]
-    with pytest.raises(ValidationError) as exc_info:
+    with pytest.raises(ValueError, match="Expected 12 elements in kline data list, got 13"):
         BackpackRawKline.model_validate(invalid_list_long)
-    assert "Expected 12 elements in kline data list, got 13" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
     "index, field_name, invalid_value, expected_exception, expected_error_msg",
     [
         # --- startTimeMs validation (index 0) ---
-        # Wrong raw type -> Expect TypeError
         (0, "start_time_ms", "1700000000000", TypeError, "Raw value must be an integer"),
         (0, "start_time_ms", 1700000000000.5, TypeError, "Raw value must be an integer"),
-        # Invalid format (Correct raw type: int) -> Expect ValidationError
-        (0, "start_time_ms", -1, ValidationError, "Value must be non-negative"),
+        (0, "start_time_ms", -1, ValueError, "Value must be non-negative"),
         # --- openPrice validation (index 1) ---
-        # Wrong raw type -> Expect TypeError
         (1, "open_price", 100.0, TypeError, "Raw value must be a string"),
         (1, "open_price", 100, TypeError, "Raw value must be a string"),
         (1, "open_price", True, TypeError, "Raw value must be a string"),
-        # Invalid format (Correct raw type: str) -> Expect ValidationError
-        (1, "open_price", "", ValidationError, "String cannot be empty or whitespace"),
-        (1, "open_price", " ", ValidationError, "String cannot be empty or whitespace"),
-        (1, "open_price", "NaN", ValidationError, "must represent a finite decimal"),
-        (1, "open_price", "Infinity", ValidationError, "must represent a finite decimal"),
-        (1, "open_price", "-inf", ValidationError, "must represent a finite decimal"),
-        (
-            1,
-            "open_price",
-            "not_a_decimal",
-            ValidationError,
-            "Cannot convert 'not_a_decimal' to Decimal",
-        ),
-        (1, "open_price", "1" * 65, ValidationError, "String value too long (max 64 chars)"),
+        (1, "open_price", "", ValueError, "String cannot be empty or whitespace"),
+        (1, "open_price", " ", ValueError, "String cannot be empty or whitespace"),
+        (1, "open_price", "NaN", ValueError, "must represent a finite decimal"),
+        (1, "open_price", "Infinity", ValueError, "must represent a finite decimal"),
+        (1, "open_price", "-inf", ValueError, "must represent a finite decimal"),
+        (1, "open_price", "not_a_decimal", ValueError, "Cannot convert 'not_a_decimal' to Decimal"),
+        (1, "open_price", "1" * 65, ValueError, "String value too long (max 64 chars)"),
         # --- highPrice validation (index 2) ---
-        # Wrong raw type -> Expect TypeError
-        # NOTE: None input reaches the field validator and raises TypeError
         (2, "high_price", None, TypeError, "Raw value must be a string, got NoneType"),
         (2, "high_price", 102.5, TypeError, "Raw value must be a string"),
-        # Invalid format (Correct raw type: str) -> Expect ValidationError
-        (2, "high_price", "inf", ValidationError, "must represent a finite decimal"),
+        (2, "high_price", "inf", ValueError, "must represent a finite decimal"),
         # --- lowPrice validation (index 3) ---
-        # Wrong raw type -> Expect TypeError
         (3, "low_price", ["list"], TypeError, "Raw value must be a string"),
-        # Invalid format (Correct raw type: str) -> Expect ValidationError
-        (3, "low_price", "-Infinity", ValidationError, "must represent a finite decimal"),
+        (3, "low_price", "-Infinity", ValueError, "must represent a finite decimal"),
         # --- closePrice validation (index 4) ---
-        # Wrong raw type -> Expect TypeError
         (4, "close_price", 101, TypeError, "Raw value must be a string"),
-        # Invalid format (Correct raw type: str) -> Expect ValidationError
-        (4, "close_price", "", ValidationError, "String cannot be empty or whitespace"),
+        (4, "close_price", "", ValueError, "String cannot be empty or whitespace"),
         # --- volume validation (index 5) ---
-        # Wrong raw type -> Expect TypeError
         (5, "volume", 1000.123, TypeError, "Raw value must be a string"),
-        # Invalid format (Correct raw type: str) -> Expect ValidationError
-        (5, "volume", "NaN", ValidationError, "must represent a finite decimal"),
+        (5, "volume", "NaN", ValueError, "must represent a finite decimal"),
         # --- endTimeMs validation (index 6) ---
-        # Wrong raw type -> Expect TypeError
         (6, "end_time_ms", "1700000059999", TypeError, "Raw value must be an integer"),
-        # Invalid format (Correct raw type: int) -> Expect ValidationError
-        (6, "end_time_ms", -1700000059999, ValidationError, "Value must be non-negative"),
+        (6, "end_time_ms", -1700000059999, ValueError, "Value must be non-negative"),
         # --- quoteVolume validation (index 7) ---
-        # Wrong raw type -> Expect TypeError
         (7, "quote_volume", 101000.456, TypeError, "Raw value must be a string"),
-        # Invalid format (Correct raw type: str) -> Expect ValidationError
-        (
-            7,
-            "quote_volume",
-            "101000.456x",
-            ValidationError,
-            "Cannot convert '101000.456x' to Decimal",
-        ),
+        (7, "quote_volume", "101000.456x", ValueError, "Cannot convert '101000.456x' to Decimal"),
         # --- tradeCount validation (index 8) ---
-        # Wrong raw type -> Expect TypeError
         (8, "trade_count", "50", TypeError, "Raw value must be an integer"),
-        # Invalid format (Correct raw type: int) -> Expect ValidationError
-        (8, "trade_count", -10, ValidationError, "Value must be non-negative"),
+        (8, "trade_count", -10, ValueError, "Value must be non-negative"),
         # --- takerBuyBaseVolume validation (index 9) ---
-        # Wrong raw type -> Expect TypeError
         (9, "taker_buy_base_volume", 500.1, TypeError, "Raw value must be a string"),
-        # Invalid format (Correct raw type: str) -> Expect ValidationError
-        (
-            9,
-            "taker_buy_base_volume",
-            "Infinity",
-            ValidationError,
-            "must represent a finite decimal",
-        ),
+        (9, "taker_buy_base_volume", "Infinity", ValueError, "must represent a finite decimal"),
         # --- takerBuyQuoteVolume validation (index 10) ---
-        # Wrong raw type -> Expect TypeError
         (10, "taker_buy_quote_volume", 50500.2, TypeError, "Raw value must be a string"),
-        # Invalid format (Correct raw type: str) -> Expect ValidationError
-        (10, "taker_buy_quote_volume", "NaN", ValidationError, "must represent a finite decimal"),
+        (10, "taker_buy_quote_volume", "NaN", ValueError, "must represent a finite decimal"),
         # --- ignored validation (index 11) ---
-        # Wrong raw type -> Expect TypeError
         (11, "ignored", 0, TypeError, "Raw value must be a string"),
-        # Invalid format (Correct raw type: str) -> Expect ValidationError
-        (11, "ignored", "", ValidationError, "String cannot be empty or whitespace"),
-        (11, "ignored", "a" * 65, ValidationError, "String value too long (max 64 chars)"),
+        (11, "ignored", "", ValueError, "String cannot be empty or whitespace"),
+        (11, "ignored", "a" * 65, ValueError, "String value too long (max 64 chars)"),
     ],
 )
 def test_field_validation_failures(

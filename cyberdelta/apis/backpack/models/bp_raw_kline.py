@@ -81,8 +81,9 @@ class BackpackRawKline(BaseModel):
             raise RuntimeError("BackpackRawKline model definition has incorrect number of fields.")
 
         # The values are still raw (str, int potentially), hence Dict[str, Any]
-        # PYRIGHT: reportUnknownVariableType/reportUnknownArgumentType on `raw_kline_list` and `zip` args below
-        # are acceptable here as element types are unknown pre-validation.
+        # PYRIGHT: reportUnknownVariableType/reportUnknownArgumentType
+        # on `raw_kline_list` and `zip` args below are acceptable here
+        # as element types are unknown pre-validation.
         raw_kline_list: list[Any] | tuple[Any, ...] = data
         return dict(zip(field_names, raw_kline_list, strict=False))
 
@@ -95,9 +96,10 @@ class BackpackRawKline(BaseModel):
     def validate_non_negative_int(cls, v: Any, info: ValidationInfo) -> int:
         """Validate required non-negative integer fields from raw input."""
         field_name = info.field_name or "unknown_int_field"
-        # DEFENSIVE CHECK: Ensure runtime type at boundary from Dict[str, Any]. Mypy=[unreachable]
+        # DEFENSIVE CHECK: Runtime type check from Dict[str, Any]
         if not isinstance(v, int):
             raise TypeError(f"{field_name}: Raw value must be an integer, got {type(v).__name__}")
+        # DEFENSIVE CHECK: Ensure non-negative
         if v < 0:
             raise ValueError(f"{field_name}: Value must be non-negative, got {v}")
         return v
@@ -120,17 +122,16 @@ class BackpackRawKline(BaseModel):
         Returns validated string.
         """
         field_name = info.field_name or "unknown_decimal_field"
-        # DEFENSIVE CHECK: Ensure runtime type at boundary from Dict[str, Any]. Mypy=[unreachable]
+        # DEFENSIVE CHECK: Runtime type check from Dict[str, Any]
         if not isinstance(v, str):
             raise TypeError(f"{field_name}: Raw value must be a string, got {type(v).__name__}")
 
-        # Validate string format and non-emptiness
+        # Validate string format and non-emptiness using helper
         s: str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
 
-        # Validate parseable to finite decimal
+        # Validate parseable to finite decimal using helper
         d: Decimal | None = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        # DEFENSIVE CHECK: Ensure parse_decimal_value returns non-None and is finite.
-        # Mypy=[redundant-expr]
+        # DEFENSIVE CHECK: Ensure parse_decimal_value result is finite
         if d is None or not d.is_finite():
             raise ValueError(
                 f"{field_name}: Raw string value '{s}' must represent a finite decimal."
@@ -144,11 +145,11 @@ class BackpackRawKline(BaseModel):
     def validate_ignored_str(cls, v: Any, info: ValidationInfo) -> str:
         """Validate the 'ignored' field as a required, non-empty string (max_length=64)."""
         field_name = info.field_name or "ignored"
-        # DEFENSIVE CHECK: Ensure runtime type at boundary from Dict[str, Any]. Mypy=[unreachable]
+        # DEFENSIVE CHECK: Runtime type check from Dict[str, Any]
         if not isinstance(v, str):
             raise TypeError(f"{field_name}: Raw value must be a string, got {type(v).__name__}")
 
-        # Validate string format and non-emptiness
+        # Validate string format and non-emptiness using helper
         s: str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
         return s
 

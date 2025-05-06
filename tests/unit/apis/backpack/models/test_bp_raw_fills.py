@@ -127,26 +127,33 @@ def test_backpack_raw_fill_invalid_types(
         ("timestamp", "2024-01-15T10:30:00Z-invalid", "Invalid ISO timestamp format"),
         ("timestamp", "", "String cannot be empty"),
         ("tradeId", -1, "Must be >= 0"),
-        ("clientId", "", "String cannot be empty"),  # Optional but non-empty if present
+        # Empty clientId should be rejected by the 'after' validator
+        ("clientId", "", "clientId cannot be an empty string if provided"),
         ("clientId", "C" * 129, "String value too long (max 128 chars)"),
     ],
 )
-def test_backpack_raw_fill_invalid_formats(
+def test_backpack_raw_fill_invalid_formats_and_values(
     valid_fill_data: dict[str, Any],
     field: str,
     invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid values
     expected_msg_part: str | tuple[str, str],
 ) -> None:
-    """Test ValidationError for format/constraint violations."""
+    """Test ValidationError for format/value/constraint violations."""
     valid_fill_data[field] = invalid_value
     with pytest.raises(ValidationError) as exc_info:
         BackpackRawFill.model_validate(valid_fill_data)
     # Adjust assertion to handle tuple of expected parts for robust checking
     if isinstance(expected_msg_part, tuple):
         for part in expected_msg_part:
-            assert part in str(exc_info.value)
+            assert part in str(exc_info.value), (
+                f"Expected part '{part}' not found in error for "
+                f"{field}={invalid_value!r}: {exc_info.value}"
+            )
     else:
-        assert expected_msg_part in str(exc_info.value)
+        assert expected_msg_part in str(exc_info.value), (
+            f"Expected '{expected_msg_part}' not found in error for "
+            f"{field}={invalid_value!r}: {exc_info.value}"
+        )
 
 
 # --- Failure Cases: Missing Required Fields ---

@@ -1,4 +1,4 @@
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
 
@@ -110,40 +110,48 @@ class HyperliquidRawExchangeResponseData(BaseModel):
             raise ValueError(f"{field_name}: Must be a list, got {type(v).__name__}")
 
         raw_list: list[Any] = v
+        # Explicitly type hint the list we are building
         validated_list: list[
             Literal["canceled", "modified", "success"] | HyperliquidRawExchangeStatusObject
         ] = []
-        allowed_strings = {"canceled", "modified", "success"}
+        # Type as set[str] for compatibility with the helper function signature
+        allowed_strings: set[str] = {
+            "canceled",
+            "modified",
+            "success",
+        }
 
         for i, item_raw in enumerate(raw_list):
             current_field = f"{field_name}[{i}]"
             if isinstance(item_raw, str):
                 try:
-                    validated_str = validate_enum_field(
+                    # Validate the string against allowed literals using the helper
+                    validated_str: Literal["canceled", "modified", "success"] = validate_enum_field(
                         item_raw, allowed=allowed_strings, field_name=current_field
-                    )
-                    validated_literal = cast(
-                        Literal["canceled", "modified", "success"], validated_str
-                    )
-                    validated_list.append(validated_literal)
+                    )  # type: ignore [assignment] # Helper guarantees Literal return, but signature is str.
+                    validated_list.append(validated_str)
                 except ValueError as e:
+                    # Re-raise with more context if validation fails
                     raise ValueError(
                         f"{current_field}: Invalid status string '{item_raw}'. {e}"
                     ) from e
             elif isinstance(item_raw, dict):
                 try:
+                    # Validate the dictionary against the StatusObject model
                     item_dict: dict[str, Any] = item_raw
                     validated_obj = HyperliquidRawExchangeStatusObject.model_validate(item_dict)
                     validated_list.append(validated_obj)
                 except ValidationError as e:
+                    # Wrap Pydantic error in ValueError for consistency
                     raise ValueError(
                         f"{current_field}: Invalid status object format. Errors: {e}"
                     ) from e
             else:
-                # Handle unexpected types
-                raise ValueError(
-                    f"{current_field}: Invalid type {type(item_raw).__name__}. Expected str/dict."
-                )  # Shortened message slightly to fit line length
+                # Handle any types that are not string or dict
+                raise TypeError(
+                    f"{current_field}: Invalid type {type(item_raw).__name__}. "
+                    "Expected str or dict."
+                )
 
         return validated_list
 

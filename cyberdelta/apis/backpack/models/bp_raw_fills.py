@@ -84,7 +84,7 @@ class BackpackRawFill(BaseModel):
     @field_validator("client_id", mode="before")
     @classmethod
     def validate_optional_str(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """Validate optional, non-empty strings with specific max lengths."""
+        """Validate optional strings with specific max lengths (non-empty if provided)."""
         if v is None:
             return None
         field_name = info.field_name
@@ -97,8 +97,21 @@ class BackpackRawFill(BaseModel):
             "max_length",
             128,
         )
-        # Allow empty is False here because if present, it shouldn't be empty
-        return validate_str_field(v, field_name=field_name, max_length=max_len, allow_empty=False)
+        # Set allow_empty=True here so the 'after' validator can specifically
+        # reject the empty string case if needed.
+        return validate_str_field(v, field_name=field_name, max_length=max_len, allow_empty=True)
+
+    @field_validator("client_id", mode="after")
+    @classmethod
+    def check_client_id_not_empty_str(cls, v: str | None) -> str | None:
+        """Ensure clientId is not an empty string after initial validation/assignment."""
+        # This runs after Pydantic assigns None or the validated string from the 'before' validator.
+        if v == "":  # Check specifically for empty string post-assignment
+            # This case should theoretically be caught by allow_empty=False
+            # in the 'before' validator, but this provides an explicit,
+            # redundant check as mandated.
+            raise ValueError("clientId cannot be an empty string if provided.")
+        return v
 
     @field_validator("is_maker", mode="before")
     @classmethod

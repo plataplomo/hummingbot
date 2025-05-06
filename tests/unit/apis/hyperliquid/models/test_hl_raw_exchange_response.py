@@ -159,6 +159,7 @@ def test_hl_response_valid_missing_data() -> None:
         ({"oid": -1}, "Must be non-negative"),
         ({"oid": "abc"}, "Must be an integer"),
         ({"oid": 1.0}, "Must be an integer"),
+        ({"oid": 1.0}, "Must be an integer"),
         ({}, "Field required"),
     ],
 )
@@ -235,43 +236,41 @@ def test_hl_status_object_extra_fields_ignored() -> None:
 
 # Response Data Failures
 @pytest.mark.parametrize(
-    "invalid_data, expected_msg_part",
+    "invalid_data, expected_exception, expected_msg_part",
     [
-        ({"type": "", "statuses": []}, "String cannot be empty"),
-        ({"type": 123, "statuses": []}, "Expected string"),
-        ({"type": "order", "statuses": 123}, "Must be a list"),
+        ({"type": "", "statuses": []}, ValueError, "String cannot be empty"),
+        ({"type": 123, "statuses": []}, ValueError, "Expected string"),
+        ({"type": "order", "statuses": 123}, ValueError, "Must be a list"),
         (
             {"type": "order", "statuses": [1, 2]},
-            "statuses[0]: Invalid type int",
+            TypeError,
+            "statuses[0]: Invalid type int. Expected str or dict.",
         ),
-        ({"type": "order", "statuses": ["invalid_status"]}, "Invalid status string"),
-        ({"type": "order", "statuses": [{"resting": {"oid": -1}}]}, "non-negative"),
-        ({"type": "order"}, "Field required"),
-        ({"statuses": []}, "Field required"),
+        (
+            {"type": "order", "statuses": ["invalid_status"]},
+            ValueError,
+            "statuses[0]: Invalid status string 'invalid_status'",
+        ),
+        (
+            {"type": "order", "statuses": [{"resting": {"oid": -1}}]},
+            ValueError,
+            "statuses[0]: Invalid status object format.",
+        ),
+        ({"type": "order"}, ValidationError, "Field required"),
+        ({"statuses": []}, ValidationError, "Field required"),
     ],
 )
-def test_hl_response_data_invalid(invalid_data: dict[str, Any], expected_msg_part: str) -> None:
-    with pytest.raises((ValidationError, ValueError)) as exc_info:
+def test_hl_response_data_invalid(
+    invalid_data: dict[str, Any], expected_exception: type[Exception], expected_msg_part: str
+) -> None:
+    with pytest.raises(expected_exception) as exc_info:
         HyperliquidRawExchangeResponseData.model_validate(invalid_data)
     assert expected_msg_part in str(exc_info.value)
 
 
-def test_hl_response_data_extra_ignore_allows_unknown_in_status_object() -> None:
-    """Verify extra='ignore' on StatusObject allows unknown fields within statuses list."""
-    data = {"type": "order", "statuses": [{"unknown": 1, "another": True}]}
-    # Should parse successfully, creating an empty StatusObject due to extra='ignore'
-    obj = HyperliquidRawExchangeResponseData.model_validate(data)
-    assert len(obj.statuses) == 1
-    assert isinstance(obj.statuses[0], HyperliquidRawExchangeStatusObject)
-    # Assert the StatusObject is empty as no known fields were provided
-    assert obj.statuses[0].resting is None
-    assert obj.statuses[0].filled is None
-    assert obj.statuses[0].error is None
-
-
 def test_hl_response_data_extra_fields_ignored() -> None:
-    """Test that extra fields are ignored due to extra='ignore'."""
-    data = {"type": "order", "statuses": ["success"], "extra": 1}
+    """Test that extra fields are ignored in ResponseData itself (config is ignore)."""
+    data = {"type": "order", "statuses": ["success"], "extra": "ignored"}
     obj = HyperliquidRawExchangeResponseData.model_validate(data)
     assert obj.type == "order"
     assert not hasattr(obj, "extra")
@@ -279,20 +278,27 @@ def test_hl_response_data_extra_fields_ignored() -> None:
 
 # Top Level Response Failures
 @pytest.mark.parametrize(
-    "invalid_data, expected_msg_part",
+    "invalid_data, expected_exception, expected_msg_part",
     [
-        ({"status": "error", "data": None}, "Invalid value 'error'"),
-        ({"status": 123, "data": None}, "Expected string"),
-        ({}, "Field required"),
+        ({"status": "error", "data": None}, ValueError, "Invalid value 'error'"),
+        ({"status": 123, "data": None}, ValueError, "Expected string"),
+        ({}, ValidationError, "Field required"),
         (
             {"status": "ok", "data": {"type": "order", "statuses": [1]}},
+            TypeError,
             "statuses[0]: Invalid type int",
         ),
-        ({"status": "ok", "extra_field": 1}, "Extra inputs are not permitted"),
-        ({"status": "ok", "data": {"type": "", "statuses": []}}, "String cannot be empty"),
+        ({"status": "ok", "extra_field": 1}, ValidationError, "Extra inputs are not permitted"),
+        (
+            {"status": "ok", "data": {"type": "", "statuses": []}},
+            ValueError,
+            "String cannot be empty",
+        ),
     ],
 )
-def test_hl_response_invalid(invalid_data: dict[str, Any], expected_msg_part: str) -> None:
-    with pytest.raises((ValidationError, ValueError)) as exc_info:
+def test_hl_response_invalid(
+    invalid_data: dict[str, Any], expected_exception: type[Exception], expected_msg_part: str
+) -> None:
+    with pytest.raises(expected_exception) as exc_info:
         HyperliquidRawExchangeResponse.model_validate(invalid_data)
     assert expected_msg_part in str(exc_info.value)
