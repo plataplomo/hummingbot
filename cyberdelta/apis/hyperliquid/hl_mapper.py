@@ -21,7 +21,6 @@ API response against the strict Raw Pydantic models.
 """
 
 import logging
-import re
 from collections import defaultdict
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -30,11 +29,6 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from cyberdelta.apis.exchange_names import ExchangeName
-from cyberdelta.apis.hyperliquid.hl_api_error import (
-    HYPERLIQUID_ERROR_STRINGS,
-    HyperliquidAPIErrorCategory,
-)
-from cyberdelta.apis.hyperliquid.models.hl_raw_api_error import HyperliquidRawApiError
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
@@ -50,9 +44,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsFillEvent,
     HyperliquidRawWsTradeEvent,
 )
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.api_error_response import APIErrorResponse
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -268,7 +259,9 @@ class HyperliquidMapper:
                         f"[{symbol}] Skipping invalid bid level (not a list): {level_raw}"
                     )
                     continue
-                # level_typed is now list[Any]
+                # DEFENSIVE CHECK: Pyright infers level_typed as list[Unknown]
+                #                  despite runtime check.
+                # Pyright=[reportUnknownVariableType]
                 level_typed: list[Any] = level_raw
                 if len(level_typed) >= 2:
                     # DEFENSIVE CHECK: level_typed[0] and level_typed[1] are Any.
@@ -305,7 +298,9 @@ class HyperliquidMapper:
                         f"[{symbol}] Skipping invalid ask level (not a list): {level_raw_ask}"
                     )
                     continue
-                # level_typed_ask is now list[Any]
+                # DEFENSIVE CHECK: Pyright infers level_typed_ask as list[Unknown]
+                #                  despite runtime check.
+                # Pyright=[reportUnknownVariableType]
                 level_typed_ask: list[Any] = level_raw_ask
                 if len(level_typed_ask) >= 2:
                     # DEFENSIVE CHECK: level_typed_ask[0] and [1] are Any.
@@ -463,161 +458,6 @@ class HyperliquidMapper:
                 f"Error mapping raw asset definition to FundingRate: {e}. Data: {raw_asset_def}"
             )
             return None
-
-    @staticmethod
-    def _regex_match(msg: str, patterns: str | list[str]) -> bool:
-        """
-        Helper for regex-based error message matching.
-        Accepts a single pattern or a list of patterns.
-        """
-        if isinstance(patterns, str):
-            patterns = [patterns]
-        return any(re.search(p, msg, re.IGNORECASE) for p in patterns)
-
-    @staticmethod
-    def categorize_hyperliquid_error(error_message: str) -> HyperliquidAPIErrorCategory:
-        """
-        Map a Hyperliquid error message to a known error category, ERROR, or UNKNOWN.
-        Uses canonical error substrings from hl_api_error.py for initial matching,
-        then regex for variants.
-        """
-        if not error_message:
-            return HyperliquidAPIErrorCategory.UNKNOWN
-        msg = error_message.strip().lower()
-        if msg == "error":
-            return HyperliquidAPIErrorCategory.ERROR
-        # Canonical string check (from hl_api_error.py)
-        for canonical, category in HYPERLIQUID_ERROR_STRINGS.items():
-            if canonical in msg:
-                return category
-        # Fallback to regex/robust matching for variants
-        if HyperliquidMapper._regex_match(msg, r"insufficient balance"):
-            return HyperliquidAPIErrorCategory.INSUFFICIENT_BALANCE
-        if HyperliquidMapper._regex_match(msg, r"invalid signature"):
-            return HyperliquidAPIErrorCategory.INVALID_SIGNATURE
-        if HyperliquidMapper._regex_match(msg, r"invalid asset"):
-            return HyperliquidAPIErrorCategory.INVALID_ASSET
-        if HyperliquidMapper._regex_match(msg, r"invalid order type"):
-            return HyperliquidAPIErrorCategory.INVALID_ORDER_TYPE
-        if HyperliquidMapper._regex_match(msg, r"order size too small"):
-            return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL
-        if HyperliquidMapper._regex_match(msg, r"order size too large"):
-            return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE
-        if HyperliquidMapper._regex_match(msg, r"price out of bounds"):
-            return HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS
-        if HyperliquidMapper._regex_match(msg, r"rate limit exceeded"):
-            return HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED
-        if HyperliquidMapper._regex_match(msg, r"unauthorized"):
-            return HyperliquidAPIErrorCategory.UNAUTHORIZED
-        if HyperliquidMapper._regex_match(msg, r"internal server error"):
-            return HyperliquidAPIErrorCategory.INTERNAL_SERVER_ERROR
-        if HyperliquidMapper._regex_match(msg, r"order must have minimum value"):
-            return HyperliquidAPIErrorCategory.ORDER_MIN_VALUE
-        if HyperliquidMapper._regex_match(
-            msg, [r"order was never placed", r"already canceled", r"already filled"]
-        ):
-            return HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED
-        if HyperliquidMapper._regex_match(msg, r"invalid twap duration"):
-            return HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION
-        if HyperliquidMapper._regex_match(
-            msg, [r"twap was never placed", r"twap already canceled", r"twap already filled"]
-        ):
-            return HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED
-        return HyperliquidAPIErrorCategory.UNKNOWN
-
-    @staticmethod
-    def map_category_to_api_error_code(
-        category_or_message: HyperliquidAPIErrorCategory | str,
-    ) -> APIErrorCode:
-        """
-        Map a HyperliquidAPIErrorCategory or raw error message (str) to APIErrorCode.
-        If a string is provided, it is first categorized using regex logic.
-        """
-        if isinstance(category_or_message, str):
-            category = HyperliquidMapper.categorize_hyperliquid_error(category_or_message)
-        else:
-            category = category_or_message
-        mapping = {
-            HyperliquidAPIErrorCategory.INSUFFICIENT_BALANCE: APIErrorCode.INSUFFICIENT_FUNDS,
-            HyperliquidAPIErrorCategory.INVALID_SIGNATURE: APIErrorCode.AUTHENTICATION_FAILED,
-            HyperliquidAPIErrorCategory.INVALID_ASSET: APIErrorCode.INVALID_SYMBOL,
-            HyperliquidAPIErrorCategory.INVALID_ORDER_TYPE: APIErrorCode.INVALID_REQUEST,
-            HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL: APIErrorCode.INVALID_ORDER_SIZE,
-            HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE: APIErrorCode.INVALID_ORDER_SIZE,
-            HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS: APIErrorCode.PRICE_OUT_OF_RANGE,
-            HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED: APIErrorCode.RATE_LIMITED,
-            HyperliquidAPIErrorCategory.UNAUTHORIZED: APIErrorCode.AUTHENTICATION_FAILED,
-            HyperliquidAPIErrorCategory.INTERNAL_SERVER_ERROR: APIErrorCode.SERVER_ERROR,
-            HyperliquidAPIErrorCategory.ORDER_MIN_VALUE: APIErrorCode.MIN_NOTIONAL_NOT_MET,
-            HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED: APIErrorCode.ORDER_NOT_FOUND,
-            HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION: APIErrorCode.INVALID_REQUEST,
-            HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED: APIErrorCode.ORDER_NOT_FOUND,
-            HyperliquidAPIErrorCategory.UNKNOWN: APIErrorCode.EXCHANGE_SPECIFIC,
-            HyperliquidAPIErrorCategory.ERROR: APIErrorCode.EXCHANGE_SPECIFIC,
-        }
-        return mapping.get(category, APIErrorCode.EXCHANGE_SPECIFIC)
-
-    @staticmethod
-    def map_error_response(
-        error_body: str,
-        response_data: dict[str, Any] | None,
-        http_status: int | None = None,
-        original_exception: Exception | None = None,
-    ) -> APIError:
-        """
-        Transform a raw Hyperliquid error response into a standardized APIError.
-        This is the single entry point for mapping/categorizing/normalizing Hyperliquid errors.
-
-        Args:
-            error_body: The raw error string from the response body.
-            response_data: The parsed JSON error response dict, if available
-                           (e.g., {"error": "msg"}).
-            http_status: Optional HTTP status code from the response.
-            original_exception: Optional original exception for chaining.
-
-        Returns:
-            APIError: The standardized internal error model for business logic.
-        """
-        extracted_message = error_body
-        category = HyperliquidAPIErrorCategory.UNKNOWN
-
-        if response_data:
-            try:
-                error_obj = HyperliquidRawApiError.model_validate(response_data)
-                extracted_message = error_obj.error
-                category = HyperliquidMapper.categorize_hyperliquid_error(extracted_message)
-            except ValidationError:
-                logger.warning(
-                    f"Failed to validate Hyperliquid error response_data: {response_data}. "
-                    f"Falling back to error_body: '{error_body}'"
-                )
-                category = HyperliquidMapper.categorize_hyperliquid_error(error_body)
-        else:
-            category = HyperliquidMapper.categorize_hyperliquid_error(error_body)
-
-        if not extracted_message:
-            extracted_message = "Unknown Hyperliquid error"
-
-        api_error_code = HyperliquidMapper.map_category_to_api_error_code(category)
-
-        api_err_response_obj = APIErrorResponse.from_exchange_error(
-            message=extracted_message,
-            code=api_error_code.value,
-            http_status=http_status,
-            exchange_code=None,
-            exchange_message=extracted_message,
-            original_exception=original_exception,
-        )
-
-        return APIError(
-            message=api_err_response_obj.message,
-            code=api_err_response_obj.code,
-            http_status=api_err_response_obj.http_status,
-            exchange_code=api_err_response_obj.exchange_code,
-            exchange_message=api_err_response_obj.exchange_message,
-            retry_after=api_err_response_obj.retry_after,
-            original_exception=api_err_response_obj.original_exception,
-        )
 
     @staticmethod
     def _map_asset_positions(
@@ -1115,92 +955,3 @@ class HyperliquidWsEventMapper:
         #       if structure differs from HyperliquidRawPositionInfo
         # For now, return None or implement a conversion if needed
         return None
-
-
-class HyperliquidApiErrorMapper:
-    """
-    Stub for mapping Hyperliquid API error payloads to internal error codes/exceptions.
-    TODO: Implement robust error mapping as needed.
-    """
-
-    @staticmethod
-    def map(raw: dict[str, Any]) -> Exception:
-        # TODO: Implement error mapping logic
-        return Exception("Unmapped Hyperliquid API error: " + str(raw))
-
-
-def map_raw_candle_snapshot_to_candles(
-    raw_candle_snapshot: HyperliquidRawCandleSnapshot,
-    symbol: str,
-    interval: str,
-) -> list[Candle]:
-    """Maps a raw candle snapshot (list-based) to a list of internal Candle models."""
-    candles: list[Candle] = []
-    if raw_candle_snapshot.s != "ok":
-        logger.warning(
-            f"Received non-ok status in candle snapshot for {symbol} "
-            f"{interval}: {raw_candle_snapshot.s}"
-        )
-        return candles
-
-    if not raw_candle_snapshot.t:
-        logger.warning(f"Received empty candle lists in snapshot for {symbol} {interval}")
-        return candles
-
-    list_len = len(raw_candle_snapshot.t)
-    for i in range(list_len):
-        try:
-            # Use parse_datetime_utc for millisecond timestamp
-            timestamp = parse_datetime_utc(
-                raw_candle_snapshot.t[i], field_name=f"raw_candle_snapshot.t[{i}]"
-            )
-            open_price = parse_decimal_value(
-                raw_candle_snapshot.o[i], field_name=f"raw_candle_snapshot.o[{i}]", allow_none=False
-            )
-            high_price = parse_decimal_value(
-                raw_candle_snapshot.h[i], field_name=f"raw_candle_snapshot.h[{i}]", allow_none=False
-            )
-            low_price = parse_decimal_value(
-                raw_candle_snapshot.l[i], field_name=f"raw_candle_snapshot.l[{i}]", allow_none=False
-            )
-            close_price = parse_decimal_value(
-                raw_candle_snapshot.c[i], field_name=f"raw_candle_snapshot.c[{i}]", allow_none=False
-            )
-            volume = parse_decimal_value(
-                raw_candle_snapshot.v[i], field_name=f"raw_candle_snapshot.v[{i}]", allow_none=False
-            )
-
-            if (
-                timestamp is None
-                or open_price is None
-                or high_price is None
-                or low_price is None
-                or close_price is None
-                or volume is None
-            ):
-                raise ValueError("Parsing resulted in None unexpectedly")
-            if not all(
-                d.is_finite() for d in [open_price, high_price, low_price, close_price, volume]
-            ):
-                raise ValueError("Parsed decimal value is not finite")
-
-            # Correct argument name: use open_time
-            candle = Candle(
-                symbol=symbol,
-                interval=interval,
-                open_time=timestamp,  # Map timestamp to open_time
-                open=open_price,
-                high=high_price,
-                low=low_price,
-                close=close_price,
-                volume=volume,
-            )
-            candles.append(candle)
-        except (IndexError, ValueError, TypeError) as e:
-            logger.error(
-                f"Error mapping raw candle at index {i} for {symbol} {interval}: {e}",
-                exc_info=True,
-            )
-            continue
-
-    return candles

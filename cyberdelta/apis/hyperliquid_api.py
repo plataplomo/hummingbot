@@ -12,10 +12,11 @@ from web3.auto import w3
 
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
+from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_mapper import (
+    HyperliquidCandleMapper,
     HyperliquidMapper,
     HyperliquidOrderMapper,
-    map_raw_candle_snapshot_to_candles,
 )
 from cyberdelta.apis.hyperliquid.hl_ws_mapper import HyperliquidWebsocketMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
@@ -1165,8 +1166,8 @@ class HyperliquidAPI(ExchangeAPI):
             raw_snapshot = HyperliquidRawCandleSnapshot.model_validate(raw_response)
 
             # Map the validated snapshot to a list of internal Candle objects
-            # The mapper expects the interval, which is `timeframe` here.
-            internal_candles = map_raw_candle_snapshot_to_candles(raw_snapshot, symbol, timeframe)
+            # Use the class method instead of the removed standalone function
+            internal_candles = HyperliquidCandleMapper.map(raw_snapshot, symbol, timeframe)
 
             # Apply limit if necessary (though HL API might not support it directly)
             # This is post-processing.
@@ -1433,7 +1434,8 @@ class HyperliquidAPI(ExchangeAPI):
         error_data: dict[str, Any] | None,
     ) -> APIError:
         """Maps Hyperliquid specific error responses to a standardized APIError."""
-        return HyperliquidMapper.map_error_response(
+        # Use the dedicated mapper from the new file
+        return HyperliquidErrorMapper.map_error_response(
             error_body=error_body,
             response_data=error_data,
             http_status=status_code,
