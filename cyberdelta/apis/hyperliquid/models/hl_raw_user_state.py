@@ -31,6 +31,8 @@ account, margin, and position data.
     # ...then transform to internal user state model
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
@@ -51,7 +53,7 @@ class HyperliquidRawLeverage(BaseModel):
 
     type: str = Field(..., alias="type")
     value: int = Field(..., alias="value")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("type", mode="before")
     @classmethod
@@ -129,7 +131,7 @@ class HyperliquidRawPositionInfo(BaseModel):
     return_on_equity: str = Field(..., alias="returnOnEquity")
     szi: str = Field(..., alias="szi")
     unrealized_pnl: str = Field(..., alias="unrealizedPnl")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("coin", mode="before")
     @classmethod
@@ -244,7 +246,7 @@ class HyperliquidRawAssetPosition(BaseModel):
 
     asset: str = Field(..., alias="asset")
     position: HyperliquidRawPositionInfo = Field(..., alias="position")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("asset", mode="before")
     @classmethod
@@ -287,7 +289,7 @@ class HyperliquidRawMarginSummary(BaseModel):
     total_margin_used: str = Field(..., alias="totalMarginUsed")
     total_ntl_pos: str = Field(..., alias="totalNtlPos")
     total_raw_usd: str = Field(..., alias="totalRawUsd")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("account_value", mode="before")
     @classmethod
@@ -413,7 +415,7 @@ class HyperliquidRawClearinghouseState(BaseModel):
     isolated_maintenance_margin_used: str = Field(..., alias="isolatedMaintenanceMarginUsed")
     isolated_margin_summary: HyperliquidRawMarginSummary = Field(..., alias="isolatedMarginSummary")
     withdrawable: str = Field(..., alias="withdrawable")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("cross_maintenance_margin_used", mode="before")
     @classmethod
@@ -464,13 +466,23 @@ class HyperliquidRawUserStateRequestPayload(BaseModel):
     requesting the user's clearinghouse state.
 
     Fields:
-        type (str): Must be 'clearinghouseState'.
+        type (Literal['clearinghouseState']): Must be 'clearinghouseState'.
         user (str): Wallet address of the user.
     """
 
-    type: str = Field("clearinghouseState", alias="type")
+    type: Literal["clearinghouseState"] = Field("clearinghouseState", alias="type")
     user: str = Field(..., alias="user")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type_literal(cls, v: object, info: ValidationInfo) -> str:
+        """Ensures type is exactly 'clearinghouseState'."""
+        field_name = info.field_name or "type"
+        s = validate_str_field(v, field_name=field_name, max_length=32)
+        if s != "clearinghouseState":
+            raise ValueError(f"{field_name} must be 'clearinghouseState', got '{s}'")
+        return s
 
     @field_validator("user", mode="before")
     @classmethod

@@ -37,7 +37,7 @@ boundary validation only.
 
 from __future__ import annotations
 
-from typing import Any, Self, TypeGuard
+from typing import Any, Literal, Self, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -89,7 +89,7 @@ class HyperliquidRawAssetDefinition(BaseModel):
     sz_decimals: int = Field(..., alias="szDecimals")
     max_leverage: int = Field(..., alias="maxLeverage")
     only_isolated: bool = Field(..., alias="onlyIsolated")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("name", mode="before")
     @classmethod
@@ -162,7 +162,7 @@ class HyperliquidRawAssetCtx(BaseModel):
     prev_day_px: str = Field(..., alias="prevDayPx")
     day_ntl_vlm: str = Field(..., alias="dayNtlVlm")
     impact_px: str | None = Field(None, alias="impactPx")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("name", mode="before")
     @classmethod
@@ -215,7 +215,7 @@ class HyperliquidRawMetaResponse(BaseModel):
     """
 
     universe: list[HyperliquidRawAssetDefinition] = Field(..., alias="universe")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("universe", mode="before")
     @classmethod
@@ -293,7 +293,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         asset_ctxs = [HyperliquidRawAssetCtx.model_validate(x) for x in asset_ctxs_checked]
         return cls(meta=meta, asset_ctxs=asset_ctxs)
 
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 class HyperliquidRawMetaRequestPayload(BaseModel):
@@ -304,21 +304,20 @@ class HyperliquidRawMetaRequestPayload(BaseModel):
     requesting meta/universe information. Never use for internal business logic.
 
     Fields:
-        type (str): Must be 'meta'.
+        type (Literal['meta']): Must be 'meta'.
     """
 
-    type: str = Field("meta", alias="type")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    type: Literal["meta"] = Field("meta", alias="type")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("type", mode="before")
     @classmethod
     def validate_type(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'type' field to ensure it is exactly 'meta'.
-        """
-        s = validate_str_field(v, field_name="type", max_length=32)
+        """Ensures type is exactly 'meta'."""
+        field_name = info.field_name or "type"
+        s = validate_str_field(v, field_name=field_name, max_length=16)
         if s != "meta":
-            raise ValueError("type: Must be 'meta'")
+            raise ValueError(f"{field_name} must be 'meta', got '{s}'")
         return s
 
 
@@ -330,21 +329,42 @@ class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
     requesting both meta and asset context information. Never use for internal business logic.
 
     Fields:
-        type (str): Must be 'metaAndAssetCtxs'.
+        type (Literal['metaAndAssetCtxs']): Must be 'metaAndAssetCtxs'.
     """
 
-    type: str = Field("metaAndAssetCtxs", alias="type")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    type: Literal["metaAndAssetCtxs"] = Field("metaAndAssetCtxs", alias="type")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("type", mode="before")
     @classmethod
     def validate_type(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'type' field to ensure it is exactly 'metaAndAssetCtxs'.
-        """
-        s = validate_str_field(v, field_name="type", max_length=32)
+        """Ensures type is exactly 'metaAndAssetCtxs'."""
+        field_name = info.field_name or "type"
+        s = validate_str_field(v, field_name=field_name, max_length=32)
         if s != "metaAndAssetCtxs":
-            raise ValueError("type: Must be 'metaAndAssetCtxs'")
+            raise ValueError(f"{field_name} must be 'metaAndAssetCtxs', got '{s}'")
+        return s
+
+
+class HyperliquidRawAllMetaRequestPayload(BaseModel):
+    """
+    Strict boundary model for the request payload for the 'allMeta' info type.
+
+    Fields:
+        type (Literal['allMeta']): Must be 'allMeta'.
+    """
+
+    type: Literal["allMeta"] = Field("allMeta", alias="type")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type(cls, v: object, info: ValidationInfo) -> str:
+        """Ensures type is exactly 'allMeta'."""
+        field_name = info.field_name or "type"
+        s = validate_str_field(v, field_name=field_name, max_length=16)
+        if s != "allMeta":
+            raise ValueError(f"{field_name} must be 'allMeta', got '{s}'")
         return s
 
 
@@ -365,7 +385,7 @@ class HyperliquidRawUpdateLeverageRequest(BaseModel):
     asset: int = Field(..., alias="asset")
     is_cross: bool = Field(..., alias="isCross")
     leverage: int = Field(..., alias="leverage")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("asset", mode="before")
     @classmethod
@@ -418,7 +438,7 @@ class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
     asset: int = Field(..., alias="asset")
     is_buy: bool = Field(..., alias="isBuy")
     ntli: int = Field(..., alias="ntli")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("asset", mode="before")
     @classmethod

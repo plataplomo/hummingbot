@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 import aiohttp
 from eth_account.messages import encode_typed_data
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from web3.auto import w3
 
 # from websockets import WebSocketClientProtocol  # Use modern API for compatibility
@@ -32,11 +32,13 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
+    HyperliquidRawOrderStatusResponse,
+    HyperliquidRawTriggerInfo,
+    HyperliquidRawTriggerSpec,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
-    HyperliquidRawOrderTriggerDetails,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
@@ -675,10 +677,7 @@ class HyperliquidAPI(ExchangeAPI):
                 order_symbol: str = order_data.asset
                 if symbol is None or order_symbol == symbol:
                     # Extract trigger info if present
-                    # (might require extra parsing logic if nested differently in history)
-                    trigger_info: HyperliquidRawTriggerInfo | None = getattr(
-                        order_obj, "trigger", None
-                    )
+                    trigger_info: HyperliquidRawTriggerInfo | None = order_obj.trigger
                     # Use the mapper function
                     order = HyperliquidOrderMapper.transform_raw_order_to_internal(
                         raw=order_data, trigger=trigger_info
@@ -879,22 +878,24 @@ class HyperliquidAPI(ExchangeAPI):
             validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
 
             if validated_response.status == "ok":
-                logger.info(
-                    f"[{self.exchange_name}] L2 USDC Transfer successful: {validated_response.response}"
-                )
-                if isinstance(validated_response.response, BaseModel):
-                    return validated_response.response.model_dump(exclude_none=True)
-                elif isinstance(validated_response.response, list):
-                    return {"status": "success", "data": validated_response.response}
-                elif validated_response.response is not None:
-                    return {"status": "success", "data": validated_response.response}
+                # For transfers, the first status usually indicates success or contains a specific message.
+                if validated_response.data and validated_response.data.statuses:
+                    first_status = validated_response.data.statuses[0]
+                    logger.info(
+                        f"[{self.exchange_name}] L2 USDC Transfer successful. Status: {first_status}"
+                    )
+                    # Return the specific status message or a generic success
+                    return {"status": "success", "data": str(first_status)}
                 else:
-                    return {"status": "success", "data": "No specific response data"}
-            else:
+                    logger.info(
+                        f"[{self.exchange_name}] L2 USDC Transfer reported 'ok' but no specific data/statuses returned."
+                    )
+                    return {"status": "success", "data": "Operation reported as 'ok'."}
+            else:  # status != "ok"
                 mapped_error = HyperliquidErrorMapper.map_error_response(
                     error_body=str(response_raw),
-                    response_data=validated_response.model_dump(),
-                    http_status=200,
+                    response_data=validated_response.model_dump() if validated_response else None,
+                    http_status=200,  # Assuming 200 for non-"ok" status if HTTP was fine
                 )
                 raise mapped_error
         except ValidationError as e:
@@ -961,22 +962,22 @@ class HyperliquidAPI(ExchangeAPI):
             validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
 
             if validated_response.status == "ok":
-                logger.info(
-                    f"[{self.exchange_name}] Withdrawal for {asset} successful: {validated_response.response}"
-                )
-                if isinstance(validated_response.response, BaseModel):
-                    return validated_response.response.model_dump(exclude_none=True)
-                elif isinstance(validated_response.response, list):
-                    return {"status": "success", "data": validated_response.response}
-                elif validated_response.response is not None:
-                    return {"status": "success", "data": validated_response.response}
+                if validated_response.data and validated_response.data.statuses:
+                    first_status = validated_response.data.statuses[0]
+                    logger.info(
+                        f"[{self.exchange_name}] Withdrawal for {asset} successful. Status: {first_status}"
+                    )
+                    return {"status": "success", "data": str(first_status)}
                 else:
-                    return {"status": "success", "data": "No specific response data"}
-            else:
+                    logger.info(
+                        f"[{self.exchange_name}] Withdrawal for {asset} reported 'ok' but no specific data/statuses returned."
+                    )
+                    return {"status": "success", "data": "Operation reported as 'ok'."}
+            else:  # status != "ok"
                 mapped_error = HyperliquidErrorMapper.map_error_response(
                     error_body=str(response_raw),
-                    response_data=validated_response.model_dump(),
-                    http_status=200,
+                    response_data=validated_response.model_dump() if validated_response else None,
+                    http_status=200,  # Assuming 200 for non-"ok" status if HTTP was fine
                 )
                 raise mapped_error
         except ValidationError as e:
@@ -1494,29 +1495,45 @@ class HyperliquidAPI(ExchangeAPI):
         trigger_payload: dict[str, Any] | None = None
 
         # Default TIF mapping
-        tif_map = {
+        tif_map: dict[TimeInForce, Literal["Gtc", "Ioc", "Alo"]] = {
             TimeInForce.GTC: "Gtc",
             TimeInForce.IOC: "Ioc",
-            TimeInForce.ALO: "Alo",  # Add Liquidity Only (Post-Only)
+            TimeInForce.ALO: "Alo",
         }
 
-        raw_tif_str = tif_map.get(time_in_force, "Gtc")  # Default to Gtc
+        raw_tif_str_candidate = tif_map.get(time_in_force)
+
         if post_only and order_type in [
             OrderType.LIMIT,
             OrderType.STOP_LIMIT,
             OrderType.TAKE_PROFIT_LIMIT,
         ]:
-            raw_tif_str = "Alo"
+            raw_tif_str_candidate = "Alo"
 
-        # Validate and cast TIF string to Literal type
-        valid_tifs: tuple[Literal["Gtc", "Ioc", "Alo"], ...] = ("Gtc", "Ioc", "Alo")
-        if raw_tif_str not in valid_tifs:
-            # This case should ideally not be reached with current logic
-            logger.error(
-                f"[{self.exchange_name}] Internal TIF mapping resulted in invalid value: {raw_tif_str} for order_type: {order_type}, post_only: {post_only}, time_in_force: {time_in_force}"
+        if raw_tif_str_candidate is None:
+            # This case implies time_in_force was not a valid key and post_only didn't override
+            # Defaulting to Gtc, but this indicates an issue with input `time_in_force`
+            logger.warning(
+                f"[{self.exchange_name}] Unmapped time_in_force '{time_in_force}' and post_only='{post_only}', defaulting TIF to Gtc."
             )
-            raise ValueError(f"Internal TIF mapping resulted in invalid value: {raw_tif_str}")
-        effective_tif: Literal["Gtc", "Ioc", "Alo"] = raw_tif_str  # Now correctly typed
+            raw_tif_str_candidate = "Gtc"
+
+        # Final check against Literal values
+        # Type casting after validation for mypy
+        if raw_tif_str_candidate == "Gtc":
+            effective_tif: Literal["Gtc", "Ioc", "Alo"] = "Gtc"
+        elif raw_tif_str_candidate == "Ioc":
+            effective_tif = "Ioc"
+        elif raw_tif_str_candidate == "Alo":
+            effective_tif = "Alo"
+        else:
+            # This should be truly unreachable if above logic is correct
+            logger.error(
+                f"[{self.exchange_name}] Critical TIF logic error, resulted in invalid value: {raw_tif_str_candidate}"
+            )
+            raise ValueError(
+                f"Internal TIF processing resulted in invalid value: {raw_tif_str_candidate}"
+            )
 
         if order_type == OrderType.MARKET:
             underlying_hl_order_type_dict = {
@@ -1534,7 +1551,7 @@ class HyperliquidAPI(ExchangeAPI):
             if stop_price is None:
                 raise ValueError(f"stop_price is required for {order_type.value} orders.")
             underlying_limit_px_str = "0"  # Triggered market order
-            trigger_details = HyperliquidRawOrderTriggerDetails(
+            trigger_details = HyperliquidRawTriggerSpec(
                 triggerPx=str(stop_price),
                 isMarket=True,
                 tpsl="sl" if order_type == OrderType.STOP_MARKET else "tp",
@@ -1551,7 +1568,7 @@ class HyperliquidAPI(ExchangeAPI):
             underlying_hl_order_type_dict = {
                 "limit": HyperliquidRawLimitOrderTypeDetails(tif=effective_tif).model_dump()
             }
-            trigger_details = HyperliquidRawOrderTriggerDetails(
+            trigger_details = HyperliquidRawTriggerSpec(
                 triggerPx=str(stop_price),
                 isMarket=False,
                 tpsl="sl" if order_type == OrderType.STOP_LIMIT else "tp",
@@ -1584,74 +1601,124 @@ class HyperliquidAPI(ExchangeAPI):
             validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
 
             if validated_response.status != "ok" or not validated_response.data:
+                # If status is not "ok", or if it is "ok" but there's no data field, map error
                 mapped_error = HyperliquidErrorMapper.map_error_response(
                     error_body=str(response_raw),
-                    response_data=validated_response.model_dump(),
-                    http_status=200,
+                    response_data=validated_response.model_dump() if validated_response else None,
+                    http_status=200,  # Assuming 200 for non-"ok" if HTTP itself was fine
                 )
                 raise mapped_error
 
-            if validated_response.data.statuses:
-                first_status_obj = validated_response.data.statuses[0]
-                if isinstance(first_status_obj, HyperliquidRawExchangeStatusObject):
-                    order_id_to_fetch: int | None = None
-                    log_message_prefix = "Order placement resulted in"
-
-                    if resting_details := first_status_obj.resting:
-                        order_id_to_fetch = resting_details.oid
-                        log_message_prefix = f"Order OID:{order_id_to_fetch} reported as resting"
-                    elif filled_details := first_status_obj.filled:
-                        order_id_to_fetch = filled_details.oid
-                        log_message_prefix = f"Order OID:{order_id_to_fetch} reported as filled (avgPx: {filled_details.avg_px}, totalSz: {filled_details.total_sz})"
-                    elif error_msg := first_status_obj.error:
-                        raise APIError(
-                            f"Order placement failed: {error_msg}",
-                            code=APIErrorCode.ORDER_REJECTED.value,
-                        )
-
-                    if order_id_to_fetch is not None:
-                        logger.info(
-                            f"[{self.exchange_name}] {log_message_prefix}. Fetching canonical status."
-                        )
-                        try:
-                            return await self.get_order_status(order_id=str(order_id_to_fetch))
-                        except APIError as e_fetch:
-                            logger.error(
-                                f"[{self.exchange_name}] {log_message_prefix}, but failed to fetch canonical status for OID {order_id_to_fetch}: {e_fetch}"
-                            )
-                            raise APIError(
-                                f"{log_message_prefix}, but failed to retrieve its final status: {e_fetch.message}",
-                                code=e_fetch.code or APIErrorCode.UNKNOWN.value,
-                                original_exception=e_fetch.original_exception or e_fetch,
-                                http_status=e_fetch.http_status,
-                                exchange_code=e_fetch.exchange_code,
-                                exchange_message=e_fetch.exchange_message,
-                            ) from e_fetch
-                    else:
-                        logger.warning(
-                            f"[{self.exchange_name}] Order placement status unclear, no OID or error in status object: {first_status_obj.model_dump()}"
-                        )
-                        raise APIError(
-                            "Order placement status unclear, no OID retrievable from response status object.",
-                            code=APIErrorCode.UNKNOWN.value,
-                        )
-                else:
-                    logger.warning(
-                        f"[{self.exchange_name}] Order placement status has unexpected type in statuses list: {type(first_status_obj)}. Content: {first_status_obj}"
-                    )
-                    raise APIError(
-                        "Order placement response status object has unexpected type in list.",
-                        code=APIErrorCode.UNKNOWN.value,
-                    )
-            else:
+            # At this point, status is "ok" and data field exists.
+            if not validated_response.data.statuses:
+                # Status "ok", data exists, but statuses list is empty - unusual for place_order
                 logger.warning(
-                    f"[{self.exchange_name}] Order placement response status block was empty or unhandled: {validated_response.data.statuses}"
+                    f"[{self.exchange_name}] Order placement response 'ok' but statuses list is empty: {validated_response.data.model_dump()}"
                 )
                 raise APIError(
-                    "Order placement status response unhandled (empty statuses).",
+                    "Order placement 'ok' but no status details returned.",
                     code=APIErrorCode.UNKNOWN.value,
                 )
-        except ValidationError as e:
+
+            first_status_obj_raw = validated_response.data.statuses[0]
+
+            if isinstance(first_status_obj_raw, str):
+                logger.warning(
+                    f"[{self.exchange_name}] Order placement returned simple string status: {first_status_obj_raw}"
+                )
+                # Check if the string indicates a known error pattern
+                if (
+                    "liquidation order too large" in first_status_obj_raw.lower()
+                    or "LiquidationLimitOrderTooLargeError" in first_status_obj_raw
+                ):  # Check specific error name
+                    raise APIError(
+                        f"Order placement failed: {first_status_obj_raw}",
+                        code=APIErrorCode.INSUFFICIENT_FUNDS.value,
+                        exchange_message=first_status_obj_raw,
+                    )
+                # Generic rejection if it's any other string not matching a success pattern
+                raise APIError(
+                    f"Order placement failed with string status: {first_status_obj_raw}",
+                    code=APIErrorCode.ORDER_REJECTED.value,
+                    exchange_message=first_status_obj_raw,
+                )
+
+            if not isinstance(first_status_obj_raw, dict):
+                raise APIError(
+                    f"Order placement status object has unexpected type: {type(first_status_obj_raw)}. Content: {first_status_obj_raw}",
+                    code=APIErrorCode.UNKNOWN.value,
+                )
+
+            try:
+                # Validate the dict as HyperliquidRawExchangeStatusObject from hl_raw_exchange_response
+                first_status_obj = HyperliquidRawExchangeStatusObject.model_validate(
+                    first_status_obj_raw
+                )
+            except ValidationError as ve_status:
+                logger.error(
+                    f"[{self.exchange_name}] Failed to validate order status object: {ve_status}. Raw: {first_status_obj_raw}"
+                )
+                raise APIError(
+                    "Failed to parse order placement status object.",
+                    code=APIErrorCode.UNKNOWN.value,
+                    original_exception=ve_status,
+                ) from ve_status
+
+            order_id_to_fetch: int | None = None
+            log_message_prefix = "Order placement reported"
+
+            if resting_details := first_status_obj.resting:
+                order_id_to_fetch = resting_details.oid
+                log_message_prefix = f"Order OID:{order_id_to_fetch} reported as resting"
+            elif filled_details := first_status_obj.filled:
+                order_id_to_fetch = filled_details.oid
+                log_message_prefix = f"Order OID:{order_id_to_fetch} reported as filled (avgPx: {filled_details.avg_px}, totalSz: {filled_details.total_sz})"
+            elif error_msg := first_status_obj.error:
+                # Specific error string checks can be more robust here if known patterns exist
+                if "LiquidationLimitOrderTooLargeError" in error_msg:
+                    raise APIError(
+                        f"Order placement failed: {error_msg}",
+                        code=APIErrorCode.INSUFFICIENT_FUNDS.value,
+                        exchange_message=error_msg,
+                    )
+                raise APIError(
+                    f"Order placement failed: {error_msg}",
+                    code=APIErrorCode.ORDER_REJECTED.value,
+                    exchange_message=error_msg,
+                )
+
+            if order_id_to_fetch is not None:
+                logger.info(
+                    f"[{self.exchange_name}] {log_message_prefix}. Fetching canonical status after delay."
+                )
+                await asyncio.sleep(0.2)  # Delay to allow order to propagate
+                try:
+                    return await self.get_order_status(
+                        order_id=str(order_id_to_fetch), symbol=symbol
+                    )
+                except APIError as e_fetch:
+                    logger.error(
+                        f"[{self.exchange_name}] {log_message_prefix}, but failed to fetch canonical status for OID {order_id_to_fetch}: {e_fetch}"
+                    )
+                    # Re-raise, making it clear this is a post-placement fetch failure
+                    raise APIError(
+                        f"{log_message_prefix}, but failed to retrieve its final status: {e_fetch.message}",
+                        code=APIErrorCode.UNKNOWN.value,  # Changed from ORDER_FETCH_ERROR
+                        original_exception=e_fetch.original_exception or e_fetch,
+                        http_status=e_fetch.http_status,
+                        exchange_code=e_fetch.exchange_code,
+                        exchange_message=e_fetch.exchange_message,
+                    ) from e_fetch
+            else:
+                # This case implies the status object was not resting, filled, nor had an error message.
+                logger.warning(
+                    f"[{self.exchange_name}] Order placement status unclear, no OID or error in status object: {first_status_obj.model_dump()}"
+                )
+                raise APIError(
+                    "Order placement status unclear, no OID retrievable from response status object.",
+                    code=APIErrorCode.UNKNOWN.value,
+                )
+        except ValidationError as e:  # Handles validation of HyperliquidRawExchangeResponse
             logger.error(
                 f"[{self.exchange_name}] Failed to validate order placement response: {e}. "
                 f"Raw: {response_raw}"
@@ -1825,23 +1892,40 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.INVALID_REQUEST.value,
                 )
 
-            status_part_raw = response_data[0]
+            status_part_raw: Any
+            if isinstance(response_data, list):
+                if not response_data:
+                    logger.warning(
+                        f"[{self.exchange_name}] get_order_status for {order_id} received empty list."
+                    )
+                    raise APIError(
+                        f"Order not found (empty list): id={order_id}",
+                        code=APIErrorCode.ORDER_NOT_FOUND.value,
+                    )
+                status_part_raw = response_data[0]
+            else:
+                status_part_raw = response_data
 
             if isinstance(status_part_raw, str):
                 if status_part_raw.lower() == "order not found":
                     raise APIError(
                         f"Order not found: id={order_id}", code=APIErrorCode.ORDER_NOT_FOUND.value
                     )
-                # Handle other potential string error messages if necessary
+                logger.warning(
+                    f"[{self.exchange_name}] get_order_status for {order_id} received unexpected string: {status_part_raw}"
+                )
                 raise APIError(
-                    f"Received string error from get_order_status: {status_part_raw}",
+                    f"Received unexpected string from get_order_status: {status_part_raw}",
                     code=APIErrorCode.EXCHANGE_SPECIFIC.value,
                 )
 
             if not isinstance(status_part_raw, dict):
+                logger.warning(
+                    f"[{self.exchange_name}] get_order_status for {order_id} received non-dict status part: {type(status_part_raw)}"
+                )
                 raise APIError(
                     f"Unexpected status object format, expected dict: {status_part_raw}",
-                    code=APIErrorCode.INVALID_REQUEST.value,
+                    code=APIErrorCode.UNKNOWN.value,
                 )
 
             validated_status_response: HyperliquidRawOrderStatusResponse

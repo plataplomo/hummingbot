@@ -31,7 +31,7 @@ Usage:
 Do not use these models for internal business logic—use your core models for that.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationInfo, field_validator
 
@@ -55,7 +55,7 @@ class HyperliquidRawTriggerInfo(BaseModel):
     trigger_px: str = Field(..., alias="triggerPx")
     is_market: bool = Field(..., alias="isMarket")
     tpsl: str = Field(..., alias="tpsl")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("trigger_px", mode="before")
     @classmethod
@@ -126,7 +126,7 @@ class HyperliquidRawTriggerSpec(BaseModel):
     trigger_px: str = Field(..., alias="triggerPx")
     is_market: bool = Field(..., alias="isMarket")
     tpsl: str = Field(..., alias="tpsl")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 # --- Time-in-Force for Limit Orders ---
@@ -138,7 +138,7 @@ class HyperliquidRawTifLimit(BaseModel):
     """
 
     tif: str = Field(..., alias="tif")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("tif", mode="before")
     @classmethod
@@ -155,7 +155,7 @@ class HyperliquidRawOrderTypeLimit(BaseModel):
     """
 
     limit: HyperliquidRawTifLimit = Field(..., alias="limit")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 class HyperliquidRawOrderTypeMarket(BaseModel):
@@ -166,7 +166,7 @@ class HyperliquidRawOrderTypeMarket(BaseModel):
     """
 
     market: dict[str, Any] = Field(..., alias="market")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 # --- Core Order Models ---
@@ -200,7 +200,7 @@ class HyperliquidRawOrder(BaseModel):
     remaining_sz: str = Field(..., alias="remainingSz")
     status: str = Field(..., alias="status")
     status_timestamp: int = Field(..., alias="statusTimestamp")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("asset", mode="before")
     @classmethod
@@ -245,7 +245,7 @@ class HyperliquidRawOpenOrder(BaseModel):
 
     order: HyperliquidRawOrder = Field(..., alias="order")
     trigger: HyperliquidRawTriggerInfo | None = Field(None, alias="trigger")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]]):
@@ -263,18 +263,50 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]])
         """
         return self.root
 
+    model_config = ConfigDict(frozen=True)
+
 
 class HyperliquidRawOpenOrdersRequestPayload(BaseModel):
     """
     Request payload for 'openOrders' info type.
     Fields:
-        type: Must be 'openOrders'
+        type: Must be 'openOrders' (Literal['openOrders'])
         user: Wallet address (str)
     """
 
-    type: str = Field("openOrders", alias="type")
+    type: Literal["openOrders"] = Field("openOrders", alias="type")
     user: str = Field(..., alias="user")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type_literal(cls, v: object, info: ValidationInfo) -> str:
+        """Ensures type is exactly 'openOrders'."""
+        field_name = info.field_name or "type"
+        s = validate_str_field(v, field_name=field_name, max_length=16)
+        if s != "openOrders":
+            raise ValueError(f"{field_name} must be 'openOrders', got '{s}'")
+        return s
+
+    @field_validator("user", mode="before")
+    @classmethod
+    def validate_user_address(cls, v: object, info: ValidationInfo) -> str:
+        """Validates the user address string (e.g., Ethereum address format)."""
+        field_name = info.field_name or "user"
+        # Validate as a non-empty string with max length typical for addresses.
+        # allow_empty=False by default in validate_str_field if not specified.
+        s = validate_str_field(v, field_name=field_name, max_length=42)
+
+        # Additional specific checks for Ethereum-like addresses can be added here.
+        # For now, ensuring it's 42 characters long and starts with 0x.
+        if not s.startswith("0x"):
+            raise ValueError(f"{field_name}: Address '{s}' must start with '0x'.")
+        if len(s) != 42:
+            raise ValueError(
+                f"{field_name}: Address '{s}' must be 42 characters long, got {len(s)}."
+            )
+        # Could add regex for hex characters: ^0x[a-fA-F0-9]{40}$
+        return s
 
 
 # --- Order Spec (for placement/modify) ---
@@ -282,25 +314,89 @@ class HyperliquidRawOrderSpec(BaseModel):
     """
     Order spec for placing an order (exchange action request).
     Fields:
-        asset: Asset index (int)
-        is_buy: Is buy (bool)
-        limit_px: Limit price (str)
-        sz: Size (float)
-        reduce_only: Reduce-only flag (bool)
-        order_type: One of HyperliquidRawOrderTypeLimit or HyperliquidRawOrderTypeMarket
-        trigger: Optional trigger spec
-        cloid: Optional client order ID (str)
+        asset: Asset index (int, >=0).
+        is_buy: Is buy (bool).
+        limit_px: Limit price (str, validated as finite decimal).
+        sz: Size (str, validated as positive finite decimal).
+        reduce_only: Reduce-only flag (bool).
+        order_type: Order type details (dict[str, Any], must not be empty).
+        trigger: Optional trigger spec (HyperliquidRawTriggerSpec | None).
+        cloid: Optional client order ID (str | None, non-empty if provided).
     """
 
-    asset: int = Field(..., alias="asset")
+    asset: int = Field(..., alias="asset", ge=0)
     is_buy: bool = Field(..., alias="isBuy")
     limit_px: str = Field(..., alias="limitPx")
-    sz: float = Field(..., alias="sz")
+    sz: str = Field(..., alias="sz")
     reduce_only: bool = Field(..., alias="reduceOnly")
     order_type: dict[str, Any] = Field(..., alias="orderType")
     trigger: HyperliquidRawTriggerSpec | None = Field(None, alias="trigger")
     cloid: str | None = Field(None, alias="cloid")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("asset")
+    @classmethod
+    def _validate_asset_index(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("Asset index must be non-negative.")
+        return value
+
+    @field_validator("limit_px")
+    @classmethod
+    def _validate_limit_px_str(cls, value: str) -> str:
+        try:
+            parsed_val = parse_decimal_value(value, allow_none=False, field_name="limit_px")
+            if parsed_val is None:
+                raise ValueError("limit_px parsing unexpectedly returned None.")
+            if not parsed_val.is_finite():
+                raise ValueError("limit_px must represent a finite number.")
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"limit_px '{value}' is not a valid finite decimal string: {e}") from e
+        return value
+
+    @field_validator("sz")
+    @classmethod
+    def _validate_sz_str(cls, value: str) -> str:
+        from decimal import Decimal
+
+        try:
+            parsed_val = parse_decimal_value(value, allow_none=False, field_name="sz")
+            if parsed_val is None:
+                raise ValueError("sz parsing unexpectedly returned None.")
+            if not parsed_val.is_finite():
+                raise ValueError("sz must represent a finite number.")
+            if parsed_val <= Decimal(0):
+                raise ValueError("sz must be greater than 0.")
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"sz '{value}' is not a valid positive finite decimal string: {e}"
+            ) from e
+        return value
+
+    @field_validator("order_type")
+    @classmethod
+    def _validate_order_type(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if not value:
+            raise ValueError("order_type dictionary cannot be empty.")
+        return value
+
+    @field_validator("trigger", mode="before")
+    @classmethod
+    def _validate_trigger_details(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        if not value:
+            raise ValueError("trigger details dictionary cannot be empty if provided.")
+        return value
+
+    @field_validator("cloid", mode="before")
+    @classmethod
+    def _validate_cloid(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value.strip():
+            raise ValueError("cloid cannot be an empty or whitespace-only string if provided.")
+        return value
 
 
 class HyperliquidRawModifyOrderRequest(BaseModel):
@@ -313,7 +409,14 @@ class HyperliquidRawModifyOrderRequest(BaseModel):
 
     oid: int = Field(..., alias="oid")
     order: HyperliquidRawOrderSpec = Field(..., alias="order")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("oid")
+    @classmethod
+    def _validate_oid(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("Order ID (oid) must be non-negative.")
+        return value
 
 
 # --- Cancel Requests ---
@@ -321,13 +424,27 @@ class HyperliquidRawCancelRequest(BaseModel):
     """
     Cancel request payload (by exchange OID).
     Fields:
-        asset: Asset index (int)
-        oid: Order ID (int)
+        asset: Asset index (int, >=0).
+        oid: Order ID (int, >=0).
     """
 
-    asset: int = Field(..., alias="asset")
-    oid: int = Field(..., alias="oid")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    asset: int = Field(..., alias="asset", ge=0)
+    oid: int = Field(..., alias="oid", ge=0)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("asset")
+    @classmethod
+    def _validate_asset_index(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("Asset index must be non-negative.")
+        return value
+
+    @field_validator("oid")
+    @classmethod
+    def _validate_oid(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("Order ID (oid) must be non-negative.")
+        return value
 
 
 class HyperliquidRawCancelByCloidRequest(BaseModel):
@@ -340,49 +457,16 @@ class HyperliquidRawCancelByCloidRequest(BaseModel):
 
     asset: int = Field(..., alias="asset")
     cloid: str = Field(..., alias="cloid")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 # --- Exchange Action/Response Models ---
-class HyperliquidRawExchangeStatusObject(BaseModel):
-    """
-    Status object for order/cancel/modify responses.
-    Fields:
-        resting: Resting order (dict or None)
-        filled: Filled order (dict or None)
-        error: Error message (str or None)
-    """
+# These are now canonically defined in hl_raw_exchange_response.py
+# Removing definitions from here to avoid duplication.
 
-    resting: dict[str, Any] | None = Field(None, alias="resting")
-    filled: dict[str, Any] | None = Field(None, alias="filled")
-    error: str | None = Field(None, alias="error")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-class HyperliquidRawExchangeResponseData(BaseModel):
-    """
-    Structure within the 'data' field of a successful exchange action.
-    Fields:
-        type: Type of response (str)
-        statuses: List of status objects or strings
-    """
-
-    type: str = Field(..., alias="type")
-    statuses: list[str | HyperliquidRawExchangeStatusObject] = Field(..., alias="statuses")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-class HyperliquidRawExchangeActionResponse(BaseModel):
-    """
-    Top-level response for exchange actions.
-    Fields:
-        status: Status string (should be 'ok')
-        data: Exchange response data (HyperliquidRawExchangeResponseData)
-    """
-
-    status: str = Field(..., alias="status")
-    data: HyperliquidRawExchangeResponseData = Field(..., alias="data")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+# class HyperliquidRawExchangeStatusObject(BaseModel): ... (REMOVED)
+# class HyperliquidRawExchangeResponseData(BaseModel): ... (REMOVED)
+# class HyperliquidRawExchangeActionResponse(BaseModel): ... (REMOVED)
 
 
 class HyperliquidRawOrderStatusResponse(BaseModel):

@@ -31,7 +31,7 @@ real-time and historical order book data.
     # ...then transform to internal order book model
 """
 
-from typing import Any, TypeGuard
+from typing import Any, Literal, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -71,7 +71,7 @@ class HyperliquidRawBookLevel(BaseModel):
     px: str = Field(..., alias="px")
     sz: str = Field(..., alias="sz")
     n: int = Field(..., alias="n")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("px", "sz", mode="before")
     @classmethod
@@ -134,7 +134,7 @@ class HyperliquidRawL2Book(BaseModel):
     coin: str = Field(..., alias="coin")
     levels: list[list[HyperliquidRawBookLevel]] = Field(..., alias="levels")
     time: int = Field(..., alias="time")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("coin", mode="before")
     @classmethod
@@ -238,13 +238,23 @@ class HyperliquidRawL2BookRequestPayload(BaseModel):
     constraints for all fields. Never use for internal business logic.
 
     Fields:
-        type (str): Must be 'l2Book'.
+        type (Literal['l2Book']): Must be 'l2Book'.
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
     """
 
-    type: str = Field("l2Book", alias="type")
+    type: Literal["l2Book"] = Field("l2Book", alias="type")
     coin: str = Field(..., alias="coin")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type_literal(cls, v: object, info: ValidationInfo) -> str:
+        """Ensures type is exactly 'l2Book'."""
+        field_name = info.field_name or "type"
+        s = validate_str_field(v, field_name=field_name, max_length=16)
+        if s != "l2Book":
+            raise ValueError(f"{field_name} must be 'l2Book', got '{s}'")
+        return s
 
     @field_validator("coin", mode="before")
     @classmethod

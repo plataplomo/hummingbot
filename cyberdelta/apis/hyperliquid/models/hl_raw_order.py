@@ -7,26 +7,11 @@ Hyperliquid Exchange API request when placing orders, specifically the
 `trigger` object and the `orderType` object within an order action.
 """
 
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
-
-class HyperliquidRawOrderTriggerDetails(BaseModel):
-    """
-    Pydantic model for the 'trigger' object in a Hyperliquid order action.
-
-    Attributes:
-        trigger_px (str): The trigger price.
-        is_market (bool): True if the triggered order is a market order, False for limit.
-        tpsl (Literal["tp", "sl"]): Whether this is a take-profit or stop-loss trigger.
-    """
-
-    trigger_px: str = Field(..., alias="triggerPx")
-    is_market: bool = Field(..., alias="isMarket")
-    tpsl: Literal["tp", "sl"]
-
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawLimitOrderTypeDetails(BaseModel):
@@ -67,3 +52,40 @@ class HyperliquidRawOrderTypeUnion(BaseModel):
 
 # Placeholder for the full HyperliquidRawOrderAction if needed for other contexts,
 # for now, place_order will construct the dict directly using these components.
+
+
+class HyperliquidRawQueryOrderHistoryRequestPayload(BaseModel):
+    """
+    Request payload for the 'queryOrderHistory' info type.
+    Timestamps are in milliseconds.
+    """
+
+    type: Literal["queryOrderHistory"] = Field("queryOrderHistory")
+    start_time: int = Field(..., alias="startTime", ge=0)
+    end_time: int = Field(..., alias="endTime", ge=0)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type_literal(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "type"
+        s = validate_str_field(v, field_name=field_name, max_length=32)
+        if s != "queryOrderHistory":
+            raise ValueError(f"{field_name} must be 'queryOrderHistory', got '{s}'")
+        return s
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def validate_timestamp(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("Timestamp must be non-negative.")
+        return value
+
+    @model_validator(mode="after")
+    def check_start_end_time(self) -> Self:
+        if self.end_time < self.start_time:
+            raise ValueError(
+                f"endTime ({self.end_time}) cannot be before startTime ({self.start_time})."
+            )
+        return self

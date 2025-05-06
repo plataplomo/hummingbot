@@ -48,7 +48,7 @@ class HyperliquidRawExchangeStatusResting(BaseModel):
     oid: int = Field(..., ge=0)  # Ensure non-negative
     # Add other fields observed in resting order status if needed
     # Example: remainingSz: str | None = None
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     @field_validator("oid", mode="before")
     @classmethod
@@ -81,7 +81,7 @@ class HyperliquidRawExchangeStatusFilled(BaseModel):
     total_sz: str = Field(..., alias="totalSz", max_length=64)
     avg_px: str = Field(..., alias="avgPx", max_length=64)
     # Potentially add fills list if present
-    model_config = ConfigDict(populate_by_name=True, extra="ignore", frozen=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("oid", mode="before")
     @classmethod
@@ -133,7 +133,7 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
     filled: HyperliquidRawExchangeStatusFilled | None = Field(None)
     error: str | None = Field(None, max_length=1024)  # Add max_length
     # Potentially add other status types like 'modified', 'canceled' if they appear as objects
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     @field_validator("error", mode="before")
     @classmethod
@@ -166,7 +166,7 @@ class HyperliquidRawExchangeResponseData(BaseModel):
     type: str = Field(..., max_length=32)
     # Corrected return type hint in validator below reflects the actual possible validated types
     statuses: list[str | HyperliquidRawExchangeStatusObject] = Field(...)
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     @field_validator("type", mode="before")
     @classmethod
@@ -218,10 +218,6 @@ class HyperliquidRawExchangeResponseData(BaseModel):
                 `HyperliquidRawExchangeStatusObject`.
         """
         field_name = info.field_name or "statuses"
-        # DEFENSIVE CHECK: Ensure input is a list (redundant if type hint is list[Any] but safe).
-        # Pyright=[reportUnnecessaryIsInstance]
-        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
-            raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
 
         # Proceed with iteration now that we know v is a list
         validated_list: list[str | HyperliquidRawExchangeStatusObject] = []

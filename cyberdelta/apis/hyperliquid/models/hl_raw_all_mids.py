@@ -32,7 +32,7 @@ and market data.
     # ...then transform to internal model
 """
 
-from typing import Any, TypeGuard
+from typing import Any, Literal, TypeGuard
 
 from pydantic import (
     BaseModel,
@@ -83,8 +83,8 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
         type (str): Must be 'allMids'.
     """
 
-    type: str = Field("allMids", alias="type")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    type: Literal["allMids"] = Field("allMids", alias="type")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("type", mode="before")
     @classmethod
@@ -118,6 +118,8 @@ class HyperliquidRawAllMids(RootModel[dict[str, str]]):
         root (Dict[str, str]): Mapping from asset symbol (e.g., 'ETH', 'BTC') to mid price
                                (as a string).
     """
+
+    model_config = ConfigDict(frozen=True)
 
     @model_validator(mode="before")
     @classmethod

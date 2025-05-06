@@ -39,5 +39,4 @@ __all__ = [
     "HyperliquidRawWsTradeEvent",
     "HyperliquidRawWsOrderUpdate",
     "HyperliquidRawWsPositionUpdateEvent",
-    "HyperliquidRawPositionInfo",
 ]

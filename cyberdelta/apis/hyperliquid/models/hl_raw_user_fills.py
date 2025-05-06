@@ -35,6 +35,8 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
@@ -185,14 +187,8 @@ class HyperliquidRawUserFill(BaseModel):
         """
         if v is None:
             return v
-        field_name = info.field_name or "optional_field"
-        default_max_len = 128 if field_name == "cloid" else 64
-        max_len = getattr(
-            getattr(cls.model_fields.get(field_name), "metadata", [None])[0],
-            "max_length",
-            default_max_len,
-        )
-        return validate_str_field(v, field_name=field_name, max_length=max_len)
+        field_name = info.field_name or "cloid"
+        return validate_str_field(v, field_name=field_name, max_length=128, allow_empty=True)
 
     @field_validator("is_maker", mode="before")
     @classmethod
@@ -291,13 +287,22 @@ class HyperliquidRawUserFillsRequestPayload(BaseModel):
     constraints for all fields. Never use for internal business logic.
 
     Fields:
-        type (str): Must be 'userFills'.
+        type (Literal['userFills']): Must be 'userFills'.
         user (str): Wallet address of the user.
     """
 
-    type: str = Field("userFills", alias="type")
+    type: Literal["userFills"] = Field("userFills", alias="type")
     user: str = Field(..., alias="user")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type_literal(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "type"
+        s = validate_str_field(v, field_name=field_name, max_length=16)
+        if s != "userFills":
+            raise ValueError(f"{field_name} must be 'userFills', got '{s}'")
+        return s
 
     @field_validator("user", mode="before")
     @classmethod

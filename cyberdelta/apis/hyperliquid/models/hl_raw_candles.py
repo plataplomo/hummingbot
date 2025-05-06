@@ -34,7 +34,7 @@ and real-time price series.
 """
 
 from decimal import Decimal
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import (
     BaseModel,
@@ -221,76 +221,60 @@ class HyperliquidRawCandleSnapshot(BaseModel):
         return self
 
 
-class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
+class HyperliquidRawCandleRequestDetails(BaseModel):
     """
-    Strict boundary model for the request payload for the 'candleSnapshot' info type.
-
-    This model is used to construct and validate the payload sent to the Hyperliquid API when
-    requesting candlestick data for a specific asset and interval. Enforces strict type
-    and format constraints for all fields. Never use for internal business logic.
-
-    Fields:
-        type (str): Must be 'candleSnapshot'.
-        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
-        interval (str): Interval string (e.g., '1m', '1h', '1d').
-        start_time (int): Start timestamp (epoch ms).
-        end_time (int): End timestamp (epoch ms).
+    Details for a candle snapshot request, nested under 'req' field.
     """
 
-    type: str = Field("candleSnapshot", alias="type")
-    coin: str = Field(..., alias="coin")
-    interval: str = Field(..., alias="interval")
-    start_time: int = Field(..., alias="startTime")
-    end_time: int = Field(..., alias="endTime")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    coin: str = Field(..., min_length=1, max_length=24)
+    interval: str = Field(..., min_length=1, max_length=8)  # e.g., "1m", "1h", "1d"
+    start_time: int = Field(..., alias="startTime", ge=0)
+    end_time: int = Field(..., alias="endTime", ge=0)
 
-    @field_validator("coin", mode="before")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("coin", "interval", mode="before")
     @classmethod
-    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'coin' field to ensure it is a string of max length 64 and valid UTF-8.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated asset symbol string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        return validate_str_field(v, field_name="coin", max_length=64, allow_empty=False)
+    def validate_string_fields(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
+        max_len = 24 if field_name == "coin" else 8
+        return validate_str_field(v, field_name=field_name, max_length=max_len, allow_empty=False)
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
-    def validate_int_strict(cls, v: object, info: ValidationInfo) -> int:
-        """
-        Validates that the field is a strict integer (no float or string coercion allowed).
-
-        Args:
-            v (object): The value to validate (should be an integer).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            int: The validated integer value.
-        Raises:
-            ValueError: If the input is not an integer.
-        """
-        field_name = info.field_name or "field"
+    def validate_timestamp_fields(cls, v: object, info: ValidationInfo) -> int:
+        field_name = info.field_name or "timestamp"
         if not isinstance(v, int):
-            raise ValueError(f"{field_name}: Must be an integer (no coercion allowed)")
+            raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}.")
+        if v < 0:
+            raise ValueError(f"{field_name}: Timestamp must be non-negative, got {v}.")
         return v
 
-    @field_validator("interval", mode="before")
-    @classmethod
-    def validate_interval(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'interval' field to ensure it is a string of max length 16 and valid UTF-8.
+    @model_validator(mode="after")
+    def check_start_end_time(self) -> Self:
+        if self.end_time < self.start_time:
+            raise ValueError(
+                f"endTime ({self.end_time}) cannot be before startTime ({self.start_time})."
+            )
+        return self
 
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated interval string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        return validate_str_field(v, field_name="interval", max_length=16, allow_empty=False)
+
+class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
+    """
+    Strict boundary model for the request payload for the 'candleSnapshot' info type.
+    Uses a nested 'req' object.
+    """
+
+    type: Literal["candleSnapshot"] = Field("candleSnapshot", alias="type")
+    req: HyperliquidRawCandleRequestDetails
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type_literal(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "type"
+        s = validate_str_field(v, field_name=field_name, max_length=32)
+        if s != "candleSnapshot":
+            raise ValueError(f"{field_name} must be 'candleSnapshot', got '{s}'")
+        return s

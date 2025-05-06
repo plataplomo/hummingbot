@@ -47,7 +47,7 @@ class HyperliquidRawApiError(BaseModel):
     """
 
     error: str = Field(..., alias="error")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("error", mode="before")
     @classmethod

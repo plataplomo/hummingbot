@@ -75,6 +75,7 @@ class HyperliquidRawCandle(BaseModel):
         """Validate that the raw value is a non-empty string parseable to a finite Decimal.
 
         Used for price fields (o, h, l, c) and volume (v).
+        Volume specifically must be non-negative.
 
         Args:
             v (object): The raw input value.
@@ -85,15 +86,28 @@ class HyperliquidRawCandle(BaseModel):
 
         Raises:
             TypeError: If `v` is not a string.
-            ValueError: If `v` is not a valid, finite decimal string.
+            ValueError: If `v` is not a valid, finite decimal string (or non-negative for volume).
         """
         if not isinstance(v, str):
-            raise TypeError(f"Expected string for decimal parsing, got {type(v)}")
+            raise TypeError(
+                f"Expected string for decimal parsing for field '{info.field_name}', got {type(v)}"
+            )
+        if not v.strip():  # Ensure not empty or just whitespace
+            raise ValueError(
+                f"Expected non-empty decimal string for field '{info.field_name}', got '{v}'"
+            )
         try:
-            # Test parse to ensure it's a valid decimal format
-            _ = Decimal(v)
+            d = Decimal(v)
+            if not d.is_finite():
+                raise ValueError(
+                    f"Expected finite decimal string for field '{info.field_name}', got '{v}'"
+                )
+            if info.field_name == "v" and d < Decimal(0):
+                raise ValueError(f"Volume (v) must be non-negative, got '{v}'")
         except InvalidOperation as e:
-            raise ValueError(f"Invalid decimal string format: '{v}'") from e
+            raise ValueError(
+                f"Invalid decimal string format for field '{info.field_name}': '{v}'"
+            ) from e
         return v
 
 

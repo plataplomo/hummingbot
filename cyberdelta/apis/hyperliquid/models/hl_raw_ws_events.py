@@ -84,7 +84,7 @@ class HyperliquidRawWsFillEvent(BaseModel):
     oid: int = Field(..., alias="oid")
     cloid: str | None = Field(None, alias="cloid")
     is_maker: bool = Field(..., alias="isMaker")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("coin", mode="before")
     @classmethod
@@ -240,7 +240,7 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     coin: str = Field(..., alias="coin")
     levels: list[list[HyperliquidRawBookLevel]] = Field(..., alias="levels")
     time: int = Field(..., alias="time")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("coin", mode="before")
     @classmethod
@@ -345,7 +345,7 @@ class HyperliquidRawWsTradeEvent(BaseModel):
     side: str = Field(..., alias="side")
     time: int = Field(..., alias="time")
     hash: str = Field(..., alias="hash")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("coin", mode="before")
     @classmethod
@@ -388,7 +388,7 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
 
     event_type: str = Field(..., alias="eventType")
     data: dict[str, Any] = Field(..., alias="data")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("event_type", mode="before")
     @classmethod
@@ -430,7 +430,7 @@ class HyperliquidRawWsPositionUpdateEvent(BaseModel):
     asset: str = Field(..., alias="asset")
     position: HyperliquidRawPositionInfo = Field(..., alias="position")
     time: int = Field(..., alias="time")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("asset", mode="before")
     @classmethod

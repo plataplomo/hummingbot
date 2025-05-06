@@ -32,6 +32,8 @@ Do not use these models for internal business logic—use your core models for t
 for boundary validation only.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
@@ -61,7 +63,7 @@ class HyperliquidRawPublicTrade(BaseModel):
     sz: str = Field(..., alias="sz")
     time: int = Field(..., alias="time")
     hash: str = Field(..., alias="hash")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("coin", mode="before")
     @classmethod
@@ -153,13 +155,23 @@ class HyperliquidRawRecentTradesRequestPayload(BaseModel):
     constraints for all fields. Never use for internal business logic.
 
     Fields:
-        type (str): Must be 'recentTrades'.
+        type (Literal['recentTrades']): Must be 'recentTrades'.
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
     """
 
-    type: str = Field("recentTrades", alias="type")
+    type: Literal["recentTrades"] = Field("recentTrades", alias="type")
     coin: str = Field(..., alias="coin")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type_literal(cls, v: object, info: ValidationInfo) -> str:
+        """Ensures type is exactly 'recentTrades'."""
+        field_name = info.field_name or "type"
+        s = validate_str_field(v, field_name=field_name, max_length=32)
+        if s != "recentTrades":
+            raise ValueError(f"{field_name} must be 'recentTrades', got '{s}'")
+        return s
 
     @field_validator("coin", mode="before")
     @classmethod
