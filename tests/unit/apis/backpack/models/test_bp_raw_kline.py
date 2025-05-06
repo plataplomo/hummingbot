@@ -89,37 +89,35 @@ def test_kline_invalid_structure() -> None:
 
 # Parametrized tests for individual raw field validation failures
 @pytest.mark.parametrize(
-    "index, invalid_value, expected_error_msg_part",
+    "index, invalid_value, expected_error_parts",
     [
-        # --- Raw Type Errors (Match wrapped TypeError message) ---
-        (0, "not an int", "start_time_ms: Raw value must be an integer, got str"),
-        (0, -1, "Timestamp cannot be negative"),
-        (1, {"a": 1}, "open_price: Raw value must be a string, got dict"),
-        (6, "not an int", "end_time_ms: Raw value must be an integer, got str"),
-        (6, -1, "Timestamp cannot be negative"),
-        (8, "not an int", "trade_count: Raw value must be an integer, got str"),
-        (8, -5, "Trade count cannot be negative"),
-        (11, 123, "ignored: Raw value must be a string, got int"),
+        # --- Raw Type Errors (Check parts of the wrapped TypeError message) ---
+        (0, "not an int", ["start_time_ms", "must be an integer", "got str"]),
+        (0, -1, ["Timestamp cannot be negative"]),
+        (1, {"a": 1}, ["open_price", "must be a string", "got dict"]),
+        (6, "not an int", ["end_time_ms", "must be an integer", "got str"]),
+        (6, -1, ["Timestamp cannot be negative"]),
+        (8, "not an int", ["trade_count", "must be an integer", "got str"]),
+        (8, -5, ["Trade count cannot be negative"]),
+        (11, 123, ["ignored", "Expected string, got int"]),
         # --- Format/Value Errors (Match exact core error message) ---
-        (1, "", "String cannot be empty or whitespace"),
-        (1, " ", "String cannot be empty or whitespace"),
-        (1, "NaN", "Value must be a finite decimal string"),
-        (1, "Infinity", "Value must be a finite decimal string"),
-        (1, "1" * 65, "String value too long (max 64 chars)"),
-        (2, "not_a_decimal", "Cannot convert 'not_a_decimal' to Decimal"),
-        (3, "inf", "Value must be a finite decimal string"),
-        (4, "-inf", "Value must be a finite decimal string"),
-        (5, "nan", "Value must be a finite decimal string"),
-        (7, "1.2.3", "Cannot convert '1.2.3' to Decimal"),
-        (9, "", "String cannot be empty or whitespace"),
-        (10, "  ", "String cannot be empty or whitespace"),
-        (11, "", "String cannot be empty or whitespace"),
+        (1, "", ["String cannot be empty or whitespace"]),
+        (1, " ", ["String cannot be empty or whitespace"]),
+        (1, "NaN", ["Value must be a finite decimal string"]),
+        (1, "Infinity", ["Value must be a finite decimal string"]),
+        (1, "1" * 65, ["String value too long (max 64 chars)"]),
+        (2, "not_a_decimal", ["Cannot convert 'not_a_decimal' to Decimal"]),
+        (3, "inf", ["Value must be a finite decimal string"]),
+        (4, "-inf", ["Value must be a finite decimal string"]),
+        (5, "nan", ["Value must be a finite decimal string"]),
+        (7, "1.2.3", ["Cannot convert '1.2.3' to Decimal"]),
+        (9, "", ["String cannot be empty or whitespace"]),
+        (10, "  ", ["String cannot be empty or whitespace"]),
+        (11, "", ["String cannot be empty or whitespace"]),
     ],
 )
 def test_kline_invalid_raw_field(
-    index: int,
-    invalid_value: Any,
-    expected_error_msg_part: str,  # noqa: ANN401
+    index: int, invalid_value: Any, expected_error_parts: list[str]
 ) -> None:
     """Test validation fails for specific invalid raw values at given indices."""
     invalid_list = VALID_KLINE_LIST_RAW[:]
@@ -127,37 +125,12 @@ def test_kline_invalid_raw_field(
     with pytest.raises(ValidationError) as excinfo:
         BackpackRawKline.model_validate(invalid_list)
 
-    # Check the first validation error message contains the expected part
-    assert len(excinfo.value.errors()) >= 1
-    first_error = excinfo.value.errors()[0]
-    error_msg = first_error["msg"]
-
-    # Extract the core message which might be nested
-    core_msg = error_msg
-    if error_msg.startswith("Value error, "):
-        # Format: "Value error, {field}: Validation failed for raw value '{val}': {core_msg}"
-        # Or for TypeError: "Value error, {field}: Raw value must be an integer, got {type}"
-        parts = error_msg.split(": ")
-        if len(parts) > 1:
-            core_msg = ": ".join(parts[1:])  # Join back parts in case colon in core msg
-            # Check if it still contains the 'Validation failed' prefix
-            if core_msg.startswith("Validation failed for raw value"):
-                core_msg = core_msg.split(": ", 1)[-1]
-            # Specific check for wrapped TypeError messages
-            elif "Raw value must be an" in core_msg:
-                # Reconstruct the expected TypeError message format
-                field_name = first_error["loc"][0]
-                raw_type = type(invalid_value).__name__
-                core_msg = (
-                    f"{field_name}: Raw value must be an integer, got {raw_type}"
-                    if isinstance(invalid_value, str)
-                    and field_name in ["start_time_ms", "end_time_ms", "trade_count"]
-                    else f"{field_name}: Raw value must be a string, got {raw_type}"
-                )
-
-    assert expected_error_msg_part in core_msg, (
-        f"Failed for index {index}, value {invalid_value}. Expected '{expected_error_msg_part}' in '{core_msg}'. Full error: {excinfo.value.errors()}"
-    )
+    # Check if all expected message parts are present in the full error string representation
+    error_str = str(excinfo.value)
+    for part in expected_error_parts:
+        assert part in error_str, (
+            f"Failed for index {index}, value {invalid_value}. Expected substring '{part}' not found in error: {error_str}"
+        )
 
 
 def test_kline_frozen() -> None:

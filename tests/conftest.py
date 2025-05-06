@@ -447,6 +447,7 @@ def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any |
     for key in keys_list:
         # Check if val is a dict before attempting access
         if isinstance(val, dict):
+            # DEFENSIVE CHECK: val is Any, .get needs ignore for mypy/pyright
             val = val.get(key, default)  # type: ignore[reportUnknownMemberType]
             if val == default:  # Stop if key not found
                 break

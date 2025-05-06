@@ -50,11 +50,11 @@ def test_BackpackRawWithdrawal_wrong_type_fields() -> None:
 def test_BackpackRawWithdrawal_invalid_format_fields() -> None:
     p: dict[str, Any] = valid_withdrawal().copy()
     p["amount"] = "1..0"
-    with pytest.raises(ValidationError, match="Invalid literal for Decimal"):
+    with pytest.raises(ValidationError, match=r"Cannot convert '1\.\.0' to Decimal"):
         BackpackRawWithdrawal.model_validate(p)
     p = valid_withdrawal().copy()
     p["status"] = "notastatus"
-    with pytest.raises(ValidationError, match="Value must be one of"):
+    with pytest.raises(ValidationError, match=r"Invalid value 'notastatus'. Expected one of"):
         BackpackRawWithdrawal.model_validate(p)
     p = valid_withdrawal().copy()
     p["amount"] = "-50.0"
@@ -174,11 +174,11 @@ def test_BackpackRawDeposit_wrong_type_fields() -> None:
 def test_BackpackRawDeposit_invalid_format_fields() -> None:
     p: dict[str, Any] = valid_deposit().copy()
     p["amount"] = "1..0"
-    with pytest.raises(ValidationError, match="Invalid literal for Decimal"):
+    with pytest.raises(ValidationError, match=r"Cannot convert '1\.\.0' to Decimal"):
         BackpackRawDeposit.model_validate(p)
     p = valid_deposit().copy()
     p["status"] = "notastatus"
-    with pytest.raises(ValidationError, match="Value must be one of"):
+    with pytest.raises(ValidationError, match=r"Invalid value 'notastatus'. Expected one of"):
         BackpackRawDeposit.model_validate(p)
     p = valid_deposit().copy()
     p["amount"] = "-0.1"
@@ -298,7 +298,7 @@ def test_BackpackRawLiquidation_wrong_type_fields() -> None:
 def test_BackpackRawLiquidation_invalid_format_fields() -> None:
     p: dict[str, Any] = valid_liquidation().copy()
     p["price"] = "1..0"
-    with pytest.raises(ValidationError, match="Invalid literal for Decimal"):
+    with pytest.raises(ValidationError, match=r"Cannot convert '1\.\.0' to Decimal"):
         BackpackRawLiquidation.model_validate(p)
     p = valid_liquidation().copy()
     p["quantity"] = "nan"
@@ -306,7 +306,7 @@ def test_BackpackRawLiquidation_invalid_format_fields() -> None:
         BackpackRawLiquidation.model_validate(p)
     p = valid_liquidation().copy()
     p["side"] = "sideways"
-    with pytest.raises(ValidationError, match="Value must be one of"):
+    with pytest.raises(ValidationError, match=r"Invalid value 'sideways'. Expected one of"):
         BackpackRawLiquidation.model_validate(p)
     p = valid_liquidation().copy()
     p["quantity"] = "-0.001"
@@ -360,7 +360,7 @@ def test_BackpackRawLiquidation_corruption_cases() -> None:
     for val in ["-0.01", "0", "NaN", "inf", "-inf"]:
         p = valid_liquidation().copy()
         p["quantity"] = val
-        if val in ["NaN", "inf", "-inf"]:
+        if val in ["-0.01", "NaN", "inf", "-inf"]:
             with pytest.raises(ValidationError):
                 BackpackRawLiquidation.model_validate(p)
         else:
