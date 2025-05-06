@@ -2,14 +2,10 @@
 Backpack Raw Kline/OHLCV Model
 """
 
-import logging
 from decimal import Decimal
 from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-# Get logger for the module
-logger = logging.getLogger(__name__)
 
 
 class BackpackRawKline(BaseModel):

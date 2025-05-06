@@ -92,7 +92,7 @@ class ExchangeAPI(ABC):
 
         # Initialize Rate Limiters safely
         rate_limit_config_raw = config.get("rate_limits")
-        rate_limit_config: dict[str, Any] = {}  # Default to empty dict
+        rate_limit_config: dict[str, Any] = {}  # Initialize as empty dict
         if isinstance(rate_limit_config_raw, dict):
             rate_limit_config = rate_limit_config_raw
         elif rate_limit_config_raw is not None:
@@ -101,7 +101,7 @@ class ExchangeAPI(ABC):
             )
 
         # Safely get default rate and bucket size
-        default_rate_raw = rate_limit_config.get("default_rate", 10.0)
+        default_rate_raw: Any = rate_limit_config.get("default_rate", 10.0)
         default_rate: float = 10.0
         if isinstance(default_rate_raw, int | float | str):
             try:
@@ -115,7 +115,7 @@ class ExchangeAPI(ABC):
                 f"[{exchange_name}] Invalid type for 'default_rate': {type(default_rate_raw)}. Using default {default_rate}."
             )
 
-        default_bucket_raw = rate_limit_config.get("default_bucket_size", 10)
+        default_bucket_raw: Any = rate_limit_config.get("default_bucket_size", 10)
         default_bucket: int = 10
         # Corrected UP038
         if isinstance(default_bucket_raw, int | str):
@@ -138,7 +138,7 @@ class ExchangeAPI(ABC):
         self._endpoint_limiters: dict[str, TokenBucketRateLimiterRuntime] = {}
 
         endpoints_raw = rate_limit_config.get("endpoints", {})
-        endpoints: dict[str, Any] = {}
+        endpoints: dict[str, Any] = {}  # Initialize as empty dict
         if isinstance(endpoints_raw, dict):
             endpoints = endpoints_raw
         else:
@@ -147,13 +147,10 @@ class ExchangeAPI(ABC):
             )
 
         for endpoint, config_dict_raw in endpoints.items():
-            # Endpoint key is guaranteed to be str if endpoints is dict[str, Any]
-            # No need for isinstance check if endpoints is correctly typed or asserted
-            endpoint_str = str(endpoint)  # Ensure it's treated as string
-
+            endpoint_str = str(endpoint)
             if isinstance(config_dict_raw, dict):
                 # Explicitly handle potential None from .get before float/int conversion
-                rate_raw = config_dict_raw.get("rate", default_rate)
+                rate_raw: Any = config_dict_raw.get("rate", default_rate)
                 rate: float = default_rate
                 # Corrected UP038
                 if isinstance(rate_raw, int | float | str):
@@ -169,7 +166,7 @@ class ExchangeAPI(ABC):
                     )
                 # else: rate_raw is None, use default_rate
 
-                bucket_raw = config_dict_raw.get("bucket_size", default_bucket)
+                bucket_raw: Any = config_dict_raw.get("bucket_size", default_bucket)
                 bucket: int = default_bucket
                 # Corrected UP038
                 if isinstance(bucket_raw, int | str):
@@ -361,32 +358,29 @@ class ExchangeAPI(ABC):
                     # Handle HTTP errors
                     if response.status >= 400:
                         error_body = await response.text()
-                        error_data = {}
+                        error_data: dict[str, Any] = {}  # Initialize with specific type
 
                         # Try to parse error response as JSON
                         try:
-                            # Ensure body is str before json.loads
-                            if isinstance(error_body, str):
-                                error_data = json.loads(error_body)
+                            # Remove the check, error_body is always str
+                            # if isinstance(error_body, str):
+                            loaded_json = json.loads(error_body)
+                            if isinstance(loaded_json, dict):
+                                error_data = loaded_json  # Assign only if it's a dict
                             else:
-                                # Handle cases where error_body might not be str (e.g., bytes)
-                                # This depends on how aiohttp handles different content types
                                 logger.warning(
-                                    f"Received non-string error body type: {type(error_body)}"
+                                    f"Expected dict from JSON error body, got {type(loaded_json)}"
                                 )
-                                error_data = {}  # Default to empty if cannot parse
-
                         except json.JSONDecodeError:
-                            # Handle non-JSON error responses
-                            logger.debug(f"Non-JSON error body: {error_body[:200]}")  # Log snippet
-                            error_data = {}  # Ensure error_data is a dict
+                            logger.debug(f"Non-JSON error body: {error_body[:200]}")
+                            error_data = {}  # Ensure it's an empty dict if parsing fails
 
                         # Map exchange-specific error to our standard format
-                        # error_data is now guaranteed to be a dict
+                        # error_data is now guaranteed to be dict[str, Any]
                         error = self._map_error_response(
                             status_code=response.status,
-                            error_body=str(error_body),  # Ensure body passed is string
-                            error_data=error_data,
+                            error_body=str(error_body),
+                            error_data=error_data,  # Type is now known
                         )
 
                         # Handle retryable errors
@@ -415,12 +409,10 @@ class ExchangeAPI(ABC):
                             json_data: Any = await response.json()
                             # Add runtime checks for common structures before returning
                             if isinstance(json_data, dict | list):
-                                return json_data
+                                return json_data  # Type is dict | list
                             elif isinstance(json_data, str):
-                                # Allow raw string if JSON parser returns a string
-                                return json_data
+                                return json_data  # Type is str
                             else:
-                                # Raise if it's an unexpected JSON type (e.g., null, number, bool)
                                 raise APIError(
                                     f"Expected JSON dictionary or list, got {type(json_data).__name__}",
                                     # Use INVALID_REQUEST for unexpected JSON structure
