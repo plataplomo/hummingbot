@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
@@ -549,7 +550,7 @@ class HyperliquidAPI(ExchangeAPI):
                 order_data: HyperliquidRawOrder = order_obj.order
                 order_symbol: str = order_data.asset
                 if symbol is None or order_symbol == symbol:
-                    # Extract trigger info (might be None)
+                    # Extract trigger info if present (might require extra parsing logic if nested differently in history)
                     trigger_info: HyperliquidRawTriggerInfo | None = getattr(
                         order_obj, "trigger", None
                     )
@@ -923,13 +924,27 @@ class HyperliquidAPI(ExchangeAPI):
 
             for order_data_raw in response_raw:
                 try:
-                    # Validate using HyperliquidRawOrder model
-                    _ = HyperliquidRawOrder.model_validate(order_data_raw)
-                    # Map using the standard raw order mapper method
-                    # TODO: Ensure HyperliquidOrderMapper.map_raw_order_to_internal exists and works
-                    # order = HyperliquidOrderMapper.map_raw_order_to_internal(raw_order)
-                    # orders.append(order)
-                    pass  # Placeholder
+                    # Validate using Raw model (imported at top level)
+                    raw_order = HyperliquidRawOrder.model_validate(order_data_raw)
+                    # Extract trigger info if present (might require extra parsing logic if nested differently in history)
+                    trigger_info_raw = order_data_raw.get("trigger")
+                    trigger_info = (
+                        HyperliquidRawTriggerInfo.model_validate(trigger_info_raw)
+                        if isinstance(trigger_info_raw, dict)
+                        else None
+                    )
+
+                    # Map using the order mapper
+                    internal_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
+                        raw=raw_order, trigger=trigger_info
+                    )
+                    if internal_order:  # Mapper might return None on error
+                        orders.append(internal_order)
+                    else:
+                        logger.warning(
+                            f"[{self.exchange_name}] Skipping order history item due to "
+                            f"transform returning None. Raw: {order_data_raw}"
+                        )
                 except (ValidationError, ValueError) as e:
                     logger.warning(
                         f"[{self.exchange_name}] Skipping order history item due to "
@@ -1247,15 +1262,53 @@ class HyperliquidAPI(ExchangeAPI):
         post_only: bool = False,
     ) -> Order:
         """Place an order on Hyperliquid."""
-        # TODO: Map internal enums/types to Hyperliquid action payload format
-        # This requires knowing the asset index, isBuy, limitPx format, sz format, etc.
-        # Placeholder for the action payload structure
+        # TODO: Implement robust symbol to asset_index mapping (similar to cancel_order).
+        asset_index = 0  # Placeholder
+        logger.warning(f"Using placeholder asset_index=0 for symbol {symbol} in place_order")
+
+        # Map internal types to Hyperliquid format
+        is_buy = side == OrderSide.BUY
+        sz = str(quantity)
+        limit_px = (
+            str(price) if price is not None else "0"
+        )  # HL requires price string, use "0" for market?
+
+        # Map OrderType and TimeInForce to Hyperliquid order type structure
+        hl_order_type: dict[str, Any]
+        if order_type == OrderType.MARKET:
+            hl_order_type = {"market": {}}
+        elif order_type == OrderType.LIMIT:
+            if price is None:
+                raise ValueError("Price is required for LIMIT orders")
+            # Map TIF
+            tif_map = {
+                TimeInForce.GTC: "Gtc",
+                TimeInForce.IOC: "Ioc",
+                TimeInForce.ALO: "Alo",  # Add Limit Only (Post Only)
+                # TimeInForce.FOK mapping? Check HL docs
+            }
+            tif_str = tif_map.get(time_in_force, "Gtc")  # Default GTC
+            hl_order_type = {"limit": {"tif": tif_str}}
+        # TODO: Add mapping for STOP_MARKET, STOP_LIMIT, TP/SL orders if supported
+        else:
+            raise NotImplementedError(f"Order type {order_type} not yet supported for Hyperliquid")
+
+        # Assemble the action payload
         action_payload: dict[str, Any] = {
-            # Map parameters to Hyperliquid specific fields (e.g., asset index, isBuy)
-            # ... implementation needed ...
-            "cloid": client_order_id,  # Assuming cloid mapping
+            "asset": asset_index,
+            "isBuy": is_buy,
+            "sz": sz,
+            "limitPx": limit_px,
+            "orderType": hl_order_type,
+            "reduceOnly": reduce_only,
         }
-        request_data = {"type": "order", "action": action_payload}
+        if client_order_id:
+            # Ensure client_order_id is bytes32 hex string if cloid is bytes32
+            # This assumes cloid is a string, check HL API spec if it needs hashing/padding.
+            # For now, pass as string if provided.
+            action_payload["cloid"] = client_order_id
+
+        request_data = {"type": "order", "actions": [action_payload]}  # Actions should be a list
 
         response_raw: object = None  # Initialize
         try:
@@ -1311,27 +1364,42 @@ class HyperliquidAPI(ExchangeAPI):
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error placing order: {e}")
             raise
-        except Exception as e:
+        except Exception as e:  # Catch broader exceptions
             logger.error(
                 f"[{self.exchange_name}] Unexpected error placing order: {e}", exc_info=True
             )
             raise APIError(
-                f"Unexpected error placing order: {e}", code=APIErrorCode.UNKNOWN.value
+                f"Unexpected error placing order: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
             ) from e
 
     async def cancel_order(
         self, order_id: str, symbol: str | None = None
-    ) -> dict[str, Any]:  # Keep return type for now
-        """Cancel an existing order."""
+    ) -> bool:  # Updated return type
+        """Cancel an existing order. Returns True if successful."""
         if not symbol:
             raise ValueError("Symbol is required to cancel Hyperliquid orders")
-        # TODO: Map symbol to asset index
-        asset_index = 0  # Placeholder
-        action_payload = {"asset": asset_index, "oid": int(order_id)}
-        request_data = {"type": "cancel", "action": action_payload}
 
-        response_raw: object = None  # Initialize
+        # TODO: Implement robust symbol to asset_index mapping.
+        # This likely requires fetching market metadata (e.g., from /info type=metaAndAssetCtxs)
+        # and caching the mapping {symbol_name: asset_index}.
+        # Using placeholder 0 for now.
         try:
+            asset_index = 0  # Placeholder - MUST BE REPLACED
+            logger.warning(f"Using placeholder asset_index=0 for symbol {symbol} in cancel_order")
+        except Exception as e:
+            # Handle potential errors during symbol->index lookup
+            raise APIError(
+                f"Failed to map symbol {symbol} to asset index: {e}",
+                code=APIErrorCode.INVALID_PARAMS.value,
+            ) from e
+
+        response_raw: object = None  # Initialize for error reporting
+        try:
+            action_payload = {"asset": asset_index, "oid": int(order_id)}
+            request_data = {"type": "cancel", "action": action_payload}
+
             response_raw = await self._request(
                 "POST", self.rest_endpoint + "/exchange", data=request_data, is_signed=True
             )
@@ -1343,72 +1411,51 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.ORDER_REJECTED.value,
                 )
 
-            # Check statuses for confirmation
+            # Check statuses for confirmation - expecting "canceled"
             if (
                 validated_response.data.statuses
                 and validated_response.data.statuses[0] == "canceled"
             ):
                 logger.info(f"Successfully cancelled order {order_id} for asset {asset_index}")
-                return {"success": True, "order_id": order_id, "status": "canceled"}
+                return True  # Return True on success
             else:
-                logger.warning(
-                    f"Order cancellation status unclear: {validated_response.data.statuses}"
-                )
-                # Might have failed, or status object has details
-                first_status = validated_response.data.statuses[0]
-                if (
-                    isinstance(first_status, HyperliquidRawExchangeStatusObject)
-                    and first_status.error
+                # Handle unclear or error status
+                error_message = "Cancellation status unclear"
+                if validated_response.data.statuses and isinstance(
+                    validated_response.data.statuses[0], HyperliquidRawExchangeStatusObject
                 ):
-                    raise APIError(
-                        f"Cancel failed: {first_status.error}",
-                        code=APIErrorCode.ORDER_REJECTED.value,
-                    )
-                # Fallback success even if status isn't clear string "canceled"
-                return {"success": True, "order_id": order_id, "status": "unknown"}
+                    error_status = validated_response.data.statuses[0]
+                    if error_status.error:
+                        error_message = f"Cancel failed: {error_status.error}"
+                        raise APIError(error_message, code=APIErrorCode.ORDER_REJECTED.value)
 
-        except ValidationError as e:
+                logger.warning(f"{error_message}: {validated_response.data.statuses}")
+                # Even if status isn't explicitly 'canceled', if no APIError was raised,
+                # assume cancellation was likely accepted by the exchange.
+                # Consider raising an error here if strict confirmation is required.
+                return True  # Or potentially False/raise error if confirmation is needed
+
+        except (ValidationError, ValueError) as e:  # Include ValueError for int(order_id)
             logger.error(
-                f"[{self.exchange_name}] Failed to validate order cancellation response: {e}. "
+                f"[{self.exchange_name}] Failed to validate order cancellation response or "
+                f"invalid OID: {e}. "
                 f"Raw: {response_raw}"
             )
             raise APIError(
-                f"Invalid response after cancelling order: {e}", code=APIErrorCode.UNKNOWN.value
+                f"Invalid response/OID after cancelling order {order_id}: {e}",
+                code=APIErrorCode.UNKNOWN.value,
             ) from e
         except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error canceling order: {e}")
-            raise
+            logger.error(f"[{self.exchange_name}] API Error canceling order {order_id}: {e}")
+            raise  # Re-raise APIError on failure
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error canceling order: {e}", exc_info=True
+                f"[{self.exchange_name}] Unexpected error canceling order {order_id}: {e}",
+                exc_info=True,
             )
             raise APIError(
-                f"Unexpected error canceling order: {e}", code=APIErrorCode.UNKNOWN.value
+                f"Unexpected error canceling order {order_id}: {e}", code=APIErrorCode.UNKNOWN.value
             ) from e
-
-    async def subscribe_to_ticker(self, symbol: str) -> None:
-        """Prepare subscription for ticker updates."""
-        topic = f"trades:{symbol}"  # Hyperliquid uses trades for ticker-like updates
-        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
-        # Actual subscription done via self.subscribe(topic, handler)
-
-    async def subscribe_to_order_book(self, symbol: str) -> None:
-        """Prepare subscription for order book updates."""
-        topic = f"l2Book:{symbol}"
-        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
-        # Actual subscription done via self.subscribe(topic, handler)
-
-    async def subscribe_to_trades(self, symbol: str) -> None:
-        """Prepare subscription for public trade updates."""
-        topic = f"trades:{symbol}"
-        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
-        # Actual subscription done via self.subscribe(topic, handler)
-
-    async def subscribe_to_account_updates(self) -> None:
-        """Prepare subscription for user events (orders, fills)."""
-        topic = "userEvents"
-        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
-        # Actual subscription done via self.subscribe(topic, handler)
 
     async def get_recent_fills(
         self, symbol: str | None = None, limit: int | None = None
@@ -1421,11 +1468,29 @@ class HyperliquidAPI(ExchangeAPI):
         effective_limit = limit if limit is not None else 100
         return await self.get_trade_history(symbol=symbol, limit=effective_limit)
 
+    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
+        """Fetch all open orders, optionally filtering by symbol."""
+        # Hyperliquid get_open_orders fetches all if symbol is None
+        return await self.get_open_orders(symbol=symbol)
+
     async def ping_websocket(self) -> None:
         # Use the default implementation from the base class
         await super().ping_websocket()
 
     # --- Error Mapping --- #
+
+    def _update_rate_limit_from_headers(
+        self, headers: Mapping[str, str], method: str, path: str
+    ) -> None:
+        """
+        Update rate limit information based on response headers.
+        Hyperliquid does not typically provide rate limit info in headers.
+        This is a placeholder implementation.
+        """
+        # Hyperliquid does not seem to provide standard rate limit headers.
+        # If specific headers are discovered, parse them here.
+        # logger.debug(f"[{self.exchange_name}] Received headers: {headers}")
+        pass  # No standard headers known for HL
 
     def _map_error_response(
         self,

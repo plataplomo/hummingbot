@@ -652,28 +652,20 @@ class BackpackAPI(ExchangeAPI):
                 f"Unexpected error placing order: {e}", code=APIErrorCode.UNKNOWN.value
             ) from e
 
-    async def cancel_order(
-        self, order_id: str, symbol: str | None = None
-    ) -> dict[str, bool | str | None]:  # More specific return type
-        """Cancel an existing order. Conforms to ExchangeAPI interface."""
+    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
+        """Cancel an existing order. Returns True if successful."""
         if symbol is None:
             # Attempt to lookup symbol from order_id if possible, or raise error
             # For now, raise error as Backpack API likely requires symbol
             raise ValueError("Symbol is required to cancel order on Backpack")
 
         request_path = "/api/v1/order"
-        response: object = None  # Initialize
         try:
             params = {"symbol": symbol, "orderId": order_id}
-            response = await self._request("DELETE", request_path, params=params, is_signed=True)
+            await self._request("DELETE", request_path, params=params, is_signed=True)
             logger.info(f"[{self.exchange_name}] Canceled order {order_id} for {symbol}")
-            # Return more specific success dict
-            return {
-                "success": True,
-                "orderId": order_id,
-                "symbol": symbol,
-                "response_body": str(response) if response else None,
-            }
+            # Return True on success (APIError wasn't raised)
+            return True
         except APIError as e:
             logger.error(f"[{self.exchange_name}] API Error canceling order {order_id}: {e}")
             raise e

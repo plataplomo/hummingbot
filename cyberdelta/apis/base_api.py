@@ -95,8 +95,10 @@ class ExchangeAPI(ABC):
         rate_limit_config_raw = config.get("rate_limits")
         # DEFENSIVE CHECK: config is dict[str, Any], so rate_limit_config_raw is Any.
         # Runtime check needed. Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
-        rate_limit_config: dict[str, Any] = {}  # Initialize as empty dict
+        rate_limit_config: dict[str, Any] = {}  # Explicitly typed
         if isinstance(rate_limit_config_raw, dict):
+            # DEFENSIVE CHECK: Pyright still reports UnknownVarType despite isinstance.
+            # Mypy=ok Pyright=[reportUnknownVariableType]
             rate_limit_config = rate_limit_config_raw
         elif rate_limit_config_raw is not None:
             logger.warning(
@@ -148,8 +150,10 @@ class ExchangeAPI(ABC):
         endpoints_raw = rate_limit_config.get("endpoints", {})
         # DEFENSIVE CHECK: rate_limit_config values are Any. Runtime check needed.
         # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
-        endpoints: dict[str, Any] = {}  # Initialize as empty dict
+        endpoints: dict[str, Any] = {}  # Explicitly typed
         if isinstance(endpoints_raw, dict):
+            # DEFENSIVE CHECK: Pyright still reports UnknownVarType despite isinstance.
+            # Mypy=ok Pyright=[reportUnknownVariableType]
             endpoints = endpoints_raw
         else:
             logger.warning(
@@ -164,6 +168,8 @@ class ExchangeAPI(ABC):
             # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
             if isinstance(config_dict_raw, dict):
                 # Ensure type checker knows config_dict_raw is a dict here
+                # DEFENSIVE CHECK: Pyright still reports UnknownVarType despite isinstance.
+                # Mypy=ok Pyright=[reportUnknownVariableType]
                 config_dict: dict[str, Any] = config_dict_raw
                 rate_raw: Any = config_dict.get("rate", default_rate)
                 rate: float = default_rate
@@ -184,6 +190,8 @@ class ExchangeAPI(ABC):
                 # Ensure type checker knows config_dict_raw is a dict here
                 # DEFENSIVE CHECK: config_dict_raw is confirmed dict, but values still Any.
                 # Pyright=[reportUnknownVariableType]
+                # DEFENSIVE CHECK: Pyright still reports UnknownVarType despite isinstance.
+                # Mypy=ok Pyright=[reportUnknownVariableType]
                 config_dict_typed: dict[str, Any] = config_dict_raw
                 bucket_raw: Any = config_dict_typed.get("bucket_size", default_bucket)
                 bucket: int = default_bucket
@@ -884,8 +892,8 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def cancel_order(self, order_id: str, symbol: str | None = None) -> dict[str, Any]:
-        """Cancel an existing order by its ID."""
+    async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
+        """Cancel an existing order by its ID. Returns True if successful."""
         raise NotImplementedError
 
     @abstractmethod
@@ -952,26 +960,6 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def subscribe_to_ticker(self, symbol: str) -> None:
-        """Subscribe to ticker updates for a symbol."""
-        raise NotImplementedError
-
-    @abstractmethod
-    async def subscribe_to_order_book(self, symbol: str) -> None:
-        """Subscribe to order book updates for a symbol."""
-        raise NotImplementedError
-
-    @abstractmethod
-    async def subscribe_to_trades(self, symbol: str) -> None:
-        """Subscribe to public trade updates for a symbol."""
-        raise NotImplementedError
-
-    @abstractmethod
-    async def subscribe_to_account_updates(self) -> None:
-        """Subscribe to private account updates (balances, positions)."""
-        raise NotImplementedError
-
-    @abstractmethod
     async def ping_websocket(self) -> None:
         """Send a ping frame over the WebSocket connection."""
         # Provide a default implementation, allow override if needed
@@ -987,11 +975,6 @@ class ExchangeAPI(ABC):
             )
 
     # --- Helper Methods --- #
-
-    def _generate_client_order_id(self) -> str:
-        # Implementation of _generate_client_order_id method
-        # Example implementation:
-        return f"cde-{self.exchange_name}-{int(time.time() * 1e6)}-{random.randint(1000, 9999)}"
 
     @abstractmethod
     async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
