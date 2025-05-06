@@ -465,7 +465,7 @@ def test_hl_raw_user_fill_optional_present(valid_user_fill_data: dict[str, Any])
 def test_hl_raw_user_fill_invalid_types(
     valid_user_fill_data: dict[str, Any],
     field: str,
-    invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid types
+    invalid_value: object,  # Changed from Any to object
 ) -> None:
     """Test ValidationError is raised for incorrect field types."""
     valid_user_fill_data[field] = invalid_value
@@ -509,7 +509,11 @@ def test_hl_raw_user_fill_invalid_types(
         ("hash", "X" * 67, "String value too long (max 66 chars)"),
         # ("fee", "-0.1", "must be a finite decimal"), # Validator allows negative finite decimals
         ("liquidationMarkPx", "", "String cannot be empty"),
-        ("liquidationMarkPx", "inf", "must be a finite decimal if present"),
+        (
+            "liquidationMarkPx",
+            "inf",
+            "liquidation_mark_px: Value must be a finite decimal (not NaN or inf)",
+        ),
         ("cloid", "", "String cannot be empty"),
         ("cloid", "Y" * 129, "String value too long (max 128 chars)"),
     ],
@@ -517,7 +521,7 @@ def test_hl_raw_user_fill_invalid_types(
 def test_hl_raw_user_fill_invalid_formats(
     valid_user_fill_data: dict[str, Any],
     field: str,
-    invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid values
+    invalid_value: object,  # Changed from Any to object
     expected_msg_part: str | tuple[str, str],  # Allow tuple for multi-part checks
 ) -> None:
     """Test ValidationError for format/constraint violations."""

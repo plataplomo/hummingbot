@@ -82,7 +82,7 @@ def test_backpack_raw_fill_optional_client_id_missing(valid_fill_data: dict[str,
 def test_backpack_raw_fill_invalid_types(
     valid_fill_data: dict[str, Any],
     field: str,
-    invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid types
+    invalid_value: object,  # Changed from Any to object
 ) -> None:
     """Test ValidationError is raised for incorrect field types."""
     valid_fill_data[field] = invalid_value
@@ -124,9 +124,9 @@ def test_backpack_raw_fill_invalid_types(
         ("orderId", "", "String cannot be empty"),
         ("orderId", "B" * 129, "String value too long (max 128 chars)"),
         ("side", "Buy", ("Invalid value 'Buy'", "Expected one of")),
-        ("timestamp", "2024-01-15T10:30:00Z-invalid", "Invalid ISO timestamp format"),
-        ("timestamp", "", "String cannot be empty"),
-        ("tradeId", -1, "Must be >= 0"),
+        ("timestamp", "not-a-valid-iso-date", "timestamp: Cannot parse ISO datetime string"),
+        ("timestamp", "", "timestamp: String cannot be empty"),
+        ("tradeId", -1, "tradeId: Must be non-negative"),
         # Empty clientId should be rejected by the 'after' validator
         ("clientId", "", "clientId cannot be an empty string if provided"),
         ("clientId", "C" * 129, "String value too long (max 128 chars)"),
@@ -135,7 +135,7 @@ def test_backpack_raw_fill_invalid_types(
 def test_backpack_raw_fill_invalid_formats_and_values(
     valid_fill_data: dict[str, Any],
     field: str,
-    invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid values
+    invalid_value: object,  # Changed from Any to object
     expected_msg_part: str | tuple[str, str],
 ) -> None:
     """Test ValidationError for format/value/constraint violations."""

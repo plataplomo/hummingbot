@@ -1,185 +1,209 @@
 """
-Unit Tests for Hyperliquid Raw Candle Snapshot Model
+Unit Tests for HyperliquidRawCandleSnapshot Model
 """
 
-import copy  # Import copy module
-from re import Pattern  # Import Any, Union, Pattern
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
+from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
+    HyperliquidRawCandleSnapshot,
+)
 
-# --- Test Data --- MOCKUP from openapi_hl.json example
-VALID_CANDLE_DATA = {
-    "t": [1672531200000, 1672531260000, 1672531320000],
-    "o": ["16500.5", "16501.0", "16500.8"],
-    "h": ["16502.0", "16501.5", "16501.2"],
-    "l": ["16500.0", "16500.5", "16500.6"],
-    "c": ["16501.0", "16500.8", "16501.1"],
-    "v": ["10.5", "5.2", "8.1"],
+# --- Test Data ---
+
+VALID_DATA_SINGLE_CANDLE: dict[str, Any] = {
+    "t": [1700000000000],
+    "o": ["100.0"],
+    "h": ["101.0"],
+    "l": ["99.0"],
+    "c": ["100.5"],
+    "v": ["1000.0"],
+    "s": "ok",
+}
+
+VALID_DATA_MULTIPLE_CANDLES: dict[str, Any] = {
+    "t": [1700000000000, 1700000060000],
+    "o": ["100.0", "100.5"],
+    "h": ["101.0", "102.0"],
+    "l": ["99.0", "100.0"],
+    "c": ["100.5", "101.5"],
+    "v": ["1000.0", "1200.0"],
+    "s": "ok",
+}
+
+VALID_DATA_EMPTY_LISTS: dict[
+    str, Any
+] = {  # Assuming API can return empty lists if no candles in range
+    "t": [],
+    "o": [],
+    "h": [],
+    "l": [],
+    "c": [],
+    "v": [],
     "s": "ok",
 }
 
 
-# --- Test Cases --- MOCKUP
+# --- Test Cases ---
 
 
-def test_valid_candle_snapshot() -> None:
-    """Test successful validation with valid, list-based data."""
-    snapshot = HyperliquidRawCandleSnapshot.model_validate(VALID_CANDLE_DATA)
-    assert snapshot.t == VALID_CANDLE_DATA["t"]
-    assert snapshot.o == VALID_CANDLE_DATA["o"]
-    assert snapshot.h == VALID_CANDLE_DATA["h"]
-    assert snapshot.l == VALID_CANDLE_DATA["l"]
-    assert snapshot.c == VALID_CANDLE_DATA["c"]
-    assert snapshot.v == VALID_CANDLE_DATA["v"]
-    assert snapshot.s == VALID_CANDLE_DATA["s"]
-    # Check model config implicitly via successful validation
-    # Test frozen=True
-    with pytest.raises(ValidationError):
-        snapshot.s = "nok"
+def test_valid_single_candle_snapshot() -> None:
+    """Test successful validation of a snapshot with a single candle."""
+    snapshot = HyperliquidRawCandleSnapshot.model_validate(VALID_DATA_SINGLE_CANDLE)
+    assert snapshot.t == [1700000000000]
+    assert snapshot.o == ["100.0"]
+    assert snapshot.h == ["101.0"]
+    assert snapshot.l == ["99.0"]
+    assert snapshot.c == ["100.5"]
+    assert snapshot.v == ["1000.0"]
+    assert snapshot.s == "ok"
+    assert snapshot.model_config.get("extra") == "forbid"
+    assert snapshot.model_config.get("frozen") is True
 
 
-def test_invalid_top_level_structure() -> None:
-    """Test failure if top-level input is not a dictionary."""
-    with pytest.raises(ValidationError, match="Input should be a valid dictionary"):
-        HyperliquidRawCandleSnapshot.model_validate([1, 2, 3])  # Input is a list
+def test_valid_multiple_candles_snapshot() -> None:
+    """Test successful validation of a snapshot with multiple candles."""
+    snapshot = HyperliquidRawCandleSnapshot.model_validate(VALID_DATA_MULTIPLE_CANDLES)
+    assert len(snapshot.t) == 2
+    assert snapshot.s == "ok"
+
+
+def test_valid_empty_lists_snapshot() -> None:
+    """Test successful validation with empty lists for all candle data."""
+    snapshot = HyperliquidRawCandleSnapshot.model_validate(VALID_DATA_EMPTY_LISTS)
+    assert snapshot.t == []
+    assert snapshot.o == []
+    assert snapshot.v == []
+    assert snapshot.s == "ok"
+
+
+def test_frozen_instance() -> None:
+    """Test that the validated instance is frozen."""
+    snapshot = HyperliquidRawCandleSnapshot.model_validate(VALID_DATA_SINGLE_CANDLE)
+    with pytest.raises(ValidationError) as exc_info:
+        snapshot.s = "not_ok"  # type: ignore[misc]
+    assert "Instance is frozen" in str(exc_info.value)
+
+
+def test_extra_field_forbidden() -> None:
+    """Test that extra fields in the input data cause a validation error."""
+    invalid_data = {**VALID_DATA_SINGLE_CANDLE, "extra_key": "extra_value"}
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawCandleSnapshot.model_validate(invalid_data)
+    assert "Extra inputs are not permitted" in str(exc_info.value)
+    assert "extra_key" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
-    "field_to_invalidate, invalid_value, match_pattern",
+    "field_to_invalidate,invalid_value,expected_msg_part",
     [
-        ("t", "not_a_list", "Must be a list"),  # Field is not a list
-        ("o", None, "Must be a list"),  # Corrected expected message
-        ("h", 123, "Must be a list"),  # Field is wrong type
+        ("t", "not_a_list", "Must be a list"),
+        ("o", False, "Must be a list"),
+        ("h", 123, "Must be a list"),
+        ("s", 123, "Input should be a valid string"),  # validate_str_field raises this
+        ("s", "", "String should not be empty"),  # validate_str_field
     ],
 )
-def test_invalid_list_field_type(
-    field_to_invalidate: str,
-    invalid_value: Any,  # noqa: ANN401
-    match_pattern: str | Pattern[str],  # Type hint for pytest match
+def test_invalid_field_type_or_missing(
+    field_to_invalidate: str, invalid_value: Any, expected_msg_part: str
 ) -> None:
-    """Test failure if a list field is missing, not a list, or wrong type."""
-    invalid_data: dict[str, Any] = copy.deepcopy(VALID_CANDLE_DATA)  # Use deepcopy
-    invalid_data[field_to_invalidate] = invalid_value
-    # Catch TypeError directly as it might not be wrapped by ValidationError here
-    with pytest.raises(TypeError) as exc_info:
-        HyperliquidRawCandleSnapshot.model_validate(invalid_data)
-    # Handle both str and Pattern for matching
-    if isinstance(match_pattern, Pattern):
-        assert match_pattern.search(str(exc_info.value))
-    else:
-        assert match_pattern in str(exc_info.value)
+    """Test validation fails if a field has an incorrect type or is missing."""
+    data = VALID_DATA_SINGLE_CANDLE.copy()
+    data[field_to_invalidate] = invalid_value
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawCandleSnapshot.model_validate(data)
+    assert expected_msg_part in str(exc_info.value)
+    assert field_to_invalidate in str(exc_info.value).lower()  # field name in error
+
+
+def test_missing_field() -> None:
+    """Test validation fails if a required field is missing."""
+    data = VALID_DATA_SINGLE_CANDLE.copy()
+    del data["t"]  # Remove a required field
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawCandleSnapshot.model_validate(data)
+    assert "Field required" in str(exc_info.value)
+    assert "'t'" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
-    "field, list_index, invalid_item, match_pattern",
+    "list_field,item_index,invalid_item,expected_msg_part",
     [
-        ("t", 1, "not_an_int", "Must be an integer"),  # Wrong type in t list
-        ("t", 0, -1, "Timestamp cannot be negative"),  # Negative timestamp
-        ("o", 0, 16500, "Must be a string"),  # Wrong type in o list
-        ("h", 1, "", "String cannot be empty"),  # Corrected expected message
-        ("l", 2, "not_a_decimal", "Invalid finite decimal string"),  # Non-decimal string in l list
-        ("c", 0, "NaN", "Decimal value must be finite"),  # Non-finite decimal string in c list
-        ("v", 1, "-5.2", "Volume cannot be negative"),  # Negative volume
-        ("v", 2, "inf", "Decimal value must be finite"),  # Infinite volume
+        ("t", 0, "not_an_int", "Must be an integer"),
+        ("t", 0, -1, "Timestamp must be non-negative"),
+        ("o", 0, 123.45, "Must be a string"),
+        ("h", 0, True, "Must be a string"),
+        ("l", 0, "", "String should not be empty"),  # validate_str_field from price_list
+        ("c", 0, "not_finite_enough", "Invalid finite decimal string"),  # from parse_decimal_value
+        ("v", 0, "not_a_number", "Invalid non-negative finite decimal string"),
+        ("v", 0, "-10.0", "must be non-negative"),  # validate_volume_list
+        ("o", 0, "1" * 65, "String should have at most 64 characters"),  # max_length
     ],
 )
-def test_invalid_list_element_format(
-    field: str,
-    list_index: int,
-    invalid_item: Any,  # noqa: ANN401
-    match_pattern: str | Pattern[str],  # Type hint for pytest match
+def test_invalid_list_item_type_or_format(
+    list_field: str, item_index: int, invalid_item: Any, expected_msg_part: str
 ) -> None:
-    """Test failure if elements within lists have wrong types or formats."""
-    invalid_data: dict[str, Any] = copy.deepcopy(VALID_CANDLE_DATA)  # Use deepcopy
-    # Ensure the list exists and has enough elements before modification
-    if (
-        field in invalid_data
-        and isinstance(invalid_data[field], list)
-        and len(invalid_data[field]) > list_index
-    ):
-        # Cast to list[Any] here to satisfy Pyright about __setitem__ with Any item type
-        target_list = cast(list[Any], invalid_data[field])
-        target_list[list_index] = invalid_item
-    # Catch either ValidationError or TypeError
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
-        HyperliquidRawCandleSnapshot.model_validate(invalid_data)
+    """Test validation fails if an item within a list has an incorrect type or format."""
+    data: dict[str, Any] = VALID_DATA_SINGLE_CANDLE.copy()
+    # Ensure the list is mutable for testing
+    original_list: list[Any] = list(data[list_field])
+    if original_list:  # Make sure list is not empty before trying to change item
+        original_list[item_index] = invalid_item
+        data[list_field] = original_list
+    else:  # If list is empty (e.g. from VALID_DATA_EMPTY_LISTS if used), add invalid item
+        # This assignment can cause type issues if invalid_item doesn't match list_field's expected item type.
+        # However, this is intended for testing invalid scenarios.
+        data[list_field] = [invalid_item]  # pyright: ignore [reportGeneralTypeIssues]
 
-    # Check if the correct message is present in the exception
-    found_match = False
-    # For direct TypeErrors from item type checks
-    if isinstance(exc_info.value, TypeError):
-        if isinstance(match_pattern, Pattern):
-            if match_pattern.search(str(exc_info.value)):
-                found_match = True
-        elif match_pattern in str(exc_info.value):
-            found_match = True
-    # For ValidationErrors (wrapping ValueErrors, etc.)
-    # DEFENSIVE CHECK: Distinguish TypeError from ValidationError for assertion. Mypy=[misc]
-    elif isinstance(exc_info.value, ValidationError):  # pyright: ignore[reportUnnecessaryIsInstance]
-        for error in exc_info.value.errors():
-            error_msg = error.get("msg", "")
-            if isinstance(match_pattern, Pattern):
-                if match_pattern.search(error_msg):
-                    found_match = True
-                    break
-            elif match_pattern in error_msg:
-                found_match = True
-                break
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawCandleSnapshot.model_validate(data)
 
-    assert found_match, f"Pattern '{match_pattern}' not found in {exc_info.value!r}"
+    error_str = str(exc_info.value).lower()  # Lowercase for case-insensitive check
+    assert expected_msg_part.lower() in error_str
+    # Check if the error message contains the field and index, e.g., "t[0]"
+    assert f"{list_field}[{item_index}]".lower() in error_str
 
 
 def test_mismatched_list_lengths() -> None:
-    """Test failure if lists have mismatching lengths."""
-    invalid_data: dict[str, Any] = VALID_CANDLE_DATA.copy()
-    invalid_data["t"] = [1672531200000, 1672531260000]  # Shorten one list
-    with pytest.raises(
-        ValidationError, match="Candle snapshot lists .* must all have the same length"
-    ):
-        HyperliquidRawCandleSnapshot.model_validate(invalid_data)
+    """Test validation fails if data lists have mismatched lengths."""
+    data: dict[str, Any] = {
+        "t": [1700000000000, 1700000060000],  # Length 2
+        "o": ["100.0"],  # Length 1
+        "h": ["101.0", "102.0"],
+        "l": ["99.0", "100.0"],
+        "c": ["100.5", "101.5"],
+        "v": ["1000.0", "1200.0"],
+        "s": "ok",
+    }
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawCandleSnapshot.model_validate(data)
+    assert "Data lists (t, o, h, l, c, v) must all have the same length" in str(exc_info.value)
 
 
-def test_status_string_validation() -> None:
-    """Test validation of the status string 's'."""
-    # Test empty string
-    invalid_data_empty: dict[str, Any] = VALID_CANDLE_DATA.copy()
-    invalid_data_empty["s"] = ""
-    # Modify assertion to check substring instead of using match=
-    with pytest.raises(ValidationError) as exc_info_empty:
-        HyperliquidRawCandleSnapshot.model_validate(invalid_data_empty)
-    assert "String cannot be empty" in str(exc_info_empty.value)
-
-    # Test wrong type
-    invalid_data_type: dict[str, Any] = VALID_CANDLE_DATA.copy()
-    invalid_data_type["s"] = 123
-    # Modify assertion to check substring instead of using match=
-    with pytest.raises(ValidationError) as exc_info_type:
-        HyperliquidRawCandleSnapshot.model_validate(invalid_data_type)
-    # Corrected assertion for wrong type using errors()
-    found_match_type = False
-    for error in exc_info_type.value.errors():
-        # Pydantic v2 error msg is like 'Input should be...' or 'Expected string...'
-        if "Expected string" in error.get("msg", ""):
-            found_match_type = True
-            break
-    assert found_match_type, "Expected string type error not found in messages"
-
-    # Test too long (assuming max_length=32 based on validator)
-    invalid_data_long: dict[str, Any] = VALID_CANDLE_DATA.copy()
-    invalid_data_long["s"] = "a" * 33
-    # Modify assertion to check substring instead of using match=
-    with pytest.raises(ValidationError) as exc_info_long:
-        HyperliquidRawCandleSnapshot.model_validate(invalid_data_long)
-    assert "String value too long" in str(exc_info_long.value)
+def test_volume_non_negative() -> None:
+    """Test that volume values must be non-negative."""
+    data = VALID_DATA_SINGLE_CANDLE.copy()
+    data["v"] = ["-0.1"]
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawCandleSnapshot.model_validate(data)
+    assert "Value '-0.1' must be non-negative" in str(exc_info.value)
+    assert "v[0]" in str(exc_info.value)
 
 
-def test_extra_fields_forbidden() -> None:
-    """Test failure if extra fields are provided."""
-    invalid_data: dict[str, Any] = VALID_CANDLE_DATA.copy()
-    invalid_data["extra_field"] = "should_fail"
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        HyperliquidRawCandleSnapshot.model_validate(invalid_data)
+def test_price_or_volume_not_finite() -> None:
+    """Test that price/volume string must represent finite decimals."""
+    data_price = VALID_DATA_SINGLE_CANDLE.copy()
+    data_price["o"] = ["Infinity"]
+    with pytest.raises(ValidationError) as exc_info_price:
+        HyperliquidRawCandleSnapshot.model_validate(data_price)
+    assert "must represent a finite decimal" in str(exc_info_price.value)
+    assert "o[0]" in str(exc_info_price.value)
+
+    data_volume = VALID_DATA_SINGLE_CANDLE.copy()
+    data_volume["v"] = ["NaN"]
+    with pytest.raises(ValidationError) as exc_info_vol:
+        HyperliquidRawCandleSnapshot.model_validate(data_volume)
+    assert "must represent a finite decimal" in str(exc_info_vol.value)
+    assert "v[0]" in str(exc_info_vol.value)

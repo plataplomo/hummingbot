@@ -12,8 +12,6 @@ Adheres to the Raw Model Policy:
 - Contains NO business logic.
 """
 
-from datetime import UTC, datetime
-
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -23,6 +21,7 @@ from pydantic import (
 )
 
 from cyberdelta.utils.parsing import (
+    parse_datetime_utc,
     parse_decimal_value,
     validate_enum_field,
     validate_str_field,
@@ -291,52 +290,43 @@ class BackpackRawFill(BaseModel):
     def validate_iso_timestamp_str(cls, v: object, info: ValidationInfo) -> str:
         """
         Validates that the raw input `v` for the `timestamp` field is a non-empty string
-        representing a parseable ISO 8601 datetime.
+        representing a valid ISO 8601 datetime, parsable into a UTC datetime object.
 
         Args:
             v (object): The raw input value.
             info (ValidationInfo): Pydantic validation context.
 
         Returns:
-            str: The validated ISO 8601 timestamp string.
+            str: The validated raw ISO 8601 datetime string.
 
         Raises:
             TypeError: If `v` is not a string.
-            ValueError: If `v` is empty or not a valid ISO 8601 timestamp string.
+            ValueError: If `v` is empty or not a valid ISO 8601 datetime string parsable to UTC.
         """
         field_name = info.field_name or "timestamp"
-        # First, basic string validation
-        ts_str = validate_str_field(v, field_name=field_name, allow_empty=False, max_length=30)
-        # Now, attempt parsing
+
+        # First, validate it's a non-empty string. Backpack API spec suggests
+        # format "YYYY-MM-DDTHH:MM:SS.ffffffZ". Max length can be around 30-40.
+        # Example: "2023-04-12T14:30:00.123456Z" is 27 chars.
+        # Let's use a generous max_length like 64 for safety, unless a stricter one is known.
+        raw_ts_str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
+
+        # Then, attempt to parse it using the utility function to ensure it's a valid UTC datetime.
         try:
-            # Replace 'Z' with '+00:00' for standard fromisoformat
-            if ts_str.endswith("Z"):
-                ts_str_iso = ts_str[:-1] + "+00:00"
-            else:
-                # Assume it might already have timezone offset or be naive
-                ts_str_iso = ts_str
-
-            dt_obj = datetime.fromisoformat(ts_str_iso)
-            # Ensure it represents a valid UTC time, convert if necessary
-            offset = dt_obj.utcoffset()
-            if offset is None:
-                # Naive datetime, assume UTC and convert to aware
-                dt_utc = dt_obj.replace(tzinfo=UTC)
-            elif offset.total_seconds() != 0:
-                # Aware datetime, but not UTC, convert
-                dt_utc = dt_obj.astimezone(UTC)
-            else:
-                # Already UTC aware
-                dt_utc = dt_obj
-
-            _ = dt_utc
-            # We only need to validate the format here, return original valid string
-            return ts_str
+            dt_obj = parse_datetime_utc(raw_ts_str, field_name=field_name)
+            if (
+                dt_obj is None
+            ):  # parse_datetime_utc returns None if input is None, but here raw_ts_str is not None.
+                # This case should ideally not be hit if validate_str_field ensures non-empty string.
+                raise ValueError(
+                    f"{field_name}: Successfully validated as string '{raw_ts_str}', "
+                    f"but parse_datetime_utc returned None unexpectedly."
+                )
         except ValueError as e:
+            # Re-raise with context if parse_datetime_utc fails
             raise ValueError(
-                f"{field_name}: Invalid ISO timestamp format '{ts_str}'. Error: {e}"
+                f"{field_name}: Invalid ISO timestamp string '{raw_ts_str}'. Reason: {e}"
             ) from e
-        except Exception as e:
-            raise ValueError(
-                f"{field_name}: Failed to parse timestamp string '{ts_str}'. Error: {e}"
-            ) from e
+
+        # Return the original validated string, as Pydantic will handle final conversion to datetime
+        return raw_ts_str

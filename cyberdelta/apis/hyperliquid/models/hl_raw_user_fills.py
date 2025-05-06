@@ -200,8 +200,46 @@ class HyperliquidRawUserFill(BaseModel):
         """Validate that is_maker is a boolean."""
         field_name = info.field_name or "is_maker"
         if not isinstance(v, bool):
-            raise ValueError(f"{field_name}: Must be a boolean, got {type(v).__name__}")
+            # Attempt to handle common string representations of booleans if necessary,
+            # but the Raw Model Policy usually expects the exact raw type.
+            # For now, strictly expect bool.
+            raise TypeError(f"{field_name}: Must be a boolean, got {type(v).__name__}.")
         return v
+
+    @field_validator("liquidation_mark_px", mode="before")
+    @classmethod
+    def validate_liquidation_mark_px(cls, v: object | None, info: ValidationInfo) -> str | None:
+        """
+        Validates the optional 'liquidation_mark_px' field.
+        If provided, ensures it's a non-empty string, max length 64,
+        and represents a finite decimal.
+        Args:
+            v (object | None): The raw input value.
+            info (ValidationInfo): Pydantic validation context.
+        Returns:
+            str | None: The validated raw string or None.
+        Raises:
+            TypeError: If `v` is not a string (and not None).
+            ValueError: If `v` is an empty string, exceeds max length, or not a finite decimal.
+        """
+        if v is None:
+            return None
+
+        field_name = info.field_name or "liquidation_mark_px"
+        # Validate as string first
+        s_val = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
+
+        # Then validate as finite decimal string
+        try:
+            d = parse_decimal_value(s_val, allow_none=False, field_name=field_name)
+            if d is None or not d.is_finite():  # d is None check is defensive as allow_none=False
+                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf).")
+        except ValueError as e:
+            # Catch parsing errors from parse_decimal_value or the explicit finite check
+            raise ValueError(
+                f"{field_name}: Invalid finite decimal string '{s_val}'. Reason: {e}"
+            ) from e
+        return s_val  # Return the validated string
 
     @field_validator("cloid", "hash", mode="before")
     @classmethod
@@ -224,25 +262,6 @@ class HyperliquidRawUserFill(BaseModel):
         s = validate_str_field(v, field_name=field_name, max_length=max_len)
         if "\x00" in s:
             raise ValueError(f"{field_name}: Null byte (\\x00) not allowed in string")
-        return s
-
-    @field_validator("liquidation_mark_px", mode="before")
-    @classmethod
-    def validate_optional_decimal_str(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """Validate optional decimal strings, ensuring finiteness if present."""
-        if v is None:
-            return None
-
-        field_name = info.field_name or "optional_decimal_field"
-        # Validate as string first
-        s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-
-        # Then parse and check finiteness
-        d = parse_decimal_value(
-            s, allow_none=False, field_name=field_name
-        )  # allow_none=False because v is not None here
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value '{s}' must be a finite decimal if present.")
         return s
 
 

@@ -5,8 +5,8 @@ CyberDeltaEngine: Hyperliquid API Raw Models (Candles Group)
 This module provides strict, security-focused Pydantic models for validating the *raw*
 structure of all major Hyperliquid Exchange API (REST and WebSocket) responses related
 to candlestick (candle) data.
-It is a core part of CyberDeltaEngine's boundary validation layer for historical and real-time
-price series.
+It is a core part of CyberDeltaEngine's boundary validation layer for historical
+and real-time price series.
 
 **Boundary Validation Policy:**
 - Models in this file are used exclusively to validate and parse the *external* data
@@ -23,7 +23,8 @@ price series.
 - **Never use these models for internal business logic.**
 
 **References:**
-- Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+- Official Hyperliquid API documentation:
+  https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
@@ -32,7 +33,8 @@ price series.
     # ...then transform to internal candle model
 """
 
-from typing import Any, Self, TypeGuard
+from decimal import Decimal
+from typing import Self
 
 from pydantic import (
     BaseModel,
@@ -46,45 +48,33 @@ from pydantic import (
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 
-def is_list(obj: object) -> TypeGuard[list[Any]]:
-    """
-    TypeGuard to check if an object is a list.
-
-    Args:
-        obj (object): The object to check.
-    Returns:
-        bool: True if obj is a list, False otherwise.
-    """
-    return isinstance(obj, list)
-
-
-def is_string(obj: object) -> TypeGuard[str]:
-    """
-    TypeGuard to check if an object is a string.
-
-    Args:
-        obj (object): The object to check.
-    Returns:
-        bool: True if obj is a string, False otherwise.
-    """
-    return isinstance(obj, str)
-
-
 class HyperliquidRawCandleSnapshot(BaseModel):
     """
-    Strict boundary model for a candle snapshot response from the 'candleSnapshot' endpoint.
+    Strict boundary model for a candle snapshot response from Hyperliquid's
+    'candleSnapshot' info endpoint.
 
-    Validates the list-based structure (t, o, h, l, c, v) and status 's'.
-    Enforces strict type/format constraints and equal list lengths.
+    This model validates the raw API response which consists of parallel lists for
+    timestamp, open, high, low, close, volume data, and a status string.
+    It adheres to the project's Raw Model policies, including strict type/format
+    validation, 'extra="forbid"', and 'frozen=True'.
+
+    The structure mirrors the 'CandleSnapshotResponse' definition found in
+    the `openapi_hl.json` specification for Hyperliquid.
 
     Fields:
-        t (List[int]): List of timestamps (epoch ms). Alias 't'.
-        o (List[str]): List of open prices as finite decimal strings. Alias 'o'.
-        h (List[str]): List of high prices as finite decimal strings. Alias 'h'.
-        l (List[str]): List of low prices as finite decimal strings. Alias 'l'.
-        c (List[str]): List of close prices as finite decimal strings. Alias 'c'.
-        v (List[str]): List of volumes as non-negative, finite decimal strings. Alias 'v'.
-        s (str): Status string (e.g., 'ok'). Alias 's'.
+        t (list[int]): List of candle timestamps (Unix epoch in milliseconds).
+            Alias "t".
+        o (list[str]): List of candle open prices, as strings representing
+            finite decimals. Alias "o".
+        h (list[str]): List of candle high prices, as strings representing
+            finite decimals. Alias "h".
+        l (list[str]): List of candle low prices, as strings representing
+            finite decimals. Alias "l".
+        c (list[str]): List of candle close prices, as strings representing
+            finite decimals. Alias "c".
+        v (list[str]): List of candle volumes, as strings representing
+            non-negative, finite decimals. Alias "v".
+        s (str): Status string from the API (e.g., "ok"). Alias "s".
     """
 
     t: list[int] = Field(..., alias="t")
@@ -99,98 +89,109 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
     @field_validator("t", mode="before")
     @classmethod
-    def validate_timestamp_list(cls, v: list[Any], info: ValidationInfo) -> list[int]:
-        """Validate 't' is a list of non-negative integers."""
-        field_name = info.field_name or "timestamp_list"
-
-        # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
-        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
-        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
-            raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
+    def validate_timestamp_list(cls, val: object, info: ValidationInfo) -> list[int]:
+        """Validates 't' field: list of non-negative integer timestamps."""
+        field_name = info.field_name or "t"
+        if not isinstance(val, list):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise TypeError(f"{field_name}: Must be a list, got {type(val).__name__}.")
 
         validated_list: list[int] = []
-        for i, item in enumerate(v):
+        for i, item_raw in enumerate(val):
+            item = item_raw
             if not isinstance(item, int):
                 raise TypeError(
                     f"{field_name}[{i}]: Must be an integer, got {type(item).__name__}."
                 )
             if item < 0:
-                raise ValueError(f"{field_name}[{i}]: Timestamp cannot be negative.")
+                raise ValueError(f"{field_name}[{i}]: Timestamp must be non-negative, got {item}.")
             validated_list.append(item)
         return validated_list
 
     @field_validator("o", "h", "l", "c", mode="before")
     @classmethod
-    def validate_price_list(cls, v: list[Any], info: ValidationInfo) -> list[str]:
-        """Validate price lists ('o', 'h', 'l', 'c') contain finite decimal strings."""
+    def validate_price_list(cls, val: object, info: ValidationInfo) -> list[str]:
+        """Validates price fields ('o','h','l','c'): list of finite decimal strings
+        (max 64 chars)."""
         field_name = info.field_name or "price_list"
-
-        # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
-        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
-        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
-            raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
+        if not isinstance(val, list):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise TypeError(f"{field_name}: Must be a list, got {type(val).__name__}.")
 
         validated_list: list[str] = []
-        for i, item in enumerate(v):
-            if not isinstance(item, str):
-                raise TypeError(f"{field_name}[{i}]: Must be a string, got {type(item).__name__}.")
-
+        for i, item_raw in enumerate(val):
+            item = item_raw
+            current_item_desc = f"{field_name}[{i}]"
+            str_item = validate_str_field(
+                item,
+                field_name=current_item_desc,
+                max_length=64,
+                allow_empty=False,
+            )
             try:
-                s = validate_str_field(
-                    item, field_name=f"{field_name}[{i}]", allow_empty=False, max_length=64
+                parsed_decimal = parse_decimal_value(
+                    str_item, field_name=current_item_desc, allow_none=False
                 )
-                d = parse_decimal_value(s, allow_none=False)
-                if d is None or not d.is_finite():
-                    raise ValueError("Decimal value must be finite.")
-                validated_list.append(s)
-            except (ValueError, TypeError) as e:
+                if parsed_decimal is None:
+                    raise ValueError(f"{current_item_desc}: Parsed decimal is None unexpectedly.")
+                if not parsed_decimal.is_finite():
+                    raise ValueError(
+                        f"{current_item_desc}: Value '{str_item}' must represent a finite decimal."
+                    )
+            except ValueError as e:
                 raise ValueError(
-                    f"{field_name}[{i}]: Invalid finite decimal string '{item}': {e}"
+                    f"{current_item_desc}: Invalid finite decimal string '{str_item}'. Reason: {e}"
                 ) from e
+            validated_list.append(str_item)
         return validated_list
 
     @field_validator("v", mode="before")
     @classmethod
-    def validate_volume_list(cls, v: list[Any], info: ValidationInfo) -> list[str]:
-        """Validate 'v' list contains non-negative, finite decimal strings."""
-        field_name = info.field_name or "volume_list"
-
-        # DEFENSIVE CHECK: Ensures v is a list before iteration, even with list[Any] hint,
-        # as Pydantic might pass non-list for mode='before'. Mypy=[misc]
-        if not isinstance(v, list):  # pyright: ignore[reportUnnecessaryIsInstance]
-            raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
+    def validate_volume_list(cls, val: object, info: ValidationInfo) -> list[str]:
+        """Validates 'v' field: list of non-negative finite decimal strings (max 64 chars)."""
+        field_name = info.field_name or "v"
+        if not isinstance(val, list):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise TypeError(f"{field_name}: Must be a list, got {type(val).__name__}.")
 
         validated_list: list[str] = []
-        for i, item in enumerate(v):
-            if not isinstance(item, str):
-                raise TypeError(f"{field_name}[{i}]: Must be a string, got {type(item).__name__}.")
-
+        for i, item_raw in enumerate(val):
+            item = item_raw
+            current_item_desc = f"{field_name}[{i}]"
+            str_item = validate_str_field(
+                item,
+                field_name=current_item_desc,
+                max_length=64,
+                allow_empty=False,
+            )
             try:
-                s = validate_str_field(
-                    item, field_name=f"{field_name}[{i}]", allow_empty=False, max_length=64
+                parsed_decimal = parse_decimal_value(
+                    str_item, field_name=current_item_desc, allow_none=False
                 )
-                d = parse_decimal_value(s, allow_none=False)
-                if d is None or not d.is_finite():
-                    raise ValueError("Decimal value must be finite.")
-                if d < 0:
-                    raise ValueError("Volume cannot be negative.")
-                validated_list.append(s)
-            except (ValueError, TypeError) as e:
+                if parsed_decimal is None:
+                    raise ValueError(f"{current_item_desc}: Parsed decimal is None unexpectedly.")
+                if not parsed_decimal.is_finite():
+                    raise ValueError(
+                        f"{current_item_desc}: Value '{str_item}' must represent a finite decimal."
+                    )
+                if parsed_decimal < Decimal(0):  # pyright: ignore[reportUnknownOperatorType]
+                    raise ValueError(
+                        f"{current_item_desc}: Value '{str_item}' must be non-negative."
+                    )
+            except ValueError as e:
                 raise ValueError(
-                    f"{field_name}[{i}]: Invalid non-negative finite decimal string '{item}': {e}"
+                    f"{current_item_desc}: Invalid non-negative finite decimal string '{str_item}'. Reason: {e}"  # Shortened line
                 ) from e
+            validated_list.append(str_item)
         return validated_list
 
     @field_validator("s", mode="before")
     @classmethod
-    def validate_status_str(cls, v: object, info: ValidationInfo) -> str:
-        """Validate 's' status string is non-empty, max_length 32."""
-        field_name = info.field_name or "status"
-        return validate_str_field(v, field_name=field_name, max_length=32, allow_empty=False)
+    def validate_status_string(cls, val: object, info: ValidationInfo) -> str:
+        """Validates 's' field: non-empty string (max 32 chars)."""
+        field_name = info.field_name or "s"
+        return validate_str_field(val, field_name=field_name, max_length=32, allow_empty=False)
 
     @model_validator(mode="after")
     def check_list_lengths(self) -> Self:
-        """Ensure all OHLCV lists have the same length as the timestamp list."""
+        """Ensures all data lists (t, o, h, l, c, v) have the exact same length."""
         list_lengths = {
             len(self.t),
             len(self.o),
@@ -200,9 +201,13 @@ class HyperliquidRawCandleSnapshot(BaseModel):
             len(self.v),
         }
         if len(list_lengths) > 1:
-            raise ValueError(
-                "Candle snapshot lists (t, o, h, l, c, v) must all have the same length."
+            # Shortened f-string for length
+            msg = (
+                "Data lists (t, o, h, l, c, v) must all have the same length. "
+                f"Found: t={len(self.t)}, o={len(self.o)}, h={len(self.h)}, "
+                f"l={len(self.l)}, c={len(self.c)}, v={len(self.v)}"
             )
+            raise ValueError(msg)
         return self
 
 
@@ -211,8 +216,8 @@ class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
     Strict boundary model for the request payload for the 'candleSnapshot' info type.
 
     This model is used to construct and validate the payload sent to the Hyperliquid API when
-    requesting candlestick data for a specific asset and interval. Enforces strict type and format
-    constraints for all fields. Never use for internal business logic.
+    requesting candlestick data for a specific asset and interval. Enforces strict type
+    and format constraints for all fields. Never use for internal business logic.
 
     Fields:
         type (str): Must be 'candleSnapshot'.
@@ -243,7 +248,7 @@ class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
         Raises:
             ValueError: If the input is not a valid string.
         """
-        return validate_str_field(v, field_name="coin", max_length=64)
+        return validate_str_field(v, field_name="coin", max_length=64, allow_empty=False)
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
@@ -278,4 +283,4 @@ class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
         Raises:
             ValueError: If the input is not a valid string.
         """
-        return validate_str_field(v, field_name="interval", max_length=16)
+        return validate_str_field(v, field_name="interval", max_length=16, allow_empty=False)

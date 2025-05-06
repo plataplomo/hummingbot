@@ -207,12 +207,15 @@ class HyperliquidRawExchangeResponseData(BaseModel):
 
         Returns:
             list[str | HyperliquidRawExchangeStatusObject]: A new list containing validated
-                string statuses (e.g., "canceled") or `HyperliquidRawExchangeStatusObject` instances.
+                string statuses (e.g., "canceled") or
+                `HyperliquidRawExchangeStatusObject` instances.
 
         Raises:
-            TypeError: If `v` is not a list, or if an item within the list is not a string or dictionary.
+            TypeError: If `v` is not a list, or if an item within the list is not a
+                string or dictionary.
             ValueError: If a string item is not an allowed status string (e.g., "canceled"),
-                        or if a dictionary item fails validation against `HyperliquidRawExchangeStatusObject`.
+                or if a dictionary item fails validation against
+                `HyperliquidRawExchangeStatusObject`.
         """
         field_name = info.field_name or "statuses"
         # DEFENSIVE CHECK: Ensure input is a list (redundant if type hint is list[Any] but safe).
