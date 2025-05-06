@@ -1,9 +1,8 @@
 """
-Unit tests for BackpackRawKline model validation.
+Unit Tests for Backpack Raw Kline Model (bp_raw_kline.py)
 """
 
 from decimal import Decimal
-from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -12,162 +11,193 @@ from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 
 # --- Test Data ---
 
-VALID_KLINE_LIST_RAW = [
-    1672531200000,  # start_time_ms (int)
-    "40000.123",  # open_price (str)
-    "41000.45",  # high_price (str)
-    "39000.0",  # low_price (str)
-    "40500.99",  # close_price (str)
-    "1000.5",  # volume (str)
-    1672531259999,  # end_time_ms (int)
-    "40500000.1",  # quote_volume (str)
-    100,  # trade_count (int)
-    "500.25",  # taker_buy_base_volume (str)
-    "20250000.75",  # taker_buy_quote_volume (str)
+VALID_KLINE_LIST = [
+    1700000000000,  # startTimeMs (int)
+    "100.0",  # openPrice (str)
+    "102.5",  # highPrice (str)
+    "99.5",  # lowPrice (str)
+    "101.0",  # closePrice (str)
+    "1000.123",  # volume (str)
+    1700000059999,  # endTimeMs (int)
+    "101000.456",  # quoteVolume (str)
+    50,  # tradeCount (int)
+    "500.1",  # takerBuyBaseVolume (str)
+    "50500.2",  # takerBuyQuoteVolume (str)
     "0",  # ignored (str)
 ]
 
-# Expected values after Pydantic coercion
-EXPECTED_VALID_KLINE = {
-    "start_time_ms": 1672531200000,
-    "open_price": Decimal("40000.123"),
-    "high_price": Decimal("41000.45"),
-    "low_price": Decimal("39000.0"),
-    "close_price": Decimal("40500.99"),
-    "volume": Decimal("1000.5"),
-    "end_time_ms": 1672531259999,
-    "quote_volume": Decimal("40500000.1"),
-    "trade_count": 100,
-    "taker_buy_base_volume": Decimal("500.25"),
-    "taker_buy_quote_volume": Decimal("20250000.75"),
-    "ignored": "0",
-}
 
 # --- Test Cases ---
 
 
-def test_kline_successful_validation() -> None:
-    """Test successful validation with valid raw list input."""
-    kline = BackpackRawKline.model_validate(VALID_KLINE_LIST_RAW)
-    # Check if Pydantic coerced types correctly after raw validation passed
-    assert kline.start_time_ms == EXPECTED_VALID_KLINE["start_time_ms"]
-    assert kline.open_price == EXPECTED_VALID_KLINE["open_price"]
-    assert kline.high_price == EXPECTED_VALID_KLINE["high_price"]
-    assert kline.low_price == EXPECTED_VALID_KLINE["low_price"]
-    assert kline.close_price == EXPECTED_VALID_KLINE["close_price"]
-    assert kline.volume == EXPECTED_VALID_KLINE["volume"]
-    assert kline.end_time_ms == EXPECTED_VALID_KLINE["end_time_ms"]
-    assert kline.quote_volume == EXPECTED_VALID_KLINE["quote_volume"]
-    assert kline.trade_count == EXPECTED_VALID_KLINE["trade_count"]
-    assert kline.taker_buy_base_volume == EXPECTED_VALID_KLINE["taker_buy_base_volume"]
-    assert kline.taker_buy_quote_volume == EXPECTED_VALID_KLINE["taker_buy_quote_volume"]
-    assert kline.ignored == EXPECTED_VALID_KLINE["ignored"]
-    assert kline.model_dump() == EXPECTED_VALID_KLINE
+def test_valid_kline_list_parsing() -> None:
+    """Test successful parsing of a valid kline list."""
+    kline = BackpackRawKline.model_validate(VALID_KLINE_LIST)
+
+    # Verify field values after validation and Pydantic coercion
+    assert kline.start_time_ms == 1700000000000
+    assert kline.open_price == Decimal("100.0")
+    assert kline.high_price == Decimal("102.5")
+    assert kline.low_price == Decimal("99.5")
+    assert kline.close_price == Decimal("101.0")
+    assert kline.volume == Decimal("1000.123")
+    assert kline.end_time_ms == 1700000059999
+    assert kline.quote_volume == Decimal("101000.456")
+    assert kline.trade_count == 50
+    assert kline.taker_buy_base_volume == Decimal("500.1")
+    assert kline.taker_buy_quote_volume == Decimal("50500.2")
+    assert kline.ignored == "0"
+
+    # Verify aliases were populated correctly
+    assert kline.model_dump(by_alias=True)["startTimeMs"] == 1700000000000
+    assert kline.model_dump(by_alias=True)["openPrice"] == Decimal("100.0")
+    assert kline.model_dump(by_alias=True)["endTimeMs"] == 1700000059999
+
+    # Test immutability (frozen=True)
+    with pytest.raises(ValidationError) as exc_info:
+        # Attempt assignment which should fail if frozen=True and validate_assignment=True
+        kline.trade_count = 51
+    assert "Instance is frozen" in str(exc_info.value)
 
 
-def test_kline_invalid_structure() -> None:
-    """Test validation fails if input structure is wrong (not list/tuple or wrong length)."""
-    # Not a list/tuple
-    with pytest.raises(TypeError, match="Kline data must be a list or tuple"):
-        BackpackRawKline.model_validate({"invalid": "structure"})
-    with pytest.raises(TypeError, match="Kline data must be a list or tuple"):
-        BackpackRawKline.model_validate("not a list")
+def test_invalid_structure_input_type() -> None:
+    """Test failure when input is not a list or tuple."""
+    with pytest.raises(TypeError, match="Expected list or tuple input, got dict"):
+        BackpackRawKline.model_validate({"key": "value"})  # Dict input
 
-    # Wrong length
-    invalid_length_list = VALID_KLINE_LIST_RAW[:-1]  # 11 elements
-    with pytest.raises(
-        ValidationError, match="Kline data must be a list/tuple of exactly 12 elements"
-    ):
-        BackpackRawKline.model_validate(invalid_length_list)
-
-    invalid_length_list_long = VALID_KLINE_LIST_RAW + ["extra"]  # 13 elements
-    with pytest.raises(
-        ValidationError, match="Kline data must be a list/tuple of exactly 12 elements"
-    ):
-        BackpackRawKline.model_validate(invalid_length_list_long)
+    with pytest.raises(TypeError, match="Expected list or tuple input, got str"):
+        BackpackRawKline.model_validate("not_a_list")  # String input
 
 
-# Parametrized tests for individual raw field validation failures
+def test_invalid_structure_list_length() -> None:
+    """Test failure when input list has incorrect length."""
+    invalid_list_short = VALID_KLINE_LIST[:-1]  # Length 11
+    with pytest.raises(ValidationError) as exc_info:
+        BackpackRawKline.model_validate(invalid_list_short)
+    assert "Expected 12 elements in kline data list, got 11" in str(exc_info.value)
+
+    invalid_list_long = VALID_KLINE_LIST + ["extra"]
+    with pytest.raises(ValidationError) as exc_info:
+        BackpackRawKline.model_validate(invalid_list_long)
+    assert "Expected 12 elements in kline data list, got 13" in str(exc_info.value)
+
+
 @pytest.mark.parametrize(
-    "index, invalid_value, expected_error_substring",
+    "index, field_name, invalid_value, expected_exception, expected_error_msg",
     [
-        # Type errors (Check specific substring from validator TypeError)
-        (0, "not an int", "Raw value must be an integer, got str"),
-        (1, {"a": 1}, "Raw value must be a string, Decimal, int, or float, got dict"),
-        (6, "not an int", "Raw value must be an integer, got str"),
-        (8, "not an int", "Raw value must be an integer, got str"),
-        (11, 123, "Expected string, got int"),
-        # Value errors (Check specific substring from validator ValueError)
-        (0, -1, "Timestamp cannot be negative"),
-        (1, "", "String cannot be empty or whitespace"),
-        (1, " ", "String cannot be empty or whitespace"),
-        (1, "NaN", "Value must be a finite decimal string"),
-        (1, "Infinity", "Value must be a finite decimal string"),
-        (1, "1" * 65, "String value too long (max 64 chars)"),
-        (2, "not_a_decimal", "Cannot convert 'not_a_decimal' to Decimal"),
-        (3, "inf", "Value must be a finite decimal string"),
-        (4, "-inf", "Value must be a finite decimal string"),
-        (5, "nan", "Value must be a finite decimal string"),
-        (6, -1, "Timestamp cannot be negative"),
-        (7, "1.2.3", "Cannot convert '1.2.3' to Decimal"),
-        (8, -5, "Trade count cannot be negative"),
-        (9, "", "String cannot be empty or whitespace"),
-        (10, "  ", "String cannot be empty or whitespace"),
-        (11, "", "String cannot be empty or whitespace"),
+        # --- startTimeMs validation (index 0) ---
+        # Wrong raw type -> Expect TypeError
+        (0, "start_time_ms", "1700000000000", TypeError, "Raw value must be an integer"),
+        (0, "start_time_ms", 1700000000000.5, TypeError, "Raw value must be an integer"),
+        # Invalid format (Correct raw type: int) -> Expect ValidationError
+        (0, "start_time_ms", -1, ValidationError, "Value must be non-negative"),
+        # --- openPrice validation (index 1) ---
+        # Wrong raw type -> Expect TypeError
+        (1, "open_price", 100.0, TypeError, "Raw value must be a string"),
+        (1, "open_price", 100, TypeError, "Raw value must be a string"),
+        (1, "open_price", True, TypeError, "Raw value must be a string"),
+        # Invalid format (Correct raw type: str) -> Expect ValidationError
+        (1, "open_price", "", ValidationError, "String cannot be empty or whitespace"),
+        (1, "open_price", " ", ValidationError, "String cannot be empty or whitespace"),
+        (1, "open_price", "NaN", ValidationError, "must represent a finite decimal"),
+        (1, "open_price", "Infinity", ValidationError, "must represent a finite decimal"),
+        (1, "open_price", "-inf", ValidationError, "must represent a finite decimal"),
+        (
+            1,
+            "open_price",
+            "not_a_decimal",
+            ValidationError,
+            "Cannot convert 'not_a_decimal' to Decimal",
+        ),
+        (1, "open_price", "1" * 65, ValidationError, "String value too long (max 64 chars)"),
+        # --- highPrice validation (index 2) ---
+        # Wrong raw type -> Expect TypeError
+        # NOTE: None input reaches the field validator and raises TypeError
+        (2, "high_price", None, TypeError, "Raw value must be a string, got NoneType"),
+        (2, "high_price", 102.5, TypeError, "Raw value must be a string"),
+        # Invalid format (Correct raw type: str) -> Expect ValidationError
+        (2, "high_price", "inf", ValidationError, "must represent a finite decimal"),
+        # --- lowPrice validation (index 3) ---
+        # Wrong raw type -> Expect TypeError
+        (3, "low_price", ["list"], TypeError, "Raw value must be a string"),
+        # Invalid format (Correct raw type: str) -> Expect ValidationError
+        (3, "low_price", "-Infinity", ValidationError, "must represent a finite decimal"),
+        # --- closePrice validation (index 4) ---
+        # Wrong raw type -> Expect TypeError
+        (4, "close_price", 101, TypeError, "Raw value must be a string"),
+        # Invalid format (Correct raw type: str) -> Expect ValidationError
+        (4, "close_price", "", ValidationError, "String cannot be empty or whitespace"),
+        # --- volume validation (index 5) ---
+        # Wrong raw type -> Expect TypeError
+        (5, "volume", 1000.123, TypeError, "Raw value must be a string"),
+        # Invalid format (Correct raw type: str) -> Expect ValidationError
+        (5, "volume", "NaN", ValidationError, "must represent a finite decimal"),
+        # --- endTimeMs validation (index 6) ---
+        # Wrong raw type -> Expect TypeError
+        (6, "end_time_ms", "1700000059999", TypeError, "Raw value must be an integer"),
+        # Invalid format (Correct raw type: int) -> Expect ValidationError
+        (6, "end_time_ms", -1700000059999, ValidationError, "Value must be non-negative"),
+        # --- quoteVolume validation (index 7) ---
+        # Wrong raw type -> Expect TypeError
+        (7, "quote_volume", 101000.456, TypeError, "Raw value must be a string"),
+        # Invalid format (Correct raw type: str) -> Expect ValidationError
+        (
+            7,
+            "quote_volume",
+            "101000.456x",
+            ValidationError,
+            "Cannot convert '101000.456x' to Decimal",
+        ),
+        # --- tradeCount validation (index 8) ---
+        # Wrong raw type -> Expect TypeError
+        (8, "trade_count", "50", TypeError, "Raw value must be an integer"),
+        # Invalid format (Correct raw type: int) -> Expect ValidationError
+        (8, "trade_count", -10, ValidationError, "Value must be non-negative"),
+        # --- takerBuyBaseVolume validation (index 9) ---
+        # Wrong raw type -> Expect TypeError
+        (9, "taker_buy_base_volume", 500.1, TypeError, "Raw value must be a string"),
+        # Invalid format (Correct raw type: str) -> Expect ValidationError
+        (
+            9,
+            "taker_buy_base_volume",
+            "Infinity",
+            ValidationError,
+            "must represent a finite decimal",
+        ),
+        # --- takerBuyQuoteVolume validation (index 10) ---
+        # Wrong raw type -> Expect TypeError
+        (10, "taker_buy_quote_volume", 50500.2, TypeError, "Raw value must be a string"),
+        # Invalid format (Correct raw type: str) -> Expect ValidationError
+        (10, "taker_buy_quote_volume", "NaN", ValidationError, "must represent a finite decimal"),
+        # --- ignored validation (index 11) ---
+        # Wrong raw type -> Expect TypeError
+        (11, "ignored", 0, TypeError, "Raw value must be a string"),
+        # Invalid format (Correct raw type: str) -> Expect ValidationError
+        (11, "ignored", "", ValidationError, "String cannot be empty or whitespace"),
+        (11, "ignored", "a" * 65, ValidationError, "String value too long (max 64 chars)"),
     ],
 )
-def test_kline_invalid_raw_field(
+def test_field_validation_failures(
     index: int,
-    invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid inputs
-    expected_error_substring: str,
+    field_name: str,
+    invalid_value: object,
+    expected_exception: type[Exception],
+    expected_error_msg: str,
 ) -> None:
-    """Test validation fails for specific invalid raw values at given indices."""
-    invalid_list = VALID_KLINE_LIST_RAW[:]
+    """Test failures for various invalid raw field types or formats within the list."""
+    # Create as list[object] from the start
+    invalid_list: list[object] = list(VALID_KLINE_LIST)
     invalid_list[index] = invalid_value
-    # Catch TypeError or ValueError directly as mode='before' validators don't wrap them
-    with pytest.raises((TypeError, ValueError)) as excinfo:
+
+    with pytest.raises(expected_exception) as exc_info:
         BackpackRawKline.model_validate(invalid_list)
 
-    # Check if the expected substring is present in the direct exception message
-    # errors = excinfo.value.errors() # No longer applicable
-    # assert len(errors) == 1, f"Expected 1 validation error, but got {len(errors)}: {errors}"
-    # actual_msg = errors[0]['msg']
-    actual_msg = str(excinfo.value)
-    assert expected_error_substring in actual_msg, (
-        f"Failed for index {index}, value {invalid_value}. "
-        f"Expected substring '{expected_error_substring}' not found in "
-        f"error message: '{actual_msg}'"
+    # Check the string representation of the caught exception for the expected message
+    error_str = str(exc_info.value)
+    assert expected_error_msg in error_str, (
+        f"Failed for index {index} ({field_name}) with value {invalid_value!r}. "
+        f"Expected '{expected_error_msg}' in error: {error_str}"
     )
 
 
-def test_kline_frozen() -> None:
-    """Test that the model is immutable (frozen=True)."""
-    kline = BackpackRawKline.model_validate(VALID_KLINE_LIST_RAW)
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        kline.start_time_ms = 12345
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        kline.open_price = Decimal("1.0")
-
-
-# Test that OHLC validation is GONE
-def test_kline_no_ohlc_validation() -> None:
-    """Test that invalid OHLC relationships (business logic) are now allowed."""
-    # High < Low
-    invalid_ohlc_list_1 = VALID_KLINE_LIST_RAW[:]
-    invalid_ohlc_list_1[2] = "38000.0"  # high_price
-    invalid_ohlc_list_1[3] = "39000.0"  # low_price
-    try:
-        BackpackRawKline.model_validate(invalid_ohlc_list_1)
-        # No exception expected
-    except ValidationError as e:
-        pytest.fail(f"OHLC validation (high < low) should not occur: {e}")
-
-    # High < Close
-    invalid_ohlc_list_2 = VALID_KLINE_LIST_RAW[:]
-    invalid_ohlc_list_2[2] = "40000.0"  # high_price
-    invalid_ohlc_list_2[4] = "40500.0"  # close_price
-    try:
-        BackpackRawKline.model_validate(invalid_ohlc_list_2)
-        # No exception expected
-    except ValidationError as e:
-        pytest.fail(f"OHLC validation (high < close) should not occur: {e}")
+# No tests for OHLC relationship needed as per Raw Model Policy

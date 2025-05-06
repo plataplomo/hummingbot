@@ -1,5 +1,9 @@
 """
-Backpack Raw Kline/OHLCV Model
+CyberDeltaEngine: Backpack API Raw Models (Kline/Candle)
+----------------------------------------------------------
+
+Strict Pydantic model for validating the *raw* structure of Backpack Exchange API responses
+for klines (candlesticks). Adheres to the Raw Model Policy.
 """
 
 from decimal import Decimal
@@ -14,112 +18,89 @@ from pydantic import (
     model_validator,
 )
 
-# Assume utils are available
-from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import (
+    parse_decimal_value,
+    validate_str_field,
+)
 
 
 class BackpackRawKline(BaseModel):
     """
-    Represents a single Kline/OHLCV data point from the Backpack /api/v1/klines endpoint.
-    This model validates the raw structure (list/tuple of 12) and the raw data types/formats
-    of each element *before* Pydantic performs final coercion to the hinted field types.
-    It enforces strict boundary validation and prohibits business logic checks (like OHLC).
+    Strict boundary model for a kline (candlestick) object from Backpack API.
 
-    Structure Example (from OpenAPI spec):
-    [
-        1672531200000,    // Start time (Unix timestamp milliseconds) - Expect int
-        "40000.0",        // Open price - Expect string
-        "41000.0",        // High price - Expect string
-        "39000.0",        // Low price - Expect string
-        "40500.0",        // Close price - Expect string
-        "1000.0",         // Volume - Expect string
-        1672531259999,    // End time (Unix timestamp milliseconds) - Expect int
-        "40500000.0",     // Quote asset volume - Expect string
-        100,              // Number of trades - Expect int
-        "500.0",          // Taker buy base asset volume - Expect string
-        "20250000.0",     // Taker buy quote asset volume - Expect string
-        "0"               // Ignore - Expect string
-    ]
+    Expects input as a list/tuple of 12 elements. Validates structure, raw types,
+    and basic formats (non-empty, length, finite numeric format, non-negative int).
+    Rejects extra fields. Immutable. Returns validated raw values from field validators
+    for Pydantic's final coercion.
     """
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    start_time_ms: int = Field(..., alias="startTimeMs")
+    open_price: Decimal = Field(..., alias="openPrice")
+    high_price: Decimal = Field(..., alias="highPrice")
+    low_price: Decimal = Field(..., alias="lowPrice")
+    close_price: Decimal = Field(..., alias="closePrice")
+    volume: Decimal = Field(...)
+    end_time_ms: int = Field(..., alias="endTimeMs")
+    quote_volume: Decimal = Field(..., alias="quoteVolume")
+    trade_count: int = Field(..., alias="tradeCount")
+    taker_buy_base_volume: Decimal = Field(..., alias="takerBuyBaseVolume")
+    taker_buy_quote_volume: Decimal = Field(..., alias="takerBuyQuoteVolume")
+    ignored: str = Field(...)  # Typically a '0' string, but validate as non-empty string
 
-    # Define fields based on the array structure (indices)
-    # Type hints guide Pydantic's *final* coercion *after* 'before' validators run.
-    start_time_ms: int = Field(..., description="Kline start time (Unix timestamp milliseconds)")
-    open_price: Decimal = Field(..., description="Open price")
-    high_price: Decimal = Field(..., description="High price")
-    low_price: Decimal = Field(..., description="Low price")
-    close_price: Decimal = Field(..., description="Close price")
-    volume: Decimal = Field(..., description="Base asset volume")
-    end_time_ms: int = Field(..., description="Kline end time (Unix timestamp milliseconds)")
-    quote_volume: Decimal = Field(..., description="Quote asset volume")
-    trade_count: int = Field(..., description="Number of trades")
-    taker_buy_base_volume: Decimal = Field(..., description="Taker buy base asset volume")
-    taker_buy_quote_volume: Decimal = Field(..., description="Taker buy quote asset volume")
-    ignored: str = Field(..., description="Ignore field")
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="forbid",  # Strict: No extra fields allowed
+        frozen=True,  # Immutable
+        validate_assignment=True,
+    )
+
+    # --- Structure Validation (List -> Dict) ---
 
     @model_validator(mode="before")
     @classmethod
     def structure_to_dict(cls, data: object) -> dict[str, Any]:
         """
-        Validate the raw input is a list/tuple of 12 elements and map it to a dict.
-        This runs *before* field validators.
+        Validate input is a list/tuple of length 12 and map to field names.
+
+        This runs *before* field validators. Returns Dict[str, Any] as values
+        are still raw types (int, str) before field validation.
         """
-        # DEFENSIVE CHECK: Ensure runtime type is list or tuple despite signature.
-        # Runtime check required as 'data: object' allows anything.
+        # Use modern `isinstance` syntax
         if not isinstance(data, list | tuple):
-            raise TypeError("Kline data must be a list or tuple")
-
-        # Check length *after* confirming type
-        # DEFENSIVE CHECK: Runtime check ensures len() is safe after isinstance.
+            raise TypeError(f"Expected list or tuple input, got {type(data).__name__}")
+        # PYRIGHT: reportUnknownArgumentType on `len(data)` below is acceptable here
+        # as `data` is confirmed list/tuple, but element types are unknown pre-validation.
         if len(data) != 12:
-            raise ValueError("Kline data must be a list/tuple of exactly 12 elements")
+            raise ValueError(f"Expected 12 elements in kline data list, got {len(data)}")
 
-        # Define keys corresponding to the list indices
-        keys = [
-            "start_time_ms",
-            "open_price",
-            "high_price",
-            "low_price",
-            "close_price",
-            "volume",
-            "end_time_ms",
-            "quote_volume",
-            "trade_count",
-            "taker_buy_base_volume",
-            "taker_buy_quote_volume",
-            "ignored",
-        ]
+        # Map list elements to field names based on Backpack API order
+        # Note: We use field *names* here, Pydantic handles alias population later
+        field_names: list[str] = list(cls.model_fields.keys())
+        if len(field_names) != 12:
+            # Defensive check in case model definition changes
+            raise RuntimeError("BackpackRawKline model definition has incorrect number of fields.")
 
-        # Map list values to dict using keys
-        # DEFENSIVE CHECK: isinstance ensures data is iterable for zip.
-        return dict(zip(keys, data, strict=False))
+        # The values are still raw (str, int potentially), hence Dict[str, Any]
+        # PYRIGHT: reportUnknownVariableType/reportUnknownArgumentType on `raw_kline_list` and `zip` args below
+        # are acceptable here as element types are unknown pre-validation.
+        raw_kline_list: list[Any] | tuple[Any, ...] = data
+        return dict(zip(field_names, raw_kline_list, strict=False))
 
-    # --- Field Validators (mode='before') ---
-    # These run AFTER structure_to_dict but BEFORE Pydantic's default coercion
+    # --- Field Validators (Raw Type/Format Validation) ---
+    # These run *after* structure_to_dict but *before* Pydantic's final coercion.
+    # They validate the raw values from the dictionary and return the validated raw value.
 
-    @field_validator("start_time_ms", "end_time_ms", mode="before")
+    @field_validator("start_time_ms", "end_time_ms", "trade_count", mode="before")
     @classmethod
-    def validate_timestamp_raw(cls, v: object, info: ValidationInfo) -> object:
-        """Validate raw timestamp values are non-negative integers."""
-        field_name = info.field_name or "timestamp_field"
+    def validate_non_negative_int(cls, v: Any, info: ValidationInfo) -> int:
+        """Validate required non-negative integer fields from raw input."""
+        field_name = info.field_name or "unknown_int_field"
+        # DEFENSIVE CHECK: Ensure runtime type at boundary from Dict[str, Any]. Mypy=[unreachable]
         if not isinstance(v, int):
             raise TypeError(f"{field_name}: Raw value must be an integer, got {type(v).__name__}")
         if v < 0:
-            raise ValueError(f"{field_name}: Timestamp cannot be negative, got {v}")
-        return v  # Return validated raw value for Pydantic's final coercion
-
-    @field_validator("trade_count", mode="before")
-    @classmethod
-    def validate_count_raw(cls, v: object, info: ValidationInfo) -> object:
-        """Validate raw trade count is a non-negative integer."""
-        field_name = info.field_name or "trade_count"
-        if not isinstance(v, int):
-            raise TypeError(f"{field_name}: Raw value must be an integer, got {type(v).__name__}")
-        if v < 0:
-            raise ValueError(f"{field_name}: Trade count cannot be negative, got {v}")
-        return v  # Return validated raw value
+            raise ValueError(f"{field_name}: Value must be non-negative, got {v}")
+        return v
 
     @field_validator(
         "open_price",
@@ -133,68 +114,45 @@ class BackpackRawKline(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_decimal_str_raw(cls, v: object, info: ValidationInfo) -> object:
+    def validate_finite_decimal_str(cls, v: Any, info: ValidationInfo) -> str:
+        """Validate required, non-empty, finite decimal strings (max_length=64).
+
+        Returns validated string.
         """
-        Validate raw decimal-like values. Expects a string, checks non-empty,
-        max length, parseable to Decimal, and finite.
-        Handles potential pre-parsed non-string types defensively.
-        """
-        field_name = info.field_name or "decimal_field"
-        raw_value_str = ""
-        try:
-            # Primarily expect string input from raw list structure
-            if isinstance(v, str):
-                raw_value_str = v
-                # Use utils for string validation (non-empty, max_length)
-                s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-                # Use utils for Decimal parsing and finiteness check
-                d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-                if d is None or not d.is_finite():
-                    raise ValueError(
-                        f"{field_name}: Value must be a finite decimal string (not NaN or inf)"
-                    )
-                # Return the validated *string* - Pydantic will coerce it to Decimal
-                return s
-            # Handle cases where input might already be parsed (defensive)
-            elif isinstance(v, Decimal | int | float):
-                d = parse_decimal_value(v, allow_none=False, field_name=field_name)
-                if d is None or not d.is_finite():
-                    raise ValueError(f"{field_name}: Numeric value must be finite (not NaN or inf)")
-                # Return the original numeric value if finite, Pydantic will handle
-                return v
-            else:
-                raise TypeError(
-                    f"{field_name}: Raw value must be a string, Decimal, int, or float, "
-                    f"got {type(v).__name__}"
-                )
-        except (ValueError, TypeError) as e:
+        field_name = info.field_name or "unknown_decimal_field"
+        # DEFENSIVE CHECK: Ensure runtime type at boundary from Dict[str, Any]. Mypy=[unreachable]
+        if not isinstance(v, str):
+            raise TypeError(f"{field_name}: Raw value must be a string, got {type(v).__name__}")
+
+        # Validate string format and non-emptiness
+        s: str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
+
+        # Validate parseable to finite decimal
+        d: Decimal | None = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        # DEFENSIVE CHECK: Ensure parse_decimal_value returns non-None and is finite.
+        # Mypy=[redundant-expr]
+        if d is None or not d.is_finite():
             raise ValueError(
-                f"{field_name}: Validation failed for raw value '{raw_value_str or v}': {e}"
-            ) from e
-        except Exception as e:
-            # Wrap long line
-            err_msg = (
-                f"{field_name}: Unexpected validation error for raw value "
-                f"'{raw_value_str or v}': {e}"
+                f"{field_name}: Raw string value '{s}' must represent a finite decimal."
             )
-            raise ValueError(err_msg) from e
+
+        # Return the validated *string* for Pydantic's coercion
+        return s
 
     @field_validator("ignored", mode="before")
     @classmethod
-    def validate_ignored_raw(cls, v: object, info: ValidationInfo) -> object:
-        """Validate the raw 'ignored' field (string, non-empty, max_length)."""
+    def validate_ignored_str(cls, v: Any, info: ValidationInfo) -> str:
+        """Validate the 'ignored' field as a required, non-empty string (max_length=64)."""
         field_name = info.field_name or "ignored"
-        try:
-            # Expect string
-            s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-            # Return validated string
-            return s
-        except (ValueError, TypeError) as e:
-            raise ValueError(f"{field_name}: Validation failed for raw value '{v}': {e}") from e
-        except Exception as e:
-            raise ValueError(
-                f"{field_name}: Unexpected validation error for raw value '{v}': {e}"
-            ) from e
+        # DEFENSIVE CHECK: Ensure runtime type at boundary from Dict[str, Any]. Mypy=[unreachable]
+        if not isinstance(v, str):
+            raise TypeError(f"{field_name}: Raw value must be a string, got {type(v).__name__}")
 
-    # Removed @model_validator(mode="after") validate_ohlc_relationship
-    # Business logic (like OHLC checks) is forbidden in Raw models.
+        # Validate string format and non-emptiness
+        s: str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
+        return s
+
+
+# --- Removed OHLC Validator ---
+# The Raw model should NOT contain cross-field business logic like OHLC consistency.
+# That belongs in the Internal Domain Model validation layer.
