@@ -52,8 +52,10 @@ class BackpackRawKline(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def structure_to_dict(cls, data: list | tuple) -> dict[str, Any]:
+    def structure_to_dict(cls, data: list[Any] | tuple[Any, ...]) -> dict[str, Any]:
         """Convert list structure to dict, relying on Pydantic for type coercion."""
+        # DEFENSIVE CHECK: Ensure runtime type is list or tuple despite signature.
+        # Pyright=[reportUnnecessaryIsInstance]
         if not isinstance(data, list | tuple) or len(data) != 12:
             raise ValueError("Kline data must be a list/tuple of exactly 12 elements")
 

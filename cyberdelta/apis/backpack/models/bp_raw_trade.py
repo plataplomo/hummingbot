@@ -427,13 +427,18 @@ class BackpackRawFill(BaseModel):
     @field_validator("client_id", mode="before")
     @classmethod
     def validate_optional_string(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """
-        Validates that the value, if not None, is a non-empty UTF-8 string of max 128 chars.
-        Raises ValueError if not a string, is empty/whitespace-only, exceeds max length,
-        or is not valid UTF-8.
-        """
+        """Validate optional string fields for type and length."""
         if v is None:
             return None
-        field_name = info.field_name or "client_id"
-        # Use allow_empty=False to ensure non-empty/whitespace string
-        return validate_str_field(v, field_name=field_name, max_length=128, allow_empty=False)
+        field_name = info.field_name or "optional_string"
+        # Removed allow_empty=False; empty string check now handled by mode='after' validator
+        return validate_str_field(v, field_name=field_name, max_length=128, allow_empty=True)
+
+    @field_validator("client_id", mode="after")
+    @classmethod
+    def check_client_id_not_empty_str(cls, v: str | None) -> str | None:
+        """Ensure client_id, if provided as a string, is not empty or just whitespace."""
+        # Also check for whitespace-only strings
+        if v is not None and not v.strip():
+            raise ValueError("clientId cannot be an empty or whitespace-only string if provided.")
+        return v

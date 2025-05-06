@@ -103,7 +103,7 @@ class ExchangeAPI(ABC):
         # Safely get default rate and bucket size
         default_rate_raw = rate_limit_config.get("default_rate", 10.0)
         default_rate: float = 10.0
-        if isinstance(default_rate_raw, (int, float, str)):
+        if isinstance(default_rate_raw, int | float | str):
             try:
                 default_rate = float(default_rate_raw)
             except (ValueError, TypeError):
@@ -117,11 +117,10 @@ class ExchangeAPI(ABC):
 
         default_bucket_raw = rate_limit_config.get("default_bucket_size", 10)
         default_bucket: int = 10
-        if isinstance(default_bucket_raw, (int, str)):
+        # Corrected UP038
+        if isinstance(default_bucket_raw, int | str):
             try:
                 default_bucket = int(default_bucket_raw)
-                if default_bucket <= 0:
-                    raise ValueError("Bucket size must be positive")
             except (ValueError, TypeError):
                 logger.warning(
                     f"[{exchange_name}] Invalid 'default_bucket_size' value: {default_bucket_raw}. Using default {default_bucket}."
@@ -408,18 +407,31 @@ class ExchangeAPI(ABC):
                         # Non-retryable error or max retries exceeded
                         raise error
 
-                    # Handle successful response
-                    resp_text = await response.text()
-
-                    # Try to parse as JSON
-                    if resp_text:
+                    # Process based on expected content type
+                    content_type = response.headers.get("Content-Type", "").lower()
+                    if "application/json" in content_type:
                         try:
-                            # Cast the result to inform Mypy it matches the expected types
-                            parsed_json = json.loads(resp_text)
-                            return parsed_json
-                        except json.JSONDecodeError:
-                            # Return raw text if not JSON
-                            return resp_text
+                            # aiohttp response.json() returns Any
+                            json_data: Any = await response.json()
+                            # Add runtime checks for common structures before returning
+                            if isinstance(json_data, dict | list):
+                                return json_data
+                            elif isinstance(json_data, str):
+                                # Allow raw string if JSON parser returns a string
+                                return json_data
+                            else:
+                                # Raise if it's an unexpected JSON type (e.g., null, number, bool)
+                                raise APIError(
+                                    f"Expected JSON dictionary or list, got {type(json_data).__name__}",
+                                    # Use INVALID_REQUEST for unexpected JSON structure
+                                    code=APIErrorCode.INVALID_REQUEST.value,
+                                    http_status=response.status,
+                                )
+                        except aiohttp.ContentTypeError:
+                            # Handle cases where content type says JSON but body is not valid JSON
+                            raw_text = await response.text()
+                            # Return raw text if JSON parser fails
+                            return raw_text
 
                     # Empty response
                     return {}
@@ -453,6 +465,7 @@ class ExchangeAPI(ABC):
 
         # This path should ideally not be reached if the loop always raises
         # Raise a generic error if loop finishes without success or expected exception
+        # DEFENSIVE CHECK: Unreachable in theory if loop always raises, safety net.
         logger.error(
             f"[{self.exchange_name}] _request loop completed unexpectedly for {method} {endpoint}"
         )

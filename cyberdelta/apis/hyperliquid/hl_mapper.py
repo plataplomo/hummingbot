@@ -812,36 +812,41 @@ class HyperliquidMapper:
 
         Returns None if any required OHLCV value fails parsing or is invalid.
         """
-        open_time = parse_datetime_utc(raw.t, field_name="open_time")
-        o = parse_decimal_value(raw.o, allow_none=True, field_name="open")
-        h = parse_decimal_value(raw.h, allow_none=True, field_name="high")
-        low_px = parse_decimal_value(raw.l, allow_none=True, field_name="low")
-        c = parse_decimal_value(raw.c, allow_none=True, field_name="close")
-        v = parse_decimal_value(raw.v, allow_none=True, field_name="volume")
+        # Parse Decimal values, handling potential None
+        open_price = parse_decimal_value(raw.o, field_name=f"{symbol}:{interval}:open")
+        high_price = parse_decimal_value(raw.h, field_name=f"{symbol}:{interval}:high")
+        # Corrected: Access renamed field low_price
+        low_price = parse_decimal_value(raw.low_price, field_name=f"{symbol}:{interval}:low")
+        close_price = parse_decimal_value(raw.c, field_name=f"{symbol}:{interval}:close")
+        volume = parse_decimal_value(raw.v, field_name=f"{symbol}:{interval}:volume")
 
-        # Check if all required fields were successfully parsed and are not None
-        if open_time is None or o is None or h is None or low_px is None or c is None or v is None:
-            logger.warning(
-                f"Failed parsing candle fields for {symbol} {interval} at {raw.t}. Skipping."
-            )
+        # Convert timestamp (ms) to datetime
+        open_time_dt = datetime.fromtimestamp(raw.t / 1000, tz=UTC)
+
+        # Ensure all required fields are not None before creating Candle
+        if (
+            open_price is None
+            or high_price is None
+            or low_price is None
+            or close_price is None
+            or volume is None
+        ):
+            logger.warning(f"Skipping candle due to missing required price/volume field: {raw}")
             return None
 
-        try:
-            return Candle(
-                symbol=symbol,
-                interval=interval,
-                open_time=open_time,
-                open=o,
-                high=h,
-                low=low_px,
-                close=c,
-                volume=v,
-            )
-        except ValidationError as e:
-            logger.warning(
-                f"Validation failed for Candle {symbol} {interval} at {raw.t}: {e}. Skipping."
-            )
-            return None
+        return Candle(
+            symbol=symbol,
+            interval=interval,
+            open_time=open_time_dt,
+            open=open_price,
+            high=high_price,
+            low=low_price,  # Pass corrected low_price
+            close=close_price,
+            volume=volume,
+            # Timestamp and num trades are part of Candle, but likely set via attributes
+            # or handled differently, not direct constructor args typically.
+            # Reverted incorrect additions from previous edit.
+        )
 
 
 # --- Additional Hyperliquid Mappers ---

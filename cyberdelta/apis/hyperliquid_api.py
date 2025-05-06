@@ -31,14 +31,15 @@ from cyberdelta.core.models import (
     Order,
     OrderBook,
     OrderSide,
-    OrderStatus,
     OrderType,
     SpotBalance,
     Ticker,
     TimeInForce,
     Trade,
 )
-from cyberdelta.core.models.enums import OrderStatus
+from cyberdelta.core.models.enums import (
+    OrderStatus,
+)
 from cyberdelta.core.models.market import Candle
 from cyberdelta.utils.parsing import parse_decimal_value
 
@@ -904,7 +905,7 @@ class HyperliquidAPI(ExchangeAPI):
             for order_data_raw in response_raw:
                 try:
                     # Validate using HyperliquidRawOrder model
-                    raw_order = HyperliquidRawOrder.model_validate(order_data_raw)
+                    _ = HyperliquidRawOrder.model_validate(order_data_raw)
                     # Map using the standard raw order mapper method
                     # TODO: Ensure HyperliquidOrderMapper.map_raw_order_to_internal exists and works
                     # order = HyperliquidOrderMapper.map_raw_order_to_internal(raw_order)

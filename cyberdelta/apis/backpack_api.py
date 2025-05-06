@@ -959,7 +959,7 @@ class BackpackAPI(ExchangeAPI):
         # Initialize limit first if not None
         if limit is not None:
             # Mypy struggles with conditional assignment to Union type dict value
-            params["limit"] = limit  # type: ignore[dict-item]
+            params["limit"] = limit
         # Add other params
         if symbol:
             params["symbol"] = symbol

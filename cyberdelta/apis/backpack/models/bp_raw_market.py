@@ -25,7 +25,7 @@ robustness and security at the data ingestion boundary.
 
 import logging
 import math
-from typing import Any, cast
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -212,7 +212,7 @@ class BackpackRawOrderBook(BaseModel):
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Must be a list of [price_str, quantity_str] pairs.")
 
-        raw_list: list[Any] = cast(list[Any], v)
+        raw_list: list[Any] = v
         validated_levels: list[tuple[str, str]] = []
 
         for i, item_raw in enumerate(raw_list):
@@ -223,8 +223,9 @@ class BackpackRawOrderBook(BaseModel):
             if not isinstance(item, list | tuple):
                 raise ValueError(f"{current_item_desc}: Item is not a list or tuple.")
 
-            # DEFENSIVE CHECK: Runtime check ensures item is sized. Pyright=[reportUnknownArgumentType]
-            if len(item) != 2:
+            # DEFENSIVE CHECK: Runtime check ensures item is sized.
+            # Pyright reports arg-type unknown due to item: Any. Suppress known false positive.
+            if len(item) != 2:  # type: ignore[arg-type]
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 [price_str, quantity_str]."
                 )
@@ -411,7 +412,7 @@ class BackpackRawDepthUpdateEvent(BaseModel):
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Must be a list of [price_str, quantity_str] pairs.")
 
-        raw_list: list[Any] = cast(list[Any], v)
+        raw_list: list[Any] = v
         validated_levels: list[tuple[str, str]] = []
 
         for i, item_raw in enumerate(raw_list):
@@ -422,8 +423,9 @@ class BackpackRawDepthUpdateEvent(BaseModel):
             if not isinstance(item, list | tuple):
                 raise ValueError(f"{current_item_desc}: Item is not a list or tuple.")
 
-            # DEFENSIVE CHECK: Runtime check ensures item is sized. Pyright=[reportUnknownArgumentType]
-            if len(item) != 2:
+            # DEFENSIVE CHECK: Runtime check ensures item is sized.
+            # Pyright reports arg-type unknown due to item: Any. Suppress known false positive.
+            if len(item) != 2:  # type: ignore[arg-type]
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 [price_str, quantity_str]."
                 )
