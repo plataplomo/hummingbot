@@ -4,7 +4,7 @@ globs: *.py,*.pyi
 alwaysApply: false
 ---
 ---
-id: RULE-NO-SILENCING-V3
+id: RULE-NO-SILENCING-V4
 title: Strict Control over Static Analysis Silencing (Minimal Cast Exception)
 description: Strictly prohibits `# type: ignore` and `# noqa` in core code. Forbids `typing.cast` except under rare, explicitly justified, and runtime-verified conditions. Requires justification for silencing in tests.
 globs: ["*.py", "*.pyi"] # Apply to all Python source and stub files

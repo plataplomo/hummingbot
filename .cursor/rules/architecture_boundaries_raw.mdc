@@ -4,57 +4,66 @@ globs:
 alwaysApply: true
 ---
 ---
-id: RULE-ARCH-MODEL-DESIGN-V1
-title: Core Model Architecture & Validation Policy
-description: Defines the mandatory architectural separation, naming conventions, validation philosophy, and design patterns for Raw API models and Internal Domain models.
+id: RULE-ARCH-MODEL-DESIGN-V2
+title: Strict Core Model Architecture, Validation & Typing Policy
+description: Defines mandatory architectural separation, naming, validation philosophy, typing constraints, and design patterns (incl. Idea 5) for Raw API and Internal Domain models. Integrates with runtime safety and no-silencing rules.
 alwaysApply: true
 severity: critical # Adherence to these patterns is critical for consistency and robustness.
 ---
 
-# Core Model Architecture & Validation Policy
+# Strict Core Model Architecture, Validation & Typing Policy
 
-This document codifies the non-negotiable architectural design principles for data models within the CyberDeltaEngine project, specifically covering the separation and design of Raw API models and Internal Domain models.
+This document codifies the **non-negotiable, strictly enforced** architectural design principles for all data models within the CyberDeltaEngine project.
 
-**1. Strict Separation of Concerns:**
+**1. Absolute Separation of Concerns:**
 
 *   **Raw API Models:**
-    *   **Location:** MUST reside *exclusively* within the `cyberdelta/apis/<exchange_name>/models/` directory structure.
-    *   **Purpose:** Represent the **exact structure and raw data types** (e.g., `str`, `int`, `bool`, `list`, `dict`) received from an external exchange API *before* any significant transformation or interpretation. They act as the first validation boundary against the external contract.
-    *   **Naming:** MUST use the prefix `Raw` appended to the logical concept, preceded by the exchange identifier (e.g., `BackpackRawOrder`, `HyperliquidRawUserFill`).
-    *   **Prohibition:** MUST NOT contain internal business logic, complex calculations (beyond basic validation), or references to Internal Domain model types (except potentially standard Python Enums if used directly in the raw API). Raw models MUST NOT be defined within the `cyberdelta/core/` directory.
+    *   **Location:** Exclusively within `cyberdelta/apis/<exchange_name>/models/`. No Raw models are permitted in `core/`.
+    *   **Purpose:** Strict validation boundary. Represent the **exact structure and raw data types** (`str`, `int`, `bool`, `list`, `dict`, potentially `float` for non-financial) received from external APIs *before* transformation. Validate the *external contract*.
+    *   **Naming:** Mandatory prefix `Raw` appended to concept, preceded by exchange identifier (e.g., `BackpackRawOrder`, `HyperliquidRawFill`).
+    *   **Dependencies:** MUST NOT import from or depend on `cyberdelta/core/models/`. May import project `Enum`s ONLY if the raw API *directly* uses the exact same string representation as the enum value.
+    *   **Logic Prohibition:** MUST NOT contain internal business logic, complex calculations, data enrichment, or state modification logic.
 *   **Internal Domain Models:**
-    *   **Location:** MUST reside *exclusively* within the `cyberdelta/core/models/` directory structure (potentially in submodules like `market`, `portfolio`, `strategy`).
-    *   **Purpose:** Represent the **unified, canonical business concepts** of the CyberDeltaEngine (e.g., `Trade`, `Order`, `SpotBalance`, `DerivativePosition`). They use clean, internal Python types (`Decimal`, `datetime`, project-defined `Enum`s). They are the target for transformation *from* validated Raw models.
-    *   **Naming:** MUST use clear, descriptive names reflecting the business concept, without `Raw` or exchange-specific prefixes (e.g., `Order`, `SpotBalance`).
-    *   **Prohibition:** MUST NOT directly reference or depend on specific Raw API model classes in their field definitions. They define their *own* structure based on the unified internal representation.
+    *   **Location:** Exclusively within `cyberdelta/core/models/` (and submodules).
+    *   **Purpose:** Represent the **unified, canonical business concepts**, using clean internal types. Act as the target for transformation from validated Raw models. Define the application's internal data language.
+    *   **Naming:** Clear business concept names. No `Raw` or exchange prefixes (e.g., `Order`, `SpotBalance`).
+    *   **Dependencies:** MUST NOT import from or depend on `cyberdelta/apis/` models. Define fields using internal types ONLY.
 
 **2. Pydantic `BaseModel` Mandatory:**
 
 *   All Raw API Models and Internal Domain Models **MUST** inherit from `pydantic.BaseModel`.
 
-**3. Raw Model Validation Policy:**
+**3. Raw Model Validation Policy (Strict Boundary):**
 
-*   **Focus:** Validate the external API contract ONLY.
-*   **Checks:** MUST validate structure, raw types (as received), non-emptiness for required strings/collections, reasonable `max_length` for strings, valid UTF-8 encoding, and basic format validity for numeric strings (parseable to finite `Decimal`/`int`/`float` via `utils.parsing` helpers).
-*   **Configuration:** MUST use `model_config = ConfigDict(extra='forbid', ...)`. Use `frozen=True` unless mutability is explicitly required by the raw structure itself (rare). `populate_by_name=True` should generally be used if `Field(alias=...)` is employed.
-*   **NO Content/Business Logic:** MUST NOT perform business logic validation (e.g., `price > 0`), complex pattern matching (beyond basic formats like addresses if agreed), or semantic checks.
+*   **Mandatory Validators:** **Every field** MUST have a `@field_validator(..., mode='before')` unless Pydantic's default handling for simple primitives (`int`, `bool`) is demonstrably sufficient *and* safe.
+*   **Focus:** Validate the external API contract ONLY. Structural integrity, raw type adherence, basic format validity.
+*   **Checks:**
+    *   **Structure:** Validate overall structure (e.g., list length, dict keys if necessary).
+    *   **Raw Type:** Explicitly check `isinstance` against expected *raw* input type(s).
+    *   **Strings:** Use `validate_str_field`: check non-emptiness (for required), `max_length`, valid UTF-8. **NO** `cast` or ignores (`RULE-NO-SILENCING-V4`).
+    *   **Numeric Strings:** Use `validate_str_field` THEN `parse_decimal_value`: ensure parseable to **finite** `Decimal`/`int`/`float`. Check non-negativity (`>=0`) ONLY if the constraint is *fundamental* to the raw data format (e.g., counts, sizes usually >=0), not based on business logic.
+    *   **Ints/Floats:** Check `isinstance`. Check finiteness for floats. Check non-negativity for counts/IDs/timestamps if applicable.
+    *   **Booleans:** Check `isinstance(v, bool)`. Reject string coercion ('true'/'false').
+    *   **Enums (Rarely Applicable):** Use `validate_enum_field` *only* if the raw API *guarantees* specific string literals from a known, fixed set.
+*   **Configuration:** MUST use `model_config = ConfigDict(extra='forbid', frozen=True)`. Use `populate_by_name=True` if aliases (`Field(alias=...)`) are used. *(Note: Nested raw components might use `extra='ignore'` if parent forbids).*
+*   **NO Business Logic:** Absolutely NO checks like `price > 0`, `high >= low`, cross-field business rules.
 
-**4. Internal Model Design & Validation Policy:**
+**4. Internal Model Design & Validation Policy (Internal Consistency):**
 
-*   **Types:** MUST use appropriate, strict internal Python types (`Decimal` for all finance, `datetime` for UTC timestamps, project `Enum`s from `core/models/enums.py`, `bool`, validated `str`/`int`). Avoid `Any`, `float` (for finance), generic `dict`.
-*   **Validation:**
-    *   Use `Field(...)` constraints for basic checks (`gt=0`, `ge=0`, etc.).
-    *   Use `@field_validator(..., mode='before')` primarily for **parsing/coercion** of varied inputs (e.g., str/int/float to `Decimal`, various timestamp formats to `datetime`) using `utils.parsing` helpers. These validators MUST ensure the output matches the field's internal type hint and basic format validity (e.g., finite).
-    *   Use `@model_validator(mode='after')` for **cross-field consistency checks** and enforcing internal business logic invariants (e.g., `high >= low`, `fee_asset` required if `fee != 0`, `entry_price` required if `size != 0`).
-*   **Extensibility (Idea 5):** For models representing concepts with significant exchange-specific enrichment data (`Trade`, `Order`, `DerivativePosition`), **MUST** use the "Core + Typed Extension Slots" pattern:
-    *   Define a **lean core model** with only universal fields.
-    *   Define separate, immutable (`frozen=True`) `*Details(BaseModel)` classes (e.g., `HyperliquidTradeDetails`) holding exchange-specific enrichment fields, placed within the corresponding internal model file (e.g., `core/models/market.py`). Use `model_config = ConfigDict(extra='ignore', frozen=True)` for these `*Details` models.
-    *   Add optional slots (`hl_details: Optional[HyperliquidTradeDetails] = Field(default=None)`, etc.) to the core model.
-*   **Immutability:** Internal models representing snapshots (`SpotBalance`, `Ticker`, `Candle`, `Trade`, `MarginAccountSummary`) **MUST** use `frozen=True`. Models representing mutable state (`Order`, `DerivativePosition`) **MUST NOT** use `frozen=True`.
-*   **Configuration:** Core models MUST use `model_config = ConfigDict(extra='forbid', validate_assignment=True, ...)`. Include `frozen=True` as appropriate.
+*   **Strict Internal Types:** MUST use precise internal types: `Decimal` (NO `float` for finance), `datetime` (UTC required, use `default_factory` or validator), `core/models/enums.py::EnumType`, `bool`, `str`, `int`. **NO `typing.Any`** (`RULE-NO-SILENCING-V4`). Use standard collections (`list`, `dict`) with specific type arguments.
+*   **Validation Focus:** Enforce internal consistency, domain invariants, and safe types *after* parsing/coercion.
+*   **Implementation:**
+    *   Use `Field(...)` constraints for simple bounds (`gt`, `ge`, `max_length`).
+    *   Use `@field_validator(..., mode='before')` **only** for parsing/coercing diverse inputs (str/int/float -> `Decimal`; ts -> `datetime`) via `utils.parsing` helpers. Ensure output matches field type hint and is finite for numerics.
+    *   Use `@model_validator(mode='after')` **only** for essential cross-field consistency checks (`high >= low`, `fee_asset` required, `entry_price`/`size` logic). Keep these validators focused and minimal.
+*   **Extensibility (Idea 5 - Mandatory):** Models for `Trade`, `Order`, `DerivativePosition` (and others identified as needing exchange-specific enrichment) **MUST** use the "Core + Typed Extension Slots" pattern precisely as defined in previous discussions (lean core, separate immutable `*Details(BaseModel)` with `extra='ignore'`, optional slots `*_details` on core model using `Field(default=None)`).
+*   **Immutability/Mutability:** Snapshots (`SpotBalance`, `Ticker`, `Candle`, `Trade`, `MarginAccountSummary`, `*Details`) **MUST** use `frozen=True`. State aggregates (`Order`, `DerivativePosition`) **MUST NOT** use `frozen=True`.
+*   **Configuration:** Core models MUST use `model_config = ConfigDict(extra='forbid', validate_assignment=True, ...)`. Include `frozen=True` as appropriate per above.
+*   **Runtime Safety:** Adhere strictly to `RULE-RUNTIME-SAFETY-V3` (e.g., mandatory `None`/`finite` checks before operations, defensive `isinstance`). Document necessary static analysis conflicts generated by these checks.
 
-**5. Helper Usage:**
+**5. Helper Usage & Consistency:**
 
-*   Utilize validation and parsing helpers from `cyberdelta.utils.parsing` consistently (`validate_str_field`, `parse_decimal_value`, `parse_datetime_utc`, `validate_enum_field`) where applicable.
+*   Parsing/Validation helpers from `cyberdelta.utils.parsing` **MUST** be used consistently where applicable.
+*   Validation logic (e.g., finite decimal check, non-empty string check) **MUST** be applied consistently across all relevant models (Raw and Internal).
 
-**Rationale:** This strict separation and defined validation approach ensures: clear boundaries, type safety at each layer, prevention of external data corruption propagating internally, testability, maintainability, and controlled handling of exchange-specific details without polluting core domain logic. Adherence is mandatory for system robustness.
+**Rationale:** This hardened rule provides an unambiguous specification for model design, separating external validation from internal logic, mandating specific patterns (Idea 5), enforcing strict typing and validation at both layers, and integrating with other project rules to ensure maximum robustness, consistency, and maintainability. Violations require immediate correction or formal escalation.

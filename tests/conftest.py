@@ -1,5 +1,7 @@
 from __future__ import annotations  # Enable postponed evaluation
 
+import os
+import sys
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -10,6 +12,9 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 import pytest
 
+from cyberdelta.config.secrets_manager import SecretsManager
+
+# Correct paths for utils and core
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -24,6 +29,14 @@ from cyberdelta.core.models import (
 from cyberdelta.utils.config import Config
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem  # Import CB system
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+
+# Adjust path for fixtures
+SCRIPT_DIR = os.path.dirname(__file__)
+# Add project root to sys.path to allow imports like from cyberdelta.apis...
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+sys.path.insert(0, PROJECT_ROOT)
+
+# Ensure tests can import from src
 
 
 # Mock aiohttp ClientSession and Response for API testing
@@ -448,7 +461,7 @@ def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any |
         # Check if val is a dict before attempting access
         if isinstance(val, dict):
             # DEFENSIVE CHECK: val is Any, .get needs ignore for mypy/pyright
-            val = val.get(key, default)  # type: ignore[reportUnknownMemberType]
+            val = val.get(key, default)
             if val == default:  # Stop if key not found
                 break
         else:
@@ -458,3 +471,168 @@ def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any |
     # depending on desired behavior if a key maps to the default value itself.
     # Let's keep the logic simple: return whatever val is at the end.
     return val
+
+
+@pytest.fixture
+def mock_secrets_manager_with_missing() -> MagicMock:
+    """Fixture for SecretsManager where some keys are missing."""
+    manager = MagicMock(spec=SecretsManager)
+
+    # Configure get method to return None for specific keys
+    # Simulate missing optional keys
+    def mock_get(
+        key: str,
+        default: Any = None,
+        *,
+        _deep_get: bool = False,
+        getter: Any = None,
+    ) -> Any:
+        if key == "OPTIONAL_SETTING":
+            return None
+        elif key == "REQUIRED_DB_PASSWORD":
+            return "fake_password"  # Assume this one exists
+        elif _deep_get:  # Simulate deep_get if needed for structure
+            return default
+        else:
+            return default
+
+    manager.get.side_effect = mock_get
+    return manager
+
+
+# --- Async Mocking Helpers ---
+
+
+def mock_get_config() -> dict[str, Any]:  # noqa: ANN401 - Test fixture returns dict
+    """Fixture to provide a mock configuration dictionary."""
+    return {
+        "exchanges": {
+            "mock_hl": {
+                "enabled": True,
+                "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
+                "websocket": {
+                    "reconnect_delay": 1,
+                    "max_reconnect_delay": 5,
+                    "ping_interval": 10,
+                },
+                "risk_modifier": 0.9,
+            },
+            "mock_bp": {
+                "enabled": True,
+                "symbols": {"BTC": "BTCUSDC", "ETH": "ETHUSDC"},
+                "websocket": {
+                    "reconnect_delay": 1,
+                    "max_reconnect_delay": 5,
+                    "ping_interval": 10,
+                },
+                "risk_modifier": 1.0,
+            },
+        },
+        "portfolio": {
+            "reconciliation_interval": 300  # 5 minutes
+        },
+        "risk": {
+            "max_position_size": 1000.0,
+            "max_total_exposure": 5000.0,
+            "kelly_fraction": 0.5,
+            "max_collateral_per_exchange": 0.8,
+            "max_leverage": 5.0,
+            "min_liquidation_buffer": 0.2,
+        },
+        "execution": {
+            "max_slippage": 0.002,
+            "max_retries": 3,
+            "retry_delay_base": 1.0,
+            "circuit_breaker": {"loss_threshold": 100.0, "failed_trades": 3},
+        },
+        "validation": {
+            "circuit_breaker": {
+                "enabled": True,
+                "global": {
+                    "api_errors": {
+                        "enabled": True,
+                        "threshold": 5,
+                        "window_seconds": 120,
+                        "cooldown_seconds": 600,  # Shortened line
+                    }
+                },
+                "exchanges": {
+                    "mock_hl": {
+                        "enabled": True,
+                        "api_errors": {
+                            "enabled": True,
+                            "threshold": 3,
+                            "window_seconds": 60,
+                            "cooldown_seconds": 300,
+                        },
+                        "drawdown": {"enabled": False},
+                        "volatility": {"enabled": False},
+                        "liquidity": {"enabled": False},
+                    },
+                    "mock_bp": {
+                        "enabled": True,
+                        "api_errors": {
+                            "enabled": True,
+                            "threshold": 3,
+                            "window_seconds": 60,
+                            "cooldown_seconds": 300,
+                        },
+                        "drawdown": {"enabled": False},
+                        "volatility": {"enabled": False},
+                        "liquidity": {"enabled": False},
+                    },
+                },
+            },
+            "position_reconciliation": {
+                "enabled": True,
+                "check_interval": 300,
+                "reconciliation_threshold": 0.01,
+                "auto_correct": False,
+            },
+        },
+        "data": {"staleness_thresholds": {"ticker": 60, "funding_rate": 300, "orderbook": 60}},
+    }
+
+
+def create_mock_response(
+    status: int = 200,
+    json_data: Any | None = None,  # noqa: ANN401 - JSON data can be Any for tests
+    text_data: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> MockResponse:
+    # Simplified mock logic
+    mock_resp = MockResponse(json_data, status, headers, "application/json")
+    # Assign AsyncMock instances directly to the methods
+    mock_resp.text = AsyncMock(return_value=text_data if text_data is not None else "")  # noqa: ANN401 - Mock text can be Any
+    mock_resp.raise_for_status = MagicMock()  # raise_for_status is sync
+    if status >= 400:
+        # Configure the mock to raise if needed
+        mock_resp.raise_for_status.side_effect = aiohttp.ClientResponseError(
+            MagicMock(), (), status=status
+        )
+    return mock_resp
+
+
+async def mock_request(
+    method: str,
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,  # noqa: ANN401 - Params can be Any for mock
+    data: Any | None = None,  # noqa: ANN401 - Data can be Any for mock
+    json: Any | None = None,  # noqa: ANN401 - Json can be Any for mock
+    headers: dict[str, Any] | None = None,  # noqa: ANN401 - Headers can be Any for mock
+    status_code: int = 200,  # Added status_code parameter
+    **kwargs: Any,  # noqa: ANN401 - Allow Any extra kwargs for flexibility
+) -> MockResponse:
+    # Simplified mock logic
+    text_data = str(json) if json else ""  # Define text_data based on json
+    mock_resp = MockResponse(json, status_code, headers, "application/json")  # Use status_code
+    # Assign AsyncMock instances directly to the methods
+    mock_resp.text = AsyncMock(return_value=text_data if text_data is not None else "")  # noqa: ANN401 - Mock text can be Any
+    mock_resp.raise_for_status = MagicMock()  # raise_for_status is sync
+    if status_code >= 400:  # Use status_code
+        # Configure the mock to raise if needed
+        mock_resp.raise_for_status.side_effect = aiohttp.ClientResponseError(
+            MagicMock(), (), status=status_code
+        )  # Use status_code
+    return mock_resp
