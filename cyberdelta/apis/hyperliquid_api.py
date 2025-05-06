@@ -189,7 +189,8 @@ class HyperliquidAPI(ExchangeAPI):
                 return self._asset_to_index_cache[symbol]
             else:
                 logger.error(
-                    f"[{self.exchange_name}] Asset index for {symbol} not found after fetching meta."
+                    f"[{self.exchange_name}] Asset index for {symbol} not found after "
+                    f"fetching meta."
                 )
                 raise APIError(
                     f"Asset index for symbol '{symbol}' not found.",
@@ -197,7 +198,8 @@ class HyperliquidAPI(ExchangeAPI):
                 )
         except ValidationError as e:
             logger.error(
-                f"[{self.exchange_name}] Failed to validate metaAndAssetCtxs response: {e}. Raw: {response_raw}"
+                f"[{self.exchange_name}] Failed to validate metaAndAssetCtxs response: {e}. "
+                f"Raw: {response_raw}"
             )
             raise APIError(
                 "Failed to parse market metadata for asset index mapping.",
@@ -238,46 +240,27 @@ class HyperliquidAPI(ExchangeAPI):
             Dictionary with headers for authentication.
         """
         if not self._account:
-            if "test" in path or (data and data.get("test_mode")):
-                logger.info(f"[{self.exchange_name}] Using mock authentication (no private key).")
-                timestamp_ms = int(time.time() * 1000)
-                if data:  # If there's data, its presence might be logged or affect other mock logic
-                    pass  # Placeholder if data check is needed for other reasons; otherwise, this if block could be simplified.
+            # This method is for signed requests. If no account, it's an error.
+            # Public requests should not call _authenticate.
+            logger.error(
+                f"[{self.exchange_name}] _authenticate called but no account is configured. "
+                f"This indicates a logic error for a signed request to {path}."
+            )
+            raise APIError(
+                "Private key not provided for signing; authentication cannot proceed.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
 
-                # Generate a unique nonce for the mock request header
-                async with self._nonce_lock:
-                    self._nonce_counter += 1
-                    nonce_val = self._nonce_counter
-
-                mock_signature = "0x" + "1" * 130  # Distinguishable mock signature
-                return {
-                    "headers": {
-                        "X-HL-Signature": mock_signature,
-                        "X-HL-Timestamp": str(timestamp_ms),
-                        "X-HL-Nonce": str(nonce_val),
-                    },
-                    "params": params,  # Pass through
-                    "data": data,  # Pass through
-                }
-            else:
-                raise APIError(
-                    "Private key not provided for signing real requests",
-                    code=APIErrorCode.AUTHENTICATION_FAILED.value,
-                )
-
-        # Actual signing logic
+        # Actual signing logic proceeds from here
         timestamp_ms = int(time.time() * 1000)
         async with self._nonce_lock:
             self._nonce_counter += 1
             nonce_val = self._nonce_counter
 
-        # For /exchange actions, `data` is the JSON action payload.
-        # connectionId must be keccak256 hash of this action JSON string.
         if data is None:
-            # This should not happen for /exchange calls which always have a body (action).
-            # If other signed endpoints exist that don't have a body, this needs reconsideration.
             logger.error(
-                f"[{self.exchange_name}] Signing attempted for an action, but no 'data' (action payload) was provided."
+                f"[{self.exchange_name}] Signing attempted for an action, but no 'data' "
+                f"(action payload) was provided for {path}."
             )
             raise APIError(
                 "Action payload (data) is required for signing Hyperliquid exchange requests.",
@@ -288,7 +271,8 @@ class HyperliquidAPI(ExchangeAPI):
             action_json_string = json.dumps(data, separators=(",", ":"))
         except TypeError as e:
             logger.error(
-                f"[{self.exchange_name}] Failed to serialize action data to JSON for hashing: {e}. Data: {data!r}",
+                f"[{self.exchange_name}] Failed to serialize action data to JSON for hashing: {e}. "
+                f"Data: {data!r}",
                 exc_info=True,
             )
             raise APIError(
@@ -298,8 +282,6 @@ class HyperliquidAPI(ExchangeAPI):
 
         connection_id_bytes = w3.keccak(text=action_json_string)
 
-        # EIP-712 structure for Hyperliquid Agent signature
-        # Source: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/methods#signing-eip-712
         structured_data_to_sign = {
             "types": {
                 "EIP712Domain": [
@@ -318,11 +300,11 @@ class HyperliquidAPI(ExchangeAPI):
             "domain": {
                 "name": "Hyperliquid",
                 "version": "1",
-                "chainId": self.CHAIN_ID,  # Make sure self.CHAIN_ID is correct (e.g., 1337 for Hyperliquid L1)
-                "verifyingContract": "0x0000000000000000000000000000000000000000",  # Zero address
+                "chainId": self.CHAIN_ID,
+                "verifyingContract": "0x0000000000000000000000000000000000000000",
             },
             "message": {
-                "source": "Hyperliquid",  # Per documentation, or can be "aix"
+                "source": "Hyperliquid",
                 "connectionId": connection_id_bytes,
                 "timestamp": timestamp_ms,
             },
@@ -430,15 +412,13 @@ class HyperliquidAPI(ExchangeAPI):
                 if isinstance(user_events_data_raw, list):
                     for event_item_obj_raw in (
                         user_events_data_raw
-                    ):  # Reverted to original, Pylance may still flag type as unknown here
+                    ):  # Reverted to no explicit type hint for loop variable
                         if not isinstance(event_item_obj_raw, dict):
                             logger.warning(
                                 f"[{self.exchange_name}] Skipping non-dict item in userEvents list: {event_item_obj_raw!r}"
                             )
                             continue
-                        event_item_dict: dict[str, Any] = (
-                            event_item_obj_raw  # event_item_obj is now event_item_dict
-                        )
+                        event_item_dict: dict[str, Any] = event_item_obj_raw
 
                         event_type_raw = event_item_dict.get("event")
                         if not isinstance(event_type_raw, str):
@@ -901,29 +881,68 @@ class HyperliquidAPI(ExchangeAPI):
             )
             validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
 
-            if validated_response.status == "ok":
-                # For transfers, the first status usually indicates success or contains a specific message.
-                if validated_response.data and validated_response.data.statuses:
-                    first_status = validated_response.data.statuses[0]
-                    logger.info(
-                        f"[{self.exchange_name}] L2 USDC Transfer successful. Status: {first_status}"
-                    )
-                    # Return the specific status message or a generic success
-                    return {"status": "success", "data": str(first_status)}
-                else:
-                    logger.info(
-                        f"[{self.exchange_name}] L2 USDC Transfer reported 'ok' but no specific data/statuses returned."
-                    )
-                    return {"status": "success", "data": "Operation reported as 'ok'."}
-            # DEFENSIVE CHECK: Handles cases where Hyperliquid returns HTTP 200 but status field is 'error' or other non-'ok' string,
-            # indicating a logical error at the exchange level. Mypy=[unreachable]
-            else:  # status != "ok"
-                mapped_error = HyperliquidErrorMapper.map_error_response(
-                    error_body=str(response_raw),
-                    response_data=validated_response.model_dump() if validated_response else None,
-                    http_status=200,  # Assuming 200 for non-"ok" status if HTTP was fine
+            # Since status is Literal["ok"], Pydantic ensures it's "ok" if validation passed.
+            # We now inspect validated_response.data.statuses for logical errors/success.
+
+            if not validated_response.data or not validated_response.data.statuses:
+                # This case implies status="ok" but no meaningful data/statuses list, which is unusual.
+                logger.warning(
+                    f"[{self.exchange_name}] L2 Transfer response 'ok' but data or statuses list is missing/empty. Raw: {response_raw!r}"
                 )
-                raise mapped_error
+                # Consider raising an error or returning a specific failure if this state is unexpected.
+                raise APIError(
+                    "L2 Transfer 'ok' but no status details returned.",
+                    code=APIErrorCode.UNKNOWN.value,
+                )
+
+            first_status_obj_raw = validated_response.data.statuses[0]
+
+            if isinstance(first_status_obj_raw, str):
+                # Handle simple string statuses (e.g., "Error: Amount must be > 0")
+                if "error" in first_status_obj_raw.lower():
+                    logger.warning(
+                        f"[{self.exchange_name}] L2 Transfer failed with status: {first_status_obj_raw}"
+                    )
+                    raise APIError(
+                        first_status_obj_raw,
+                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                        exchange_message=first_status_obj_raw,
+                    )
+                # Potentially other non-error string statuses if API defines them
+                logger.info(f"[{self.exchange_name}] L2 Transfer status: {first_status_obj_raw}")
+                return {"status": "success_with_info", "data": first_status_obj_raw}
+            else:  # If not str, it must be HyperliquidRawExchangeStatusObject due to list type hint
+                status_object = first_status_obj_raw
+                if status_object.error:
+                    logger.warning(
+                        f"[{self.exchange_name}] L2 Transfer failed: {status_object.error}"
+                    )
+                    raise APIError(
+                        status_object.error,
+                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                        exchange_message=status_object.error,
+                    )
+                elif status_object.filled:  # Check for filled (though less common for transfer)
+                    logger.info(
+                        f"[{self.exchange_name}] L2 Transfer resulted in fill-like status: {status_object.filled.model_dump()}"
+                    )
+                    return {"status": "success", "data": status_object.filled.model_dump()}
+                elif status_object.resting:  # Check for resting (less common for transfer)
+                    logger.info(
+                        f"[{self.exchange_name}] L2 Transfer resulted in resting-like status: {status_object.resting.model_dump()}"
+                    )
+                    return {"status": "success", "data": status_object.resting.model_dump()}
+                else:
+                    # This case implies HyperliquidRawExchangeStatusObject without error/filled/resting which is unusual.
+                    logger.warning(
+                        f"[{self.exchange_name}] L2 Transfer status object has no clear error/filled/resting state: {status_object.model_dump()}"
+                    )
+                    return {
+                        "status": "success_unknown_details",
+                        "data": status_object.model_dump(),
+                    }  # Default success if no error
+            # The Pydantic model for statuses list already ensures items are either str or HyperliquidRawExchangeStatusObject.
+
         except ValidationError as e:
             logger.error(
                 f"[{self.exchange_name}] Failed to validate L2 transfer response: {e}. Raw: {response_raw}"
@@ -961,10 +980,11 @@ class HyperliquidAPI(ExchangeAPI):
         if not address:
             raise ValueError("Destination address is required for withdrawal.")
 
+        # Determine action type and construct payload
         action_type: str
-        # withdrawal_payload_model: BaseModel # Not needed as constructing dict directly
-
+        action_payload_dict: dict[str, Any]
         if asset.upper() == "ETH":
+            # Hyperliquid uses "withdrawEth" for ETH, different structure
             action_type = "withdrawEth"
             # For withdrawEth, the payload is simpler: just amount and destination
             # No separate Raw model needed if it's just these two string fields.
@@ -976,8 +996,11 @@ class HyperliquidAPI(ExchangeAPI):
                 amount=str(amount),
                 destination=address,
             )
-            action_payload_dict = withdrawal_payload.model_dump(by_alias=True)
+            action_payload_dict = withdrawal_payload.model_dump()
 
+        # Correct request_data structure for /exchange endpoint
+        # It should be the action type and its corresponding payload (action_payload_dict).
+        # The EIP-712 nonce and signature are handled by _authenticate.
         request_data = {"type": action_type, "action": action_payload_dict}
 
         response_raw: object = None
@@ -987,44 +1010,90 @@ class HyperliquidAPI(ExchangeAPI):
             )
             validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
 
-            if validated_response.status == "ok":
-                if validated_response.data and validated_response.data.statuses:
-                    first_status = validated_response.data.statuses[0]
-                    logger.info(
-                        f"[{self.exchange_name}] Withdrawal for {asset} successful. Status: {first_status}"
-                    )
-                    return {"status": "success", "data": str(first_status)}
-                else:
-                    logger.info(
-                        f"[{self.exchange_name}] Withdrawal for {asset} reported 'ok' but no specific data/statuses returned."
-                    )
-                    return {"status": "success", "data": "Operation reported as 'ok'."}
-            # DEFENSIVE CHECK: Handles cases where Hyperliquid returns HTTP 200 but status field is 'error' or other non-'ok' string,
-            # indicating a logical error at the exchange level. Mypy=[unreachable]
-            else:  # status != "ok"
-                mapped_error = HyperliquidErrorMapper.map_error_response(
-                    error_body=str(response_raw),
-                    response_data=validated_response.model_dump() if validated_response else None,
-                    http_status=200,  # Assuming 200 for non-"ok" status if HTTP was fine
+            if not validated_response.data or not validated_response.data.statuses:
+                logger.warning(
+                    f"[{self.exchange_name}] Withdraw response 'ok' but data or statuses list is missing/empty. "
+                    f"Raw: {response_raw!r}"
                 )
-                raise mapped_error
+                raise APIError(
+                    "Withdrawal status unclear: 'ok' but no status details provided.",
+                    code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                )
+
+            first_status_obj_raw = validated_response.data.statuses[0]
+
+            if isinstance(first_status_obj_raw, str):
+                if "error" in first_status_obj_raw.lower():
+                    logger.warning(
+                        f"[{self.exchange_name}] Withdraw failed with status string: {first_status_obj_raw}"
+                    )
+                    raise APIError(
+                        first_status_obj_raw,
+                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                        exchange_message=first_status_obj_raw,
+                    )
+                logger.info(
+                    f"[{self.exchange_name}] Withdraw status (string): {first_status_obj_raw}"
+                )
+                return {
+                    "status": "success_with_info",
+                    "message": first_status_obj_raw,
+                    "tx_hash": None,
+                }
+
+            else:  # It's HyperliquidRawExchangeStatusObject
+                status_object = first_status_obj_raw
+
+                if status_object.error:
+                    logger.warning(f"[{self.exchange_name}] Withdraw failed: {status_object.error}")
+                    raise APIError(
+                        status_object.error,
+                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                        exchange_message=status_object.error,
+                    )
+                elif status_object.withdrawal_submitted:
+                    tx_hash = status_object.withdrawal_submitted
+                    logger.info(
+                        f"[{self.exchange_name}] Withdrawal for {asset} successful. TxHash: {tx_hash}"
+                    )
+                    return {"status": "success", "tx_hash": tx_hash}
+                elif status_object.success:
+                    logger.info(
+                        f"[{self.exchange_name}] Withdraw successful with message: {status_object.success}"
+                    )
+                    return {
+                        "status": "success_with_info",
+                        "message": status_object.success,
+                        "tx_hash": None,
+                    }
+                else:
+                    logger.warning(
+                        f"[{self.exchange_name}] Withdraw status 'ok' but unrecognized status object structure: "
+                        f"{status_object.model_dump_json()!r}. Raw: {response_raw!r}"
+                    )
+                    raise APIError(
+                        "Withdrawal status unclear: Unrecognized success object structure.",
+                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                    )
+
         except ValidationError as e:
             logger.error(
-                f"[{self.exchange_name}] Failed to validate withdrawal response: {e}. Raw: {response_raw}"
+                f"[{self.exchange_name}] Validation error processing withdraw response: {e}. Raw: {response_raw!r}"
             )
             raise APIError(
-                f"Invalid response after withdrawal: {e}", code=APIErrorCode.UNKNOWN.value
+                f"Failed to validate withdraw response: {e}",
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,  # Corrected
+                original_exception=e,
             ) from e
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error during withdrawal: {e}")
+        except APIError:  # Re-raise APIErrors directly
             raise
         except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error during withdrawal: {e}", exc_info=True
+            logger.exception(
+                f"[{self.exchange_name}] Unexpected error during withdraw for {asset} to {address}: {e}. Raw: {response_raw!r}"
             )
             raise APIError(
-                f"Unexpected error during withdrawal: {e}",
-                code=APIErrorCode.UNKNOWN.value,
+                f"Unexpected error during withdraw: {e}",
+                code=APIErrorCode.UNKNOWN.value,  # Corrected
                 original_exception=e,
             ) from e
 
@@ -1563,8 +1632,7 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raw_tif_str_candidate = "Gtc"
 
-        # Final check against Literal values
-        # Type casting after validation for mypy
+        # Now, assign effective_tif based on raw_tif_str_candidate
         if raw_tif_str_candidate == "Gtc":
             effective_tif: Literal["Gtc", "Ioc", "Alo"] = "Gtc"
         elif raw_tif_str_candidate == "Ioc":
@@ -1572,12 +1640,12 @@ class HyperliquidAPI(ExchangeAPI):
         elif raw_tif_str_candidate == "Alo":
             effective_tif = "Alo"
         else:
-            # This should be truly unreachable if above logic is correct
-            logger.error(
-                f"[{self.exchange_name}] Critical TIF logic error, resulted in invalid value: {raw_tif_str_candidate}"
-            )
-            raise ValueError(
-                f"Internal TIF processing resulted in invalid value: {raw_tif_str_candidate}"
+            # This path should be logically unreachable due to the upstream mapping of TimeInForce enum
+            # and the explicit assignment of raw_tif_str_candidate in all cases.
+            # Adding AssertionError to satisfy linters like Pylance about `effective_tif` being bound.
+            # Mypy correctly infers this is unreachable if previous logic is sound.
+            raise AssertionError(
+                f"Internal TIF logic error: unexpected raw_tif_str_candidate '{raw_tif_str_candidate}' after mapping."
             )
 
         if order_type == OrderType.MARKET:

@@ -131,9 +131,15 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
 
     resting: HyperliquidRawExchangeStatusResting | None = Field(None)
     filled: HyperliquidRawExchangeStatusFilled | None = Field(None)
-    error: str | None = Field(None, max_length=1024)  # Add max_length
-    # Potentially add other status types like 'modified', 'canceled' if they appear as objects
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    error: str | None = Field(None, max_length=1024)
+    withdrawal_submitted: str | None = Field(
+        None, alias="WithdrawalSubmitted", max_length=128
+    )  # e.g. 0x... tx hash
+    success: str | None = Field(
+        None, alias="Success", max_length=1024
+    )  # e.g. "L2 USDC Transfer successful."
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("error", mode="before")
     @classmethod
@@ -156,8 +162,26 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
         if v is None:
             return None
         field_name = info.field_name or "error"
-        # Revert to allow_empty=False to match test expectation
         return validate_str_field(v, field_name=field_name, max_length=1024, allow_empty=False)
+
+    @field_validator("withdrawal_submitted", "success", mode="before")
+    @classmethod
+    def validate_optional_detail_string(cls, v: object | None, info: ValidationInfo) -> str | None:
+        """
+        Validates optional string fields like withdrawal_submitted or success details.
+        If provided, ensures it's a non-empty string and adheres to its max length.
+        """
+        if v is None:
+            return None
+
+        max_len = 128
+        if info.field_name == "success":
+            max_len = 1024
+
+        # Re-using validate_str_field which handles type check and empty check
+        return validate_str_field(
+            v, field_name=info.field_name or "detail_string", max_length=max_len, allow_empty=False
+        )
 
 
 class HyperliquidRawExchangeResponseData(BaseModel):
