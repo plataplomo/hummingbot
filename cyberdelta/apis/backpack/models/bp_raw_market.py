@@ -26,6 +26,7 @@ robustness and security at the data ingestion boundary.
 import logging
 import math  # Re-added for isnan/isinf
 from decimal import Decimal  # Ensure Decimal is imported
+from typing import Any  # Import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -159,24 +160,19 @@ class BackpackRawMarket(BaseModel):
                     f"{info.field_name or 'field'}: Invalid integer timestamp string '{v}': {e}"
                 ) from e
 
-        # Corrected f-string formatting
+        # Corrected f-string for length
         raise TypeError(
-            f"{info.field_name or 'field'}: Must be an integer or digit string, "
+            f"{info.field_name or 'field'}: Must be an int, float, or parsable string, "
             f"got {type(v).__name__}"
         )
 
     @field_validator("asks", "bids", mode="before")
     @classmethod
-    def validate_levels(cls, v: object, info: ValidationInfo) -> list[tuple[str, str]]:
+    def validate_levels(cls, v: list[Any], info: ValidationInfo) -> list[tuple[str, str]]:
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
-        if not isinstance(v, list):
-            raise TypeError(
-                f"{field_name_for_msg}: Must be a list of [price_str, quantity_str] pairs."
-            )
 
         validated_levels: list[tuple[str, str]] = []
-        assert isinstance(v, list)
         for item_index, item_raw in enumerate(v):
             # Pyright cannot infer item_raw type here (reportUnknownVariableType)
             # Use TypeGuard to check if it's a sequence, then check length
@@ -333,8 +329,10 @@ class BackpackRawTicker(BaseModel):
                 _ = parse_datetime_utc(v)  # Check if parsable
                 return v  # Return original string if parsable
             except ValueError as e:
+                # Adjusted f-string for length
                 raise ValueError(f"{field_name}: Invalid timestamp format '{v}': {e}") from e
 
+        # Corrected f-string for length
         raise TypeError(
             f"{field_name}: Must be an int, float, or parsable string, got {type(v).__name__}"
         )
@@ -404,6 +402,7 @@ class BackpackRawOpenInterest(BaseModel):
                 _ = parse_datetime_utc(v)  # Check if parsable
                 return v  # Return original string if parsable
             except ValueError as e:
+                # Adjusted f-string for length
                 raise ValueError(
                     f"{info.field_name or 'field'}: Invalid timestamp format '{v}': {e}"
                 ) from e
@@ -437,14 +436,11 @@ class BackpackRawOrderBook(BaseModel):
 
     @field_validator("asks", "bids", mode="before")
     @classmethod
-    def validate_levels(cls, v: object, info: ValidationInfo) -> list[tuple[str, str]]:
+    def validate_levels(cls, v: list[Any], info: ValidationInfo) -> list[tuple[str, str]]:
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
-        if not isinstance(v, list):
-            raise TypeError(f"{field_name_for_msg}: Must be a list.")
 
         validated_levels: list[tuple[str, str]] = []
-        assert isinstance(v, list)
         for item_index, item_raw in enumerate(v):
             # Pyright cannot infer item_raw type here (reportUnknownVariableType)
             # Use TypeGuard to check if it's a sequence, then check length
@@ -660,14 +656,11 @@ class BackpackRawDepthUpdateEvent(BaseModel):
 
     @field_validator("asks", "bids", mode="before")
     @classmethod
-    def validate_levels(cls, v: object, info: ValidationInfo) -> list[tuple[str, str]]:
+    def validate_levels(cls, v: list[Any], info: ValidationInfo) -> list[tuple[str, str]]:
         """Validates that asks/bids is a list of [price_str, quantity_str] pairs."""
         field_name_for_msg = info.field_name or "levels"
-        if not isinstance(v, list):
-            raise TypeError(f"{field_name_for_msg}: Must be a list.")
 
         validated_levels: list[tuple[str, str]] = []
-        assert isinstance(v, list)
         for item_index, item_raw in enumerate(v):
             # Pyright cannot infer item_raw type here (reportUnknownVariableType)
             # Use TypeGuard to check if it's a sequence, then check length
