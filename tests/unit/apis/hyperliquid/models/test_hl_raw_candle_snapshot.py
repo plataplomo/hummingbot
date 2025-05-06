@@ -83,40 +83,70 @@ def test_invalid_candle_data(
     invalid_data = VALID_CANDLE_DATA.copy()
     actual_field_name = field_name if field_name != "low_price" else "l"
     invalid_data[actual_field_name] = invalid_value
-    # Catch ValidationError and check its message content
-    with pytest.raises(ValidationError) as excinfo:
+    # Catch TypeError or ValueError directly as mode='before' validators don't wrap them
+    with pytest.raises((TypeError, ValueError)) as excinfo:
         HyperliquidRawCandle.model_validate(invalid_data)
 
-    # Check if the expected substring is present in the full error string representation
-    error_str = str(excinfo.value).replace(
-        "\n", " "
-    )  # Replace newlines for easier substring search
-    assert expected_error_substring in error_str, (
+    # Check if the expected substring is present in the direct exception message
+    actual_msg = str(excinfo.value)
+    assert expected_error_substring in actual_msg, (
         f"Failed for field {field_name}, value {invalid_value}. "
-        f"Expected substring '{expected_error_substring}' not found in error: {error_str}"
+        f"Expected substring '{expected_error_substring}' not found in error message: '{actual_msg}'"
     )
 
 
 # Parametrized test for invalid raw values in HyperliquidRawCandleSnapshotResponse
 @pytest.mark.parametrize(
-    "field_name, invalid_value, match_pattern",
+    "field_name, invalid_value, expected_loc, expected_msg_substring",
     [
-        ("candles", None, "Input should be a valid list"),
-        ("candles", "not a list", "Input should be a valid list"),
-        ("candles", [VALID_CANDLE_DATA, "not a candle dict"], "Input should be a valid dictionary"),
-        ("candles", [{"t": "invalid"}], "Expected non-negative integer for t"),
+        # Cases where core validation fails (still use simple message checks)
+        ("candles", None, ("candles",), "Input should be a valid list"),
+        ("candles", "not a list", ("candles",), "Input should be a valid list"),
+        # Cases involving nested model validation failures
+        (
+            "candles",
+            [VALID_CANDLE_DATA, "not a candle dict"],
+            ("candles", 1),
+            "Input should be a valid dictionary or instance of HyperliquidRawCandle",
+        ),
+        (
+            "candles",
+            [{"t": "invalid"}],
+            ("candles", 0, "t"),
+            "Value error, Expected non-negative integer for t",
+        ),
     ],
 )
 def test_invalid_snapshot_data(
     field_name: str,
     invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid inputs
-    match_pattern: str,
+    expected_loc: tuple[str | int, ...],
+    expected_msg_substring: str,
 ) -> None:
     """Test validation fails for specific invalid raw values in a snapshot response."""
     invalid_data = VALID_SNAPSHOT_DATA.copy()
     invalid_data[field_name] = invalid_value
-    with pytest.raises(ValidationError, match=match_pattern):
+    # Catch ValidationError and inspect its structured errors
+    with pytest.raises(ValidationError) as excinfo:
         HyperliquidRawCandleSnapshotResponse.model_validate(invalid_data)
+
+    # Find the specific error by location and check its message
+    errors = excinfo.value.errors()
+    found_error = None
+    for error in errors:
+        if error["loc"] == expected_loc:
+            found_error = error
+            break
+
+    assert found_error is not None, (
+        f"Expected error at location {expected_loc} not found. Errors: {errors}"
+    )
+
+    actual_msg = found_error["msg"]
+    assert expected_msg_substring in actual_msg, (
+        f"Failed for field {field_name}, loc {expected_loc}, value {invalid_value}. "
+        f"Expected substring '{expected_msg_substring}' not found in error msg: '{actual_msg}'"
+    )
 
 
 def test_snapshot_extra_fields_ignored() -> None:

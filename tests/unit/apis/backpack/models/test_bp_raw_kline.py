@@ -124,14 +124,18 @@ def test_kline_invalid_raw_field(
     """Test validation fails for specific invalid raw values at given indices."""
     invalid_list = VALID_KLINE_LIST_RAW[:]
     invalid_list[index] = invalid_value
-    with pytest.raises(ValidationError) as excinfo:
+    # Catch TypeError or ValueError directly as mode='before' validators don't wrap them
+    with pytest.raises((TypeError, ValueError)) as excinfo:
         BackpackRawKline.model_validate(invalid_list)
 
-    # Check if the expected substring is present in the full error string representation
-    error_str = str(excinfo.value).replace("\n", " ")
-    assert expected_error_substring in error_str, (
+    # Check if the expected substring is present in the direct exception message
+    # errors = excinfo.value.errors() # No longer applicable
+    # assert len(errors) == 1, f"Expected 1 validation error, but got {len(errors)}: {errors}"
+    # actual_msg = errors[0]['msg']
+    actual_msg = str(excinfo.value)
+    assert expected_error_substring in actual_msg, (
         f"Failed for index {index}, value {invalid_value}. "
-        f"Expected substring '{expected_error_substring}' not found in error: {error_str}"
+        f"Expected substring '{expected_error_substring}' not found in error message: '{actual_msg}'"
     )
 
 
