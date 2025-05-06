@@ -33,7 +33,7 @@ severity: critical # Failure to comply is critical
 
 4.  **Error Handling & Compliant Fix Protocol:**
     *   If **ANY** of the checks in step 2 (after auto-fixes in 2.2) report **ANY errors or warnings**:
-        *   **A. Attempt Compliant Fixes:** You **MUST** iteratively attempt to fix **ALL** reported issues by modifying **only the Python source code**. Fixes **MUST** strictly adhere to **ALL other project rules** (e.g., `RULE-NO-SILENCING-V4`, `RULE-RUNTIME-SAFETY-V3`). Prioritize fixes enhancing correctness and type safety. After each fix attempt, **re-run the full sequence of checks (Step 2) on the modified file(s)**.
+        *   **A. Attempt Compliant Fixes:** You **MUST** iteratively attempt to fix **ALL** reported issues by modifying **only the Python source code**. Fixes **MUST** strictly adhere to **ALL other project rules** (e.g., `RULE-NO-SILENCING-V4`, `RULE-RUNTIME-SAFETY-V4`). Prioritize fixes enhancing correctness and type safety. After each fix attempt, **re-run the full sequence of checks (Step 2) on the modified file(s)**.
         *   **B. Identify Unfixable Issues:** Continue iterating fixes (Step 4.A) until either all checks pass, or you determine that remaining issues **cannot** be fixed via compliant source code changes without violating other rules or requiring configuration changes (per `RULE-CONFIG-INTEGRITY-V3`).
         *   **C. HALT and Document (If Blocked):** If, and only if, compliant source code fixes are impossible after diligent attempts:
             *   **HALT** work on the current task.

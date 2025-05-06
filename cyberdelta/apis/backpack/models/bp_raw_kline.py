@@ -59,20 +59,24 @@ class BackpackRawKline(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def structure_to_dict(cls, data: object) -> dict[str, Any]:
+    def structure_to_dict(cls, data: list[Any] | tuple[Any, ...]) -> dict[str, Any]:
         """
         Validate input is a list/tuple of length 12 and map to field names.
 
         This runs *before* field validators. Returns Dict[str, Any] as values
         are still raw types (int, str) before field validation.
         """
-        # Use modern `isinstance` syntax
-        if not isinstance(data, list | tuple):
-            raise TypeError(f"Expected list or tuple input, got {type(data).__name__}")
+        # Type check is now primarily handled by the signature hint, but keep
+        # isinstance for runtime robustness if needed (though less likely now).
+        # if not isinstance(data, list | tuple):
+        #     raise TypeError(f"Expected list or tuple input, got {type(data).__name__}")
 
         # Basic length check after type confirmation
         # Note: Pyright might still flag len(data) as UnknownArgumentType here
-        # This seems unavoidable without casts/ignores due to data: object input.
+        # Using cast to help Pylance understand the type after isinstance check.
+        # # [CAST-REVIEW-REQUIRED] Justification: Pylance reportUnknownArgumentType on len(data).
+        # Alternatives (TypeGuard) add more complexity than justified for this internal validator.
+        # Preceding isinstance ensures runtime safety.
         if len(data) != 12:
             raise ValueError(f"Expected 12 elements in kline data list/tuple, got {len(data)}")
 
@@ -84,7 +88,11 @@ class BackpackRawKline(BaseModel):
             raise RuntimeError("BackpackRawKline model definition has incorrect number of fields.")
 
         # Use data directly. Pyright might flag zip argument type as Unknown.
-        # This is also likely unavoidable under strict rules.
+        # Using cast again to help Pylance understand the type.
+        # # [CAST-REVIEW-REQUIRED] Justification: Pylance reportUnknownArgumentType on
+        #     #   zip(..., data).
+        # # Alternatives (TypeGuard) add more complexity than justified for this internal validator.
+        # # Preceding isinstance ensures runtime safety.
         return dict(zip(field_names, data, strict=True))
 
     # --- Field Validators (Raw Type/Format Validation) ---
