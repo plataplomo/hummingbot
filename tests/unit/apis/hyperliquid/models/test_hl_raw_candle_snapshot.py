@@ -91,7 +91,8 @@ def test_invalid_candle_data(
     actual_msg = str(excinfo.value)
     assert expected_error_substring in actual_msg, (
         f"Failed for field {field_name}, value {invalid_value}. "
-        f"Expected substring '{expected_error_substring}' not found in error message: '{actual_msg}'"
+        f"Expected substring '{expected_error_substring}' not found in "
+        f"error message: '{actual_msg}'"
     )
 
 

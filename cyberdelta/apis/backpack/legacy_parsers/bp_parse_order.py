@@ -44,9 +44,9 @@ def _parse_backpack_timestamp(ts: int | float | str) -> datetime:
     Raises:
         ValueError: If the timestamp format is unrecognized or invalid.
     """
-    # DEFENSIVE CHECK: Runtime check for None even if hint excludes it.
+    # DEFENSIVE CHECK: Ensure timestamp is not None, even if parse_datetime_utc signature implies it.
     if ts is None:
-        raise ValueError("Timestamp cannot be None")
+        raise ValueError("parse_datetime_utc returned None unexpectedly for order time")
 
     if isinstance(ts, str):
         # Try parsing as ISO 8601 string

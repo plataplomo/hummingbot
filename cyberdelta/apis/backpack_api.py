@@ -1004,8 +1004,8 @@ class BackpackAPI(ExchangeAPI):
                     continue
                 except Exception as e:
                     logger.error(
-                        f"[{self.exchange_name}] Unexpected error processing historical order: {e}. "
-                        f"Data: {order_data_raw}",
+                        f"[{self.exchange_name}] Unexpected error processing historical "
+                        f"order: {e}. Data: {order_data_raw}",
                         exc_info=True,
                     )
                     continue
@@ -1060,8 +1060,8 @@ class BackpackAPI(ExchangeAPI):
                     continue
                 except Exception as e:
                     logger.error(
-                        f"[{self.exchange_name}] Unexpected error processing historical trade: {e}. "
-                        f"Data: {fill_data_raw}",
+                        f"[{self.exchange_name}] Unexpected error processing historical "
+                        f"trade: {e}. Data: {fill_data_raw}",
                         exc_info=True,
                     )
                     continue
@@ -1142,14 +1142,19 @@ class BackpackAPI(ExchangeAPI):
         except APIError as e:
             # Re-raise specific API errors
             if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
-                raise e
+                logger.debug(
+                    f"[{self.exchange_name}] Order {order_id} not found for symbol "
+                    f"{symbol} (get_order)."
+                )
+                return None
             logger.error(
                 f"[{self.exchange_name}] API error fetching status for order {order_id}: {e}"
             )
             raise
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error fetching status for order {order_id}: {e}",
+                f"[{self.exchange_name}] Unexpected error fetching status for "
+                f"order {order_id}: {e}",
                 exc_info=True,
             )
             raise APIError(
@@ -1176,7 +1181,8 @@ class BackpackAPI(ExchangeAPI):
             # Use DELETE method as per OpenAPI spec. Authentication is implicit.
             await self._request("DELETE", "/api/v1/orders", params=params)
             logger.info(
-                f"[{self.exchange_name}] Successfully requested cancellation of all orders for {symbol}."
+                f"[{self.exchange_name}] Successfully requested cancellation of all orders "
+                f"for {symbol}."
             )
             # Note: Backpack API response for successful DELETE is often empty or just status.
             # Return None to match updated base class signature
@@ -1266,7 +1272,8 @@ class BackpackAPI(ExchangeAPI):
             raise e
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error getting klines for {symbol} ({timeframe}): {e}",
+                f"[{self.exchange_name}] Unexpected error getting klines for {symbol} "
+                f"({timeframe}): {e}",
                 exc_info=True,
             )
             raise APIError(
@@ -1299,7 +1306,8 @@ class BackpackAPI(ExchangeAPI):
             # If get_order_status raises ORDER_NOT_FOUND, return None as per this method's contract
             if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
                 logger.debug(
-                    f"[{self.exchange_name}] Order {order_id} not found for symbol {symbol} (get_order)."
+                    f"[{self.exchange_name}] Order {order_id} not found for symbol "
+                    f"{symbol} (get_order)."
                 )
                 return None
             # Re-raise other API errors

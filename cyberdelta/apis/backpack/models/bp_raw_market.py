@@ -220,15 +220,16 @@ class BackpackRawOrderBook(BaseModel):
             # Check item structure
             # Use Any type hint for item_raw and rely on runtime checks
             item: Any = item_raw
+            # This check ensures 'item' is indexable before accessing elements.
             if not isinstance(item, list | tuple):
-                raise ValueError(f"{current_item_desc}: Item is not a list or tuple.")
-
-            # DEFENSIVE CHECK: Runtime check ensures item is sized.
-            # Pyright=[arg-type] Mypy=[unused-ignore] - Keeping ignore for Pyright
+                raise ValueError(f"{current_item_desc}: Must be a list or tuple")
+            # DEFENSIVE CHECK: Runtime check ensures item is sized before element access.
+            # Pyright complains arg-type is partially unknown, Mypy is OK.
+            # Ignoring for Pyright as isinstance above guarantees sequence type.
             if len(item) != 2:  # type: ignore[arg-type]
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 "
-                    f"[price_str, quantity_str]."
+                    f"(price, quantity), got {len(item)}"
                 )
 
             # Runtime checks above ensure item is indexable
@@ -424,15 +425,17 @@ class BackpackRawDepthUpdateEvent(BaseModel):
             # Check item structure
             # Use Any type hint for item_raw and rely on runtime checks
             item: Any = item_raw
+            # This check ensures 'item' is indexable before accessing elements.
             if not isinstance(item, list | tuple):
-                raise ValueError(f"{current_item_desc}: Item is not a list or tuple.")
+                raise ValueError(f"{current_item_desc}: Must be a list or tuple")
 
-            # DEFENSIVE CHECK: Runtime check ensures item is sized.
-            # Pyright=[arg-type] Mypy=[unused-ignore] - Keeping ignore for Pyright
+            # DEFENSIVE CHECK: Runtime check ensures item is sized before element access.
+            # Pyright complains arg-type is partially unknown, Mypy is OK.
+            # Ignoring for Pyright as isinstance above guarantees sequence type.
             if len(item) != 2:  # type: ignore[arg-type]
                 raise ValueError(
                     f"{current_item_desc}: Must be a list/tuple of length 2 "
-                    f"[price_str, quantity_str]."
+                    f"(price, quantity), got {len(item)}"
                 )
 
             # Runtime checks above ensure item is indexable
