@@ -3,7 +3,6 @@ Hyperliquid Raw User Fill Model
 """
 
 import logging
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -54,7 +53,7 @@ class HyperliquidRawFill(BaseModel):
 
     @field_validator("tid", "oid", "time", mode="before")
     @classmethod
-    def validate_non_negative_int(cls, v: Any, info: ValidationInfo) -> int:
+    def validate_non_negative_int(cls, v: object, info: ValidationInfo) -> object:
         """Validate field is a non-negative integer."""
         field_name = info.field_name or "integer_field"
         if isinstance(v, int):
@@ -80,7 +79,7 @@ class HyperliquidRawFill(BaseModel):
 
     @field_validator("px", "sz", "start_position", "fee", mode="before")
     @classmethod
-    def validate_required_decimal_string(cls, v: object, info: ValidationInfo) -> str:
+    def validate_required_decimal_string(cls, v: object, info: ValidationInfo) -> object:
         """Validate required decimal strings are non-empty and represent finite decimals."""
         field_name = info.field_name or "decimal_field"
         v_str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)

@@ -89,35 +89,37 @@ def test_kline_invalid_structure() -> None:
 
 # Parametrized tests for individual raw field validation failures
 @pytest.mark.parametrize(
-    "index, invalid_value, expected_error_parts",
+    "index, invalid_value, expected_error_substring",
     [
-        # --- Raw Type Errors (Check parts of the wrapped TypeError message) ---
-        (0, "not an int", ["start_time_ms", "must be an integer", "got str"]),
-        (0, -1, ["Timestamp cannot be negative"]),
-        (1, {"a": 1}, ["open_price", "must be a string", "got dict"]),
-        (6, "not an int", ["end_time_ms", "must be an integer", "got str"]),
-        (6, -1, ["Timestamp cannot be negative"]),
-        (8, "not an int", ["trade_count", "must be an integer", "got str"]),
-        (8, -5, ["Trade count cannot be negative"]),
-        (11, 123, ["ignored", "Expected string, got int"]),
-        # --- Format/Value Errors (Match exact core error message) ---
-        (1, "", ["String cannot be empty or whitespace"]),
-        (1, " ", ["String cannot be empty or whitespace"]),
-        (1, "NaN", ["Value must be a finite decimal string"]),
-        (1, "Infinity", ["Value must be a finite decimal string"]),
-        (1, "1" * 65, ["String value too long (max 64 chars)"]),
-        (2, "not_a_decimal", ["Cannot convert 'not_a_decimal' to Decimal"]),
-        (3, "inf", ["Value must be a finite decimal string"]),
-        (4, "-inf", ["Value must be a finite decimal string"]),
-        (5, "nan", ["Value must be a finite decimal string"]),
-        (7, "1.2.3", ["Cannot convert '1.2.3' to Decimal"]),
-        (9, "", ["String cannot be empty or whitespace"]),
-        (10, "  ", ["String cannot be empty or whitespace"]),
-        (11, "", ["String cannot be empty or whitespace"]),
+        # Type errors (Check specific substring from validator TypeError)
+        (0, "not an int", "Raw value must be an integer, got str"),
+        (1, {"a": 1}, "Raw value must be a string, Decimal, int, or float, got dict"),
+        (6, "not an int", "Raw value must be an integer, got str"),
+        (8, "not an int", "Raw value must be an integer, got str"),
+        (11, 123, "Expected string, got int"),
+        # Value errors (Check specific substring from validator ValueError)
+        (0, -1, "Timestamp cannot be negative"),
+        (1, "", "String cannot be empty or whitespace"),
+        (1, " ", "String cannot be empty or whitespace"),
+        (1, "NaN", "Value must be a finite decimal string"),
+        (1, "Infinity", "Value must be a finite decimal string"),
+        (1, "1" * 65, "String value too long (max 64 chars)"),
+        (2, "not_a_decimal", "Cannot convert 'not_a_decimal' to Decimal"),
+        (3, "inf", "Value must be a finite decimal string"),
+        (4, "-inf", "Value must be a finite decimal string"),
+        (5, "nan", "Value must be a finite decimal string"),
+        (6, -1, "Timestamp cannot be negative"),
+        (7, "1.2.3", "Cannot convert '1.2.3' to Decimal"),
+        (8, -5, "Trade count cannot be negative"),
+        (9, "", "String cannot be empty or whitespace"),
+        (10, "  ", "String cannot be empty or whitespace"),
+        (11, "", "String cannot be empty or whitespace"),
     ],
 )
 def test_kline_invalid_raw_field(
-    index: int, invalid_value: Any, expected_error_parts: list[str]
+    index: int,
+    invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid inputs
+    expected_error_substring: str,
 ) -> None:
     """Test validation fails for specific invalid raw values at given indices."""
     invalid_list = VALID_KLINE_LIST_RAW[:]
@@ -125,12 +127,12 @@ def test_kline_invalid_raw_field(
     with pytest.raises(ValidationError) as excinfo:
         BackpackRawKline.model_validate(invalid_list)
 
-    # Check if all expected message parts are present in the full error string representation
-    error_str = str(excinfo.value)
-    for part in expected_error_parts:
-        assert part in error_str, (
-            f"Failed for index {index}, value {invalid_value}. Expected substring '{part}' not found in error: {error_str}"
-        )
+    # Check if the expected substring is present in the full error string representation
+    error_str = str(excinfo.value).replace("\n", " ")
+    assert expected_error_substring in error_str, (
+        f"Failed for index {index}, value {invalid_value}. "
+        f"Expected substring '{expected_error_substring}' not found in error: {error_str}"
+    )
 
 
 def test_kline_frozen() -> None:

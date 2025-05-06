@@ -71,13 +71,13 @@ class BackpackRawKline(BaseModel):
         if not isinstance(data, list | tuple):
             raise TypeError("Kline data must be a list or tuple")
 
-        # Check length after confirming type
+        # Check length *after* confirming type
         # DEFENSIVE CHECK: Runtime check ensures len() is safe after isinstance.
-        # Pyright=[arg-type] Mypy=[none]
         if len(data) != 12:
             raise ValueError("Kline data must be a list/tuple of exactly 12 elements")
 
-        field_names = [
+        # Define keys corresponding to the list indices
+        keys = [
             "start_time_ms",
             "open_price",
             "high_price",
@@ -91,18 +91,17 @@ class BackpackRawKline(BaseModel):
             "taker_buy_quote_volume",
             "ignored",
         ]
-        # Use the raw values directly for field validation
-        # The values inside 'data' are still Any at this stage
-        # DEFENSIVE CHECK: Runtime check ensures zip works after length validation.
-        # Pyright=[return-value] Mypy=[none]
-        return dict(zip(field_names, data, strict=True))
+
+        # Map list values to dict using keys
+        # DEFENSIVE CHECK: isinstance ensures data is iterable for zip.
+        return dict(zip(keys, data, strict=False))
 
     # --- Field Validators (mode='before') ---
     # These run AFTER structure_to_dict but BEFORE Pydantic's default coercion
 
     @field_validator("start_time_ms", "end_time_ms", mode="before")
     @classmethod
-    def validate_timestamp_raw(cls, v: Any, info: ValidationInfo) -> Any:
+    def validate_timestamp_raw(cls, v: object, info: ValidationInfo) -> object:
         """Validate raw timestamp values are non-negative integers."""
         field_name = info.field_name or "timestamp_field"
         if not isinstance(v, int):
@@ -113,7 +112,7 @@ class BackpackRawKline(BaseModel):
 
     @field_validator("trade_count", mode="before")
     @classmethod
-    def validate_trade_count_raw(cls, v: Any, info: ValidationInfo) -> Any:
+    def validate_count_raw(cls, v: object, info: ValidationInfo) -> object:
         """Validate raw trade count is a non-negative integer."""
         field_name = info.field_name or "trade_count"
         if not isinstance(v, int):
@@ -134,7 +133,7 @@ class BackpackRawKline(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_decimal_str_raw(cls, v: Any, info: ValidationInfo) -> Any:
+    def validate_decimal_str_raw(cls, v: object, info: ValidationInfo) -> object:
         """
         Validate raw decimal-like values. Expects a string, checks non-empty,
         max length, parseable to Decimal, and finite.
@@ -182,7 +181,7 @@ class BackpackRawKline(BaseModel):
 
     @field_validator("ignored", mode="before")
     @classmethod
-    def validate_ignored_raw(cls, v: Any, info: ValidationInfo) -> Any:
+    def validate_ignored_raw(cls, v: object, info: ValidationInfo) -> object:
         """Validate the raw 'ignored' field (string, non-empty, max_length)."""
         field_name = info.field_name or "ignored"
         try:

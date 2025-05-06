@@ -4,7 +4,6 @@ Hyperliquid Raw Candle Snapshot Model
 
 import logging
 from decimal import Decimal, InvalidOperation
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -31,16 +30,16 @@ class HyperliquidRawCandle(BaseModel):
 
     @field_validator("t", "n", mode="before")
     @classmethod
-    def validate_non_negative_int(cls, v: Any, info: ValidationInfo) -> int:
-        """Ensure timestamp and number of trades are non-negative integers."""
+    def validate_non_negative_int(cls, v: object, info: ValidationInfo) -> object:
+        """Validate that the raw value is a non-negative integer."""
         if not isinstance(v, int) or v < 0:
             raise ValueError(f"Expected non-negative integer for {info.field_name}, got {type(v)}")
         return v
 
     @field_validator("o", "h", "low_price", "c", "v", mode="before")
     @classmethod
-    def validate_decimal_strings(cls, v: Any) -> str:
-        """Ensure price/volume fields are valid decimal strings."""
+    def validate_decimal_string(cls, v: object, info: ValidationInfo) -> object:
+        """Validate that the raw value is a non-empty string parseable to a finite Decimal."""
         if not isinstance(v, str):
             raise TypeError(f"Expected string for decimal parsing, got {type(v)}")
         try:

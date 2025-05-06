@@ -1216,7 +1216,8 @@ class HyperliquidAPI(ExchangeAPI):
             raise e
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error getting klines for {symbol} ({timeframe}): {e}",
+                f"[{self.exchange_name}] Unexpected error getting klines for {symbol} "
+                f"({timeframe}): {e}",
                 exc_info=True,
             )
             raise APIError(

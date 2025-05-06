@@ -441,7 +441,7 @@ def test_hl_raw_user_fill_optional_present(valid_user_fill_data: dict[str, Any])
 
 # --- Failure Cases: Type Errors ---
 @pytest.mark.parametrize(
-    "field,invalid_value",
+    "field, invalid_value",
     [
         # ("tid", "123"), # Validator allows numeric string -> int coercion
         ("coin", 123),
@@ -465,7 +465,7 @@ def test_hl_raw_user_fill_optional_present(valid_user_fill_data: dict[str, Any])
 def test_hl_raw_user_fill_invalid_types(
     valid_user_fill_data: dict[str, Any],
     field: str,
-    invalid_value: Any,
+    invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid types
 ) -> None:
     """Test ValidationError is raised for incorrect field types."""
     valid_user_fill_data[field] = invalid_value
@@ -492,7 +492,7 @@ def test_hl_raw_user_fill_invalid_types(
 
 # --- Failure Cases: Format/Constraint Errors ---
 @pytest.mark.parametrize(
-    "field,invalid_value, expected_msg_part",
+    "field, invalid_value, expected_msg_part",
     [
         ("tid", -1, "Must be non-negative"),
         ("coin", "", "String cannot be empty"),
@@ -517,7 +517,7 @@ def test_hl_raw_user_fill_invalid_types(
 def test_hl_raw_user_fill_invalid_formats(
     valid_user_fill_data: dict[str, Any],
     field: str,
-    invalid_value: Any,
+    invalid_value: Any,  # noqa: ANN401 # Intentional Any for testing invalid values
     expected_msg_part: str | tuple[str, str],  # Allow tuple for multi-part checks
 ) -> None:
     """Test ValidationError for format/constraint violations."""

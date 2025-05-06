@@ -24,29 +24,62 @@ from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, Tim
 # ANN401: Any is justified here as Backpack can send timestamps in multiple formats
 # (int ms, int µs, float ms, float µs, ISO string) which is difficult to type precisely
 # without significant complexity or runtime overhead.
-def _parse_backpack_timestamp(ts: Any) -> datetime:
+def _parse_backpack_timestamp(ts: int | float | str) -> datetime:
     """
     Convert Backpack timestamp (ms, µs, or ISO string) to UTC datetime.
+
+    Backpack timestamps can be:
+    - Integer milliseconds (e.g., 1678886400123)
+    - Integer microseconds (e.g., 1678886400123456)
+    - Float milliseconds (rare? e.g., 1678886400123.45)
+    - Float microseconds (rare? e.g., 1678886400123456.7)
+    - ISO 8601 string (e.g., "2023-03-15T12:00:00.123Z")
+
+    Args:
+        ts: The timestamp value from Backpack.
+
+    Returns:
+        datetime: The timestamp converted to a UTC datetime object.
+
+    Raises:
+        ValueError: If the timestamp format is unrecognized or invalid.
     """
+    # DEFENSIVE CHECK: Runtime check for None even if hint excludes it.
     if ts is None:
-        return datetime.now(UTC)
-    if isinstance(ts, datetime):
-        return ts.astimezone(UTC)
+        raise ValueError("Timestamp cannot be None")
+
     if isinstance(ts, str):
+        # Try parsing as ISO 8601 string
         try:
-            # Try ISO string
-            return datetime.fromisoformat(ts).astimezone(UTC)
-        except Exception:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(UTC)
+        except ValueError:
+            # If not ISO string, try parsing as number (ms or µs)
             try:
-                ts = int(ts)
-            except Exception:
-                return datetime.now(UTC)
-    if isinstance(ts, int | float):  # UP038 fix applied
-        # µs (WebSocket) or ms (REST)
-        if ts > 1e12:
-            return datetime.fromtimestamp(ts / 1e6, UTC)
-        return datetime.fromtimestamp(ts / 1e3, UTC)
-    return datetime.now(UTC)
+                num_val = float(ts)  # Use float first to handle decimals
+            except ValueError as e:
+                raise ValueError(f"Unparseable timestamp string: {ts}") from e
+            ts = num_val  # Use the numeric value
+
+    # At this point, ts must be int or float based on type hint or parsing above
+    # Removed redundant isinstance check for int/float
+    # num_val = ts
+    num_val = float(ts)  # Ensure float for division logic
+
+    # Determine if it's milliseconds or microseconds based on magnitude
+    # (This is heuristic, might need adjustment based on observed Backpack behavior)
+    now_ms = datetime.now(UTC).timestamp() * 1000
+    if abs(num_val - now_ms) < abs(num_val - (now_ms * 1000)):
+        # Closer to ms, assume milliseconds
+        try:
+            return datetime.fromtimestamp(num_val / 1000, UTC)
+        except (ValueError, OverflowError, OSError) as e:
+            raise ValueError(f"Invalid millisecond timestamp value: {num_val}") from e
+    else:
+        # Assume microseconds
+        try:
+            return datetime.fromtimestamp(num_val / 1_000_000, UTC)
+        except (ValueError, OverflowError, OSError) as e:
+            raise ValueError(f"Invalid microsecond timestamp value: {num_val}") from e
 
 
 def bp_parse_order(data: dict[str, Any]) -> Order:
@@ -85,10 +118,24 @@ def bp_parse_order(data: dict[str, Any]) -> Order:
         average_fill_price = data.get("avgFillPrice") or data.get("L")
         # Created at (REST: ms, WS: µs, or ISO string)
         created_at_raw = data.get("createdAt") or data.get("E") or data.get("T") or data.get("time")
+        # DEFENSIVE CHECK: Ensure created_at_raw is a supported type before parsing.
+        if not isinstance(created_at_raw, int | float | str):
+            raise APIError(
+                f"Invalid type for createdAt/E/T/time: {type(created_at_raw).__name__}",
+                code=APIErrorCode.INVALID_PARAMS.value,
+            )
         created_at = _parse_backpack_timestamp(created_at_raw)
         # Updated at (optional)
         updated_at_raw = data.get("updatedAt")
-        updated_at = _parse_backpack_timestamp(updated_at_raw) if updated_at_raw else None
+        updated_at: datetime | None = None
+        if updated_at_raw is not None:
+            # DEFENSIVE CHECK: Ensure updated_at_raw is a supported type before parsing.
+            if not isinstance(updated_at_raw, int | float | str):
+                raise APIError(
+                    f"Invalid type for updatedAt: {type(updated_at_raw).__name__}",
+                    code=APIErrorCode.INVALID_PARAMS.value,
+                )
+            updated_at = _parse_backpack_timestamp(updated_at_raw)
         # --- Map to CyberDeltaEngine Order model ---
         return Order(
             client_order_id=client_order_id,

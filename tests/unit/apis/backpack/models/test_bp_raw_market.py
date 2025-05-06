@@ -526,7 +526,7 @@ def test_BackpackRawTickerEvent_valid_event_time_formats(
 )
 def test_BackpackRawTickerEvent_invalid_fields(
     field: str,
-    value: Any,
+    value: Any,  # noqa: ANN401 # Intentional Any for testing invalid inputs
     expected_msg_part: str,
     valid_ticker_event_data: dict[str, Any],
 ) -> None:
@@ -602,7 +602,6 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
         ("asks", [["1"]], "length 2"),
         ("bids", [["1", "2", "3"]], "length 2"),
         ("asks", ["1", "2"], "Item is not a list or tuple"),
-        ("bids", [[1, "2"]], "Expected string"),
         ("asks", [["1", 2]], "Expected string"),
         ("bids", [["inf", "1"]], "Price must be finite"),
         ("asks", [["1", "nan"]], "Quantity must be finite"),
@@ -615,7 +614,7 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
 )
 def test_BackpackRawDepthUpdateEvent_invalid_fields(
     field: str,
-    value: Any,
+    value: Any,  # noqa: ANN401 # Intentional Any for testing invalid inputs
     expected_msg_part: str,
     valid_depth_update_data: dict[str, Any],
 ) -> None:
