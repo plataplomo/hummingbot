@@ -240,7 +240,7 @@ def test_hl_status_object_extra_fields_ignored() -> None:
     [
         ({"type": "", "statuses": []}, ValueError, "String cannot be empty"),
         ({"type": 123, "statuses": []}, ValueError, "Expected string"),
-        ({"type": "order", "statuses": 123}, ValueError, "Must be a list"),
+        ({"type": "order", "statuses": 123}, TypeError, "Must be a list"),
         (
             {"type": "order", "statuses": [1, 2]},
             TypeError,
@@ -302,3 +302,51 @@ def test_hl_response_invalid(
     with pytest.raises(expected_exception) as exc_info:
         HyperliquidRawExchangeResponse.model_validate(invalid_data)
     assert expected_msg_part in str(exc_info.value)
+
+
+# --- Specific Tests for statuses List Validation ---
+
+
+@pytest.mark.parametrize(
+    "statuses_list, is_valid",
+    [
+        (["canceled", "modified", "success"], True),  # All valid strings
+        ([{"resting": {"oid": 1}}], True),  # Valid resting object
+        ([{"filled": {"oid": 2, "totalSz": "1", "avgPx": "10"}}], True),  # Valid filled object
+        ([{"error": "Failed"}], True),  # Valid error object
+        (["success", {"resting": {"oid": 3}}, {"error": "Timeout"}], True),  # Mixed valid
+        ([], True),  # Empty list is valid
+        (["canceled", "unknown"], False),  # Invalid string
+        ([{"resting": {"oid": -1}}], False),  # Invalid object content (negative oid)
+        ([{"filled": {"oid": 4}}], False),  # Invalid object content (missing fields)
+        ([123], False),  # Wrong item type (int)
+        ([None], False),  # Wrong item type (None)
+        (["canceled", 123], False),  # Mixed valid string and invalid type
+        ([{"resting": {"oid": 5}}, 123], False),  # Mixed valid object and invalid type
+        ("not_a_list", False),  # Input not a list
+    ],
+)
+def test_hl_response_data_statuses_validation(
+    statuses_list: Any,  # noqa: ANN401 - Any is needed for test parametrization
+    is_valid: bool,
+) -> None:
+    """Test the validation logic for the 'statuses' field specifically."""
+    data_dict = {"type": "order", "statuses": statuses_list}
+    if is_valid:
+        try:
+            response_data = HyperliquidRawExchangeResponseData.model_validate(data_dict)
+            # Further checks if needed, e.g., check item types in validated_list
+            assert isinstance(response_data.statuses, list)
+            # Example check on item types
+            for item in response_data.statuses:
+                assert isinstance(item, str | HyperliquidRawExchangeStatusObject)  # Use | syntax
+        except (ValidationError, ValueError, TypeError) as e:
+            pytest.fail(f"Validation failed unexpectedly for valid input {statuses_list}: {e}")
+    else:
+        with pytest.raises((ValidationError, ValueError, TypeError)) as exc_info:
+            HyperliquidRawExchangeResponseData.model_validate(data_dict)
+        # Check that *some* error occurred. More specific message checks can be added.
+        assert exc_info is not None
+        print(
+            f"Input: {statuses_list}, Expected Failure, Got Error: {exc_info.value}"
+        )  # Debug print

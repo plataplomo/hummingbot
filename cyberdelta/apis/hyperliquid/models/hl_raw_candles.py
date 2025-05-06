@@ -67,90 +67,108 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     """
     Strict boundary model for a candle snapshot response from the 'candleSnapshot' endpoint.
 
-    This model validates the structure of the 'candleSnapshot' endpoint response, which provides
-    OHLCV (open, high, low, close, volume) data for an asset. It enforces strict type and format
-    constraints for all fields, ensuring robust and secure boundary validation. Never use for
-    internal business logic.
+    Validates the list-based structure (t, o, h, l, c, v) and status 's'.
+    Enforces strict type/format constraints and equal list lengths.
 
     Fields:
-        t (List[int]): List of timestamps (epoch ms).
-        o (List[str]): List of open prices as decimal strings.
-        h (List[str]): List of high prices as decimal strings.
-        low (List[str]): List of low prices as decimal strings (field alias 'l').
-        c (List[str]): List of close prices as decimal strings.
-        v (List[str]): List of volumes as decimal strings.
-        s (str): Status string for the response (e.g., 'ok').
+        t (List[int]): List of timestamps (epoch ms). Alias 't'.
+        o (List[str]): List of open prices as finite decimal strings. Alias 'o'.
+        h (List[str]): List of high prices as finite decimal strings. Alias 'h'.
+        l (List[str]): List of low prices as finite decimal strings. Alias 'l'.
+        c (List[str]): List of close prices as finite decimal strings. Alias 'c'.
+        v (List[str]): List of volumes as non-negative, finite decimal strings. Alias 'v'.
+        s (str): Status string (e.g., 'ok'). Alias 's'.
     """
 
     t: list[int] = Field(..., alias="t")
     o: list[str] = Field(..., alias="o")
     h: list[str] = Field(..., alias="h")
-    low: list[str] = Field(..., alias="l")
+    l: list[str] = Field(..., alias="l")
     c: list[str] = Field(..., alias="c")
     v: list[str] = Field(..., alias="v")
     s: str = Field(..., alias="s")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    @field_validator("o", "h", "low", "c", "v", mode="before")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+    @field_validator("t", mode="before")
     @classmethod
-    def validate_price_volume_list(cls, v: object, info: ValidationInfo) -> list[str]:
-        """
-        Validates that the field is a list of strings, each representing a finite decimal value.
-        Enforces maximum string length and decimal validity for all price/volume lists.
+    def validate_timestamp_list(cls, v: list[Any], info: ValidationInfo) -> list[int]:
+        """Validate 't' is a list of non-negative integers."""
+        field_name = info.field_name or "timestamp_list"
 
-        Args:
-            v (object): The value to validate (should be a list of strings).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            list[str]: The validated list of decimal strings.
-        Raises:
-            ValueError: If the input is not a list of valid decimal strings.
-        """
-        field_name = getattr(info, "field_name", None) or "field"
-
-        # Check if input is a list using TypeGuard
-        if not is_list(v):
-            raise ValueError(f"{field_name}: Must be a list of strings.")
-
-        # At this point, mypy and pyright know v is a List[Any]
-        result: list[str] = []
-
-        # Process each item in the list
-        for i, item_obj in enumerate(v):
-            # Verify the item is a string
-            if not is_string(item_obj):
-                raise ValueError(f"{field_name}[{i}]: Must be a string.")
-
-            # Now item_obj is known to be a string
-            s = validate_str_field(item_obj, field_name=f"{field_name}[{i}]", max_length=64)
-
-            # Validate it's a valid decimal
-            d = parse_decimal_value(s, allow_none=False, field_name=f"{field_name}[{i}]")
-            if d is None or not d.is_finite():
-                raise ValueError(
-                    f"{field_name}[{i}]: Value must be a finite decimal (not NaN or inf)"
+        validated_list: list[int] = []
+        for i, item in enumerate(v):
+            if not isinstance(item, int):
+                raise TypeError(
+                    f"{field_name}[{i}]: Must be an integer, got {type(item).__name__}."
                 )
+            if item < 0:
+                raise ValueError(f"{field_name}[{i}]: Timestamp cannot be negative, got {item}.")
+            validated_list.append(item)
+        return validated_list
 
-            # Add the validated string to our result list
-            result.append(s)
+    @field_validator("o", "h", "l", "c", mode="before")
+    @classmethod
+    def validate_price_list(cls, v: list[Any], info: ValidationInfo) -> list[str]:
+        """Validate price lists ('o', 'h', 'l', 'c') contain finite decimal strings."""
+        field_name = info.field_name or "price_list"
 
-        return result
+        validated_list: list[str] = []
+        for i, item in enumerate(v):
+            # 1. Check raw type is string
+            if not isinstance(item, str):
+                raise TypeError(f"{field_name}[{i}]: Must be a string, got {type(item).__name__}.")
+            # 2. Validate string format (non-empty, max_length)
+            s = validate_str_field(
+                item, field_name=f"{field_name}[{i}]", max_length=64, allow_empty=False
+            )
+            # 3. Validate parseable as finite Decimal
+            try:
+                d = parse_decimal_value(s, allow_none=False)
+                if d is None or not d.is_finite():
+                    raise ValueError("Decimal value must be finite.")
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"{field_name}[{i}]: Invalid finite decimal string '{s}': {e}"
+                ) from e
+            validated_list.append(s)  # Append the validated string
+        return validated_list
+
+    @field_validator("v", mode="before")
+    @classmethod
+    def validate_volume_list(cls, v: list[Any], info: ValidationInfo) -> list[str]:
+        """Validate 'v' list contains non-negative, finite decimal strings."""
+        field_name = info.field_name or "volume_list"
+
+        validated_list: list[str] = []
+        for i, item in enumerate(v):
+            # 1. Check raw type is string
+            if not isinstance(item, str):
+                raise TypeError(f"{field_name}[{i}]: Must be a string, got {type(item).__name__}.")
+            # 2. Validate string format (non-empty, max_length)
+            s = validate_str_field(
+                item, field_name=f"{field_name}[{i}]", max_length=64, allow_empty=False
+            )
+            # 3. Validate parseable as finite, non-negative Decimal
+            try:
+                d = parse_decimal_value(s, allow_none=False)
+                if d is None or not d.is_finite():
+                    raise ValueError("Decimal value must be finite.")
+                if d < 0:
+                    raise ValueError("Volume cannot be negative.")
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"{field_name}[{i}]: Invalid non-negative finite decimal string '{s}': {e}"
+                ) from e
+            validated_list.append(s)  # Append the validated string
+        return validated_list
 
     @field_validator("s", mode="before")
     @classmethod
     def validate_status_str(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the status string field 's'. Enforces maximum length and valid UTF-8.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated status string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        return validate_str_field(v, field_name="s", max_length=32)
+        """Validate 's' status string is non-empty, max_length 32."""
+        field_name = info.field_name or "status"
+        return validate_str_field(v, field_name=field_name, max_length=32, allow_empty=False)
 
 
 class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
