@@ -22,6 +22,7 @@ class APIErrorCode(Enum):
     SERVICE_UNAVAILABLE = 3
     SERVER_ERROR = 4
     MAINTENANCE = 5
+    INVALID_RESPONSE = 6
 
     # --- Market/Business Logic Errors (100-199) ---
     AUTHENTICATION_FAILED = 100

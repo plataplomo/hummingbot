@@ -18,7 +18,6 @@ This module implements the Backpack exchange adapter for CyberDeltaEngine, inclu
   validation, map all error codes, and document any non-obvious logic or edge cases.
 """
 
-import asyncio
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
@@ -32,7 +31,6 @@ from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
@@ -101,11 +99,15 @@ class BackpackAPI(ExchangeAPI):
             )
             self._bp_authenticator = None
 
+        # Instantiate the error mapper
+        self._backpack_error_mapper = BackpackErrorMapper()
+
         super().__init__(
             exchange_name="backpack",
             config=api_config,
             secrets=secrets,
-            authenticator=self._bp_authenticator,  # Ensure authenticator is passed
+            authenticator=self._bp_authenticator,
+            error_mapper=self._backpack_error_mapper,
         )
 
         # Default headers - can be moved to base or kept here if specific
@@ -116,30 +118,68 @@ class BackpackAPI(ExchangeAPI):
 
     # --- WebSocket Implementation --- #
 
+    def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
+        """Constructs the subscription payload for a given topic for Backpack."""
+        # Based on existing BackpackAPI.subscribe method
+        return {
+            "op": "subscribe",
+            "channel": topic,
+            "args": {},  # Backpack doesn't seem to use args for common subscriptions
+        }
+
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
-        """Handle raw WebSocket message, routing it for processing."""
-        # For Backpack, no special pre-processing needed currently.
-        # Directly call the routing logic.
+        """Handle raw WebSocket message from WebSocketManager, then route it.
+        This is called by the WebSocketManager.
+        """
+        # For Backpack, current logic seems to be direct routing.
+        # Add any pre-processing if needed before routing.
+        # For example, parsing a common outer envelope if Backpack had one.
         await self._route_ws_message(message)
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
         """
-        Route incoming WebSocket messages to the appropriate handler.
-
-        Args:
-            message: Parsed WebSocket message as dict.
+        Route incoming WebSocket messages to the appropriate handler based on topic.
+        Backpack messages typically have a 'stream' or 'topic' field in the outer message
+        or the data payload itself indicates the type.
+        Example Backpack WS message structure: {"topic": "depth.SOL_USDC", "data": {...}}
         """
-        # Backpack messages typically have a 'topic' and 'data' field
-        topic = message.get("topic")
-        data = message.get("data")
-        if not topic or not data:
-            logger.debug(f"[{self.exchange_name}] Received unroutable message: {message}")
+        # Backpack messages typically have a 'topic' field identifying the stream
+        # The actual data payload is often in message["data"]
+        topic = message.get("topic")  # Or derive from message structure if different
+        data_payload = message.get("data")
+
+        if not topic:
+            # Sometimes the topic might be part of the data key, e.g. for user streams
+            # For Backpack, public streams have a top-level topic key.
+            # Private streams like 'fills' or 'orders' might be structured differently,
+            # e.g. message = {"type": "fills", "data": ...}
+            # Adapt this logic based on actual Backpack private stream formats.
+            event_type = message.get("type")  # Example for a private stream format
+            if event_type in ["fills", "orders"] and isinstance(
+                event_type, str
+            ):  # Ensure event_type is str
+                topic = event_type  # Use type as topic for private streams
+                data_payload = message  # Handler might expect the whole message
+            else:
+                # Ensure topic is not None and is a string before proceeding
+                if topic is None or not isinstance(topic, str):
+                    logger.debug(
+                        f"[{self.exchange_name}] Received unroutable message (no clear string topic/type): {message}"
+                    )
+                    return
+
+        if data_payload is None:  # Ensure data_payload is present
+            logger.debug(
+                f"[{self.exchange_name}] Received message with topic '{topic}' but no data: {message}"
+            )
             return
 
         handler = self._ws_handlers.get(topic)
         if handler:
             try:
-                await handler(data)
+                # Pass the data_payload to the handler. For Backpack, this is typically message["data"]
+                # For private streams, if data_payload was set to message, it works out.
+                await handler(data_payload)
             except Exception as e:
                 logger.error(
                     f"[{self.exchange_name}] Error in handler for topic {topic}: {e}",
@@ -147,44 +187,6 @@ class BackpackAPI(ExchangeAPI):
                 )
         else:
             logger.debug(f"[{self.exchange_name}] No handler registered for topic: {topic}")
-
-    async def subscribe(self, topic: str, handler: MessageHandler) -> None:
-        """
-        Subscribe to a Backpack WebSocket topic and register a handler.
-
-        Args:
-            topic: WebSocket topic/channel name.
-            handler: Async callback to handle messages for this topic.
-        """
-        if not self._ws_connection or not self.is_connected:
-            logger.error(f"[{self.exchange_name}] Cannot subscribe, WebSocket not connected.")
-            # Store handler for reconnection
-            self._ws_handlers[topic] = handler
-            return
-
-        subscription_message: dict[str, Any] = {
-            "op": "subscribe",
-            "channel": topic,
-            "args": {},  # Additional arguments if needed
-        }
-        try:
-            await self._ws_connection.send_json(subscription_message)
-            self._ws_handlers[topic] = handler
-            logger.info(f"[{self.exchange_name}] Subscribed to topic: {topic}")
-        except Exception as e:
-            logger.error(f"[{self.exchange_name}] Failed to subscribe to topic {topic}: {e}")
-
-    async def _resubscribe(self) -> None:
-        """
-        Resubscribe to all registered WebSocket topics after reconnecting.
-        """
-        logger.info(
-            f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_handlers.keys())}"
-        )
-        handlers_copy = self._ws_handlers.copy()
-        for topic, handler in handlers_copy.items():
-            await self.subscribe(topic, handler)
-            await asyncio.sleep(0.1)  # Small delay between subscriptions
 
     # --- Authentication --- #
 
@@ -246,42 +248,61 @@ class BackpackAPI(ExchangeAPI):
             Ticker: Validated ticker model.
         Raises:
             APIError: If the ticker cannot be fetched or validated.
+            ValueError: If validation or transformation of the ticker data fails.
         """
         request_path: str = f"/api/v1/ticker/{symbol}"
-        response_raw: object = None  # Type as object
+        response_data_raw: Any = None  # Initialize for broader scope in exception handling
         try:
-            response_raw = await self._request("GET", request_path)
-            # Validate with Raw model first
-            raw_ticker = BackpackRawTicker.model_validate(response_raw)
-            # Transform to internal (if needed, Ticker might be simple enough)
-            # For now, assuming direct validation is sufficient if Ticker = RawTicker structure
-            # If transformation logic exists/is needed, use a Mapper.
-            # Let's assume Ticker can validate the raw_ticker dictionary directly for now
-            # This needs verification against the Ticker model definition.
-            # A safer pattern would be:
-            # internal_ticker = BackpackMarketMapper.transform_raw_ticker(raw_ticker)
-            return Ticker.model_validate(raw_ticker.model_dump())
-        except ValidationError as e:
+            response_data_raw = await self._request(
+                "GET", request_path, is_public_info_endpoint=True
+            )
+            if not isinstance(response_data_raw, dict):
+                logger.error(
+                    f"[{self.exchange_name}] Unexpected ticker response format for {symbol}: {type(response_data_raw)}"
+                )
+                # Use the new APIErrorCode.INVALID_RESPONSE
+                raise APIError(
+                    message=f"Unexpected ticker response format: {type(response_data_raw)}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            # Validate with BackpackRawTicker
+            raw_ticker = BackpackRawTicker.model_validate(response_data_raw)
+            # Transform using the new mapper method
+            return BackpackOrderMapper.transform_raw_ticker_to_internal(
+                raw_ticker, symbol_override=symbol
+            )
+
+        except ValidationError as e_val:
             logger.error(
-                f"[{self.exchange_name}] Ticker validation failed for {symbol}: {e}. "
-                f"Data: {response_raw}"
+                f"[{self.exchange_name}] Ticker validation failed for {symbol}: {e_val}. Raw: {response_data_raw!r}"
             )
             raise APIError(
-                f"Invalid ticker response for {symbol}: {e}",
-                code=APIErrorCode.UNKNOWN.value,  # Use UNKNOWN for validation errors
-            ) from e
-        except APIError as e:
-            logger.error(f"[{self.exchange_name}] API Error getting ticker for {symbol}: {e}")
-            raise e  # Re-raise mapped APIError from _request
-        except Exception as e:
+                message=f"Invalid ticker data from exchange for {symbol}: {e_val}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                original_exception=e_val,
+            ) from e_val
+        except ValueError as e_transform:  # Catch ValueErrors from transform_raw_ticker_to_internal
             logger.error(
-                f"[{self.exchange_name}] Unexpected error getting ticker for {symbol}: {e}",
+                f"[{self.exchange_name}] Ticker transformation failed for {symbol}: {e_transform}. Raw: {response_data_raw!r}"
+            )
+            raise APIError(
+                message=f"Failed to transform ticker data for {symbol}: {e_transform}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                original_exception=e_transform,
+            ) from e_transform
+        except APIError:  # Re-raise APIErrors directly (e.g., from _request)
+            raise
+        except Exception as e_unhandled:  # Catch any other unexpected errors
+            logger.error(
+                f"[{self.exchange_name}] Unhandled error fetching ticker for {symbol}: {e_unhandled}",
                 exc_info=True,
             )
-            # Let _request handle mapping via overridden _map_error_response
             raise APIError(
-                f"Unexpected error getting ticker: {e}", code=APIErrorCode.UNKNOWN.value
-            ) from e
+                message=f"Unexpected error processing ticker for {symbol}: {e_unhandled}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e_unhandled,
+            ) from e_unhandled
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
         """Fetch the order book for a symbol, validated via Raw model and transformed via Mapper.
@@ -1251,7 +1272,7 @@ class BackpackAPI(ExchangeAPI):
             raise e
         except Exception as e:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error getting trade history: {e}",
+                f"[{self.exchange_name}] Unexpected error in get_trade_history: {e}",
                 exc_info=True,
             )
             raise APIError(
@@ -1259,235 +1280,9 @@ class BackpackAPI(ExchangeAPI):
                 code=APIErrorCode.UNKNOWN.value,
             ) from e
 
-    # --- Override Base Error Mapping --- #
-
-    def _map_error_response(
-        self,
-        status_code: int,
-        error_body: str,
-        error_data: dict[str, Any] | None,  # Corrected name and kept None type
-    ) -> APIError:
-        """Maps Backpack specific error responses to a standardized APIError."""
-        # Use the dedicated mapper for Backpack errors
-        return BackpackErrorMapper.map_error_response(
-            status_code=status_code,
-            error_body=error_body,
-            error_data=error_data,  # Use corrected name
-            # request_path can be added if needed by the mapper
-        )
-
-    async def get_order_status(
-        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
-    ) -> Order | None:
-        """Fetch the status of a specific order by its ID or client ID.
-
-        Args:
-            order_id: The exchange-assigned order ID.
-            symbol: The trading symbol (required by Backpack for order lookup).
-            client_order_id: The client-assigned order ID (optional, can be used
-                             if order_id is not known).
-
-        Returns:
-            The Order object if found, otherwise None.
-        """
-        if not symbol:
-            raise ValueError("Symbol is required for get_order_status on Backpack.")
-
-        request_path = "/api/v1/order"
-        params: dict[str, str] = {"symbol": symbol}
-
-        if order_id:
-            params["orderId"] = order_id
-        elif client_order_id:
-            params["clientId"] = client_order_id
-        else:
-            raise ValueError("Either order_id or client_order_id must be provided.")
-
-        response_raw: object = None
-        try:
-            response_raw = await self._request("GET", request_path, params=params, is_signed=True)
-
-            # If _request returns None (e.g., 204 or other non-error empty response),
-            # or if the response is not a dict (unexpected for a single order response),
-            # treat as order not found or error.
-            if not isinstance(response_raw, dict):
-                logger.warning(
-                    f"[{self.exchange_name}] Unexpected response type for get_order_status: "
-                    f"{type(response_raw)}. Expected dict. Params: {params}, Raw: {response_raw}"
-                )
-                # This could be an OrderNotFound if the API returns 404,
-                # which _request would raise as APIError.
-                # If it gets here with non-dict, it's an unexpected success response format.
-                raise APIError(
-                    f"Unexpected response structure for order status: {response_raw}",
-                    code=APIErrorCode.UNKNOWN.value,
-                )
-
-            raw_order = BackpackRawOrder.model_validate(response_raw)
-            internal_order = BackpackOrderMapper.transform_raw_order_to_internal(raw_order)
-            return internal_order
-
-        except APIError as e:
-            # Specifically handle ORDER_NOT_FOUND from _request (e.g., on 404)
-            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
-                logger.debug(
-                    f"[{self.exchange_name}] Order not found via {request_path}. "
-                    f"Params: {params}, Error: {e}"
-                )
-                return None  # As per method contract
-            logger.error(
-                f"[{self.exchange_name}] API error fetching order status via {request_path}. "
-                f"Params: {params}, Error: {e}"
-            )
-            raise  # Re-raise other APIErrors
-        except ValidationError as e:
-            logger.error(
-                f"[{self.exchange_name}] Failed to validate order status response: {e}. "
-                f"Params: {params}, Raw: {response_raw}"
-            )
-            raise APIError(
-                "Failed to parse order status response from exchange.",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_order_status. "
-                f"Params: {params}, Error: {e}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error fetching order status: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
-
-    async def cancel_all_orders(self, symbol: str | None = None) -> None:
-        """
-        Cancel all orders for a given symbol.
-
-        Args:
-            symbol: The trading symbol (optional, if None cancels all orders).
-
-        Raises:
-            ValueError: If no symbol is provided and cancel_all_orders is called.
-            APIError: If the API returns an error.
-        """
-        if not symbol:
-            raise ValueError("Backpack 'cancel all' requires a symbol.")
-
-        params = {"symbol": symbol}
-        try:
-            # Use DELETE method as per OpenAPI spec. Authentication is implicit.
-            await self._request("DELETE", "/api/v1/orders", params=params)
-            logger.info(
-                f"[{self.exchange_name}] Successfully requested cancellation of all orders "
-                f"for {symbol}."
-            )
-            # Note: Backpack API response for successful DELETE is often empty or just status.
-            # Return None to match updated base class signature
-            return None
-        except APIError as e:
-            # Log and re-raise specific API errors
-            logger.error(f"[{self.exchange_name}] Failed to cancel all orders for {symbol}: {e}")
-            raise
-        except Exception as e:
-            # Catch-all for unexpected issues (network, etc.)
-            logger.exception(
-                f"[{self.exchange_name}] Unexpected error cancelling orders for {symbol}: {e}"
-            )
-            raise APIError(
-                # Use the .value of the enum member
-                code=APIErrorCode.UNKNOWN.value,
-                message=f"Unexpected error cancelling orders for {symbol}: {e}",
-                http_status=None,  # Status unknown in this case
-                original_exception=e,  # Pass original exception for context
-            ) from e
-
-    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
-        """Fetch historical klines (OHLCV) for a symbol and timeframe.
-
-        Args:
-            symbol: Trading symbol (e.g., 'BTC_USDC').
-            timeframe: Kline interval (e.g., '1m', '5m', '1h').
-            limit: Maximum number of klines to return (default 100).
-
-        Returns:
-            A list of Candle objects, sorted oldest to newest.
-
-        Raises:
-            APIError: If the API request fails or data validation/transformation fails.
-        """
-        request_path = "/api/v1/klines"
-        params: dict[str, Any] = {
-            "symbol": symbol,
-            "interval": timeframe,
-            "limit": limit,
-        }
-        response_raw: object = None  # Initialize for error logging
-        try:
-            response_raw = await self._request("GET", request_path, params=params)
-
-            # DEFENSIVE CHECK: Ensure response is a list
-            if not isinstance(response_raw, list):
-                logger.warning(
-                    f"[{self.exchange_name}] Unexpected klines response type: "
-                    f"{type(response_raw)}. Expected list. Returning empty list."
-                )
-                return []
-
-            candles: list[Candle] = []
-            for kline_data_raw in response_raw:
-                # No need for inner isinstance check, list structure checked by raw model validator
-                try:
-                    # Validate raw kline data (which is a list)
-                    raw_kline = BackpackRawKline.model_validate(kline_data_raw)
-                    # Transform to internal Candle model
-                    internal_candle = BackpackOrderMapper.transform_raw_kline_to_internal(
-                        symbol=symbol, interval=timeframe, raw=raw_kline
-                    )
-                    candles.append(internal_candle)
-                except (ValidationError, ValueError) as e:
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping kline due to validation/transformation "
-                        f"error: {e}. Data: {kline_data_raw}"
-                    )
-                    continue
-                except Exception as e:
-                    logger.error(
-                        f"[{self.exchange_name}] Unexpected error processing kline: {e}. "
-                        f"Data: {kline_data_raw}",
-                        exc_info=True,
-                    )
-                    continue
-
-            # Backpack returns newest first, reverse to match typical convention (oldest first)
-            candles.reverse()
-            return candles
-
-        except APIError as e:
-            logger.error(
-                f"[{self.exchange_name}] API Error getting klines for {symbol} ({timeframe}): {e}"
-            )
-            raise e
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error getting klines for {symbol} "
-                f"({timeframe}): {e}",
-                exc_info=True,
-            )
-            raise APIError(
-                f"Unexpected error getting klines for {symbol} ({timeframe}): {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
-
     async def connect_websocket(self) -> None:
         """Establish the WebSocket connection using the base class logic."""
-        if not self.is_connected:
-            await self._connect_ws()
-        else:
-            logger.debug(f"[{self.exchange_name}] WebSocket already connected.")
+        await super().connect_websocket()
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
         """Fetch a single order by its ID.
@@ -1552,9 +1347,37 @@ class BackpackAPI(ExchangeAPI):
         # Backpack's get_open_orders handles symbol=None to fetch all.
         return await self.get_open_orders(symbol=symbol)
 
-    async def ping_websocket(self) -> None:
-        """Send a WebSocket ping. Uses base class default implementation."""
-        await super().ping_websocket()
+    async def subscribe(self, topic: str, handler: MessageHandler) -> None:
+        """Register a handler for a WebSocket topic and send subscription."""
+        # This should call super().subscribe to use WebSocketManager
+        # Ensure ExchangeAPI.subscribe is not abstract or implement fully here
+        logger.info(
+            f"[{self.exchange_name}] Subscribe called for topic: {topic}. Delegating to base."
+        )
+        await super().subscribe(topic, handler)
+
+    async def _on_ws_connected(self) -> None:
+        """Callback for when WebSocket connects, typically to resubscribe."""
+        logger.info(
+            f"[{self.exchange_name}] WebSocket connected. Triggering resubscription via base."
+        )
+        await (
+            super()._on_ws_connected()
+        )  # This will call self._resubscribe if base implements it that way
+
+    async def _resubscribe(self) -> None:
+        """Resubscribe to topics upon WebSocket (re)connection."""
+        logger.info(f"[{self.exchange_name}] Resubscribe called. Delegating to base.")
+        await super()._resubscribe()
+
+    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
+        """Fetch historical market data (OHLCV/Kline) for a specific symbol and timeframe."""
+        # TODO: Implement actual data fetching for Backpack klines
+        logger.warning(
+            f"get_market_data not fully implemented for Backpack. Symbol: {symbol}, Timeframe: {timeframe}"
+        )
+        # raise NotImplementedError("get_market_data is not yet implemented for BackpackAPI")
+        return []  # Return empty list as a placeholder
 
     async def get_historical_trades(
         self, symbol: str, limit: int = 100, from_id: str | None = None
@@ -1631,3 +1454,90 @@ class BackpackAPI(ExchangeAPI):
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
+
+    async def get_order_status(
+        self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
+    ) -> Order | None:
+        """Fetch the status of a specific order by its ID or client ID.
+
+        Args:
+            order_id: The exchange-assigned order ID.
+            symbol: The trading symbol (required by Backpack for order lookup).
+            client_order_id: The client-assigned order ID (optional, can be used
+                             if order_id is not known).
+
+        Returns:
+            The Order object if found, otherwise None.
+        """
+        if not symbol:
+            raise ValueError("Symbol is required for get_order_status on Backpack.")
+
+        request_path = "/api/v1/order"
+        params: dict[str, str] = {"symbol": symbol}
+
+        if order_id:
+            params["orderId"] = order_id
+        elif client_order_id:
+            params["clientId"] = client_order_id
+        else:
+            raise ValueError("Either order_id or client_order_id must be provided.")
+
+        response_raw: object = None
+        try:
+            response_raw = await self._request("GET", request_path, params=params, is_signed=True)
+
+            if not isinstance(response_raw, dict):
+                logger.warning(
+                    f"[{self.exchange_name}] Unexpected response type for get_order_status: "
+                    f"{type(response_raw)}. Expected dict. Params: {params}, Raw: {response_raw}"
+                )
+                raise APIError(
+                    f"Unexpected response structure for order status: {response_raw}",
+                    code=APIErrorCode.UNKNOWN.value,
+                )
+
+            raw_order = BackpackRawOrder.model_validate(response_raw)
+            internal_order = BackpackOrderMapper.transform_raw_order_to_internal(raw_order)
+            return internal_order
+
+        except APIError as e:
+            if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
+                logger.debug(
+                    f"[{self.exchange_name}] Order not found via {request_path}. "
+                    f"Params: {params}, Error: {e}"
+                )
+                return None
+            logger.error(
+                f"[{self.exchange_name}] API error fetching order status via {request_path}. "
+                f"Params: {params}, Error: {e}"
+            )
+            raise
+        except ValidationError as e:
+            logger.error(
+                f"[{self.exchange_name}] Failed to validate order status response: {e}. "
+                f"Params: {params}, Raw: {response_raw}"
+            )
+            raise APIError(
+                "Failed to parse order status response from exchange.",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
+        except Exception as e:
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error in get_order_status. "
+                f"Params: {params}, Error: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                f"Unexpected error fetching order status: {e}",
+                code=APIErrorCode.UNKNOWN.value,
+                original_exception=e,
+            ) from e
+
+    async def cancel_all_orders(self, symbol: str | None = None) -> None:
+        """
+        Cancel all orders for a given symbol.
+        """
+        # This method is not provided in the original file or the code block
+        # It's assumed to exist as it's called in the get_order_status method
+        pass

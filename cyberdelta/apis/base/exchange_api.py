@@ -3,7 +3,6 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio
 import json
 import logging
-import random
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine, Mapping
 from datetime import datetime
@@ -11,15 +10,16 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
-from aiohttp import ClientWSTimeout
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
     HttpRequestFailedError,
     ParsedJsonResponse,
 )
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+from cyberdelta.apis.connectivity.ws_manager import WebSocketManager
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
@@ -48,6 +48,7 @@ __all__ = [
     "APIError",  # Export APIError
     "APIErrorCode",  # Export APIErrorCode (already likely used but good practice)
     "MessageHandler",
+    "IErrorMapper",  # Export IErrorMapper
 ]
 
 # Get logger instance for this module
@@ -68,6 +69,7 @@ class ExchangeAPI(ABC):
         exchange_name: str,
         config: dict[str, Any],
         secrets: dict[str, str | None],
+        error_mapper: IErrorMapper,
         loop: asyncio.AbstractEventLoop | None = None,
         authenticator: IAuthenticator | None = None,
     ) -> None:
@@ -78,75 +80,58 @@ class ExchangeAPI(ABC):
             exchange_name: Name of the exchange (e.g., 'hyperliquid', 'backpack')
             config: Dictionary of configuration parameters including endpoints, rate limits
             secrets: Dictionary of API keys and secrets for authentication
+            error_mapper: Instance of an IErrorMapper implementation.
             loop: Optional event loop for rate limiters
             authenticator: Optional authenticator instance for signed requests.
         """
         self.exchange_name = exchange_name
         self._config = config
         self._secrets = secrets
+        self.error_mapper = error_mapper
         self.loop = loop if loop else asyncio.get_event_loop()
         self.authenticator = authenticator
-        self._ws_connection: aiohttp.ClientWebSocketResponse | None = None
         self._ws_handlers: dict[str, MessageHandler] = {}
-        self._is_connected = False
-        self._reconnect_task: asyncio.Task[None] | None = None
-        self._listener_task: asyncio.Task[None] | None = None
-        self._ping_task: asyncio.Task[None] | None = None
-        self.max_retries: int = config.get(
-            "max_retries", 2
-        )  # Default to 2 retries (3 total attempts)
 
-        # Initialize RateLimiterService
         self._rate_limiter_service = RateLimiterService(
             exchange_name=self.exchange_name,
             config=self._config,
             loop=self.loop,
         )
-        # Placeholder for connection state and WebSocket management attributes
-        self._ws_connection = None
-        self._ws_listener_task: asyncio.Task[None] | None = None
-        self._ws_reconnect_task: asyncio.Task[None] | None = None
-        self._ws_ping_task: asyncio.Task[None] | None = None
-        self._is_ws_connected = False
-        self._is_connecting = False
-        self._should_reconnect = True
 
-        # Extract key configurations
-        # Check for both rest_endpoint (standard) and base_url (alternative naming)
         self.rest_endpoint = self._config.get("rest_endpoint", self._config.get("base_url"))
         if not self.rest_endpoint or not isinstance(self.rest_endpoint, str):
             raise ValueError(
                 f"[{exchange_name}] Missing or invalid 'rest_endpoint' or 'base_url' in config"
             )
-        # Check for both ws_endpoint (standard) and ws_url (alternative naming)
-        self.ws_endpoint = self._config.get("ws_endpoint")
+
+        self.ws_endpoint = self._config.get("ws_endpoint", self._config.get("ws_url"))
         if not self.ws_endpoint or not isinstance(self.ws_endpoint, str):
             logger.warning(
-                f"[{exchange_name}] Missing or invalid 'ws_endpoint' in config. "
-                f"WebSocket functionality disabled."
+                f"[{exchange_name}] Missing or invalid 'ws_endpoint'/'ws_url' in config. "
+                f"WebSocket functionality will be disabled."
             )
-            self.ws_endpoint = None  # Explicitly set to None if invalid
+            self.ws_endpoint = None
 
-        # Initialize HttpClient instance
         self._http_client = HttpClient(
             exchange_name=self.exchange_name,
-            rest_endpoint=self.rest_endpoint,  # Must be validated before this point
+            rest_endpoint=self.rest_endpoint,
             default_request_timeout=self._config.get("request_timeout", 30.0),
-            # Pass retry config if available in self._config, otherwise HttpClient defaults
-            max_retries=self._config.get("max_retries"),  # HttpClient will use its default if None
-            retry_delay_seconds=self._config.get(
-                "retry_delay_seconds"
-            ),  # HttpClient will use its default if None
+            max_retries=self._config.get("max_retries"),
+            retry_delay_seconds=self._config.get("retry_delay_seconds"),
         )
 
-        # Validation (rest_endpoint already validated, ws_endpoint logged)
-        # if not self.rest_endpoint: # Covered by earlier validation
-        #     logger.warning(f"REST endpoint not configured for {self.exchange_name}")
-        if not self.ws_endpoint:
-            logger.warning(f"WebSocket endpoint not configured for {self.exchange_name}")
-
-        # Session for WebSocket (HttpClient manages its own session for REST)
-        self._session: aiohttp.ClientSession | None = None
+        self._ws_manager: WebSocketManager | None = None
+        if self.ws_endpoint:
+            self._ws_manager = WebSocketManager(
+                exchange_name=self.exchange_name,
+                ws_url=self.ws_endpoint,
+                message_handler=self._handle_websocket_message,
+                on_connected_callback=self._on_ws_connected,
+                ping_interval=self._config.get("ws_ping_interval"),
+                reconnect_delay=self._config.get("ws_reconnect_delay"),
+                max_reconnect_attempts=self._config.get("ws_max_reconnect_attempts"),
+                connection_timeout=self._config.get("ws_connection_timeout"),
+            )
 
         logger.info(
             f"[{self.exchange_name}] API initialized. REST: {self.rest_endpoint}, WS: {self.ws_endpoint}"
@@ -154,12 +139,8 @@ class ExchangeAPI(ABC):
 
     @property
     def is_connected(self) -> bool:
-        """Returns whether the WebSocket connection is active."""
-        return (
-            self._is_connected
-            and self._ws_connection is not None
-            and not self._ws_connection.closed
-        )
+        """Returns whether the WebSocket connection is active via WebSocketManager."""
+        return self._ws_manager.is_connected if self._ws_manager else False
 
     async def _request(
         self,
@@ -177,13 +158,13 @@ class ExchangeAPI(ABC):
 
         Args:
             method: HTTP method ('GET', 'POST', etc.)
-            endpoint: API endpoint path (relative to base) or full URL.
+            endpoint: API endpoint path (relative to base) or full URL if handled by concrete API.
             params: URL parameters for the request.
             data: Request body data.
             headers: HTTP headers.
             is_signed: Whether the request requires authentication.
-            endpoint_group: Optional logical group for the endpoint (used by some older rate limiters, less relevant now).
-            is_public_info_endpoint: Flag to indicate if this is a public info endpoint (HL specific).
+            endpoint_group: Optional logical group for the endpoint.
+            is_public_info_endpoint: Flag for specific endpoints (e.g. Hyperliquid INFO).
 
         Returns:
             Parsed API response content (JSON dict/list, raw text) or None for empty responses (204).
@@ -191,51 +172,52 @@ class ExchangeAPI(ABC):
         Raises:
             APIError: For mapped exchange-specific errors or unrecoverable issues.
         """
-        # Determine the actual path for HttpClient (relative if endpoint is not full URL)
-        # And the full_url for logging and direct use if endpoint is already a full URL.
-        path_for_limiter_and_auth: str
-        if endpoint.startswith("http://") or endpoint.startswith("https://"):
-            # If endpoint is a full URL, we need to derive a relative path for some auth/rate limiters
-            # However, HttpClient constructs the full URL itself from its base_endpoint and a path.
-            # This suggests `endpoint` here should consistently be a *path* for self._http_client.request.
-            # If a full URL is truly needed for a specific call, that API client should handle it or HttpClient needs adjustment.
-            # For now, assuming `endpoint` should be a path for HttpClient.
-            # This means the Hyperliquid /info calls using INFO_URL need to be handled carefully.
-            # One way: HyperliquidAPI can have a separate HttpClient for its INFO_URL or temporarily override endpoint for that client.
-            # Let's assume `endpoint` is always a path for now. If HL needs to call INFO_URL, it might need its own request logic or a second HttpClient.
+        path_for_http_client: str
+        request_path_for_mapper: str  # For error mapping context
 
-            # For Hyperliquid INFO calls, the base URL is different.
-            # This logic needs to be pushed into the concrete API if it uses a different base URL.
-            # Current ExchangeAPI assumes one rest_endpoint per instance.
-            # The prompt for HyperliquidAPI `_request` calls use `/info` or `/exchange` directly.
-            # So `endpoint` should be the path. The HttpClient will prepend `self.rest_endpoint`.
-            # If `is_public_info_endpoint` is true and we are Hyperliquid, we might use a different base. This complexity should be in HLAPI.
-            path_for_limiter_and_auth = endpoint  # endpoint is already the path.
+        # Hyperliquid specific: if endpoint is full URL for /info, it bypasses _http_client
+        # This logic should ideally be within HyperliquidAPI or HttpClient should handle full URLs.
+        # For now, assume if it's a full URL, the concrete API handles it or this isn't the method called.
+        # Let's assume `endpoint` is typically a path.
+        if endpoint.startswith("http://") or endpoint.startswith("https://"):
+            # If endpoint is a full URL, this method might be called by a concrete API that
+            # wants to use the common error handling but not the standard _http_client path construction.
+            # In this case, path_for_http_client might not be used directly if the call is different.
+            # For error mapping, we'd still want to capture the full URL as the request_path.
+            path_for_http_client = (
+                endpoint  # This implies HttpClient can take full URLs, or this path won't be used
+            )
+            request_path_for_mapper = endpoint
+            # This scenario (full URL to _request) suggests a need for more flexible HttpClient or direct calling.
+            # For now, we assume _http_client.request is called with a *relative* path.
+            # If Hyperliquid calls _request with a full INFO_URL, it must handle it differently
+            # (e.g., not using self._http_client, or _http_client needs to support it)
+            # Given the current HttpClient design, it expects endpoint_path.
+            # Let's clarify that `endpoint` to this method is typically a relative path.
+            # Hyperliquid API needs to ensure its calls to /info are handled appropriately.
+            # For now, we'll assume if it's a full URL, it is passed to the mapper correctly.
+            # And path_for_http_client will likely be the relative part if extracted.
+            # This part is tricky. For now, if full URL, we set path_for_http_client to it, but
+            # it may not be what HttpClient expects if it strictly prepends its own base_url.
+            # Let's assume `endpoint` is always a relative path for calls going through `_http_client`.
+            # If a concrete API calls this `_request` with a full URL, it implies it has its own HTTP execution logic
+            # but wants to use this method for error mapping and rate limit header updates.
+            # This case needs to be very carefully handled by the concrete API.
+            # A safer assumption: `endpoint` here is always a relative path when `_http_client` is used.
+            logger.warning(
+                f"[{self.exchange_name}] _request called with full URL endpoint '{endpoint}'. "
+                f"Ensure HTTP execution logic is appropriate. HttpClient expects a relative path."
+            )
+            # Attempt to derive a relative path if possible, otherwise use full.
+            if self.rest_endpoint and endpoint.startswith(self.rest_endpoint):
+                path_for_http_client = endpoint.replace(self.rest_endpoint, "", 1).lstrip("/")
+            else:
+                path_for_http_client = endpoint  # Fallback, but HttpClient might misbehave.
         else:
-            path_for_limiter_and_auth = endpoint
+            path_for_http_client = endpoint.lstrip("/")
+            request_path_for_mapper = f"/{path_for_http_client}"
 
         effective_authenticator = self.authenticator if is_signed else None
-        if (
-            is_public_info_endpoint and self.exchange_name.lower() == "hyperliquid"
-        ):  # Special handling for HL /info
-            # This suggests HyperliquidAPI might need to invoke HttpClient with a different base URL for /info
-            # or this _request method isn't used for those calls, or it passes a full URL to `endpoint`.
-            # Given the prompt, `HyperliquidAPI._request` calls: `f"{self.INFO_URL.rstrip('/')}/info"` as the *endpoint*.
-            # This means `endpoint` can be a full URL. HttpClient needs to handle this.
-            # Let's adjust HttpClient.request to accept full_url directly or path.
-            # For now, assume `endpoint` passed to `self._http_client.request` is always a path.
-            # The concrete HyperliquidAPI needs to ensure it calls this _request with a path for standard endpoint,
-            # or handle its INFO_URL calls separately if HttpClient is strictly path-based.
-            # The current structure of HttpClient.request takes `endpoint_path` and prepends.
-            # This will need careful handling in HyperliquidAPI or adjustment in HttpClient.
-            # Let's assume for now that if `endpoint` is a full URL, ExchangeAPI will bypass its own HttpClient
-            # or we need to rethink. This refactor aims to centralize to HttpClient.
-            # Modifying HttpClient to take an optional `base_url_override` might be one way.
-            # Or, HyperliquidAPI needs two HttpClient instances. This is simpler for now.
-            # Let's assume ExchangeAPI._request will always use its _http_client with its configured base URL.
-            # Calls to other base URLs must be handled differently by the specific API class.
-            # This means `is_public_info_endpoint` here is less relevant if `endpoint` is always a path for `_http_client`.
-            pass  # No change to effective_authenticator for this general method
 
         response_content: ParsedJsonResponse | str | None = None
         response_headers_dict: Mapping[str, str] = {}
@@ -244,81 +226,79 @@ class ExchangeAPI(ABC):
             # HttpClient.request returns a tuple: (content, headers_multidict)
             content, headers_multidict = await self._http_client.request(
                 method=method,
-                endpoint_path=path_for_limiter_and_auth,  # This should be a path
+                endpoint_path=path_for_http_client,  # This must be a relative path
                 rate_limiter_service=self._rate_limiter_service,
                 authenticator=effective_authenticator,
                 params=params,
                 data=data,
                 headers=headers,
-                is_signed=is_signed,
-                # request_timeout can be passed if ExchangeAPI wants to override HttpClient's default
+                is_signed=is_signed,  # Pass is_signed to HttpClient
             )
             response_content = content
-            # Convert CIMultiDictProxy to a simple dict for _update_rate_limit_from_headers if needed
-            response_headers_dict = {k: v for k, v in headers_multidict.items()}
-
-            # Call to update rate limits based on response headers (if applicable)
-            # This needs headers from the actual response.
+            response_headers_dict = headers_multidict
             self._update_rate_limit_from_headers(
-                response_headers_dict, method, path_for_limiter_and_auth
+                response_headers_dict, method, path_for_http_client
             )
-
-            # Exchange-specific interpretation of success (beyond HTTP 2xx)
-            # Some exchanges might return 200 OK but have an error in the payload.
-            # This logic should ideally be in _map_error_response or a dedicated check.
-            # For now, if HttpClient returned content, we assume HTTP success.
-            # The _map_error_response will be called if HttpClient raised HttpRequestFailedError.
-
             return response_content
 
-        except HttpRequestFailedError as http_err:
-            # HttpClient has already handled retries for HTTP level errors it deems retryable.
-            # Now, map this HTTP error to an exchange-specific APIError.
+        except HttpRequestFailedError as e_http_failed:
             logger.warning(
-                f"[{self.exchange_name}] HTTP request to {path_for_limiter_and_auth} failed with HTTP status {http_err.http_status}. Body: {http_err.exchange_message}"
+                f"[{self.exchange_name}] HTTP request failed for {method} {request_path_for_mapper}: "
+                f"Status={e_http_failed.http_status}, Body='{e_http_failed.exchange_message}'"
             )
-            # Pass the http_status from http_err to _map_error_response
-            raise self._map_error_response(
-                status_code=http_err.http_status if http_err.http_status is not None else 0,
-                error_body=http_err.exchange_message
-                if http_err.exchange_message is not None
-                else "",
+            # Error is already HttpRequestFailedError (subclass of APIError)
+            # We need to map its *contents* using the exchange-specific mapper
+            parsed_error_data: dict[str, Any] | None = None
+            if e_http_failed.exchange_message:
+                try:
+                    parsed_error_data = json.loads(e_http_failed.exchange_message)
+                    if not isinstance(parsed_error_data, dict):
+                        parsed_error_data = None  # Only use if it's a dict
+                except json.JSONDecodeError:
+                    pass  # Keep as None
+
+            # Delegate to the new error_mapper instance
+            mapped_error = self.error_mapper.map_exchange_error(
+                status_code=e_http_failed.http_status or 500,  # Ensure status_code is int
+                error_body=e_http_failed.exchange_message or "",
+                error_data=parsed_error_data,
+                request_path=request_path_for_mapper,
+            )
+            # Preserve original exception if map_exchange_error doesn't already do it
+            # (current IErrorMapper signature doesn't take original_exception)
+            # APIError constructor should take it.
+            # We can raise the mapped_error from e_http_failed to keep context.
+            raise mapped_error from e_http_failed
+
+        except (TimeoutError, aiohttp.ClientError) as e_client:
+            # These are already raised by HttpClient after its retries
+            logger.error(
+                f"[{self.exchange_name}] Unrecoverable client error for {method} {request_path_for_mapper}: {e_client}"
+            )
+            # Map to a generic APIError
+            # Here, we don't have a specific exchange error body, so pass what we have.
+            mapped_error = self.error_mapper.map_exchange_error(
+                status_code=503,  # Service Unavailable or similar for network issues
+                error_body=str(e_client),
                 error_data=None,
-            ) from http_err
-        except aiohttp.ClientError as client_err:
-            # Unrecoverable client error from HttpClient (after its retries)
-            logger.error(
-                f"[{self.exchange_name}] Unrecoverable client error for {path_for_limiter_and_auth}: {client_err}",
-                exc_info=True,
+                request_path=request_path_for_mapper,
             )
-            raise APIError(
-                message=f"Network client error: {client_err}",
-                code=APIErrorCode.NETWORK_ISSUE.value,
-                original_exception=client_err,
-            ) from client_err
-        except TimeoutError as timeout_err:
-            # Timeout from HttpClient (after its retries)
-            logger.error(
-                f"[{self.exchange_name}] Request timeout for {path_for_limiter_and_auth}: {timeout_err}",
-                exc_info=True,
-            )
-            raise APIError(
-                message=f"Request timed out: {timeout_err}",
-                code=APIErrorCode.TIMEOUT.value,
-                original_exception=timeout_err,
-            ) from timeout_err
-        except APIError:  # Re-raise APIErrors (e.g. from authenticator in HttpClient)
+            raise mapped_error from e_client
+
+        except APIError:  # Re-raise APIErrors (e.g. from authenticator)
             raise
-        except Exception as e:
-            logger.error(
-                f"[{self.exchange_name}] Unexpected error during request to {path_for_limiter_and_auth}: {e}",
-                exc_info=True,
+        except Exception as e_unhandled:
+            logger.exception(
+                f"[{self.exchange_name}] Unhandled exception during request {method} {request_path_for_mapper}: {e_unhandled}"
             )
-            raise APIError(
-                message=f"Unexpected error during API request: {e}",
-                code=APIErrorCode.UNKNOWN.value,
-                original_exception=e,
-            ) from e
+            # Map to a generic unknown APIError
+            mapped_error = self.error_mapper.map_exchange_error(
+                status_code=500,  # Internal Server Error equivalent
+                error_body=str(e_unhandled),
+                error_data=None,
+                request_path=request_path_for_mapper,
+            )
+            raise mapped_error from e_unhandled
 
     @abstractmethod
     def _update_rate_limit_from_headers(
@@ -342,335 +322,49 @@ class ExchangeAPI(ABC):
         status_code: int,
         error_body: str,
         error_data: dict[str, Any] | None,
+        request_path: str | None = None,
     ) -> APIError:
         """
-        Map exchange-specific error responses to standardized APIError.
+        Map exchange-specific error responses to a standardized APIError object.
+        This method now delegates to the configured `self.error_mapper`.
 
         Args:
-            status_code: HTTP status code
-            error_body: Raw error response body
-            error_data: Parsed error data (if JSON)
+            status_code: HTTP status code from the response.
+            error_body: Raw error response body as a string.
+            error_data: Parsed error data dictionary from the response, if available.
+            request_path: The API endpoint path that was called (for diagnostic metadata).
 
         Returns:
-            Standardized APIError
+            APIError: A fully populated `APIError` exception object.
         """
-        # Attempt to parse error_body if error_data is None
-        parsed_error_data: dict[str, Any] | None = error_data
-        if parsed_error_data is None:
-            try:
-                parsed_error_data = json.loads(error_body)
-                if not isinstance(parsed_error_data, dict):
-                    # If parsing doesn't yield a dict, revert to None
-                    # and log the unexpected structure.
-                    logger.warning(
-                        f"[{self.exchange_name}] Error body parsed but was not a dict: "
-                        f"{type(parsed_error_data)}. Original body: {error_body[:500]}"
-                    )
-                    parsed_error_data = None  # Ensure it's None if not a dict
-            except json.JSONDecodeError:
-                logger.debug(
-                    f"[{self.exchange_name}] Failed to parse error body as JSON: {error_body[:500]}"
-                )
-                # Keep parsed_error_data as None if JSON parsing fails
-
-        # Default mappings based on HTTP status
-        if status_code == 401:
-            code = APIErrorCode.AUTHENTICATION_FAILED
-        elif status_code == 403:
-            code = APIErrorCode.AUTHENTICATION_FAILED
-        elif status_code == 404:
-            code = APIErrorCode.SYMBOL_NOT_FOUND
-        elif status_code == 429:
-            code = APIErrorCode.RATE_LIMITED
-        elif status_code == 400:
-            code = APIErrorCode.INVALID_PARAMS
-        elif status_code == 500:
-            code = APIErrorCode.SERVER_ERROR
-        elif status_code == 503:
-            code = APIErrorCode.MAINTENANCE
-        elif 400 <= status_code < 500:
-            code = APIErrorCode.INVALID_PARAMS
-        elif 500 <= status_code < 600:
-            code = APIErrorCode.SERVER_ERROR
-        else:
-            code = APIErrorCode.UNKNOWN
-
-        # Extract message and exchange-specific code from error data if available
-        message = "Unknown error"
-        exchange_code = None
-        retry_after = None
-
-        # Check if error_data is not None before accessing
-        if error_data:
-            # Handle various message field names in different exchange responses
-            message = (
-                error_data.get("message")
-                or error_data.get("msg")
-                or error_data.get("error")
-                or error_data.get("error_message")
-                or error_data.get("description")
-                or message
-            )
-
-            # Extract exchange-specific error code if present
-            exchange_code = (
-                error_data.get("code")
-                or error_data.get("error_code")
-                or error_data.get("err")
-                or None
-            )
-
-            # Extract retry-after if present (rate limiting)
-            retry_after = (
-                error_data.get("retry_after")
-                or error_data.get("retryAfter")
-                or error_data.get("Retry-After")
-                or None
-            )
-
-            # Try to map known error patterns to our standard codes
-            if any(
-                keyword in message.lower() for keyword in ["insufficient", "not enough", "balance"]
-            ):
-                code = APIErrorCode.INSUFFICIENT_FUNDS
-            elif any(
-                keyword in message.lower() for keyword in ["order", "not found", "unknown order"]
-            ):
-                code = APIErrorCode.ORDER_NOT_FOUND
-            elif any(
-                keyword in message.lower()
-                for keyword in ["symbol", "instrument", "market", "not found"]
-            ):
-                code = APIErrorCode.SYMBOL_NOT_FOUND
-            elif any(keyword in message.lower() for keyword in ["precision", "decimal"]):
-                code = APIErrorCode.PRECISION_ERROR
-            elif any(
-                keyword in message.lower() for keyword in ["min notional", "minimum notional"]
-            ):
-                code = APIErrorCode.MIN_NOTIONAL_NOT_MET
-            elif any(
-                keyword in message.lower()
-                for keyword in ["quantity", "size", "amount", "out of range"]
-            ):
-                code = APIErrorCode.QUANTITY_OUT_OF_RANGE
-            elif any(keyword in message.lower() for keyword in ["max position", "position limit"]):
-                code = APIErrorCode.MAX_POSITION_EXCEEDED
-            elif any(keyword in message.lower() for keyword in ["liquidation", "liquidating"]):
-                code = APIErrorCode.LIQUIDATION_IN_PROGRESS
-            elif any(keyword in message.lower() for keyword in ["price", "out of range"]):
-                code = APIErrorCode.PRICE_OUT_OF_RANGE
-            elif any(keyword in message.lower() for keyword in ["market closed", "not open"]):
-                code = APIErrorCode.MARKET_CLOSED
-            elif any(keyword in message.lower() for keyword in ["duplicate", "already exists"]):
-                code = APIErrorCode.DUPLICATE_ORDER
-            elif any(
-                keyword in message.lower()
-                for keyword in ["rate limit", "ratelimit", "too many requests"]
-            ):
-                code = APIErrorCode.RATE_LIMITED
-            elif any(keyword in message.lower() for keyword in ["maintenance", "unavailable"]):
-                code = APIErrorCode.MAINTENANCE
-            elif any(keyword in message.lower() for keyword in ["rejected", "cancel reject"]):
-                code = APIErrorCode.ORDER_REJECTED
-            elif any(keyword in message.lower() for keyword in ["funding", "rate", "unavailable"]):
-                code = APIErrorCode.FUNDING_RATE_UNAVAILABLE
-            elif any(
-                keyword in message.lower() for keyword in ["network", "connection", "timeout"]
-            ):
-                code = APIErrorCode.NETWORK_ISSUE
-
-        return APIError(
-            message=f"API error: {message}",
-            code=code.value,
-            http_status=status_code,
-            exchange_code=exchange_code,
-            exchange_message=message,
-            retry_after=retry_after,
-        )
-
-    async def connect(self) -> None:
-        """
-        Establish connections to the exchange API (REST and WebSocket).
-        Must be called before making any API requests.
-        """
-        # Import here to avoid circular imports
-        import aiohttp
-
-        # Initialize HTTP session if needed
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession()
-            logger.info(f"[{self.exchange_name}] HTTP session created")
-
-        # Connect WebSocket if configured
-        if self.ws_endpoint and (self._ws_connection is None or self._ws_connection.closed):
-            await self._connect_ws()
-
-    async def _connect_ws(self) -> None:
-        """
-        Establish WebSocket connection with the exchange.
-        Implements automatic reconnection and subscription recovery.
-        """
-        import aiohttp
-
-        if not self.ws_endpoint or not self._session:
+        if not self.error_mapper:
+            # This should not happen if __init__ forces error_mapper
             logger.error(
-                f"[{self.exchange_name}] Cannot connect WebSocket without endpoint or session"
+                f"[{self.exchange_name}] Error mapper not configured. Falling back to generic error."
             )
-            return
-
-        try:
-            logger.info(f"[{self.exchange_name}] Connecting to WebSocket: {self.ws_endpoint}")
-
-            # NOTE: The following ws_connect usage matches aiohttp's official documentation.
-            # Some type checkers (e.g., Pylance, Pyright) may incorrectly flag this as an error
-            # due to outdated or incomplete type stubs. This is a false positive; see:
-            # https://docs.aiohttp.org/en/stable/client_reference.html#aiohttp.ClientSession.ws_connect
-            # Suppressing with pyright: ignore as this is correct and safe.
-            # Mypy doesnt show this error here
-            self._ws_connection = await self._session.ws_connect(
-                self.ws_endpoint,
-                heartbeat=30.0,
-                timeout=ClientWSTimeout(30.0),  # pyright: ignore[reportCallIssue]
+            return APIError(
+                message=f"Exchange error (mapper not configured): {error_body}",
+                code=APIErrorCode.UNKNOWN.value,
+                http_status=status_code,
             )
-
-            self._is_connected = True
-            logger.info(f"[{self.exchange_name}] WebSocket connected successfully")
-
-            # Start listener task
-            if self._ws_listener_task is None or self._ws_listener_task.done():
-                self._ws_listener_task = asyncio.create_task(
-                    self._ws_listener(), name=f"{self.exchange_name}_ws_listener"
-                )
-
-            # Resubscribe to topics after connection
-            await self._resubscribe()
-
-        except (TimeoutError, aiohttp.ClientError) as e:
-            self._is_connected = False
-            self._ws_connection = None
-            logger.error(f"[{self.exchange_name}] WebSocket connection failed: {e}")
-
-            # Schedule reconnection attempt
-            asyncio.create_task(self._reconnect_ws())
-
-    async def _reconnect_ws(self, delay: float = 5.0, max_attempts: int = 10) -> None:
-        """
-        Attempt to reconnect WebSocket with exponential backoff.
-
-        Args:
-            delay: Initial delay before first reconnection attempt
-            max_attempts: Maximum number of reconnection attempts
-        """
-        for attempt in range(max_attempts):
-            # Calculate backoff delay with jitter
-            backoff = delay * (2**attempt)
-            jitter = backoff * 0.1 * (2 * (0.5 - random.random()))
-            sleep_time = max(1.0, backoff + jitter)
-
-            logger.info(
-                f"[{self.exchange_name}] WebSocket reconnection attempt {attempt + 1}/"
-                f"{max_attempts} scheduled in {sleep_time:.1f}s"
-            )
-
-            await asyncio.sleep(sleep_time)
-
-            try:
-                await self._connect_ws()
-                # Return on successful connection
-                if self.is_connected:
-                    logger.info(f"[{self.exchange_name}] WebSocket reconnected successfully")
-                    return
-            except Exception as e:
-                logger.error(
-                    f"[{self.exchange_name}] WebSocket reconnection attempt {attempt + 1} "
-                    f"failed: {e}"
-                )
-
-        logger.critical(
-            f"[{self.exchange_name}] WebSocket reconnection failed after {max_attempts} attempts"
+        return self.error_mapper.map_exchange_error(
+            status_code=status_code,
+            error_body=error_body,
+            error_data=error_data,
+            request_path=request_path,
         )
-
-    async def _ws_listener(self) -> None:
-        # Adjust type hint for e to accommodate CancelledError
-        e: BaseException | None = None  # Define e outside the except block for finally
-        if not self._ws_connection or self._ws_connection.closed:
-            logger.error(
-                f"[{self.exchange_name}] WebSocket listener started without a valid connection"
-            )
-            self._is_connected = False
-            if self._should_reconnect and (
-                self._reconnect_task is None or self._reconnect_task.done()
-            ):
-                self._reconnect_task = asyncio.create_task(self._reconnect_ws())
-            return
-        logger.info(f"[{self.exchange_name}] WebSocket listener started")
-        try:
-            async for msg in self._ws_connection:
-                if msg.type == aiohttp.WSMsgType.TEXT:
-                    try:
-                        data = json.loads(msg.data)
-                        await self._handle_websocket_message(data)
-                    except json.JSONDecodeError:
-                        logger.warning(
-                            f"[{self.exchange_name}] Received non-JSON WebSocket message: "
-                            f"{msg.data[:100]}..."
-                        )
-                    except Exception as e_inner:
-                        logger.exception(
-                            f"[{self.exchange_name}] Error processing WebSocket message: {e_inner}"
-                        )
-                elif msg.type == aiohttp.WSMsgType.ERROR:
-                    # Use ws_connection.exception() which returns Exception | None
-                    ws_exception = self._ws_connection.exception()
-                    if ws_exception:
-                        e = ws_exception  # Assign if not None
-                        logger.error(f"[{self.exchange_name}] WebSocket connection error: {e}")
-                    else:
-                        logger.error(
-                            f"[{self.exchange_name}] WebSocket connection error "
-                            f"reported, but exception is None."
-                        )
-                    break
-                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING):
-                    logger.warning(
-                        f"[{self.exchange_name}] WebSocket connection closed by server or closing."
-                    )
-                    break
-        except asyncio.CancelledError as e_cancel:
-            e = e_cancel
-            logger.info(f"[{self.exchange_name}] WebSocket listener task cancelled")
-        except Exception as e_outer:
-            e = e_outer
-            logger.exception(f"[{self.exchange_name}] Unexpected error in WebSocket listener: {e}")
-        finally:
-            logger.warning(f"[{self.exchange_name}] WebSocket listener stopped.")
-            self._is_connected = False
-            # Check type of e before deciding to reconnect
-            if self._should_reconnect and not isinstance(e, asyncio.CancelledError):
-                if self._reconnect_task is None or self._reconnect_task.done():
-                    self._reconnect_task = asyncio.create_task(self._reconnect_ws())
 
     async def close(self) -> None:
-        """Close all connections, including HTTP session and WebSocket."""
+        """Close all connections, including HTTP client and WebSocket manager."""
         logger.info(f"[{self.exchange_name}] Initiating shutdown sequence...")
-        self._should_reconnect = False  # Prevent WebSocket reconnection attempts
 
-        # Close HttpClient's session
-        if hasattr(self, "_http_client") and self._http_client:
+        if self._http_client:
             await self._http_client.close_session()
             logger.info(f"[{self.exchange_name}] HTTP client session closed.")
 
-        # Close WebSocket connection
-        if self._ws_connection and not self._ws_connection.closed:
-            await self._ws_connection.close()
-            logger.info(f"[{self.exchange_name}] WebSocket connection closed")
-
-        # Close HTTP session
-        if self._session and not self._session.closed:
-            await self._session.close()
-            logger.info(f"[{self.exchange_name}] HTTP session closed")
-
-        self._is_connected = False
+        if self._ws_manager:
+            await self._ws_manager.close()
+            logger.info(f"[{self.exchange_name}] WebSocket manager closed.")
 
     # --- Abstract Methods for Exchange API Implementation --- #
 
@@ -694,13 +388,71 @@ class ExchangeAPI(ABC):
 
     @abstractmethod
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:  # Added return type
-        """Register a handler for a specific WebSocket topic/channel."""
+        """Register a handler for a specific WebSocket topic/channel and send subscription."""
+        self._ws_handlers[topic] = handler
+        if self._ws_manager and self.is_connected:
+            subscription_payload = self._construct_subscription_payload(topic)
+            if subscription_payload:
+                await self._ws_manager.send_json(subscription_payload)
+                logger.info(f"[{self.exchange_name}] Sent subscription request for topic: {topic}")
+            else:
+                logger.warning(
+                    f"[{self.exchange_name}] Could not construct subscription payload for {topic}. Not subscribing."
+                )
+        elif self._ws_manager:
+            logger.warning(
+                f"[{self.exchange_name}] WebSocket not connected. Subscription to {topic} will be attempted upon connection."
+            )
+        else:
+            logger.error(
+                f"[{self.exchange_name}] WebSocket manager not initialized. Cannot subscribe to {topic}."
+            )
+
+    @abstractmethod
+    def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
+        """Helper method to construct exchange-specific subscription payload."""
         raise NotImplementedError
 
     @abstractmethod
-    async def _resubscribe(self) -> None:  # Added return type
-        """Internal method to resubscribe to topics upon WebSocket reconnection."""
-        raise NotImplementedError
+    async def _on_ws_connected(self) -> None:
+        """Callback executed by WebSocketManager after a successful connection."""
+        logger.info(
+            f"[{self.exchange_name}] WebSocket connected, attempting to resubscribe to topics."
+        )
+        await self._resubscribe()
+
+    @abstractmethod
+    async def _resubscribe(self) -> None:
+        """Resubscribe to all registered topics after (re)connection."""
+        if not self._ws_handlers:
+            logger.info(f"[{self.exchange_name}] No topics to resubscribe to.")
+            return
+
+        logger.info(
+            f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_handlers.keys())}"
+        )
+        if self._ws_manager and self.is_connected:
+            for topic, _handler in self._ws_handlers.copy().items():
+                subscription_payload = self._construct_subscription_payload(topic)
+                if subscription_payload:
+                    success = await self._ws_manager.send_json(subscription_payload)
+                    if success:
+                        logger.info(
+                            f"[{self.exchange_name}] Successfully re-sent subscription for {topic}."
+                        )
+                    else:
+                        logger.warning(
+                            f"[{self.exchange_name}] Failed to re-send subscription for {topic}."
+                        )
+                else:
+                    logger.warning(
+                        f"[{self.exchange_name}] Could not construct resubscription payload for {topic}."
+                    )
+                await asyncio.sleep(0.1)
+        else:
+            logger.warning(
+                f"[{self.exchange_name}] Cannot resubscribe, WebSocket not connected or manager not available."
+            )
 
     @abstractmethod
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
@@ -830,24 +582,27 @@ class ExchangeAPI(ABC):
 
     # --- WebSocket Management & Subscriptions --- #
 
-    @abstractmethod
     async def connect_websocket(self) -> None:
-        """Establish the WebSocket connection."""
-        raise NotImplementedError
-
-    @abstractmethod
-    async def ping_websocket(self) -> None:
-        """Send a ping frame over the WebSocket connection."""
-        # Provide a default implementation, allow override if needed
-        if self._ws_connection and not self._ws_connection.closed:
-            try:
-                await self._ws_connection.ping()
-                logger.debug(f"[{self.exchange_name}] Sent WebSocket ping")
-            except Exception as e:
-                logger.warning(f"[{self.exchange_name}] Failed to send WebSocket ping: {e}")
+        """Establish the WebSocket connection via WebSocketManager."""
+        if self._ws_manager:
+            await self._ws_manager.connect()
         else:
             logger.warning(
-                f"[{self.exchange_name}] Cannot ping, WebSocket not connected or already closed."
+                f"[{self.exchange_name}] WebSocket endpoint not configured. Cannot connect WebSocket."
+            )
+
+    async def ping_websocket(self) -> None:
+        """Send a WebSocket ping.
+        Default WebSocketManager handles standard pings automatically if ping_interval > 0.
+        This method can be used for custom application-level pings if required by the exchange.
+        """
+        if self._ws_manager and self.is_connected:
+            logger.debug(
+                f"[{self.exchange_name}] Standard WebSocket ping is handled by WebSocketManager if configured. Call this for custom pings."
+            )
+        else:
+            logger.warning(
+                f"[{self.exchange_name}] Cannot send custom ping, WebSocket not connected or manager not available."
             )
 
     # --- Helper Methods --- #

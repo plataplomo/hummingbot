@@ -16,7 +16,7 @@ Core Responsibilities:
 - Logging unmapped or ambiguous Backpack error codes to aid in diagnostics and future
   enhancements to the error mapping logic.
 
-The `map_error_response` static method is the primary entry point, designed to be used
+The `map_exchange_error` method is the primary entry point, designed to be used
 by the `BackpackAPI` client when handling non-2xx HTTP responses or other error conditions.
 """
 
@@ -24,6 +24,7 @@ import logging
 from typing import Any
 
 from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
+from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.api_error_response import APIErrorResponse
@@ -31,22 +32,15 @@ from cyberdelta.apis.models.api_error_response import APIErrorResponse
 logger = logging.getLogger(__name__)
 
 
-class BackpackErrorMapper:
+class BackpackErrorMapper(IErrorMapper):
     """
     Maps and normalizes Backpack API errors to CyberDeltaEngine's canonical error model.
 
-    Responsibilities:
-    - Map Backpack error codes (from BackpackRawApiError) to APIErrorCode.
-    - Validate and normalize all error data using APIErrorResponse.
-    - Raise APIError with all validated fields for unified error propagation.
-    - Log ambiguous/unmapped codes for diagnostics and future mapping improvements.
-
-    Usage:
-        raise BackpackErrorMapper.map_error_response(...)
+    Implements the IErrorMapper interface for Backpack-specific error handling.
     """
 
     @staticmethod
-    def map_error_code(
+    def _map_backpack_error_code_to_api_error_code(
         error_body: str, error_data: dict[str, Any] | None = None, status_code: int | None = None
     ) -> APIErrorCode:
         """
@@ -107,7 +101,7 @@ class BackpackErrorMapper:
                     "NOT_IMPLEMENTED": APIErrorCode.EXCHANGE_SPECIFIC,
                 }
                 mapped_code = code_map.get(code, APIErrorCode.EXCHANGE_SPECIFIC)
-                if mapped_code == APIErrorCode.EXCHANGE_SPECIFIC:
+                if mapped_code == APIErrorCode.EXCHANGE_SPECIFIC and code not in code_map:
                     logger.warning(
                         f"[BackpackErrorMapper] Unmapped or ambiguous Backpack error code: {code}"
                     )
@@ -119,20 +113,18 @@ class BackpackErrorMapper:
                 )
         return mapped_code
 
-    @staticmethod
-    def map_error_response(
-        status_code: int | None,
+    def map_exchange_error(
+        self,
+        status_code: int,
         error_body: str,
         error_data: dict[str, Any] | None = None,
         request_path: str | None = None,
-        exchange_message: str | None = None,
-        original_exception: Exception | None = None,
     ) -> APIError:
         """
         Map Backpack error responses to a standardized `APIError` exception object.
 
         This method orchestrates the error mapping process:
-        1. Determines the internal `APIErrorCode` using `map_error_code`.
+        1. Determines the internal `APIErrorCode` using `_map_backpack_error_code_to_api_error_code`.
         2. Extracts or defaults the primary error message.
         3. Constructs an `APIErrorResponse` object to normalize error details.
         4. Converts the `APIErrorResponse` into an `APIError` exception, ready to be raised.
@@ -141,25 +133,23 @@ class BackpackErrorMapper:
         carrying consistent information like HTTP status, exchange codes, and messages.
 
         Args:
-            status_code: HTTP status code from the response, if available.
+            status_code: HTTP status code from the response.
             error_body: Raw error response body string.
             error_data: Parsed error data dictionary from the response, if available.
             request_path: The API endpoint path that was called (for diagnostic metadata).
-            exchange_message: Overrides message extracted from `error_body` or `error_data` if provided.
-            original_exception: The original exception if this mapping is due to a caught error.
 
         Returns:
             APIError: A fully populated `APIError` exception object.
         """
-        mapped_code = BackpackErrorMapper.map_error_code(
+        mapped_code = BackpackErrorMapper._map_backpack_error_code_to_api_error_code(
             error_body=error_body, error_data=error_data, status_code=status_code
         )
-        # Guarantee message is always a str
         msg: str = error_body
-        if exchange_message is not None:
-            msg = exchange_message
-        elif error_data and isinstance(error_data.get("msg"), str):
+        if error_data and isinstance(error_data.get("msg"), str):
             msg = error_data["msg"]
+        elif error_data and isinstance(error_data.get("message"), str):
+            msg = error_data["message"]
+
         api_error_response = APIErrorResponse.from_exchange_error(
             message=msg,
             code=mapped_code.value,
@@ -167,26 +157,30 @@ class BackpackErrorMapper:
             exchange_code=(
                 str(error_data.get("code")) if error_data and "code" in error_data else None
             ),
-            exchange_message=(error_data.get("msg") if error_data else None),
+            exchange_message=(
+                error_data.get("msg")
+                if error_data and "msg" in error_data
+                else (error_data.get("message") if error_data and "message" in error_data else None)
+            ),
             metadata={"request_path": request_path} if request_path else None,
         )
-        # Convert APIErrorResponse to APIErrorModel-compatible fields
-        # APIErrorModel expects code: APIErrorCode, exchange_code: str|None
-        # Defensive: ensure code is valid APIErrorCode, else EXCHANGE_SPECIFIC
         try:
             code_enum = (
                 APIErrorCode(api_error_response.code)
                 if isinstance(api_error_response.code, int)
                 else APIErrorCode.EXCHANGE_SPECIFIC
             )
-        except Exception:
+        except ValueError:
+            logger.warning(
+                f"Value '{api_error_response.code}' not a valid APIErrorCode member. Defaulting."
+            )
             code_enum = APIErrorCode.EXCHANGE_SPECIFIC
+
         exchange_code_str = (
             str(api_error_response.exchange_code)
             if api_error_response.exchange_code is not None
             else None
         )
-        # code_enum is always an APIErrorCode, so use .value directly
         return APIError(
             message=api_error_response.message,
             code=code_enum.value,
@@ -194,5 +188,5 @@ class BackpackErrorMapper:
             exchange_code=exchange_code_str,
             exchange_message=api_error_response.exchange_message,
             retry_after=api_error_response.retry_after,
-            original_exception=original_exception,
+            original_exception=None,
         )

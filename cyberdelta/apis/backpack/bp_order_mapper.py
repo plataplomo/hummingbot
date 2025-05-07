@@ -39,6 +39,7 @@ from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
     BackpackRawOrderBook,
+    BackpackRawTicker,
     BackpackRawTickerEvent,
 )
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
@@ -900,21 +901,87 @@ class BackpackOrderMapper:
         raw: BackpackRawWithdrawalResponse,
     ) -> dict[str, Any]:
         """
-        Transforms a validated `BackpackRawWithdrawalResponse` object into a dictionary
-        representing an internal withdrawal confirmation.
-
-        TODO: Define a specific internal Pydantic model for WithdrawalConfirmation and map to it.
-              For now, returns raw.model_dump().
+        Transforms a validated raw Backpack withdrawal response (`BackpackRawWithdrawalResponse`)
+        into a dictionary. Currently, this is a passthrough as no specific internal model
+        for withdrawal confirmation exists beyond the raw structure.
 
         Args:
-            raw (BackpackRawWithdrawalResponse): The validated raw withdrawal response data.
+            raw (BackpackRawWithdrawalResponse): Validated raw withdrawal response data.
 
         Returns:
-            dict[str, Any]: A dictionary representation of the withdrawal confirmation.
+            dict[str, Any]: The withdrawal response data as a dictionary.
         """
-        # Placeholder: Implement detailed mapping to a future internal WithdrawalConfirmation model
-        # For now, just dump the raw model.
-        logger.debug(
-            f"[BackpackOrderMapper] Transforming BackpackRawWithdrawalResponse. Raw data: {raw.model_dump(exclude_none=True)}"
+        # TODO: Define a proper internal WithdrawalConfirmation model and map fully.
+        # For now, return the raw model's dict representation (excluding unset fields).
+        return raw.model_dump(exclude_unset=True)
+
+    @staticmethod
+    def transform_raw_ticker_to_internal(
+        raw: BackpackRawTicker, symbol_override: str | None = None
+    ) -> Ticker:
+        """
+        Transforms a validated raw Backpack REST API ticker (`BackpackRawTicker`)
+        into an internal `Ticker` domain model.
+
+        Args:
+            raw (BackpackRawTicker): The validated raw REST API ticker data.
+            symbol_override (str | None): Optional symbol to use if raw.symbol is not definitive.
+
+        Returns:
+            Ticker: The corresponding internal `Ticker` object.
+
+        Raises:
+            ValueError: If essential numeric fields cannot be parsed correctly or timestamp is invalid.
+        """
+        # Defensive parsing for safety
+        parsed_price = parse_decimal_value(raw.price, allow_none=True, field_name="price")
+        parsed_bid = parse_decimal_value(raw.bid, allow_none=True, field_name="bid")
+        parsed_ask = parse_decimal_value(raw.ask, allow_none=True, field_name="ask")
+        parsed_volume = parse_decimal_value(raw.volume, allow_none=True, field_name="volume")
+
+        timestamp_dt: datetime
+        if raw.time is not None:
+            try:
+                parsed_ts: datetime | None
+                if isinstance(raw.time, int | float):
+                    if raw.time > 1e11:  # Likely milliseconds
+                        parsed_ts = parse_datetime_utc(raw.time / 1000, field_name="time")
+                    else:  # Likely seconds
+                        parsed_ts = parse_datetime_utc(raw.time, field_name="time")
+                else:  # Must be str if not None and not int/float, due to BackpackRawTicker.time type hint
+                    parsed_ts = parse_datetime_utc(raw.time, field_name="time")
+
+                if parsed_ts is None:
+                    raise ValueError(
+                        f"Failed to parse ticker time '{raw.time}' to a valid datetime object."
+                    )
+                timestamp_dt = parsed_ts
+
+            except ValueError as e_ts:
+                logger.warning(
+                    f"[BackpackOrderMapper] Could not parse ticker time '{raw.time}': {e_ts}, raising."
+                )
+                raise ValueError(f"Invalid ticker time '{raw.time}': {e_ts}") from e_ts
+        else:
+            logger.warning(
+                "[BackpackOrderMapper] Ticker time is None, using current time as fallback."
+            )
+            # According to Ticker model, timestamp is required. Raising error if None.
+            # However, BackpackRawTicker defines time as optional. If it's truly optional and
+            # a Ticker *can* be created without a server-provided timestamp (e.g. by using current time),
+            # this logic would change. For now, assuming Ticker *requires* a valid parsed timestamp.
+            # The Ticker model's @field_validator for timestamp will raise if parse_datetime_utc returns None.
+            # So, if raw.time is None, this will lead to an error at Ticker instantiation.
+            # Let's make it explicit: Ticker requires a timestamp.
+            raise ValueError(
+                "Ticker time (raw.time) cannot be None for Backpack ticker transformation."
+            )
+
+        return Ticker(
+            symbol=symbol_override or raw.symbol,
+            timestamp=timestamp_dt,
+            price=parsed_price,
+            bid=parsed_bid,
+            ask=parsed_ask,
+            volume=parsed_volume,
         )
-        return raw.model_dump(by_alias=True, exclude_none=True)

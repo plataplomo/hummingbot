@@ -9,6 +9,7 @@ from pytest import LogCaptureFixture
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
+from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
@@ -199,3 +200,192 @@ class TestBackpackAPI_Authentication:
         assert kwargs["data"] == mocked_auth_data
         assert kwargs["headers"] == mocked_auth_headers
         assert kwargs["is_signed"] is True
+
+
+class TestBackpackAPIMethodErrors:
+    @pytest.mark.asyncio
+    @patch(
+        "cyberdelta.apis.base_api.ExchangeAPI._request"
+    )  # Patch the base _request used by BackpackAPI
+    async def test_get_ticker_handles_mapped_invalid_symbol_error(
+        self,
+        mock_base_request: AsyncMock,
+        default_bp_config: dict[str, Any],
+        bp_secrets_valid: dict[str, str | None],
+        # mock_loop: MagicMock, # Not strictly needed here unless something uses it
+    ) -> None:
+        api = BackpackAPI(default_bp_config, bp_secrets_valid)
+        # The api instance will have BackpackErrorMapper as its self.error_mapper
+
+        # Simulate that HttpClient.request (called by ExchangeAPI._request) raises HttpRequestFailedError
+        # This error will then be processed by ExchangeAPI._request, which calls self.error_mapper.map_exchange_error
+        http_status_from_exchange = 400
+        error_body_from_exchange = '{"error":"Invalid symbol: XYZ_USDC","code":10001}'
+        # parsed_error_data_from_exchange = {"error":"Invalid symbol: XYZ_USDC","code":10001}
+        request_path_sent = "/api/v1/ticker/XYZ_USDC"
+
+        # This is the error that ExchangeAPI._request would receive from HttpClient
+        http_failure = HttpRequestFailedError(
+            message=f"HTTP {http_status_from_exchange} Error",
+            http_status_code=http_status_from_exchange,
+            response_body=error_body_from_exchange,
+        )
+        mock_base_request.side_effect = http_failure
+
+        with pytest.raises(APIError) as exc_info:
+            await api.get_ticker(symbol="XYZ_USDC")
+
+        # Now we assert on the error that BackpackErrorMapper would produce for this scenario
+        assert exc_info.value.code == APIErrorCode.INVALID_SYMBOL.value
+        assert exc_info.value.http_status == http_status_from_exchange
+        assert "Invalid symbol" in exc_info.value.message
+        assert exc_info.value.exchange_message == error_body_from_exchange
+
+    @pytest.mark.asyncio
+    @patch("cyberdelta.apis.base_api.ExchangeAPI._request")
+    async def test_place_order_handles_mapped_insufficient_funds_error(
+        self,
+        mock_base_request: AsyncMock,
+        default_bp_config: dict[str, Any],
+        bp_secrets_valid: dict[str, str | None],
+    ) -> None:
+        api = BackpackAPI(default_bp_config, bp_secrets_valid)
+
+        http_status_from_exchange = 400
+        error_body_from_exchange = (
+            '{"error":"Account has insufficient balance for requested action.","code":10004}'
+        )
+
+        http_failure = HttpRequestFailedError(
+            message=f"HTTP {http_status_from_exchange} Error for order placement",
+            http_status_code=http_status_from_exchange,
+            response_body=error_body_from_exchange,
+        )
+        mock_base_request.side_effect = http_failure
+
+        with pytest.raises(APIError) as exc_info:
+            await api.place_order(
+                symbol="SOL_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("100000"),  # Large quantity likely to fail
+                price=Decimal("1"),
+                time_in_force=TimeInForce.GTC,
+            )
+
+        assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
+        assert exc_info.value.http_status == http_status_from_exchange
+        assert "Account has insufficient balance" in exc_info.value.message
+        assert exc_info.value.exchange_message == error_body_from_exchange
+
+    # TODO: Add more error tests for other methods and error types
+
+
+class TestBackpackAPIWebSocketRouting:
+    @pytest.fixture
+    def api_for_ws_tests(
+        self, default_bp_config: dict[str, Any], bp_secrets_valid: dict[str, str | None]
+    ) -> BackpackAPI:
+        # We won't actually connect, so ws_manager interaction is minimal here, focus on routing logic
+        # Ensure it has a ws_manager instance for subscribe to try to use though.
+        with patch("cyberdelta.apis.base.exchange_api.WebSocketManager") as mock_ws_mgr_class:
+            mock_ws_mgr_instance = MagicMock()
+            mock_ws_mgr_class.return_value = mock_ws_mgr_instance
+            api = BackpackAPI(default_bp_config, bp_secrets_valid)
+            api._ws_manager = mock_ws_mgr_instance  # noqa: SLF001 - for testing
+            return api
+
+    def test_construct_subscription_payload(self, api_for_ws_tests: BackpackAPI):
+        topic = "depth.SOL_USDC"
+        payload = api_for_ws_tests._construct_subscription_payload(topic)  # noqa: SLF001
+        assert payload == {
+            "op": "subscribe",
+            "channel": topic,
+            "args": {},
+        }
+
+    @pytest.mark.asyncio
+    async def test_route_ws_message_public_topic(self, api_for_ws_tests: BackpackAPI):
+        mock_depth_handler = AsyncMock()
+        topic = "depth.SOL_USDC"
+        # Register handler using the actual subscribe method (which populates _ws_handlers)
+        # We mock out ws_manager.send_json to prevent actual sending during this registration.
+        if api_for_ws_tests._ws_manager:  # noqa: SLF001
+            api_for_ws_tests._ws_manager.send_json = AsyncMock(return_value=True)  # noqa: SLF001
+            api_for_ws_tests._ws_manager.is_connected = True  # noqa: SLF001
+
+        await api_for_ws_tests.subscribe(topic, mock_depth_handler)
+
+        test_message_data = {"bids": [["100", "1"]], "asks": [["101", "2"]]}
+        test_message = {"topic": topic, "data": test_message_data}
+
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+
+        mock_depth_handler.assert_called_once_with(test_message_data)
+
+    @pytest.mark.asyncio
+    async def test_route_ws_message_private_topic_fills(self, api_for_ws_tests: BackpackAPI):
+        mock_fills_handler = AsyncMock()
+        # Backpack private streams might use a different topic structure, e.g., based on message type
+        # As per bp_api.py _route_ws_message, it uses "fills" as topic from "type":"fills"
+        topic_internal = "fills"
+
+        if api_for_ws_tests._ws_manager:  # noqa: SLF001
+            api_for_ws_tests._ws_manager.send_json = AsyncMock(return_value=True)  # noqa: SLF001
+            api_for_ws_tests._ws_manager.is_connected = True  # noqa: SLF001
+
+        await api_for_ws_tests.subscribe(topic_internal, mock_fills_handler)
+
+        # Example fill message structure (adapt if known structure is different)
+        test_fill_data = {"id": "fill123", "price": "150", "qty": "0.5"}
+        test_message = {"type": "fills", "data": test_fill_data}
+
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+
+        # _route_ws_message in BackpackAPI passes message["data"] to handler for topic like "depth.SOL_USDC"
+        # but for type "fills", it passes the *entire message* if type is used as topic
+        # Let's check bp_api.py _route_ws_message: for type "fills", topic becomes "fills", data_payload = message
+        mock_fills_handler.assert_called_once_with(
+            test_message
+        )  # Passes the whole message based on current bp_api logic
+
+    @pytest.mark.asyncio
+    async def test_route_ws_message_no_handler(
+        self, api_for_ws_tests: BackpackAPI, caplog: LogCaptureFixture
+    ):
+        test_message = {"topic": "unhandled.topic", "data": {"key": "value"}}
+
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+
+        assert "No handler registered for topic: unhandled.topic" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_route_ws_message_no_topic_or_type(
+        self, api_for_ws_tests: BackpackAPI, caplog: LogCaptureFixture
+    ):
+        test_message = {
+            "event": "random_event",
+            "data": {"key": "value"},
+        }  # No 'topic' or known 'type'
+
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+
+        assert "Received unroutable message (no clear string topic/type)" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_route_ws_message_topic_no_data(
+        self, api_for_ws_tests: BackpackAPI, caplog: LogCaptureFixture
+    ):
+        mock_handler = AsyncMock()
+        topic = "data_missing.topic"
+        if api_for_ws_tests._ws_manager:  # noqa: SLF001
+            api_for_ws_tests._ws_manager.send_json = AsyncMock(return_value=True)  # noqa: SLF001
+            api_for_ws_tests._ws_manager.is_connected = True  # noqa: SLF001
+        await api_for_ws_tests.subscribe(topic, mock_handler)
+
+        test_message = {"topic": topic, "action": "update"}  # Missing "data" field
+
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+
+        mock_handler.assert_not_called()
+        assert f"Received message with topic '{topic}' but no data" in caplog.text
