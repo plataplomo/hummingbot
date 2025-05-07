@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from typing import Any
 
 from eth_account import Account
 from eth_account.messages import encode_typed_data
+from eth_account.signers.local import LocalAccount
 from web3 import Web3
 
 from cyberdelta.apis.base.authenticator_interface import (
@@ -47,53 +49,54 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         ],
     }
 
-    def __init__(self, private_key_hex: str, wallet_address: str, chain_id: int) -> None:
-        """
-        Initializes the HyperliquidEip712Authenticator.
-
-        Args:
-            private_key_hex: The private key as a hexadecimal string (with or without '0x').
-            wallet_address: The wallet address associated with the private key.
-            chain_id: The chain ID for the EIP-712 signature.
-
-        Raises:
-            ValueError: If the private key is invalid or wallet address is empty.
-        """
-        if not private_key_hex:
-            logger.error("HyperliquidEip712Authenticator: Private key cannot be empty.")
-            raise ValueError("Private key cannot be empty.")
-        if not wallet_address:
-            logger.error("HyperliquidEip712Authenticator: Wallet address cannot be empty.")
-            raise ValueError("Wallet address cannot be empty.")
-
-        self._wallet_address = Web3.to_checksum_address(wallet_address)
-        self._private_key_hex = (
-            private_key_hex if private_key_hex.startswith("0x") else f"0x{private_key_hex}"
-        )
+    def __init__(
+        self,
+        private_key_hex: str,
+        wallet_address: str,
+        chain_id: int,
+        logger_override: logging.Logger | None = None,  # Added for testing/flexibility
+    ) -> None:
+        self.logger = logger_override or logger
+        self._wallet_address = wallet_address
+        self._chain_id = chain_id
+        self._account: LocalAccount | None = None  # Store the account object
         try:
-            self._account = Account.from_key(self._private_key_hex)
-            if self._account.address != self._wallet_address:
-                err_msg = (
-                    f"Provided private key does not match wallet address. "
-                    f"Expected: {self._wallet_address}, Got: {self._account.address}"
-                )
-                logger.error(f"HyperliquidEip712Authenticator: {err_msg}")
-                raise ValueError(err_msg)
-        except (ValueError, TypeError) as e:
-            logger.error(f"HyperliquidEip712Authenticator: Invalid private key provided: {e}")
+            self._account = Account.from_key(private_key_hex)
+        except ValueError as e:
+            self.logger.error(
+                f"HyperliquidEip712Authenticator: Invalid private key: {e}", exc_info=True
+            )
             raise ValueError(f"Invalid private key: {e}") from e
+
+        if (
+            self._account is None
+        ):  # DEFENSIVE CHECK: Ensure _account is not None before access. Mypy=[None] Ruff=[None]
+            # This case should ideally be prevented by the previous error handling,
+            # but as a safeguard:
+            self.logger.error(
+                "HyperliquidEip712Authenticator: Account object not created due to earlier error."
+            )
+            raise ValueError("Account object not created, cannot proceed.")
+
+        if self._account.address.lower() != self._wallet_address.lower():
+            self.logger.error(
+                f"HyperliquidEip712Authenticator: Wallet address mismatch. "
+                f"Provided: {self._wallet_address}, Derived: {self._account.address}"
+            )
+            raise ValueError(
+                "Provided wallet address does not match the one derived from the private key."
+            )
+        self.logger.info(
+            f"HyperliquidEip712Authenticator initialized for address: {self._wallet_address} "
+            f"on chain_id: {self._chain_id}"
+        )
 
         # Nonce strategy: use millisecond timestamp, ensuring strict increment if called rapidly.
         self._last_nonce_ms: int = 0
         self._nonce_lock = asyncio.Lock()
 
-        self._chain_id = chain_id
         self._domain_data = self._domain_template.copy()
         self._domain_data["chainId"] = chain_id
-
-        logger.info(
-            f"HyperliquidEip712Authenticator initialized for address: {self._wallet_address} on chain_id: {self._chain_id}"
-        )
 
     async def _get_next_nonce_ms(self) -> int:
         """
@@ -144,11 +147,12 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             APIError: If data payload is missing for signing or if signing fails.
         """
         if data is None:  # The /exchange endpoint actions always require a data payload
-            logger.error(
-                "HyperliquidEip712Authenticator: Data payload (action) is required for signing Hyperliquid /exchange requests."
+            self.logger.error(
+                "HyperliquidEip712Authenticator: Data payload (action) is required "
+                "for signing Hyperliquid /exchange requests."
             )
             raise APIError(
-                "Data payload (action) is required for Hyperliquid /exchange signed requests.",
+                "Data payload (action) required for Hyperliquid signed request.",
                 code=APIErrorCode.INVALID_PARAMS.value,
             )
 
@@ -167,13 +171,33 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             "types": self._agent_typed_data_message_types,
         }
 
+        if (
+            self._account is None
+        ):  # DEFENSIVE CHECK: Ensure _account is not None before signing. Mypy=[None] Ruff=[None]
+            # This should not be reached if __init__ succeeded
+            logger.error(
+                "HyperliquidEip712Authenticator: Account not initialized, cannot sign message."
+            )
+            raise APIError(
+                "Authenticator account not initialized.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
         try:
             signable_message = encode_typed_data(full_message=structured_data_to_sign)
             signed_message = self._account.sign_message(signable_message)
+            # Mypy might complain here if it can't infer _account is definitely not None
+            # despite the check. The type: ignore might be needed if a simple check isn't enough.
+            # However, the explicit `if self._account is None:` check above should satisfy mypy.
+            # If not, and mypy still flags attr-defined on a checked Optional, this is a Mypy limitation.
+            # Per RULE-RUNTIME-SAFETY-V4, the runtime check is paramount.
+            # We will not use cast or ignore if the explicit check is present.
+
             signature_hex = signed_message.signature.hex()
         except Exception as e:
-            logger.error(
-                f"HyperliquidEip712Authenticator: Failed to sign Hyperliquid EIP-712 Agent message: {e}",
+            self.logger.error(
+                f"HyperliquidEip712Authenticator: Failed to sign Hyperliquid EIP-712 "
+                f"Agent message: {e}",
                 exc_info=True,
             )
             raise APIError(

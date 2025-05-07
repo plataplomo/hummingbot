@@ -73,7 +73,8 @@ class HyperliquidWebsocketMapper:
             )
         except (ValueError, TypeError, Exception) as e:
             logger.warning(
-                f"[HyperliquidWsMapper] Error parsing validated fill data: {e}. Data: {validated_fill.model_dump()!r}"
+                f"[HyperliquidWsMapper] Error parsing validated fill data: {e}. "
+                f"Data: {validated_fill.model_dump()!r}"
             )
             return None
 
@@ -86,14 +87,16 @@ class HyperliquidWebsocketMapper:
             for trade_dict_item in data_raw_list:
                 if not isinstance(trade_dict_item, dict):
                     logger.warning(
-                        f"[HyperliquidWsMapper] Skipping non-dict item in public trades list: {trade_dict_item!r}"
+                        f"[HyperliquidWsMapper] Skipping non-dict item in public trades list: "
+                        f"{trade_dict_item!r}"
                     )
                     continue
                 try:
                     validated_trade = HyperliquidRawWsTradeEvent.model_validate(trade_dict_item)
                 except Exception as e:
                     logger.warning(
-                        f"[HyperliquidWsMapper] Invalid raw public trade event (dropped): {e} | Data: {trade_dict_item!r}"
+                        f"[HyperliquidWsMapper] Invalid raw public trade event (dropped): {e} | "
+                        f"Data: {trade_dict_item!r}"
                     )
                     continue  # Skip this trade, process others
 
@@ -128,7 +131,8 @@ class HyperliquidWebsocketMapper:
                     trades.append(trade_obj)
                 except (ValueError, TypeError, Exception) as e:
                     logger.warning(
-                        f"[HyperliquidWsMapper] Error parsing validated public trade event: {e}. Data: {validated_trade.model_dump()!r}"
+                        f"[HyperliquidWsMapper] Error parsing validated public trade event: {e}. "
+                        f"Data: {validated_trade.model_dump()!r}"
                     )
                     # Continue to process other trades in the list
         return trades
@@ -188,7 +192,8 @@ class HyperliquidWebsocketMapper:
             raw_order_obj = HyperliquidRawOrder.model_validate(event_order_payload)
         except Exception as e:
             logger.warning(
-                f"[HyperliquidWsMapper] Invalid order data in WS order update (dropped): {e} | Data: {event_order_payload!r}"
+                f"[HyperliquidWsMapper] Invalid order data in WS order update (dropped): {e} | "
+                f"Data: {event_order_payload!r}"
             )
             return None
 
@@ -201,7 +206,8 @@ class HyperliquidWebsocketMapper:
             return internal_order
         except Exception as e:
             logger.error(
-                f"[HyperliquidWsMapper] Error transforming raw order object from WS event: {e}. Raw: {raw_order_obj.model_dump()!r}",
+                f"[HyperliquidWsMapper] Error transforming raw order object from WS event: {e}. "
+                f"Raw: {raw_order_obj.model_dump()!r}",
                 exc_info=True,
             )
             return None

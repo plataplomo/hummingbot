@@ -35,13 +35,14 @@ class HyperliquidRawMarketOrderTypeDetails(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class HyperliquidRawOrderTypeUnion(BaseModel):
+class HyperliquidRawOrderType(BaseModel):
     """
     Represents the 'orderType' field which can be a limit or market type.
-    Uses a dictionary structure as per Hyperliquid's format, e.g., {"limit": {...}} or {"market": {}}.
+    Uses a dictionary structure as per Hyperliquid's format, e.g., {"limit": {...}}
+    or {"market": {}}.
     """
 
-    limit: HyperliquidRawLimitOrderTypeDetails | None = None
+    limit: HyperliquidRawLimitOrderTypeDetails | None = Field(default=None)
     market: HyperliquidRawMarketOrderTypeDetails | None = None
 
     # Validate that exactly one of limit or market is set.

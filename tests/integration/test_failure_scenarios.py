@@ -352,7 +352,9 @@ class TestFailureScenarios:
         """Tests manual tripping and resetting of breakers."""
         breaker_name = "exchange:mock_hl:api_errors"
         # Ensure breaker exists (might need adjustment based on CBSystem init)
-        # circuit_breaker_system.get_or_create_breaker(breaker_name, APIErrorBreaker, threshold=3, recovery_timeout=60)
+        # circuit_breaker_system.get_or_create_breaker(
+        #     breaker_name, APIErrorBreaker, threshold=3, recovery_timeout=60
+        # )
 
         breaker = circuit_breaker_system.get_breaker(breaker_name)
         # Handle case where breaker might not exist if loading logic changes

@@ -11,7 +11,13 @@ def hyperliquid_error_mapper() -> HyperliquidErrorMapper:
     return HyperliquidErrorMapper()
 
 
-def test_map_hl_string_error_order_not_found(hyperliquid_error_mapper: HyperliquidErrorMapper):
+@pytest.mark.parametrize(
+    "error_body_str, expected_code, expected_message_contains",
+    [("Order not found", APIErrorCode.ORDER_NOT_FOUND, "Order not found")],
+)
+def test_map_hl_string_error_order_not_found(
+    hyperliquid_error_mapper: HyperliquidErrorMapper,
+) -> None:
     """Test mapping Hyperliquid's string error for 'Order not found'."""
     error_body_str = "Order not found"
     error = hyperliquid_error_mapper.map_exchange_error(
@@ -27,7 +33,9 @@ def test_map_hl_string_error_order_not_found(hyperliquid_error_mapper: Hyperliqu
     assert error.exchange_message == error_body_str
 
 
-def test_map_hl_string_error_insufficient_margin(hyperliquid_error_mapper: HyperliquidErrorMapper):
+def test_map_hl_string_error_insufficient_margin(
+    hyperliquid_error_mapper: HyperliquidErrorMapper,
+) -> None:
     """Test mapping Hyperliquid's string error for insufficient margin."""
     error_body_str = "exchange: Insufficient margin"
     error = hyperliquid_error_mapper.map_exchange_error(
@@ -40,7 +48,9 @@ def test_map_hl_string_error_insufficient_margin(hyperliquid_error_mapper: Hyper
     assert error.exchange_message == error_body_str
 
 
-def test_map_hl_string_error_invalid_order_size(hyperliquid_error_mapper: HyperliquidErrorMapper):
+def test_map_hl_string_error_invalid_order_size(
+    hyperliquid_error_mapper: HyperliquidErrorMapper,
+) -> None:
     """Test mapping Hyperliquid's string error for invalid order size."""
     error_body_str = "Invalid order size"
     error = hyperliquid_error_mapper.map_exchange_error(
@@ -53,7 +63,7 @@ def test_map_hl_string_error_invalid_order_size(hyperliquid_error_mapper: Hyperl
     assert error.exchange_message == error_body_str
 
 
-def test_map_hl_string_error_rate_limit(hyperliquid_error_mapper: HyperliquidErrorMapper):
+def test_map_hl_string_error_rate_limit(hyperliquid_error_mapper: HyperliquidErrorMapper) -> None:
     """Test mapping Hyperliquid's string error for rate limiting."""
     # Hyperliquid might also use 429, but sometimes string errors too
     error_body_str = "Ratelimit exceeded"
@@ -70,7 +80,9 @@ def test_map_hl_string_error_rate_limit(hyperliquid_error_mapper: HyperliquidErr
     assert error.exchange_message == error_body_str
 
 
-def test_map_hl_string_error_user_not_found(hyperliquid_error_mapper: HyperliquidErrorMapper):
+def test_map_hl_string_error_user_not_found(
+    hyperliquid_error_mapper: HyperliquidErrorMapper,
+) -> None:
     """Test mapping Hyperliquid's string error for user not found."""
     error_body_str = "User not found"
     error = hyperliquid_error_mapper.map_exchange_error(
@@ -84,7 +96,7 @@ def test_map_hl_string_error_user_not_found(hyperliquid_error_mapper: Hyperliqui
     assert error.exchange_message == error_body_str
 
 
-def test_map_hl_unknown_string_error(hyperliquid_error_mapper: HyperliquidErrorMapper):
+def test_map_hl_unknown_string_error(hyperliquid_error_mapper: HyperliquidErrorMapper) -> None:
     """Test mapping an unknown Hyperliquid string error."""
     error_body_str = "An unexpected problem occurred on Hyperliquid."
     error = hyperliquid_error_mapper.map_exchange_error(
@@ -97,7 +109,9 @@ def test_map_hl_unknown_string_error(hyperliquid_error_mapper: HyperliquidErrorM
     assert error.exchange_message == error_body_str
 
 
-def test_map_hl_error_with_http_error_status(hyperliquid_error_mapper: HyperliquidErrorMapper):
+def test_map_hl_error_with_http_error_status(
+    hyperliquid_error_mapper: HyperliquidErrorMapper,
+) -> None:
     """Test mapping when Hyperliquid returns a non-200 status with an error string."""
     error_body_str = "Request failed due to reasons."
     error = hyperliquid_error_mapper.map_exchange_error(
@@ -112,7 +126,7 @@ def test_map_hl_error_with_http_error_status(hyperliquid_error_mapper: Hyperliqu
     assert error.exchange_message == error_body_str
 
 
-def test_map_hl_empty_error_body(hyperliquid_error_mapper: HyperliquidErrorMapper):
+def test_map_hl_empty_error_body(hyperliquid_error_mapper: HyperliquidErrorMapper) -> None:
     """Test mapping when error body is empty but status code indicates error."""
     error = hyperliquid_error_mapper.map_exchange_error(
         status_code=401, error_body="", error_data=None, request_path="/exchange"

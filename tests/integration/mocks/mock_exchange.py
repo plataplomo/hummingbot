@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from cyberdelta.apis.base.error_mapper import ErrorMapper
+
 # Added import for ValidationError
 # Import Fill type
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
@@ -39,6 +41,18 @@ class MockAPIError(Exception):
     pass
 
 
+# Minimal placeholder ErrorMapper to resolve import issues for this mock file
+class ErrorMapper:
+    def map_exchange_error(
+        self,
+        status_code: int,
+        error_body: str | bytes | dict[str, Any] | None,
+        error_data: Any = None,
+        request_path: str | None = None,
+    ) -> APIError:
+        return APIError(str(error_body), "UNKNOWN")
+
+
 class MockExchangeAPI(ExchangeAPI):
     """
     Mock implementation of the ExchangeAPI for integration testing.
@@ -53,7 +67,8 @@ class MockExchangeAPI(ExchangeAPI):
         secrets: dict[str, str | None],
         config_obj: Config | None = None,
     ) -> None:
-        super().__init__(exchange_name, config, secrets)
+        mock_error_mapper = ErrorMapper()  # Use the placeholder ErrorMapper
+        super().__init__(exchange_name, config, secrets, error_mapper=mock_error_mapper)
         self.full_config = config_obj  # Store the full config object if provided
         self._order_id_counter = 1
         self._orders: dict[str, Order] = {}  # Store orders by ID
@@ -137,9 +152,9 @@ class MockExchangeAPI(ExchangeAPI):
         signal: str | None = "mock_signal",
     ) -> Order:
         # Helper to create Order instances with all required fields
-        # Use model_validate to handle potential extra fields gracefully if needed
-        order_data = {
+        order_data: dict[str, Any] = {
             "client_order_id": client_order_id,
+            "exchange_order_id": str(uuid.uuid4()),
             "exchange": self.exchange_name,
             "symbol": symbol,
             "side": side,
@@ -151,16 +166,16 @@ class MockExchangeAPI(ExchangeAPI):
             "average_fill_price": avg_price,
             "time_in_force": time_in_force,
             "created_at": ts,
-            "updated_at": ts,  # Sensible default
-            "triggered_at": None,  # Sensible default
+            "updated_at": ts,
+            "triggered_at": None,
             "strategy_name": strategy,
             "signal_id": signal,
-            # Add defaults for other optional base fields if needed
-            "exchange_order_id": str(uuid.uuid4()),  # Mock exchange ID, ensure str
-            "trades": [],  # Initialize trades as an empty list of Trade
+            "reduce_only": False,
+            "post_only": False,
+            "trades": [],
         }
-        # Refine type hint if specific structure is known, otherwise Any is acceptable for internal helper
-        # order_data: dict[str, Any] = { ... } # Example if refining
+        # Refine type hint if specific structure is known, otherwise Any
+        # is acceptable for internal helper
         return Order.model_validate(order_data)
 
     async def _simulate_latency(self) -> None:
@@ -579,6 +594,8 @@ class MockExchangeAPI(ExchangeAPI):
             # Consistent with ExchangeAPI, should return False if order not found or already terminal.
             # Raising APIError for not found might be too strict for a simple cancel call unless specified.
             return False  # Order not found
+
+        order_to_cancel = self.open_orders[order_key_to_find]
 
         # Check if the order is already cancelled or filled
         if order_to_cancel.status in [

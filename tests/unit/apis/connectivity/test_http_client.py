@@ -94,7 +94,9 @@ class TestHttpClient:
         """Test a successful request returning JSON."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 200
-        mock_response.headers = CIMultiDictProxy(CIMultiDict({"Content-Type": "application/json"}))
+        mock_response.headers = CIMultiDictProxy(
+            CIMultiDict[str]({"Content-Type": "application/json"})
+        )
         mock_response.json = AsyncMock(return_value={"data": "success"})
         mock_response.text = AsyncMock(return_value='{"data": "success"}')
         mock_request.return_value.__aenter__.return_value = mock_response
@@ -128,7 +130,7 @@ class TestHttpClient:
         """Test a successful request returning plain text."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 200
-        mock_response.headers = CIMultiDictProxy(CIMultiDict({"Content-Type": "text/plain"}))
+        mock_response.headers = CIMultiDictProxy(CIMultiDict[str]({"Content-Type": "text/plain"}))
         mock_response.text = AsyncMock(return_value="Hello World")
         mock_request.return_value.__aenter__.return_value = mock_response
 
@@ -149,7 +151,7 @@ class TestHttpClient:
         """Test a request that returns 204 No Content."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 204
-        mock_response.headers = CIMultiDictProxy(CIMultiDict())
+        mock_response.headers = CIMultiDictProxy(CIMultiDict[str]())
         mock_response.text = AsyncMock(return_value="")  # Should not be called if status is 204
         mock_request.return_value.__aenter__.return_value = mock_response
 
@@ -174,7 +176,9 @@ class TestHttpClient:
         """Test a signed request correctly uses the authenticator."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 200
-        mock_response.headers = CIMultiDictProxy(CIMultiDict({"Content-Type": "application/json"}))
+        mock_response.headers = CIMultiDictProxy(
+            CIMultiDict[str]({"Content-Type": "application/json"})
+        )
         mock_response.json = AsyncMock(return_value={"status": "ok"})
         mock_response.text = AsyncMock(return_value='{"status": "ok"}')
         mock_request.return_value.__aenter__.return_value = mock_response
@@ -271,7 +275,7 @@ class TestHttpClient:
         """Test that a 400 error raises HttpRequestFailedError immediately without retry."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 400
-        mock_response.headers = CIMultiDictProxy(CIMultiDict())
+        mock_response.headers = CIMultiDictProxy(CIMultiDict[str]())
         error_body = '{"error": "Bad Request"}'
         mock_response.text = AsyncMock(return_value=error_body)
         mock_request.return_value.__aenter__.return_value = mock_response
@@ -298,7 +302,7 @@ class TestHttpClient:
         """Test that a 500 error is retried and then raises HttpRequestFailedError."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 500
-        mock_response.headers = CIMultiDictProxy(CIMultiDict())
+        mock_response.headers = CIMultiDictProxy(CIMultiDict[str]())
         error_body = '{"error": "Server Error"}'
         mock_response.text = AsyncMock(return_value=error_body)
         mock_request.return_value.__aenter__.return_value = mock_response
@@ -346,57 +350,90 @@ class TestHttpClient:
         mock_request: AsyncMock,
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
-        """Test correct URL construction including stripping slashes."""
-        mock_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_response.status = 204
-        mock_response.headers = CIMultiDictProxy(CIMultiDict())
-        mock_response.text = AsyncMock(return_value="")
-        mock_request.return_value.__aenter__.return_value = mock_response
+        """Test that URLs are constructed correctly."""
+        async with HttpClient(
+            exchange_name="url_test", rest_endpoint="http://base.url/v1"
+        ) as client1:
+            session1 = await client1._get_session()  # noqa: SLF001
+            mock_response1 = AsyncMock(spec=aiohttp.ClientResponse)
+            mock_response1.status = 200
+            mock_response1.headers = CIMultiDictProxy(CIMultiDict[str]())
+            mock_response1.text = AsyncMock(return_value="")
+            mock_request.return_value.__aenter__.return_value = mock_response1
 
-        # Test with leading/trailing slashes in different places
-        client_no_trailing_slash = HttpClient("test", "http://test.api")
-        session_no_trailing = await client_no_trailing_slash._get_session()  # noqa: SLF001
-        await client_no_trailing_slash.request("GET", "/path1", mock_rate_limiter_service)
-        mock_request.assert_called_with(
-            "GET",
-            "http://test.api/path1",
-            params=None,
-            json=None,
-            data=None,
-            headers=session_no_trailing.headers,
-            timeout=aiohttp.ClientTimeout(total=client_no_trailing_slash.default_request_timeout),
-        )
-        await client_no_trailing_slash.close_session()
-        mock_request.reset_mock()
+            await client1.request("GET", "/path1", rate_limiter_service=mock_rate_limiter_service)
+            mock_request.assert_called_with(
+                "GET",
+                "http://base.url/v1/path1",
+                headers=session1.headers,
+                params=None,
+                json=None,
+                data=None,
+                timeout=aiohttp.ClientTimeout(total=client1.default_request_timeout),
+            )
 
-        client_with_trailing_slash = HttpClient("test", "http://test.api/")
-        session_with_trailing = await client_with_trailing_slash._get_session()  # noqa: SLF001
-        await client_with_trailing_slash.request("GET", "path2", mock_rate_limiter_service)
-        mock_request.assert_called_with(
-            "GET",
-            "http://test.api/path2",
-            params=None,
-            json=None,
-            data=None,
-            headers=session_with_trailing.headers,
-            timeout=aiohttp.ClientTimeout(total=client_with_trailing_slash.default_request_timeout),
-        )
-        await client_with_trailing_slash.close_session()
-        mock_request.reset_mock()
+        # Test with endpoint path already having a leading slash
+        async with HttpClient(
+            exchange_name="url_test2", rest_endpoint="http://base.url/v2/"
+        ) as client2:
+            session2 = await client2._get_session()  # noqa: SLF001
+            mock_response2 = AsyncMock(spec=aiohttp.ClientResponse)
+            mock_response2.status = 200
+            mock_response2.headers = CIMultiDictProxy(CIMultiDict[str]())
+            mock_response2.text = AsyncMock(return_value="")
+            mock_request.return_value.__aenter__.return_value = mock_response2
 
-        client_both_slashes = HttpClient("test", "http://test.api/")
-        session_both_slashes = await client_both_slashes._get_session()  # noqa: SLF001
-        await client_both_slashes.request("GET", "/path3/", mock_rate_limiter_service)
-        mock_request.assert_called_with(
-            "GET",
-            "http://test.api/path3/",
-            params=None,
-            json=None,
-            data=None,
-            headers=session_both_slashes.headers,
-            timeout=aiohttp.ClientTimeout(total=client_both_slashes.default_request_timeout),
-        )  # Path with trailing slash is preserved
-        await client_both_slashes.close_session()
+            await client2.request(
+                "GET", "/path2", rate_limiter_service=mock_rate_limiter_service
+            )  # Path with leading slash
+            mock_request.assert_called_with(
+                "GET",
+                "http://base.url/v2/path2",
+                headers=session2.headers,
+                params=None,
+                json=None,
+                data=None,
+                timeout=aiohttp.ClientTimeout(total=client2.default_request_timeout),
+            )
+
+            await client2.request(
+                "GET", "path3", rate_limiter_service=mock_rate_limiter_service
+            )  # Path without leading slash
+            mock_request.assert_called_with(
+                "GET",
+                "http://base.url/v2/path3",
+                headers=session2.headers,
+                params=None,
+                json=None,
+                data=None,
+                timeout=aiohttp.ClientTimeout(total=client2.default_request_timeout),
+            )
+
+        # Test with absolute URL in endpoint_path
+        async with HttpClient(
+            exchange_name="abs_url_test", rest_endpoint="http://ignore.this/"
+        ) as client3:
+            session3 = await client3._get_session()  # noqa: SLF001
+            mock_response3 = AsyncMock(spec=aiohttp.ClientResponse)
+            mock_response3.status = 200
+            mock_response3.headers = CIMultiDictProxy(CIMultiDict[str]())
+            mock_response3.text = AsyncMock(return_value="")
+            mock_request.return_value.__aenter__.return_value = mock_response3
+
+            await client3.request(
+                "GET",
+                "https://specific.api.com/specific/path",
+                rate_limiter_service=mock_rate_limiter_service,
+            )
+            mock_request.assert_called_with(
+                "GET",
+                "https://specific.api.com/specific/path",
+                headers=session3.headers,
+                params=None,
+                json=None,
+                data=None,
+                timeout=aiohttp.ClientTimeout(total=client3.default_request_timeout),
+            )
 
     # TODO: Add tests for:
     # - JSON decode error handling (returning raw text)

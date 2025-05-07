@@ -130,6 +130,7 @@ class TestBacktestingIntegration:
         assert len(result["signals"]) == expected_signal_count, (
             f"Expected {expected_signal_count} signal(s) based on first row close price {first_close_price} vs threshold {mock_strategy.entry_threshold}, got {len(result['signals'])}"
         )
+        assert result["signals"][0]["action"] == "ENTRY_LONG"
 
     def test_funding_rate_strategy_integration(self) -> None:
         """Test integration with the FundingRateArbitrageStrategy"""
@@ -326,10 +327,11 @@ class TestBacktestingIntegration:
         assert "total_return" in loaded_results["metrics"]
         if loaded_results["metrics"].get("error") == "Equity std is zero":
             # If std dev is zero, Sharpe is undefined/meaningless.
-            # Check that the key IS present but its value might be 0 or NaN (depending on implementation).
+            # Check that the key IS present but its value might be 0 or NaN
+            # (depending on implementation).
             # Current implementation logs setting it to 0.00.
             assert "sharpe_ratio" in loaded_results["metrics"], (
-                "Sharpe ratio key should still exist even if calculation failed"
+                "sharpe_ratio should be present even if equity_std_dev is zero"
             )
             assert loaded_results["metrics"]["sharpe_ratio"] == 0.0, (
                 "Expected Sharpe ratio to be 0.0 when std dev is zero"

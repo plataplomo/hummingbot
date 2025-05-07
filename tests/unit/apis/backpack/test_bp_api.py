@@ -295,7 +295,7 @@ class TestBackpackAPIWebSocketRouting:
             api._ws_manager = mock_ws_mgr_instance  # noqa: SLF001 - for testing
             return api
 
-    def test_construct_subscription_payload(self, api_for_ws_tests: BackpackAPI):
+    def test_construct_subscription_payload(self, api_for_ws_tests: BackpackAPI) -> None:
         topic = "depth.SOL_USDC"
         payload = api_for_ws_tests._construct_subscription_payload(topic)  # noqa: SLF001
         assert payload == {
@@ -305,7 +305,7 @@ class TestBackpackAPIWebSocketRouting:
         }
 
     @pytest.mark.asyncio
-    async def test_route_ws_message_public_topic(self, api_for_ws_tests: BackpackAPI):
+    async def test_route_ws_message_public_topic(self, api_for_ws_tests: BackpackAPI) -> None:
         mock_depth_handler = AsyncMock()
         topic = "depth.SOL_USDC"
         # Register handler using the actual subscribe method (which populates _ws_handlers)
@@ -324,12 +324,15 @@ class TestBackpackAPIWebSocketRouting:
         mock_depth_handler.assert_called_once_with(test_message_data)
 
     @pytest.mark.asyncio
-    async def test_route_ws_message_private_topic_fills(self, api_for_ws_tests: BackpackAPI):
+    async def test_route_ws_message_private_topic_fills(
+        self, api_for_ws_tests: BackpackAPI
+    ) -> None:
         mock_fills_handler = AsyncMock()
-        # Backpack private streams might use a different topic structure, e.g., based on message type
+        # Backpack private streams might use a different topic structure, e.g.,
+        # based on message type
         # As per bp_api.py _route_ws_message, it uses "fills" as topic from "type":"fills"
         topic_internal = "fills"
-
+        # Directly add to _ws_handlers for testing routing, bypassing full subscribe logic.
         if api_for_ws_tests._ws_manager:  # noqa: SLF001
             api_for_ws_tests._ws_manager.send_json = AsyncMock(return_value=True)  # noqa: SLF001
             api_for_ws_tests._ws_manager.is_connected = True  # noqa: SLF001
@@ -342,17 +345,17 @@ class TestBackpackAPIWebSocketRouting:
 
         await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
 
-        # _route_ws_message in BackpackAPI passes message["data"] to handler for topic like "depth.SOL_USDC"
+        # _route_ws_message in BackpackAPI passes message["data"] to handler
+        # for topic like "depth.SOL_USDC"
         # but for type "fills", it passes the *entire message* if type is used as topic
-        # Let's check bp_api.py _route_ws_message: for type "fills", topic becomes "fills", data_payload = message
-        mock_fills_handler.assert_called_once_with(
-            test_message
-        )  # Passes the whole message based on current bp_api logic
+        # Let's check bp_api.py _route_ws_message: for type "fills", topic becomes "fills",
+        # data_payload = message
+        mock_fills_handler.assert_called_once_with(test_message)
 
     @pytest.mark.asyncio
     async def test_route_ws_message_no_handler(
         self, api_for_ws_tests: BackpackAPI, caplog: LogCaptureFixture
-    ):
+    ) -> None:
         test_message = {"topic": "unhandled.topic", "data": {"key": "value"}}
 
         await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
@@ -362,7 +365,7 @@ class TestBackpackAPIWebSocketRouting:
     @pytest.mark.asyncio
     async def test_route_ws_message_no_topic_or_type(
         self, api_for_ws_tests: BackpackAPI, caplog: LogCaptureFixture
-    ):
+    ) -> None:
         test_message = {
             "event": "random_event",
             "data": {"key": "value"},
@@ -375,7 +378,7 @@ class TestBackpackAPIWebSocketRouting:
     @pytest.mark.asyncio
     async def test_route_ws_message_topic_no_data(
         self, api_for_ws_tests: BackpackAPI, caplog: LogCaptureFixture
-    ):
+    ) -> None:
         mock_handler = AsyncMock()
         topic = "data_missing.topic"
         if api_for_ws_tests._ws_manager:  # noqa: SLF001

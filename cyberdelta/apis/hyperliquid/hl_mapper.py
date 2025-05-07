@@ -290,11 +290,13 @@ class HyperliquidMapper:
                         bids.append((price, size))
                     else:
                         logger.warning(
-                            f"[HyperliquidMapper] Skipping invalid bid level: Px={level.px}, Sz={level.sz}"
+                            f"[HyperliquidMapper] Skipping invalid bid level: "
+                            f"Px={level.px}, Sz={level.sz}"
                         )
                 except (ValueError, TypeError, InvalidOperation) as e:
                     logger.warning(
-                        f"[HyperliquidMapper] Error parsing bid level (Px={level.px}, Sz={level.sz}): {e}"
+                        f"[HyperliquidMapper] Error parsing bid level (Px={level.px}, "
+                        f"Sz={level.sz}): {e}"
                     )
 
             for level in raw_asks:
@@ -315,15 +317,18 @@ class HyperliquidMapper:
                         asks.append((price, size))
                     else:
                         logger.warning(
-                            f"[HyperliquidMapper] Skipping invalid ask level: Px={level.px}, Sz={level.sz}"
+                            f"[HyperliquidMapper] Skipping invalid ask level: "
+                            f"Px={level.px}, Sz={level.sz}"
                         )
                 except (ValueError, TypeError, InvalidOperation) as e:
                     logger.warning(
-                        f"[HyperliquidMapper] Error parsing ask level (Px={level.px}, Sz={level.sz}): {e}"
+                        f"[HyperliquidMapper] Error parsing ask level (Px={level.px}, "
+                        f"Sz={level.sz}): {e}"
                     )
         else:
             logger.warning(
-                f"[HyperliquidMapper] Raw book for {raw_book.coin} has invalid levels structure: {raw_book.levels}"
+                f"[HyperliquidMapper] Raw book for {raw_book.coin} has invalid levels "
+                f"structure: {raw_book.levels}"
             )
 
         # Sort bids descending, asks ascending by price
@@ -337,7 +342,8 @@ class HyperliquidMapper:
         book_timestamp = parse_datetime_utc(raw_book.time, field_name="raw_book.time")
         if book_timestamp is None:  # Should not happen if raw_book.time is always valid int
             logger.error(
-                f"[HyperliquidMapper] Failed to parse timestamp from raw_book.time: {raw_book.time}. Using current time."
+                f"[HyperliquidMapper] Failed to parse timestamp from raw_book.time: "
+                f"{raw_book.time}. Using current time."
             )
             book_timestamp = datetime.now(UTC)
 
@@ -389,7 +395,8 @@ class HyperliquidMapper:
             )
         except (ValueError, TypeError, InvalidOperation) as e:
             logger.error(
-                f"[HyperliquidMapper] Error transforming raw public trade: {e}. Data: {raw_trade.model_dump()!r}",
+                f"[HyperliquidMapper] Error transforming raw public trade: {e}. "
+                f"Data: {raw_trade.model_dump()!r}",
                 exc_info=True,
             )
             raise  # Re-raise to be caught by caller or map_raw_trades
@@ -415,7 +422,8 @@ class HyperliquidMapper:
                 trades.append(trade)
             except Exception as e:  # Catch errors from transform_raw_public_trade_to_internal
                 logger.warning(
-                    f"[HyperliquidMapper] Skipping public trade due to transformation error: {e}. Raw: {raw_trade.model_dump()!r}"
+                    f"[HyperliquidMapper] Skipping public trade due to transformation error: {e}. "
+                    f"Raw: {raw_trade.model_dump()!r}"
                 )
                 # Continue to process other trades
 
@@ -490,28 +498,19 @@ class HyperliquidMapper:
     def map_raw_clearinghouse_state_to_derivative_positions(
         raw_state: HyperliquidRawClearinghouseState,
     ) -> dict[str, DerivativePosition]:
-        """
-        Maps asset positions from the raw clearinghouse state to a dictionary of
-        internal DerivativePosition models.
-
-        Args:
-            raw_state: The validated HyperliquidRawClearinghouseState object.
-
-        Returns:
-            A dictionary mapping asset symbols to DerivativePosition objects.
-        """
+        """Maps raw clearinghouse asset positions to internal DerivativePosition models."""
         derivative_positions: dict[str, DerivativePosition] = {}
-        if not raw_state or not raw_state.asset_positions:
-            logger.warning("[HyperliquidMapper] No asset positions found in raw_state to map.")
+        if not hasattr(raw_state, "asset_positions"):
+            logger.warning(
+                "[HyperliquidMapper] No 'asset_positions' list found in raw_state or invalid type."
+            )
             return derivative_positions
 
-        for (
-            raw_asset_pos
-        ) in raw_state.asset_positions:  # raw_asset_pos is HyperliquidRawAssetPosition
-            # The isinstance check for HyperliquidRawAssetPosition previously here was redundant.
+        for raw_asset_pos in raw_state.asset_positions:
             if not raw_asset_pos.position:
                 logger.warning(
-                    f"[HyperliquidMapper] Skipping invalid raw_asset_pos (missing position details): {raw_asset_pos.asset}"
+                    f"[HyperliquidMapper] Skipping invalid raw_asset_pos "
+                    f"(missing position details): {raw_asset_pos.asset}"
                 )
                 continue
 
@@ -616,7 +615,8 @@ class HyperliquidMapper:
                     if pnl is not None:
                         total_unrealized_pnl_val += pnl
 
-        # HyperliquidMarginDetails takes cross_maintenance_margin_used and isolated_maintenance_margin_used
+        # HyperliquidMarginDetails takes cross_maintenance_margin_used
+        # and isolated_maintenance_margin_used
         hyperliquid_details = HyperliquidMarginDetails(
             cross_maintenance_margin_used=cross_mmr_val,
             isolated_maintenance_margin_used=isolated_mmr_val,
@@ -626,7 +626,7 @@ class HyperliquidMapper:
             exchange=ExchangeName.HYPERLIQUID.value,
             timestamp=datetime.now(UTC),  # Raw state doesn't provide a snapshot timestamp
             total_equity=total_equity_val,
-            available_equity=available_for_withdrawal_val,  # Mapping available_for_withdrawal to available_equity
+            available_equity=available_for_withdrawal_val,
             total_initial_margin_required=total_initial_margin_val,
             total_maintenance_margin_required=total_maintenance_margin_val,
             total_position_notional=total_notional_val,
@@ -674,12 +674,14 @@ class HyperliquidMapper:
             # Ensure available is not more than total
             if effective_available > usdc_total_balance:
                 logger.warning(
-                    f"Available balance {effective_available} for USDC exceeded total {usdc_total_balance}. Clamping to total."
+                    f"Available balance {effective_available} for USDC exceeded total "
+                    f"{usdc_total_balance}. Clamping to total."
                 )
                 effective_available = usdc_total_balance
-            if effective_available < Decimal("0") and usdc_total_balance >= Decimal("0"):
+            elif effective_available < Decimal("0") and usdc_total_balance >= Decimal("0"):
                 logger.warning(
-                    f"Available balance {effective_available} for USDC is negative while total {usdc_total_balance} is not. Setting available to 0."
+                    f"Calculated available balance {effective_available} for USDC is negative "
+                    f"while total {usdc_total_balance} is not. Setting available to 0."
                 )
                 effective_available = Decimal("0")
 

@@ -13,8 +13,8 @@ Models:
       `resting`, `filled`, or an `error` string. Uses `extra="ignore"` as these are sub-components.
     - HyperliquidRawExchangeResponseData: Validates the `data` field within a successful exchange
       response, expecting a `type` (e.g., "order") and a `statuses` list. The `statuses` list
-      can contain simple strings (e.g., "canceled") or `HyperliquidRawExchangeStatusObject` instances.
-      Uses `extra="ignore"`.
+      can contain simple strings (e.g., "canceled") or `HyperliquidRawExchangeStatusObject`
+      instances.     Uses `extra="ignore"`.
     - HyperliquidRawExchangeResponse: Validates the top-level exchange action response, expecting
       a `status` (typically "ok") and an optional `data` field of type
       `HyperliquidRawExchangeResponseData`. Uses `extra="forbid"` for strict top-level validation.

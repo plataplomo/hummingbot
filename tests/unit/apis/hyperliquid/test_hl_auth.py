@@ -62,7 +62,6 @@ def test_hl_auth_init_success(mock_account: MagicMock) -> None:
         wallet_address=VALID_WALLET_ADDRESS,
         chain_id=VALID_CHAIN_ID,
     )
-    assert auth._private_key_hex == VALID_PRIVATE_KEY_HEX  # noqa: SLF001
     assert auth._wallet_address == VALID_WALLET_ADDRESS.lower()  # noqa: SLF001
     assert auth._chain_id == VALID_CHAIN_ID  # noqa: SLF001
     assert auth._account is not None  # noqa: SLF001
@@ -411,3 +410,36 @@ class TestHyperliquidEip712Authenticator:
             assert "Failed to sign EIP-712 Agent request" in excinfo.value.message
             assert isinstance(excinfo.value.original_exception, Exception)
             assert str(excinfo.value.original_exception) == "Signing exploded"
+
+    @pytest.mark.asyncio
+    async def test_prepare_request_no_account_after_init(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test prepare_request behavior if _account is None (e.g., init failed silently)."""
+        # This scenario is less likely now since __init__ raises directly on key errors.
+        # However, testing the guard in prepare_request is still valid.
+        auth = HyperliquidEip712Authenticator(
+            private_key_hex=self.VALID_PRIVATE_KEY,  # Valid key to pass init
+            wallet_address=self.MOCKED_ACCOUNT_WALLET_ADDRESS,  # Matching address for init
+            chain_id=1337,
+        )
+        auth._account = None  # Manually force _account to None post-initialization # noqa: SLF001
+
+        with pytest.raises(APIError, match="Authenticator does not have a usable private key"):
+            await auth.prepare_request("POST", "/exchange", None, {"key": "value"}, None)
+        assert "Account object is None, cannot sign." in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_prepare_request_with_non_dict_data(
+        self, authenticator_instance: HyperliquidEip712Authenticator
+    ) -> None:
+        """Test prepare_request raises APIError if data is not a dictionary."""
+        with pytest.raises(APIError, match="Action payload must be a dictionary") as excinfo:
+            await authenticator_instance.prepare_request(
+                "POST",
+                "/exchange",
+                None,
+                "not_a_dict",
+                None,  # type: ignore[arg-type]
+            )
+        assert excinfo.value.code == APIErrorCode.INVALID_PARAMS.value

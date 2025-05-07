@@ -5,7 +5,7 @@ import time
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import aiohttp
 from pydantic import ValidationError
@@ -981,7 +981,7 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.UNKNOWN.value,
                 )
 
-            asset_ctx_list_raw: list[Any] = cast(list[Any], response_raw[1])
+            asset_ctx_list_raw: list[Any] = response_raw[1]
             result: list[FundingRate] = []
             for asset_ctx_raw in asset_ctx_list_raw:
                 if not isinstance(asset_ctx_raw, dict):
@@ -1038,16 +1038,20 @@ class HyperliquidAPI(ExchangeAPI):
             # that can target a different base URL than the default ExchangeAPI rest_endpoint.
             # For now, if self._request is the base ExchangeAPI._request, then `endpoint` needs to be a path.
             # If HyperliquidAPI needs to call a different base URL (INFO_URL) for this,
-            # it should not use `super()._request` or `self._request` directly without ensuring the correct base URL is used by HttpClient.
-            # This might involve having a dedicated HttpClient for info.hyperliquid.xyz or a mechanism in the base _request
-            # or HttpClient to accept a full URL or a base URL override.
+            # it should not use `super()._request` or `self._request` directly without ensuring
+            # the correct base URL is used by HttpClient.
+            # This might involve having a dedicated HttpClient for info.hyperliquid.xyz
+            # or a mechanism in the base _request or HttpClient to accept a full URL
+            # or a base URL override.
             # For this fix, I am focusing on passing the data payload correctly.
-            # The URL part: f"{self.INFO_URL.rstrip('/')}/info" suggests the intent to call the info endpoint.
+            # The URL part: f"{self.INFO_URL.rstrip('/')}/info" suggests the intent
+            # to call the info endpoint.
             # If ExchangeAPI._request is used, and it prepends its own base URL, this would be wrong.
             # This is a structural concern noted. For the payload itself:
             raw_response = await self._request(
                 method="POST",
-                endpoint=f"{self.INFO_URL.rstrip('/')}/info",  # This forms a full URL. HttpClient needs to handle it, or this call is wrong.
+                # This forms a full URL. HttpClient needs to handle it, or this call is wrong.
+                endpoint=f"{self.INFO_URL.rstrip('/')}/info",
                 data=request_body_payload,
             )
             if raw_response is None:
@@ -1117,7 +1121,8 @@ class HyperliquidAPI(ExchangeAPI):
             raw_tif_str_candidate = "Alo"
         if raw_tif_str_candidate is None:
             logger.warning(
-                f"[{self.exchange_name}] Unmapped TIF '{time_in_force}' and post_only='{post_only}', defaulting Gtc."
+                f"[{self.exchange_name}] Unmapped TIF '{time_in_force}' "
+                f"and post_only='{post_only}', defaulting Gtc."
             )
             raw_tif_str_candidate = "Gtc"
 
@@ -1130,7 +1135,8 @@ class HyperliquidAPI(ExchangeAPI):
             effective_tif = "Alo"
         else:
             raise AssertionError(
-                f"Internal TIF logic error: unexpected raw_tif_str_candidate '{raw_tif_str_candidate}'."
+                f"Internal TIF logic error: unexpected raw_tif_str_candidate "
+                f"'{raw_tif_str_candidate}'."
             )
 
         if order_type == OrderType.MARKET:
@@ -1212,7 +1218,10 @@ class HyperliquidAPI(ExchangeAPI):
             first_status_obj: HyperliquidRawExchangeStatusObject | None = None
 
             if isinstance(first_status_obj_raw, str):
-                log_msg = f"[{self.exchange_name}] Order placement returned string status: {first_status_obj_raw}"
+                log_msg = (
+                    f"[{self.exchange_name}] Order placement returned string status: "
+                    f"{first_status_obj_raw}"
+                )
                 logger.warning(log_msg)
                 err_code = APIErrorCode.ORDER_REJECTED.value
                 if (
@@ -1246,7 +1255,10 @@ class HyperliquidAPI(ExchangeAPI):
             elif filled_details := first_status_obj.filled:
                 order_id_to_fetch, log_message_prefix = (
                     filled_details.oid,
-                    f"Order OID:{filled_details.oid} filled (avgPx: {filled_details.avg_px}, sz: {filled_details.total_sz})",
+                    (
+                        f"Order OID:{filled_details.oid} filled (avgPx: {filled_details.avg_px}, "
+                        f"sz: {filled_details.total_sz})"
+                    ),
                 )
             elif error_msg := first_status_obj.error:
                 err_code_obj = APIErrorCode.ORDER_REJECTED.value
@@ -1269,21 +1281,25 @@ class HyperliquidAPI(ExchangeAPI):
                     )
                 except APIError as e_fetch:
                     logger.error(
-                        f"[{self.exchange_name}] {log_message_prefix}, but failed to fetch canonical status: {e_fetch}"
+                        f"[{self.exchange_name}] {log_message_prefix}, "
+                        f"but failed to fetch canonical status: {e_fetch}"
                     )
                     raise APIError(
-                        f"{log_message_prefix}, but failed to retrieve final status: {e_fetch.message}",
+                        f"{log_message_prefix}, but failed to retrieve final status: "
+                        f"{e_fetch.message}",
                         code=APIErrorCode.UNKNOWN.value,
                         original_exception=e_fetch,
                     ) from e_fetch
             else:
                 raise APIError(
-                    f"Order placement status unclear, no OID/error: {first_status_obj.model_dump() if first_status_obj else 'N/A'}",
+                    f"Order placement status unclear, no OID/error: "
+                    f"{first_status_obj.model_dump() if first_status_obj else 'N/A'}",
                     code=APIErrorCode.UNKNOWN.value,
                 )
         except ValidationError as e_val_outer:
             logger.error(
-                f"[{self.exchange_name}] Failed to validate order placement response: {e_val_outer}. Raw: {response_raw!r}"
+                f"[{self.exchange_name}] Failed to validate order placement response: "
+                f"{e_val_outer}. Raw: {response_raw!r}"
             )
             raise APIError(
                 f"Invalid response after placing order: {e_val_outer}",
@@ -1322,7 +1338,8 @@ class HyperliquidAPI(ExchangeAPI):
                 or not validated_response.data.statuses
             ):
                 raise APIError(
-                    f"Order cancel failed on exchange: {validated_response.model_dump() if validated_response else 'Invalid response'}",
+                    f"Order cancel failed on exchange: "
+                    f"{validated_response.model_dump() if validated_response else 'Invalid response'}",
                     code=APIErrorCode.ORDER_REJECTED.value,
                 )
 
@@ -1345,7 +1362,8 @@ class HyperliquidAPI(ExchangeAPI):
                 return True
         except (ValidationError, ValueError) as e_val_cancel:
             logger.error(
-                f"[{self.exchange_name}] Failed to validate cancel response or invalid OID: {e_val_cancel}. Raw: {response_raw!r}"
+                f"[{self.exchange_name}] Failed to validate cancel response or invalid OID: "
+                f"{e_val_cancel}. Raw: {response_raw!r}"
             )
             raise APIError(
                 f"Invalid response/OID for cancel order {order_id}: {e_val_cancel}",
@@ -1355,7 +1373,8 @@ class HyperliquidAPI(ExchangeAPI):
             raise
         except Exception as e_unexp_cancel:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error canceling order {order_id}: {e_unexp_cancel}",
+                f"[{self.exchange_name}] Unexpected error canceling order {order_id}: "
+                f"{e_unexp_cancel}",
                 exc_info=True,
             )
             raise APIError(
@@ -1447,7 +1466,8 @@ class HyperliquidAPI(ExchangeAPI):
             raise
         except ValidationError as e_val:
             logger.error(
-                f"[{self.exchange_name}] Validation error in get_order_status: {e_val}. Payload: {payload!r}"
+                f"[{self.exchange_name}] Validation error in get_order_status: {e_val}. "
+                f"Payload: {payload!r}"
             )
             raise APIError(
                 "Pydantic validation error processing order status.",
@@ -1456,7 +1476,8 @@ class HyperliquidAPI(ExchangeAPI):
             ) from e_val
         except Exception as e_unexp:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error in get_order_status for oid {order_id}: {e_unexp}",
+                f"[{self.exchange_name}] Unexpected error in get_order_status for oid {order_id}: "
+                f"{e_unexp}",
                 exc_info=True,
             )
             raise APIError(

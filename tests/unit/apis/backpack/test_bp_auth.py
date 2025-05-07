@@ -19,8 +19,8 @@ def mock_time_patch() -> Generator[MagicMock]:
 class TestBackpackHmacAuthenticator:
     def test_initialization(self) -> None:
         auth = BackpackHmacAuthenticator(api_key="test_key", api_secret="test_secret")
-        assert auth._api_key == "test_key"
-        assert auth._api_secret == "test_secret"
+        assert auth._api_key == "test_key"  # noqa: SLF001
+        assert auth._api_secret == "test_secret"  # noqa: SLF001
 
     def test_initialization_missing_credentials_logs_warning(
         self, caplog: LogCaptureFixture
@@ -144,3 +144,7 @@ class TestBackpackHmacAuthenticator:
             headers={"X-Another": "Header"},  # No Content-Type here
         )
         assert components["headers"]["Content-Type"] == "application/json; charset=utf-8"
+
+    def test_authenticator_initialization_empty_key(self) -> None:
+        with pytest.raises(ValueError, match="API key cannot be empty"):
+            BackpackHmacAuthenticator(api_key="", api_secret="test_secret")

@@ -107,7 +107,9 @@ def test_extra_field_forbidden() -> None:
     ],
 )
 def test_invalid_field_type_or_missing(
-    field_to_invalidate: str, invalid_value: Any, expected_msg_part: str
+    field_to_invalidate: str,
+    invalid_value: Any,
+    expected_msg_part: str,  # noqa: ANN401 # Intentionally Any for testing invalid inputs
 ) -> None:
     """Test validation fails if a field has an incorrect type or is missing."""
     data = VALID_DATA_SINGLE_CANDLE.copy()
@@ -154,7 +156,10 @@ def test_missing_field() -> None:
     ],
 )
 def test_invalid_list_item_type_or_format(
-    list_field: str, item_index: int, invalid_item: Any, expected_msg_part: str
+    list_field: str,
+    item_index: int,
+    invalid_item: Any,
+    expected_msg_part: str,  # noqa: ANN401 # Intentionally Any for testing invalid inputs
 ) -> None:
     """Test validation fails if an item within a list has an incorrect type or format."""
     data: dict[str, Any] = VALID_DATA_SINGLE_CANDLE.copy()
@@ -197,7 +202,7 @@ def test_mismatched_list_lengths() -> None:
     }
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawCandleSnapshot.model_validate(data)
-    assert "Data lists (t, o, h, l, c, v) must all have the same length" in str(exc_info.value)
+    assert ("Data lists (t, o, h, l, c, v) must all have the same length") in str(exc_info.value)
 
 
 def test_volume_non_negative() -> None:
