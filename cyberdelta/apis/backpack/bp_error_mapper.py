@@ -117,6 +117,78 @@ class BackpackErrorMapper(IErrorMapper):
                 )
         return mapped_code
 
+    def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
+        """
+        Maps a raw error string from Backpack to a standardized APIError.
+
+        Args:
+            error_message: The raw error string from the exchange.
+            http_status: Optional HTTP status code associated with the error.
+
+        Returns:
+            APIError: A standardized APIError object.
+        """
+        # Default to EXCHANGE_SPECIFIC if no specific match is found
+        mapped_code_enum = APIErrorCode.EXCHANGE_SPECIFIC
+        normalized_error_message = error_message.lower()
+
+        # This mapping can be expanded as more specific string errors are identified
+        string_to_code_map = {
+            "invalid signature": APIErrorCode.AUTHENTICATION_FAILED,
+            "unauthorized": APIErrorCode.AUTHENTICATION_FAILED,
+            "forbidden": APIErrorCode.AUTHENTICATION_FAILED,
+            "too many requests": APIErrorCode.RATE_LIMITED,
+            "ratelimit exceeded": APIErrorCode.RATE_LIMITED,  # General catch for rate limits
+            "invalid symbol": APIErrorCode.INVALID_SYMBOL,
+            "invalid quantity": APIErrorCode.INVALID_ORDER_SIZE,
+            "invalid order": APIErrorCode.INVALID_REQUEST,
+            "invalid price": APIErrorCode.INVALID_REQUEST,
+            "insufficient funds": APIErrorCode.INSUFFICIENT_FUNDS,
+            "insufficient balance": APIErrorCode.INSUFFICIENT_FUNDS,  # Common variation
+            "insufficient margin": APIErrorCode.INSUFFICIENT_FUNDS,
+            "order limit": APIErrorCode.ORDER_REJECTED,
+            "position limit": APIErrorCode.MAX_POSITION_EXCEEDED,
+            "server error": APIErrorCode.SERVER_ERROR,
+            "internal server error": APIErrorCode.SERVER_ERROR,  # Common variation
+            "maintenance": APIErrorCode.MAINTENANCE,
+            "service temporarily unavailable": APIErrorCode.MAINTENANCE,  # Often implies maintenance
+            "resource not found": APIErrorCode.ORDER_NOT_FOUND,  # Can also be other resources
+            "order not found": APIErrorCode.ORDER_NOT_FOUND,  # More specific
+            "trading paused": APIErrorCode.MARKET_CLOSED,
+            "account liquidating": APIErrorCode.EXCHANGE_SPECIFIC,  # Potentially LIQUIDATION if we add it
+        }
+
+        for key_string, code_enum in string_to_code_map.items():
+            if key_string in normalized_error_message:
+                mapped_code_enum = code_enum
+                break
+
+        effective_http_status = (
+            http_status if http_status is not None else 200
+        )  # Default if not provided
+
+        # If mapped_code_enum is still EXCHANGE_SPECIFIC but http_status suggests something else:
+        if mapped_code_enum == APIErrorCode.EXCHANGE_SPECIFIC:
+            if effective_http_status == 400:
+                mapped_code_enum = APIErrorCode.INVALID_REQUEST
+            elif effective_http_status == 401 or effective_http_status == 403:
+                mapped_code_enum = APIErrorCode.AUTHENTICATION_FAILED
+            elif effective_http_status == 404:
+                mapped_code_enum = APIErrorCode.ORDER_NOT_FOUND  # Or generic NOT_FOUND
+            elif effective_http_status == 429:
+                mapped_code_enum = APIErrorCode.RATE_LIMITED
+            elif effective_http_status == 500:
+                mapped_code_enum = APIErrorCode.SERVER_ERROR
+            elif effective_http_status == 503:
+                mapped_code_enum = APIErrorCode.MAINTENANCE  # Or SERVICE_UNAVAILABLE
+
+        return APIError(
+            message=error_message,
+            code=mapped_code_enum.value,
+            http_status=effective_http_status,
+            exchange_message=error_message,  # The raw string is the exchange message
+        )
+
     def map_exchange_error(
         self,
         status_code: int,

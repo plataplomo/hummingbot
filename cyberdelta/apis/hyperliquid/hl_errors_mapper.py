@@ -64,7 +64,7 @@ class HyperliquidErrorMapper(IErrorMapper):
             if canonical in msg:
                 return category
         # Fallback to regex/robust matching for variants
-        if HyperliquidErrorMapper._regex_match(msg, r"insufficient balance"):
+        if HyperliquidErrorMapper._regex_match(msg, r"insufficient (balance|margin)"):
             return HyperliquidAPIErrorCategory.INSUFFICIENT_BALANCE
         if HyperliquidErrorMapper._regex_match(msg, r"invalid signature"):
             return HyperliquidAPIErrorCategory.INVALID_SIGNATURE
@@ -72,15 +72,19 @@ class HyperliquidErrorMapper(IErrorMapper):
             return HyperliquidAPIErrorCategory.INVALID_ASSET
         if HyperliquidErrorMapper._regex_match(msg, r"invalid order type"):
             return HyperliquidAPIErrorCategory.INVALID_ORDER_TYPE
+        if HyperliquidErrorMapper._regex_match(msg, r"invalid order size"):
+            return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL
         if HyperliquidErrorMapper._regex_match(msg, r"order size too small"):
             return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL
         if HyperliquidErrorMapper._regex_match(msg, r"order size too large"):
             return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE
         if HyperliquidErrorMapper._regex_match(msg, r"price out of bounds"):
             return HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS
-        if HyperliquidErrorMapper._regex_match(msg, r"rate limit exceeded"):
+        if HyperliquidErrorMapper._regex_match(msg, r"(rate limit|ratelimit) exceeded"):
             return HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED
         if HyperliquidErrorMapper._regex_match(msg, r"unauthorized"):
+            return HyperliquidAPIErrorCategory.UNAUTHORIZED
+        if HyperliquidErrorMapper._regex_match(msg, r"user not found"):
             return HyperliquidAPIErrorCategory.UNAUTHORIZED
         if HyperliquidErrorMapper._regex_match(msg, r"internal server error"):
             return HyperliquidAPIErrorCategory.INTERNAL_SERVER_ERROR
@@ -131,6 +135,26 @@ class HyperliquidErrorMapper(IErrorMapper):
         }
         return mapping.get(category, APIErrorCode.EXCHANGE_SPECIFIC)
 
+    def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
+        """Maps a raw error string from Hyperliquid to a standardized APIError."""
+        category = HyperliquidErrorMapper._categorize_hyperliquid_error(error_message)
+        api_error_code_enum = HyperliquidErrorMapper._map_category_to_api_error_code(category)
+
+        exchange_specific_code: str | None = None
+        if (
+            category != HyperliquidAPIErrorCategory.UNKNOWN
+            and category != HyperliquidAPIErrorCategory.ERROR
+        ):
+            exchange_specific_code = category.name
+
+        return APIError(
+            message=error_message,  # Use the original error_message for clarity
+            code=api_error_code_enum.value,
+            http_status=http_status,  # Can be None if not from HTTP context
+            exchange_code=exchange_specific_code,
+            exchange_message=error_message,
+        )
+
     def map_exchange_error(
         self,
         status_code: int,
@@ -151,6 +175,42 @@ class HyperliquidErrorMapper(IErrorMapper):
         Returns:
             APIError: The standardized internal error model for business logic.
         """
+        # Prioritize critical HTTP status codes for direct mapping if body/data is uninformative
+        if status_code == 503:
+            return APIError(
+                message=error_body or "Service Unavailable (503)",
+                code=APIErrorCode.SERVICE_UNAVAILABLE.value,
+                http_status=status_code,
+                exchange_message=error_body,
+            )
+        if status_code == 429:
+            return APIError(
+                message=error_body or "Rate limit exceeded (429)",
+                code=APIErrorCode.RATE_LIMITED.value,
+                http_status=status_code,
+                exchange_message=error_body,
+            )
+        # Handle common authentication/authorization issues based on status code,
+        # especially if the error_body might be generic or empty.
+        if status_code == 401 or status_code == 403:
+            # If error_body provides a more specific reason, map_string_error might refine it.
+            # However, if error_body is empty or generic, this status code is a strong indicator.
+            specific_error_from_string = self.map_string_error(error_body, http_status=status_code)
+            if (
+                specific_error_from_string.code != APIErrorCode.EXCHANGE_SPECIFIC.value
+                and error_body
+            ):
+                return specific_error_from_string  # Use if string mapping was specific and body wasn't empty
+
+            # If error_body is empty, provide a clearer default message for these statuses
+            message = error_body if error_body else "Authentication failed"
+            return APIError(
+                message=message,
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                http_status=status_code,
+                exchange_message=error_body,
+            )
+
         extracted_message = error_body
         category = HyperliquidAPIErrorCategory.UNKNOWN
         exchange_specific_code: str | None = None

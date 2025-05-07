@@ -46,9 +46,8 @@ class HttpRequestFailedError(APIError):
             f"HTTP {self.http_status}" if self.http_status is not None else "HTTP UnknownStatus"
         )
         body_preview = self.exchange_message or "N/A"
-        return (
-            f"HttpRequestFailedError ({status_str}): {self.message}. Body: {body_preview[:50]}..."
-        )
+        body_str = str(body_preview) if body_preview is not None else "N/A"
+        return f"HttpRequestFailedError ({status_str}): {self.message}. Body: {body_str[:50]}..."
 
 
 class HttpClient:
@@ -155,14 +154,24 @@ class HttpClient:
             asyncio.TimeoutError: If the request times out after retries.
             APIError: If a signed request is attempted without an authenticator.
         """
-        full_url = f"{self.rest_endpoint}/{endpoint_path.lstrip('/')}"
+        request_params = (params or {}).copy()
+        request_data = data  # Keep original data for potential re-signing in retries
+
+        # URL Construction - Handle absolute URLs in endpoint_path
+        if endpoint_path.startswith(("http://", "https://")):
+            full_url = endpoint_path
+        else:
+            full_url = f"{self.rest_endpoint}/{endpoint_path.lstrip('/')}"
+
         effective_timeout = (
             request_timeout if request_timeout is not None else self.default_request_timeout
         )
 
-        request_headers = (headers or {}).copy()
-        request_params = (params or {}).copy()
-        request_data = data  # Keep original data for potential re-signing in retries
+        session = await self._get_session()  # Get session early for its defaults
+        request_headers = (
+            session.headers.copy()
+        )  # Start with session default headers (e.g. User-Agent)
+        request_headers.update(headers or {})  # Merge with any explicitly passed headers
 
         current_attempt = 0
         last_exception: Exception | None = None
@@ -187,7 +196,7 @@ class HttpClient:
                         path=endpoint_path,  # Path relative to base endpoint for authenticator
                         params=request_params if request_params else None,  # Pass current params
                         data=request_data if request_data else None,  # Pass current data
-                        headers=request_headers,  # Pass current headers
+                        headers=dict(request_headers),  # Pass current headers as a plain dict
                     )
                 )
                 request_headers.update(auth_components["headers"])
@@ -198,10 +207,6 @@ class HttpClient:
                 # unless authenticator explicitly modifies it for the body.
                 # For now, assuming authenticator mainly adds headers/params,
                 # and `request_data` remains the body.
-                # If `auth_components["data"]` is meant to be the new body, this would change:
-                # request_data_for_body = auth_components["data"] if auth_components["data"]
-                # is not None else request_data
-                # For now, we assume `data` passed to `session.request` is `request_data`.
             except APIError as e:  # Catch APIErrors from authenticator (e.g. signing failed)
                 logger.error(f"[{self.exchange_name}] Auth prep failed for {full_url}: {e}")
                 raise  # Re-raise critical auth errors immediately
@@ -217,8 +222,8 @@ class HttpClient:
             request_log_details = (
                 f"Attempt {current_attempt}/{self.max_retries + 1} - {method} {full_url}"
             )
-            if request_params:
-                request_log_details += f" | Params: {request_params}"
+            if params:
+                request_log_details += f" | Params: {params}"
             # Avoid logging full data payload if it's large or sensitive by default
             # logger.debug(f"[{self.exchange_name}] {request_log_details} | "
             #              f"Headers: {request_headers} | Data: {request_data}")
@@ -240,6 +245,14 @@ class HttpClient:
                 ) as response:
                     response_text: str | None = None
                     response_headers: CIMultiDictProxy[str] = response.headers
+
+                    # Check for 204 No Content BEFORE attempting to read body
+                    if response.status == 204:
+                        logger.info(
+                            f"[{self.exchange_name}] Request {full_url} successful with 204 No Content."
+                        )
+                        return None, response.headers
+
                     try:
                         response_text = await response.text()
                     except Exception as e_text:

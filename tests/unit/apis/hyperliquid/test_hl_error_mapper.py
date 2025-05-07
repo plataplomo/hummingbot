@@ -17,9 +17,11 @@ def hyperliquid_error_mapper() -> HyperliquidErrorMapper:
 )
 def test_map_hl_string_error_order_not_found(
     hyperliquid_error_mapper: HyperliquidErrorMapper,
+    error_body_str: str,
+    expected_code: APIErrorCode,
+    expected_message_contains: str,
 ) -> None:
     """Test mapping Hyperliquid's string error for 'Order not found'."""
-    error_body_str = "Order not found"
     error = hyperliquid_error_mapper.map_exchange_error(
         status_code=200,  # HL often returns 200 with error string in body
         error_body=error_body_str,
@@ -27,9 +29,9 @@ def test_map_hl_string_error_order_not_found(
         request_path="/info",
     )
     assert isinstance(error, APIError)
-    assert error.code == APIErrorCode.ORDER_NOT_FOUND.value
+    assert error.code == expected_code.value
     assert error.http_status == 200
-    assert "Order not found" in error.message
+    assert expected_message_contains in error.message
     assert error.exchange_message == error_body_str
 
 

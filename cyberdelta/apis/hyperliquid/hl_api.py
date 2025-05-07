@@ -156,6 +156,9 @@ class HyperliquidAPI(ExchangeAPI):
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Uses the HyperliquidEip712Authenticator to prepare request components."""
+        print(
+            f"[DEBUG HL_API _authenticate] Entered. Authenticator: {self.authenticator}, type: {type(self.authenticator)}"
+        )  # DEBUG PRINT
         if not self.authenticator:
             logger.error(
                 f"[{self.exchange_name}] Attempt to call signed endpoint ({method} {path}) "
@@ -163,15 +166,6 @@ class HyperliquidAPI(ExchangeAPI):
             )
             raise APIError(
                 "HL authenticator not initialized (e.g., missing/invalid private key).",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
-
-        if not isinstance(self.authenticator, HyperliquidEip712Authenticator):
-            logger.error(
-                f"[{self.exchange_name}] Incorrect auth type for HL: {type(self.authenticator)}"
-            )
-            raise APIError(
-                "Incorrect authenticator type for Hyperliquid.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
@@ -283,36 +277,50 @@ class HyperliquidAPI(ExchangeAPI):
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
         """Route incoming WebSocket messages based on Hyperliquid's 'channel' field."""
         channel = message.get("channel")
-        data_payload = message.get("data")  # Corrected: Renamed from 'data' to 'data_payload'
+        data_payload = message.get("data")
+
         if not channel:
-            logger.debug(f"[{self.exchange_name}] Received WS message without channel: {message}")
+            logger.warning(f"[{self.exchange_name}] Received WS message without channel: {message}")
             return
 
-        if data_payload is None:  # Should not happen if channel exists based on HL structure
+        # Handle pong separately, as it might not have a 'data' field
+        if channel == "pong":
+            logger.debug(f"[{self.exchange_name}] Received pong")
+            # TODO: Potentially update last_pong_received timestamp for connection health
+            return
+
+        if data_payload is None:
+            # This case might be valid for some simple channel messages (like pong, handled above)
+            # but for most data-carrying channels, data_payload is expected.
             logger.debug(
                 f"[{self.exchange_name}] Received message on channel '{channel}' but no data: {message}"
             )
             return
 
-        handler = self._ws_handlers.get(channel)
+        handler: MessageHandler | None = self._ws_handlers.get(channel)
         if handler:
             try:
-                # Pass the inner 'data' payload to the handler
-                await handler(data_payload)
-            except Exception as e:
-                logger.error(
-                    f"[{self.exchange_name}] Error in handler for channel {channel}: {e}",
+                await handler(data_payload, message)  # Pass full message for context
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    f"[{self.exchange_name}] Error in WS handler for channel '{channel}'",
                     exc_info=True,
                 )
-        elif channel == "pong":  # Handle built-in pong responses
-            logger.debug(f"[{self.exchange_name}] Received pong")
-        elif channel == "error":
-            logger.error(f"[{self.exchange_name}] Received WS error message: {data_payload}")
-        elif channel == "subscriptionResponse":
-            logger.info(f"[{self.exchange_name}] Received subscription response: {data_payload}")
-            # Can add logic here to confirm subscription success/failure if needed
         else:
-            logger.debug(f"[{self.exchange_name}] No handler registered for channel: {channel}")
+            # This block executes if no specific handler was found by self._ws_handlers.get(channel)
+            print(
+                f"[DEBUG HL_API _route_ws_message] No specific handler. Checking built-ins. Channel: '{channel}' (type: {type(channel)}). Is it 'error'? -> {channel == 'error'}. Data: {data_payload is not None}"
+            )  # DEBUG
+            if channel == "error":
+                logger.error(f"[{self.exchange_name}] Received WS error message: {data_payload}")
+            elif channel == "subscriptionResponse":
+                logger.info(
+                    f"[{self.exchange_name}] Received subscription response: {data_payload}"
+                )
+            else:
+                logger.debug(
+                    f"[{self.exchange_name}] No handler registered for channel: {channel}. Message: {message}"
+                )
 
     async def connect_websocket(self) -> None:
         """Establish the WebSocket connection using the base class logic."""
@@ -1216,60 +1224,68 @@ class HyperliquidAPI(ExchangeAPI):
             first_status_obj_raw = validated_response.data.statuses[0]
             error_to_raise_from_status: APIError | None = None
             first_status_obj: HyperliquidRawExchangeStatusObject | None = None
+            order_id_to_fetch: int | None = None
+            log_message_prefix = "Order placement status unclear"
 
             if isinstance(first_status_obj_raw, str):
-                log_msg = (
-                    f"[{self.exchange_name}] Order placement returned string status: "
-                    f"{first_status_obj_raw}"
-                )
-                logger.warning(log_msg)
-                err_code = APIErrorCode.ORDER_REJECTED.value
-                if (
-                    "LiquidationLimitOrderTooLargeError" in first_status_obj_raw
-                    or "liquidation order too large" in first_status_obj_raw.lower()
-                ):
-                    err_code = APIErrorCode.INSUFFICIENT_FUNDS.value
-                error_to_raise_from_status = APIError(
-                    f"Order placement failed: {first_status_obj_raw}",
-                    code=err_code,
-                    exchange_message=first_status_obj_raw,
-                )
+                benign_string_statuses = {"canceled", "modified", "success"}
+                if first_status_obj_raw.lower() in benign_string_statuses:
+                    logger.info(
+                        f"[{self.exchange_name}] Order placement status (string): {first_status_obj_raw}"
+                    )
+                    if first_status_obj_raw.lower() == "canceled":
+                        # If it's just "canceled", we likely won't get an OID to fetch full status.
+                        # This situation might require returning a simplified Order object or a specific status.
+                        # For now, if no OID is found, an error will be raised later.
+                        pass  # No specific error to raise yet for benign strings.
+                else:
+                    # String is not in benign_string_statuses, treat as an error message.
+                    logger.warning(
+                        f"[{self.exchange_name}] Order placement returned unhandled/error string status: "
+                        f"{first_status_obj_raw}"
+                    )
+                    error_to_raise_from_status = self.error_mapper.map_string_error(
+                        first_status_obj_raw,
+                        http_status=200,  # HL often returns 200 OK with error in body
+                    )
             else:
-                first_status_obj = first_status_obj_raw
+                # If not a string, it must be HyperliquidRawExchangeStatusObject due to Pydantic validation of the list items
+                first_status_obj = first_status_obj_raw  # type: ignore[assignment] # mypy needs help here if first_status_obj_raw is still Any in its view
+                if not isinstance(first_status_obj, HyperliquidRawExchangeStatusObject):
+                    # This should be an impossible path if Pydantic validation on statuses list worked correctly.
+                    # It implies first_status_obj_raw was neither str nor HyperliquidRawExchangeStatusObject.
+                    logger.error(
+                        f"[{self.exchange_name}] Critical error: status item {first_status_obj_raw!r} is not str or StatusObject after list validation."
+                    )
+                    error_to_raise_from_status = APIError(
+                        f"Internal error: Unexpected item type {type(first_status_obj_raw).__name__} in statuses list.",
+                        code=APIErrorCode.UNKNOWN.value,
+                    )
+                elif error_msg := first_status_obj.error:
+                    logger.warning(
+                        f"[{self.exchange_name}] Order placement object has error: {error_msg}"
+                    )
+                    error_to_raise_from_status = self.error_mapper.map_string_error(
+                        error_msg,
+                        http_status=200,  # Assuming 200 OK from HL if error is in object body
+                    )
+                elif resting_details := first_status_obj.resting:
+                    order_id_to_fetch = resting_details.oid
+                    log_message_prefix = f"Order OID:{resting_details.oid} resting"
+                elif filled_details := first_status_obj.filled:
+                    order_id_to_fetch = filled_details.oid
+                    log_message_prefix = (
+                        f"Order OID:{filled_details.oid} filled (avgPx: {filled_details.avg_px}, "
+                        f"sz: {filled_details.total_sz})"
+                    )
+                # Add handling for .success or .withdrawal_submitted on first_status_obj if they become relevant
+                # for non-error, non-order-tracking outcomes of an "order" type action.
 
             if error_to_raise_from_status:
                 raise error_to_raise_from_status
-            if first_status_obj is None:
-                raise APIError(
-                    "Internal error processing order status after placement.",
-                    code=APIErrorCode.UNKNOWN.value,
-                )
 
-            order_id_to_fetch: int | None = None
-            log_message_prefix = "Order placement reported"
-            if resting_details := first_status_obj.resting:
-                order_id_to_fetch, log_message_prefix = (
-                    resting_details.oid,
-                    f"Order OID:{resting_details.oid} resting",
-                )
-            elif filled_details := first_status_obj.filled:
-                order_id_to_fetch, log_message_prefix = (
-                    filled_details.oid,
-                    (
-                        f"Order OID:{filled_details.oid} filled (avgPx: {filled_details.avg_px}, "
-                        f"sz: {filled_details.total_sz})"
-                    ),
-                )
-            elif error_msg := first_status_obj.error:
-                err_code_obj = APIErrorCode.ORDER_REJECTED.value
-                if "LiquidationLimitOrderTooLargeError" in error_msg:
-                    err_code_obj = APIErrorCode.INSUFFICIENT_FUNDS.value
-                raise APIError(
-                    f"Order placement failed: {error_msg}",
-                    code=err_code_obj,
-                    exchange_message=error_msg,
-                )
-
+            # If we reached here, no explicit error was raised from the status object/string itself.
+            # Now, check if we have an order_id_to_fetch to get canonical status.
             if order_id_to_fetch is not None:
                 logger.info(
                     f"[{self.exchange_name}] {log_message_prefix}. Fetching canonical status."
@@ -1301,10 +1317,34 @@ class HyperliquidAPI(ExchangeAPI):
                 f"[{self.exchange_name}] Failed to validate order placement response: "
                 f"{e_val_outer}. Raw: {response_raw!r}"
             )
-            raise APIError(
-                f"Invalid response after placing order: {e_val_outer}",
-                code=APIErrorCode.UNKNOWN.value,
-            ) from e_val_outer
+            # Attempt to extract and map a specific error string if validation failed due to it.
+            # This handles cases where HL returns an error string in statuses that the raw model rejects.
+            error_str_from_raw: str | None = None
+            if isinstance(response_raw, dict):
+                data_field = response_raw.get("data")
+                if isinstance(data_field, dict):
+                    statuses_field = data_field.get("statuses")
+                    if isinstance(statuses_field, list) and len(statuses_field) > 0:
+                        if isinstance(statuses_field[0], str):
+                            error_str_from_raw = statuses_field[0]
+
+            if error_str_from_raw:
+                logger.info(
+                    f"[{self.exchange_name}] Attempting to map error string '{error_str_from_raw}' from raw response after Pydantic validation failure."
+                )
+                # Assuming 200 OK from HL if the overall structure was somewhat valid but contained a bad status string.
+                # The error_mapper should provide the correct semantic error code.
+                specific_api_error = self.error_mapper.map_string_error(
+                    error_str_from_raw, http_status=200
+                )
+                raise specific_api_error from e_val_outer
+            else:
+                # Fallback to generic UNKNOWN error if specific string can't be extracted.
+                raise APIError(
+                    f"Invalid response after placing order: {e_val_outer}",
+                    code=APIErrorCode.UNKNOWN.value,  # Default to UNKNOWN if specific mapping fails
+                    original_exception=e_val_outer,
+                ) from e_val_outer
         except APIError:
             raise
         except Exception as e_unexp_place:

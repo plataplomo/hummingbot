@@ -6,7 +6,11 @@ from unittest.mock import MagicMock
 import pytest
 from pytest import LogCaptureFixture
 
-from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
+from cyberdelta.apis.connectivity.rate_limiter_service import (
+    SERVICE_FALLBACK_BUCKET_SIZE,
+    SERVICE_FALLBACK_RATE,
+    RateLimiterService,
+)
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 
 
@@ -91,24 +95,26 @@ class TestRateLimiterService:
             exchange_name="test_exchange", config=config_invalid_types, loop=mock_loop
         )
         # Default values should be used when parsing fails
-        assert service.default_limiter.rate == 10  # Default from RateLimiterService init logic
-        assert (
-            service.default_limiter.bucket_size == 10
-        )  # Default from RateLimiterService init logic
+        assert service.default_limiter.rate == SERVICE_FALLBACK_RATE
+        assert service.default_limiter.bucket_size == SERVICE_FALLBACK_BUCKET_SIZE
         # Endpoint with invalid types should also use defaults for that endpoint
-        assert "GET:/specific/path" in service.endpoint_limiters
+        # because RateLimiterConfig validation will fail, leading to full fallback config.
+        # Therefore, endpoint_limiters will be empty.
+        assert not service.endpoint_limiters
+
+        # Check for the generic fallback log message due to overall validation failure
+        assert "Failed to validate 'rate_limits' config" in caplog.text
         assert (
-            service.endpoint_limiters["GET:/specific/path"].rate == 10
-        )  # Falls back to default_rate
-        assert (
-            service.endpoint_limiters["GET:/specific/path"].bucket_size == 10
-        )  # Falls back to default_bucket
-        assert "Invalid 'default_rate' value: invalid_float" in caplog.text
-        assert "Invalid 'default_bucket_size' value: invalid_int" in caplog.text
-        assert "Could not convert 'rate' for endpoint 'GET:/specific/path': bad_rate" in caplog.text
-        assert (
-            "Could not convert 'bucket_size' for endpoint 'GET:/specific/path': bad_bucket"
+            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, bucket={SERVICE_FALLBACK_BUCKET_SIZE}"
             in caplog.text
+        )
+        # Specific field errors should also be present in the detailed Pydantic error message
+        assert "default_rate" in caplog.text and "invalid_float" in caplog.text
+        assert "default_bucket_size" in caplog.text and "invalid_int" in caplog.text
+        assert "endpoints.GET:/specific/path.rate" in caplog.text and "bad_rate" in caplog.text
+        assert (
+            "endpoints.GET:/specific/path.bucket_size" in caplog.text
+            and "bad_bucket" in caplog.text
         )
 
     def test_initialization_missing_rate_limits_key_uses_defaults(
@@ -117,8 +123,8 @@ class TestRateLimiterService:
         service = RateLimiterService(
             exchange_name="test_exchange", config=config_missing_rate_limits_key, loop=mock_loop
         )
-        assert service.default_limiter.rate == 10
-        assert service.default_limiter.bucket_size == 10
+        assert service.default_limiter.rate == SERVICE_FALLBACK_RATE
+        assert service.default_limiter.bucket_size == SERVICE_FALLBACK_BUCKET_SIZE
         assert len(service.endpoint_limiters) == 0
 
     def test_initialization_invalid_rate_limits_structure(
@@ -128,10 +134,16 @@ class TestRateLimiterService:
         service = RateLimiterService(
             exchange_name="test_exchange", config=config_bad_structure, loop=mock_loop
         )
-        assert service.default_limiter.rate == 10
-        assert service.default_limiter.bucket_size == 10
+        assert service.default_limiter.rate == SERVICE_FALLBACK_RATE
+        assert service.default_limiter.bucket_size == SERVICE_FALLBACK_BUCKET_SIZE
         assert len(service.endpoint_limiters) == 0
-        assert "Invalid 'rate_limits' config type: <class 'str'>" in caplog.text
+        # Check for the warning about rate_limits not being a dict, and the subsequent fallback log
+        assert "'rate_limits' in config is not a dictionary" in caplog.text
+        assert "Failed to validate 'rate_limits' config" in caplog.text
+        assert (
+            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, bucket={SERVICE_FALLBACK_BUCKET_SIZE}"
+            in caplog.text
+        )
 
     def test_initialization_invalid_endpoints_structure(
         self, mock_loop: MagicMock, caplog: LogCaptureFixture
@@ -140,10 +152,16 @@ class TestRateLimiterService:
         service = RateLimiterService(
             exchange_name="test_exchange", config=config_bad_endpoints, loop=mock_loop
         )
-        assert service.default_limiter.rate == 10
-        assert service.default_limiter.bucket_size == 10
+        assert service.default_limiter.rate == SERVICE_FALLBACK_RATE
+        assert service.default_limiter.bucket_size == SERVICE_FALLBACK_BUCKET_SIZE
         assert len(service.endpoint_limiters) == 0
-        assert "Invalid 'endpoints' rate limit config type: <class 'str'>" in caplog.text
+        # Check for the Pydantic validation error concerning 'endpoints' not being a dict
+        assert "Failed to validate 'rate_limits' config" in caplog.text
+        assert "Input should be a valid dictionary" in caplog.text and "endpoints" in caplog.text
+        assert (
+            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, bucket={SERVICE_FALLBACK_BUCKET_SIZE}"
+            in caplog.text
+        )
 
     def test_initialization_invalid_endpoint_config_item_type(
         self, mock_loop: MagicMock, caplog: LogCaptureFixture
@@ -152,9 +170,19 @@ class TestRateLimiterService:
         service = RateLimiterService(
             exchange_name="test_exchange", config=config_bad_item, loop=mock_loop
         )
-        assert len(service.endpoint_limiters) == 0  # Malformed endpoint config is skipped
+        assert service.default_limiter.rate == SERVICE_FALLBACK_RATE  # Service falls back fully
+        assert service.default_limiter.bucket_size == SERVICE_FALLBACK_BUCKET_SIZE
         assert (
-            "Invalid rate limit config type for endpoint 'GET:/foo': <class 'str'>" in caplog.text
+            len(service.endpoint_limiters) == 0
+        )  # Malformed endpoint config leads to full fallback
+
+        # Check for the Pydantic validation error concerning the specific endpoint item
+        assert "Failed to validate 'rate_limits' config" in caplog.text
+        assert "endpoints.GET:/foo" in caplog.text
+        assert "Input should be a valid dictionary or instance of EndpointRateConfig" in caplog.text
+        assert (
+            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, bucket={SERVICE_FALLBACK_BUCKET_SIZE}"
+            in caplog.text
         )
 
     def test_get_limiter_specific_method_path(

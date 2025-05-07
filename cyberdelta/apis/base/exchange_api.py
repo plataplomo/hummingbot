@@ -54,8 +54,9 @@ __all__ = [
 # Get logger instance for this module
 logger = logging.getLogger(__name__)
 
-# Use `type` keyword for type aliases (PEP 695)
-type MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
+# Type alias for WebSocket message handlers
+# Handler receives data_payload (dict) and the full_message (dict)
+MessageHandler = Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]]
 
 
 class ExchangeAPI(ABC):

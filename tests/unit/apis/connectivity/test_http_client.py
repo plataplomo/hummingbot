@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
+import pytest_asyncio
 from multidict import CIMultiDict, CIMultiDictProxy
 
 from cyberdelta.apis.base.authenticator_interface import (
@@ -40,7 +41,7 @@ def mock_authenticator() -> IAuthenticator:
     return auth
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def http_client_instance() -> AsyncGenerator[HttpClient]:
     client = HttpClient(exchange_name="test_exchange", rest_endpoint="http://test.api")
     yield client
@@ -198,12 +199,17 @@ class TestHttpClient:
             is_signed=True,
         )
 
+        # Get the actual session headers that HttpClient will use as a base
+        session = await http_client_instance._get_session()  # noqa: SLF001
+        expected_headers_for_auth = session.headers.copy()
+        expected_headers_for_auth.update(original_headers)
+
         mock_authenticator.prepare_request.assert_called_once_with(  # type: ignore [attr-defined]
             method="POST",
             path="/signed_action",
             params=original_params,  # Authenticator receives original params
             data=original_data,  # Authenticator receives original data
-            headers=original_headers,  # Authenticator receives original headers
+            headers=expected_headers_for_auth,  # Authenticator receives combined headers
         )
         # Check that headers from authenticator are in the final request headers
         # and original client headers are also present if not overwritten
@@ -213,7 +219,8 @@ class TestHttpClient:
         # Check that params from authenticator are used
         final_call_params = mock_request.call_args[1]["params"]
         assert final_call_params["auth_param"] == "val"
-        assert final_call_params["client_param"] == "val"
+        # Original client_param is overwritten if authenticator provides params
+        assert "client_param" not in final_call_params
         # Check that data for the request body is the authenticator's modified data
         # if it returns one, or original data if authenticator returns None for data.
         # Current mock_authenticator returns data, so that should be used.

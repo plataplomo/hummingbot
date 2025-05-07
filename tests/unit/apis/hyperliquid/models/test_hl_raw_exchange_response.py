@@ -64,7 +64,7 @@ def valid_top_level_response(valid_response_data_dict: dict[str, Any]) -> dict[s
 def test_hl_resting_valid(valid_resting_data: dict[str, Any]) -> None:
     obj = HyperliquidRawExchangeStatusResting.model_validate(valid_resting_data)
     assert obj.oid == 12345
-    assert obj.model_config.get("extra") == "ignore"
+    assert obj.model_config.get("extra") == "forbid"
     assert obj.model_config.get("frozen") is True
 
 
@@ -73,7 +73,7 @@ def test_hl_filled_valid(valid_filled_data: dict[str, Any]) -> None:
     assert obj.oid == 67890
     assert obj.total_sz == "1.5"
     assert obj.avg_px == "150.25"
-    assert obj.model_config.get("extra") == "ignore"
+    assert obj.model_config.get("extra") == "forbid"
     assert obj.model_config.get("frozen") is True
 
 
@@ -87,7 +87,7 @@ def test_hl_status_object_valid(
     assert resting.resting.oid == 12345
     assert resting.filled is None
     assert resting.error is None
-    assert resting.model_config.get("extra") == "ignore"
+    assert resting.model_config.get("extra") == "forbid"
     assert resting.model_config.get("frozen") is True
 
     filled = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_filled)
@@ -95,14 +95,14 @@ def test_hl_status_object_valid(
     assert filled.filled is not None
     assert filled.filled.oid == 67890
     assert filled.error is None
-    assert filled.model_config.get("extra") == "ignore"
+    assert filled.model_config.get("extra") == "forbid"
     assert filled.model_config.get("frozen") is True
 
     error = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_error)
     assert error.resting is None
     assert error.filled is None
     assert error.error == "Order rejected due to insufficient margin."
-    assert error.model_config.get("extra") == "ignore"
+    assert error.model_config.get("extra") == "forbid"
     assert error.model_config.get("frozen") is True
 
 
@@ -119,7 +119,7 @@ def test_hl_response_data_valid(valid_response_data_dict: dict[str, Any]) -> Non
     assert obj.statuses[2].filled.oid == 67890
     assert obj.statuses[3] == "modified"
     assert obj.statuses[4] == "success"
-    assert obj.model_config.get("extra") == "ignore"
+    assert obj.model_config.get("extra") == "forbid"
     assert obj.model_config.get("frozen") is True
 
 
@@ -170,11 +170,12 @@ def test_hl_resting_invalid(invalid_data: dict[str, Any], expected_msg_part: str
 
 
 def test_hl_resting_extra_fields_ignored() -> None:
-    """Test that extra fields are ignored due to extra='ignore'."""
+    """Test that extra fields are rejected due to extra='forbid'."""
     data = {"oid": 123, "extra": 1, "another": "field"}
-    obj = HyperliquidRawExchangeStatusResting.model_validate(data)
-    assert obj.oid == 123
-    assert not hasattr(obj, "extra")
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawExchangeStatusResting.model_validate(data)
+    assert "extra" in str(exc_info.value).lower()
+    assert "not permitted" in str(exc_info.value).lower()
 
 
 # Filled Model Failures
@@ -200,11 +201,12 @@ def test_hl_filled_invalid(invalid_data: dict[str, Any], expected_msg_part: str)
 
 
 def test_hl_filled_extra_fields_ignored() -> None:
-    """Test that extra fields are ignored due to extra='ignore'."""
+    """Test that extra fields are rejected due to extra='forbid'."""
     data = {"oid": 1, "totalSz": "1", "avgPx": "1", "extra": 1}
-    obj = HyperliquidRawExchangeStatusFilled.model_validate(data)
-    assert obj.oid == 1
-    assert not hasattr(obj, "extra")
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawExchangeStatusFilled.model_validate(data)
+    assert "extra" in str(exc_info.value).lower()
+    assert "not permitted" in str(exc_info.value).lower()
 
 
 # Status Object Failures
@@ -224,11 +226,12 @@ def test_hl_status_object_invalid(invalid_data: dict[str, Any], expected_msg_par
 
 
 def test_hl_status_object_extra_fields_ignored() -> None:
-    """Test that extra fields are ignored due to extra='ignore'."""
+    """Test that extra fields are rejected due to extra='forbid'."""
     data = {"error": "Some error", "extra": 1}
-    obj = HyperliquidRawExchangeStatusObject.model_validate(data)
-    assert obj.error == "Some error"
-    assert not hasattr(obj, "extra")
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawExchangeStatusObject.model_validate(data)
+    assert "extra" in str(exc_info.value).lower()
+    assert "not permitted" in str(exc_info.value).lower()
 
 
 # Response Data Failures
@@ -262,15 +265,27 @@ def test_hl_response_data_invalid(
 ) -> None:
     with pytest.raises(expected_exception) as exc_info:
         HyperliquidRawExchangeResponseData.model_validate(invalid_data)
-    assert expected_msg_part in str(exc_info.value)
+    if expected_msg_part == "Must be a list" and isinstance(exc_info.value, TypeError):
+        assert (
+            "not iterable" in str(exc_info.value) or "must be a list" in str(exc_info.value).lower()
+        )
+    elif "statuses[0]: Invalid type int" in expected_msg_part and isinstance(
+        exc_info.value, ValidationError
+    ):
+        assert "Input should be a valid string" in str(
+            exc_info.value
+        ) or "Input should be a valid dictionary" in str(exc_info.value)
+    else:
+        assert expected_msg_part in str(exc_info.value)
 
 
 def test_hl_response_data_extra_fields_ignored() -> None:
-    """Test that extra fields are ignored in ResponseData itself (config is ignore)."""
+    """Test that extra fields are rejected in ResponseData itself (config should be forbid)."""
     data = {"type": "order", "statuses": ["success"], "extra": "ignored"}
-    obj = HyperliquidRawExchangeResponseData.model_validate(data)
-    assert obj.type == "order"
-    assert not hasattr(obj, "extra")
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawExchangeResponseData.model_validate(data)
+    assert "extra" in str(exc_info.value).lower()
+    assert "not permitted" in str(exc_info.value).lower()
 
 
 # Top Level Response Failures

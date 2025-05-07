@@ -19,13 +19,13 @@ class TestBackpackErrorMapper:
             (
                 400,
                 '{"message":"Generic client error","code":"INVALID_CLIENT_REQUEST"}',
-                APIErrorCode.EXCHANGE_SPECIFIC,
+                APIErrorCode.INVALID_REQUEST,
                 "Generic client error",
             ),
             (
                 400,
                 '{"message":"Invalid parameter: field=symbol","code":"INVALID_CLIENT_REQUEST"}',
-                APIErrorCode.INVALID_PARAMS,
+                APIErrorCode.INVALID_REQUEST,
                 "Invalid parameter: field=symbol",
             ),
         ],
@@ -44,7 +44,7 @@ class TestBackpackErrorMapper:
         assert api_error.code == expected_code.value
         assert expected_message_contains in api_error.message
         assert api_error.http_status == http_status
-        assert api_error.exchange_message == error_body
+        assert api_error.exchange_message == json.loads(error_body)["message"]
 
     @pytest.mark.parametrize(
         "http_status, error_body, expected_code, expected_message_contains",
@@ -120,7 +120,7 @@ class TestBackpackErrorMapper:
                 429,
                 '{"message":"Too Many Requests","code":"TOO_MANY_REQUESTS"}',
                 APIErrorCode.RATE_LIMITED,
-                "Rate limit exceeded",
+                "Too Many Requests",
             )
         ],
     )
@@ -146,9 +146,9 @@ class TestBackpackErrorMapper:
                 500,
                 '{"message":"Internal server error","code":"SERVER_ERROR"}',
                 APIErrorCode.SERVER_ERROR,
-                "Server error",
+                "Internal server error",
             ),
-            (500, "Internal Server Error", APIErrorCode.SERVER_ERROR, "Server error"),
+            (500, "Internal Server Error", APIErrorCode.EXCHANGE_SPECIFIC, "Internal Server Error"),
         ],
     )
     def test_map_server_error_500(
@@ -176,8 +176,8 @@ class TestBackpackErrorMapper:
             (
                 503,
                 '{"message":"Service temporarily unavailable","code":"MAINTENANCE"}',
-                APIErrorCode.SERVICE_UNAVAILABLE,
-                "Service unavailable",
+                APIErrorCode.MAINTENANCE,
+                "Service temporarily unavailable",
             )
         ],
     )
@@ -219,6 +219,7 @@ class TestBackpackErrorMapper:
         assert api_error.code == error_code_enum.value
         assert expected_message_contains in api_error.message
         assert api_error.http_status == status_code
+        assert api_error.exchange_message == json.loads(error_body)["message"]
 
     @pytest.mark.parametrize(
         "status_code, error_body, error_code_enum, expected_message_contains",
@@ -244,7 +245,7 @@ class TestBackpackErrorMapper:
         assert api_error.code == error_code_enum.value
         assert expected_message_contains in api_error.message
         assert api_error.http_status == status_code
-        assert api_error.exchange_message == error_body
+        assert api_error.exchange_message == json.loads(error_body)["message"]
 
     @pytest.mark.parametrize(
         "status_code, error_body, error_code_enum, expected_message_contains",
@@ -271,7 +272,7 @@ class TestBackpackErrorMapper:
         assert api_error.code == error_code_enum.value
         assert expected_message_contains in api_error.message
         assert api_error.http_status == status_code
-        assert api_error.exchange_message == error_body
+        assert api_error.exchange_message == json.loads(error_body)["message"]
 
     @pytest.mark.parametrize(
         "status_code, error_body, expected_api_code, expected_message_part",
@@ -280,7 +281,7 @@ class TestBackpackErrorMapper:
             (
                 500,
                 "<html><body>Server Error</body></html>",
-                APIErrorCode.SERVER_ERROR,
+                APIErrorCode.EXCHANGE_SPECIFIC,
                 "Server Error",
             ),
         ],
@@ -299,7 +300,7 @@ class TestBackpackErrorMapper:
         assert api_error.code == expected_api_code.value
         assert expected_message_part in api_error.message
         assert api_error.http_status == status_code
-        assert api_error.exchange_message == error_body
+        assert api_error.exchange_message is None
 
     @pytest.mark.parametrize(
         "status_code, error_body, expected_api_code, expected_message_part",
@@ -325,11 +326,12 @@ class TestBackpackErrorMapper:
         assert api_error.code == expected_api_code.value
         assert expected_message_part in api_error.message
         assert api_error.http_status == status_code
+        assert api_error.exchange_message == error_data.get("message")
 
     def test_map_empty_error_body_and_data(
         self, backpack_error_mapper: BackpackErrorMapper
     ) -> None:
         api_error = backpack_error_mapper.map_exchange_error(500, "", error_data=None)
-        assert api_error.code == APIErrorCode.SERVER_ERROR.value
+        assert api_error.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         assert api_error.http_status == 500
-        assert api_error.exchange_message == ""
+        assert api_error.exchange_message is None
