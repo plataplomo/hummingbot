@@ -19,6 +19,7 @@ from cyberdelta.apis.hyperliquid.hl_mapper import (
     HyperliquidMapper,
     HyperliquidOrderMapper,
 )
+from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
 )
@@ -41,10 +42,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
-)
-from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
-    HyperliquidRawL2UsdTransferPayload,
-    HyperliquidRawWithdrawalToL1ActionPayload,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.apis.models.api_error import APIError
@@ -192,6 +189,7 @@ class HyperliquidAPI(ExchangeAPI):
         response_raw: object = await self._request(
             "POST",
             f"{self.INFO_URL.rstrip('/')}/info",
+            data=HyperliquidRequestBuilder.build_info_request_payload(),
         )
 
         try:
@@ -337,6 +335,7 @@ class HyperliquidAPI(ExchangeAPI):
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
+                data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
             validated_state = HyperliquidRawClearinghouseState.model_validate(response)
             return HyperliquidMapper.map_raw_clearinghouse_state_to_spot_balances(validated_state)
@@ -372,6 +371,7 @@ class HyperliquidAPI(ExchangeAPI):
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
+                data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
             validated_state = HyperliquidRawClearinghouseState.model_validate(response)
             positions_dict = HyperliquidMapper.map_raw_clearinghouse_state_to_derivative_positions(
@@ -413,6 +413,7 @@ class HyperliquidAPI(ExchangeAPI):
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
+                data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
             validated: HyperliquidRawOpenOrdersResponse = (
                 HyperliquidRawOpenOrdersResponse.model_validate(response)
@@ -449,6 +450,7 @@ class HyperliquidAPI(ExchangeAPI):
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
+                data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
             validated = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response)
             for asset_ctx in validated.asset_ctxs:
@@ -475,6 +477,7 @@ class HyperliquidAPI(ExchangeAPI):
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
+                data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
             from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
 
@@ -498,6 +501,7 @@ class HyperliquidAPI(ExchangeAPI):
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
+                data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
             from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
                 HyperliquidRawRecentTradesResponse,
@@ -526,6 +530,7 @@ class HyperliquidAPI(ExchangeAPI):
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
+                data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
             validated = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response)
             asset_ctx = next((ctx for ctx in validated.asset_ctxs if ctx.name == symbol), None)
@@ -557,14 +562,9 @@ class HyperliquidAPI(ExchangeAPI):
                 "Destination address (to_account) is required for Hyperliquid L2 transfer."
             )
 
-        transfer_action_payload = HyperliquidRawL2UsdTransferPayload(
-            destination=to_account, token="USDC", amount=str(amount)
+        request_data = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
+            destination_address=to_account, amount=amount
         )
-        action_details = {
-            "chain": "L2",
-            "payload": transfer_action_payload.model_dump(by_alias=True),
-        }
-        request_data = {"type": "usdTransfer", "action": action_details}
 
         response_raw: object = None
         try:
@@ -647,19 +647,10 @@ class HyperliquidAPI(ExchangeAPI):
         if not address:
             raise ValueError("Destination address is required for withdrawal.")
 
-        action_type: str
-        action_payload_dict: dict[str, Any]
-        if asset.upper() == "ETH":
-            action_type = "withdrawEth"
-            action_payload_dict = {"amount": str(amount), "destination": address}
-        else:
-            action_type = "withdraw"
-            withdrawal_payload = HyperliquidRawWithdrawalToL1ActionPayload(
-                token=asset.upper(), amount=str(amount), destination=address
-            )
-            action_payload_dict = withdrawal_payload.model_dump()
+        request_data = HyperliquidRequestBuilder.build_withdrawal_payload(
+            asset=asset, amount=amount, destination_address=address
+        )
 
-        request_data = {"type": action_type, "action": action_payload_dict}
         response_raw: object = None
         try:
             response_raw = await self._request(
@@ -843,29 +834,25 @@ class HyperliquidAPI(ExchangeAPI):
         start_time_ms = int(start_time.timestamp() * 1000) if start_time else 0
         end_time_ms = int(end_time.timestamp() * 1000) if end_time else int(time.time() * 1000)
 
-        request_body_payload = {
-            "type": "queryOrderHistory",
-            "user": self._wallet_address,  # queryOrderHistory requires user
-            "startTime": start_time_ms,
-            "endTime": end_time_ms,
-        }
+        if self._wallet_address is None:
+            raise APIError(
+                "Wallet address is required for order history.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        request_body_payload = HyperliquidRequestBuilder.build_order_history_payload(
+            wallet_address=self._wallet_address,
+            start_time_ms=start_time_ms,
+            end_time_ms=end_time_ms,
+        )
 
         response_raw: object = None
         orders_list: list[Order] = []
         try:
             response_raw = await self._request(
                 "POST",
-                f"{self.INFO_URL.rstrip('/')}/info",  # Path for ExchangeAPI._request with its HttpClient should be just "/info"
-                # and if HLAPI has a separate HttpClient for INFO_URL or handles full URLs.
-                # For now, assume it might be passing full URL to a generic _request.
-                # Or, the specific HLAPI _request was meant to handle this.
-                # With refactor, self._request in HLAPI is ExchangeAPI._request.
-                # ExchangeAPI._request expects a path for its _http_client.
-                # Suggests HLAPI needs to manage calls to INFO_URL carefully.
-                # Alt: HLAPI specific method for INFO_URL with own HttpClient.
-                # This fix addresses using start_time_ms and end_time_ms.
-                # URL strategy is a broader issue.
-                data=request_body_payload,  # Pass the payload containing times
+                f"{self.INFO_URL.rstrip('/')}/info",
+                data=request_body_payload,
             )
             if not isinstance(response_raw, list):
                 raise APIError(
@@ -935,6 +922,7 @@ class HyperliquidAPI(ExchangeAPI):
             response_raw = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
+                data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
             if not isinstance(response_raw, list):
                 logger.warning(
@@ -977,6 +965,7 @@ class HyperliquidAPI(ExchangeAPI):
             response_raw: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
+                data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
             if (
                 not isinstance(response_raw, list)
@@ -1032,33 +1021,12 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
         """Fetches historical market data (candlesticks)."""
-        request_body_payload = {
-            "type": "candleSnapshot",
-            "req": {
-                "coin": symbol.upper(),
-                "interval": timeframe,
-                "startTime": 0,  # Using 0 for startTime to get recent data up to endTime
-                "endTime": int(time.time() * 1000),
-            },
-        }
+        request_body_payload = HyperliquidRequestBuilder.build_candle_snapshot_payload(
+            symbol=symbol, timeframe=timeframe, start_time_ms=0, end_time_ms=int(time.time() * 1000)
+        )
         try:
-            # Assuming INFO_URL might need to be handled by a specific HttpClient instance or a helper
-            # that can target a different base URL than the default ExchangeAPI rest_endpoint.
-            # For now, if self._request is the base ExchangeAPI._request, then `endpoint` needs to be a path.
-            # If HyperliquidAPI needs to call a different base URL (INFO_URL) for this,
-            # it should not use `super()._request` or `self._request` directly without ensuring
-            # the correct base URL is used by HttpClient.
-            # This might involve having a dedicated HttpClient for info.hyperliquid.xyz
-            # or a mechanism in the base _request or HttpClient to accept a full URL
-            # or a base URL override.
-            # For this fix, I am focusing on passing the data payload correctly.
-            # The URL part: f"{self.INFO_URL.rstrip('/')}/info" suggests the intent
-            # to call the info endpoint.
-            # If ExchangeAPI._request is used, and it prepends its own base URL, this would be wrong.
-            # This is a structural concern noted. For the payload itself:
             raw_response = await self._request(
                 method="POST",
-                # This forms a full URL. HttpClient needs to handle it, or this call is wrong.
                 endpoint=f"{self.INFO_URL.rstrip('/')}/info",
                 data=request_body_payload,
             )
@@ -1199,7 +1167,18 @@ class HyperliquidAPI(ExchangeAPI):
             action_payload["cloid"] = client_order_id
         if trigger_payload:
             action_payload["trigger"] = trigger_payload
-        request_data = {"type": "order", "actions": [action_payload]}
+        request_data = HyperliquidRequestBuilder.build_place_order_payload(
+            asset_index=asset_index,
+            side=side,
+            order_type=order_type,
+            quantity=quantity,
+            time_in_force=time_in_force,
+            price=price,
+            stop_price=stop_price,
+            client_order_id=client_order_id,
+            reduce_only=reduce_only,
+            post_only=post_only,
+        )
 
         response_raw: object = None
         try:
@@ -1233,53 +1212,51 @@ class HyperliquidAPI(ExchangeAPI):
                     logger.info(
                         f"[{self.exchange_name}] Order placement status (string): {first_status_obj_raw}"
                     )
-                    if first_status_obj_raw.lower() == "canceled":
-                        # If it's just "canceled", we likely won't get an OID to fetch full status.
-                        # This situation might require returning a simplified Order object or a specific status.
-                        # For now, if no OID is found, an error will be raised later.
-                        pass  # No specific error to raise yet for benign strings.
+                    # No specific error to raise yet for benign strings.
                 else:
-                    # String is not in benign_string_statuses, treat as an error message.
                     logger.warning(
                         f"[{self.exchange_name}] Order placement returned unhandled/error string status: "
                         f"{first_status_obj_raw}"
                     )
                     error_to_raise_from_status = self.error_mapper.map_string_error(
                         first_status_obj_raw,
-                        http_status=200,  # HL often returns 200 OK with error in body
+                        http_status=200,
                     )
             else:
-                # If not a string, it must be HyperliquidRawExchangeStatusObject due to Pydantic validation of the list items
-                first_status_obj = first_status_obj_raw  # type: ignore[assignment] # mypy needs help here if first_status_obj_raw is still Any in its view
-                if not isinstance(first_status_obj, HyperliquidRawExchangeStatusObject):
-                    # This should be an impossible path if Pydantic validation on statuses list worked correctly.
-                    # It implies first_status_obj_raw was neither str nor HyperliquidRawExchangeStatusObject.
+                # Attempt to cast to give type checker more info, or handle potential TypeError if assumption is wrong.
+                try:
+                    first_status_obj = HyperliquidRawExchangeStatusObject.model_validate(
+                        first_status_obj_raw
+                    )
+                except ValidationError as e_status_val:
                     logger.error(
-                        f"[{self.exchange_name}] Critical error: status item {first_status_obj_raw!r} is not str or StatusObject after list validation."
+                        f"[{self.exchange_name}] Failed to validate status object item: {first_status_obj_raw!r}. Error: {e_status_val}"
                     )
                     error_to_raise_from_status = APIError(
-                        f"Internal error: Unexpected item type {type(first_status_obj_raw).__name__} in statuses list.",
+                        f"Internal error: Unexpected item type or invalid structure {type(first_status_obj_raw).__name__} in statuses list.",
                         code=APIErrorCode.UNKNOWN.value,
+                        original_exception=e_status_val,
                     )
-                elif error_msg := first_status_obj.error:
-                    logger.warning(
-                        f"[{self.exchange_name}] Order placement object has error: {error_msg}"
-                    )
-                    error_to_raise_from_status = self.error_mapper.map_string_error(
-                        error_msg,
-                        http_status=200,  # Assuming 200 OK from HL if error is in object body
-                    )
-                elif resting_details := first_status_obj.resting:
-                    order_id_to_fetch = resting_details.oid
-                    log_message_prefix = f"Order OID:{resting_details.oid} resting"
-                elif filled_details := first_status_obj.filled:
-                    order_id_to_fetch = filled_details.oid
-                    log_message_prefix = (
-                        f"Order OID:{filled_details.oid} filled (avgPx: {filled_details.avg_px}, "
-                        f"sz: {filled_details.total_sz})"
-                    )
-                # Add handling for .success or .withdrawal_submitted on first_status_obj if they become relevant
-                # for non-error, non-order-tracking outcomes of an "order" type action.
+                    first_status_obj = None  # Ensure it's None if validation fails
+
+                if first_status_obj:  # Proceed only if validation was successful
+                    if error_msg := first_status_obj.error:
+                        logger.warning(
+                            f"[{self.exchange_name}] Order placement object has error: {error_msg}"
+                        )
+                        error_to_raise_from_status = self.error_mapper.map_string_error(
+                            error_msg,
+                            http_status=200,
+                        )
+                    elif resting_details := first_status_obj.resting:
+                        order_id_to_fetch = resting_details.oid
+                        log_message_prefix = f"Order OID:{resting_details.oid} resting"
+                    elif filled_details := first_status_obj.filled:
+                        order_id_to_fetch = filled_details.oid
+                        log_message_prefix = (
+                            f"Order OID:{filled_details.oid} filled (avgPx: {filled_details.avg_px}, "
+                            f"sz: {filled_details.total_sz})"
+                        )
 
             if error_to_raise_from_status:
                 raise error_to_raise_from_status
@@ -1317,32 +1294,41 @@ class HyperliquidAPI(ExchangeAPI):
                 f"[{self.exchange_name}] Failed to validate order placement response: "
                 f"{e_val_outer}. Raw: {response_raw!r}"
             )
-            # Attempt to extract and map a specific error string if validation failed due to it.
-            # This handles cases where HL returns an error string in statuses that the raw model rejects.
             error_str_from_raw: str | None = None
             if isinstance(response_raw, dict):
-                data_field = response_raw.get("data")
+                data_field: Any = response_raw.get("data")
                 if isinstance(data_field, dict):
-                    statuses_field = data_field.get("statuses")
+                    statuses_field: Any = data_field.get("statuses")
                     if isinstance(statuses_field, list) and len(statuses_field) > 0:
                         if isinstance(statuses_field[0], str):
                             error_str_from_raw = statuses_field[0]
+                        else:
+                            logger.debug(
+                                f"[{self.exchange_name}] First status item not a string: {statuses_field[0]!r}"
+                            )
+                    elif statuses_field is not None:
+                        logger.debug(
+                            f"[{self.exchange_name}] 'statuses' field is not a non-empty list: {statuses_field!r}"
+                        )
+                elif data_field is not None:
+                    logger.debug(
+                        f"[{self.exchange_name}] 'data' field is not a dict: {data_field!r}"
+                    )
+            elif response_raw is not None:
+                logger.debug(f"[{self.exchange_name}] Raw response is not a dict: {response_raw!r}")
 
             if error_str_from_raw:
                 logger.info(
                     f"[{self.exchange_name}] Attempting to map error string '{error_str_from_raw}' from raw response after Pydantic validation failure."
                 )
-                # Assuming 200 OK from HL if the overall structure was somewhat valid but contained a bad status string.
-                # The error_mapper should provide the correct semantic error code.
                 specific_api_error = self.error_mapper.map_string_error(
                     error_str_from_raw, http_status=200
                 )
                 raise specific_api_error from e_val_outer
             else:
-                # Fallback to generic UNKNOWN error if specific string can't be extracted.
                 raise APIError(
                     f"Invalid response after placing order: {e_val_outer}",
-                    code=APIErrorCode.UNKNOWN.value,  # Default to UNKNOWN if specific mapping fails
+                    code=APIErrorCode.UNKNOWN.value,
                     original_exception=e_val_outer,
                 ) from e_val_outer
         except APIError:
@@ -1365,8 +1351,10 @@ class HyperliquidAPI(ExchangeAPI):
         asset_index = await self._get_asset_index(symbol)
         response_raw: object = None
         try:
-            action_payload = {"asset": asset_index, "oid": int(order_id)}
-            request_data = {"type": "cancel", "action": action_payload}
+            request_data = HyperliquidRequestBuilder.build_cancel_order_payload(
+                asset_index=asset_index, order_id=int(order_id)
+            )
+
             response_raw = await self._request(
                 "POST", "/exchange", data=request_data, is_signed=True
             )
@@ -1468,19 +1456,25 @@ class HyperliquidAPI(ExchangeAPI):
                 "Wallet address required for fetching order status",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        payload = {"type": "orderStatus", "user": self._wallet_address, "oid": int(order_id)}
+        payload = HyperliquidRequestBuilder.build_order_status_payload(
+            wallet_address=self._wallet_address, order_id=int(order_id)
+        )
         try:
-            response_data = await self._request(
+            response_data_raw = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
+                data=payload,
             )
+            response_data: Any = response_data_raw
+
             if not response_data or not isinstance(response_data, list) or not response_data:
                 raise APIError(
                     f"Order not found (empty/invalid response): id={order_id}",
                     code=APIErrorCode.ORDER_NOT_FOUND.value,
                 )
 
-            status_part_raw = response_data[0]
+            status_part_raw: Any = response_data[0]
+
             if isinstance(status_part_raw, str):
                 if status_part_raw.lower() == "order not found":
                     raise APIError(
