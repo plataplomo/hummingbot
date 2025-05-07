@@ -19,9 +19,6 @@ This module implements the Backpack exchange adapter for CyberDeltaEngine, inclu
 """
 
 import asyncio
-import hashlib
-import hmac
-import time
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
@@ -29,6 +26,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
@@ -38,13 +36,12 @@ from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalRequest,
     BackpackRawWithdrawalResponse,
 )
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
-from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
@@ -89,11 +86,26 @@ class BackpackAPI(ExchangeAPI):
             api_config: Dictionary of API configuration parameters.
             secrets: Dictionary of secret values (API key/secret).
         """
-        super().__init__(ExchangeName.BACKPACK, api_config, secrets)
+        super().__init__(exchange_name="backpack", config=api_config, secrets=secrets)
         self._api_key = secrets.get("BACKPACK_API_KEY")
         self._api_secret = secrets.get("BACKPACK_API_SECRET")
-        if not self._api_key or not self._api_secret:
-            logger.warning("Backpack API key/secret not provided. Signed operations will fail.")
+
+        if self._api_key and self._api_secret:
+            self._bp_authenticator: BackpackHmacAuthenticator | None = BackpackHmacAuthenticator(
+                api_key=self._api_key, api_secret=self._api_secret
+            )
+        else:
+            logger.warning(
+                "Backpack API key/secret not provided. Signed operations will fail. "
+                "Authenticator not initialized."
+            )
+            self._bp_authenticator = None
+
+        # Default headers - can be moved to base or kept here if specific
+        self.default_headers: dict[str, str] = {
+            "Content-Type": "application/json; charset=utf-8",
+            "Accept": "application/json",
+        }
 
     # --- WebSocket Implementation --- #
 
@@ -177,76 +189,49 @@ class BackpackAPI(ExchangeAPI):
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
-        Authenticate and sign an API request for Backpack.
+        Authenticate and sign an API request for Backpack using BackpackHmacAuthenticator.
 
         Returns:
-            Dictionary with signed headers and parameters.
+            Dictionary with signed headers, params, and data as expected by base _request.
         """
-        return self._sign_request(method, path, params, data)
+        # The authenticator will prepare these.
+        # We pass current params and body to the authenticator.
+        # It returns the necessary components (headers, modified params/body if any).
 
-    def _hmac_sha256_hexdigest(self, key: bytes, msg: bytes) -> str:
-        """
-        Helper for HMAC-SHA256 signature generation. Returns a hex digest string.
-        Uses 'Any' for intermediate types to work around static analyzer (Pyright/Pylance)
-        limitations with C-extension stdlib modules. This is safe, mypy-compliant,
-        and project-approved for stdlib cryptography edge cases.
-        """
-        # Pyright/Pylance cannot infer the type of hmac.new (C-extension);
-        # this is a known false positive. This ignore is safe, does not affect mypy,
-        # and is project-approved for stdlib cryptography edge cases.
-        h: Any = hmac.new(key, msg, hashlib.sha256)  # pyright: ignore[reportUnknownMemberType]
-        digest: str = h.hexdigest()
-        return digest
+        # params_for_auth = params.copy() if params else {}
+        # body_for_auth = body.copy() if body else {}
 
-    def _sign_request(
-        self,
-        method: str,
-        path: str,
-        params: dict[str, Any] | None = None,
-        data: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """
-        Sign a REST API request using HMAC-SHA256 as required by Backpack.
+        # Original headers that might have been passed to _request via a public method
+        # These will be updated by the authenticator's headers.
+        final_headers = self.default_headers.copy() if self.default_headers else {}
 
-        Returns:
-            Dictionary with signed headers and parameters.
-        Raises:
-            APIError: If API key/secret are missing.
-        """
-        if not self._api_key or not self._api_secret:
+        # Call the authenticator
+        if not self._bp_authenticator:
+            logger.error(
+                f"[{self.exchange_name}] Backpack authenticator not initialized. "
+                f"Cannot sign request for {method} {path}"
+            )
             raise APIError(
-                "Backpack API key and secret required for signed requests.",
-                code=APIErrorCode.UNKNOWN.value,
+                "Backpack authenticator not initialized. Cannot sign request.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        timestamp = str(int(time.time() * 1000))
-
-        # Create signature string based on Backpack requirements
-        signature_payload = timestamp
-        if method == "GET" and params:
-            query_string = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
-            signature_payload += query_string
-        elif (method == "POST" or method == "PUT" or method == "DELETE") and data:
-            # For POST requests with JSON body
-            import json
-
-            signature_payload += json.dumps(data)
-
-        # Create signature using helper for static analyzer compatibility
-        signature = self._hmac_sha256_hexdigest(
-            self._api_secret.encode("utf-8"), signature_payload.encode("utf-8")
+        auth_components: AuthenticatedRequestComponents = (
+            await self._bp_authenticator.prepare_request(
+                method=method,
+                path=path,
+                params=params,  # Pass original params
+                data=data,  # Pass original body
+                headers=final_headers,  # Pass current headers for authenticator to augment/override
+            )
         )
+        # The authenticator returns the full set of headers, params, and data to use.
+        return auth_components
 
-        # Return headers and potentially modified params/data
-        return {
-            "headers": {
-                "X-API-Key": self._api_key,
-                "X-Timestamp": timestamp,
-                "X-Signature": signature,
-            },
-            "params": params,
-            "data": data,
-        }
+    async def _handle_ws_message(self, message: Mapping[str, Any], ws_url: str) -> None:
+        # This method is not provided in the original file or the code block
+        # It's assumed to exist as it's called in the _route_ws_message method
+        pass
 
     # --- Core API Implementation --- #
 
@@ -596,7 +581,8 @@ class BackpackAPI(ExchangeAPI):
             quantity: Order quantity (as Decimal)
             time_in_force: Time in force (GTC, IOC, FOK).
             price: Order price (required for limit orders, as Decimal)
-            stop_price: Stop price for stop orders (currently NOT supported by Backpack for basic order placement via this method).
+            stop_price: Stop price for stop orders (currently NOT supported by Backpack
+                        for basic order placement via this method).
             client_order_id: Custom client order ID
             reduce_only: Whether this is a reduce-only order (bool)
             post_only: Whether this is a post-only order (bool)
@@ -636,7 +622,8 @@ class BackpackAPI(ExchangeAPI):
             if stop_price is not None:
                 logger.warning(
                     f"[{self.exchange_name}] 'stop_price' was provided for a Backpack order, "
-                    f"but it is not used by the standard order placement endpoint. Ensure this is intended."
+                    f"but it is not used by the standard order placement endpoint. "
+                    f"Ensure this is intended."
                 )
 
             if client_order_id:
@@ -953,7 +940,7 @@ class BackpackAPI(ExchangeAPI):
         tag: str | None = None,  # Destination tag / memo, if required
         client_withdrawal_id: str | None = None,  # Optional client-provided ID
         two_factor_token: str | None = None,  # Optional 2FA token
-        **kwargs: Any,  # For additional exchange-specific parameters like autoBorrow
+        **kwargs: dict[str, Any],  # For additional exchange-specific parameters
     ) -> dict[str, Any]:  # Return validated raw response
         """Initiate a withdrawal of assets from the exchange.
 
@@ -964,8 +951,9 @@ class BackpackAPI(ExchangeAPI):
             network: The blockchain network to use (e.g., "Solana", "Ethereum").
                      This maps to `blockchain` in the Backpack API.
             tag: Optional destination tag or memo, if required by the address/network.
-                 (Note: Backpack API does not explicitly show a 'tag' field in AccountWithdrawalPayload,
-                  this might need to be part of the 'address' or handled differently).
+                 (Note: Backpack API does not explicitly show a 'tag' field in
+                  AccountWithdrawalPayload, this might need to be part of the
+                  'address' or handled differently).
             client_withdrawal_id: Optional client-provided ID for the withdrawal.
                                   Maps to `clientId`.
             two_factor_token: Optional 2FA token if required by user settings.
@@ -1010,8 +998,9 @@ class BackpackAPI(ExchangeAPI):
 
         response_raw: object = None  # For logging in case of error
         try:
-            # Pydantic models by default exclude None values when dumping to dict if `exclude_none=True`
-            # is used, but here we create the dict first, then model, so Nones are already filtered.
+            # Pydantic models by default exclude None values when dumping to dict
+            # if `exclude_none=True` is used, but here we create the dict first,
+            # then model, so Nones are already filtered.
             response_raw = await self._request(
                 "POST",
                 request_path,
@@ -1222,15 +1211,27 @@ class BackpackAPI(ExchangeAPI):
 
             trades: list[Trade] = []
             for fill_data_raw in response_raw:
-                # Ensure item is dict before validation
                 if not isinstance(fill_data_raw, dict):
                     logger.warning(f"Skipping non-dict item in trade history list: {fill_data_raw}")
                     continue
                 try:
-                    raw_fill = BackpackRawFill.model_validate(fill_data_raw)
-                    internal_trade = BackpackOrderMapper.transform_raw_fill_to_internal(raw_fill)
-                    trades.append(internal_trade)
-                except (ValidationError, ValueError) as e:
+                    # Validate raw trade data first
+                    raw_trade_model = BackpackRawTrade.model_validate(fill_data_raw)
+                    # Then transform to internal model
+                    internal_trade = BackpackOrderMapper.transform_raw_trade_to_internal(
+                        raw_trade_model
+                    )
+                    if internal_trade:  # Mapper returns Trade | None
+                        trades.append(internal_trade)
+                    else:
+                        logger.warning(
+                            f"[{self.exchange_name}] Skipping trade in history due to "
+                            f"transformation failure (mapper returned None). Data: {fill_data_raw}"
+                        )
+                except (
+                    ValidationError,
+                    ValueError,
+                ) as e:  # Catch Pydantic and other validation errors
                     logger.warning(
                         f"[{self.exchange_name}] Skipping trade in history due to validation/"
                         f"transformation error: {e}. Data: {fill_data_raw}"
@@ -1282,7 +1283,8 @@ class BackpackAPI(ExchangeAPI):
         Args:
             order_id: The exchange-assigned order ID.
             symbol: The trading symbol (required by Backpack for order lookup).
-            client_order_id: The client-assigned order ID (optional, can be used if order_id is not known).
+            client_order_id: The client-assigned order ID (optional, can be used
+                             if order_id is not known).
 
         Returns:
             The Order object if found, otherwise None.
@@ -1312,7 +1314,8 @@ class BackpackAPI(ExchangeAPI):
                     f"[{self.exchange_name}] Unexpected response type for get_order_status: "
                     f"{type(response_raw)}. Expected dict. Params: {params}, Raw: {response_raw}"
                 )
-                # This could be an OrderNotFound if the API returns 404, which _request would raise as APIError.
+                # This could be an OrderNotFound if the API returns 404,
+                # which _request would raise as APIError.
                 # If it gets here with non-dict, it's an unexpected success response format.
                 raise APIError(
                     f"Unexpected response structure for order status: {response_raw}",
@@ -1594,8 +1597,8 @@ class BackpackAPI(ExchangeAPI):
                         internal_trades.append(internal_trade)
                     else:
                         logger.warning(
-                            f"[{self.exchange_name}] Skipping trade in history due to transformation "
-                            f"failure (mapper returned None). Data: {trade_data_raw}"
+                            f"[{self.exchange_name}] Skipping trade in history due to "
+                            f"transformation failure (mapper returned None). Data: {trade_data_raw}"
                         )
                 except (
                     ValidationError,

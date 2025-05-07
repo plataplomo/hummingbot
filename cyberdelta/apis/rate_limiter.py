@@ -6,7 +6,6 @@ import time
 
 from cyberdelta.apis.models.rate_limiter_config import RateLimiterConfig as RateLimiterConfigModel
 
-# Get logger instance for this module
 logger = logging.getLogger(__name__)
 
 
@@ -57,16 +56,17 @@ class TokenBucketRateLimiterRuntime:
     @classmethod
     def from_pydantic(cls, model: RateLimiterConfigModel) -> TokenBucketRateLimiterRuntime:
         return cls(
-            rate=model.rate,
-            bucket_size=model.bucket_size,
-            tokens=model.tokens,
+            rate=model.default_rate,  # Use default_rate from the enriched config
+            bucket_size=model.default_bucket_size,  # Use default_bucket_size
+            tokens=model.tokens,  # tokens and last_refill are for state
             last_refill=model.last_refill,
         )
 
     def to_pydantic(self) -> RateLimiterConfigModel:
         return RateLimiterConfigModel(
-            rate=self.rate,
-            bucket_size=self.bucket_size,
+            default_rate=self.rate,
+            default_bucket_size=self.bucket_size,
             tokens=self.tokens,
             last_refill=self.last_refill,
+            endpoints=None,
         )

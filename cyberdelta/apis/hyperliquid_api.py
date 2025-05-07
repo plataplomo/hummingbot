@@ -410,9 +410,7 @@ class HyperliquidAPI(ExchangeAPI):
             if handler:
                 user_events_data_raw: Any = data_dict.get("userEvents")
                 if isinstance(user_events_data_raw, list):
-                    for event_item_obj_raw in (
-                        user_events_data_raw
-                    ):  # Reverted to no explicit type hint for loop variable
+                    for event_item_obj_raw in user_events_data_raw:  # Type hint Any for clarity
                         if not isinstance(event_item_obj_raw, dict):
                             logger.warning(
                                 f"[{self.exchange_name}] Skipping non-dict item in userEvents list: {event_item_obj_raw!r}"

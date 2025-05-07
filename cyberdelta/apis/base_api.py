@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING, Any
 import aiohttp
 from aiohttp import ClientTimeout, ClientWSTimeout
 
+from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.rate_limiter_config import RateLimiterConfig
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -91,136 +91,12 @@ class ExchangeAPI(ABC):
             "max_retries", 2
         )  # Default to 2 retries (3 total attempts)
 
-        # Initialize Rate Limiters safely
-        rate_limit_config_raw = config.get("rate_limits")
-        # DEFENSIVE CHECK: config is dict[str, Any], so rate_limit_config_raw is Any.
-        # Runtime check needed. Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
-        rate_limit_config: dict[str, Any] = {}  # Explicitly typed
-        if isinstance(rate_limit_config_raw, dict):
-            # DEFENSIVE CHECK: Pyright still reports UnknownVarType despite isinstance.
-            # Mypy=ok Pyright=[reportUnknownVariableType]
-            rate_limit_config = rate_limit_config_raw
-        elif rate_limit_config_raw is not None:
-            logger.warning(
-                f"[{exchange_name}] Invalid 'rate_limits' config type: "
-                f"{type(rate_limit_config_raw)}. Using defaults."
-            )
-
-        # Safely get default rate and bucket size
-        default_rate_raw: Any = rate_limit_config.get("default_rate", 10.0)
-        default_rate: float = 10.0
-        if isinstance(default_rate_raw, int | float | str):
-            try:
-                default_rate = float(default_rate_raw)
-            except (ValueError, TypeError):
-                logger.warning(
-                    f"[{exchange_name}] Invalid 'default_rate' value: "
-                    f"{default_rate_raw}. Using default {default_rate}."
-                )
-        elif default_rate_raw is not None:
-            logger.warning(
-                f"[{exchange_name}] Invalid type for 'default_rate': "
-                f"{type(default_rate_raw)}. Using default {default_rate}."
-            )
-
-        default_bucket_raw: Any = rate_limit_config.get("default_bucket_size", 10)
-        default_bucket: int = 10
-        # Corrected UP038
-        if isinstance(default_bucket_raw, int | str):
-            try:
-                default_bucket = int(default_bucket_raw)
-            except (ValueError, TypeError):
-                logger.warning(
-                    f"[{exchange_name}] Invalid 'default_bucket_size' value: "
-                    f"{default_bucket_raw}. Using default {default_bucket}."
-                )
-        elif default_bucket_raw is not None:
-            logger.warning(
-                f"[{exchange_name}] Invalid type for 'default_bucket_size': "
-                f"{type(default_bucket_raw)}. Using default {default_bucket}."
-            )
-
-        self._default_limiter_config = RateLimiterConfig(
-            rate=default_rate, bucket_size=default_bucket, tokens=None, last_refill=None
+        # Initialize RateLimiterService
+        self._rate_limiter_service = RateLimiterService(
+            exchange_name=self.exchange_name,
+            config=self.config,  # Pass the main config dict
+            loop=self._loop,
         )
-        self._default_limiter = TokenBucketRateLimiterRuntime(default_rate, default_bucket)
-        self._endpoint_limiter_configs: dict[str, RateLimiterConfig] = {}
-        self._endpoint_limiters: dict[str, TokenBucketRateLimiterRuntime] = {}
-
-        endpoints_raw = rate_limit_config.get("endpoints", {})
-        # DEFENSIVE CHECK: rate_limit_config values are Any. Runtime check needed.
-        # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
-        endpoints: dict[str, Any] = {}  # Explicitly typed
-        if isinstance(endpoints_raw, dict):
-            # DEFENSIVE CHECK: Pyright still reports UnknownVarType despite isinstance.
-            # Mypy=ok Pyright=[reportUnknownVariableType]
-            endpoints = endpoints_raw
-        else:
-            logger.warning(
-                f"[{exchange_name}] Invalid 'endpoints' rate limit config type: "
-                f"{type(endpoints_raw)}. Ignoring endpoint-specific limits."
-            )
-
-        for endpoint, config_dict_raw in endpoints.items():
-            endpoint_str = str(endpoint)
-            # Check that config_dict_raw is actually a dict before using .get
-            # DEFENSIVE CHECK: endpoints values are Any. Runtime check needed.
-            # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
-            if isinstance(config_dict_raw, dict):
-                # Ensure type checker knows config_dict_raw is a dict here
-                # DEFENSIVE CHECK: Pyright still reports UnknownVarType despite isinstance.
-                # Mypy=ok Pyright=[reportUnknownVariableType]
-                config_dict: dict[str, Any] = config_dict_raw
-                rate_raw: Any = config_dict.get("rate", default_rate)
-                rate: float = default_rate
-                if isinstance(rate_raw, int | float | str):
-                    try:
-                        rate = float(rate_raw)
-                    except (ValueError, TypeError):
-                        logger.warning(
-                            f"[{exchange_name}] Could not convert 'rate' for endpoint "
-                            f"'{endpoint_str}': {rate_raw}. Using default {rate}."
-                        )
-                elif rate_raw is not None:
-                    logger.warning(
-                        f"[{exchange_name}] Invalid type for 'rate' ({type(rate_raw)}) "
-                        f"for endpoint '{endpoint_str}'. Using default {rate}."
-                    )
-
-                # Ensure type checker knows config_dict_raw is a dict here
-                # DEFENSIVE CHECK: config_dict_raw is confirmed dict, but values still Any.
-                # Pyright=[reportUnknownVariableType]
-                # DEFENSIVE CHECK: Pyright still reports UnknownVarType despite isinstance.
-                # Mypy=ok Pyright=[reportUnknownVariableType]
-                config_dict_typed: dict[str, Any] = config_dict_raw
-                bucket_raw: Any = config_dict_typed.get("bucket_size", default_bucket)
-                bucket: int = default_bucket
-                if isinstance(bucket_raw, int | str):
-                    try:
-                        bucket = int(bucket_raw)
-                        if bucket <= 0:
-                            raise ValueError("Bucket size must be positive")
-                    except (ValueError, TypeError):
-                        logger.warning(
-                            f"[{exchange_name}] Could not convert 'bucket_size' for endpoint "
-                            f"'{endpoint_str}': {bucket_raw}. Using default {bucket}."
-                        )
-                elif bucket_raw is not None:
-                    logger.warning(
-                        f"[{exchange_name}] Invalid type for 'bucket_size' ({type(bucket_raw)}) "
-                        f"for endpoint '{endpoint_str}'. Using default {bucket}."
-                    )
-
-                self._endpoint_limiter_configs[endpoint_str] = RateLimiterConfig(
-                    rate=rate, bucket_size=bucket, tokens=None, last_refill=None
-                )
-                self._endpoint_limiters[endpoint_str] = TokenBucketRateLimiterRuntime(rate, bucket)
-            else:
-                logger.warning(
-                    f"[{exchange_name}] Invalid rate limit config type for endpoint "
-                    f"'{endpoint_str}': {type(config_dict_raw)}"
-                )
-
         # Placeholder for connection state and WebSocket management attributes
         self._ws_connection = None
         self._ws_listener_task: asyncio.Task[None] | None = None
@@ -270,18 +146,10 @@ class ExchangeAPI(ABC):
 
     async def _get_rate_limiter(self, method: str, path: str) -> TokenBucketRateLimiterRuntime:
         """
-        Get the appropriate runtime rate limiter for a specific API endpoint.
+        Get the appropriate rate limiter for the given HTTP method and path.
+        Delegates to RateLimiterService.
         """
-        endpoint_key = f"{method}:{path}"
-        if endpoint_key in self._endpoint_limiters:
-            return self._endpoint_limiters[endpoint_key]
-        method_key = f"{method}:*"
-        if method_key in self._endpoint_limiters:
-            return self._endpoint_limiters[method_key]
-        for pattern, limiter in self._endpoint_limiters.items():
-            if pattern.endswith("*") and path.startswith(pattern[:-1]):
-                return limiter
-        return self._default_limiter
+        return self._rate_limiter_service.get_limiter(method, path)
 
     @property
     def is_connected(self) -> bool:
@@ -484,7 +352,6 @@ class ExchangeAPI(ABC):
         self,
         status_code: int,
         error_body: str,
-        # Update signature to accept None
         error_data: dict[str, Any] | None,
     ) -> APIError:
         """
@@ -498,8 +365,24 @@ class ExchangeAPI(ABC):
         Returns:
             Standardized APIError
         """
-        # This is a base implementation - exchange-specific classes should override
-        # to handle their specific error response formats
+        # Attempt to parse error_body if error_data is None
+        parsed_error_data: dict[str, Any] | None = error_data
+        if parsed_error_data is None:
+            try:
+                parsed_error_data = json.loads(error_body)
+                if not isinstance(parsed_error_data, dict):
+                    # If parsing doesn't yield a dict, revert to None
+                    # and log the unexpected structure.
+                    logger.warning(
+                        f"[{self.exchange_name}] Error body parsed but was not a dict: "
+                        f"{type(parsed_error_data)}. Original body: {error_body[:500]}"
+                    )
+                    parsed_error_data = None  # Ensure it's None if not a dict
+            except json.JSONDecodeError:
+                logger.debug(
+                    f"[{self.exchange_name}] Failed to parse error body as JSON: {error_body[:500]}"
+                )
+                # Keep parsed_error_data as None if JSON parsing fails
 
         # Default mappings based on HTTP status
         if status_code == 401:
@@ -813,8 +696,10 @@ class ExchangeAPI(ABC):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Internal method to generate authentication headers/parameters for signed requests."""
-        raise NotImplementedError
+        """Internal method to generate authentication headers/parameters for signed requests.
+        Concrete ExchangeAPI implementations will use their specific IAuthenticator here.
+        """
+        raise NotImplementedError("ExchangeAPI._authenticate must be implemented by subclasses.")
 
     @abstractmethod
     async def _route_ws_message(self, message: dict[str, Any]) -> None:  # Added return type
