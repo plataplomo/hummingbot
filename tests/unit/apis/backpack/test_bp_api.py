@@ -7,7 +7,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
-from multidict import CIMultiDictProxy
 from pytest import LogCaptureFixture
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
@@ -111,7 +110,8 @@ class TestBackpackAPI_Authentication:
         # Call the _authenticate method directly
         # The actual `headers` param to _authenticate itself is what _bp_authenticator receives.
         # BackpackAPI._authenticate passes api.default_headers to its _bp_authenticator.prepare_request.
-        auth_result_dict = await api._authenticate(method, path, params, data)  # noqa: SLF001 # headers param defaults to None
+        auth_result_dict = await api._authenticate(method, path, params, data)  # noqa: SLF001
+        # headers param defaults to None
 
         mock_bp_authenticator_instance.prepare_request.assert_called_once_with(
             method=method,
@@ -170,7 +170,7 @@ class TestBackpackAPI_Authentication:
         # Update the return data expected from prepare_request
         auth_prepared_components["data"] = expected_builder_payload
 
-        # Expected response content and headers tuple returned by _request
+        # Expected response content returned by _request
         mock_http_response_content = {
             "id": "123456789",
             "symbol": "SOL_USDC",
@@ -184,7 +184,7 @@ class TestBackpackAPI_Authentication:
             "createdAt": 1678886400000,
             "executedQuantity": "0",
         }
-        mock_response_headers = MagicMock(spec=CIMultiDictProxy)
+        # mock_response_headers = MagicMock(spec=CIMultiDictProxy) # F841 - Removed
 
         # Patch the Authenticator constructor within bp_api module scope
         with patch(
@@ -200,7 +200,10 @@ class TestBackpackAPI_Authentication:
             assert api._bp_authenticator is mock_auth_for_test  # noqa: SLF001
 
             # Define a side effect for the mocked _request
-            async def mock_request_side_effect(*args, **kwargs):
+            async def mock_request_side_effect(
+                *args: Any,  # noqa: ANN401
+                **kwargs: Any,  # noqa: ANN401
+            ) -> dict[str, Any]:
                 # Simulate the internal call to prepare_request
                 if kwargs.get("is_signed") is True and api.authenticator:
                     await api.authenticator.prepare_request(
@@ -248,7 +251,8 @@ class TestBackpackAPI_Authentication:
                     trigger_price=None,
                 )
 
-                # Verify prepare_request (on our specific mock instance) was awaited via the side_effect
+                # Verify prepare_request (on our specific mock instance) was awaited
+                # via the side_effect
                 mock_auth_for_test.prepare_request.assert_awaited_once()
 
                 # Verify _request itself was called correctly
@@ -306,7 +310,8 @@ class TestBackpackAPIMethodErrors:
                 assert call_args[1] == f"{api.rest_endpoint}/api/v1/ticker"  # url
                 assert call_kwargs["params"] == {"symbol": "XYZ_USDC"}
 
-                # Asserting current behavior: falls back to EXCHANGE_SPECIFIC due to BackpackRawApiError parsing issue
+                # Asserting current behavior: falls back to EXCHANGE_SPECIFIC
+                # due to BackpackRawApiError parsing issue
                 assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
                 assert exc_info.value.http_status == http_status_from_exchange
                 # The specific message might be wrapped by the mapper
@@ -326,7 +331,10 @@ class TestBackpackAPIMethodErrors:
         await api._http_client._get_session()  # noqa: SLF001
 
         http_status_from_exchange = 400
-        error_body_from_exchange = '{"message":"Account has insufficient balance for requested action.","code":"INSUFFICIENT_FUNDS"}'
+        error_body_from_exchange = (
+            '{"message":"Account has insufficient balance for requested action.",'
+            '"code":"INSUFFICIENT_FUNDS"}'
+        )
 
         http_failure = HttpRequestFailedError(
             message="HTTP 400 Error",
@@ -467,7 +475,8 @@ class TestBackpackAPIWebSocketRouting:
             print(f"mock_logger_debug calls: {mock_logger_debug.call_args_list}")  # DEBUG PRINT
             # Assert based on actual logged message from debug print
             mock_logger_debug.assert_called_once_with(
-                f"[{api_for_ws_tests.exchange_name}] No handler registered for topic: unhandled.topic"
+                f"[{api_for_ws_tests.exchange_name}] No handler registered for topic: "
+                f"unhandled.topic"
             )
 
     @pytest.mark.asyncio
@@ -485,7 +494,8 @@ class TestBackpackAPIWebSocketRouting:
             print(f"mock_logger_debug calls: {mock_logger_debug.call_args_list}")  # DEBUG PRINT
             # Assert based on actual logged message from debug print
             mock_logger_debug.assert_called_once_with(
-                f"[{api_for_ws_tests.exchange_name}] Unroutable message (no clear string topic/type): {test_message}"
+                f"[{api_for_ws_tests.exchange_name}] Unroutable message (no clear string "
+                f"topic/type): {test_message}"
             )
 
     @pytest.mark.asyncio

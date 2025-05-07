@@ -105,13 +105,15 @@ class BackpackErrorMapper(IErrorMapper):
                 mapped_code = code_map.get(code, APIErrorCode.EXCHANGE_SPECIFIC)
                 if mapped_code == APIErrorCode.EXCHANGE_SPECIFIC and code not in code_map:
                     logger.warning(
-                        f"[{BackpackErrorMapper.__name__}] Unmapped or ambiguous Backpack error code: {code}"
+                        f"[{BackpackErrorMapper.__name__}] Unmapped or ambiguous "
+                        f"Backpack error code: {code}"
                     )
                 return mapped_code
             except ValidationError as e:
                 detailed_errors = e.errors(include_url=False, include_context=False)
                 logger.warning(
-                    f"[{BackpackErrorMapper.__name__}] Failed to parse error_data as {BackpackRawApiError.__name__}. "
+                    f"[{BackpackErrorMapper.__name__}] Failed to parse error_data as "
+                    f"{BackpackRawApiError.__name__}. "
                     f"Pydantic errors: {detailed_errors}. Original exception string: {e}. "
                     f"Falling back to heuristics."
                 )
@@ -151,11 +153,12 @@ class BackpackErrorMapper(IErrorMapper):
             "server error": APIErrorCode.SERVER_ERROR,
             "internal server error": APIErrorCode.SERVER_ERROR,  # Common variation
             "maintenance": APIErrorCode.MAINTENANCE,
-            "service temporarily unavailable": APIErrorCode.MAINTENANCE,  # Often implies maintenance
+            "service temporarily unavailable": APIErrorCode.MAINTENANCE,  # Often implies maint.
             "resource not found": APIErrorCode.ORDER_NOT_FOUND,  # Can also be other resources
             "order not found": APIErrorCode.ORDER_NOT_FOUND,  # More specific
             "trading paused": APIErrorCode.MARKET_CLOSED,
-            "account liquidating": APIErrorCode.EXCHANGE_SPECIFIC,  # Potentially LIQUIDATION if we add it
+            "account liquidating": APIErrorCode.EXCHANGE_SPECIFIC,  # Potential LIQUIDATION
+            # if added
         }
 
         for key_string, code_enum in string_to_code_map.items():
@@ -200,7 +203,8 @@ class BackpackErrorMapper(IErrorMapper):
         Map Backpack error responses to a standardized `APIError` exception object.
 
         This method orchestrates the error mapping process:
-        1. Determines the internal `APIErrorCode` using `_map_backpack_error_code_to_api_error_code`.
+        1. Determines the internal `APIErrorCode` using
+           `_map_backpack_error_code_to_api_error_code`.
         2. Extracts or defaults the primary error message.
         3. Constructs an `APIErrorResponse` object to normalize error details.
         4. Converts the `APIErrorResponse` into an `APIError` exception, ready to be raised.

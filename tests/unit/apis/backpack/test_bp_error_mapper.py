@@ -83,7 +83,8 @@ class TestBackpackErrorMapper:
         [
             (
                 400,
-                '{"message":"Account has insufficient balance for requested action.","code":"INSUFFICIENT_FUNDS"}',
+                '{"message":"Account has insufficient balance for requested action.",'
+                '"code":"INSUFFICIENT_FUNDS"}',
                 "INSUFFICIENT_FUNDS",
                 APIErrorCode.INSUFFICIENT_FUNDS,
                 "Account has insufficient balance",

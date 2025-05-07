@@ -82,7 +82,8 @@ def test_hl_auth_init_no_private_key(mock_account: MagicMock) -> None:
     """Test initialization with no private key raises ValueError."""
     with pytest.raises(
         ValueError,
-        match=r"Invalid private key: The private key must be exactly 32 bytes long, instead of 0 bytes.",
+        match=r"Invalid private key: The private key must be exactly 32 bytes long, "
+        r"instead of 0 bytes.",
     ):
         HyperliquidEip712Authenticator(
             private_key_hex="",
@@ -158,7 +159,8 @@ async def test_prepare_request_success(
 async def test_prepare_request_no_private_key(
     mock_account: MagicMock,
 ) -> None:
-    """Test prepare_request raises APIError if authenticator has no private key (was init with empty string)."""
+    """Test prepare_request raises APIError if authenticator has no private key
+    (was init with empty string)."""
     with patch("eth_account.Account.from_key", return_value=mock_account):
         auth = HyperliquidEip712Authenticator(
             private_key_hex="0xSomeValidLookingKeyForMock",
@@ -280,7 +282,8 @@ class TestHyperliquidEip712Authenticator:
             )
 
     def test_instantiation_invalid_private_key_format(self) -> None:
-        """Test instantiation raises ValueError for invalid private key format (from_key might raise)."""
+        """Test instantiation raises ValueError for invalid private key format
+        (from_key might raise)."""
         with patch("eth_account.Account.from_key", side_effect=ValueError("bad key")):
             with pytest.raises(ValueError, match="Invalid private key: bad key"):
                 HyperliquidEip712Authenticator(
@@ -465,14 +468,20 @@ class TestHyperliquidEip712Authenticator:
         """Test how prepare_request handles non-dict data (currently seems not to raise)."""
         # Original test expected APIError wrapping TypeError.
         # However, pytest reports DID NOT RAISE.
-        # This suggests the underlying library might handle it, or the error isn't propagated as expected.
+        # This suggests the underlying library might handle it, or the error isn't
+        # propagated as expected.
         # For now, just run the call and see if it completes without error.
         # Further investigation needed if signing non-dict data SHOULD fail.
         try:
             await authenticator_instance.prepare_request(
-                "POST", "/exchange", None, data="not_a_dict", headers=None
+                "POST",
+                "/exchange",
+                None,
+                data="not_a_dict",
+                headers=None,  # type: ignore[arg-type]
             )
-            # If it completes without raising, the behavior might have changed or the test was wrong.
+            # If it completes without raising, the behavior might have changed or
+            # the test was wrong.
             # Add assertions here if specific return values are expected in this non-error case.
             pass  # Placeholder: Test passes if no exception is raised
         except Exception as e:

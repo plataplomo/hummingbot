@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from _pytest.logging import LogCaptureFixture
-from multidict import CIMultiDictProxy
 
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
@@ -221,12 +220,12 @@ async def test_place_order_calls_authenticate_and_request(
     # Make prepare_request an AsyncMock *on the instance*
     mock_auth_for_test.prepare_request = AsyncMock(return_value=auth_prepared_components)
 
-    # Expected response content and headers tuple returned by _request
+    # Expected response content returned by _request
     mock_http_response_content = {
         "status": "ok",
         "data": {"type": "order", "statuses": [{"resting": {"oid": 12345}}]},
     }
-    mock_response_headers = MagicMock(spec=CIMultiDictProxy)
+    # mock_response_headers = MagicMock(spec=CIMultiDictProxy) # F841 - Removed
 
     # Patch the Authenticator constructor within hl_api module scope
     with patch(
@@ -244,7 +243,10 @@ async def test_place_order_calls_authenticate_and_request(
         assert api._hl_authenticator is mock_auth_for_test  # noqa: SLF001
 
         # Define a side effect for the mocked _request
-        async def mock_request_side_effect(*args, **kwargs):
+        async def mock_request_side_effect(
+            *args: Any,  # noqa: ANN401
+            **kwargs: Any,  # noqa: ANN401
+        ) -> dict[str, Any]:
             # Simulate the internal call to prepare_request
             if kwargs.get("is_signed") is True and api.authenticator:
                 await api.authenticator.prepare_request(
@@ -318,7 +320,8 @@ async def test_place_order_calls_authenticate_and_request(
                         post_only=False,
                     )
 
-                    # Verify prepare_request (on our specific mock instance) was awaited via the side_effect
+                    # Verify prepare_request (on our specific mock instance) was awaited
+                    # via the side_effect
                     mock_auth_for_test.prepare_request.assert_awaited_once()
 
                     # Verify _request itself was called correctly by place_order

@@ -61,7 +61,9 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        return await self.mock_auth_method(method, path, params, data)
+        # Ensure the mock method returns a dict matching the signature
+        result: dict[str, Any] = await self.mock_auth_method(method, path, params, data)
+        return result
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
         await self.mock_route_ws_method(message)
@@ -153,7 +155,9 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
         # Implement a basic version for testing, or rely on mock if testing other parts
         # For testing base class subscribe/resubscribe, this needs to return something valid
-        return self.mock_construct_subscription_payload_method(topic)
+        # Ensure the mock method returns a dict or None matching the signature
+        result: dict[str, Any] | None = self.mock_construct_subscription_payload_method(topic)
+        return result
 
     async def connect_websocket(self) -> None:
         # Default: do nothing (tests might patch ws_manager directly)
@@ -258,7 +262,7 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
     api.authenticator = mock_authenticator
 
     # Call _request (as a signed request for this test part)
-    result = await api._request(  # type: ignore # SLF001 for _request
+    result = await api._request(  # type: ignore[attr-defined] # SLF001 for _request
         method, endpoint, params=params, data=data_payload, headers=custom_headers, is_signed=True
     )
 
@@ -326,7 +330,7 @@ async def test_request_error_mapping_from_http_request_failed_error(
     mock_error_mapper.map_exchange_error.return_value = expected_mapped_api_error
 
     with pytest.raises(APIError) as exc_info:
-        await api._request(method="POST", endpoint=request_path_sent.lstrip("/"))  # type: ignore
+        await api._request(method="POST", endpoint=request_path_sent.lstrip("/"))  # type: ignore[attr-defined]
 
     # Assert that the raised exception is the one returned by our mocked map_exchange_error
     assert exc_info.value is expected_mapped_api_error
@@ -374,7 +378,7 @@ async def test_request_handles_client_error_from_http_client(
 
     request_path_sent = "/test/conn_error"
     with pytest.raises(APIError) as exc_info:
-        await api._request(method="GET", endpoint=request_path_sent.lstrip("/"))  # type: ignore
+        await api._request(method="GET", endpoint=request_path_sent.lstrip("/"))  # type: ignore[attr-defined]
 
     assert exc_info.value is expected_mapped_api_error
     mock_error_mapper.map_exchange_error.assert_called_once_with(
@@ -417,7 +421,9 @@ async def test_request_handles_timeout_error_from_http_client(
 
     request_path_sent = "/test/timeout"
     with pytest.raises(APIError) as exc_info:
-        await api._request(method="GET", endpoint=request_path_sent.lstrip("/"))  # type: ignore
+        await api._request(
+            method="GET", endpoint=request_path_sent.lstrip("/")
+        )  # Removed type: ignore
 
     assert exc_info.value is expected_mapped_api_error
     mock_error_mapper.map_exchange_error.assert_called_once_with(
@@ -444,7 +450,8 @@ class TestExchangeAPIWebSocketIntegration:
 
         # Configure the instance that will be returned when ExchangeAPI calls WebSocketManager()
         mock_ws_instance = MockWebSocketManagerClass.return_value
-        # Although ExchangeAPI uses this instance, this specific test only checks __init__ was called.
+        # Although ExchangeAPI uses this instance, this specific test only checks
+        # __init__ was called.
         # No need to configure methods like connect/close on mock_ws_instance here.
 
         api = ConcreteTestExchangeAPI("test_ws", current_config, {}, mock_error_mapper)
@@ -511,8 +518,6 @@ class TestExchangeAPIWebSocketIntegration:
         type(mock_ws_instance).is_connected = prop_mock
         assert api.is_connected is False
         # Verify the property was accessed
-        assert mock_ws_instance.is_connected is False  # Access the property again to check
-        # Check call count on the PropertyMock itself by accessing its call_count attribute
         assert (
             prop_mock.call_count >= 1
         )  # It should have been called at least once after being set to False
@@ -593,8 +598,8 @@ class TestExchangeAPIWebSocketIntegration:
 
         mock_ws_instance.send_json.assert_not_called()
         assert (
-            "WebSocket not connected. Subscription to test.topic.notconnected will be attempted upon connection."
-            in caplog.text
+            "WebSocket not connected. Subscription to "
+            "test.topic.notconnected will be attempted upon connection." in caplog.text
         )
         assert api._ws_handlers[topic] == mock_handler
 
@@ -649,10 +654,12 @@ class TestExchangeAPIWebSocketIntegration:
         # Set property mock's return value
         type(mock_ws_instance).is_connected = PropertyMock(return_value=True)
 
-        api._resubscribe = AsyncMock(name="instance_resubscribe_mock")
+        # Mock the protected method directly for assertion
+        instance_resubscribe_mock = AsyncMock(name="instance_resubscribe_mock")
+        api._resubscribe = instance_resubscribe_mock  # noqa: SLF001
 
-        await api._on_ws_connected()
-        api._resubscribe.assert_awaited_once()
+        await api._on_ws_connected()  # noqa: SLF001
+        instance_resubscribe_mock.assert_awaited_once()
 
 
 # End of new Test Class

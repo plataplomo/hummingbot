@@ -208,7 +208,8 @@ class BackpackAPI(ExchangeAPI):
         """
         if not self._bp_authenticator:
             logger.error(
-                f"[{self.exchange_name}] Backpack authenticator not initialized. Cannot make signed request."
+                f"[{self.exchange_name}] Backpack authenticator not initialized. "
+                f"Cannot make signed request."
             )
             raise APIError(
                 "Backpack authenticator not initialized. Cannot make signed request.",
@@ -221,7 +222,8 @@ class BackpackAPI(ExchangeAPI):
 
         # --- DEBUG PRINT --- #
         print(
-            f"[DEBUG BP_API _authenticate] About to await prepare_request. Authenticator: {self._bp_authenticator}",
+            f"[DEBUG BP_API _authenticate] About to await prepare_request. "
+            f"Authenticator: {self._bp_authenticator}",
             flush=True,
         )
         # --- END DEBUG --- #
@@ -259,7 +261,8 @@ class BackpackAPI(ExchangeAPI):
             response_data_raw = await self._request("GET", endpoint, params=params)
             if not isinstance(response_data_raw, dict):
                 logger.error(
-                    f"[{self.exchange_name}] Unexpected ticker response format for {symbol}: {type(response_data_raw)}"
+                    f"[{self.exchange_name}] Unexpected ticker response format for "
+                    f"{symbol}: {type(response_data_raw)}"
                 )
                 # Use the new APIErrorCode.INVALID_RESPONSE
                 raise APIError(
@@ -276,7 +279,8 @@ class BackpackAPI(ExchangeAPI):
 
         except ValidationError as e_val:
             logger.error(
-                f"[{self.exchange_name}] Ticker validation failed for {symbol}: {e_val}. Raw: {response_data_raw!r}"
+                f"[{self.exchange_name}] Ticker validation failed for {symbol}: {e_val}. "
+                f"Raw: {response_data_raw!r}"
             )
             raise APIError(
                 message=f"Invalid ticker data from exchange for {symbol}: {e_val}",
@@ -297,7 +301,8 @@ class BackpackAPI(ExchangeAPI):
             raise
         except Exception as e_unhandled:  # Catch any other unexpected errors
             logger.error(
-                f"[{self.exchange_name}] Unhandled error fetching ticker for {symbol}: {e_unhandled}",
+                f"[{self.exchange_name}] Unhandled error fetching ticker for {symbol}: "
+                f"{e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
@@ -511,8 +516,8 @@ class BackpackAPI(ExchangeAPI):
         else:
             endpoint = "/api/v1/positions"
 
-        # params = BackpackRequestBuilder.build_get_positions_params(symbol=symbol)
-        # build_get_positions_params returns None, which is correct as symbol is in path or not used.
+        # build_get_positions_params returns None, which is correct as symbol is in path
+        # or not used.
         # So, explicitly pass None if that was the intent, or ensure builder returns {}.
         # The current builder returns None. self._request handles params=None.
         request_params = BackpackRequestBuilder.build_get_positions_params(symbol=symbol)
@@ -759,7 +764,8 @@ class BackpackAPI(ExchangeAPI):
             response_raw = await self._request(method="GET", endpoint=endpoint, params=params)
             if not isinstance(response_raw, dict):
                 logger.error(
-                    f"[{self.exchange_name}] Unexpected funding rate response format for {symbol}: {type(response_raw)}"
+                    f"[{self.exchange_name}] Unexpected funding rate response format for "
+                    f"{symbol}: {type(response_raw)}"
                 )
                 # Use the new APIErrorCode.INVALID_RESPONSE
                 raise APIError(
@@ -774,7 +780,8 @@ class BackpackAPI(ExchangeAPI):
 
         except ValidationError as e_val:
             logger.error(
-                f"[{self.exchange_name}] Funding rate validation failed for {symbol}: {e_val}. Raw: {response_raw!r}"
+                f"[{self.exchange_name}] Funding rate validation failed for {symbol}: "
+                f"{e_val}. Raw: {response_raw!r}"
             )
             raise APIError(
                 message=f"Invalid funding rate data from exchange for {symbol}: {e_val}",
@@ -785,7 +792,8 @@ class BackpackAPI(ExchangeAPI):
             ValueError
         ) as e_transform:  # Catch ValueErrors from transform_raw_funding_rate_to_internal
             logger.error(
-                f"[{self.exchange_name}] Funding rate transformation failed for {symbol}: {e_transform}. Raw: {response_raw!r}"
+                f"[{self.exchange_name}] Funding rate transformation failed for {symbol}: "
+                f"{e_transform}. Raw: {response_raw!r}"
             )
             raise APIError(
                 message=f"Failed to transform funding rate data for {symbol}: {e_transform}",
@@ -796,7 +804,8 @@ class BackpackAPI(ExchangeAPI):
             raise
         except Exception as e_unhandled:  # Catch any other unexpected errors
             logger.error(
-                f"[{self.exchange_name}] Unhandled error fetching funding rate for {symbol}: {e_unhandled}",
+                f"[{self.exchange_name}] Unhandled error fetching funding rate for "
+                f"{symbol}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
@@ -851,7 +860,8 @@ class BackpackAPI(ExchangeAPI):
             # DEFENSIVE CHECK: Ensure response_raw is a dict before validation
             if not isinstance(response_raw, dict):
                 logger.error(
-                    f"[{self.exchange_name}] get_account_info response is not a dict: {type(response_raw)}. Raw: {response_raw}"
+                    f"[{self.exchange_name}] get_account_info response is not a dict: "
+                    f"{type(response_raw)}. Raw: {response_raw}"
                 )
                 raise APIError(
                     "Invalid response format from get_account_info (not a dict)",
@@ -916,7 +926,8 @@ class BackpackAPI(ExchangeAPI):
             A dictionary containing the API response upon successful transfer.
 
         Raises:
-            NotImplementedError: As this specific functionality is not clearly defined in Backpack's API.
+            NotImplementedError: As this specific functionality is not clearly defined in
+                                 Backpack's API.
             APIError: For API-level errors encountered during the request.
         """
         logger.warning(
@@ -924,7 +935,8 @@ class BackpackAPI(ExchangeAPI):
             f"does not clearly define a separate internal transfer endpoint. Consider using "
             f"withdraw/deposit mechanisms if applicable."
         )
-        # Per OpenAPI, there is no dedicated internal transfer endpoint distinct from deposit/withdrawals.
+        # Per OpenAPI, there is no dedicated internal transfer endpoint distinct from
+        # deposit/withdrawals.
         # If transfers between subaccounts or to other owned accounts are needed, they likely use
         # the withdrawal mechanism with specific parameters or target addresses.
         raise NotImplementedError(
@@ -962,7 +974,8 @@ class BackpackAPI(ExchangeAPI):
                       e.g., `auto_borrow: bool`, `auto_lend_redeem: bool`.
 
         Returns:
-            A BackpackRawWithdrawalResponse object containing the API response upon successful withdrawal.
+            A BackpackRawWithdrawalResponse object containing the API response upon
+            successful withdrawal.
 
         Raises:
             APIError: For API-level errors encountered during the request.
@@ -1348,7 +1361,8 @@ class BackpackAPI(ExchangeAPI):
                 # candles = [Candle(...) for item in response_data]
                 # return candles
                 logger.warning(
-                    f"[{self.exchange_name}] Market data mapping not fully implemented for Backpack."
+                    f"[{self.exchange_name}] Market data mapping not fully implemented "
+                    f"for Backpack."
                 )
                 # Returning [] for now to satisfy list[Candle] return type until implemented
                 # return response_data # This caused the Mypy error [no-any-return]
@@ -1475,10 +1489,8 @@ class BackpackAPI(ExchangeAPI):
                 return None  # Or raise, depending on desired behavior for not found
             # Response is a single order object
             if isinstance(response_data, dict):
-                # Adapt BackpackRawOrder.model_validate to handle a single dict if necessary
-                # raw_order = BackpackRawOrder.model_validate(response_data)
-                # For now, assuming it returns a list even for single order lookup by ID, or adapting the mapper.
-                # Based on OpenAPI, GET /orders/{order_id_or_client_id} returns a single Order object.
+                # Based on OpenAPI, GET /orders/{order_id_or_client_id} returns a
+                # single Order object.
                 return BackpackOrderMapper.transform_raw_order_to_internal(
                     BackpackRawOrder.model_validate(response_data)
                 )
@@ -1524,7 +1536,9 @@ class BackpackAPI(ExchangeAPI):
 
         # If Backpack had a bulk cancel: DELETE /api/v1/orders with params = {"symbol": ...}
         # params = BackpackRequestBuilder.build_cancel_all_orders_payload(symbol=symbol)
-        # await self._request(method="DELETE", endpoint="/api/v1/orders", params=params, is_signed=True)
+        # await self._request(
+        # method="DELETE", endpoint="/api/v1/orders", params=params, is_signed=True
+        # )
         # return
 
         # Current one-by-one cancellation logic:
@@ -1544,12 +1558,14 @@ class BackpackAPI(ExchangeAPI):
                     # using clientId might need different handling or might not be supported
                     # by the DELETE /api/v1/order?symbol=X&orderId=Y endpoint structure.
                     # The builder build_cancel_order_params prefers orderId.
-                    # If client_order_id is the *only* thing available, and cancel_order needs to use it,
-                    # cancel_order method signature or builder logic might need adjustment.
+                    # If client_order_id is the *only* thing available, and cancel_order
+                    # needs to use it, cancel_order method signature or builder logic
+                    # might need adjustment.
                     # For now, attempting with client_order_id if exchange_order_id is missing.
                     logger.warning(
-                        f"[{self.exchange_name}] Attempting to cancel order using client_order_id "
-                        f"'{order_item.client_order_id}' as exchange_order_id is missing."
+                        f"[{self.exchange_name}] Attempting to cancel order using "
+                        f"client_order_id '{order_item.client_order_id}' as "
+                        f"exchange_order_id is missing."
                     )
                     await self.cancel_order(order_item.client_order_id, order_item.symbol)
                 else:
