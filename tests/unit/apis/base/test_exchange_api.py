@@ -4,10 +4,14 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 
+from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base_api import ExchangeAPI
-from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -172,66 +176,145 @@ def test_exchange_api_initialization_creates_rate_limiter_service(
     assert api._rate_limiter_service == MockRateLimiterService.return_value  # noqa: SLF001
 
 
-@patch("cyberdelta.apis.connectivity.rate_limiter_service.RateLimiterService")
-def test_get_rate_limiter_delegates_to_service(
-    MockRateLimiterService: MagicMock,
-    exchange_name: str,
-    default_config: dict[str, Any],
-    mock_secrets: dict[str, str | None],
-    mock_loop: MagicMock,
-) -> None:
-    mock_service_instance = MockRateLimiterService.return_value
-    mock_target_limiter = MagicMock(spec=TokenBucketRateLimiterRuntime)
-    mock_service_instance.get_limiter.return_value = mock_target_limiter
-
-    api = ConcreteTestExchangeAPI(
-        exchange_name=exchange_name, config=default_config, secrets=mock_secrets, loop=mock_loop
-    )
-    # Ensure the service instance from RateLimiterService() is used by api
-    api._rate_limiter_service = mock_service_instance  # noqa: SLF001
-
-    method = "GET"
-    path = "/test/path"
-    actual_limiter = asyncio.run(
-        api._get_rate_limiter(method, path)  # noqa: SLF001
-    )  # _get_rate_limiter is async
-
-    mock_service_instance.get_limiter.assert_called_once_with(method, path)
-    assert actual_limiter == mock_target_limiter
-
-
 @pytest.mark.asyncio
-@patch("aiohttp.ClientSession")
-@patch("cyberdelta.apis.connectivity.rate_limiter_service.RateLimiterService")
-async def test_request_acquires_limiter_before_request(
-    MockRateLimiterService: MagicMock,
-    MockClientSession: MagicMock,
+@patch("cyberdelta.apis.connectivity.http_client.HttpClient.request", new_callable=AsyncMock)
+async def test_exchange_api_request_delegates_to_http_client_and_handles_response(
+    mock_http_client_request: AsyncMock,
     exchange_name: str,
     default_config: dict[str, Any],
     mock_secrets: dict[str, str | None],
     mock_loop: MagicMock,
 ) -> None:
-    mock_service_instance = MockRateLimiterService.return_value
-    mock_actual_limiter = AsyncMock(spec=TokenBucketRateLimiterRuntime)
-    mock_service_instance.get_limiter.return_value = mock_actual_limiter
-
+    """
+    Tests that ExchangeAPI._request correctly calls HttpClient.request
+    and processes its successful response (content and headers).
+    """
     api = ConcreteTestExchangeAPI(
         exchange_name=exchange_name, config=default_config, secrets=mock_secrets, loop=mock_loop
     )
-    api._rate_limiter_service = mock_service_instance  # noqa: SLF001
 
-    # Use the MockClientSession from the patch
-    mock_session_instance = MockClientSession.return_value
-    mock_session_instance.request.return_value.__aenter__.return_value.status = 200
-    mock_session_instance.request.return_value.__aenter__.return_value.json = AsyncMock(
-        return_value={"data": "success"}
+    # Mock return value of HttpClient.request: (content, headers_multidict)
+    mock_response_content = {"data": "success_payload"}
+    # CIMultiDictProxy is tricky to mock directly if not imported; use MagicMock with items()
+    mock_response_headers = MagicMock()
+    mock_response_headers.items.return_value = [
+        ("X-Response-ID", "123"),
+        ("Content-Type", "application/json"),
+    ]
+    mock_http_client_request.return_value = (mock_response_content, mock_response_headers)
+
+    method = "POST"
+    endpoint = "/submit_data"
+    params = {"query_param": "test"}
+    data_payload = {"request_body": "payload"}
+    custom_headers = {"X-Client-Specific": "value"}
+    mock_authenticator = AsyncMock(spec=IAuthenticator)  # For signed request part
+    api.authenticator = mock_authenticator
+
+    # Call _request (as a signed request for this test part)
+    result = await api._request(  # type: ignore # SLF001 for _request
+        method, endpoint, params=params, data=data_payload, headers=custom_headers, is_signed=True
     )
-    api._session = mock_session_instance  # noqa: SLF001
 
-    method = "GET"
-    endpoint = "/test/endpoint"
-    await api._request(method, endpoint)  # noqa: SLF001
+    assert result == mock_response_content
+    mock_http_client_request.assert_called_once_with(
+        method=method,
+        endpoint_path=endpoint,
+        rate_limiter_service=api._rate_limiter_service,  # type: ignore # SLF001
+        authenticator=mock_authenticator,
+        params=params,
+        data=data_payload,
+        headers=custom_headers,
+        is_signed=True,
+    )
+    # Check that _update_rate_limit_from_headers was called with the processed headers
+    api.mock_update_rate_limit_method.assert_called_once_with(
+        {"X-Response-ID": "123", "Content-Type": "application/json"},  # Expected dict from headers
+        method,
+        endpoint,
+    )
 
-    # Assert that get_limiter was called correctly on the service instance
-    mock_service_instance.get_limiter.assert_called_once_with(method, endpoint)
-    mock_actual_limiter.acquire.assert_called_once()
+
+# Test for HttpRequestFailedError (copied and adapted from previous attempt)
+@pytest.mark.asyncio
+@patch("cyberdelta.apis.connectivity.http_client.HttpClient.request", new_callable=AsyncMock)
+async def test_request_error_mapping_from_http_request_failed_error(
+    mock_http_client_request: AsyncMock,
+    exchange_name: str,
+    default_config: dict[str, Any],
+    mock_secrets: dict[str, str | None],
+    mock_loop: MagicMock,
+) -> None:
+    """Test that HttpRequestFailedError from HttpClient is mapped by _map_error_response."""
+    api = ConcreteTestExchangeAPI(
+        exchange_name=exchange_name, config=default_config, secrets=mock_secrets, loop=mock_loop
+    )
+
+    http_error = HttpRequestFailedError(
+        message="HTTP 404 Not Found",
+        http_status_code=404,
+        response_body="Resource not here",
+        api_error_code=APIErrorCode.NETWORK_ISSUE,  # Or any other appropriate default for http_client
+    )
+    mock_http_client_request.side_effect = http_error
+
+    mapped_api_error = APIError(
+        "Mapped Not Found by test", code=APIErrorCode.SYMBOL_NOT_FOUND.value
+    )
+    # Patch the instance method _map_error_response
+    with patch.object(api, "_map_error_response", return_value=mapped_api_error) as mock_map_error:
+        with pytest.raises(APIError) as excinfo:
+            await api._request("GET", "/notfound")  # type: ignore # SLF001
+
+        assert excinfo.value is mapped_api_error
+        mock_map_error.assert_called_once_with(
+            status_code=404, error_body="Resource not here", error_data=None
+        )
+
+
+# Test for aiohttp.ClientError (copied and adapted)
+@pytest.mark.asyncio
+@patch("cyberdelta.apis.connectivity.http_client.HttpClient.request", new_callable=AsyncMock)
+async def test_request_handles_client_error_from_http_client(
+    mock_http_client_request: AsyncMock,
+    exchange_name: str,
+    default_config: dict[str, Any],
+    mock_secrets: dict[str, str | None],
+    mock_loop: MagicMock,
+) -> None:
+    api = ConcreteTestExchangeAPI(
+        exchange_name=exchange_name, config=default_config, secrets=mock_secrets, loop=mock_loop
+    )
+    original_client_error = aiohttp.ClientConnectorError(
+        MagicMock(), OSError("Connection failed OS")
+    )
+    mock_http_client_request.side_effect = original_client_error
+
+    with pytest.raises(APIError) as excinfo:
+        await api._request("GET", "/clienterr")  # type: ignore # SLF001
+
+    assert excinfo.value.code == APIErrorCode.NETWORK_ISSUE.value
+    assert excinfo.value.original_exception is original_client_error
+
+
+# Test for asyncio.TimeoutError (copied and adapted)
+@pytest.mark.asyncio
+@patch("cyberdelta.apis.connectivity.http_client.HttpClient.request", new_callable=AsyncMock)
+async def test_request_handles_timeout_error_from_http_client(
+    mock_http_client_request: AsyncMock,
+    exchange_name: str,
+    default_config: dict[str, Any],
+    mock_secrets: dict[str, str | None],
+    mock_loop: MagicMock,
+) -> None:
+    api = ConcreteTestExchangeAPI(
+        exchange_name=exchange_name, config=default_config, secrets=mock_secrets, loop=mock_loop
+    )
+    original_timeout_error = TimeoutError("Request really really timed out")
+    mock_http_client_request.side_effect = original_timeout_error
+
+    with pytest.raises(APIError) as excinfo:
+        await api._request("GET", "/timeout")  # type: ignore # SLF001
+
+    assert excinfo.value.code == APIErrorCode.TIMEOUT.value
+    assert excinfo.value.original_exception is original_timeout_error

@@ -41,6 +41,7 @@ from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalRequest,
     BackpackRawWithdrawalResponse,
 )
+from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -86,7 +87,6 @@ class BackpackAPI(ExchangeAPI):
             api_config: Dictionary of API configuration parameters.
             secrets: Dictionary of secret values (API key/secret).
         """
-        super().__init__(exchange_name="backpack", config=api_config, secrets=secrets)
         self._api_key = secrets.get("BACKPACK_API_KEY")
         self._api_secret = secrets.get("BACKPACK_API_SECRET")
 
@@ -100,6 +100,13 @@ class BackpackAPI(ExchangeAPI):
                 "Authenticator not initialized."
             )
             self._bp_authenticator = None
+
+        super().__init__(
+            exchange_name="backpack",
+            config=api_config,
+            secrets=secrets,
+            authenticator=self._bp_authenticator,  # Ensure authenticator is passed
+        )
 
         # Default headers - can be moved to base or kept here if specific
         self.default_headers: dict[str, str] = {
@@ -194,18 +201,8 @@ class BackpackAPI(ExchangeAPI):
         Returns:
             Dictionary with signed headers, params, and data as expected by base _request.
         """
-        # The authenticator will prepare these.
-        # We pass current params and body to the authenticator.
-        # It returns the necessary components (headers, modified params/body if any).
-
-        # params_for_auth = params.copy() if params else {}
-        # body_for_auth = body.copy() if body else {}
-
-        # Original headers that might have been passed to _request via a public method
-        # These will be updated by the authenticator's headers.
         final_headers = self.default_headers.copy() if self.default_headers else {}
 
-        # Call the authenticator
         if not self._bp_authenticator:
             logger.error(
                 f"[{self.exchange_name}] Backpack authenticator not initialized. "
@@ -225,8 +222,12 @@ class BackpackAPI(ExchangeAPI):
                 headers=final_headers,  # Pass current headers for authenticator to augment/override
             )
         )
-        # The authenticator returns the full set of headers, params, and data to use.
-        return auth_components
+        # Return as dict[str, Any] to match base class signature
+        return {
+            "headers": auth_components["headers"],
+            "params": auth_components["params"],
+            "data": auth_components["data"],
+        }
 
     async def _handle_ws_message(self, message: Mapping[str, Any], ws_url: str) -> None:
         # This method is not provided in the original file or the code block
