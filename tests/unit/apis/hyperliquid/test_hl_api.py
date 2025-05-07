@@ -399,19 +399,11 @@ class TestHyperliquidAPIMethodErrors:
             price_val: Decimal | None = None  # Market order
             time_in_force_val: TimeInForce = TimeInForce.IOC
             # These are the specific args for the builder for this test case
-            expected_builder_args = {
-                "symbol": symbol_val,
-                "side": side_val,
-                "order_type": order_type_val,
-                "quantity": quantity_val,
-                "price": price_val,
-                "time_in_force": time_in_force_val,
-                "client_order_id": None,
-                "reduce_only": False,
-                "post_only": False,
-                "stop_price": None,
-                "asset_index": 0,  # from mock_get_asset_index
-            }
+            # expected_builder_args = { # Commented out as unused
+            #     "symbol": symbol_val,
+            #     "side": side_val,
+            #     "order_type": order_type_val,
+            # }
             # This is the payload the builder would create for the _request method
             expected_builder_payload = {
                 "type": "order",
@@ -496,19 +488,11 @@ class TestHyperliquidAPIMethodErrors:
             price_val: Decimal = Decimal("1")
             time_in_force_val: TimeInForce = TimeInForce.GTC
             # These are the specific args for the builder for this test case
-            expected_builder_args = {
-                "symbol": symbol_val,
-                "side": side_val,
-                "order_type": order_type_val,
-                "quantity": quantity_val,
-                "price": price_val,
-                "time_in_force": time_in_force_val,
-                "client_order_id": None,
-                "reduce_only": False,
-                "post_only": False,
-                "stop_price": None,
-                "asset_index": 1,  # from mock_get_asset_index
-            }
+            # expected_builder_args = { # Commented out as unused
+            #     "symbol": symbol_val,
+            #     "side": side_val,
+            #     "order_type": order_type_val,
+            # }
             # This is the payload the builder would create for the _request method
             expected_builder_payload = {
                 "type": "order",

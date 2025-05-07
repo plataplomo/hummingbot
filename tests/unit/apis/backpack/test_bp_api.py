@@ -156,7 +156,7 @@ class TestBackpackAPI_Authentication:
         # Assign the mock authenticator that has prepare_request spied upon
         api._bp_authenticator = mock_bp_authenticator_instance  # noqa: SLF001 # type: ignore[assignment]
 
-        endpoint_path = "/api/v1/order"
+        # endpoint_path = "/api/v1/order" # Commented out as unused
         expected_call_data_for_auth = {
             "symbol": "SOL_USDC",
             "side": "buy",
