@@ -300,7 +300,7 @@ class TestBackpackErrorMapper:
         assert api_error.code == expected_api_code.value
         assert expected_message_part in api_error.message
         assert api_error.http_status == status_code
-        assert api_error.exchange_message is None
+        assert api_error.exchange_message == error_body
 
     @pytest.mark.parametrize(
         "status_code, error_body, expected_api_code, expected_message_part",
@@ -334,4 +334,4 @@ class TestBackpackErrorMapper:
         api_error = backpack_error_mapper.map_exchange_error(500, "", error_data=None)
         assert api_error.code == APIErrorCode.EXCHANGE_SPECIFIC.value
         assert api_error.http_status == 500
-        assert api_error.exchange_message is None
+        assert api_error.exchange_message == ""

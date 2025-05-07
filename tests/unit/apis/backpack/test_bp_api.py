@@ -360,10 +360,12 @@ class TestBackpackAPIMethodErrors:
             response_body=error_body_from_exchange,
         )
 
-        # Patch the session's request method
+        # Patch HttpClient.request directly
         with patch.object(
-            api._http_client._session, "request", side_effect=http_failure
-        ) as mock_session_request:  # noqa: SLF001
+            api._http_client,
+            "request",
+            side_effect=http_failure,  # noqa: SLF001
+        ) as mock_http_client_request:
             # Also patch the request builder used by place_order
             with patch(
                 "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_place_order_payload"
@@ -393,23 +395,25 @@ class TestBackpackAPIMethodErrors:
                 mock_build_payload.assert_called_once()
                 # Can add more specific arg checks here if needed
 
-                # Verify _request (via session) was called
-                mock_session_request.assert_called_once()
-                call_args, call_kwargs = mock_session_request.call_args
-                assert call_args[0] == "POST"
-                assert call_args[1] == f"{api.rest_endpoint}/api/v1/order"
-                # The data sent should be what the builder returned
-                assert call_kwargs["data"] == json.dumps(expected_payload)
+                # Verify HttpClient.request was called
+                mock_http_client_request.assert_called_once()
+                _args, call_kwargs = mock_http_client_request.call_args
+                assert call_kwargs["method"] == "POST"
+                assert call_kwargs["endpoint_path"] == "api/v1/order"
+                # The data sent should be what the builder returned (as dict)
+                assert call_kwargs["data"] == expected_payload
+                # is_signed should be True
+                assert call_kwargs["is_signed"] is True
 
-        # Asserting current behavior: falls back to EXCHANGE_SPECIFIC due to BackpackRawApiError parsing issue
-        assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+        # Update: The error mapper correctly identifies INSUFFICIENT_FUNDS
+        assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
         assert exc_info.value.http_status == http_status_from_exchange
         # The original more specific message check might fail if the generic wrapper changes it.
-        # For now, let's ensure it contains part of the original if possible, or check exchange_message.
         assert "Account has insufficient balance" in exc_info.value.message
-        assert (
-            exc_info.value.exchange_message == error_body_from_exchange
-        )  # Check raw message is preserved
+        # The exchange_message should be the parsed message field when parsing succeeds
+        assert exc_info.value.exchange_message == json.loads(error_body_from_exchange).get(
+            "message"
+        )
 
     # TODO: Add more error tests for other methods and error types
 
@@ -452,7 +456,8 @@ class TestBackpackAPIWebSocketRouting:
         test_message = {"topic": topic, "data": test_message_data}
 
         await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
-        mock_handler.assert_called_once_with(test_message_data)
+        # The handler should receive both the data payload and the full message
+        mock_handler.assert_called_once_with(test_message_data, test_message)
 
     @pytest.mark.asyncio
     async def test_route_ws_message_private_topic_fills(
@@ -471,7 +476,9 @@ class TestBackpackAPIWebSocketRouting:
         test_message = {"type": "fills", "data": test_fill_data}
 
         await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
-        mock_handler.assert_called_once_with(test_message)
+        # For private streams like fills, the handler receives the full message as data_payload
+        # and the full message again as the second argument.
+        mock_handler.assert_called_once_with(test_message, test_message)
 
     @pytest.mark.xfail(reason="Logging calls not being detected, needs deeper investigation.")
     @pytest.mark.asyncio

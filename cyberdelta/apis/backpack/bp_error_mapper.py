@@ -220,24 +220,32 @@ class BackpackErrorMapper(IErrorMapper):
         mapped_code = BackpackErrorMapper._map_backpack_error_code_to_api_error_code(
             error_body=error_body, error_data=error_data, status_code=status_code
         )
-        msg: str = error_body
+        msg: str = error_body  # Default message to raw body
         if error_data and isinstance(error_data.get("msg"), str):
             msg = error_data["msg"]
         elif error_data and isinstance(error_data.get("message"), str):
             msg = error_data["message"]
 
+        # Determine the exchange_message: prefer parsed, fallback to raw body
+        parsed_exchange_msg: str | None = None
+        if error_data:
+            if "msg" in error_data and isinstance(error_data["msg"], str):
+                parsed_exchange_msg = error_data["msg"]
+            elif "message" in error_data and isinstance(error_data["message"], str):
+                parsed_exchange_msg = error_data["message"]
+
+        final_exchange_message = (
+            parsed_exchange_msg if parsed_exchange_msg is not None else error_body
+        )
+
         api_error_response = APIErrorResponse.from_exchange_error(
-            message=msg,
+            message=msg,  # This is the primary, potentially more user-friendly message
             code=mapped_code.value,
             http_status=status_code,
             exchange_code=(
                 str(error_data.get("code")) if error_data and "code" in error_data else None
             ),
-            exchange_message=(
-                error_data.get("msg")
-                if error_data and "msg" in error_data
-                else (error_data.get("message") if error_data and "message" in error_data else None)
-            ),
+            exchange_message=final_exchange_message,  # Use the determined exchange message
             metadata={"request_path": request_path} if request_path else None,
         )
         try:

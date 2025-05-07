@@ -295,17 +295,16 @@ async def test_place_order_calls_authenticate_and_request(
 
                     # Verify builder was called correctly
                     mock_build_payload.assert_called_once_with(
-                        symbol=symbol_val,
+                        asset_index=0,
                         side=side_val,
                         order_type=order_type_val,
                         quantity=quantity_val,
-                        price=price_val,
                         time_in_force=time_in_force_val,
-                        client_order_id=client_order_id_val,
-                        reduce_only=reduce_only_val,
-                        post_only=post_only_val,
-                        stop_price=stop_price_val,
-                        asset_index=0,
+                        price=price_val,
+                        stop_price=None,
+                        client_order_id=None,
+                        reduce_only=False,
+                        post_only=False,
                     )
 
                     # Existing authenticator and request assertions should now use expected_builder_payload
@@ -441,17 +440,16 @@ class TestHyperliquidAPIMethodErrors:
 
             # Verify builder was called correctly
             mock_build_payload.assert_called_once_with(
-                symbol=symbol_val,
+                asset_index=0,
                 side=side_val,
                 order_type=order_type_val,
                 quantity=quantity_val,
-                price=price_val,
                 time_in_force=time_in_force_val,
-                client_order_id=None,  # from expected_builder_args
-                reduce_only=False,  # from expected_builder_args
-                post_only=False,  # from expected_builder_args
-                stop_price=None,  # from expected_builder_args
-                asset_index=0,  # from expected_builder_args
+                price=price_val,
+                stop_price=None,
+                client_order_id=None,
+                reduce_only=False,
+                post_only=False,
             )
             # Verify api._request was called with the payload from the builder
             mock_hl_request.assert_awaited_once_with(
@@ -539,17 +537,16 @@ class TestHyperliquidAPIMethodErrors:
 
             # Verify builder was called correctly
             mock_build_payload.assert_called_once_with(
-                symbol=symbol_val,
+                asset_index=1,
                 side=side_val,
                 order_type=order_type_val,
                 quantity=quantity_val,
-                price=price_val,
                 time_in_force=time_in_force_val,
+                price=price_val,
+                stop_price=None,
                 client_order_id=None,
                 reduce_only=False,
                 post_only=False,
-                stop_price=None,
-                asset_index=1,
             )
             # Verify api._request was called with the payload from the builder
             mock_hl_request.assert_awaited_once_with(

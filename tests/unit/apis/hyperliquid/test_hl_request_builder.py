@@ -12,6 +12,11 @@ from cyberdelta.core.models import OrderSide, OrderType, TimeInForce
 class TestHyperliquidRequestBuilder(unittest.TestCase):
     """Test suite for HyperliquidRequestBuilder."""
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        # A valid, but not necessarily real, 42-character address
+        cls.VALID_ADDRESS = "0xAbCDeF0123456789AbCDeF0123456789AbCDeF01"
+
     def test_build_info_request_payload(self) -> None:
         """Test build_info_request_payload."""
         payload = HyperliquidRequestBuilder.build_info_request_payload()
@@ -20,14 +25,14 @@ class TestHyperliquidRequestBuilder(unittest.TestCase):
     def test_build_l2_usd_transfer_payload(self) -> None:
         """Test build_l2_usd_transfer_payload with valid inputs."""
         payload = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
-            destination_address="0x123", amount=Decimal("100.50")
+            destination_address=self.VALID_ADDRESS, amount=Decimal("100.50")
         )
         expected_payload = {
             "type": "usdTransfer",
             "action": {
                 "chain": "L2",
                 "payload": {
-                    "destination": "0x123",
+                    "destination": self.VALID_ADDRESS,
                     "token": "USDC",
                     "amount": "100.50",
                 },
@@ -58,14 +63,14 @@ class TestHyperliquidRequestBuilder(unittest.TestCase):
     def test_build_withdrawal_payload_token(self) -> None:
         """Test build_withdrawal_payload for a generic token (USDC)."""
         payload = HyperliquidRequestBuilder.build_withdrawal_payload(
-            asset="USDC", amount=Decimal("500"), destination_address="0xdef"
+            asset="USDC", amount=Decimal("500"), destination_address=self.VALID_ADDRESS
         )
         expected_payload = {
             "type": "withdraw",
             "action": {
                 "token": "USDC",
                 "amount": "500",
-                "destination": "0xdef",
+                "destination": self.VALID_ADDRESS,
             },
         }
         self.assertEqual(payload, expected_payload)

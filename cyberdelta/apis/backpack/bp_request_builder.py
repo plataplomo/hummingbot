@@ -4,6 +4,9 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class BackpackRequestBuilder:
@@ -128,44 +131,75 @@ class BackpackRequestBuilder:
         Raises:
             ValueError: If required parameters for an order type are missing or invalid.
         """
+        # Map OrderSide to Backpack's Bid/Ask
+        side_str = "Bid" if side == OrderSide.BUY else "Ask"
+
+        # Map OrderType to Backpack's specific values
+        order_type_str: str
+        if order_type == OrderType.LIMIT:
+            order_type_str = "Limit"
+        elif order_type == OrderType.MARKET:
+            order_type_str = "Market"
+        elif order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT]:
+            order_type_str = "Stop"  # Backpack uses "Stop" for both stop market/limit
+        # TODO: Confirm mapping for TAKE_PROFIT types if Backpack supports them directly
+        elif order_type in [OrderType.TAKE_PROFIT_MARKET, OrderType.TAKE_PROFIT_LIMIT]:
+            # Placeholder - Assuming similar mapping to Stop. VERIFY WITH BACKPACK DOCS.
+            order_type_str = "TakeProfit"  # This might be incorrect
+            logger.warning(
+                f"Order type mapping for {order_type.value} is assumed. Verify Backpack API."
+            )
+        else:
+            # Fallback or raise error for unsupported types
+            # For now, use the capitalized value but log a warning
+            order_type_str = order_type.value.capitalize()
+            logger.warning(
+                f"Using default capitalized value '{order_type_str}' for order type "
+                f"{order_type.value}. Verify Backpack API support."
+            )
+
         payload: dict[str, Any] = {
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
-            "side": side.value.capitalize(),  # e.g., "Bid" or "Ask"
-            "orderType": order_type.value.capitalize(),  # e.g., "Limit" or "Market"
+            "side": side_str,
+            "orderType": order_type_str,
             "quantity": str(quantity),
         }
 
-        if order_type == OrderType.LIMIT:
+        # Handle price based on actual order type being sent (Limit or StopLimit)
+        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
             if price is None:
-                raise ValueError("Price is required for LIMIT orders.")
+                raise ValueError(f"Price is required for {order_type.value} orders.")
             payload["price"] = str(price)
-            # Map TimeInForce for limit orders
+
+        # Map TimeInForce only if relevant for the order type
+        # Generally for Limit, potentially for Market (IOC/FOK)
+        # Stop orders TIF is usually implied or part of the limit parameters
+        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
             if time_in_force == TimeInForce.GTC:
                 payload["timeInForce"] = "GTC"
             elif time_in_force == TimeInForce.IOC:
                 payload["timeInForce"] = "IOC"
             elif time_in_force == TimeInForce.FOK:
                 payload["timeInForce"] = "FOK"
-            # ALO (Post-Only) is handled by the postOnly flag
+            # ALO (Post-Only) is handled by the postOnly flag below
         elif order_type == OrderType.MARKET:
-            # Market orders typically don't use price or timeInForce in the same way
-            # Backpack might support specific TIF for market, e.g. FOK or IOC.
-            # Assuming default behavior if not specified, or API might reject.
-            # The original code in bp_api did not explicitly set TIF for market.
+            # Only add TIF if it's IOC or FOK for market
             if time_in_force == TimeInForce.IOC:
                 payload["timeInForce"] = "IOC"
             elif time_in_force == TimeInForce.FOK:
                 payload["timeInForce"] = "FOK"
+            # GTC is usually default/implied for Market and not sent
 
         if client_order_id:
             payload["clientId"] = client_order_id
         if post_only:
-            payload["postOnly"] = True
+            # Ensure postOnly is only sent for appropriate order types (usually Limit)
+            if order_type == OrderType.LIMIT:
+                payload["postOnly"] = True
+            else:
+                logger.warning(f"postOnly=True ignored for non-LIMIT order type {order_type.value}")
 
-        # Handle stop/trigger orders (e.g., STOP_LOSS, TAKE_PROFIT, STOP_LOSS_LIMIT,
-        # TAKE_PROFIT_LIMIT)
-        # Backpack API specific fields for these order types need to be confirmed from
-        # their docs. Assuming a 'triggerPrice' field for stop/take_profit orders for now.
+        # Handle triggerPrice for stop/take_profit orders
         if order_type in [
             OrderType.STOP_MARKET,
             OrderType.TAKE_PROFIT_MARKET,
@@ -175,13 +209,7 @@ class BackpackRequestBuilder:
             if trigger_price is None:
                 raise ValueError(f"Trigger price is required for {order_type.value} orders.")
             payload["triggerPrice"] = str(trigger_price)
-            # If it's a STOP_LIMIT or TAKE_PROFIT_LIMIT, it also needs a limit price.
-            if order_type in [OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
-                if price is None:
-                    raise ValueError(
-                        f"Limit price is required for {order_type.value} orders after trigger."
-                    )
-                payload["price"] = str(price)  # This is the limit price for the triggered order
+            # Note: 'price' for STOP_LIMIT/TAKE_PROFIT_LIMIT is handled above
 
         return payload
 
@@ -439,7 +467,7 @@ class BackpackRequestBuilder:
                     If it's a query param, this method should return params dict.
                     If it's in body for DELETE, this returns a payload dict.
                     If symbol is optional and not providing it means all, behavior varies.
-                    The original bp_api cancelled one by one; this is for a bulk
+                    The original bp_api.py cancelled one by one; this is for a bulk
                     endpoint if available.
                     Assuming for now that if a symbol is provided, it's a query parameter.
                     If DELETE to /api/v1/orders with a body is supported:
