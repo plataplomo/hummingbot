@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cyberdelta.apis.base_api import ExchangeAPI
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import FundingRate, Ticker
 from cyberdelta.core.models.market.candle import Candle

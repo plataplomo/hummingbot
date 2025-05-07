@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cyberdelta.apis.base_api import ExchangeAPI
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.execution.synchronized_order_submission import (
     ExecutionCoordinator,
     ExecutionResult,

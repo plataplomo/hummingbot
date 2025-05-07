@@ -15,7 +15,7 @@ from decimal import Decimal, InvalidOperation  # Add this import
 from enum import Enum, auto
 from typing import Any, Protocol
 
-from cyberdelta.apis.base_api import ExchangeAPI
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.models import (
     Order,
     OrderSide,

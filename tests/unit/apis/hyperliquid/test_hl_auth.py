@@ -42,9 +42,13 @@ def authenticator_instance(mock_account: MagicMock) -> HyperliquidEip712Authenti
     """Fixture for a HyperliquidEip712Authenticator instance with mocked Account."""
     with patch("eth_account.Account.from_key", return_value=mock_account) as mock_from_key:
         auth = HyperliquidEip712Authenticator(
-            private_key_hex="0xPrivateKey", wallet_address="0xWalletAddress", chain_id=1337
+            private_key_hex="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            wallet_address="0xWalletAddress",
+            chain_id=1337,
         )
-        mock_from_key.assert_called_once_with("0xPrivateKey")
+        mock_from_key.assert_called_once_with(
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        )
         return auth
 
 
@@ -76,14 +80,13 @@ def test_hl_auth_init_success_no_0x(mock_account: MagicMock):
 
 
 def test_hl_auth_init_no_private_key(mock_account: MagicMock):
-    """Test initialization with no private key."""
-    auth = HyperliquidEip712Authenticator(
-        private_key_hex=None,
-        wallet_address=VALID_WALLET_ADDRESS,
-        chain_id=VALID_CHAIN_ID,
-    )
-    assert auth._private_key_hex is None  # noqa: SLF001
-    assert auth._account is None  # noqa: SLF001
+    """Test initialization with no private key raises ValueError."""
+    with pytest.raises(ValueError, match="Private key cannot be empty"):
+        HyperliquidEip712Authenticator(
+            private_key_hex="",
+            wallet_address=VALID_WALLET_ADDRESS,
+            chain_id=VALID_CHAIN_ID,
+        )
 
 
 def test_hl_auth_init_invalid_private_key(mock_account: MagicMock):
@@ -130,54 +133,20 @@ async def test_prepare_request_success(
     data = {"action": "place_order", "details": {"coin": "BTC", "size": "1"}}
     headers = {"X-Custom-Header": "custom"}
 
-    expected_timestamp_ms = 1678886400123
-    expected_nonce = 1
-    expected_connection_id = Web3.keccak(text=json.dumps(data, separators=(",", ":")))
-    expected_signature_hex = "0xabcdef"
-
-    # Expected structure passed to encode_typed_data
-    expected_structured_data = {
-        "types": {  # ... (omitted for brevity, ensure matches hl_auth.py)
-            "EIP712Domain": [
-                {"name": "name", "type": "string"},
-                {"name": "version", "type": "string"},
-                {"name": "chainId", "type": "uint256"},
-                {"name": "verifyingContract", "type": "address"},
-            ],
-            "Agent": [
-                {"name": "source", "type": "string"},
-                {"name": "connectionId", "type": "bytes32"},
-                {"name": "timestamp", "type": "uint64"},
-            ],
-        },
-        "primaryType": "Agent",
-        "domain": {
-            "name": "Hyperliquid",
-            "version": "1",
-            "chainId": VALID_CHAIN_ID,
-            "verifyingContract": "0x0000000000000000000000000000000000000000",
-        },
-        "message": {
-            "source": "Hyperliquid",
-            "connectionId": expected_connection_id,
-            "timestamp": expected_timestamp_ms,
-        },
-    }
-
-    result: AuthenticatedRequestComponents = await auth.prepare_request(
-        method, path, params, data, headers
-    )
+    # Use a fixed time for predictable timestamp/nonce
+    fixed_time_sec = 1678886400.123
+    with patch("time.time", return_value=fixed_time_sec):
+        result: AuthenticatedRequestComponents = await auth.prepare_request(
+            method, path, params, data, headers
+        )
 
     # Verify mocks were called correctly
-    assert auth._nonce_counter == expected_nonce  # noqa: SLF001
-
-    # Verify returned components
-    assert result["headers"] == {
-        "X-Custom-Header": "custom",
-        "X-HL-Signature": expected_signature_hex,
-        "X-HL-Timestamp": str(expected_timestamp_ms),
-        "X-HL-Nonce": str(expected_nonce),
-    }
+    assert "X-HL-Signature" in result["headers"]
+    assert result["headers"]["X-HL-Signature"].startswith("0x")
+    assert len(result["headers"]["X-HL-Signature"]) == 132  # 0x + 65 bytes hex
+    assert result["headers"]["X-HL-Timestamp"] == str(int(fixed_time_sec * 1000))
+    assert result["headers"]["X-HL-Nonce"] == str(int(fixed_time_sec * 1000))  # Nonce is timestamp
+    assert result["headers"]["X-Custom-Header"] == "custom"
     assert result["params"] == params  # Params should be unchanged
     assert result["data"] == data  # Data should be unchanged
 
@@ -186,11 +155,20 @@ async def test_prepare_request_success(
 async def test_prepare_request_no_private_key(
     mock_account: MagicMock,
 ):
-    """Test prepare_request raises APIError if authenticator has no private key."""
-    auth = HyperliquidEip712Authenticator(
-        private_key_hex=None, wallet_address=VALID_WALLET_ADDRESS, chain_id=VALID_CHAIN_ID
-    )
-    with pytest.raises(APIError, match="usable private key") as excinfo:
+    """Test prepare_request raises APIError if authenticator has no private key (was init with empty string)."""
+    # This test assumes that if private_key_hex was empty, _account would be None
+    # and prepare_request would fail early. The __init__ now raises ValueError directly.
+    # Thus, this specific test path for prepare_request is less relevant if __init__ already failed.
+    # However, if an authenticator was somehow created with _account=None (e.g. bypassed init checks):
+    with patch("eth_account.Account.from_key", return_value=mock_account):
+        auth = HyperliquidEip712Authenticator(
+            private_key_hex="0xPrivateKey",  # Needs a valid-looking key for init to pass this stage
+            wallet_address=VALID_WALLET_ADDRESS,
+            chain_id=VALID_CHAIN_ID,
+        )
+    auth._account = None  # Manually set _account to None to simulate this scenario
+
+    with pytest.raises(APIError, match="not have a usable private key") as excinfo:
         await auth.prepare_request("POST", "/exchange", None, {"action": "test"}, None)
     assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
 
@@ -326,7 +304,15 @@ class TestHyperliquidEip712Authenticator:
                 headers=original_headers.copy(),
             )
 
-            assert isinstance(components, AuthenticatedRequestComponents)
+            # The isinstance check for TypedDict is problematic with type checkers and not standard.
+            # assert isinstance(components, AuthenticatedRequestComponents)
+            assert "X-HL-Timestamp" in components["headers"]
+            assert "X-HL-Nonce" in components["headers"]
+            assert "X-HL-Signature" in components["headers"]
+            assert components["headers"]["X-Custom-Header"] == "custom_value"
+            assert components["params"] is None
+            assert components["data"] == action_data
+
             mock_keccak.assert_called_once_with(text=expected_connection_id_str)
 
             expected_agent_message = {

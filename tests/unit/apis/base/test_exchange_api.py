@@ -8,7 +8,7 @@ import aiohttp
 import pytest
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
-from cyberdelta.apis.base_api import ExchangeAPI
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode

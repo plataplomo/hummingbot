@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.base_api import ExchangeAPI
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.models import (
     DerivativePosition,
     Order,

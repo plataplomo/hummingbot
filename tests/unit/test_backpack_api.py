@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from cyberdelta.apis.backpack_api import BackpackAPI
+from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.core.models import (
     DerivativePosition,

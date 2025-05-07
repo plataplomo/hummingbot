@@ -82,10 +82,10 @@ class ExchangeAPI(ABC):
             authenticator: Optional authenticator instance for signed requests.
         """
         self.exchange_name = exchange_name
-        self.config = config
+        self._config = config
         self._secrets = secrets
+        self.loop = loop if loop else asyncio.get_event_loop()
         self.authenticator = authenticator
-        self._loop = loop or asyncio.get_event_loop()
         self._ws_connection: aiohttp.ClientWebSocketResponse | None = None
         self._ws_handlers: dict[str, MessageHandler] = {}
         self._is_connected = False
@@ -99,8 +99,8 @@ class ExchangeAPI(ABC):
         # Initialize RateLimiterService
         self._rate_limiter_service = RateLimiterService(
             exchange_name=self.exchange_name,
-            config=self.config,  # Pass the main config dict
-            loop=self._loop,
+            config=self._config,
+            loop=self.loop,
         )
         # Placeholder for connection state and WebSocket management attributes
         self._ws_connection = None
@@ -113,13 +113,13 @@ class ExchangeAPI(ABC):
 
         # Extract key configurations
         # Check for both rest_endpoint (standard) and base_url (alternative naming)
-        self.rest_endpoint = config.get("rest_endpoint", config.get("base_url"))
+        self.rest_endpoint = self._config.get("rest_endpoint", self._config.get("base_url"))
         if not self.rest_endpoint or not isinstance(self.rest_endpoint, str):
             raise ValueError(
                 f"[{exchange_name}] Missing or invalid 'rest_endpoint' or 'base_url' in config"
             )
         # Check for both ws_endpoint (standard) and ws_url (alternative naming)
-        self.ws_endpoint = config.get("ws_endpoint")
+        self.ws_endpoint = self._config.get("ws_endpoint")
         if not self.ws_endpoint or not isinstance(self.ws_endpoint, str):
             logger.warning(
                 f"[{exchange_name}] Missing or invalid 'ws_endpoint' in config. "
@@ -131,10 +131,10 @@ class ExchangeAPI(ABC):
         self._http_client = HttpClient(
             exchange_name=self.exchange_name,
             rest_endpoint=self.rest_endpoint,  # Must be validated before this point
-            default_request_timeout=self.config.get("request_timeout", 30.0),
-            # Pass retry config if available in self.config, otherwise HttpClient defaults
-            max_retries=self.config.get("max_retries"),  # HttpClient will use its default if None
-            retry_delay_seconds=self.config.get(
+            default_request_timeout=self._config.get("request_timeout", 30.0),
+            # Pass retry config if available in self._config, otherwise HttpClient defaults
+            max_retries=self._config.get("max_retries"),  # HttpClient will use its default if None
+            retry_delay_seconds=self._config.get(
                 "retry_delay_seconds"
             ),  # HttpClient will use its default if None
         )
@@ -144,6 +144,13 @@ class ExchangeAPI(ABC):
         #     logger.warning(f"REST endpoint not configured for {self.exchange_name}")
         if not self.ws_endpoint:
             logger.warning(f"WebSocket endpoint not configured for {self.exchange_name}")
+
+        # Session for WebSocket (HttpClient manages its own session for REST)
+        self._session: aiohttp.ClientSession | None = None
+
+        logger.info(
+            f"[{self.exchange_name}] API initialized. REST: {self.rest_endpoint}, WS: {self.ws_endpoint}"
+        )
 
     @property
     def is_connected(self) -> bool:

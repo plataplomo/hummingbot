@@ -9,8 +9,6 @@ from cyberdelta.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# Fallback defaults for the service if RateLimiterConfig validation fails or provides no values
-# These are for catastrophic fallback, primary defaults should come from RateLimiterConfig model defaults if set there.
 SERVICE_FALLBACK_RATE = 1.0
 SERVICE_FALLBACK_BUCKET_SIZE = 1
 

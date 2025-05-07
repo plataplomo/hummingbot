@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic import ValidationError  # Add ValidationError
 
-from cyberdelta.apis.base_api import ExchangeAPI  # Add ExchangeAPI
+from cyberdelta.apis.base.exchange_api import ExchangeAPI  # Add ExchangeAPI
 from cyberdelta.core.models import DerivativePosition, OrderSide
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.utils.config import Config

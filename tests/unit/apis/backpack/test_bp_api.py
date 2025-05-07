@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pytest import LogCaptureFixture
 
+from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.bp_auth import BackpackHmacAuthenticator
-from cyberdelta.apis.backpack_api import BackpackAPI
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode

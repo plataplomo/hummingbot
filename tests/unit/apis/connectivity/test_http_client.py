@@ -255,7 +255,7 @@ class TestHttpClient:
                 is_signed=True,
             )
         assert excinfo.value.message == "Auth Prep Failed"
-        assert excinfo.value.code == APIErrorCode.SIGNATURE_GENERATION_FAILED.value
+        assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
 
     @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.request")
@@ -279,7 +279,7 @@ class TestHttpClient:
             await http_client_instance.request("GET", "/bad_req", mock_rate_limiter_service)
 
         assert excinfo.value.http_status == 400
-        assert excinfo.value.response_body == error_body
+        assert excinfo.value.exchange_message == error_body
         mock_request.assert_called_once()  # Should only be called once, no retry
 
     @pytest.mark.asyncio
@@ -307,7 +307,7 @@ class TestHttpClient:
             await http_client_instance.request("GET", "/server_err", mock_rate_limiter_service)
 
         assert excinfo.value.http_status == 500
-        assert excinfo.value.response_body == error_body
+        assert excinfo.value.exchange_message == error_body
         assert mock_request.call_count == 3  # Initial call + 2 retries
         assert mock_sleep.call_count == 2  # Sleep called before each retry
         mock_sleep.assert_any_call(0.01 * (2**0))  # Delay for first retry

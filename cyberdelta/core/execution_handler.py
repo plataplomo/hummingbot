@@ -9,7 +9,7 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
-from cyberdelta.apis.base_api import APIError, APIErrorCode, ExchangeAPI
+from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
     Order,
     OrderSide,

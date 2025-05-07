@@ -42,7 +42,7 @@ from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalResponse,
 )
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
-from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
+from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (

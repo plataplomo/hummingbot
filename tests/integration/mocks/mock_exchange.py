@@ -9,7 +9,7 @@ from typing import Any
 
 # Added import for ValidationError
 # Import Fill type
-from cyberdelta.apis.base_api import APIError, APIErrorCode, ExchangeAPI
+from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
