@@ -1,8 +1,9 @@
 import asyncio
+import logging
 from collections.abc import Callable, Coroutine, Mapping
 from datetime import datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import aiohttp
 import pytest
@@ -66,10 +67,16 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         await self.mock_route_ws_method(message)
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
+        # Default behavior for tests NOT testing subscribe: mock it
+        # Tests testing base subscribe should patch this or use a different approach
         await self.mock_subscribe_method(topic, handler)
+        # If testing base subscribe, one might do:
+        # await super().subscribe(topic, handler)
 
     async def _resubscribe(self) -> None:
+        # Default: mock it
         await self.mock_resubscribe_method()
+        # If testing base: await super()._resubscribe()
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         await self.mock_handle_websocket_message_method(message)
@@ -77,7 +84,9 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     def _update_rate_limit_from_headers(
         self, headers: Mapping[str, str], method: str, path: str
     ) -> None:
+        # Default: mock it
         self.mock_update_rate_limit_method(headers, method, path)
+        # If testing base: super()._update_rate_limit_from_headers(headers, method, path)
 
     async def get_ticker(self, symbol: str) -> Ticker:
         return MagicMock(spec=Ticker)
@@ -137,24 +146,27 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
         return MagicMock(spec=Order)
 
+    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
+        # Implementation for the abstract method
+        return [MagicMock(spec=Order)]
+
+    def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
+        # Implement a basic version for testing, or rely on mock if testing other parts
+        # For testing base class subscribe/resubscribe, this needs to return something valid
+        return {"op": "subscribe", "topic": topic}  # Example payload
+
     async def connect_websocket(self) -> None:
-        pass  # Mocked behavior
+        # Default: do nothing (tests might patch ws_manager directly)
+        pass
+        # If testing base: await super().connect_websocket()
 
     async def ping_websocket(self) -> None:
         pass  # Mocked behavior
 
-    async def get_all_open_orders(self, symbol: str | None = None) -> list[Order]:
-        return [MagicMock(spec=Order)]
-
-    # --- Abstract method implementations for WebSocketManager integration ---
-    def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
-        # Returning Any from function declared to return "dict[str, Any] | None"
-        mock_payload: MagicMock = MagicMock()
-        mock_payload.topic = topic
-        return mock_payload
-
     async def _on_ws_connected(self) -> None:
+        # Default: mock it
         await self.mock_on_ws_connected_method()
+        # If testing base: await super()._on_ws_connected()
 
 
 @pytest.fixture
@@ -181,10 +193,7 @@ def mock_secrets() -> dict[str, str | None]:
     return {"API_KEY": "test_key", "API_SECRET": "test_secret"}
 
 
-@pytest.mark.xfail(
-    reason="RateLimiterService initialization seems to have issues with test config loading or isolation, needs deeper investigation."
-)
-@patch("cyberdelta.apis.connectivity.rate_limiter_service.RateLimiterService")
+@patch("cyberdelta.apis.base.exchange_api.RateLimiterService")
 def test_exchange_api_initialization_creates_rate_limiter_service(
     MockRateLimiterService: MagicMock,
     exchange_name: str,
@@ -464,7 +473,6 @@ class TestExchangeAPIWebSocketIntegration:
         assert api._ws_manager is None
         MockWebSocketManagerClass.assert_not_called()  # Ensure WS Manager wasn't called
 
-    @pytest.mark.xfail(reason="Persistent mocking issue with WS connect method.")
     @pytest.mark.asyncio
     async def test_connect_websocket_delegates_to_ws_manager(
         self,
@@ -473,15 +481,17 @@ class TestExchangeAPIWebSocketIntegration:
         default_config: dict[str, Any],
     ) -> None:
         api = ConcreteTestExchangeAPI("test_exchange", default_config, {}, mock_error_mapper)
-        mock_ws_instance = api._ws_manager
+        # Access the mock manager instance created via the class patch
+        # The __init__ of ConcreteTestExchangeAPI calls super().__init__ which uses WebSocketManager
+        mock_ws_instance = MockWebSocketManagerClass.return_value
         assert isinstance(mock_ws_instance, MagicMock)
 
+        # Ensure the connect method on the mock instance is an AsyncMock
         mock_ws_instance.connect = AsyncMock()
 
         await api.connect_websocket()
         mock_ws_instance.connect.assert_called_once()
 
-    @pytest.mark.xfail(reason="Persistent mocking issue with WS is_connected property.")
     def test_is_connected_property_delegates_to_ws_manager(
         self,
         MockWebSocketManagerClass: MagicMock,  # Injected by class-level patch
@@ -489,20 +499,24 @@ class TestExchangeAPIWebSocketIntegration:
         default_config: dict[str, Any],
     ) -> None:
         api = ConcreteTestExchangeAPI("test_exchange", default_config, {}, mock_error_mapper)
-        mock_ws_instance = api._ws_manager
+        mock_ws_instance = MockWebSocketManagerClass.return_value
         assert isinstance(mock_ws_instance, MagicMock)
-        # Assuming spec=WebSocketManager makes mock_ws_instance.is_connected a mock, set its return_value
-
-        mock_ws_instance.is_connected.return_value = True
+        # Mock the is_connected property on the mock manager instance
+        prop_mock = PropertyMock(return_value=True)
+        type(mock_ws_instance).is_connected = prop_mock
         assert api.is_connected is True
 
-        mock_ws_instance.is_connected.return_value = False
+        # Change the property mock's return value
+        prop_mock = PropertyMock(return_value=False)
+        type(mock_ws_instance).is_connected = prop_mock
         assert api.is_connected is False
+        # Verify the property was accessed
+        assert mock_ws_instance.is_connected is False  # Access the property again to check
+        # Check call count on the PropertyMock itself by accessing its call_count attribute
+        assert (
+            prop_mock.call_count >= 1
+        )  # It should have been called at least once after being set to False
 
-        # Check the mock for the property getter was called
-        assert mock_ws_instance.is_connected.call_count >= 2
-
-    @pytest.mark.xfail(reason="Persistent mocking issue with WS close method.")
     @pytest.mark.asyncio
     async def test_close_delegates_to_ws_manager(
         self,
@@ -511,7 +525,7 @@ class TestExchangeAPIWebSocketIntegration:
         default_config: dict[str, Any],
     ) -> None:
         api = ConcreteTestExchangeAPI("test_exchange", default_config, {}, mock_error_mapper)
-        mock_ws_instance = api._ws_manager
+        mock_ws_instance = MockWebSocketManagerClass.return_value
         assert isinstance(mock_ws_instance, MagicMock)
 
         mock_ws_instance.close = AsyncMock()
@@ -527,9 +541,6 @@ class TestExchangeAPIWebSocketIntegration:
 
         mock_ws_instance.close.assert_called_once()
 
-    @pytest.mark.xfail(
-        reason="Persistent mocking issue with WS subscribe/send_json and is_connected."
-    )
     @pytest.mark.asyncio
     async def test_subscribe_registers_handler_and_sends_if_connected(
         self,
@@ -538,12 +549,12 @@ class TestExchangeAPIWebSocketIntegration:
         default_config: dict[str, Any],
     ) -> None:
         api = ConcreteTestExchangeAPI("test_exchange", default_config, {}, mock_error_mapper)
-        mock_ws_instance = api._ws_manager
+        mock_ws_instance = MockWebSocketManagerClass.return_value
         assert isinstance(mock_ws_instance, MagicMock)
 
         mock_ws_instance.send_json = AsyncMock(return_value=True)
-        # Set property mock's return value
-        mock_ws_instance.is_connected.return_value = True
+        # Ensure ws_manager.is_connected is True for this test path
+        type(mock_ws_instance).is_connected = PropertyMock(return_value=True)
 
         mock_handler = AsyncMock(name="test_handler")
         topic = "test.topic"
@@ -556,9 +567,6 @@ class TestExchangeAPIWebSocketIntegration:
         mock_ws_instance.send_json.assert_awaited_once_with(payload)
         assert api._ws_handlers[topic] == mock_handler
 
-    @pytest.mark.xfail(
-        reason="Persistent mocking issue with WS subscribe/send_json and is_connected."
-    )
     @pytest.mark.asyncio
     async def test_subscribe_logs_warning_if_not_connected(
         self,
@@ -568,17 +576,20 @@ class TestExchangeAPIWebSocketIntegration:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         api = ConcreteTestExchangeAPI("test_exchange", default_config, {}, mock_error_mapper)
-        mock_ws_instance = api._ws_manager
+        mock_ws_instance = MockWebSocketManagerClass.return_value  # Ensure mock manager is used
         assert isinstance(mock_ws_instance, MagicMock)
 
         mock_ws_instance.send_json = AsyncMock()
         # Set property mock's return value
-        mock_ws_instance.is_connected.return_value = False
+        type(mock_ws_instance).is_connected = PropertyMock(
+            return_value=False
+        )  # Correct property mock
 
         mock_handler = AsyncMock(name="test_handler_not_connected")
         topic = "test.topic.notconnected"
 
-        await api.subscribe(topic, mock_handler)
+        with caplog.at_level(logging.WARNING):  # Ensure log level is captured
+            await api.subscribe(topic, mock_handler)
 
         mock_ws_instance.send_json.assert_not_called()
         assert (
@@ -587,9 +598,6 @@ class TestExchangeAPIWebSocketIntegration:
         )
         assert api._ws_handlers[topic] == mock_handler
 
-    @pytest.mark.xfail(
-        reason="Persistent mocking issue with WS resubscribe/send_json and is_connected."
-    )
     @pytest.mark.asyncio
     async def test_resubscribe_sends_for_all_handlers_if_connected(
         self,
@@ -598,12 +606,12 @@ class TestExchangeAPIWebSocketIntegration:
         default_config: dict[str, Any],
     ) -> None:
         api = ConcreteTestExchangeAPI("test_exchange", default_config, {}, mock_error_mapper)
-        mock_ws_instance = api._ws_manager
+        mock_ws_instance = MockWebSocketManagerClass.return_value
         assert isinstance(mock_ws_instance, MagicMock)
 
         mock_ws_instance.send_json = AsyncMock(return_value=True)
         # Set property mock's return value
-        mock_ws_instance.is_connected.return_value = True
+        type(mock_ws_instance).is_connected = PropertyMock(return_value=True)
 
         handler1 = AsyncMock(name="handler1")
         handler2 = AsyncMock(name="handler2")
@@ -627,7 +635,6 @@ class TestExchangeAPIWebSocketIntegration:
         mock_ws_instance.send_json.assert_any_await(payload1)
         mock_ws_instance.send_json.assert_any_await(payload2)
 
-    @pytest.mark.xfail(reason="Persistent mocking issue with WS on_connected/resubscribe flow.")
     @pytest.mark.asyncio
     async def test_on_ws_connected_calls_resubscribe(
         self,
@@ -636,16 +643,16 @@ class TestExchangeAPIWebSocketIntegration:
         default_config: dict[str, Any],
     ) -> None:
         api = ConcreteTestExchangeAPI("test_exchange", default_config, {}, mock_error_mapper)
-        mock_ws_instance = api._ws_manager
+        mock_ws_instance = MockWebSocketManagerClass.return_value
         assert isinstance(mock_ws_instance, MagicMock)
 
         # Set property mock's return value
-        mock_ws_instance.is_connected.return_value = True
+        type(mock_ws_instance).is_connected = PropertyMock(return_value=True)
 
         api._resubscribe = AsyncMock(name="instance_resubscribe_mock")
 
         await api._on_ws_connected()
-        api._resubscribe.assert_called_once()
+        api._resubscribe.assert_awaited_once()
 
 
 # End of new Test Class
