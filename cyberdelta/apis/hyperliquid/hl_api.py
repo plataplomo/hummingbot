@@ -307,7 +307,9 @@ class HyperliquidAPI(ExchangeAPI):
         else:
             # This block executes if no specific handler was found by self._ws_handlers.get(channel)
             print(
-                f"[DEBUG HL_API _route_ws_message] No specific handler. Checking built-ins. Channel: '{channel}' (type: {type(channel)}). Is it 'error'? -> {channel == 'error'}. Data: {data_payload is not None}"
+                f"[DEBUG HL_API _route_ws_message] No specific handler. "
+                f"Checking built-ins. Channel: '{channel}' (type: {type(channel)}). "
+                f"Is it 'error'? -> {channel == 'error'}. Data: {data_payload is not None}"
             )  # DEBUG
             if channel == "error":
                 logger.error(f"[{self.exchange_name}] Received WS error message: {data_payload}")
@@ -317,7 +319,8 @@ class HyperliquidAPI(ExchangeAPI):
                 )
             else:
                 logger.debug(
-                    f"[{self.exchange_name}] No handler registered for channel: {channel}. Message: {message}"
+                    f"[{self.exchange_name}] No handler registered for channel: {channel}. "
+                    f"Message: {message}"
                 )
 
     async def connect_websocket(self) -> None:
@@ -575,7 +578,8 @@ class HyperliquidAPI(ExchangeAPI):
 
             if not validated_response.data or not validated_response.data.statuses:
                 logger.warning(
-                    f"[{self.exchange_name}] L2 Transfer response 'ok' but data or statuses list is missing/empty. Raw: {response_raw!r}"
+                    f"[{self.exchange_name}] L2 Transfer response 'ok' but data or statuses "
+                    f"list is missing/empty. Raw: {response_raw!r}"
                 )
                 raise APIError(
                     "L2 Transfer 'ok' but no status details returned.",
@@ -586,7 +590,8 @@ class HyperliquidAPI(ExchangeAPI):
             if isinstance(first_status_obj_raw, str):
                 if "error" in first_status_obj_raw.lower():
                     logger.warning(
-                        f"[{self.exchange_name}] L2 Transfer failed with status: {first_status_obj_raw}"
+                        f"[{self.exchange_name}] L2 Transfer failed with status: "
+                        f"{first_status_obj_raw}"
                     )
                     raise APIError(
                         first_status_obj_raw,
@@ -596,7 +601,11 @@ class HyperliquidAPI(ExchangeAPI):
                 logger.info(f"[{self.exchange_name}] L2 Transfer status: {first_status_obj_raw}")
                 return {"status": "success_with_info", "data": first_status_obj_raw}
             else:
-                status_object = first_status_obj_raw
+                # This assumes the item in statuses is a dict that can be validated
+                # If it can be other types, more robust checking is needed.
+                status_object = HyperliquidRawExchangeStatusObject.model_validate(
+                    first_status_obj_raw
+                )
                 if status_object.error:
                     logger.warning(
                         f"[{self.exchange_name}] L2 Transfer failed: {status_object.error}"
@@ -608,22 +617,33 @@ class HyperliquidAPI(ExchangeAPI):
                     )
                 elif status_object.filled:
                     logger.info(
-                        f"[{self.exchange_name}] L2 Transfer resulted in fill-like status: {status_object.filled.model_dump()}"
+                        f"[{self.exchange_name}] L2 Transfer resulted in fill-like status: "
+                        f"{status_object.filled.model_dump()}"
                     )
                     return {"status": "success", "data": status_object.filled.model_dump()}
                 elif status_object.resting:
                     logger.info(
-                        f"[{self.exchange_name}] L2 Transfer resulted in resting-like status: {status_object.resting.model_dump()}"
+                        f"[{self.exchange_name}] L2 Transfer resulted in resting-like status: "
+                        f"{status_object.resting.model_dump()}"
                     )
                     return {"status": "success", "data": status_object.resting.model_dump()}
                 else:
+                    # If we reach here, the status object was valid but didn't match
+                    # expected transfer success/error patterns (e.g., filled, resting, error).
+                    # This indicates an unexpected but validated response structure for a transfer.
                     logger.warning(
-                        f"[{self.exchange_name}] L2 Transfer status obj has no clear state: {status_object.model_dump()}"
+                        f"[{self.exchange_name}] L2 Transfer status obj has unexpected structure: "
+                        f"{status_object.model_dump()}"
                     )
-                    return {"status": "success_unknown_details", "data": status_object.model_dump()}
+                    # Raise an error instead of returning potentially misleading success
+                    raise APIError(
+                        "L2 Transfer response object had unexpected structure.",
+                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                    )
         except ValidationError as e:
             logger.error(
-                f"[{self.exchange_name}] Failed to validate L2 transfer response: {e}. Raw: {response_raw!r}"
+                f"[{self.exchange_name}] Failed to validate L2 transfer response: {e}. "
+                f"Raw: {response_raw!r}"
             )
             raise APIError(
                 f"Invalid response after L2 transfer: {e}", code=APIErrorCode.UNKNOWN.value
@@ -660,7 +680,8 @@ class HyperliquidAPI(ExchangeAPI):
 
             if not validated_response.data or not validated_response.data.statuses:
                 logger.warning(
-                    f"[{self.exchange_name}] Withdraw response 'ok' but data or statuses list is missing/empty. Raw: {response_raw!r}"
+                    f"[{self.exchange_name}] Withdraw response 'ok' but data or statuses list "
+                    f"is missing/empty. Raw: {response_raw!r}"
                 )
                 raise APIError(
                     "Withdrawal status unclear: 'ok' but no status details provided.",
@@ -671,7 +692,8 @@ class HyperliquidAPI(ExchangeAPI):
             if isinstance(first_status_obj_raw, str):
                 if "error" in first_status_obj_raw.lower():
                     logger.warning(
-                        f"[{self.exchange_name}] Withdraw failed with status string: {first_status_obj_raw}"
+                        f"[{self.exchange_name}] Withdraw failed with status string: "
+                        f"{first_status_obj_raw}"
                     )
                     raise APIError(
                         first_status_obj_raw,
@@ -703,7 +725,8 @@ class HyperliquidAPI(ExchangeAPI):
                     return {"status": "success", "tx_hash": tx_hash}
                 elif status_object.success:
                     logger.info(
-                        f"[{self.exchange_name}] Withdraw successful with message: {status_object.success}"
+                        f"[{self.exchange_name}] Withdraw successful with message: "
+                        f"{status_object.success}"
                     )
                     return {
                         "status": "success_with_info",
@@ -712,7 +735,8 @@ class HyperliquidAPI(ExchangeAPI):
                     }
                 else:
                     logger.warning(
-                        f"[{self.exchange_name}] Withdraw status 'ok' but unrecognized obj structure: {status_object.model_dump_json()!r}. Raw: {response_raw!r}"
+                        f"[{self.exchange_name}] Withdraw status 'ok' but unrecognized obj "
+                        f"structure: {status_object.model_dump_json()!r}. Raw: {response_raw!r}"
                     )
                     raise APIError(
                         "Withdrawal status unclear: Unrecognized success object structure.",
@@ -720,7 +744,8 @@ class HyperliquidAPI(ExchangeAPI):
                     )
         except ValidationError as e:
             logger.error(
-                f"[{self.exchange_name}] Validation error processing withdraw response: {e}. Raw: {response_raw!r}"
+                f"[{self.exchange_name}] Validation error processing withdraw response: {e}. "
+                f"Raw: {response_raw!r}"
             )
             raise APIError(
                 f"Failed to validate withdraw response: {e}",
@@ -730,8 +755,9 @@ class HyperliquidAPI(ExchangeAPI):
         except APIError:
             raise
         except Exception as e:
-            logger.exception(
-                f"[{self.exchange_name}] Unexpected error during withdraw for {asset} to {address}: {e}. Raw: {response_raw!r}"
+            logger.error(
+                f"[{self.exchange_name}] Unexpected error during withdraw for {asset} to {address}: "
+                f"{e}. Raw: {response_raw!r}"
             )
             raise APIError(
                 f"Unexpected error during withdraw: {e}",
@@ -789,21 +815,25 @@ class HyperliquidAPI(ExchangeAPI):
                         await asyncio.sleep(0.1)
                     else:
                         logger.warning(
-                            f"[{self.exchange_name}] Skipping order cancel due to missing ID/symbol: {order_to_cancel}"
+                            f"[{self.exchange_name}] Skipping order cancel due to missing "
+                            f"ID/symbol: {order_to_cancel}"
                         )
                         failed_count += 1
                 except APIError as e_cancel:
                     logger.error(
-                        f"[{self.exchange_name}] Failed to cancel order {order_to_cancel.exchange_order_id}: {e_cancel}"
+                        f"[{self.exchange_name}] Failed to cancel order "
+                        f"{order_to_cancel.exchange_order_id}: {e_cancel}"
                     )
                     failed_count += 1
                 except Exception as e_unexp_cancel:
                     logger.error(
-                        f"[{self.exchange_name}] Unexpected error cancelling order {order_to_cancel.exchange_order_id}: {e_unexp_cancel}"
+                        f"[{self.exchange_name}] Unexpected error cancelling order "
+                        f"{order_to_cancel.exchange_order_id}: {e_unexp_cancel}"
                     )
                     failed_count += 1
             logger.info(
-                f"[{self.exchange_name}] Cancellation summary for {symbol or 'all'}: {cancelled_count} succeeded, {failed_count} failed."
+                f"[{self.exchange_name}] Cancellation summary for {symbol or 'all'}: "
+                f"{cancelled_count} succeeded, {failed_count} failed."
             )
         except APIError as e_get_orders:
             logger.error(
@@ -812,7 +842,8 @@ class HyperliquidAPI(ExchangeAPI):
             raise
         except Exception as e_overall:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error during cancel_all_orders for {symbol or 'all'}: {e_overall}",
+                f"[{self.exchange_name}] Unexpected error during cancel_all_orders for "
+                f"{symbol or 'all'}: {e_overall}",
                 exc_info=True,
             )
             raise APIError(
@@ -876,7 +907,8 @@ class HyperliquidAPI(ExchangeAPI):
                         orders_list.append(internal_order)
                 except (ValidationError, ValueError) as e_item:
                     logger.warning(
-                        f"[{self.exchange_name}] Skipping order history item due to validation/transform error: {e_item}. Raw: {order_data_raw}"
+                        f"[{self.exchange_name}] Skipping order history item due to "
+                        f"validation/transform error: {e_item}. Raw: {order_data_raw}"
                     )
                     continue
 
@@ -893,7 +925,8 @@ class HyperliquidAPI(ExchangeAPI):
             raise
         except (ValidationError, ValueError) as e_outer:
             logger.error(
-                f"[{self.exchange_name}] Error processing order history response: {e_outer}. Raw: {response_raw!r}",
+                f"[{self.exchange_name}] Error processing order history response: {e_outer}. "
+                f"Raw: {response_raw!r}",
                 exc_info=True,
             )
             raise APIError(
@@ -942,7 +975,8 @@ class HyperliquidAPI(ExchangeAPI):
                     trades.append(internal_trade)
                 except (ValidationError, ValueError) as e_item:
                     logger.warning(
-                        f"[{self.exchange_name}] Skipping fill due to validation/transform error: {e_item}. Data: {fill_data_raw}"
+                        f"[{self.exchange_name}] Skipping fill due to validation/transform "
+                        f"error: {e_item}. Data: {fill_data_raw}"
                     )
                     continue
             trades.sort(key=lambda t: t.executed_at, reverse=True)
@@ -974,7 +1008,8 @@ class HyperliquidAPI(ExchangeAPI):
                 or not isinstance(response_raw[1], list)
             ):
                 raise APIError(
-                    f"Unexpected response structure for allMeta: {type(response_raw)}, len {len(response_raw) if isinstance(response_raw, list) else 'N/A'}",
+                    f"Unexpected response structure for allMeta: {type(response_raw)}, "
+                    f"len {len(response_raw) if isinstance(response_raw, list) else 'N/A'}",
                     code=APIErrorCode.UNKNOWN.value,
                 )
 
@@ -983,7 +1018,8 @@ class HyperliquidAPI(ExchangeAPI):
             for asset_ctx_raw in asset_ctx_list_raw:
                 if not isinstance(asset_ctx_raw, dict):
                     logger.warning(
-                        f"[{self.exchange_name}] Skipping non-dict asset_ctx in allMeta response: {asset_ctx_raw!r}"
+                        f"[{self.exchange_name}] Skipping non-dict asset_ctx in allMeta "
+                        f"response: {asset_ctx_raw!r}"
                     )
                     continue
                 try:
@@ -998,11 +1034,13 @@ class HyperliquidAPI(ExchangeAPI):
                         result.append(funding_rate)
                 except ValidationError as ve_ctx:
                     logger.warning(
-                        f"[{self.exchange_name}] Failed to validate asset_ctx for funding: {ve_ctx}. Data: {asset_ctx_raw!r}"
+                        f"[{self.exchange_name}] Failed to validate asset_ctx for funding: "
+                        f"{ve_ctx}. Data: {asset_ctx_raw!r}"
                     )
                 except Exception as e_map_ctx:
                     logger.error(
-                        f"[{self.exchange_name}] Error mapping asset_ctx to funding rate: {e_map_ctx}. Data: {asset_ctx_raw!r}",
+                        f"[{self.exchange_name}] Error mapping asset_ctx to funding rate: "
+                        f"{e_map_ctx}. Data: {asset_ctx_raw!r}",
                         exc_info=True,
                     )
             return result
@@ -1296,24 +1334,31 @@ class HyperliquidAPI(ExchangeAPI):
             )
             error_str_from_raw: str | None = None
             if isinstance(response_raw, dict):
-                data_field: Any = response_raw.get("data")
-                if isinstance(data_field, dict):
-                    statuses_field: Any = data_field.get("statuses")
-                    if isinstance(statuses_field, list) and len(statuses_field) > 0:
-                        if isinstance(statuses_field[0], str):
-                            error_str_from_raw = statuses_field[0]
+                data_val: Any = response_raw.get("data")
+                if isinstance(data_val, dict):
+                    statuses_val: Any = data_val.get("statuses")
+                    if isinstance(statuses_val, list):
+                        if len(statuses_val) > 0:
+                            first_status_item: Any = statuses_val[0]
+                            if isinstance(first_status_item, str):
+                                error_str_from_raw = first_status_item
+                            else:
+                                logger.debug(
+                                    f"[{self.exchange_name}] First status item not a string "
+                                    f"after all checks: {first_status_item!r}"
+                                )
                         else:
                             logger.debug(
-                                f"[{self.exchange_name}] First status item not a string: {statuses_field[0]!r}"
+                                f"[{self.exchange_name}] 'statuses' list is empty after all "
+                                f"checks: {statuses_val!r}"
                             )
-                    elif statuses_field is not None:
+                    elif statuses_val is not None:
                         logger.debug(
-                            f"[{self.exchange_name}] 'statuses' field is not a non-empty list: {statuses_field!r}"
+                            f"[{self.exchange_name}] 'statuses' field is not a list: "
+                            f"{statuses_val!r}"
                         )
-                elif data_field is not None:
-                    logger.debug(
-                        f"[{self.exchange_name}] 'data' field is not a dict: {data_field!r}"
-                    )
+                elif data_val is not None:
+                    logger.debug(f"[{self.exchange_name}] 'data' field is not a dict: {data_val!r}")
             elif response_raw is not None:
                 logger.debug(f"[{self.exchange_name}] Raw response is not a dict: {response_raw!r}")
 
@@ -1401,8 +1446,8 @@ class HyperliquidAPI(ExchangeAPI):
             raise
         except Exception as e_unexp_cancel:
             logger.error(
-                f"[{self.exchange_name}] Unexpected error canceling order {order_id}: "
-                f"{e_unexp_cancel}",
+                f"[{self.exchange_name}] Unexpected error canceling order "
+                f"{order_id}: {e_unexp_cancel}",
                 exc_info=True,
             )
             raise APIError(

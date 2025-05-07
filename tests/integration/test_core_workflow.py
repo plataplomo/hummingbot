@@ -1017,15 +1017,16 @@ async def test_partial_fill(
         for sym, rate_data in sym_data.items():
             internal_sym = symbol_key  # Use the internal symbol defined in the test
             rate, time_int = rate_data  # Unpack the tuple
-            # time_dt = datetime.fromtimestamp(time_int / 1000, UTC) if isinstance(time_int, int) else time_int
+            # time_dt = datetime.fromtimestamp(time_int / 1000, UTC)
+            #   if isinstance(time_int, int) else time_int
             time_dt = time_int  # Assume it's already datetime
             # Ensure timestamp is not None, use start_time if next_funding_time is None
-            next_funding_time_to_use = time_dt if time_dt is not None else now
+            funding_timestamp = time_dt if time_dt is not None else now
             funding_rate_obj = FundingRate(
                 symbol=sym,
                 funding_rate=rate,
-                next_funding_time=next_funding_time_to_use,
-                timestamp=next_funding_time_to_use,  # Add timestamp
+                next_funding_time=time_dt,
+                timestamp=funding_timestamp,  # Add timestamp
             )
             sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
 
@@ -1325,7 +1326,8 @@ async def test_execution_failure_compensation(
         for sym, rate_data in sym_data.items():
             internal_sym = symbol_key  # Use the internal symbol defined in the test
             rate, time_int = rate_data  # Unpack the tuple
-            # time_dt = datetime.fromtimestamp(time_int / 1000, UTC) if isinstance(time_int, int) else time_int
+            # time_dt = datetime.fromtimestamp(time_int / 1000, UTC)
+            #   if isinstance(time_int, int) else time_int
             time_dt = time_int  # Assume it's already datetime
             # Ensure timestamp is not None, use now if next_funding_time is None
             funding_timestamp = time_dt if time_dt is not None else now

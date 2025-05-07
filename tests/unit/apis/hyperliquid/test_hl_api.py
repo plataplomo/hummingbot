@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 """
-Unit tests for the HyperliquidAPI class, focusing on authenticator integration.
+Unit tests for the HyperliquidAPI client implementation.
 """
 
 import logging
@@ -26,6 +24,7 @@ from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 TEST_WALLET_ADDRESS = "0xTestWalletAddress000000000000000000000000"
 TEST_PRIVATE_KEY = "0xTestPrivateKey00000000000000000000000000000000000000000000000"
 TEST_CHAIN_ID = 1337
+TEST_API_KEY = "test_key"
 
 BASE_API_CONFIG = {
     "rest_endpoint": "https://api.hyperliquid.xyz",
@@ -215,33 +214,30 @@ async def test_place_order_calls_authenticate_and_request(
         api._http_client, "request", new_callable=AsyncMock
     ) as mock_http_client_request_on_instance:  # noqa: SLF001
         with patch.object(api, "_get_asset_index", new_callable=AsyncMock) as mock_get_index:
-            mock_get_index.return_value = 0
+            mock_get_index.return_value = 0  # Asset index for BTC
 
-            mock_http_response_content = {
-                "status": "ok",
-                "data": {"type": "order", "statuses": [{"resting": {"oid": 12345}}]},
-            }
-            mock_http_client_request_on_instance.return_value = (
-                mock_http_response_content,
-                MagicMock(spec=CIMultiDictProxy),
-            )
+            # Patch the HyperliquidRequestBuilder.build_place_order_payload
+            with patch(
+                "cyberdelta.apis.hyperliquid.hl_api.HyperliquidRequestBuilder.build_place_order_payload"
+            ) as mock_build_payload:
+                # Define parameters for the place_order call
+                symbol_val: str = "BTC"
+                side_val: OrderSide = OrderSide.BUY
+                order_type_val: OrderType = OrderType.LIMIT
+                quantity_val: Decimal = Decimal("1.0")
+                price_val: Decimal = Decimal("30000")
+                time_in_force_val: TimeInForce = TimeInForce.GTC
+                client_order_id_val: str | None = None
+                reduce_only_val: bool = False
+                post_only_val: bool = False
+                stop_price_val: Decimal | None = None
 
-            mock_final_order = MagicMock()
-            mock_final_order.exchange_order_id = "12345"
-            with patch.object(api, "get_order_status", new_callable=AsyncMock) as mock_get_status:
-                mock_get_status.return_value = mock_final_order
-
-                auth_headers = {
-                    "X-HL-Signature": "sig123",
-                    "X-HL-Timestamp": "ts",
-                    "X-HL-Nonce": "1",
-                }
-                auth_params = None
-                order_action_data = {
+                # This is the payload the builder would create for the _request method
+                expected_builder_payload = {
                     "type": "order",
                     "actions": [
                         {
-                            "asset": 0,
+                            "asset": 0,  # From mock_get_index
                             "isBuy": True,
                             "sz": "1.0",
                             "limitPx": "30000",
@@ -250,47 +246,96 @@ async def test_place_order_calls_authenticate_and_request(
                         }
                     ],
                 }
-                auth_data_for_prepare_request = order_action_data
+                mock_build_payload.return_value = expected_builder_payload
 
-                expected_auth_components = AuthenticatedRequestComponents(
-                    headers=auth_headers, params=auth_params, data=auth_data_for_prepare_request
-                )
-                mock_hl_authenticator_instance.prepare_request.return_value = (
-                    expected_auth_components
-                )
-
-                final_order = await api.place_order(
-                    symbol="BTC",
-                    side=OrderSide.BUY,
-                    order_type=OrderType.LIMIT,
-                    quantity=Decimal("1.0"),
-                    price=Decimal("30000"),
-                    time_in_force=TimeInForce.GTC,
+                mock_http_response_content = {
+                    "status": "ok",
+                    "data": {"type": "order", "statuses": [{"resting": {"oid": 12345}}]},
+                }
+                mock_http_client_request_on_instance.return_value = (
+                    mock_http_response_content,
+                    MagicMock(spec=CIMultiDictProxy),
                 )
 
-                mock_hl_authenticator_instance.prepare_request.assert_awaited_once()
-                call_args_tuple = mock_hl_authenticator_instance.prepare_request.call_args[0]
-                assert call_args_tuple[0] == "POST"
-                assert call_args_tuple[1] == "/exchange"
-                assert call_args_tuple[2] is None
-                assert call_args_tuple[3] == auth_data_for_prepare_request
-                assert call_args_tuple[4] == api.default_headers.copy()
+                mock_final_order = MagicMock()
+                mock_final_order.exchange_order_id = "12345"
+                with patch.object(
+                    api, "get_order_status", new_callable=AsyncMock
+                ) as mock_get_status:
+                    mock_get_status.return_value = mock_final_order
 
-                mock_http_client_request_on_instance.assert_awaited_once()
-                actual_call_to_http_client_kwargs = (
-                    mock_http_client_request_on_instance.call_args.kwargs
-                )
-                assert actual_call_to_http_client_kwargs["method"] == "POST"
-                assert actual_call_to_http_client_kwargs["endpoint_path"] == "/exchange"
-                assert actual_call_to_http_client_kwargs["data"] == auth_data_for_prepare_request
-                final_expected_headers = api.default_headers.copy()
-                final_expected_headers.update(auth_headers)
-                assert actual_call_to_http_client_kwargs["headers"] == final_expected_headers
-                assert actual_call_to_http_client_kwargs["params"] == auth_params
-                assert actual_call_to_http_client_kwargs["is_signed"] is True
-                assert actual_call_to_http_client_kwargs["authenticator"] is api.authenticator
+                    auth_headers = {
+                        "X-HL-Signature": "sig123",
+                        "X-HL-Timestamp": "ts",
+                        "X-HL-Nonce": "1",
+                    }
+                    auth_params = None
+                    # The data that _authenticate and _request receive is expected_builder_payload
+                    auth_data_for_prepare_request = expected_builder_payload
 
-                assert final_order is mock_final_order
+                    expected_auth_components = AuthenticatedRequestComponents(
+                        headers=auth_headers, params=auth_params, data=auth_data_for_prepare_request
+                    )
+                    mock_hl_authenticator_instance.prepare_request.return_value = (
+                        expected_auth_components
+                    )
+
+                    final_order = await api.place_order(
+                        symbol=symbol_val,
+                        side=side_val,
+                        order_type=order_type_val,
+                        quantity=quantity_val,
+                        price=price_val,
+                        time_in_force=time_in_force_val,
+                        client_order_id=client_order_id_val,
+                        reduce_only=reduce_only_val,
+                        post_only=post_only_val,
+                        stop_price=stop_price_val,
+                    )
+
+                    # Verify builder was called correctly
+                    mock_build_payload.assert_called_once_with(
+                        symbol=symbol_val,
+                        side=side_val,
+                        order_type=order_type_val,
+                        quantity=quantity_val,
+                        price=price_val,
+                        time_in_force=time_in_force_val,
+                        client_order_id=client_order_id_val,
+                        reduce_only=reduce_only_val,
+                        post_only=post_only_val,
+                        stop_price=stop_price_val,
+                        asset_index=0,
+                    )
+
+                    # Existing authenticator and request assertions should now use expected_builder_payload
+                    mock_hl_authenticator_instance.prepare_request.assert_awaited_once()
+                    call_args_tuple = mock_hl_authenticator_instance.prepare_request.call_args[0]
+                    assert call_args_tuple[0] == "POST"
+                    assert call_args_tuple[1] == "/exchange"
+                    assert call_args_tuple[2] is None
+                    assert (
+                        call_args_tuple[3] == expected_builder_payload
+                    )  # Check data to authenticator
+                    assert call_args_tuple[4] == api.default_headers.copy()
+
+                    mock_http_client_request_on_instance.assert_awaited_once()
+                    actual_call_to_http_client_kwargs = (
+                        mock_http_client_request_on_instance.call_args.kwargs
+                    )
+                    assert actual_call_to_http_client_kwargs["method"] == "POST"
+                    assert actual_call_to_http_client_kwargs["endpoint_path"] == "/exchange"
+                    assert (
+                        actual_call_to_http_client_kwargs["data"] == expected_builder_payload
+                    )  # Check data to _request
+                    final_expected_headers = api.default_headers.copy()
+                    final_expected_headers.update(auth_headers)
+                    assert actual_call_to_http_client_kwargs["headers"] == final_expected_headers
+                    assert actual_call_to_http_client_kwargs["params"] == auth_params
+                    assert actual_call_to_http_client_kwargs["is_signed"] is True
+                    assert actual_call_to_http_client_kwargs["authenticator"] is api.authenticator
+
+                    assert final_order is mock_final_order
 
 
 class TestHyperliquidAPIMethodErrors:
@@ -336,8 +381,6 @@ class TestHyperliquidAPIMethodErrors:
         api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
         mock_get_asset_index.return_value = 0  # Mock asset index
 
-        # Simulate Hyperliquid returning 200 OK but with an error string in the response body
-        # This is a common HL pattern that place_order needs to handle internally
         error_string_from_hl = "User has insufficient margin"
         mock_hl_response_with_internal_error = {
             "status": "ok",
@@ -345,13 +388,74 @@ class TestHyperliquidAPIMethodErrors:
         }
         mock_hl_request.return_value = mock_hl_response_with_internal_error
 
-        with pytest.raises(APIError) as exc_info:
-            await api.place_order(
-                symbol="ETH",
-                side=OrderSide.SELL,
-                order_type=OrderType.MARKET,
-                quantity=Decimal("1"),
-                time_in_force=TimeInForce.IOC,
+        # Patch the HyperliquidRequestBuilder.build_place_order_payload
+        with patch(
+            "cyberdelta.apis.hyperliquid.hl_api.HyperliquidRequestBuilder.build_place_order_payload"
+        ) as mock_build_payload:
+            # Define parameters for the place_order call
+            symbol_val: str = "ETH"
+            side_val: OrderSide = OrderSide.SELL
+            order_type_val: OrderType = OrderType.MARKET
+            quantity_val: Decimal = Decimal("1")
+            price_val: Decimal | None = None  # Market order
+            time_in_force_val: TimeInForce = TimeInForce.IOC
+            # These are the specific args for the builder for this test case
+            expected_builder_args = {
+                "symbol": symbol_val,
+                "side": side_val,
+                "order_type": order_type_val,
+                "quantity": quantity_val,
+                "price": price_val,
+                "time_in_force": time_in_force_val,
+                "client_order_id": None,
+                "reduce_only": False,
+                "post_only": False,
+                "stop_price": None,
+                "asset_index": 0,  # from mock_get_asset_index
+            }
+            # This is the payload the builder would create for the _request method
+            expected_builder_payload = {
+                "type": "order",
+                "actions": [
+                    {
+                        "asset": 0,  # From mock_get_asset_index
+                        "isBuy": False,  # Sell
+                        "sz": "1",
+                        "limitPx": "0",  # Standard for market orders if required by API
+                        "orderType": {"ioc": None},  # IOC has no tif value in HL struct
+                        "reduceOnly": False,
+                    }
+                ],
+            }
+            mock_build_payload.return_value = expected_builder_payload
+
+            with pytest.raises(APIError) as exc_info:
+                await api.place_order(
+                    symbol=symbol_val,
+                    side=side_val,
+                    order_type=order_type_val,
+                    quantity=quantity_val,
+                    price=price_val,  # For market, this might be None or not passed
+                    time_in_force=time_in_force_val,
+                )
+
+            # Verify builder was called correctly
+            mock_build_payload.assert_called_once_with(
+                symbol=symbol_val,
+                side=side_val,
+                order_type=order_type_val,
+                quantity=quantity_val,
+                price=price_val,
+                time_in_force=time_in_force_val,
+                client_order_id=None,  # from expected_builder_args
+                reduce_only=False,  # from expected_builder_args
+                post_only=False,  # from expected_builder_args
+                stop_price=None,  # from expected_builder_args
+                asset_index=0,  # from expected_builder_args
+            )
+            # Verify api._request was called with the payload from the builder
+            mock_hl_request.assert_awaited_once_with(
+                "POST", "/exchange", data=expected_builder_payload, is_signed=True
             )
 
         # place_order should detect this error string and use the mapper
@@ -373,7 +477,7 @@ class TestHyperliquidAPIMethodErrors:
         mock_hl_auth_init: tuple[MagicMock, MagicMock],
     ) -> None:
         api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
-        mock_get_asset_index.return_value = 1
+        mock_get_asset_index.return_value = 1  # Mock asset index
 
         error_message_from_hl = "Order size too small"
         mock_hl_response_with_error_obj = {
@@ -382,14 +486,74 @@ class TestHyperliquidAPIMethodErrors:
         }
         mock_hl_request.return_value = mock_hl_response_with_error_obj
 
-        with pytest.raises(APIError) as exc_info:
-            await api.place_order(
-                symbol="ARB",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("0.001"),
-                price=Decimal("1"),
-                time_in_force=TimeInForce.GTC,
+        # Patch the HyperliquidRequestBuilder.build_place_order_payload
+        with patch(
+            "cyberdelta.apis.hyperliquid.hl_api.HyperliquidRequestBuilder.build_place_order_payload"
+        ) as mock_build_payload:
+            # Define parameters for the place_order call
+            symbol_val: str = "ARB"
+            side_val: OrderSide = OrderSide.BUY
+            order_type_val: OrderType = OrderType.LIMIT
+            quantity_val: Decimal = Decimal("0.001")
+            price_val: Decimal = Decimal("1")
+            time_in_force_val: TimeInForce = TimeInForce.GTC
+            # These are the specific args for the builder for this test case
+            expected_builder_args = {
+                "symbol": symbol_val,
+                "side": side_val,
+                "order_type": order_type_val,
+                "quantity": quantity_val,
+                "price": price_val,
+                "time_in_force": time_in_force_val,
+                "client_order_id": None,
+                "reduce_only": False,
+                "post_only": False,
+                "stop_price": None,
+                "asset_index": 1,  # from mock_get_asset_index
+            }
+            # This is the payload the builder would create for the _request method
+            expected_builder_payload = {
+                "type": "order",
+                "actions": [
+                    {
+                        "asset": 1,  # From mock_get_asset_index
+                        "isBuy": True,
+                        "sz": "0.001",
+                        "limitPx": "1",
+                        "orderType": {"limit": {"tif": "Gtc"}},
+                        "reduceOnly": False,
+                    }
+                ],
+            }
+            mock_build_payload.return_value = expected_builder_payload
+
+            with pytest.raises(APIError) as exc_info:
+                await api.place_order(
+                    symbol=symbol_val,
+                    side=side_val,
+                    order_type=order_type_val,
+                    quantity=quantity_val,
+                    price=price_val,
+                    time_in_force=time_in_force_val,
+                )
+
+            # Verify builder was called correctly
+            mock_build_payload.assert_called_once_with(
+                symbol=symbol_val,
+                side=side_val,
+                order_type=order_type_val,
+                quantity=quantity_val,
+                price=price_val,
+                time_in_force=time_in_force_val,
+                client_order_id=None,
+                reduce_only=False,
+                post_only=False,
+                stop_price=None,
+                asset_index=1,
+            )
+            # Verify api._request was called with the payload from the builder
+            mock_hl_request.assert_awaited_once_with(
+                "POST", "/exchange", data=expected_builder_payload, is_signed=True
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_ORDER_SIZE.value

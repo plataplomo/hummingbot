@@ -342,6 +342,15 @@ class TestBacktestingIntegration:
             assert "sharpe_ratio" in loaded_results["metrics"]
             assert isinstance(loaded_results["metrics"]["sharpe_ratio"], int | float)
 
+    def test_basic_backtest_run(self, setup_backtesting_env: tuple[BacktestingEngine, Path]):
+        engine, _ = setup_backtesting_env
+
+        # Run backtest
+        engine.run()
+
+        # Save results
+        # results_path = engine.save_results("test_basic_run")
+
     # TODO: Add more tests, e.g., for different strategy behaviors, data loading issues, etc.
 
 

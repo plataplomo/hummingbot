@@ -246,7 +246,26 @@ class TestBackpackAPI_Authentication:
         with patch.object(
             api._http_client._session, "request", return_value=mock_aiohttp_response
         ) as mock_session_request:  # noqa: SLF001
-            await api.place_order(
+            # Patch the builder as well
+            with patch(
+                "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_place_order_payload"
+            ) as mock_build_payload:
+                # The actual payload doesn't matter much here since we mock the auth/request
+                # but we need the builder to be called.
+                mock_build_payload.return_value = expected_call_data_for_auth
+
+                await api.place_order(
+                    symbol="SOL_USDC",
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("1"),
+                    price=Decimal("100"),
+                    time_in_force=TimeInForce.GTC,
+                    client_order_id="myorder123",
+                )
+
+            # Verify builder was called before the authenticator
+            mock_build_payload.assert_called_once_with(
                 symbol="SOL_USDC",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -254,22 +273,17 @@ class TestBackpackAPI_Authentication:
                 price=Decimal("100"),
                 time_in_force=TimeInForce.GTC,
                 client_order_id="myorder123",
+                post_only=False,  # Default
+                trigger_price=None,  # Default
             )
 
-        mock_bp_authenticator_instance.prepare_request.assert_called_once_with(
-            method="POST",
-            path=endpoint_path.lstrip("/"),  # HttpClient gets endpoint_path, which is relative
-            params=None,
-            data=expected_call_data_for_auth,
-            # HttpClient calls authenticator.prepare_request with its current request_headers.
-            # These would be api.default_headers initially if no others are passed deep down.
-            headers=api.default_headers.copy(),
-        )
-        mock_session_request.assert_called_once()
-        # We can add more assertions about what mock_session_request was called with,
-        # especially the headers after authentication.
-        _args, kwargs = mock_session_request.call_args
-        assert kwargs["headers"]["X-Signed-Header"] == "TestSignature"
+            # Original assertions for authenticator and http client remain
+            mock_bp_authenticator_instance.prepare_request.assert_awaited_once()
+            mock_session_request.assert_called_once()
+            # We can add more assertions about what mock_session_request was called with,
+            # especially the headers after authentication.
+            _args, kwargs = mock_session_request.call_args
+            assert kwargs["headers"]["X-Signed-Header"] == "TestSignature"
 
 
 class TestBackpackAPIMethodErrors:
@@ -280,38 +294,51 @@ class TestBackpackAPIMethodErrors:
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
     ) -> None:
+        """Test get_ticker correctly maps a 400 error for invalid symbol."""
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        # Note: The assignment api._bp_authenticator and mock_base_request.return_value
-        # and endpoint variable were removed as they are not relevant for this test's logic.
+        # Ensure the session exists before patching its request method
+        await api._http_client._get_session()  # noqa: SLF001
 
         http_status_from_exchange = 400
-        error_body_from_exchange = '{"error":"Invalid symbol: XYZ_USDC","code":10001}'
+        # Example error body from Backpack for invalid symbol
+        error_body_from_exchange = '{"error":"Invalid symbol provided","code":10001}'
 
         http_failure = HttpRequestFailedError(
-            message=f"HTTP {http_status_from_exchange} Error",
+            message="HTTP 400 Error",
             http_status_code=http_status_from_exchange,
             response_body=error_body_from_exchange,
         )
 
+        # Patch the request method on the HttpClient's session object
         with patch.object(
-            api._http_client,
-            "request",
-            side_effect=http_failure,  # noqa: SLF001
-        ) as mock_http_client_request:
-            with pytest.raises(APIError) as exc_info:
-                await api.get_ticker(symbol="XYZ_USDC")
+            api._http_client._session, "request", side_effect=http_failure
+        ) as mock_session_request:  # noqa: SLF001
+            # Also patch the request builder used by get_ticker
+            with patch(
+                "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_get_ticker_params"
+            ) as mock_build_params:
+                mock_build_params.return_value = {"symbol": "XYZ_USDC"}
 
-        # Asserting current behavior: falls back to EXCHANGE_SPECIFIC due to BackpackRawApiError parsing issue
-        assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        assert exc_info.value.http_status == http_status_from_exchange
-        assert (
-            "Invalid symbol" in exc_info.value.message
-        )  # Original message check might still be relevant
-        assert (
-            exc_info.value.exchange_message is None
-        )  # Current behavior: not populated when raw parsing fails
-        if mock_http_client_request:
-            mock_http_client_request.assert_called_once()
+                with pytest.raises(APIError) as exc_info:
+                    await api.get_ticker(symbol="XYZ_USDC")
+
+                # Verify builder was called correctly
+                mock_build_params.assert_called_once_with(symbol="XYZ_USDC")
+
+                # Verify _request (via HttpClient session) was called with expected args
+                mock_session_request.assert_called_once()
+                call_args, call_kwargs = mock_session_request.call_args
+                assert call_args[0] == "GET"  # method
+                assert call_args[1] == f"{api.rest_endpoint}/api/v1/ticker"  # url
+                assert call_kwargs["params"] == {"symbol": "XYZ_USDC"}
+
+                # Asserting current behavior: falls back to EXCHANGE_SPECIFIC due to BackpackRawApiError parsing issue
+                assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
+                assert exc_info.value.http_status == http_status_from_exchange
+                # The specific message might be wrapped by the mapper
+                assert "Invalid symbol provided" in exc_info.value.message
+                # The raw exchange message should be preserved
+                assert exc_info.value.exchange_message == error_body_from_exchange
 
     @pytest.mark.asyncio
     # Removed patch for ExchangeAPI._request, using patch.object on _http_client instead
@@ -320,33 +347,59 @@ class TestBackpackAPIMethodErrors:
         default_bp_config: dict[str, Any],
         bp_secrets_valid: dict[str, str | None],
     ) -> None:
+        """Test place_order maps insufficient funds error from Backpack."""
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
+        await api._http_client._get_session()  # noqa: SLF001
 
         http_status_from_exchange = 400
-        error_body_from_exchange = (
-            '{"error":"Account has insufficient balance for requested action.","code":10004}'
-        )
+        error_body_from_exchange = '{"message":"Account has insufficient balance for requested action.","code":"INSUFFICIENT_FUNDS"}'
 
         http_failure = HttpRequestFailedError(
-            message=f"HTTP {http_status_from_exchange} Error for order placement",
+            message="HTTP 400 Error",
             http_status_code=http_status_from_exchange,
             response_body=error_body_from_exchange,
         )
 
+        # Patch the session's request method
         with patch.object(
-            api._http_client,
-            "request",
-            side_effect=http_failure,  # noqa: SLF001
-        ) as mock_http_client_request:
-            with pytest.raises(APIError) as exc_info:
-                await api.place_order(
-                    symbol="SOL_USDC",
-                    side=OrderSide.BUY,
-                    order_type=OrderType.LIMIT,
-                    quantity=Decimal("100000"),
-                    price=Decimal("1"),
-                    time_in_force=TimeInForce.GTC,
-                )
+            api._http_client._session, "request", side_effect=http_failure
+        ) as mock_session_request:  # noqa: SLF001
+            # Also patch the request builder used by place_order
+            with patch(
+                "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_place_order_payload"
+            ) as mock_build_payload:
+                # Define the payload the builder is expected to create
+                expected_payload = {
+                    "symbol": "BTC_USDC",
+                    "side": "Buy",
+                    "orderType": "Limit",
+                    "quantity": "1.0",
+                    "price": "50000",
+                    "timeInForce": "GTC",
+                }
+                mock_build_payload.return_value = expected_payload
+
+                with pytest.raises(APIError) as exc_info:
+                    await api.place_order(
+                        symbol="BTC_USDC",
+                        side=OrderSide.BUY,
+                        order_type=OrderType.LIMIT,
+                        quantity=Decimal("1.0"),
+                        price=Decimal("50000"),
+                        time_in_force=TimeInForce.GTC,
+                    )
+
+                # Verify builder was called
+                mock_build_payload.assert_called_once()
+                # Can add more specific arg checks here if needed
+
+                # Verify _request (via session) was called
+                mock_session_request.assert_called_once()
+                call_args, call_kwargs = mock_session_request.call_args
+                assert call_args[0] == "POST"
+                assert call_args[1] == f"{api.rest_endpoint}/api/v1/order"
+                # The data sent should be what the builder returned
+                assert call_kwargs["data"] == json.dumps(expected_payload)
 
         # Asserting current behavior: falls back to EXCHANGE_SPECIFIC due to BackpackRawApiError parsing issue
         assert exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
@@ -355,10 +408,8 @@ class TestBackpackAPIMethodErrors:
         # For now, let's ensure it contains part of the original if possible, or check exchange_message.
         assert "Account has insufficient balance" in exc_info.value.message
         assert (
-            exc_info.value.exchange_message is None
-        )  # Current behavior: not populated when raw parsing fails
-        if mock_http_client_request:
-            mock_http_client_request.assert_called_once()
+            exc_info.value.exchange_message == error_body_from_exchange
+        )  # Check raw message is preserved
 
     # TODO: Add more error tests for other methods and error types
 

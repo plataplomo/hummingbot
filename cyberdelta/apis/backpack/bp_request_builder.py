@@ -162,9 +162,10 @@ class BackpackRequestBuilder:
         if post_only:
             payload["postOnly"] = True
 
-        # Handle stop/trigger orders (e.g., STOP_LOSS, TAKE_PROFIT, STOP_LOSS_LIMIT, TAKE_PROFIT_LIMIT)
-        # Backpack API specific fields for these order types need to be confirmed from their docs.
-        # Assuming a 'triggerPrice' field for stop/take_profit orders for now.
+        # Handle stop/trigger orders (e.g., STOP_LOSS, TAKE_PROFIT, STOP_LOSS_LIMIT,
+        # TAKE_PROFIT_LIMIT)
+        # Backpack API specific fields for these order types need to be confirmed from
+        # their docs. Assuming a 'triggerPrice' field for stop/take_profit orders for now.
         if order_type in [
             OrderType.STOP_MARKET,
             OrderType.TAKE_PROFIT_MARKET,
@@ -362,7 +363,8 @@ class BackpackRequestBuilder:
         if end_time_ms is not None:
             params["to"] = end_time_ms
         if from_id is not None:
-            # Check Backpack docs for exact param name for trade ID pagination (e.g., fromId, startId)
+            # Check Backpack docs for exact param name for trade ID pagination
+            # (e.g., fromId, startId)
             # Assuming "fromId" as a placeholder if it's different from timestamp "from"
             params["fromId"] = from_id  # Placeholder: verify actual param name
         return params
@@ -437,20 +439,28 @@ class BackpackRequestBuilder:
                     If it's a query param, this method should return params dict.
                     If it's in body for DELETE, this returns a payload dict.
                     If symbol is optional and not providing it means all, behavior varies.
-                    The original bp_api cancelled one by one; this is for a bulk endpoint if available.
+                    The original bp_api cancelled one by one; this is for a bulk
+                    endpoint if available.
                     Assuming for now that if a symbol is provided, it's a query parameter.
                     If DELETE to /api/v1/orders with a body is supported:
-                    payload = {"symbol": BackpackRequestBuilder.format_symbol(symbol)} if symbol else {}
+                    payload = {
+                        "symbol": BackpackRequestBuilder.format_symbol(symbol)
+                    } if symbol else {}
                     return payload
                     If it's a query param and symbol is optional:
-                    return {"symbol": BackpackRequestBuilder.format_symbol(symbol)} if symbol else None
+                    return {
+                        "symbol": BackpackRequestBuilder.format_symbol(symbol)
+                    } if symbol else None
 
-                    Current bp_api.py does not use a bulk cancel endpoint, it gets open orders
-                    and cancels them one by one. So this builder method might be for a future
-                    enhancement if Backpack adds a bulk cancel with specific payload/params.
-                    For now, returning None as no specific payload is defined for a bulk cancel in current usage.
+                    Current bp_api.py does not use a bulk cancel endpoint, it gets open
+                    orders and cancels them one by one. So this builder method might be
+                    for a future enhancement if Backpack adds a bulk cancel with specific
+                    payload/params.
+                    For now, returning None as no specific payload is defined for a bulk
+                    cancel in current usage.
         """
-        # If Backpack requires a symbol in the body for DELETE /api/v1/orders for all orders of that symbol:
+        # If Backpack requires a symbol in the body for DELETE /api/v1/orders for all
+        # orders of that symbol:
         # if symbol:
         #     return {"symbol": BackpackRequestBuilder.format_symbol(symbol)}
         # return {} # Empty body for all symbols if API supports it
