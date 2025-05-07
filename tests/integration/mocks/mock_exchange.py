@@ -156,7 +156,7 @@ class MockExchangeAPI(ExchangeAPI):
             "strategy_name": strategy,
             "signal_id": signal,
             # Add defaults for other optional base fields if needed
-            "exchange_order_id": f"mock-ex-{uuid.uuid4()!s}",  # Mock exchange ID, ensure str
+            "exchange_order_id": str(uuid.uuid4()),  # Mock exchange ID, ensure str
             "trades": [],  # Initialize trades as an empty list of Trade
         }
         # Refine type hint if specific structure is known, otherwise Any is acceptable for internal helper
@@ -204,7 +204,8 @@ class MockExchangeAPI(ExchangeAPI):
             self._error_config.clear()
             self._call_counts.clear()
         logger.info(
-            f"MockExchange {self.exchange_name} error simulation cleared{f' for {method_name}' if method_name else ''}"
+            f"MockExchange {self.exchange_name} error simulation cleared"
+            f"{'{ for ' + method_name + '}' if method_name else ''}"
         )
 
     def _split_symbol(self, symbol: str) -> tuple[str, str]:
@@ -230,7 +231,8 @@ class MockExchangeAPI(ExchangeAPI):
             self._call_counts[method_name] += 1
             if trigger_after is None or current_count >= trigger_after:
                 logger.warning(
-                    f"MockExchange {self.exchange_name} raising simulated error for {method_name}: {error}"
+                    f"MockExchange {self.exchange_name} raising simulated error for "
+                    f"{method_name}: {error}"
                 )
                 raise error
 
@@ -265,11 +267,11 @@ class MockExchangeAPI(ExchangeAPI):
     def _update_rate_limit_from_headers(
         self, headers: Mapping[str, str], method: str, path: str
     ) -> None:
-        """Mock implementation for updating rate limits from headers. Not async."""
+        """No-op for mock. Exchanges might use this to update internal rate limit states."""
         logger.debug(
-            f"MockExchange {self.exchange_name}: _update_rate_limit_from_headers called with headers: {headers}, method: {method}, path: {path} (no-op)"
+            f"_update_rate_limit_from_headers called with headers: {headers}, "
+            f"method: {method}, path: {path} (no-op)"
         )
-        pass  # No-op for mock
 
     async def ping_websocket(self) -> None:
         """Mock implementation for WebSocket ping."""
@@ -376,11 +378,17 @@ class MockExchangeAPI(ExchangeAPI):
         quantity: Decimal,
         time_in_force: TimeInForce,
         price: Decimal | None = None,
+        stop_price: Decimal | None = None,
         client_order_id: str | None = None,
         reduce_only: bool = False,
         post_only: bool = False,
+        trigger_price: Decimal | None = None,
+        stop_loss_price: Decimal | None = None,
+        take_profit_price: Decimal | None = None,
+        trail_amount: Decimal | None = None,
+        trail_percent: Decimal | None = None,
     ) -> Order:
-        """Simulate placing an order."""
+        """Place an order. Mock implementation."""
         self._check_error("place_order")
         await self._simulate_latency()
 
@@ -506,7 +514,8 @@ class MockExchangeAPI(ExchangeAPI):
             fill_price_for_trade = avg_fill_price if avg_fill_price is not None else order.price
             if fill_price_for_trade is None:
                 logger.warning(
-                    f"Cannot determine fill price for trade simulation for order {order.client_order_id}. Using 0."
+                    f"Cannot determine fill price for trade sim for order "
+                    f"{order.client_order_id}. Using 0."
                 )
                 fill_price_for_trade = Decimal("0")
 
@@ -547,8 +556,9 @@ class MockExchangeAPI(ExchangeAPI):
         """Simulate cancelling an order."""
         self._check_error("cancel_order")
         await self._simulate_latency()
-        # Simplified: find by order_id or client_order_id part of a composite key if that's the pattern
-        # For this mock, assume self._orders stores by a unique key that might be order_id or a client_order_id
+        # Simplified: find by order_id or client_order_id part of a composite key
+        # if that's the pattern. For this mock, assume self._orders stores by a unique key
+        # that might be order_id or a client_order_id.
         order_key_to_find = order_id  # Default to using order_id as the key
 
         # Attempt to find by order_id (exchange order id usually)
@@ -578,7 +588,8 @@ class MockExchangeAPI(ExchangeAPI):
             OrderStatus.EXPIRED,  # Added EXPIRED as a terminal state
         ]:
             logger.warning(
-                f"Mock {self.exchange_name}: Order {order_key_found} is already in terminal state: {order_to_cancel.status.name}"
+                f"Mock {self.exchange_name}: Order {order_key_found} is already in terminal state: "
+                f"{order_to_cancel.status.name}"
             )
             return False  # Already terminal
 
@@ -612,21 +623,12 @@ class MockExchangeAPI(ExchangeAPI):
                     break
 
         # Optionally check symbol match if provided
-        if order and symbol and order.symbol != symbol:
+        if symbol and order and order.symbol != symbol:
             logger.warning(
-                f"Order found by ID ({order_id} or {client_order_id}) but symbol mismatch: requested '{symbol}', found '{order.symbol}'"
+                f"Order ID {order_id or client_order_id} found but symbol mismatch: "
+                f"req '{symbol}', found '{order.symbol}'"
             )
-            return None  # Or raise an error, depending on desired mock behavior
-
-        if not order:
-            logger.warning(
-                f"Mock {self.exchange_name}: Order not found for ID={order_id}, ClientID={client_order_id}"
-            )
-            # Simulate exchange error for not found
-            # raise APIError(message=f"Order not found: {order_id}/{client_order_id}", code=APIErrorCode.ORDER_NOT_FOUND, exchange_code=self.exchange_name)
-            return None  # Return None if not found
-
-        logger.debug(f"Mock {self.exchange_name}: Found order: {order}")
+            return None  # Behavior for symbol mismatch can be refined.
         return order
 
     async def get_order_status(

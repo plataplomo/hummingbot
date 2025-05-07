@@ -43,7 +43,7 @@ sys.path.insert(0, PROJECT_ROOT)
 class MockResponse:
     def __init__(
         self,
-        data: Any,  # Mock data can be anything
+        data: Any,  # noqa: ANN401 - Mock data can be anything for tests
         status: int = 200,
         headers: dict[str, str] | None = None,
         content_type: str = "application/json",
@@ -54,7 +54,7 @@ class MockResponse:
         self.content_type = content_type
         self._raise_for_status_called = False
 
-    async def json(self) -> Any:  # Mock data can be anything
+    async def json(self) -> Any:  # noqa: ANN401 - Mock data can be anything for tests
         return self._data
 
     async def text(self) -> str:
@@ -103,7 +103,7 @@ class MockClientSession:
         self.closed = True
 
     async def _request(
-        self, method: str, url: str, **kwargs: Any
+        self, method: str, url: str, **kwargs: dict[str, Any]
     ) -> MockResponse:  # Accepts any kwargs
         self.requests.append({"method": method, "url": url, "kwargs": kwargs})
 
@@ -119,16 +119,18 @@ class MockClientSession:
         # Default response if no match
         return MockResponse({}, status=404)
 
-    async def get(self, url: str, **kwargs: Any) -> MockResponse:  # Accepts any kwargs
+    async def get(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:  # Accepts any kwargs
         return await self._request("GET", url, **kwargs)
 
-    async def post(self, url: str, **kwargs: Any) -> MockResponse:  # Accepts any kwargs
+    async def post(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:  # Accepts any kwargs
         return await self._request("POST", url, **kwargs)
 
-    async def put(self, url: str, **kwargs: Any) -> MockResponse:  # Accepts any kwargs
+    async def put(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:  # Accepts any kwargs
         return await self._request("PUT", url, **kwargs)
 
-    async def delete(self, url: str, **kwargs: Any) -> MockResponse:  # Accepts any kwargs
+    async def delete(
+        self, url: str, **kwargs: dict[str, Any]
+    ) -> MockResponse:  # Accepts any kwargs
         return await self._request("DELETE", url, **kwargs)
 
 
@@ -291,7 +293,7 @@ def mock_config() -> MagicMock:
         "data": {"staleness_thresholds": {"ticker": 60, "funding_rate": 300, "orderbook": 60}},
     }
 
-    def getter(key: str, default: Any | None = None) -> Any | None:
+    def getter(key: str, default: Any | None = None) -> Any | None:  # noqa: ANN401 - config getter can return Any
         return _deep_get(config_data, key, default)
 
     mock_cfg = MagicMock(spec=Config)
@@ -453,24 +455,18 @@ def mock_arbitrage_opportunity() -> MagicMock:
     return opportunity
 
 
-def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any | None:
+def _deep_get(d: dict[str, Any], keys: str, default: Any | None = None) -> Any | None:  # noqa: ANN401 - deep_get can return Any
     """Helper to get nested dictionary values."""
     keys_list = keys.split(".")
-    val: Any = d  # Initialize val with type Any
-    for key in keys_list:
-        # Check if val is a dict before attempting access
-        if isinstance(val, dict):
-            # DEFENSIVE CHECK: val is Any, .get needs ignore for mypy/pyright
-            val = val.get(key, default)
-            if val == default:  # Stop if key not found
-                break
-        else:
-            return default  # Return default if intermediate path is not a dict
-    # Check if the final value is the default, potentially indicating failure
-    # The original default check was inside the loop, this might be more accurate
-    # depending on desired behavior if a key maps to the default value itself.
-    # Let's keep the logic simple: return whatever val is at the end.
-    return val
+    value: Any = d
+    for k in keys_list:
+        if isinstance(value, dict):
+            value = value.get(k, default)
+            if value is default and k != keys_list[-1]:  # Key not found before the last part
+                return default
+        else:  # value is not a dict, cannot go deeper
+            return default
+    return value
 
 
 @pytest.fixture
@@ -482,11 +478,11 @@ def mock_secrets_manager_with_missing() -> MagicMock:
     # Simulate missing optional keys
     def mock_get(
         key: str,
-        default: Any = None,
+        default: Any = None,  # noqa: ANN401 - default can be Any for this flexible mock
         *,
         _deep_get: bool = False,
-        getter: Any = None,
-    ) -> Any:
+        getter: Callable[..., Any] | None = None,  # Changed Any to Callable[..., Any] | None
+    ) -> Any:  # noqa: ANN401 - mock_get can return Any
         if key == "OPTIONAL_SETTING":
             return None
         elif key == "REQUIRED_DB_PASSWORD":

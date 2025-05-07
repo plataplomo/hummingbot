@@ -109,11 +109,11 @@ class Config:
 
         for part in parts:
             if isinstance(value, dict) and part in value:
-                value = value[part]  # type: ignore [index] # Ignore potential index error on Any
+                value = value[part]
             else:
                 return default
 
-        return value  # type: ignore [return-value] # Ignore partially unknown return type
+        return value
 
     def set(self, key: str, value: Any) -> None:
         """
@@ -130,12 +130,12 @@ class Config:
         for _i, part in enumerate(parts[:-1]):
             if not isinstance(current, dict):
                 raise TypeError(f"Cannot set key on non-dict object at {'.'.join(parts[:_i])}")
-            current_dict = current if isinstance(current, dict) else {}  # type: ignore [misc] # Ignore unnecessary isinstance
+            current_dict = current
             if part not in current_dict:
                 current_dict[part] = {}
             elif not isinstance(current_dict[part], dict):
                 current_dict[part] = {}
-            current = current_dict[part]  # type: ignore [index] # Ignore potential index error on Any
+            current = current_dict[part]
 
         if not isinstance(current, dict):
             raise TypeError(f"Cannot set key on non-dict object at {'.'.join(parts[:-1])}")
@@ -188,7 +188,8 @@ class Config:
                 # Cast target[key] to the expected type for the recursive call
                 # We know it's a dict due to the isinstance check
                 target_dict = cast(dict[str, Any], target[key])
-                self._merge_dicts(target_dict, value)  # type: ignore [arg-type] # Ignore partially unknown source type
+                # Value is known to be a dict here, cast for recursive call type matching
+                self._merge_dicts(target_dict, cast(dict[str, Any], value))
             else:
                 target[key] = value
 

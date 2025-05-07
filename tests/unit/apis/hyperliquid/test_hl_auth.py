@@ -55,7 +55,7 @@ def authenticator_instance(mock_account: MagicMock) -> HyperliquidEip712Authenti
 # --- Test Initialization ---
 
 
-def test_hl_auth_init_success(mock_account: MagicMock):
+def test_hl_auth_init_success(mock_account: MagicMock) -> None:
     """Test successful initialization with valid credentials."""
     auth = HyperliquidEip712Authenticator(
         private_key_hex=VALID_PRIVATE_KEY_HEX,
@@ -66,10 +66,10 @@ def test_hl_auth_init_success(mock_account: MagicMock):
     assert auth._wallet_address == VALID_WALLET_ADDRESS.lower()  # noqa: SLF001
     assert auth._chain_id == VALID_CHAIN_ID  # noqa: SLF001
     assert auth._account is not None  # noqa: SLF001
-    assert auth._account.address == VALID_WALLET_ADDRESS  # noqa: SLF001 # Check the mocked address
+    assert auth._account.address == VALID_WALLET_ADDRESS  # noqa: SLF001
 
 
-def test_hl_auth_init_success_no_0x(mock_account: MagicMock):
+def test_hl_auth_init_success_no_0x(mock_account: MagicMock) -> None:
     """Test successful initialization with valid key without '0x' prefix."""
     auth = HyperliquidEip712Authenticator(
         private_key_hex=VALID_PRIVATE_KEY_HEX[2:],
@@ -79,7 +79,7 @@ def test_hl_auth_init_success_no_0x(mock_account: MagicMock):
     assert auth._account is not None  # noqa: SLF001
 
 
-def test_hl_auth_init_no_private_key(mock_account: MagicMock):
+def test_hl_auth_init_no_private_key(mock_account: MagicMock) -> None:
     """Test initialization with no private key raises ValueError."""
     with pytest.raises(ValueError, match="Private key cannot be empty"):
         HyperliquidEip712Authenticator(
@@ -89,7 +89,7 @@ def test_hl_auth_init_no_private_key(mock_account: MagicMock):
         )
 
 
-def test_hl_auth_init_invalid_private_key(mock_account: MagicMock):
+def test_hl_auth_init_invalid_private_key(mock_account: MagicMock) -> None:
     """Test initialization raises ValueError for an invalid private key."""
     mock_account.sign_message.side_effect = ValueError("Invalid private key")
     with pytest.raises(ValueError, match="Invalid private key format or value"):
@@ -100,7 +100,9 @@ def test_hl_auth_init_invalid_private_key(mock_account: MagicMock):
         )
 
 
-def test_hl_auth_init_address_mismatch(mock_account: MagicMock, caplog: pytest.LogCaptureFixture):
+def test_hl_auth_init_address_mismatch(
+    mock_account: MagicMock, caplog: pytest.LogCaptureFixture
+) -> None:
     """Test initialization logs error if derived address mismatches provided address."""
     # No exception is raised by default, just logged error
     HyperliquidEip712Authenticator(
@@ -119,7 +121,7 @@ def test_hl_auth_init_address_mismatch(mock_account: MagicMock, caplog: pytest.L
 @pytest.mark.asyncio
 async def test_prepare_request_success(
     mock_account: MagicMock,
-):
+) -> None:
     """Test successful preparation and signing of a request."""
     auth = HyperliquidEip712Authenticator(
         private_key_hex=VALID_PRIVATE_KEY_HEX,
@@ -154,7 +156,7 @@ async def test_prepare_request_success(
 @pytest.mark.asyncio
 async def test_prepare_request_no_private_key(
     mock_account: MagicMock,
-):
+) -> None:
     """Test prepare_request raises APIError if authenticator has no private key (was init with empty string)."""
     # This test assumes that if private_key_hex was empty, _account would be None
     # and prepare_request would fail early. The __init__ now raises ValueError directly.
@@ -166,7 +168,7 @@ async def test_prepare_request_no_private_key(
             wallet_address=VALID_WALLET_ADDRESS,
             chain_id=VALID_CHAIN_ID,
         )
-    auth._account = None  # Manually set _account to None to simulate this scenario
+    auth._account = None  # Manually set _account to None to simulate this scenario # noqa: SLF001
 
     with pytest.raises(APIError, match="not have a usable private key") as excinfo:
         await auth.prepare_request("POST", "/exchange", None, {"action": "test"}, None)
@@ -176,7 +178,7 @@ async def test_prepare_request_no_private_key(
 @pytest.mark.asyncio
 async def test_prepare_request_no_data(
     mock_account: MagicMock,
-):
+) -> None:
     """Test prepare_request raises APIError if data is None."""
     auth = HyperliquidEip712Authenticator(
         private_key_hex=VALID_PRIVATE_KEY_HEX,
@@ -191,7 +193,7 @@ async def test_prepare_request_no_data(
 @pytest.mark.asyncio
 async def test_prepare_request_signing_error(
     mock_account: MagicMock,
-):
+) -> None:
     """Test prepare_request raises APIError if signing fails."""
     auth = HyperliquidEip712Authenticator(
         private_key_hex=VALID_PRIVATE_KEY_HEX,
@@ -221,10 +223,10 @@ class TestHyperliquidEip712Authenticator:
                 chain_id=1337,
             )
             mock_from_key.assert_called_once_with(self.VALID_PRIVATE_KEY)
-            assert auth._account == mock_account
-            assert auth._wallet_address == self.MOCKED_ACCOUNT_WALLET_ADDRESS
-            assert auth._chain_id == 1337
-            assert auth._domain_data["chainId"] == 1337
+            assert auth._account == mock_account  # noqa: SLF001
+            assert auth._wallet_address == self.MOCKED_ACCOUNT_WALLET_ADDRESS  # noqa: SLF001
+            assert auth._chain_id == 1337  # noqa: SLF001
+            assert auth._domain_data["chainId"] == 1337  # noqa: SLF001
 
     def test_instantiation_private_key_no_prefix(self, mock_account: MagicMock) -> None:
         """Test instantiation with private key missing '0x' prefix."""
@@ -264,7 +266,7 @@ class TestHyperliquidEip712Authenticator:
             )
 
     def test_instantiation_invalid_private_key_format(self) -> None:
-        """Test instantiation raises ValueError for invalid private key format from_key might raise."""
+        """Test instantiation raises ValueError for invalid private key format (from_key might raise)."""
         with patch("eth_account.Account.from_key", side_effect=ValueError("bad key")):
             with pytest.raises(ValueError, match="Invalid private key: bad key"):
                 HyperliquidEip712Authenticator(
@@ -320,10 +322,10 @@ class TestHyperliquidEip712Authenticator:
                 "connectionId": mock_keccak.return_value,
             }
             expected_structured_data = {
-                "domain": auth._domain_data,
+                "domain": auth._domain_data,  # noqa: SLF001
                 "message": expected_agent_message,
                 "primaryType": "Agent",
-                "types": auth._agent_typed_data_message_types,
+                "types": auth._agent_typed_data_message_types,  # noqa: SLF001
             }
             mock_encode_typed_data.assert_called_once_with(full_message=expected_structured_data)
             mock_account.sign_message.assert_called_once_with(mock_signable_message)

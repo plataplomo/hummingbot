@@ -60,7 +60,9 @@ def mock_hl_auth_init() -> Generator[tuple[MagicMock, MagicMock], Any]:
 # --- Initialization Tests --- #
 
 
-def test_hl_api_init_with_key(mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any]):
+def test_hl_api_init_with_key(
+    mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any],
+) -> None:
     """Test successful initialization when private key is provided."""
     mock_auth_class, mock_instance = next(mock_hl_auth_init)
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
@@ -71,10 +73,12 @@ def test_hl_api_init_with_key(mock_hl_auth_init: Generator[tuple[MagicMock, Magi
         chain_id=HyperliquidAPI.CHAIN_ID,
     )
     assert api.authenticator is mock_instance
-    assert api._hl_authenticator is mock_instance  # noqa: SLF001 # Check internal ref too
+    assert api._hl_authenticator is mock_instance  # noqa: SLF001
 
 
-def test_hl_api_init_without_key(mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any]):
+def test_hl_api_init_without_key(
+    mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any],
+) -> None:
     """Test initialization when private key is None."""
     mock_auth_class, _ = next(mock_hl_auth_init)
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_NO_KEY)
@@ -86,7 +90,7 @@ def test_hl_api_init_without_key(mock_hl_auth_init: Generator[tuple[MagicMock, M
 
 def test_hl_api_init_auth_init_fails(
     mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any], caplog: LogCaptureFixture
-):
+) -> None:
     """Test initialization when HyperliquidEip712Authenticator fails to initialize."""
     mock_auth_class, _ = next(mock_hl_auth_init)
     mock_auth_class.side_effect = ValueError("Bad key format")
@@ -96,12 +100,12 @@ def test_hl_api_init_auth_init_fails(
     mock_auth_class.assert_called_once()  # Still attempted
     assert api.authenticator is None
     assert api._hl_authenticator is None  # noqa: SLF001
-    assert "Failed to initialize Hyperliquid authenticator: Bad key format" in caplog.text
+    assert "Failed to init HL authenticator: Bad key format" in caplog.text
 
 
 def test_hl_api_init_no_address(
     mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any], caplog: LogCaptureFixture
-):
+) -> None:
     """Test initialization logs error if wallet address is missing."""
     mock_auth_class, _ = next(mock_hl_auth_init)
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_NO_ADDRESS)
@@ -109,14 +113,16 @@ def test_hl_api_init_no_address(
     mock_auth_class.assert_not_called()  # Authenticator shouldn't be called without address
     assert api.authenticator is None
     assert api._hl_authenticator is None  # noqa: SLF001
-    assert "Wallet address is required but not provided" in caplog.text
+    assert "HLAPI: Wallet address required" in caplog.text
 
 
 # --- _authenticate Method Tests --- #
 
 
 @pytest.mark.asyncio
-async def test_authenticate_success(mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any]):
+async def test_authenticate_success(
+    mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any],
+) -> None:
     """Test successful call to _authenticate delegates to authenticator."""
     _, mock_instance = next(mock_hl_auth_init)
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
@@ -146,14 +152,14 @@ async def test_authenticate_success(mock_hl_auth_init: Generator[tuple[MagicMock
 @pytest.mark.asyncio
 async def test_authenticate_no_authenticator(
     mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any],
-):
+) -> None:
     """Test _authenticate raises APIError if no authenticator is configured."""
     _, _ = next(mock_hl_auth_init)
     # Initialize without key so authenticator is None
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_NO_KEY)
     assert api.authenticator is None
 
-    with pytest.raises(APIError, match="without a configured Hyperliquid authenticator") as excinfo:
+    with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
         await api._authenticate("POST", "/exchange", None, {"d": 1})  # noqa: SLF001
     assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
 
@@ -161,7 +167,7 @@ async def test_authenticate_no_authenticator(
 @pytest.mark.asyncio
 async def test_authenticate_prepare_request_fails(
     mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any],
-):
+) -> None:
     """Test _authenticate propagates APIError from prepare_request."""
     _, mock_instance = next(mock_hl_auth_init)
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
@@ -182,7 +188,7 @@ async def test_authenticate_prepare_request_fails(
 @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI._request", new_callable=AsyncMock)
 async def test_place_order_calls_authenticate_and_request(
     mock_request: AsyncMock, mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any]
-):
+) -> None:
     """Verify place_order uses the authenticator flow."""
     _, mock_instance = next(mock_hl_auth_init)
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)

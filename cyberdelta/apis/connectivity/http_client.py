@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from types import TracebackType
-from typing import Any, Self, Union
+from typing import Any, Self
 
 import aiohttp
 from multidict import CIMultiDictProxy
@@ -21,7 +21,7 @@ from cyberdelta.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 # Type alias for parsed JSON responses
-ParsedJsonResponse = Union[dict[str, Any], list[Any], str]
+ParsedJsonResponse = dict[str, Any] | list[Any] | str
 
 
 class HttpRequestFailedError(APIError):
@@ -33,7 +33,7 @@ class HttpRequestFailedError(APIError):
         http_status_code: int,
         response_body: str | None = None,
         api_error_code: APIErrorCode = APIErrorCode.NETWORK_ISSUE,
-    ):
+    ) -> None:
         super().__init__(
             message=message,
             code=api_error_code.value,
@@ -45,7 +45,10 @@ class HttpRequestFailedError(APIError):
         status_str = (
             f"HTTP {self.http_status}" if self.http_status is not None else "HTTP UnknownStatus"
         )
-        return f"HttpRequestFailedError ({status_str}): {self.message}. Body: {self.exchange_message or 'N/A'}"
+        body_preview = self.exchange_message or "N/A"
+        return (
+            f"HttpRequestFailedError ({status_str}): {self.message}. Body: {body_preview[:50]}..."
+        )
 
 
 class HttpClient:
@@ -64,7 +67,7 @@ class HttpClient:
         default_request_timeout: float = 30.0,
         max_retries: int | None = None,
         retry_delay_seconds: float | None = None,
-    ):
+    ) -> None:
         """
         Initializes the HttpClient.
 
@@ -171,7 +174,7 @@ class HttpClient:
         if is_signed:
             if not authenticator:
                 logger.error(
-                    f"[{self.exchange_name}] Attempted to make a signed request to {full_url} without an authenticator."
+                    f"[{self.exchange_name}] Signed request to {full_url} needs authenticator."
                 )
                 raise APIError(
                     "Authenticator is required for signed requests.",
@@ -190,16 +193,17 @@ class HttpClient:
                 request_headers.update(auth_components["headers"])
                 if auth_components["params"] is not None:  # authenticator might modify params
                     request_params = auth_components["params"]
-                # Data is usually transformed into a signable format by authenticator, but actual `data` for request body
-                # should be the original `request_data` unless authenticator explicitly modifies it for the body.
-                # For now, assuming authenticator mainly adds headers/params, and `request_data` remains the body.
+                # Data is usually transformed into a signable format by authenticator,
+                # but actual `data` for request body should be the original `request_data`
+                # unless authenticator explicitly modifies it for the body.
+                # For now, assuming authenticator mainly adds headers/params,
+                # and `request_data` remains the body.
                 # If `auth_components["data"]` is meant to be the new body, this would change:
-                # request_data_for_body = auth_components["data"] if auth_components["data"] is not None else request_data
+                # request_data_for_body = auth_components["data"] if auth_components["data"]
+                # is not None else request_data
                 # For now, we assume `data` passed to `session.request` is `request_data`.
             except APIError as e:  # Catch APIErrors from authenticator (e.g. signing failed)
-                logger.error(
-                    f"[{self.exchange_name}] Authentication preparation failed for {full_url}: {e}"
-                )
+                logger.error(f"[{self.exchange_name}] Auth prep failed for {full_url}: {e}")
                 raise  # Re-raise critical auth errors immediately
 
         while current_attempt <= self.max_retries:
@@ -216,7 +220,8 @@ class HttpClient:
             if request_params:
                 request_log_details += f" | Params: {request_params}"
             # Avoid logging full data payload if it's large or sensitive by default
-            # logger.debug(f"[{self.exchange_name}] {request_log_details} | Headers: {request_headers} | Data: {request_data}")
+            # logger.debug(f"[{self.exchange_name}] {request_log_details} | "
+            #              f"Headers: {request_headers} | Data: {request_data}")
             logger.info(f"[{self.exchange_name}] {request_log_details}")
 
             try:
@@ -239,13 +244,14 @@ class HttpClient:
                         response_text = await response.text()
                     except Exception as e_text:
                         logger.warning(
-                            f"[{self.exchange_name}] Error reading response text from {full_url}: {e_text}"
+                            f"[{self.exchange_name}] Error reading response text for {full_url}: {e_text}"
                         )
                         # Continue to process status code, response_text will be None
 
                     logger.debug(
                         f"[{self.exchange_name}] Response from {method} {full_url}: "
-                        f"Status={response.status}, Headers={response_headers}, Body='{response_text[:500] if response_text else '[None or Unreadable]'}...'"
+                        f"Status={response.status}, Headers={response_headers}, "
+                        f"Body='{response_text[:200] if response_text else '[None/Unread]'}'...'"
                     )
 
                     if response.status == 204:  # No Content
@@ -263,22 +269,28 @@ class HttpClient:
                                 return parsed_json, response_headers
                             except json.JSONDecodeError as je:
                                 logger.warning(
-                                    f"[{self.exchange_name}] Failed to decode JSON response from {full_url} "
-                                    f"(status {response.status}, content-type: {content_type}), "
-                                    f"returning raw text. Error: {je}. Text: '{response_text[:200] if response_text else ''}...'"
+                                    f"[{self.exchange_name}] JSON decode failed for {full_url} "
+                                    f"(status {response.status}, type: {content_type}). Error: {je}. "
+                                    f"Text: '{response_text[:100] if response_text else ''}'...'"
                                 )
                                 if response_text is None:
                                     raise HttpRequestFailedError(
-                                        message=f"Failed to read response body after JSON decode error. Status: {response.status}",
+                                        message=(
+                                            f"Failed to read response body after JSON decode error. "
+                                            f"Status: {response.status}"
+                                        ),
                                         http_status_code=response.status,
                                         response_body=None,
                                         api_error_code=APIErrorCode.UNKNOWN,
-                                    )
+                                    ) from je
                                 return response_text, response_headers
                         else:  # Not JSON, return raw text
                             if response_text is None:
                                 raise HttpRequestFailedError(
-                                    message=f"Successfully received status {response.status} but failed to read response body.",
+                                    message=(
+                                        f"Successfully received status {response.status} "
+                                        f"but failed to read response body."
+                                    ),
                                     http_status_code=response.status,
                                     response_body=None,
                                     api_error_code=APIErrorCode.UNKNOWN,
@@ -288,15 +300,15 @@ class HttpClient:
                     # If status is >= 400, it's an HTTP error
                     logger.warning(
                         f"[{self.exchange_name}] HTTP Error {response.status} for {full_url}. "
-                        f"Body: {response_text[:500] if response_text else '[N/A]'}"
+                        f"Body: {response_text[:200] if response_text else '[N/A]'}"
                     )
                     # This error will be caught by the outer try-except for retries or final raise
                     # We create it here to capture status and body correctly
                     last_exception = HttpRequestFailedError(
-                        message=f"HTTP request to {endpoint_path} failed with status {response.status}",
+                        message=f"HTTP req to {endpoint_path} failed with status {response.status}",
                         http_status_code=response.status,
                         response_body=response_text,
-                        # Default api_error_code is NETWORK_ISSUE, ExchangeAPI can map it better via _map_error_response
+                        # Default api_error_code is NETWORK_ISSUE, ExchangeAPI can map it better
                     )
                     # For client errors (4xx) that are not rate limits (429), or server errors (5xx)
                     # decide if retry is appropriate.
@@ -311,36 +323,31 @@ class HttpClient:
                         415,
                     ]:  # Non-retryable client errors
                         logger.warning(
-                            f"[{self.exchange_name}] Non-retryable client error {response.status} for {full_url}. Failing fast."
+                            f"[{self.exchange_name}] Non-retryable client error {response.status} "
+                            f"for {full_url}. Failing fast."
                         )
                         raise last_exception  # Fail fast
 
-                    # Fall through to retry for other errors like 429, 5xx, or if last_exception was set by other means
+                    # Fall through to retry for other errors like 429, 5xx,
+                    # or if last_exception was set by other means
 
             except (TimeoutError, aiohttp.ClientError) as e:
                 logger.warning(
-                    f"[{self.exchange_name}] Request to {full_url} failed on attempt {current_attempt}: {type(e).__name__} - {e}"
+                    f"[{self.exchange_name}] Request to {full_url} failed on attempt {current_attempt}: "
+                    f"{type(e).__name__} - {e}"
                 )
                 last_exception = e
                 # These are generally retryable
 
             if current_attempt > self.max_retries:
                 logger.error(
-                    f"[{self.exchange_name}] Request to {full_url} failed after {self.max_retries + 1} attempts. Last error: {last_exception}"
+                    f"[{self.exchange_name}] Request to {full_url} failed after "
+                    f"{self.max_retries + 1} attempts. Last error: {last_exception}"
                 )
                 if isinstance(last_exception, HttpRequestFailedError):
-                    raise last_exception  # Already the correct type
-                elif isinstance(last_exception, aiohttp.ClientError | asyncio.TimeoutError):
-                    # Wrap generic aiohttp/asyncio errors in our HttpRequestFailedError or a more specific APIError if possible
-                    # For simplicity, re-raising them directly is also an option if ExchangeAPI._request handles them.
-                    # Prompt: "Error Handling: This method should primarily raise aiohttp.ClientError, asyncio.TimeoutError, or a simple custom HttpRequestFailedError(APIError)"
-                    # So, we re-raise them directly.
                     raise last_exception
-                else:  # Should not happen if last_exception is always set
-                    raise APIError(
-                        f"Unknown error after retries for {full_url}",
-                        code=APIErrorCode.UNKNOWN.value,
-                    ) from last_exception
+                # Pylance indicates last_exception cannot be None here.
+                raise last_exception  # Re-raise other aiohttp/asyncio/APIError exceptions
 
             if last_exception:  # If an exception occurred that qualifies for retry
                 delay = self.retry_delay_seconds * (

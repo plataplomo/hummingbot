@@ -338,7 +338,9 @@ class TestBacktestingIntegration:
         else:
             # If no error, Sharpe ratio should be present and a float
             assert "sharpe_ratio" in loaded_results["metrics"]
-            assert isinstance(loaded_results["metrics"]["sharpe_ratio"], (int, float))
+            assert isinstance(loaded_results["metrics"]["sharpe_ratio"], int | float)
+
+    # TODO: Add more tests, e.g., for different strategy behaviors, data loading issues, etc.
 
 
 if __name__ == "__main__":

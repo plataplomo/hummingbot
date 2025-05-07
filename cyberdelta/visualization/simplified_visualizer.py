@@ -124,7 +124,7 @@ def _decimal_to_float(value: Decimal | int | float | str | None) -> float:
             return float(value)
         else:
             return float("nan")  # Represent non-finite Decimals as NaN
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         # Already float or int, ensure it's finite
         return float(value) if math.isfinite(value) else float("nan")
     if isinstance(value, str):

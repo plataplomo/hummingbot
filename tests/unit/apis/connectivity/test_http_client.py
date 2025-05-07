@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
@@ -21,7 +22,7 @@ from cyberdelta.apis.rate_limiter import (
 
 
 @pytest.fixture
-def mock_rate_limiter_service():
+def mock_rate_limiter_service() -> RateLimiterService:
     service = MagicMock(spec=RateLimiterService)
     limiter_instance = AsyncMock(spec=TokenBucketRateLimiterRuntime)
     service.get_limiter.return_value = limiter_instance
@@ -29,7 +30,7 @@ def mock_rate_limiter_service():
 
 
 @pytest.fixture
-def mock_authenticator():
+def mock_authenticator() -> IAuthenticator:
     auth = AsyncMock(spec=IAuthenticator)
     auth.prepare_request.return_value = AuthenticatedRequestComponents(
         headers={"X-Auth": "dummy_sig"},
@@ -40,7 +41,7 @@ def mock_authenticator():
 
 
 @pytest.fixture
-async def http_client_instance():
+async def http_client_instance() -> AsyncGenerator[HttpClient]:
     client = HttpClient(exchange_name="test_exchange", rest_endpoint="http://test.api")
     yield client
     await client.close_session()  # Ensure session is closed after test
@@ -48,39 +49,39 @@ async def http_client_instance():
 
 class TestHttpClient:
     @pytest.mark.asyncio
-    async def test_get_session_creation_and_reuse(self, http_client_instance: HttpClient):
+    async def test_get_session_creation_and_reuse(self, http_client_instance: HttpClient) -> None:
         """Test that a session is created and reused."""
-        session1 = await http_client_instance._get_session()
+        session1 = await http_client_instance._get_session()  # noqa: SLF001
         assert isinstance(session1, aiohttp.ClientSession)
         assert not session1.closed
 
-        session2 = await http_client_instance._get_session()
+        session2 = await http_client_instance._get_session()  # noqa: SLF001
         assert session1 is session2  # Should be the same session instance
 
         await http_client_instance.close_session()
-        assert http_client_instance._session is None
+        assert http_client_instance._session is None  # noqa: SLF001
 
-        session3 = await http_client_instance._get_session()
+        session3 = await http_client_instance._get_session()  # noqa: SLF001
         assert isinstance(session3, aiohttp.ClientSession)
         assert session1 is not session3  # Should be a new session instance
         assert not session3.closed
 
     @pytest.mark.asyncio
-    async def test_close_session_idempotent(self, http_client_instance: HttpClient):
+    async def test_close_session_idempotent(self, http_client_instance: HttpClient) -> None:
         """Test that closing the session is idempotent."""
-        await http_client_instance._get_session()  # Create session
+        await http_client_instance._get_session()  # noqa: SLF001 # Create session
         await http_client_instance.close_session()
-        assert http_client_instance._session is None
+        assert http_client_instance._session is None  # noqa: SLF001
         await http_client_instance.close_session()  # Closing again should not error
-        assert http_client_instance._session is None
+        assert http_client_instance._session is None  # noqa: SLF001
 
     @pytest.mark.asyncio
-    async def test_async_context_manager(self):
+    async def test_async_context_manager(self) -> None:
         """Test the async context manager behavior for session management."""
         async with HttpClient(exchange_name="test_ctx", rest_endpoint="http://test.ctx") as client:
-            assert client._session is not None
-            assert not client._session.closed
-        assert client._session is None  # Session should be closed on exit
+            assert client._session is not None  # noqa: SLF001
+            assert not client._session.closed  # noqa: SLF001
+        assert client._session is None  # noqa: SLF001
 
     @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.request")
@@ -89,7 +90,7 @@ class TestHttpClient:
         mock_request: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
-    ):
+    ) -> None:
         """Test a successful request returning JSON."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 200
@@ -103,15 +104,16 @@ class TestHttpClient:
         )
         assert content == {"data": "success"}
         assert headers["Content-Type"] == "application/json"
-        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/test")
-        mock_rate_limiter_service.get_limiter.return_value.acquire.assert_called_once()
+        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/test")  # type: ignore [attr-defined]
+        mock_rate_limiter_service.get_limiter.return_value.acquire.assert_called_once()  # type: ignore [attr-defined]
+        session_for_headers = await http_client_instance._get_session()  # noqa: SLF001
         mock_request.assert_called_once_with(
             "GET",
             "http://test.api/test",
             params=None,
             json=None,
             data=None,
-            headers=http_client_instance._session.headers,  # Check default session headers are used
+            headers=session_for_headers.headers,
             timeout=aiohttp.ClientTimeout(total=http_client_instance.default_request_timeout),
         )
 
@@ -122,7 +124,7 @@ class TestHttpClient:
         mock_request: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
-    ):
+    ) -> None:
         """Test a successful request returning plain text."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 200
@@ -143,7 +145,7 @@ class TestHttpClient:
         mock_request: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
-    ):
+    ) -> None:
         """Test a request that returns 204 No Content."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 204
@@ -151,7 +153,7 @@ class TestHttpClient:
         mock_response.text = AsyncMock(return_value="")  # Should not be called if status is 204
         mock_request.return_value.__aenter__.return_value = mock_response
 
-        content, headers = await http_client_instance.request(
+        content, _ = await http_client_instance.request(  # headers variable removed as unused
             method="POST",
             endpoint_path="/empty",
             rate_limiter_service=mock_rate_limiter_service,
@@ -168,7 +170,7 @@ class TestHttpClient:
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
         mock_authenticator: IAuthenticator,
-    ):
+    ) -> None:
         """Test a signed request correctly uses the authenticator."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 200
@@ -192,7 +194,7 @@ class TestHttpClient:
             is_signed=True,
         )
 
-        mock_authenticator.prepare_request.assert_called_once_with(
+        mock_authenticator.prepare_request.assert_called_once_with(  # type: ignore [attr-defined]
             method="POST",
             path="/signed_action",
             params=original_params,  # Authenticator receives original params
@@ -208,14 +210,15 @@ class TestHttpClient:
         final_call_params = mock_request.call_args[1]["params"]
         assert final_call_params["auth_param"] == "val"
         assert final_call_params["client_param"] == "val"
-        # Check that data for the request body is the authenticator's modified data if it returns one,
-        # or original data if authenticator returns None for data.
+        # Check that data for the request body is the authenticator's modified data
+        # if it returns one, or original data if authenticator returns None for data.
         # Current mock_authenticator returns data, so that should be used.
-        # HttpClient.request currently uses original data if auth_components["data"] is None,
-        # or if auth_components["data"] is the same as original_data. It doesn't explicitly use auth_components["data"]
-        # The prompt was: "data: auth_components["data"]" -> this is ambiguous. My http_client uses original_data for body.
-        # The mock_authenticator returns data, but my HttpClient passes original data for `json=` arg.
-        # Let's verify original data is passed as json body for now.
+        # HttpClient.request logic:
+        # json=request_data if method not GET/DELETE and request_data is not None else None,
+        # data=None if method not GET/DELETE and request_data is not None else request_data
+        # This means original_data is used for JSON body in POST/PUT.
+        # The authenticator mock returns 'auth_data', but this isn't directly used as body.
+        # The test should reflect HttpClient's actual behavior.
         final_call_json_data = mock_request.call_args[1]["json"]
         assert (
             final_call_json_data == original_data
@@ -224,7 +227,7 @@ class TestHttpClient:
     @pytest.mark.asyncio
     async def test_request_signed_no_authenticator_raises_api_error(
         self, http_client_instance: HttpClient, mock_rate_limiter_service: RateLimiterService
-    ):
+    ) -> None:
         """Test signed request raises APIError if no authenticator is provided."""
         with pytest.raises(APIError) as excinfo:
             await http_client_instance.request(
@@ -241,10 +244,10 @@ class TestHttpClient:
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
         mock_authenticator: IAuthenticator,
-    ):
+    ) -> None:
         """Test that if authenticator.prepare_request fails, the APIError is propagated."""
-        mock_authenticator.prepare_request.side_effect = APIError(
-            "Auth Prep Failed", code=APIErrorCode.SIGNATURE_GENERATION_FAILED.value
+        mock_authenticator.prepare_request.side_effect = APIError(  # type: ignore [attr-defined]
+            "Auth Prep Failed", code=APIErrorCode.AUTHENTICATION_FAILED.value
         )
         with pytest.raises(APIError) as excinfo:
             await http_client_instance.request(
@@ -264,7 +267,7 @@ class TestHttpClient:
         mock_request: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
-    ):
+    ) -> None:
         """Test that a 400 error raises HttpRequestFailedError immediately without retry."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 400
@@ -291,7 +294,7 @@ class TestHttpClient:
         mock_request: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
-    ):
+    ) -> None:
         """Test that a 500 error is retried and then raises HttpRequestFailedError."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 500
@@ -322,7 +325,7 @@ class TestHttpClient:
         mock_request: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
-    ):
+    ) -> None:
         """Test aiohttp.ClientError is retried and then re-raised."""
         mock_request.side_effect = aiohttp.ClientConnectorError(MagicMock(), MagicMock())
 
@@ -341,9 +344,8 @@ class TestHttpClient:
     async def test_url_construction(
         self,
         mock_request: AsyncMock,
-        http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
-    ):
+    ) -> None:
         """Test correct URL construction including stripping slashes."""
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 204
@@ -353,6 +355,7 @@ class TestHttpClient:
 
         # Test with leading/trailing slashes in different places
         client_no_trailing_slash = HttpClient("test", "http://test.api")
+        session_no_trailing = await client_no_trailing_slash._get_session()  # noqa: SLF001
         await client_no_trailing_slash.request("GET", "/path1", mock_rate_limiter_service)
         mock_request.assert_called_with(
             "GET",
@@ -360,13 +363,14 @@ class TestHttpClient:
             params=None,
             json=None,
             data=None,
-            headers=client_no_trailing_slash._session.headers,
+            headers=session_no_trailing.headers,
             timeout=aiohttp.ClientTimeout(total=client_no_trailing_slash.default_request_timeout),
         )
         await client_no_trailing_slash.close_session()
         mock_request.reset_mock()
 
         client_with_trailing_slash = HttpClient("test", "http://test.api/")
+        session_with_trailing = await client_with_trailing_slash._get_session()  # noqa: SLF001
         await client_with_trailing_slash.request("GET", "path2", mock_rate_limiter_service)
         mock_request.assert_called_with(
             "GET",
@@ -374,13 +378,14 @@ class TestHttpClient:
             params=None,
             json=None,
             data=None,
-            headers=client_with_trailing_slash._session.headers,
+            headers=session_with_trailing.headers,
             timeout=aiohttp.ClientTimeout(total=client_with_trailing_slash.default_request_timeout),
         )
         await client_with_trailing_slash.close_session()
         mock_request.reset_mock()
 
         client_both_slashes = HttpClient("test", "http://test.api/")
+        session_both_slashes = await client_both_slashes._get_session()  # noqa: SLF001
         await client_both_slashes.request("GET", "/path3/", mock_rate_limiter_service)
         mock_request.assert_called_with(
             "GET",
@@ -388,7 +393,7 @@ class TestHttpClient:
             params=None,
             json=None,
             data=None,
-            headers=client_both_slashes._session.headers,
+            headers=session_both_slashes.headers,
             timeout=aiohttp.ClientTimeout(total=client_both_slashes.default_request_timeout),
         )  # Path with trailing slash is preserved
         await client_both_slashes.close_session()
@@ -397,4 +402,5 @@ class TestHttpClient:
     # - JSON decode error handling (returning raw text)
     # - TimeoutError retry and raise
     # - Correct passing of request_timeout override
-    # - Correct handling of data vs json parameter in aiohttp.ClientSession.request for different methods
+    # - Correct handling of data vs json parameter in
+    #   aiohttp.ClientSession.request for different methods
