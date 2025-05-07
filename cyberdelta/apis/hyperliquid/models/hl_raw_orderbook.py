@@ -196,9 +196,9 @@ class HyperliquidRawL2Book(BaseModel):
                     side_levels.append(level)
                 elif isinstance(level, dict):
                     try:
-                        # Use type annotation instead of cast
-                        level_dict: dict[str, Any] = level
-                        book_level = HyperliquidRawBookLevel.model_validate(level_dict)
+                        # Use type annotation instead of cast; Pydantic's model_validate takes Any
+                        level_as_dict_any_keys: dict[Any, Any] = level
+                        book_level = HyperliquidRawBookLevel.model_validate(level_as_dict_any_keys)
                         side_levels.append(book_level)
                     except Exception as e:
                         raise ValueError(f"levels[{i}][{j}]: Invalid book level: {e}") from e

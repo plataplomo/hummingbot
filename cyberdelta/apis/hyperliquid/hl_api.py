@@ -5,7 +5,7 @@ import time
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import aiohttp
 from pydantic import ValidationError
@@ -981,7 +981,7 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.UNKNOWN.value,
                 )
 
-            asset_ctx_list_raw: list[Any] = response_raw[1]
+            asset_ctx_list_raw: list[Any] = cast(list[Any], response_raw[1])
             result: list[FundingRate] = []
             for asset_ctx_raw in asset_ctx_list_raw:
                 if not isinstance(asset_ctx_raw, dict):

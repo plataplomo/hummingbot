@@ -23,7 +23,6 @@ ensuring robustness and security at the data ingestion boundary.
 """
 
 from decimal import Decimal
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -469,31 +468,53 @@ class BackpackRawOrderBook(BaseModel):
         Validates that bids/asks are lists of [str, str] pairs representing price and quantity.
         Raises ValueError if not a list, not pairs, or not valid decimals.
         """
+        field_name = info.field_name or "bids/asks"
         if not isinstance(v, list):
-            raise ValueError("bids/asks: Must be a list of [str, str] pairs")
-        result: list[list[str]] = []
-        entry_any: Any  # For static analysis
-        for entry_any in v:
-            if not isinstance(entry_any, list):
-                raise ValueError("Each bid/ask must be a list of two strings (not a list)")
-            entry: list[Any] = entry_any  # Safe: runtime check above ensures this is a list
-            if len(entry) != 2:
-                raise ValueError("Each bid/ask must be a [str, str] pair (length 2)")
-            validated: list[str] = []
-            for idx, val in enumerate(entry):
-                if not isinstance(val, str):
-                    raise ValueError(
-                        f"Each element of bid/ask must be a string (got {type(val).__name__})"
-                    )
-                s = validate_str_field(val, field_name=f"bids/asks[{idx}]", max_length=64)
-                d = parse_decimal_value(s, allow_none=False, field_name=f"bids/asks[{idx}]")
-                if d is None or not d.is_finite():
-                    raise ValueError(
-                        f"bids/asks[{idx}]: Value must be a finite decimal (not NaN or inf)"
-                    )
-                validated.append(s)
-            result.append(validated)
-        return result
+            raise ValueError(f"{field_name}: Expected list, got {type(v).__name__}")
+
+        v_list_any: list[Any] = v  # Explicitly type v as list[Any] after the check
+
+        validated_list: list[list[str]] = []
+        for i, entry_raw_item in enumerate(v_list_any):  # entry_raw_item is now Any
+            current_entry_field_name = f"{field_name}[{i}]"
+            if not isinstance(entry_raw_item, list):  # entry_raw_item is now known to be list
+                raise ValueError(
+                    f"{current_entry_field_name}: Expected list for entry, got {type(entry_raw_item).__name__}"
+                )
+
+            current_price_quantity_list: list[Any] = entry_raw_item  # Explicitly list[Any]
+
+            entry_pair_validated: list[
+                str
+            ] = []  # This will hold the validated [price_str, quantity_str]
+            if len(current_price_quantity_list) != 2:
+                raise ValueError(
+                    f"{current_entry_field_name}: Expected list of 2 items (price, quantity), got {len(current_price_quantity_list)}"
+                )
+
+            price_obj: Any = current_price_quantity_list[0]
+            quantity_obj: Any = current_price_quantity_list[1]
+
+            # Validate price string
+            if not isinstance(price_obj, str):
+                raise ValueError(
+                    f"{current_entry_field_name}[0]: Price must be a string, got {type(price_obj).__name__}"
+                )
+            price_str: str = price_obj  # Now known to be str
+            parse_decimal_value(price_str, field_name=f"{current_entry_field_name}[0] Price")
+            entry_pair_validated.append(price_str)
+
+            # Validate quantity string
+            if not isinstance(quantity_obj, str):
+                raise ValueError(
+                    f"{current_entry_field_name}[1]: Quantity must be a string, got {type(quantity_obj).__name__}"
+                )
+            quantity_str: str = quantity_obj  # Now known to be str
+            parse_decimal_value(quantity_str, field_name=f"{current_entry_field_name}[1] Quantity")
+            entry_pair_validated.append(quantity_str)
+
+            validated_list.append(entry_pair_validated)
+        return validated_list
 
     @field_validator("time", mode="before")
     @classmethod

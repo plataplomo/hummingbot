@@ -65,7 +65,8 @@ class WebSocketManager:
                              Defaults to DEFAULT_RECONNECT_DELAY.
             max_reconnect_attempts: Maximum number of reconnection attempts.
                                     Defaults to DEFAULT_MAX_RECONNECT_ATTEMPTS.
-            connection_timeout: Timeout for establishing the connection. Defaults to DEFAULT_CONNECTION_TIMEOUT.
+            connection_timeout: Timeout for establishing the connection.
+                                Defaults to DEFAULT_CONNECTION_TIMEOUT.
         """
         self._exchange_name: str = exchange_name
         self._ws_url: str = ws_url
@@ -164,7 +165,8 @@ class WebSocketManager:
                     jitter = backoff_base * 0.2 * (random.random() - 0.5)
                     actual_delay = max(1.0, backoff_base + jitter)
                     self._logger.info(
-                        f"Reconnection attempt {current_attempt + 1}/{self._max_reconnect_attempts} in {actual_delay:.2f}s..."
+                        f"Reconnection attempt {current_attempt + 1}/"
+                        f"{self._max_reconnect_attempts} in {actual_delay:.2f}s..."
                     )
                     await asyncio.sleep(actual_delay)
 
@@ -232,12 +234,14 @@ class WebSocketManager:
 
             if self._should_reconnect and current_attempt >= self._max_reconnect_attempts:
                 self._logger.critical(
-                    f"Failed to connect to {self._ws_url} after {self._max_reconnect_attempts} attempts. Giving up."
+                    f"Failed to connect to {self._ws_url} after "
+                    f"{self._max_reconnect_attempts} attempts. Giving up."
                 )
                 self._should_reconnect = False
             elif not self._should_reconnect:
                 self._logger.info(
-                    f"Connection process for {self._ws_url} stopped because reconnections are disabled."
+                    f"Connection process for {self._ws_url} stopped "
+                    f"because reconnections are disabled."
                 )
 
     async def _listen(self) -> None:
@@ -252,7 +256,8 @@ class WebSocketManager:
             async for msg in self._ws_connection:
                 if self._ws_connection is not original_connection or self._ws_connection.closed:
                     self._logger.warning(
-                        "WebSocket connection changed or closed during iteration. Stopping listener for old connection."
+                        "WebSocket connection changed or closed during iteration. "
+                        "Stopping listener for old connection."
                     )
                     break
 
@@ -269,7 +274,8 @@ class WebSocketManager:
 
                 elif msg.type == aiohttp.WSMsgType.BINARY:
                     self._logger.debug(
-                        f"Received binary WebSocket message (length: {len(msg.data)}). Handler for binary not implemented."
+                        f"Received binary WebSocket message (length: {len(msg.data)}). "
+                        "Handler for binary not implemented."
                     )
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     self._logger.error(
@@ -294,7 +300,8 @@ class WebSocketManager:
                 self._logger.exception(f"Unexpected error in WebSocket listener: {e}")
             else:
                 self._logger.info(
-                    f"Listener loop for {self._ws_url} exited with error on a stale/closed connection: {e}"
+                    f"Listener loop for {self._ws_url} exited with error "
+                    f"on a stale/closed connection: {e}"
                 )
         finally:
             self._logger.info("Listener task stopped.")
@@ -343,9 +350,10 @@ class WebSocketManager:
                         self._is_connected = False
                         self._ws_connection = None
                         break
-                else:
+                else:  # type: ignore[unreachable]
                     self._logger.debug(
-                        "Keep-alive: Not connected or should_reconnect is false, stopping ping task."
+                        "Keep-alive: Not connected or should_reconnect is false, "
+                        "stopping ping task."
                     )
                     break
         except asyncio.CancelledError:
@@ -377,7 +385,8 @@ class WebSocketManager:
             return False
         except ConnectionResetError:
             self._logger.error(
-                f"Connection reset while trying to send JSON to {self._ws_url}. Marking as disconnected."
+                f"Connection reset while trying to send JSON to {self._ws_url}. "
+                "Marking as disconnected."
             )
             self._is_connected = False
             self._ws_connection = None
