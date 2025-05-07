@@ -23,6 +23,8 @@ by the `BackpackAPI` client when handling non-2xx HTTP responses or other error 
 import logging
 from typing import Any
 
+from pydantic import ValidationError
+
 from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.models.api_error import APIError
@@ -103,13 +105,15 @@ class BackpackErrorMapper(IErrorMapper):
                 mapped_code = code_map.get(code, APIErrorCode.EXCHANGE_SPECIFIC)
                 if mapped_code == APIErrorCode.EXCHANGE_SPECIFIC and code not in code_map:
                     logger.warning(
-                        f"[BackpackErrorMapper] Unmapped or ambiguous Backpack error code: {code}"
+                        f"[{BackpackErrorMapper.__name__}] Unmapped or ambiguous Backpack error code: {code}"
                     )
                 return mapped_code
-            except Exception as e:
+            except ValidationError as e:
+                detailed_errors = e.errors(include_url=False, include_context=False)
                 logger.warning(
-                    f"[BackpackErrorMapper] Failed to parse error_data as "
-                    f"BackpackRawApiError: {e}. Falling back to heuristics."
+                    f"[{BackpackErrorMapper.__name__}] Failed to parse error_data as {BackpackRawApiError.__name__}. "
+                    f"Pydantic errors: {detailed_errors}. Original exception string: {e}. "
+                    f"Falling back to heuristics."
                 )
         return mapped_code
 

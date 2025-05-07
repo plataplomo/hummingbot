@@ -18,13 +18,13 @@ class TestBackpackErrorMapper:
         [
             (
                 400,
-                '{"error":"Generic client error","code":10000}',
+                '{"message":"Generic client error","code":"INVALID_CLIENT_REQUEST"}',
                 APIErrorCode.EXCHANGE_SPECIFIC,
                 "Generic client error",
             ),
             (
                 400,
-                '{"error":"Invalid parameter","params":{"field":"symbol"},"code":10007}',
+                '{"message":"Invalid parameter: field=symbol","code":"INVALID_CLIENT_REQUEST"}',
                 APIErrorCode.INVALID_PARAMS,
                 "Invalid parameter: field=symbol",
             ),
@@ -51,13 +51,13 @@ class TestBackpackErrorMapper:
         [
             (
                 401,
-                '{"error":"Authentication failed","code":20000}',
+                '{"message":"Authentication failed","code":"UNAUTHORIZED"}',
                 APIErrorCode.AUTHENTICATION_FAILED,
                 "Authentication failed",
             ),
             (
                 403,
-                '{"error":"Forbidden access","code":20001}',
+                '{"message":"Forbidden access","code":"FORBIDDEN"}',
                 APIErrorCode.AUTHENTICATION_FAILED,  # Often 403 is also auth related
                 "Forbidden access",
             ),
@@ -79,19 +79,19 @@ class TestBackpackErrorMapper:
         assert api_error.http_status == http_status
 
     @pytest.mark.parametrize(
-        "http_status, error_body, bp_error_code, expected_api_code, expected_message_contains",
+        "http_status, error_body, bp_error_code_str, expected_api_code, expected_message_contains",
         [
             (
                 400,
-                '{"error":"Account has insufficient balance for requested action.","code":10004}',
-                10004,
+                '{"message":"Account has insufficient balance for requested action.","code":"INSUFFICIENT_FUNDS"}',
+                "INSUFFICIENT_FUNDS",
                 APIErrorCode.INSUFFICIENT_FUNDS,
                 "Account has insufficient balance",
             ),
             (
                 400,  # Example: Order not found might be 400 or 404 depending on API
-                '{"error":"UNKNOWN_ORDER","code":30005}',  # Assuming 30005 is their order not found
-                30005,
+                '{"message":"Order not found or has been filled","code":"RESOURCE_NOT_FOUND"}',
+                "RESOURCE_NOT_FOUND",
                 APIErrorCode.ORDER_NOT_FOUND,
                 "Order not found or has been filled",
             ),
@@ -101,7 +101,7 @@ class TestBackpackErrorMapper:
         self,
         http_status: int,
         error_body: str,
-        bp_error_code: int,
+        bp_error_code_str: str,
         expected_api_code: APIErrorCode,
         expected_message_contains: str,
     ) -> None:
@@ -118,7 +118,7 @@ class TestBackpackErrorMapper:
         [
             (
                 429,
-                '{"error":"Too Many Requests","code":90001}',
+                '{"message":"Too Many Requests","code":"TOO_MANY_REQUESTS"}',
                 APIErrorCode.RATE_LIMITED,
                 "Rate limit exceeded",
             )
@@ -144,7 +144,7 @@ class TestBackpackErrorMapper:
         [
             (
                 500,
-                '{"error":"Internal server error","code":null}',  # code might be null
+                '{"message":"Internal server error","code":"SERVER_ERROR"}',
                 APIErrorCode.SERVER_ERROR,
                 "Server error",
             ),
@@ -175,7 +175,7 @@ class TestBackpackErrorMapper:
         [
             (
                 503,
-                '{"error":"Service temporarily unavailable","code":null}',
+                '{"message":"Service temporarily unavailable","code":"MAINTENANCE"}',
                 APIErrorCode.SERVICE_UNAVAILABLE,
                 "Service unavailable",
             )
@@ -195,75 +195,141 @@ class TestBackpackErrorMapper:
         assert api_error.code == expected_code.value
         assert expected_message_contains in api_error.message
 
+    @pytest.mark.parametrize(
+        "status_code, error_body, error_code_enum, expected_message_contains",
+        [
+            (
+                404,
+                '{"message":"Order not found","code":"RESOURCE_NOT_FOUND"}',
+                APIErrorCode.ORDER_NOT_FOUND,
+                "Order not found",
+            ),
+        ],
+    )
     def test_map_order_not_found_error(
-        self, backpack_error_mapper_instance: BackpackErrorMapper
+        self,
+        backpack_error_mapper: BackpackErrorMapper,
+        status_code: int,
+        error_body: str,
+        error_code_enum: APIErrorCode,
+        expected_message_contains: str,
     ) -> None:
-        http_status = 404
-        error_body = '{"error":"UNKNOWN_ORDER","code":30005}'
-        expected_code = APIErrorCode.ORDER_NOT_FOUND
-        expected_message_contains = "Order not found"
-
-        api_error = backpack_error_mapper_instance.map_exchange_error(
-            http_status, error_body, error_data=json.loads(error_body)
-        )
-        assert api_error.code == expected_code.value
+        error_data = json.loads(error_body)
+        api_error = backpack_error_mapper.map_exchange_error(status_code, error_body, error_data)
+        assert api_error.code == error_code_enum.value
         assert expected_message_contains in api_error.message
+        assert api_error.http_status == status_code
 
+    @pytest.mark.parametrize(
+        "status_code, error_body, error_code_enum, expected_message_contains",
+        [
+            (
+                400,
+                '{"message":"Invalid symbol","code":"INVALID_SYMBOL"}',
+                APIErrorCode.INVALID_SYMBOL,
+                "Invalid symbol",
+            ),
+        ],
+    )
     def test_map_invalid_symbol_error(
-        self, backpack_error_mapper_instance: BackpackErrorMapper
+        self,
+        backpack_error_mapper: BackpackErrorMapper,
+        status_code: int,
+        error_body: str,
+        error_code_enum: APIErrorCode,
+        expected_message_contains: str,
     ) -> None:
-        http_status = 400
-        error_body = '{"error":"INVALID_SYMBOL","code":10001}'
-        expected_code = APIErrorCode.INVALID_SYMBOL
-        expected_message_contains = "Invalid symbol"
-
-        api_error = backpack_error_mapper_instance.map_exchange_error(
-            http_status, error_body, error_data=json.loads(error_body)
-        )
-        assert api_error.code == expected_code.value
+        error_data = json.loads(error_body)
+        api_error = backpack_error_mapper.map_exchange_error(status_code, error_body, error_data)
+        assert api_error.code == error_code_enum.value
         assert expected_message_contains in api_error.message
+        assert api_error.http_status == status_code
+        assert api_error.exchange_message == error_body
 
+    @pytest.mark.parametrize(
+        "status_code, error_body, error_code_enum, expected_message_contains",
+        [
+            (
+                400,
+                '{"message":"A message stating the symbol is invalid.","code":"INVALID_SYMBOL"}',
+                APIErrorCode.INVALID_SYMBOL,
+                "A message stating the symbol is invalid.",
+            ),
+        ],
+    )
+    def test_map_specific_bp_error_to_api_error_code(
+        self,
+        backpack_error_mapper: BackpackErrorMapper,
+        status_code: int,
+        error_body: str,
+        error_code_enum: APIErrorCode,
+        expected_message_contains: str,
+    ) -> None:
+        """Test mapping of a specific known Backpack error code to internal APIErrorCode."""
+        error_data = json.loads(error_body)
+        api_error = backpack_error_mapper.map_exchange_error(status_code, error_body, error_data)
+        assert api_error.code == error_code_enum.value
+        assert expected_message_contains in api_error.message
+        assert api_error.http_status == status_code
+        assert api_error.exchange_message == error_body
+
+    @pytest.mark.parametrize(
+        "status_code, error_body, expected_api_code, expected_message_part",
+        [
+            (400, "Invalid JSON input", APIErrorCode.EXCHANGE_SPECIFIC, "Invalid JSON input"),
+            (
+                500,
+                "<html><body>Server Error</body></html>",
+                APIErrorCode.SERVER_ERROR,
+                "Server Error",
+            ),
+        ],
+    )
     def test_map_non_json_error_body(
-        self, backpack_error_mapper_instance: BackpackErrorMapper
+        self,
+        backpack_error_mapper: BackpackErrorMapper,
+        status_code: int,
+        error_body: str,
+        expected_api_code: APIErrorCode,
+        expected_message_part: str,
     ) -> None:
-        http_status = 500
-        error_body = "Internal Server Error - Plain Text"
-        expected_code = APIErrorCode.SERVER_ERROR
-        expected_message_contains = "Server error"
-
-        api_error = backpack_error_mapper_instance.map_exchange_error(
-            http_status,
-            error_body,
-            error_data=None,  # error_data would be None if JSON parsing fails
+        api_error = backpack_error_mapper.map_exchange_error(
+            status_code, error_body, error_data=None
         )
-        assert api_error.code == expected_code.value
-        assert expected_message_contains in api_error.message
+        assert api_error.code == expected_api_code.value
+        assert expected_message_part in api_error.message
+        assert api_error.http_status == status_code
+        assert api_error.exchange_message == error_body
 
+    @pytest.mark.parametrize(
+        "status_code, error_body, expected_api_code, expected_message_part",
+        [
+            (
+                400,
+                '{"message":"Some custom exchange error","code":"UNKNOWN_CODE_99999"}',
+                APIErrorCode.EXCHANGE_SPECIFIC,
+                "Some custom exchange error",
+            ),
+        ],
+    )
     def test_map_unknown_error_code_in_json(
-        self, backpack_error_mapper_instance: BackpackErrorMapper
+        self,
+        backpack_error_mapper: BackpackErrorMapper,
+        status_code: int,
+        error_body: str,
+        expected_api_code: APIErrorCode,
+        expected_message_part: str,
     ) -> None:
-        http_status = 400
-        error_body = '{"error":"Some new unexpected error","code":99999}'
-        expected_code = APIErrorCode.EXCHANGE_SPECIFIC  # Fallback for unknown codes
-        expected_message_contains = "Some new unexpected error"
-
-        api_error = backpack_error_mapper_instance.map_exchange_error(
-            http_status, error_body, error_data=json.loads(error_body)
-        )
-        assert api_error.code == expected_code.value
-        assert expected_message_contains in api_error.message
+        error_data = json.loads(error_body)
+        api_error = backpack_error_mapper.map_exchange_error(status_code, error_body, error_data)
+        assert api_error.code == expected_api_code.value
+        assert expected_message_part in api_error.message
+        assert api_error.http_status == status_code
 
     def test_map_empty_error_body_and_data(
-        self, backpack_error_mapper_instance: BackpackErrorMapper
+        self, backpack_error_mapper: BackpackErrorMapper
     ) -> None:
-        http_status = 500
-        error_body = ""
-        error_data = None
-        expected_code = APIErrorCode.SERVER_ERROR  # Default for 5xx without specifics
-        expected_message_contains = "Server error or unexpected response format"
-
-        api_error = backpack_error_mapper_instance.map_exchange_error(
-            http_status, error_body, error_data
-        )
-        assert api_error.code == expected_code.value
-        assert expected_message_contains in api_error.message
+        api_error = backpack_error_mapper.map_exchange_error(500, "", error_data=None)
+        assert api_error.code == APIErrorCode.SERVER_ERROR.value
+        assert api_error.http_status == 500
+        assert api_error.exchange_message == ""

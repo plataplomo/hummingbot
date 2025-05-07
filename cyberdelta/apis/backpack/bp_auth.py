@@ -26,10 +26,13 @@ class BackpackHmacAuthenticator(IAuthenticator):
             api_key: The Backpack API key.
             api_secret: The Backpack API secret.
         """
-        if not api_key or not api_secret:
-            # Log and raise an error or handle as per project policy for missing credentials.
-            # For now, we'll store them, and prepare_request will fail if they are missing.
-            logger.warning("BackpackHmacAuthenticator initialized with missing API key or secret.")
+        if not api_key:
+            logger.error("API key cannot be empty for BackpackHmacAuthenticator.")
+            raise ValueError("API key cannot be empty")
+        if not api_secret:
+            logger.error("API secret cannot be empty for BackpackHmacAuthenticator.")
+            raise ValueError("API secret cannot be empty")
+
         self._api_key = api_key
         self._api_secret = api_secret
 
@@ -103,6 +106,9 @@ class BackpackHmacAuthenticator(IAuthenticator):
                     original_exception=e,
                 ) from e
         # Else (e.g. POST with no body, or other methods), payload is just timestamp
+
+        # DEBUG: Print the exact payload being signed
+        print(f"[DEBUG BP_AUTH] Signing payload: '{signature_payload_str}'")
 
         signature = self._hmac_sha256_hexdigest(
             self._api_secret.encode("utf-8"), signature_payload_str.encode("utf-8")
