@@ -11,7 +11,7 @@ from _pytest.logging import LogCaptureFixture
 
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.hyperliquid.hl_auth import HL_Eip712Authenticator
+from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
@@ -47,9 +47,11 @@ SECRETS_NO_ADDRESS: dict[str, str | None] = {
 
 @pytest.fixture
 def mock_hl_auth_init() -> Generator[tuple[MagicMock, MagicMock], Any]:
-    """Mocks the HL_Eip712Authenticator initialization."""
-    with patch("cyberdelta.apis.hyperliquid.hl_api.HL_Eip712Authenticator") as mock_auth_class:
-        mock_instance = MagicMock(spec=HL_Eip712Authenticator)
+    """Mocks the HyperliquidEip712Authenticator initialization."""
+    with patch(
+        "cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator"
+    ) as mock_auth_class:
+        mock_instance = MagicMock(spec=HyperliquidEip712Authenticator)
         mock_instance.prepare_request = AsyncMock()  # Add async mock for prepare_request
         mock_auth_class.return_value = mock_instance
         yield mock_auth_class, mock_instance  # Return class and instance mock
@@ -85,7 +87,7 @@ def test_hl_api_init_without_key(mock_hl_auth_init: Generator[tuple[MagicMock, M
 def test_hl_api_init_auth_init_fails(
     mock_hl_auth_init: Generator[tuple[MagicMock, MagicMock], Any], caplog: LogCaptureFixture
 ):
-    """Test initialization when HL_Eip712Authenticator fails to initialize."""
+    """Test initialization when HyperliquidEip712Authenticator fails to initialize."""
     mock_auth_class, _ = next(mock_hl_auth_init)
     mock_auth_class.side_effect = ValueError("Bad key format")
 

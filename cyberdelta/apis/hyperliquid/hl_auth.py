@@ -20,7 +20,7 @@ from cyberdelta.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-class HL_Eip712Authenticator(IAuthenticator):
+class HyperliquidEip712Authenticator(IAuthenticator):
     """
     Authenticator for Hyperliquid API using EIP-712 Agent signatures.
     """
@@ -49,7 +49,7 @@ class HL_Eip712Authenticator(IAuthenticator):
 
     def __init__(self, private_key_hex: str, wallet_address: str, chain_id: int) -> None:
         """
-        Initializes the HL_Eip712Authenticator.
+        Initializes the HyperliquidEip712Authenticator.
 
         Args:
             private_key_hex: The private key as a hexadecimal string (with or without '0x').
@@ -60,10 +60,10 @@ class HL_Eip712Authenticator(IAuthenticator):
             ValueError: If the private key is invalid or wallet address is empty.
         """
         if not private_key_hex:
-            logger.error("HL_Eip712Authenticator: Private key cannot be empty.")
+            logger.error("HyperliquidEip712Authenticator: Private key cannot be empty.")
             raise ValueError("Private key cannot be empty.")
         if not wallet_address:
-            logger.error("HL_Eip712Authenticator: Wallet address cannot be empty.")
+            logger.error("HyperliquidEip712Authenticator: Wallet address cannot be empty.")
             raise ValueError("Wallet address cannot be empty.")
 
         self._wallet_address = Web3.to_checksum_address(wallet_address)
@@ -77,10 +77,10 @@ class HL_Eip712Authenticator(IAuthenticator):
                     f"Provided private key does not match wallet address. "
                     f"Expected: {self._wallet_address}, Got: {self._account.address}"
                 )
-                logger.error(f"HL_Eip712Authenticator: {err_msg}")
+                logger.error(f"HyperliquidEip712Authenticator: {err_msg}")
                 raise ValueError(err_msg)
         except (ValueError, TypeError) as e:
-            logger.error(f"HL_Eip712Authenticator: Invalid private key provided: {e}")
+            logger.error(f"HyperliquidEip712Authenticator: Invalid private key provided: {e}")
             raise ValueError(f"Invalid private key: {e}") from e
 
         # Nonce strategy: use millisecond timestamp, ensuring strict increment if called rapidly.
@@ -92,7 +92,7 @@ class HL_Eip712Authenticator(IAuthenticator):
         self._domain_data["chainId"] = chain_id
 
         logger.info(
-            f"HL_Eip712Authenticator initialized for address: {self._wallet_address} on chain_id: {self._chain_id}"
+            f"HyperliquidEip712Authenticator initialized for address: {self._wallet_address} on chain_id: {self._chain_id}"
         )
 
     async def _get_next_nonce_ms(self) -> int:
@@ -145,7 +145,7 @@ class HL_Eip712Authenticator(IAuthenticator):
         """
         if data is None:  # The /exchange endpoint actions always require a data payload
             logger.error(
-                "HL_Eip712Authenticator: Data payload (action) is required for signing Hyperliquid /exchange requests."
+                "HyperliquidEip712Authenticator: Data payload (action) is required for signing Hyperliquid /exchange requests."
             )
             raise APIError(
                 "Data payload (action) is required for Hyperliquid /exchange signed requests.",
@@ -173,7 +173,7 @@ class HL_Eip712Authenticator(IAuthenticator):
             signature_hex = signed_message.signature.hex()
         except Exception as e:
             logger.error(
-                f"HL_Eip712Authenticator: Failed to sign Hyperliquid EIP-712 Agent message: {e}",
+                f"HyperliquidEip712Authenticator: Failed to sign Hyperliquid EIP-712 Agent message: {e}",
                 exc_info=True,
             )
             raise APIError(

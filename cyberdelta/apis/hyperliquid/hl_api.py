@@ -11,8 +11,8 @@ import aiohttp
 from pydantic import ValidationError
 
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
-from cyberdelta.apis.base_api import ExchangeAPI, MessageHandler
-from cyberdelta.apis.hyperliquid.hl_auth import HL_Eip712Authenticator
+from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
+from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_mapper import (
     HyperliquidCandleMapper,
@@ -93,10 +93,10 @@ class HyperliquidAPI(ExchangeAPI):
         self._wallet_address = secrets.get("wallet_address")
         private_key = secrets.get("private_key")
 
-        self._hl_authenticator: HL_Eip712Authenticator | None = None
+        self._hl_authenticator: HyperliquidEip712Authenticator | None = None
         if private_key and self._wallet_address:
             try:
-                self._hl_authenticator = HL_Eip712Authenticator(
+                self._hl_authenticator = HyperliquidEip712Authenticator(
                     private_key_hex=private_key,
                     wallet_address=self._wallet_address,
                     chain_id=self.CHAIN_ID,
@@ -151,7 +151,7 @@ class HyperliquidAPI(ExchangeAPI):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Uses the HL_Eip712Authenticator to prepare request components."""
+        """Uses the HyperliquidEip712Authenticator to prepare request components."""
         if not self.authenticator:
             logger.error(
                 f"[{self.exchange_name}] Attempt to call a signed endpoint ({method} {path}) "
@@ -162,7 +162,7 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        if not isinstance(self.authenticator, HL_Eip712Authenticator):
+        if not isinstance(self.authenticator, HyperliquidEip712Authenticator):
             logger.error(
                 f"[{self.exchange_name}] Incorrect authenticator type for Hyperliquid: {type(self.authenticator)}"
             )
