@@ -2,6 +2,8 @@
 Unit Tests for HyperliquidRawCandleSnapshot Model
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 import pytest
@@ -108,8 +110,8 @@ def test_extra_field_forbidden() -> None:
 )
 def test_invalid_field_type_or_missing(
     field_to_invalidate: str,
-    invalid_value: Any,
-    expected_msg_part: str,  # noqa: ANN401 # Intentionally Any for testing invalid inputs
+    invalid_value: Any,  # noqa: ANN401 # Intentionally Any for testing invalid inputs
+    expected_msg_part: str,
 ) -> None:
     """Test validation fails if a field has an incorrect type or is missing."""
     data = VALID_DATA_SINGLE_CANDLE.copy()
@@ -158,8 +160,8 @@ def test_missing_field() -> None:
 def test_invalid_list_item_type_or_format(
     list_field: str,
     item_index: int,
-    invalid_item: Any,
-    expected_msg_part: str,  # noqa: ANN401 # Intentionally Any for testing invalid inputs
+    invalid_item: Any,  # noqa: ANN401 # Intentionally Any for testing invalid inputs
+    expected_msg_part: str,
 ) -> None:
     """Test validation fails if an item within a list has an incorrect type or format."""
     data: dict[str, Any] = VALID_DATA_SINGLE_CANDLE.copy()
@@ -169,7 +171,8 @@ def test_invalid_list_item_type_or_format(
         original_list[item_index] = invalid_item
         data[list_field] = original_list
     else:  # If list is empty (e.g. from VALID_DATA_EMPTY_LISTS if used), add invalid item
-        # This assignment can cause type issues if invalid_item doesn't match list_field's expected item type.
+        # This assignment can cause type issues if invalid_item doesn't match
+        # list_field's expected item type.
         # However, this is intended for testing invalid scenarios.
         data[list_field] = [invalid_item]  # pyright: ignore [reportGeneralTypeIssues]
 

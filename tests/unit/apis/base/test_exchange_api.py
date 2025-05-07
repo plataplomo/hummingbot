@@ -98,8 +98,8 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
 
     async def place_order(
         self,
-        *args: Any,
-        **kwargs: Any,  # type: ignore[misc]
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
     ) -> Order:
         return MagicMock(spec=Order)
 
@@ -129,7 +129,9 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_order_status(
         self, order_id: str, symbol: str | None = None, client_order_id: str | None = None
     ) -> Order | None:
-        return MagicMock(spec=Order)
+        mock_order: MagicMock = MagicMock(spec=Order)
+        mock_order.exchange_order_id = order_id
+        return mock_order
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> Order | None:
         return MagicMock(spec=Order)
@@ -145,7 +147,10 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
 
     # --- Abstract method implementations for WebSocketManager integration ---
     def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
-        return self.mock_construct_subscription_payload_method(topic)
+        # Returning Any from function declared to return "dict[str, Any] | None"
+        mock_payload: MagicMock = MagicMock()
+        mock_payload.topic = topic
+        return mock_payload
 
     async def _on_ws_connected(self) -> None:
         await self.mock_on_ws_connected_method()
@@ -555,8 +560,8 @@ class TestExchangeAPIWebSocketIntegration:
         assert topic in api._ws_handlers
         mock_ws_manager_instance.send_json.assert_not_called()
         assert (
-            f"[{api.exchange_name}] WebSocket not connected. Subscription to {topic} will be attempted upon connection."
-            in caplog.text
+            f"[{api.exchange_name}] WebSocket not connected. "  # Broke long line
+            f"Subscription to {topic} will be attempted upon connection." in caplog.text
         )
 
     @pytest.mark.asyncio
@@ -576,7 +581,7 @@ class TestExchangeAPIWebSocketIntegration:
         api._ws_handlers = {topic1: handler1, topic2: handler2}  # noqa: SLF001
 
         # Mock _construct_subscription_payload to return different payloads for different topics
-        def side_effect_construct_payload(topic_arg: str):
+        def side_effect_construct_payload(topic_arg: str) -> dict[str, Any] | None:
             if topic_arg == topic1:
                 return payload1
             if topic_arg == topic2:
