@@ -168,9 +168,20 @@ class HyperliquidAPI(ExchangeAPI):
 
         current_headers = self.default_headers.copy()
 
+        # --- DEBUG PRINT --- #
+        print(
+            f"[DEBUG HL_API _authenticate] About to await prepare_request. Authenticator: {self.authenticator}",
+            flush=True,
+        )
+        # --- END DEBUG --- #
+
         auth_components: AuthenticatedRequestComponents = await self.authenticator.prepare_request(
             method, path, params, data, current_headers
         )
+
+        # --- DEBUG PRINT --- #
+        print("[DEBUG HL_API _authenticate] Finished awaiting prepare_request.", flush=True)
+        # --- END DEBUG --- #
 
         return {
             "headers": auth_components["headers"],

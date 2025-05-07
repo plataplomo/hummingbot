@@ -69,13 +69,13 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         # Default behavior for tests NOT testing subscribe: mock it
         # Tests testing base subscribe should patch this or use a different approach
-        await self.mock_subscribe_method(topic, handler)
+        await super().subscribe(topic, handler)
         # If testing base subscribe, one might do:
         # await super().subscribe(topic, handler)
 
     async def _resubscribe(self) -> None:
         # Default: mock it
-        await self.mock_resubscribe_method()
+        await super()._resubscribe()
         # If testing base: await super()._resubscribe()
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
@@ -153,11 +153,11 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
         # Implement a basic version for testing, or rely on mock if testing other parts
         # For testing base class subscribe/resubscribe, this needs to return something valid
-        return {"op": "subscribe", "topic": topic}  # Example payload
+        return self.mock_construct_subscription_payload_method(topic)
 
     async def connect_websocket(self) -> None:
         # Default: do nothing (tests might patch ws_manager directly)
-        pass
+        await super().connect_websocket()
         # If testing base: await super().connect_websocket()
 
     async def ping_websocket(self) -> None:
@@ -165,7 +165,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
 
     async def _on_ws_connected(self) -> None:
         # Default: mock it
-        await self.mock_on_ws_connected_method()
+        await super()._on_ws_connected()
         # If testing base: await super()._on_ws_connected()
 
 

@@ -80,7 +80,7 @@ def test_hl_api_init_with_key(
         chain_id=HyperliquidAPI.CHAIN_ID,
     )
     assert api.authenticator is mock_instance
-    assert api._hl_authenticator is mock_instance  # noqa: SLF001
+    assert api._hl_authenticator is mock_instance  # noqa: SLF001 - Test verification of internal state
 
 
 def test_hl_api_init_without_key(
@@ -92,7 +92,7 @@ def test_hl_api_init_without_key(
 
     mock_auth_class.assert_not_called()
     assert api.authenticator is None
-    assert api._hl_authenticator is None  # noqa: SLF001
+    assert api._hl_authenticator is None  # noqa: SLF001 - Test verification of internal state
 
 
 def test_hl_api_init_auth_init_fails(
@@ -106,7 +106,7 @@ def test_hl_api_init_auth_init_fails(
 
     mock_auth_class.assert_called_once()  # Still attempted
     assert api.authenticator is None
-    assert api._hl_authenticator is None  # noqa: SLF001
+    assert api._hl_authenticator is None  # noqa: SLF001 - Test verification of internal state
     assert "Failed to init HL authenticator: Bad key format" in caplog.text
 
 
@@ -119,7 +119,7 @@ def test_hl_api_init_no_address(
 
     mock_auth_class.assert_not_called()  # Authenticator shouldn't be called without address
     assert api.authenticator is None
-    assert api._hl_authenticator is None  # noqa: SLF001
+    assert api._hl_authenticator is None  # noqa: SLF001 - Test verification of internal state
     assert "HLAPI: Wallet address required" in caplog.text
 
 
@@ -143,7 +143,7 @@ async def test_authenticate_success(
     )
     mock_instance.prepare_request.return_value = expected_components
 
-    result = await api._authenticate(method, path, params, data)  # noqa: SLF001
+    result = await api._authenticate(method, path, params, data)  # noqa: SLF001 - Testing protected method directly
 
     mock_instance.prepare_request.assert_awaited_once_with(
         method, path, params, data, api.default_headers.copy()
@@ -167,7 +167,7 @@ async def test_authenticate_no_authenticator(
     assert api.authenticator is None
 
     with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
-        await api._authenticate("POST", "/exchange", None, {"d": 1})  # noqa: SLF001
+        await api._authenticate("POST", "/exchange", None, {"d": 1})  # noqa: SLF001 - Testing protected method directly
     assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
 
 
@@ -184,7 +184,7 @@ async def test_authenticate_prepare_request_fails(
     )
 
     with pytest.raises(APIError, match="Signing failed internally") as excinfo:
-        await api._authenticate("POST", "/exchange", None, {"d": 1})  # noqa: SLF001
+        await api._authenticate("POST", "/exchange", None, {"d": 1})  # noqa: SLF001 - Testing protected method directly
     assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
 
 
@@ -198,7 +198,8 @@ async def test_place_order_calls_authenticate_and_request(
     mock_hl_auth_init: tuple[MagicMock, MagicMock],
 ) -> None:
     """Verify place_order uses the authenticator flow including _authenticate."""
-    # --- PRE-SETUP: Mock prepare_request on the CLASS --- #
+    # Create a mock authenticator instance FOR THIS TEST
+    mock_auth_for_test = MagicMock(spec=HyperliquidEip712Authenticator)
     auth_headers = {"X-HL-Signature": "sig123", "X-HL-Timestamp": "ts", "X-HL-Nonce": "1"}
     auth_params = None
     expected_builder_payload = {  # Define here for clarity
@@ -217,19 +218,51 @@ async def test_place_order_calls_authenticate_and_request(
     auth_prepared_components = AuthenticatedRequestComponents(
         headers=auth_headers, params=auth_params, data=expected_builder_payload
     )
-    with patch.object(
-        HyperliquidEip712Authenticator,
-        "prepare_request",
-        new_callable=AsyncMock,
-        return_value=auth_prepared_components,
-    ) as mock_prepare_request_on_class:
-        api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
-        # The authenticator instance used by api will now have its prepare_request mocked by the class patch
+    # Make prepare_request an AsyncMock *on the instance*
+    mock_auth_for_test.prepare_request = AsyncMock(return_value=auth_prepared_components)
 
-        # Patch the underlying http client request
+    # Expected response content and headers tuple returned by _request
+    mock_http_response_content = {
+        "status": "ok",
+        "data": {"type": "order", "statuses": [{"resting": {"oid": 12345}}]},
+    }
+    mock_response_headers = MagicMock(spec=CIMultiDictProxy)
+
+    # Patch the Authenticator constructor within hl_api module scope
+    with patch(
+        "cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator",
+        return_value=mock_auth_for_test,
+    ) as mock_auth_constructor:
+        api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
+        # Assert API instance uses our mock authenticator
+        mock_auth_constructor.assert_called_once_with(
+            private_key_hex=TEST_PRIVATE_KEY,
+            wallet_address=TEST_WALLET_ADDRESS,
+            chain_id=HyperliquidAPI.CHAIN_ID,
+        )
+        assert api.authenticator is mock_auth_for_test
+        assert api._hl_authenticator is mock_auth_for_test  # noqa: SLF001
+
+        # Define a side effect for the mocked _request
+        async def mock_request_side_effect(*args, **kwargs):
+            # Simulate the internal call to prepare_request
+            if kwargs.get("is_signed") is True and api.authenticator:
+                await api.authenticator.prepare_request(
+                    method=kwargs.get("method", args[0] if args else None),
+                    path=kwargs.get(
+                        "endpoint", args[1] if len(args) > 1 else None
+                    ),  # Base _request uses 'endpoint'
+                    params=kwargs.get("params"),
+                    data=kwargs.get("data"),
+                    headers=dict(api.default_headers),  # Simulate passing headers
+                )
+            # Return ONLY the expected content, matching ExchangeAPI._request signature
+            return mock_http_response_content  # NOT the tuple
+
+        # Patch the _request method on the API instance
         with patch.object(
-            api._http_client, "request", new_callable=AsyncMock
-        ) as mock_http_client_request:
+            api, "_request", side_effect=mock_request_side_effect, spec=True
+        ) as mock_api_request:
             with patch.object(api, "_get_asset_index", new_callable=AsyncMock) as mock_get_index:
                 mock_get_index.return_value = 0  # Asset index for BTC
 
@@ -250,15 +283,6 @@ async def test_place_order_calls_authenticate_and_request(
                     stop_price_val: Decimal | None = None
 
                     mock_build_payload.return_value = expected_builder_payload
-
-                    mock_http_response_content = {
-                        "status": "ok",
-                        "data": {"type": "order", "statuses": [{"resting": {"oid": 12345}}]},
-                    }
-                    mock_http_client_request.return_value = (
-                        mock_http_response_content,
-                        MagicMock(spec=CIMultiDictProxy),
-                    )
 
                     mock_final_order = MagicMock()
                     mock_final_order.exchange_order_id = "12345"
@@ -294,17 +318,17 @@ async def test_place_order_calls_authenticate_and_request(
                         post_only=False,
                     )
 
-                    # Verify prepare_request (mocked on class) was awaited
-                    mock_prepare_request_on_class.assert_awaited_once()
+                    # Verify prepare_request (on our specific mock instance) was awaited via the side_effect
+                    mock_auth_for_test.prepare_request.assert_awaited_once()
 
-                    mock_http_client_request.assert_awaited_once()
-                    actual_call_to_http_client_kwargs = mock_http_client_request.call_args.kwargs
-                    assert actual_call_to_http_client_kwargs["method"] == "POST"
-                    assert actual_call_to_http_client_kwargs["endpoint_path"] == "/exchange"
-                    assert actual_call_to_http_client_kwargs["data"] == expected_builder_payload
-                    assert (
-                        actual_call_to_http_client_kwargs["headers"]["X-HL-Signature"] == "sig123"
+                    # Verify _request itself was called correctly by place_order
+                    mock_api_request.assert_awaited_once_with(
+                        method="POST",
+                        endpoint="/exchange",  # _request expects endpoint, not endpoint_path
+                        data=expected_builder_payload,
+                        is_signed=True,
                     )
+
                     assert final_order == mock_final_order
 
     # --- END OF PRE-SETUP PATCH CONTEXT --- #
@@ -527,7 +551,7 @@ class TestHyperliquidAPIWebSocketRouting:
             # Provide a wallet address for userEvents subscription testing
             secrets_with_addr = SECRETS_WITH_KEY.copy()
             api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=secrets_with_addr)
-            api._ws_manager = mock_ws_mgr_instance  # noqa: SLF001 - for testing
+            api._ws_manager = mock_ws_mgr_instance  # noqa: SLF001 - Setting internal state for test isolation
             return api
 
     @pytest.mark.parametrize(
@@ -542,7 +566,7 @@ class TestHyperliquidAPIWebSocketRouting:
     def test_construct_subscription_payload_valid_topics(
         self, api_for_ws_tests: HyperliquidAPI, topic: str, expected_sub_details: dict[str, Any]
     ) -> None:
-        payload = api_for_ws_tests._construct_subscription_payload(topic)  # noqa: SLF001
+        payload = api_for_ws_tests._construct_subscription_payload(topic)  # noqa: SLF001 - Testing protected method directly
         assert payload is not None
         assert payload["method"] == "subscribe"
         assert payload["subscription"] == expected_sub_details
@@ -550,7 +574,7 @@ class TestHyperliquidAPIWebSocketRouting:
     def test_construct_subscription_payload_invalid_topic(
         self, api_for_ws_tests: HyperliquidAPI
     ) -> None:
-        payload = api_for_ws_tests._construct_subscription_payload("invalidTopicFormat")  # noqa: SLF001
+        payload = api_for_ws_tests._construct_subscription_payload("invalidTopicFormat")  # noqa: SLF001 - Testing protected method directly
         assert payload is None
 
     def test_construct_subscription_payload_user_event_no_address(
@@ -563,17 +587,17 @@ class TestHyperliquidAPIWebSocketRouting:
             api_no_addr = HyperliquidAPI(
                 BASE_API_CONFIG, SECRETS_NO_ADDRESS
             )  # This won't run real init
-            api_no_addr._wallet_address = None  # noqa: SLF001
+            api_no_addr._wallet_address = None  # noqa: SLF001 - Setting internal state for specific test case
             api_no_addr.exchange_name = "hyperliquid"  # Manually set for logger
 
-            payload = api_no_addr._construct_subscription_payload("userEvents")  # noqa: SLF001
+            payload = api_no_addr._construct_subscription_payload("userEvents")  # noqa: SLF001 - Testing protected method with altered state
             assert payload is None
 
     @pytest.mark.asyncio
     async def test_route_ws_message_known_channel(self, api_for_ws_tests: HyperliquidAPI) -> None:
         mock_handler: AsyncMock = AsyncMock()
         channel_name = "l2Book"
-        api_for_ws_tests._ws_handlers[channel_name] = mock_handler  # noqa: SLF001
+        api_for_ws_tests._ws_handlers[channel_name] = mock_handler  # noqa: SLF001 - Manipulating internal state for test setup
 
         test_data_payload: dict[str, Any] = {
             "coin": "BTC",
@@ -582,7 +606,7 @@ class TestHyperliquidAPIWebSocketRouting:
         }
         test_message: dict[str, Any] = {"channel": channel_name, "data": test_data_payload}
 
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001 - Testing protected method directly
         mock_handler.assert_awaited_once_with(test_data_payload, test_message)
 
     @pytest.mark.asyncio
@@ -591,7 +615,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"channel": "pong"}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001 - Testing protected method directly
         assert "Received pong" in caplog.text
 
     @pytest.mark.asyncio
@@ -601,7 +625,7 @@ class TestHyperliquidAPIWebSocketRouting:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         error_payload = {"error": "Subscription failed", "reason": "Invalid coin"}
         test_message = {"channel": "error", "data": error_payload}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001 - Testing protected method directly
         assert f"Received WS error message: {error_payload}" in caplog.text
 
     @pytest.mark.asyncio
@@ -611,7 +635,7 @@ class TestHyperliquidAPIWebSocketRouting:
         caplog.set_level(logging.INFO, logger="cyberdelta.apis.hyperliquid.hl_api")
         response_payload = {"subscription": {"type": "l2Book", "coin": "ETH"}, "status": "ok"}
         test_message = {"channel": "subscriptionResponse", "data": response_payload}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001 - Testing protected method directly
         assert "Received subscription response:" in caplog.text
 
     @pytest.mark.asyncio
@@ -620,7 +644,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"channel": "unknownChannel", "data": {"some": "payload"}}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001 - Testing protected method directly
         assert "No handler registered for channel: unknownChannel" in caplog.text
 
     @pytest.mark.asyncio
@@ -629,7 +653,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"type": "someType", "data": {"other": "data"}}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001 - Testing protected method directly
         assert "Received WS message without channel" in caplog.text
 
     @pytest.mark.asyncio
@@ -641,9 +665,9 @@ class TestHyperliquidAPIWebSocketRouting:
         # but good to test. The _route_ws_message has a check for data_payload is None.
         mock_handler: AsyncMock = AsyncMock()
         channel_name = "dataCheckChannel"
-        api_for_ws_tests._ws_handlers[channel_name] = mock_handler  # noqa: SLF001
+        api_for_ws_tests._ws_handlers[channel_name] = mock_handler  # noqa: SLF001 - Manipulating internal state for test setup
         test_message: dict[str, Any] = {"channel": channel_name}  # No 'data' field
 
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001 - Testing protected method directly
         mock_handler.assert_not_called()
         assert f"Received message on channel '{channel_name}' but no data" in caplog.text

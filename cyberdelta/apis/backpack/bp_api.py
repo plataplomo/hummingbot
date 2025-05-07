@@ -206,28 +206,37 @@ class BackpackAPI(ExchangeAPI):
         Returns:
             Dictionary with signed headers, params, and data as expected by base _request.
         """
-        final_headers = self.default_headers.copy() if self.default_headers else {}
-
         if not self._bp_authenticator:
             logger.error(
-                f"[{self.exchange_name}] Backpack authenticator not initialized. "
-                f"Cannot sign request for {method} {path}"
+                f"[{self.exchange_name}] Backpack authenticator not initialized. Cannot make signed request."
             )
             raise APIError(
-                "Backpack authenticator not initialized. Cannot sign request.",
+                "Backpack authenticator not initialized. Cannot make signed request.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
+        current_headers = self.default_headers.copy()
+        # Add other necessary headers like X-BP-Timestamp, X-BP-Window
+        # These are typically added by the authenticator, but let's ensure the call is right.
+
+        # --- DEBUG PRINT --- #
+        print(
+            f"[DEBUG BP_API _authenticate] About to await prepare_request. Authenticator: {self._bp_authenticator}",
+            flush=True,
+        )
+        # --- END DEBUG --- #
+
         auth_components: AuthenticatedRequestComponents = (
             await self._bp_authenticator.prepare_request(
-                method=method,
-                path=path,
-                params=params,  # Pass original params
-                data=data,  # Pass original body
-                headers=final_headers,  # Pass current headers for authenticator to augment/override
+                method=method, path=path, params=params, data=data, headers=current_headers
             )
         )
-        # Return as dict[str, Any] to match base class signature
+
+        # --- DEBUG PRINT --- #
+        print("[DEBUG BP_API _authenticate] Finished awaiting prepare_request.", flush=True)
+        # --- END DEBUG --- #
+
+        # _authenticate should return a dict matching the structure expected by _request
         return {
             "headers": auth_components["headers"],
             "params": auth_components["params"],
@@ -288,8 +297,7 @@ class BackpackAPI(ExchangeAPI):
             raise
         except Exception as e_unhandled:  # Catch any other unexpected errors
             logger.error(
-                f"[{self.exchange_name}] Unhandled error fetching ticker for {symbol}: "
-                f"{e_unhandled}",
+                f"[{self.exchange_name}] Unhandled error fetching ticker for {symbol}: {e_unhandled}",
                 exc_info=True,
             )
             raise APIError(
