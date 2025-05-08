@@ -24,7 +24,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
     HyperliquidRawL2Book as HyperliquidRawOrderBookResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
-    HyperliquidRawRecentTradesResponse,
+    HyperliquidRawPublicTrade,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFillsResponse,
@@ -202,7 +202,7 @@ class HyperliquidResponseHandler:
     @staticmethod
     def handle_info_recent_trades_response(
         raw_response_content: RawJsonResponse, symbol: str
-    ) -> list[HyperliquidRawRecentTradesResponse]:
+    ) -> list[HyperliquidRawPublicTrade]:
         """Validates the /info response for recent_trades."""
         context = f"info (RecentTrades for {symbol})"
         if not isinstance(raw_response_content, list):
@@ -211,13 +211,13 @@ class HyperliquidResponseHandler:
                 f"got {type(raw_response_content)}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        validated_trades: list[HyperliquidRawRecentTradesResponse] = []
+        validated_trades: list[HyperliquidRawPublicTrade] = []
         for item in raw_response_content:
             if not isinstance(item, dict):
                 logger.warning(f"Skipping non-dict item in {context} list: {item!r}")
                 continue
             try:
-                validated_trades.append(HyperliquidRawRecentTradesResponse.model_validate(item))
+                validated_trades.append(HyperliquidRawPublicTrade.model_validate(item))
             except ValidationError as e:
                 raise HyperliquidResponseHandler._handle_validation_error(
                     e, f"single recent trade item in {context}", item
