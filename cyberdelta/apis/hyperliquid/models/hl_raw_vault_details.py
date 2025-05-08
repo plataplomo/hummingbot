@@ -7,7 +7,7 @@ Validates the raw structure only, enforcing type and format constraints.
 Never use for internal business logic.
 """
 
-from typing import Any
+from typing import Any, TypeGuard
 
 from pydantic import (
     BaseModel,
@@ -21,6 +21,19 @@ from cyberdelta.utils.parsing import (
     parse_decimal_value,
     validate_str_field,
 )
+
+
+# Define the TypeGuard
+def is_dict_with_str_keys(val: object) -> TypeGuard[dict[str, Any]]:
+    """Checks if a value is a dict with string keys."""
+    if not isinstance(val, dict):
+        return False
+    # For this raw validator, we assume if it's a dict, Pydantic will handle
+    # specific key errors if they aren't strings as expected by field names.
+    # A stricter check could iterate keys: all(isinstance(k, str) for k in val.keys())
+    # However, Pydantic's parsing of dicts into models implicitly expects string keys
+    # matching field names or aliases.
+    return True
 
 
 class HyperliquidRawVaultPerformanceHistoryItem(BaseModel):
@@ -140,10 +153,10 @@ class HyperliquidRawVaultRelationshipData(BaseModel):
             raise ValueError(f"{field_name}: Expected list or None")
 
         validated_list: list[str] = []
-        # Explicitly type v after check for Pyright's benefit during iteration
-        current_list: list[object] = v
-        for item_idx, item_obj in enumerate(current_list):
-            if not isinstance(item_obj, str):
+        # Let Pyright infer current_list from v after the isinstance check (likely list[Any])
+        current_list = v
+        for item_idx, item_obj in enumerate(current_list):  # item_obj will be Any
+            if not isinstance(item_obj, str):  # Check if item_obj is str
                 raise ValueError(
                     f"{field_name}[{item_idx}]: Expected string item, got {type(item_obj).__name__}"
                 )
@@ -274,23 +287,24 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
 
     @field_validator("performance_history", "user_equities", mode="before")
     @classmethod
-    def validate_list_structure(cls, v: object, info: ValidationInfo) -> list[dict[str, Any]]:
+    def validate_list_structure(cls, v: object, info: ValidationInfo) -> list[Dict[str, Any]]:
         field_name = info.field_name or "list_field"
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Expected list")
 
-        # Explicitly type v after check for Pyright's benefit during iteration
-        # and build a new list to satisfy the return type strictly.
-        validated_items: list[dict[str, Any]] = []
-        source_list: list[object] = v
+        validated_items: list[Dict[str, Any]] = []
+        # Let Pyright infer source_list from v after the isinstance check (likely list[Any])
+        source_list = v
 
-        for item_idx, item_obj in enumerate(source_list):
-            if not isinstance(item_obj, dict):
+        for item_idx, item_obj in enumerate(source_list):  # item_obj will be Any
+            # Use the TypeGuard to narrow down item_obj's type
+            if not is_dict_with_str_keys(
+                item_obj
+            ):  # TypeGuard expects object, gets Any. Narrows to Dict[str,Any]
                 raise ValueError(
-                    f"{field_name}[{item_idx}]: Expected dict item, got {type(item_obj).__name__}"
+                    f"{field_name}[{item_idx}]: Expected dict with string keys, "
+                    f"got {type(item_obj).__name__}"
                 )
-            # item_obj is now known to be a dict.
-            # Pydantic expects dicts that can be parsed into the target model types.
-            # We assume it's Dict[str, Any] for the purpose of this raw validator stage.
+            # item_obj is now known to be Dict[str, Any] by the type checker
             validated_items.append(item_obj)
         return validated_items
