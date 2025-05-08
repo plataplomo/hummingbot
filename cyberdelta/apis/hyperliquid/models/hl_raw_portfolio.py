@@ -41,20 +41,21 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
     ) -> tuple[object, object] | list[object]:
         """Ensures input is a 2-element list/tuple. Pydantic handles element validation."""
         field_name = info.field_name or "history_entry_tuple"
-        if not isinstance(v, (list, tuple)):
+        if not isinstance(v, list | tuple):
             raise ValueError(
                 f"Field '{field_name}': Expected 2-element list/tuple, got {type(v).__name__}."
             )
 
-        v_casted = cast(list[object] | tuple[object, ...], v)
+        v_casted_for_len_check = cast(list[object] | tuple[object, ...], v)
 
-        if len(v_casted) != 2:
+        if len(v_casted_for_len_check) != 2:
             raise ValueError(
-                f"Field '{field_name}': Expected 2-element list/tuple, got length {len(v_casted)}."
+                f"Field '{field_name}': Expected 2-element list/tuple, got length {len(v_casted_for_len_check)}."
             )
-        if isinstance(v_casted, tuple):
-            return v_casted  # v_casted is tuple[object, object] as per linter
-        return v_casted  # v_casted is list[object] as per linter
+
+        if isinstance(v, tuple):
+            return cast(tuple[object, object], v)
+        return cast(list[object], v)
 
 
 class HyperliquidRawPortfolioTimeframeData(BaseModel):
@@ -83,7 +84,7 @@ class HyperliquidRawPortfolioTupleItem(
     ) -> tuple[object, dict[str, object]] | list[object]:
         """Ensures input is a 2-element list/tuple. Pydantic handles element validation."""
         field_name = info.field_name or "portfolio_tuple_item"
-        if not isinstance(v, (list, tuple)):
+        if not isinstance(v, list | tuple):
             raise ValueError(
                 f"Field '{field_name}': Expected 2-element list/tuple, got {type(v).__name__}."
             )
