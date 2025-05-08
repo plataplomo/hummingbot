@@ -1032,27 +1032,29 @@ class HyperliquidAPI(ExchangeAPI):
                     f"{type(response_raw)}. Expected list. Empty list."
                 )
                 return []
-            validated_fills_wrapper: HyperliquidRawUserFillsResponse = (
+            validated_fills_list: list[HyperliquidRawUserFillsResponse] = (
                 HyperliquidResponseHandler.handle_info_user_fills_response(
                     cast(RawJsonResponse, response_raw), self._wallet_address
                 )
             )
             trades: list[Trade] = []
-            for raw_fill in validated_fills_wrapper.root:
-                try:
-                    if symbol is not None and raw_fill.coin != symbol:
+            for fill_response_item in validated_fills_list:
+                for raw_fill in fill_response_item.root:
+                    try:
+                        if symbol is not None and raw_fill.coin != symbol:
+                            continue
+                        # Cast raw_fill (HyperliquidRawUserFill) to HyperliquidRawFill
+                        # for the mapper
+                        internal_trade = HyperliquidMapper.transform_raw_fill_to_internal(
+                            cast(HyperliquidRawFill, raw_fill)
+                        )
+                        trades.append(internal_trade)
+                    except (ValidationError, ValueError) as e_item:
+                        logger.warning(
+                            f"[{self.exchange_name}] Skipping fill due to validation/transform "
+                            f"error: {e_item}. Data: {raw_fill}"
+                        )
                         continue
-                    # Cast raw_fill (HyperliquidRawUserFill) to HyperliquidRawFill for the mapper
-                    internal_trade = HyperliquidMapper.transform_raw_fill_to_internal(
-                        cast(HyperliquidRawFill, raw_fill)
-                    )
-                    trades.append(internal_trade)
-                except (ValidationError, ValueError) as e_item:
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping fill due to validation/transform "
-                        f"error: {e_item}. Data: {raw_fill}"
-                    )
-                    continue
             trades.sort(key=lambda t: t.executed_at, reverse=True)
             return trades[:limit]
         except APIError:
