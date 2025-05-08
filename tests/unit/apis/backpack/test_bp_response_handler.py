@@ -44,6 +44,17 @@ type ValidationErrorTestCaseType = tuple[
 ]
 type ListItemTestCaseType = tuple[HandlerMethodType, str, str]
 
+# More specific type alias for the _list_item_error_cases tuples
+type ListItemErrorTestCaseStructure = tuple[
+    HandlerMethodType,  # The handler method to test
+    str,  # Name of the fixture providing valid raw list/dict data
+    ModificationDetailsType,  # Describes how to modify an item in the list/dict
+    str,  # Expected substring in the log message or error
+    HandlerArgsSpecType,  # Arguments for the handler method
+    str,  # Context string format for error messages
+    bool,  # True if a warning log is expected, False for APIError
+]
+
 # --- Fixtures ---
 
 
@@ -883,7 +894,7 @@ def test_handler_validation_error_dict(
 # (handler_method, valid_list_fixture, item_modification,
 #  expected_error_substring, args_spec, item_context_string,
 #  expect_warning_log)
-_list_item_error_cases = [
+_list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
     # get_recent_trades: Invalid item type
     (
         BackpackResponseHandler.handle_get_recent_trades_response,
@@ -1068,8 +1079,8 @@ def test_handler_list_item_errors(
             if index < len(list_data):
                 item_to_mod: Any = list_data[index]
                 if isinstance(item_to_mod, dict):
-                    # Cast removed as redundant
-                    dict_item = item_to_mod
+                    # Cast to dict[str, Any] to satisfy Pyright for dict_item
+                    dict_item = cast(dict[str, Any], item_to_mod)
                     if "remove_field" in mod_details:
                         del dict_item[mod_details["remove_field"]]
                     elif "change_field" in mod_details:
