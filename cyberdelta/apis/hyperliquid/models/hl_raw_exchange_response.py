@@ -23,7 +23,7 @@ These models adhere to the Raw Model Policy, focusing on validating the external
 raw data types, and basic formats without incorporating business logic.
 """
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 from pydantic import (
     BaseModel,
@@ -94,12 +94,12 @@ class HyperliquidRawExchangeResponseData(BaseModel):
 
     @field_validator("statuses", mode="before")
     @classmethod
-    def validate_statuses_list_structure(cls, v: object, info: ValidationInfo) -> object:
+    def validate_statuses_list_structure(cls, v: object, info: ValidationInfo) -> list[object]:
         """Validate the 'statuses' field is a list. Pydantic will handle item validation."""
         field_name = info.field_name or "statuses"
         if not isinstance(v, list):
             raise TypeError(f"Field '{field_name}': Must be a list, got {type(v).__name__}.")
-        return v
+        return cast(list[object], v)
 
 
 class HyperliquidRawExchangeResponse(BaseModel):

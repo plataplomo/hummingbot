@@ -31,7 +31,7 @@ real-time and historical order book data.
     # ...then transform to internal order book model
 """
 
-from typing import Annotated, Literal, TypeGuard
+from typing import Annotated, Literal, TypeGuard, cast
 
 from pydantic import (
     BaseModel,
@@ -110,7 +110,7 @@ class HyperliquidRawL2Book(BaseModel):
 
     @field_validator("levels", mode="before")
     @classmethod
-    def validate_levels_structure(cls, v: object, info: ValidationInfo) -> object:
+    def validate_levels_structure(cls, v: object, info: ValidationInfo) -> list[list[object]]:
         """
         Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
         The inner elements will be parsed by Pydantic against HyperliquidRawBookLevel.
@@ -119,7 +119,7 @@ class HyperliquidRawL2Book(BaseModel):
             v (object): The value to validate (should be a list of two lists).
             info (ValidationInfo): Pydantic validation context.
         Returns:
-            object: The validated raw structure for 'levels'.
+            list[list[object]]: The validated raw structure for 'levels'.
         Raises:
             ValueError: If the input is not a valid structure for order book levels.
         """
@@ -140,7 +140,9 @@ class HyperliquidRawL2Book(BaseModel):
         # Further validation of individual level items (e.g. dicts with px, sz, n)
         # will be handled by Pydantic when it parses into list[list[HyperliquidRawBookLevel]].
         # This validator ensures the basic [list, list] structure.
-        return v  # Return the raw validated structure for Pydantic to process further
+        return cast(
+            list[list[object]], v
+        )  # Return the raw validated structure for Pydantic to process further
 
 
 class HyperliquidRawL2BookRequestPayload(BaseModel):

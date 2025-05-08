@@ -32,7 +32,7 @@ and market data.
     # ...then transform to internal model
 """
 
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import (
     BaseModel,
@@ -93,7 +93,7 @@ class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalS
 
     @field_validator("root", mode="before")
     @classmethod
-    def ensure_root_is_dict(cls, v: object, info: ValidationInfo) -> object:
+    def ensure_root_is_dict(cls, v: object, info: ValidationInfo) -> dict[str, object]:
         """
         Validates that the root input is a dictionary. Pydantic will handle
         key/value type validation using RawAssetString64HL and RawFiniteDecimalStr.
@@ -103,4 +103,4 @@ class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalS
             raise ValueError(
                 f"Field '{field_name}': Expected a dictionary, got {type(v).__name__}."
             )
-        return v
+        return cast(dict[str, object], v)

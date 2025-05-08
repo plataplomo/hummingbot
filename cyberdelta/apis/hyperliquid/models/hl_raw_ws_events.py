@@ -35,7 +35,7 @@ Do not use these models for internal business logic—use your core models for t
 for boundary validation only.
 """
 
-from typing import TypeGuard, TypeVar
+from typing import TypeGuard, TypeVar, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -167,7 +167,7 @@ class HyperliquidRawWsBookUpdate(BaseModel):
 
     @field_validator("levels", mode="before")
     @classmethod
-    def validate_levels_structure(cls, v: object, info: ValidationInfo) -> object:
+    def validate_levels_structure(cls, v: object, info: ValidationInfo) -> list[list[object]]:
         """
         Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
         The inner elements will be parsed by Pydantic against HyperliquidRawBookLevel.
@@ -182,7 +182,7 @@ class HyperliquidRawWsBookUpdate(BaseModel):
             raise ValueError("levels[0] (bids): Must be a list.")
         if not is_list(asks_raw):
             raise ValueError("levels[1] (asks): Must be a list.")
-        return v
+        return cast(list[list[object]], v)
 
 
 class HyperliquidRawWsTradeEvent(BaseModel):
@@ -236,7 +236,7 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
         # Keeping explicit check for robustness with 'before' mode.
         if not isinstance(v, dict):
             raise ValueError("data: Must be a dictionary")
-        return v
+        return cast(dict[str, object], v)
 
 
 class HyperliquidRawWsPositionUpdateEvent(BaseModel):

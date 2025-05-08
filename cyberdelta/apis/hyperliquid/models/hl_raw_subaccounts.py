@@ -7,6 +7,8 @@ Validates the raw structure only (a list of addresses).
 Never use for internal business logic.
 """
 
+from typing import cast
+
 from pydantic import (
     ConfigDict,
     RootModel,
@@ -28,10 +30,10 @@ class HyperliquidRawSubAccountsResponse(RootModel[list[RawEthereumAddressStr]]):
 
     @field_validator("root", mode="before")
     @classmethod
-    def validate_address_list_structure(cls, v: object, info: ValidationInfo) -> object:
+    def validate_address_list_structure(cls, v: object, info: ValidationInfo) -> list[object]:
         """Ensures the root input is a list. Pydantic handles address validation."""
         field_name = info.field_name or "subaccounts_list"
         if not isinstance(v, list):
             raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
 
-        return v
+        return cast(list[object], v)
