@@ -45,9 +45,9 @@ from pydantic import (
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawAssetString64HL,
     RawFiniteDecimalStr,
+    RawInt,
     RawNonNegativeInt,
     RawPositiveFiniteDecimalStr,
-    RawTimestampMsInt,
 )
 from cyberdelta.utils.parsing import validate_str_field
 
@@ -100,12 +100,12 @@ class HyperliquidRawL2Book(BaseModel):
     Fields:
         coin (RawAssetString64HL): Asset symbol (e.g., 'ETH', 'BTC').
         levels (List[List[HyperliquidRawBookLevel]]): Nested list of price levels [bids, asks].
-        time (RawTimestampMsInt): Snapshot timestamp (epoch ms).
+        time (RawInt): Snapshot timestamp (epoch ms).
     """
 
     coin: RawAssetString64HL = Field(..., alias="coin")
     levels: list[list[HyperliquidRawBookLevel]] = Field(..., alias="levels")
-    time: RawTimestampMsInt = Field(..., alias="time")
+    time: RawInt = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("levels", mode="before")

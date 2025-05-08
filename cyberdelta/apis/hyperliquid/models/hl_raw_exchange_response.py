@@ -40,7 +40,8 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawFiniteDecimalStr,
     RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
-    RawOptionalString,
+    RawOptionalNonEmptyString1024HL,
+    RawStatusStringHL,
     RawTxHashStr,
 )
 from cyberdelta.utils.parsing import validate_str_field
@@ -72,14 +73,14 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
 
     resting: HyperliquidRawExchangeStatusResting | None = Field(None)
     filled: HyperliquidRawExchangeStatusFilled | None = Field(None)
-    error: RawOptionalString = Field(
-        default=None, description="Error message if any", max_length=1024
+    error: RawOptionalNonEmptyString1024HL = Field(
+        None, alias="error", description="Error message if any"
     )
     withdrawal_submitted: RawTxHashStr | None = Field(
         default=None, alias="WithdrawalSubmitted", description="Withdrawal tx hash if submitted"
     )
-    success: RawOptionalString = Field(
-        default=None, alias="Success", description="Success message if any", max_length=1024
+    success: RawOptionalNonEmptyString1024HL = Field(
+        default=None, alias="Success", description="Success message if any"
     )
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
@@ -89,7 +90,7 @@ class HyperliquidRawExchangeResponseData(BaseModel):
     """Raw model for the 'data' part of an exchange action response."""
 
     type: RawDefaultString = Field(..., description="Type of response data", max_length=32)
-    statuses: list[RawDefaultString | HyperliquidRawExchangeStatusObject] = Field(...)
+    statuses: list[RawStatusStringHL | HyperliquidRawExchangeStatusObject] = Field(...)
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     @field_validator("statuses", mode="before")

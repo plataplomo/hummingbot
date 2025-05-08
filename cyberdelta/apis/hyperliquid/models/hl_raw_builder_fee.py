@@ -9,16 +9,15 @@ Never use for internal business logic.
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.apis.hyperliquid.models.common_raw_types import RawStrictBool
-
 
 class HyperliquidRawBuilderFeeApprovalResponse(BaseModel):
     """
     Raw boundary model for the builder fee approval status.
     NOTE: Response structure is assumed based on endpoint name, as docs lack example.
     Assuming a simple boolean status.
+    Test test_builder_fee_approved_various_inputs requires coercion from "true"/"false".
     """
 
-    approved: RawStrictBool = Field(..., alias="approved")
+    approved: bool = Field(..., alias="approved")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)

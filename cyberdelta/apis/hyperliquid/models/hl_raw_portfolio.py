@@ -7,7 +7,7 @@ Validates the raw structure only.
 Never use for internal business logic.
 """
 
-from typing import cast
+from typing import Any, cast
 
 from pydantic import (
     BaseModel,
@@ -33,29 +33,52 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
     """
 
     root: tuple[RawTimestampMsInt, RawFiniteDecimalStr]
+    # model_config = ConfigDict(frozen=True) # Not standard for RootModel root itself
 
     @field_validator("root", mode="before")
     @classmethod
     def validate_history_entry_tuple_structure(
         cls, v: object, info: ValidationInfo
-    ) -> tuple[object, object] | list[object]:
-        """Ensures input is a 2-element list/tuple. Pydantic handles element validation."""
+    ) -> list[object]:  # Return list for Pydantic to map to tuple elements
+        """
+        Ensures input is a 2-element list/tuple or a dict {0: ts, 1: val}.
+        Pydantic handles element validation against RawTimestampMsInt and RawFiniteDecimalStr.
+        """
         field_name = info.field_name or "history_entry_tuple"
-        if not isinstance(v, list | tuple):
+
+        if isinstance(v, dict):
+            v_dict = cast(dict[Any, Any], v)  # Cast for type checker
+            # Handle dictionary input as per test_history_entry_valid_from_dict
+            # Convert to list [value_for_key_0, value_for_key_1]
+            # Pydantic will then validate elements against the tuple's types.
+            if 0 in v_dict and 1 in v_dict:
+                if len(v_dict) == 2:  # Ensure only keys 0 and 1 are present
+                    return [v_dict[0], v_dict[1]]
+                else:
+                    # Handles cases like {0: val0, 1: val1, 2: val2}
+                    raise ValueError(
+                        f"Field '{field_name}': Dictionary input must contain "
+                        f"exactly keys 0 and 1, got keys {sorted(list(v_dict.keys()))}."
+                    )
+            else:
+                raise ValueError(
+                    f"Field '{field_name}': Dictionary input must have keys 0 and 1, "
+                    f"got keys {sorted(list(v_dict.keys()))}."
+                )
+        elif isinstance(v, list | tuple):
+            v_sequence = cast(list[object] | tuple[object, ...], v)
+            if len(v_sequence) != 2:
+                raise ValueError(
+                    f"Field '{field_name}': Expected 2-element list/tuple, "
+                    f"got length {len(v_sequence)}."
+                )
+            # Ensure it's a list of objects for Pydantic to process for the tuple
+            return list(v_sequence)
+        else:
             raise ValueError(
-                f"Field '{field_name}': Expected 2-element list/tuple, got {type(v).__name__}."
+                f"Field '{field_name}': Expected 2-element list/tuple or dict {{0: ts, 1: val}}, "
+                f"got {type(v).__name__}."
             )
-
-        v_casted_for_len_check = cast(list[object] | tuple[object, ...], v)
-
-        if len(v_casted_for_len_check) != 2:
-            raise ValueError(
-                f"Field '{field_name}': Expected 2-element list/tuple, got length {len(v_casted_for_len_check)}."
-            )
-
-        if isinstance(v, tuple):
-            return cast(tuple[object, object], v)
-        return cast(list[object], v)
 
 
 class HyperliquidRawPortfolioTimeframeData(BaseModel):
@@ -102,7 +125,8 @@ class HyperliquidRawPortfolioTupleItem(
         if not isinstance(element_1_value, dict):
             actual_type_name = type(element_1_value).__name__
             raise ValueError(
-                f"Field '{field_name}', element 1: Expected data object to be a dictionary, got {actual_type_name}."
+                f"Field '{field_name}', element 1: Expected data object to be a dictionary, "
+                f"got {actual_type_name}."
             )
 
         element_1_dict = cast(dict[str, object], element_1_value)

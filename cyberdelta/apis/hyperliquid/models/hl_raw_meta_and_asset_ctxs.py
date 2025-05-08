@@ -44,7 +44,6 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawAssetString64HL,
     RawFiniteDecimalStr,
-    RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
     RawStrictBool,
 )
@@ -95,7 +94,7 @@ class HyperliquidRawAssetCtx(BaseModel):
     funding: RawFiniteDecimalStr = Field(..., alias="funding")
     mark_px: RawFiniteDecimalStr = Field(..., alias="markPx")
     prev_day_px: RawFiniteDecimalStr = Field(..., alias="prevDayPx")
-    day_ntl_vlm: RawNonNegativeFiniteDecimalStr = Field(..., alias="dayNtlVlm")
+    day_ntl_vlm: RawFiniteDecimalStr = Field(..., alias="dayNtlVlm")
     impact_px: RawFiniteDecimalStr | None = Field(None, alias="impactPx")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 

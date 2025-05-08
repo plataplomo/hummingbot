@@ -90,9 +90,9 @@ def parse_decimal_value(
     if isinstance(value, Decimal):
         return value
     try:
-        str_val = str(value).replace(",", "")
+        str_val = str(value).strip().replace(",", "")
         return Decimal(str_val)
-    except (InvalidOperation, ValueError, TypeError) as e:
+    except (InvalidOperation, TypeError) as e:
         raise ValueError(f"{prefix}Cannot convert '{value}' to Decimal: {e}") from e
 
 
@@ -132,21 +132,24 @@ def validate_enum_field(
     value: object,
     allowed: set[str],
     field_name: str = "",
+    max_length: int | None = 32,
 ) -> str:
     """
-    Validates that a value is a string and a member of the allowed set.
+    Validates that a value is a string, a member of the allowed set, and valid UTF-8.
     Args:
         value: The value to validate.
         allowed: Set of allowed string values.
         field_name: Name of the field for error messages.
+        max_length: Maximum allowed length for the string representation.
     Returns:
         The validated string value.
     Raises:
         ValueError: If validation fails.
     """
+    s = validate_str_field(value, field_name=field_name, max_length=max_length, allow_empty=False)
+
     prefix = f"{field_name}: " if field_name else ""
-    if not isinstance(value, str):
-        raise ValueError(f"{prefix}Expected string for enum, got {type(value).__name__}")
-    if value not in allowed:
-        raise ValueError(f"{prefix}Invalid value '{value}'. Expected one of {allowed}")
-    return value
+    if s not in allowed:
+        allowed_sorted_list = sorted(list(allowed))
+        raise ValueError(f"{prefix}Invalid value '{s}'. Expected one of {allowed_sorted_list}")
+    return s

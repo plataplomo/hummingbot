@@ -103,7 +103,7 @@ class HyperliquidRawCandleSnapshot(BaseModel):
             and len(self.v) == list_len
         ):
             raise ValueError(
-                "Timestamp, OHLC, and Volume lists must have the same length. "
+                "Data lists (t, o, h, l, c, v) must all have the same length. "
                 f"Got lengths: t({len(self.t)}), o({len(self.o)}), h({len(self.h)}), "
                 f"l({len(self.l)}), c({len(self.c)}), v({len(self.v)})"
             )

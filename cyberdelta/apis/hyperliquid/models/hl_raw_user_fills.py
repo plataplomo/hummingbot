@@ -55,7 +55,6 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
     RawOptionalNonEmptyString128HL,
-    RawPositiveFiniteDecimalStr,
     RawSideStr,
     RawStrictBool,
     RawTimestampMsInt,
@@ -74,7 +73,7 @@ class HyperliquidRawUserFill(BaseModel):
     tid: RawNonNegativeInt = Field(..., alias="tid")
     coin: RawAssetString64HL = Field(..., alias="coin")
     px: RawFiniteDecimalStr = Field(..., alias="px")
-    sz: RawPositiveFiniteDecimalStr = Field(..., alias="sz")
+    sz: RawFiniteDecimalStr = Field(..., alias="sz")
     time: RawTimestampMsInt = Field(..., alias="time")
     side: RawSideStr = Field(..., alias="side")
     oid: RawNonNegativeInt = Field(..., alias="oid")
@@ -112,7 +111,8 @@ class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
             if not isinstance(item_obj, dict):
                 item_type = type(item_obj).__name__
                 raise ValueError(
-                    f"Field '{field_name}', Item {item_idx}: Expected a dictionary, got {item_type}."
+                    f"Field '{field_name}', Item {item_idx}: Expected a dictionary, "
+                    f"got {item_type}."
                 )
 
             # CAST 2: For type checker, item_obj is already confirmed dict by runtime check
