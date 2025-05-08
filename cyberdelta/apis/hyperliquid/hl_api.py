@@ -31,6 +31,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
     HyperliquidRawExchangeStatusObject,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     HyperliquidRawMetaAndAssetCtxsResponse,
@@ -49,12 +50,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
-)
-from cyberdelta.apis.hyperliquid.models.hl_raw_state import HyperliquidRawClearinghouseState
-from cyberdelta.apis.hyperliquid.models.hl_raw_trade import (
     HyperliquidRawRecentTradesResponse,
-    HyperliquidRawUserFill,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
+    HyperliquidRawUserFillsResponse,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
@@ -1031,20 +1032,20 @@ class HyperliquidAPI(ExchangeAPI):
                     f"{type(response_raw)}. Expected list. Empty list."
                 )
                 return []
-            validated_fills_list: list[HyperliquidRawUserFill] = (
+            validated_fills_wrapper: HyperliquidRawUserFillsResponse = (
                 HyperliquidResponseHandler.handle_info_user_fills_response(
                     cast(RawJsonResponse, response_raw), self._wallet_address
                 )
             )
             trades: list[Trade] = []
-            for raw_fill in validated_fills_list:
-                if not isinstance(raw_fill, dict):
-                    logger.warning(f"Skipping non-dict item in userFills list: {raw_fill}")
-                    continue
+            for raw_fill in validated_fills_wrapper.root:
                 try:
-                    if symbol is not None and raw_fill.asset != symbol:
+                    if symbol is not None and raw_fill.coin != symbol:
                         continue
-                    internal_trade = HyperliquidMapper.transform_raw_fill_to_internal(raw_fill)
+                    # Cast raw_fill (HyperliquidRawUserFill) to HyperliquidRawFill for the mapper
+                    internal_trade = HyperliquidMapper.transform_raw_fill_to_internal(
+                        cast(HyperliquidRawFill, raw_fill)
+                    )
                     trades.append(internal_trade)
                 except (ValidationError, ValueError) as e_item:
                     logger.warning(
