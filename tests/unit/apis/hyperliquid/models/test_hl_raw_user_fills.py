@@ -97,8 +97,13 @@ def test_user_fill_missing_required() -> None:
     for field in required:
         d = valid_user_fill().copy()
         del d[field]
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError) as exc_info:
             HyperliquidRawUserFill.model_validate(d)
+        # Simpler assertion for missing field, ensuring field name is present and "Field required"
+        error_str = str(exc_info.value)
+        # Pydantic v2 often puts the field name on its own line above the error
+        assert f"\n{field}\n" in error_str or f" {field}\n" in error_str
+        assert "Field required" in error_str
 
 
 def test_user_fill_optional_fields() -> None:
@@ -119,28 +124,35 @@ def test_user_fill_optional_fields() -> None:
 def test_user_fill_type_errors() -> None:
     d = valid_user_fill().copy()
     d["tid"] = "notanint"
-    with pytest.raises(ValidationError) as exc_info:  # Expect ValidationError wrapping TypeError
+    # Expect ValidationError because RawNonNegativeInt uses a validator that expects int
+    with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawUserFill.model_validate(d)
     assert "Must be an integer" in str(exc_info.value)
 
     d = valid_user_fill().copy()
     d["coin"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as exc_info_coin:
         HyperliquidRawUserFill.model_validate(d)
+    assert "Expected string" in str(exc_info_coin.value)
+
     d = valid_user_fill().copy()
     d["isMaker"] = "true"
-    with pytest.raises((ValidationError, TypeError)) as exc_info_maker_true:  # Broadened
+    with pytest.raises(ValidationError) as exc_info_maker:
         HyperliquidRawUserFill.model_validate(d)
-    assert "is_maker: Must be a boolean, got str." in str(exc_info_maker_true.value)
+    # RawStrictBool enforces bool type
+    assert "Must be a boolean, got str" in str(exc_info_maker.value)
 
     d = valid_user_fill().copy()
     d["time"] = 123.45  # Float instead of int
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as exc_info_time:
         HyperliquidRawUserFill.model_validate(d)
+    assert "Must be an integer" in str(exc_info_time.value)
+
     d = valid_user_fill().copy()
     d["oid"] = "id-string"  # String instead of int
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as exc_info_oid:
         HyperliquidRawUserFill.model_validate(d)
+    assert "Must be an integer" in str(exc_info_oid.value)
 
 
 def test_user_fill_format_errors() -> None:
@@ -191,8 +203,11 @@ def test_user_fill_format_errors() -> None:
 def test_user_fill_extra_field() -> None:
     d = valid_user_fill().copy()
     d["foo"] = 1
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawUserFill.model_validate(d)
+    error_str = str(exc_info.value).lower()
+    assert "extra" in error_str
+    assert "not permitted" in error_str
 
 
 def test_user_fill_adversarial_strings() -> None:
@@ -506,48 +521,47 @@ def test_hl_raw_user_fill_invalid_types(
 
 # --- Failure Cases: Format/Constraint Errors ---
 @pytest.mark.parametrize(
-    "field, invalid_value, expected_msg_part",
+    "field, invalid_value, expected_keywords",
     [
-        ("tid", -1, "Value cannot be negative"),
-        ("coin", "", "String cannot be empty"),
-        ("coin", "X" * 65, "String value too long (max 64 chars)"),
-        ("px", "", "String cannot be empty"),
-        ("px", "inf", "must be a parseable finite decimal string"),
-        ("sz", "NaN", "must be a parseable finite decimal string"),
-        ("time", -1000, "Value cannot be negative"),
-        ("side", "BUY", ("Invalid value 'BUY'", "Expected one of")),
-        ("oid", -1, "Value cannot be negative"),
-        ("startPosition", "", "String cannot be empty"),
-        ("dir", "", "String cannot be empty"),
-        ("hash", "", "String cannot be empty"),
-        ("hash", "X" * 67, "String value too long (max 66 chars)"),
-        ("fee", "-0.1", "Value must be non-negative"),
-        ("liquidationMarkPx", "", "String cannot be empty"),
-        (
-            "liquidationMarkPx",
-            "inf",
-            "Value must be a parseable finite decimal string",
-        ),
-        ("cloid", "", "String cannot be empty"),
-        ("cloid", "Y" * 129, "String value too long (max 128 chars)"),
+        ("tid", -1, ("value", "-1", "cannot be negative")),
+        ("coin", "", ("string", "cannot be empty")),
+        ("coin", "X" * 65, ("string", "too long", "max 64")),
+        ("px", "", ("string", "cannot be empty")),
+        ("px", "inf", ("finite decimal", "inf")),
+        ("sz", "NaN", ("finite decimal", "nan")),
+        ("time", -1000, ("timestamp", "-1000", "non-negative")),
+        ("side", "BUY", ("invalid", "value 'buy'")),
+        ("oid", -1, ("value", "-1", "cannot be negative")),
+        ("startPosition", "", ("string", "cannot be empty")),
+        ("dir", "", ("string", "cannot be empty")),
+        ("hash", "", ("string", "cannot be empty")),
+        ("hash", "X" * 67, ("string", "too long", "max 66")),
+        ("liquidationMarkPx", "", ("string", "cannot be empty")),
+        ("liquidationMarkPx", "inf", ("finite decimal", "inf")),
+        ("cloid", "", ("string", "cannot be empty")),
+        ("cloid", "Y" * 129, ("string", "too long", "max 128")),
     ],
 )
 def test_hl_raw_user_fill_invalid_formats(
     valid_user_fill_data: dict[str, Any],
     field: str,
-    invalid_value: object,  # Changed from Any to object
-    expected_msg_part: str | tuple[str, str],  # Allow tuple for multi-part checks
+    invalid_value: object,
+    expected_keywords: tuple[str, ...],
 ) -> None:
-    """Test ValidationError for format/constraint violations."""
+    """Test ValidationError for format/constraint violations using keywords."""
     valid_user_fill_data[field] = invalid_value
+
+    # Skip the fee test case as it's known to be invalid logic for now
+    if field == "fee" and invalid_value == "-0.1":
+        pytest.skip("Skipping invalid test case: fee can be negative (rebates)")
+
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawUserFill.model_validate(valid_user_fill_data)
-    # Adjust assertion to handle tuple of expected parts
-    if isinstance(expected_msg_part, tuple):
-        for part in expected_msg_part:
-            assert part in str(exc_info.value)
-    else:
-        assert expected_msg_part in str(exc_info.value)
+
+    error_str = str(exc_info.value).lower()
+    # Check all keywords are present
+    for keyword in expected_keywords:
+        assert keyword.lower() in error_str
 
 
 # --- Failure Cases: Missing Required Fields ---

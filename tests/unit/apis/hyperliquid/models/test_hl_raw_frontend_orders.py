@@ -86,7 +86,7 @@ def test_frontend_order_valid(valid_frontend_order_data: dict[str, Any]) -> None
 def test_frontend_order_invalid_fields(
     valid_frontend_order_data: dict[str, Any],
     field: str,
-    value: Any,
+    value: object,
     is_missing_test: bool,  # noqa: ANN401
 ) -> None:
     data_copy = valid_frontend_order_data.copy()
@@ -105,15 +105,22 @@ def test_frontend_order_missing_required_fields() -> None:
     for field in required_fields:
         data_copy = VALID_FRONTEND_ORDER.copy()
         del data_copy[field]
-        with pytest.raises(ValidationError, match=f"Field required.*{field}"):
+        with pytest.raises(ValidationError) as exc_info:
             HyperliquidRawFrontendOpenOrder.model_validate(data_copy)
+        # Simpler assertion for missing field
+        error_str = str(exc_info.value)
+        assert f"\n{field}\n" in error_str  # Check field name is on its own line
+        assert "Field required" in error_str
 
 
 def test_frontend_order_extra_field(valid_frontend_order_data: dict[str, Any]) -> None:
     data_copy = valid_frontend_order_data.copy()
     data_copy["extraField"] = "someValue"
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawFrontendOpenOrder.model_validate(data_copy)
+    error_str = str(exc_info.value).lower()
+    assert "extra" in error_str
+    assert "not permitted" in error_str
 
 
 # Test for response being a list of orders (though model itself is single order)
@@ -136,5 +143,7 @@ def test_frontend_orders_list_invalid_item() -> None:
 
 
 def test_frontend_orders_list_not_a_list() -> None:
-    with pytest.raises(TypeError):  # Or other error depending on how it's passed
+    with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawFrontendOpenOrder.model_validate("not a list")
+    error_str = str(exc_info.value).lower()
+    assert "dictionary" in error_str or "instance" in error_str
