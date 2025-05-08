@@ -138,14 +138,18 @@ class HyperliquidRawVaultRelationshipData(BaseModel):
             return None
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Expected list or None")
+
         validated_list: list[str] = []
-        for item_idx, item in enumerate(v):
-            if not isinstance(item, str):
+        # Explicitly type v after check for Pyright's benefit during iteration
+        current_list: list[object] = v
+        for item_idx, item_obj in enumerate(current_list):
+            if not isinstance(item_obj, str):
                 raise ValueError(
-                    f"{field_name}[{item_idx}]: Expected string item, got {type(item).__name__}"
+                    f"{field_name}[{item_idx}]: Expected string item, got {type(item_obj).__name__}"
                 )
+            # item_obj is now known to be str
             item_field_name = f"{field_name}[{item_idx}]"
-            s = validate_str_field(item, field_name=item_field_name, max_length=42)
+            s = validate_str_field(item_obj, field_name=item_field_name, max_length=42)
             if len(s) != 42:
                 raise ValueError(f"{item_field_name}: Expected length 42, got {len(s)}")
             validated_list.append(s)
@@ -175,8 +179,9 @@ class HyperliquidRawVaultRelationship(BaseModel):
     @field_validator("type", mode="before")
     @classmethod
     def validate_type_str(cls, v: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or "type_field"
         # Basic validation, could restrict to known enum values if stable
-        return validate_str_field(v, field_name=info.field_name, max_length=32)
+        return validate_str_field(v, field_name=field_name, max_length=32)
 
 
 class HyperliquidRawVaultDetailsResponse(BaseModel):
@@ -210,7 +215,9 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
     @classmethod
     def validate_name_desc(cls, v: object, info: ValidationInfo) -> str:
         # Allow potentially longer descriptions, adjust max_length if needed
-        return validate_str_field(v, field_name=info.field_name, max_length=1024)
+        return validate_str_field(
+            v, field_name=(info.field_name or "name_description_field"), max_length=1024
+        )
 
     @field_validator("allow_deposits", "always_close_on_withdraw", "is_closed", mode="before")
     @classmethod
@@ -267,16 +274,23 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
 
     @field_validator("performance_history", "user_equities", mode="before")
     @classmethod
-    def validate_list_structure(cls, v: object, info: ValidationInfo) -> list[Any]:
+    def validate_list_structure(cls, v: object, info: ValidationInfo) -> list[dict[str, Any]]:
         field_name = info.field_name or "list_field"
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Expected list")
-        # Check item types for basic structure validation, but Pydantic handles nested models.
-        for item_idx, item in enumerate(v):
-            if not isinstance(item, dict):
-                # Raise error if item structure is wrong before Pydantic gets to it
+
+        # Explicitly type v after check for Pyright's benefit during iteration
+        # and build a new list to satisfy the return type strictly.
+        validated_items: list[dict[str, Any]] = []
+        source_list: list[object] = v
+
+        for item_idx, item_obj in enumerate(source_list):
+            if not isinstance(item_obj, dict):
                 raise ValueError(
-                    f"{field_name}[{item_idx}]: Expected dict item, got {type(item).__name__}"
+                    f"{field_name}[{item_idx}]: Expected dict item, got {type(item_obj).__name__}"
                 )
-        # Return the original list 'v' for Pydantic to handle nested validation
-        return v
+            # item_obj is now known to be a dict.
+            # Pydantic expects dicts that can be parsed into the target model types.
+            # We assume it's Dict[str, Any] for the purpose of this raw validator stage.
+            validated_items.append(item_obj)
+        return validated_items

@@ -21,7 +21,7 @@ VALID_SUBACCOUNTS_RESPONSE: list[str] = [
 # --- Test Cases for HyperliquidRawSubAccountsResponse (RootModel) --- #
 
 
-def test_subaccounts_valid():
+def test_subaccounts_valid() -> None:
     response = HyperliquidRawSubAccountsResponse.model_validate(VALID_SUBACCOUNTS_RESPONSE)
     assert response.root == VALID_SUBACCOUNTS_RESPONSE
 
@@ -39,12 +39,12 @@ def test_subaccounts_valid():
         [["nested_list"]],  # Nested list, validator expects flat list of strings
     ],
 )
-def test_subaccounts_invalid_root_list(invalid_list_data: Any):
+def test_subaccounts_invalid_root_list(invalid_list_data: Any) -> None:  # noqa: ANN401
     with pytest.raises(ValidationError):
         HyperliquidRawSubAccountsResponse.model_validate(invalid_list_data)
 
 
-def test_subaccounts_empty_list_valid():
+def test_subaccounts_empty_list_valid() -> None:
     response = HyperliquidRawSubAccountsResponse.model_validate([])
     assert response.root == []
 

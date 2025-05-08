@@ -2,7 +2,7 @@
 Unit Tests for Hyperliquid Raw Referral Info Models
 """
 
-from typing import Any  # Added Optional
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -88,7 +88,7 @@ def valid_referral_response_data() -> dict[str, Any]:
 
 
 # HyperliquidRawReferredBy
-def test_referred_by_valid(valid_referred_by_data: dict[str, str]):
+def test_referred_by_valid(valid_referred_by_data: dict[str, str]) -> None:
     item = HyperliquidRawReferredBy.model_validate(valid_referred_by_data)
     assert item.referrer == valid_referred_by_data["referrer"]
     assert item.code == valid_referred_by_data["code"]
@@ -97,7 +97,9 @@ def test_referred_by_valid(valid_referred_by_data: dict[str, str]):
 @pytest.mark.parametrize(
     "field, value", [("referrer", "invalid"), ("code", None), ("referrer", "0x123")]
 )
-def test_referred_by_invalid(valid_referred_by_data: dict[str, str], field: str, value: str | None):
+def test_referred_by_invalid(
+    valid_referred_by_data: dict[str, str], field: str, value: str | None
+) -> None:
     data_copy = valid_referred_by_data.copy()
     if value is None:
         del data_copy[field]
@@ -108,7 +110,7 @@ def test_referred_by_invalid(valid_referred_by_data: dict[str, str], field: str,
 
 
 # HyperliquidRawReferralState (item)
-def test_referral_state_item_valid(valid_referral_state_item_data: dict[str, Any]):
+def test_referral_state_item_valid(valid_referral_state_item_data: dict[str, Any]) -> None:
     item = HyperliquidRawReferralState.model_validate(valid_referral_state_item_data)
     assert item.cum_vlm == valid_referral_state_item_data["cumVlm"]
     assert item.user == valid_referral_state_item_data["user"]
@@ -124,8 +126,10 @@ def test_referral_state_item_valid(valid_referral_state_item_data: dict[str, Any
     ],
 )
 def test_referral_state_item_invalid(
-    valid_referral_state_item_data: dict[str, Any], field: str, value: Any | None
-):
+    valid_referral_state_item_data: dict[str, Any],
+    field: str,
+    value: Any | None,  # noqa: ANN401
+) -> None:
     data_copy = valid_referral_state_item_data.copy()
     if value is None:
         del data_copy[field]
@@ -136,7 +140,7 @@ def test_referral_state_item_invalid(
 
 
 # HyperliquidRawReferrerData
-def test_referrer_data_valid(valid_referrer_data_data: dict[str, Any]):
+def test_referrer_data_valid(valid_referrer_data_data: dict[str, Any]) -> None:
     item = HyperliquidRawReferrerData.model_validate(valid_referrer_data_data)
     assert item.code == valid_referrer_data_data["code"]
     assert len(item.referral_states) == len(valid_referrer_data_data["referralStates"])
@@ -147,8 +151,10 @@ def test_referrer_data_valid(valid_referrer_data_data: dict[str, Any]):
     [("code", None), ("referralStates", "not-a-list"), ("referralStates", [{"user": "invalid"}])],
 )
 def test_referrer_data_invalid(
-    valid_referrer_data_data: dict[str, Any], field: str, value: Any | None
-):
+    valid_referrer_data_data: dict[str, Any],
+    field: str,
+    value: Any | None,  # noqa: ANN401
+) -> None:
     data_copy = valid_referrer_data_data.copy()
     if value is None:
         del data_copy[field]
@@ -159,7 +165,7 @@ def test_referrer_data_invalid(
 
 
 # HyperliquidRawReferrerState
-def test_referrer_state_valid(valid_referrer_state_data: dict[str, Any]):
+def test_referrer_state_valid(valid_referrer_state_data: dict[str, Any]) -> None:
     item = HyperliquidRawReferrerState.model_validate(valid_referrer_state_data)
     assert item.stage == valid_referrer_state_data["stage"]
     assert item.data.code == valid_referrer_state_data["data"]["code"]
@@ -174,8 +180,10 @@ def test_referrer_state_valid(valid_referrer_state_data: dict[str, Any]):
     ],
 )
 def test_referrer_state_invalid(
-    valid_referrer_state_data: dict[str, Any], field: str, value: Any | None
-):
+    valid_referrer_state_data: dict[str, Any],
+    field: str,
+    value: Any | None,  # noqa: ANN401
+) -> None:
     data_copy = valid_referrer_state_data.copy()
     if value is None:
         del data_copy[field]
@@ -186,7 +194,7 @@ def test_referrer_state_invalid(
 
 
 # HyperliquidRawReferralResponse
-def test_referral_response_valid(valid_referral_response_data: dict[str, Any]):
+def test_referral_response_valid(valid_referral_response_data: dict[str, Any]) -> None:
     item = HyperliquidRawReferralResponse.model_validate(valid_referral_response_data)
     assert item.cum_vlm == valid_referral_response_data["cumVlm"]
     assert item.referred_by.code == valid_referral_response_data["referredBy"]["code"]
@@ -209,8 +217,11 @@ def test_referral_response_valid(valid_referral_response_data: dict[str, Any]):
     ],
 )
 def test_referral_response_invalid(
-    valid_referral_response_data: dict[str, Any], field: str, value: Any, is_missing_test: bool
-):
+    valid_referral_response_data: dict[str, Any],
+    field: str,
+    value: Any,  # noqa: ANN401
+    is_missing_test: bool,
+) -> None:
     data_copy = valid_referral_response_data.copy()
     if is_missing_test:
         if field in data_copy:
@@ -232,8 +243,10 @@ def test_referral_response_invalid(
     ],
 )
 def test_all_referral_models_extra_fields(
-    model_class: Any, valid_data_fixture_name: str, request: Any
-):
+    model_class: Any,
+    valid_data_fixture_name: str,
+    request: Any,  # noqa: ANN401
+) -> None:
     valid_data = request.getfixturevalue(valid_data_fixture_name)
     data_copy = valid_data.copy()
     # For nested models, need to ensure the correct part is copied if mutable

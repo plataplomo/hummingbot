@@ -24,40 +24,48 @@ from cyberdelta.utils.parsing import (
 )
 
 
-class HyperliquidRawPortfolioHistoryEntry(BaseModel):
-    """Raw boundary model for a single point in account value or PnL history."""
+class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[int, str]]):
+    """
+    Raw boundary model for a single point in account value or PnL history.
+    Represents the [timestamp, value_str] list structure.
+    """
 
-    timestamp: int = Field(..., alias=0)  # Accessed by index in the list
-    value: str = Field(..., alias=1)  # Decimal string, accessed by index
+    root: tuple[int, str]
 
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("timestamp", mode="before")
+    @field_validator("root", mode="before")
     @classmethod
-    def validate_timestamp_ms(cls, v: object, info: ValidationInfo) -> int:
-        field_name = info.field_name or "timestamp"
-        if isinstance(v, str):
+    def validate_history_entry_tuple(cls, v: object) -> tuple[int, str]:
+        if not isinstance(v, (list, tuple)):
+            raise ValueError("Expected 2-element list or tuple [timestamp, value_str]")
+        if len(v) != 2:
+            raise ValueError("Expected 2-element list or tuple [timestamp, value_str]")
+
+        # Now we know v is a list or tuple of length 2
+        timestamp_raw: Any = v[0]
+        value_raw: Any = v[1]
+        field_name_ts = "history_entry.timestamp"
+        field_name_val = "history_entry.value"
+
+        # Validate timestamp (int)
+        if isinstance(timestamp_raw, str):
             try:
-                v_int = int(v)
+                timestamp = int(timestamp_raw)
             except ValueError:
-                raise ValueError(f"{field_name}: Expected int or int-like string") from None
-        elif isinstance(v, int):
-            v_int = v
+                raise ValueError(f"{field_name_ts}: Expected int or int-like string") from None
+        elif isinstance(timestamp_raw, int):
+            timestamp = timestamp_raw
         else:
-            raise ValueError(f"{field_name}: Expected int or int-like string")
-        if v_int < 0:
-            raise ValueError(f"{field_name}: Timestamp cannot be negative")
-        return v_int
+            raise ValueError(f"{field_name_ts}: Expected int or int-like string")
+        if timestamp < 0:
+            raise ValueError(f"{field_name_ts}: Timestamp cannot be negative")
 
-    @field_validator("value", mode="before")
-    @classmethod
-    def validate_value_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "value"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+        # Validate value (decimal string)
+        value_str = validate_str_field(value_raw, field_name=field_name_val, max_length=64)
+        d = parse_decimal_value(value_str, allow_none=False, field_name=field_name_val)
         if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal")
-        return s
+            raise ValueError(f"{field_name_val}: Value must be a finite decimal string")
+
+        return (timestamp, value_str)
 
 
 class HyperliquidRawPortfolioTimeframeData(BaseModel):
@@ -71,21 +79,6 @@ class HyperliquidRawPortfolioTimeframeData(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
-    @field_validator("account_value_history", "pnl_history", mode="before")
-    @classmethod
-    def validate_history_list(cls, v: object, info: ValidationInfo) -> list[Any]:
-        field_name = info.field_name or "history_list"
-        if not isinstance(v, list):
-            raise ValueError(f"{field_name}: Expected list")
-        # Check basic item structure (list of 2 items)
-        for item_idx, item in enumerate(v):
-            if not isinstance(item, list) or len(item) != 2:
-                raise ValueError(
-                    f"{field_name}[{item_idx}]: Expected 2-element list, got {type(item).__name__}"
-                )
-        # Nested validation done by HyperliquidRawPortfolioHistoryEntry
-        return v
-
     @field_validator("vlm", mode="before")
     @classmethod
     def validate_vlm_decimal_str(cls, v: object, info: ValidationInfo) -> str:
@@ -97,21 +90,35 @@ class HyperliquidRawPortfolioTimeframeData(BaseModel):
         return s
 
 
-class HyperliquidRawPortfolioTupleItem(BaseModel):
+class HyperliquidRawPortfolioTupleItem(RootModel[tuple[str, HyperliquidRawPortfolioTimeframeData]]):
     """Represents one item [timeframe_str, data_obj] in the main response list."""
 
-    timeframe: str = Field(..., alias=0)  # Accessed by index
-    data: HyperliquidRawPortfolioTimeframeData = Field(..., alias=1)  # Accessed by index
+    root: tuple[str, HyperliquidRawPortfolioTimeframeData]
 
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("timeframe", mode="before")
+    @field_validator("root", mode="before")
     @classmethod
-    def validate_timeframe_str(cls, v: object, info: ValidationInfo) -> str:
-        # e.g., "day", "week", "month", "allTime", "perpDay", ...
-        return validate_str_field(v, field_name="timeframe", max_length=32)
+    def validate_portfolio_tuple(
+        cls, v: object
+    ) -> tuple[str, HyperliquidRawPortfolioTimeframeData]:
+        if not isinstance(v, (list, tuple)):
+            raise ValueError("Expected 2-element list or tuple [timeframe_str, data_obj]")
+        if len(v) != 2:
+            raise ValueError("Expected 2-element list or tuple [timeframe_str, data_obj]")
 
-    # Data validation happens in nested HyperliquidRawPortfolioTimeframeData
+        timeframe_raw: Any = v[0]
+        data_raw: Any = v[1]
+
+        # Validate timeframe string
+        timeframe = validate_str_field(timeframe_raw, field_name="timeframe", max_length=32)
+
+        # Ensure data object is a dictionary before returning
+        if not isinstance(data_raw, dict):
+            raise ValueError("Expected data object (element 1) to be a dictionary")
+
+        # Return the validated timeframe and the *raw* data dictionary.
+        # Pydantic will then validate this dictionary against HyperliquidRawPortfolioTimeframeData.
+        # Mypy doesn't know this, hence the ignore.
+        return (timeframe, data_raw)  # type: ignore[return-value]
 
 
 # Root model for the overall response which is a list of these tuples
@@ -128,11 +135,11 @@ class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupl
     def validate_portfolio_list(cls, v: object) -> list[Any]:
         if not isinstance(v, list):
             raise ValueError("Expected root object to be a list")
-        # Basic check for item structure (list of 2 items)
-        for item_idx, item in enumerate(v):
-            if not isinstance(item, list) or len(item) != 2:
-                raise ValueError(
-                    f"Item {item_idx}: Expected 2-element list, got {type(item).__name__}"
-                )
+        # Basic check moved to HyperliquidRawPortfolioTupleItem validator
+        # for item_idx, item in enumerate(v):
+        #     if not isinstance(item, list) or len(item) != 2:
+        #         raise ValueError(
+        #             f"Item {item_idx}: Expected 2-element list, got {type(item).__name__}"
+        #         )
         # Further validation happens in HyperliquidRawPortfolioTupleItem
         return v

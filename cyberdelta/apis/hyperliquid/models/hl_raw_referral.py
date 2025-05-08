@@ -19,7 +19,6 @@ from pydantic import (
 
 from cyberdelta.utils.parsing import (
     parse_decimal_value,
-    parse_int_value,
     validate_str_field,
 )
 
@@ -77,11 +76,17 @@ class HyperliquidRawReferralState(BaseModel):
     @classmethod
     def validate_timestamp_ms(cls, v: object, info: ValidationInfo) -> int:
         field_name = info.field_name or "time_joined"
-        if isinstance(v, str): try: v_int = int(v)
-        except ValueError: raise ValueError(f"{field_name}: Expected int or int-like string") from None
-        elif isinstance(v, int): v_int = v
-        else: raise ValueError(f"{field_name}: Expected int or int-like string")
-        if v_int < 0: raise ValueError(f"{field_name}: Timestamp cannot be negative")
+        if isinstance(v, str):
+            try:
+                v_int = int(v)
+            except ValueError:
+                raise ValueError(f"{field_name}: Expected int or int-like string") from None
+        elif isinstance(v, int):
+            v_int = v
+        else:
+            raise ValueError(f"{field_name}: Expected int or int-like string")
+        if v_int < 0:
+            raise ValueError(f"{field_name}: Timestamp cannot be negative")
         return v_int
 
     @field_validator("user", mode="before")
@@ -89,8 +94,10 @@ class HyperliquidRawReferralState(BaseModel):
     def validate_user_address(cls, v: object, info: ValidationInfo) -> str:
         field_name = info.field_name or "user"
         s = validate_str_field(v, field_name=field_name, max_length=42)
-        if len(s) != 42: raise ValueError(f"{field_name}: Expected length 42, got {len(s)}")
-        if not s.startswith("0x"): raise ValueError(f"{field_name}: Must start with 0x")
+        if len(s) != 42:
+            raise ValueError(f"{field_name}: Expected length 42, got {len(s)}")
+        if not s.startswith("0x"):
+            raise ValueError(f"{field_name}: Must start with 0x")
         return s
 
 
@@ -120,7 +127,7 @@ class HyperliquidRawReferrerData(BaseModel):
 class HyperliquidRawReferrerState(BaseModel):
     """Raw boundary model for the 'referrerState' object."""
 
-    stage: str = Field(..., alias="stage") # e.g., "ready"
+    stage: str = Field(..., alias="stage")  # e.g., "ready"
     data: HyperliquidRawReferrerData = Field(..., alias="data")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
@@ -142,7 +149,9 @@ class HyperliquidRawReferralResponse(BaseModel):
     claimed_rewards: str = Field(..., alias="claimedRewards")
     builder_rewards: str = Field(..., alias="builderRewards")
     referrer_state: HyperliquidRawReferrerState = Field(..., alias="referrerState")
-    reward_history: list[Any] = Field(..., alias="rewardHistory") # Empty in example, structure unknown
+    reward_history: list[Any] = Field(
+        ..., alias="rewardHistory"
+    )  # Empty in example, structure unknown
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
@@ -165,4 +174,4 @@ class HyperliquidRawReferralResponse(BaseModel):
         if not isinstance(v, list):
             raise ValueError("reward_history: Expected list")
         # Could add item validation if structure becomes known
-        return v 
+        return v

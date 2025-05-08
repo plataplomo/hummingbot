@@ -26,7 +26,7 @@ def valid_builder_fee_data() -> dict[str, Any]:
 # --- Test Cases for HyperliquidRawBuilderFeeApprovalResponse --- #
 
 
-def test_builder_fee_valid(valid_builder_fee_data: dict[str, Any]):
+def test_builder_fee_valid(valid_builder_fee_data: dict[str, Any]) -> None:
     response = HyperliquidRawBuilderFeeApprovalResponse.model_validate(valid_builder_fee_data)
     assert response.approved == valid_builder_fee_data["approved"]
 
@@ -42,7 +42,7 @@ def test_builder_fee_valid(valid_builder_fee_data: dict[str, Any]):
         "false",  # lowercase
     ],
 )
-def test_builder_fee_approved_various_inputs(value: Any):
+def test_builder_fee_approved_various_inputs(value: Any) -> None:  # noqa: ANN401
     data = {"approved": value}
     if isinstance(value, str) and value.lower() in ["true", "false"]:
         expected_bool = value.lower() == "true"
@@ -53,12 +53,12 @@ def test_builder_fee_approved_various_inputs(value: Any):
             HyperliquidRawBuilderFeeApprovalResponse.model_validate(data)
 
 
-def test_builder_fee_missing_approved_field():
+def test_builder_fee_missing_approved_field() -> None:
     with pytest.raises(ValidationError, match="Field required"):
         HyperliquidRawBuilderFeeApprovalResponse.model_validate({})
 
 
-def test_builder_fee_extra_field(valid_builder_fee_data: dict[str, Any]):
+def test_builder_fee_extra_field(valid_builder_fee_data: dict[str, Any]) -> None:
     data_copy = valid_builder_fee_data.copy()
     data_copy["extra"] = "field"
     with pytest.raises(ValidationError):

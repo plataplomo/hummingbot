@@ -185,8 +185,8 @@ class HyperliquidRawCandleSnapshot(BaseModel):
                     )
             except ValueError as e:
                 error_message = (
-                    f"{current_item_desc}: Invalid non-negative finite decimal string '{str_item}'. "
-                    f"Reason: {e}"
+                    f"{current_item_desc}: Invalid non-negative finite decimal string "
+                    f"'{str_item}'. Reason: {e}"
                 )
                 raise ValueError(error_message) from e
             validated_list.append(str_item)

@@ -80,16 +80,16 @@ def valid_portfolio_tuple_item_data() -> list[Any]:
 
 
 # HyperliquidRawPortfolioHistoryEntry Tests
-def test_history_entry_valid_from_list(valid_history_entry_list_data: list[Any]):
+def test_history_entry_valid_from_list(valid_history_entry_list_data: list[Any]) -> None:
     item = HyperliquidRawPortfolioHistoryEntry.model_validate(valid_history_entry_list_data)
-    assert item.timestamp == valid_history_entry_list_data[0]
-    assert item.value == valid_history_entry_list_data[1]
+    assert item.root[0] == valid_history_entry_list_data[0]
+    assert item.root[1] == valid_history_entry_list_data[1]
 
 
-def test_history_entry_valid_from_dict(valid_history_entry_dict_data: dict[int | str, Any]):
+def test_history_entry_valid_from_dict(valid_history_entry_dict_data: dict[int | str, Any]) -> None:
     item = HyperliquidRawPortfolioHistoryEntry.model_validate(valid_history_entry_dict_data)
-    assert item.timestamp == valid_history_entry_dict_data[0]
-    assert item.value == valid_history_entry_dict_data[1]
+    assert item.root[0] == valid_history_entry_dict_data[0]
+    assert item.root[1] == valid_history_entry_dict_data[1]
 
 
 @pytest.mark.parametrize(
@@ -105,20 +105,22 @@ def test_history_entry_valid_from_dict(valid_history_entry_dict_data: dict[int |
         [123, "1.0", "extra"],
     ],
 )
-def test_history_entry_invalid_list_input(value_list: list[Any]):
+def test_history_entry_invalid_list_input(value_list: list[Any]) -> None:
     with pytest.raises(ValidationError):
         HyperliquidRawPortfolioHistoryEntry.model_validate(value_list)
 
 
 @pytest.mark.parametrize("key_alias, value", [(0, "not-an-int"), (1, "not-a-decimal"), (0, -123)])
-def test_history_entry_invalid_dict_input(key_alias: int, value: Any):
+def test_history_entry_invalid_dict_input(key_alias: int, value: Any) -> None:  # noqa: ANN401
     data: dict[int | str, Any] = {0: 1741886630493, 1: "0.0"}
     data[key_alias] = value
     with pytest.raises(ValidationError):
         HyperliquidRawPortfolioHistoryEntry.model_validate(data)
 
 
-def test_history_entry_extra_field_dict_input(valid_history_entry_dict_data: dict[int | str, Any]):
+def test_history_entry_extra_field_dict_input(
+    valid_history_entry_dict_data: dict[int | str, Any],
+) -> None:
     data_copy = valid_history_entry_dict_data.copy()
     data_copy[2] = "extra"  # Integer key due to aliases
     with pytest.raises(ValidationError):
@@ -126,14 +128,14 @@ def test_history_entry_extra_field_dict_input(valid_history_entry_dict_data: dic
 
 
 # HyperliquidRawPortfolioTimeframeData Tests
-def test_timeframe_data_valid(valid_timeframe_data: dict[str, Any]):
+def test_timeframe_data_valid(valid_timeframe_data: dict[str, Any]) -> None:
     data = HyperliquidRawPortfolioTimeframeData.model_validate(valid_timeframe_data)
     assert len(data.account_value_history) == len(valid_timeframe_data["accountValueHistory"])
     assert (
-        data.account_value_history[0].timestamp == valid_timeframe_data["accountValueHistory"][0][0]
+        data.account_value_history[0].root[0] == valid_timeframe_data["accountValueHistory"][0][0]
     )
     assert len(data.pnl_history) == len(valid_timeframe_data["pnlHistory"])
-    assert data.pnl_history[0].value == valid_timeframe_data["pnlHistory"][0][1]
+    assert data.pnl_history[0].root[1] == valid_timeframe_data["pnlHistory"][0][1]
     assert data.vlm == valid_timeframe_data["vlm"]
 
 
@@ -148,8 +150,11 @@ def test_timeframe_data_valid(valid_timeframe_data: dict[str, Any]):
     ],
 )
 def test_timeframe_data_invalid(
-    valid_timeframe_data: dict[str, Any], field: str, value: Any, is_missing_test: bool
-):
+    valid_timeframe_data: dict[str, Any],
+    field: str,
+    value: Any,  # noqa: ANN401 - Keep Any for testing invalid types
+    is_missing_test: bool,
+) -> None:
     data_copy = valid_timeframe_data.copy()
     if is_missing_test:
         if field in data_copy:
@@ -160,7 +165,7 @@ def test_timeframe_data_invalid(
         HyperliquidRawPortfolioTimeframeData.model_validate(data_copy)
 
 
-def test_timeframe_data_extra_field(valid_timeframe_data: dict[str, Any]):
+def test_timeframe_data_extra_field(valid_timeframe_data: dict[str, Any]) -> None:
     data_copy = valid_timeframe_data.copy()
     data_copy["extra"] = "field"
     with pytest.raises(ValidationError):
@@ -168,13 +173,13 @@ def test_timeframe_data_extra_field(valid_timeframe_data: dict[str, Any]):
 
 
 # HyperliquidRawPortfolioTupleItem Tests
-def test_portfolio_tuple_item_valid(valid_portfolio_tuple_item_data: list[Any]):
+def test_portfolio_tuple_item_valid(valid_portfolio_tuple_item_data: list[Any]) -> None:
     item = HyperliquidRawPortfolioTupleItem.model_validate(valid_portfolio_tuple_item_data)
-    assert item.timeframe == valid_portfolio_tuple_item_data[0]
+    assert item.root[0] == valid_portfolio_tuple_item_data[0]
     # Accessing nested data correctly based on fixture structure
     timeframe_data_dict = valid_portfolio_tuple_item_data[1]
     assert isinstance(timeframe_data_dict, dict)  # Ensure it's a dict as expected
-    assert item.data.vlm == timeframe_data_dict["vlm"]
+    assert item.root[1].vlm == timeframe_data_dict["vlm"]
 
 
 @pytest.mark.parametrize(
@@ -188,20 +193,20 @@ def test_portfolio_tuple_item_valid(valid_portfolio_tuple_item_data: list[Any]):
         ["day", VALID_TIMEFRAME_DATA, "extra"],
     ],
 )
-def test_portfolio_tuple_item_invalid(value_list: list[Any]):
+def test_portfolio_tuple_item_invalid(value_list: list[Any]) -> None:
     with pytest.raises(ValidationError):
         HyperliquidRawPortfolioTupleItem.model_validate(value_list)
 
 
 # HyperliquidRawPortfolioResponse (RootModel) Tests
-def test_portfolio_response_valid():
+def test_portfolio_response_valid() -> None:
     response = HyperliquidRawPortfolioResponse.model_validate(VALID_PORTFOLIO_RESPONSE)
     assert len(response.root) == len(VALID_PORTFOLIO_RESPONSE)
-    assert response.root[0].timeframe == VALID_PORTFOLIO_RESPONSE[0][0]
+    assert response.root[0].root[0] == VALID_PORTFOLIO_RESPONSE[0][0]
     # Accessing nested data correctly
     timeframe_data_dict_in_response = VALID_PORTFOLIO_RESPONSE[0][1]
     assert isinstance(timeframe_data_dict_in_response, dict)
-    assert response.root[0].data.vlm == timeframe_data_dict_in_response["vlm"]
+    assert response.root[0].root[1].vlm == timeframe_data_dict_in_response["vlm"]
 
 
 @pytest.mark.parametrize(
@@ -213,11 +218,11 @@ def test_portfolio_response_valid():
         [["day", {"vlm": "invalid-decimal"}]],
     ],
 )
-def test_portfolio_response_invalid(invalid_root_data: Any):
+def test_portfolio_response_invalid(invalid_root_data: Any) -> None:  # noqa: ANN401
     with pytest.raises(ValidationError):
         HyperliquidRawPortfolioResponse.model_validate(invalid_root_data)
 
 
-def test_portfolio_response_empty_list_valid():
+def test_portfolio_response_empty_list_valid() -> None:
     response = HyperliquidRawPortfolioResponse.model_validate([])
     assert response.root == []

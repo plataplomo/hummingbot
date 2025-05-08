@@ -37,7 +37,7 @@ def valid_user_vault_equity_item_data() -> dict[str, Any]:
 # --- Test Cases for HyperliquidRawUserVaultEquityItem --- #
 
 
-def test_user_vault_equity_item_valid(valid_user_vault_equity_item_data: dict[str, Any]):
+def test_user_vault_equity_item_valid(valid_user_vault_equity_item_data: dict[str, Any]) -> None:
     item = HyperliquidRawUserVaultEquityItem.model_validate(valid_user_vault_equity_item_data)
     assert item.vault_address == valid_user_vault_equity_item_data["vaultAddress"]
     assert item.equity == valid_user_vault_equity_item_data["equity"]
@@ -56,7 +56,7 @@ def test_user_vault_equity_item_valid(valid_user_vault_equity_item_data: dict[st
 )
 def test_user_vault_equity_item_invalid_fields(
     valid_user_vault_equity_item_data: dict[str, Any], field: str, value: Any, is_missing_test: bool
-):
+) -> None:
     data_copy = valid_user_vault_equity_item_data.copy()
     if is_missing_test:
         if field in data_copy:
@@ -68,7 +68,9 @@ def test_user_vault_equity_item_invalid_fields(
         HyperliquidRawUserVaultEquityItem.model_validate(data_copy)
 
 
-def test_user_vault_equity_item_extra_field(valid_user_vault_equity_item_data: dict[str, Any]):
+def test_user_vault_equity_item_extra_field(
+    valid_user_vault_equity_item_data: dict[str, Any],
+) -> None:
     data_copy = valid_user_vault_equity_item_data.copy()
     data_copy["extraField"] = "someValue"
     with pytest.raises(ValidationError):
@@ -78,7 +80,7 @@ def test_user_vault_equity_item_extra_field(valid_user_vault_equity_item_data: d
 # --- Tests for lists of items (as typical response) --- #
 
 
-def test_user_vault_equities_list_valid():
+def test_user_vault_equities_list_valid() -> None:
     # The model is for the item, so we test validating a list of such items
     validated_items = [
         HyperliquidRawUserVaultEquityItem.model_validate(item_data)
@@ -88,7 +90,7 @@ def test_user_vault_equities_list_valid():
     assert validated_items[0].vault_address == VALID_USER_VAULT_EQUITIES_RESPONSE[0]["vaultAddress"]
 
 
-def test_user_vault_equities_list_with_invalid_item():
+def test_user_vault_equities_list_with_invalid_item() -> None:
     invalid_item_data = VALID_USER_VAULT_EQUITY_ITEM.copy()
     invalid_item_data["equity"] = "not-a-decimal"
     list_with_invalid = [VALID_USER_VAULT_EQUITY_ITEM.copy(), invalid_item_data]
@@ -100,7 +102,7 @@ def test_user_vault_equities_list_with_invalid_item():
         ]
 
 
-def test_user_vault_equities_response_not_a_list():
+def test_user_vault_equities_response_not_a_list() -> None:
     # If the expected response is a list, passing non-list to where list is expected
     # would typically be caught before item-wise Pydantic validation.
     # This tests the item model if it were incorrectly passed a non-dict.

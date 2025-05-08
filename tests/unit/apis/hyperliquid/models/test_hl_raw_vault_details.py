@@ -89,7 +89,7 @@ def valid_vault_details_data() -> dict[str, Any]:
 
 
 # HyperliquidRawVaultPerformanceHistoryItem Tests
-def test_perf_history_item_valid(valid_perf_history_data: dict[str, Any]):
+def test_perf_history_item_valid(valid_perf_history_data: dict[str, Any]) -> None:
     item = HyperliquidRawVaultPerformanceHistoryItem.model_validate(valid_perf_history_data)
     assert item.time == valid_perf_history_data["time"]
     assert item.pnl == valid_perf_history_data["pnl"]
@@ -107,7 +107,7 @@ def test_perf_history_item_valid(valid_perf_history_data: dict[str, Any]):
 )
 def test_perf_history_item_invalid_fields(
     valid_perf_history_data: dict[str, Any], field: str, value: Any
-):
+) -> None:
     data_copy = valid_perf_history_data.copy()
     if value is None:
         if field in data_copy:
@@ -118,7 +118,7 @@ def test_perf_history_item_invalid_fields(
         HyperliquidRawVaultPerformanceHistoryItem.model_validate(data_copy)
 
 
-def test_perf_history_item_extra_field(valid_perf_history_data: dict[str, Any]):
+def test_perf_history_item_extra_field(valid_perf_history_data: dict[str, Any]) -> None:
     data_copy = valid_perf_history_data.copy()
     data_copy["extra"] = "field"
     with pytest.raises(ValidationError):
@@ -126,7 +126,7 @@ def test_perf_history_item_extra_field(valid_perf_history_data: dict[str, Any]):
 
 
 # HyperliquidRawVaultUserEquity Tests
-def test_user_equity_valid(valid_user_equity_data: dict[str, Any]):
+def test_user_equity_valid(valid_user_equity_data: dict[str, Any]) -> None:
     item = HyperliquidRawVaultUserEquity.model_validate(valid_user_equity_data)
     assert item.user == valid_user_equity_data["user"]
     assert item.equity == valid_user_equity_data["equity"]
@@ -145,7 +145,9 @@ def test_user_equity_valid(valid_user_equity_data: dict[str, Any]):
         ("lockupUntil", None),
     ],
 )
-def test_user_equity_invalid_fields(valid_user_equity_data: dict[str, Any], field: str, value: Any):
+def test_user_equity_invalid_fields(
+    valid_user_equity_data: dict[str, Any], field: str, value: Any
+) -> None:
     data_copy = valid_user_equity_data.copy()
     if value is None:
         if field in data_copy:
@@ -156,7 +158,7 @@ def test_user_equity_invalid_fields(valid_user_equity_data: dict[str, Any], fiel
         HyperliquidRawVaultUserEquity.model_validate(data_copy)
 
 
-def test_user_equity_extra_field(valid_user_equity_data: dict[str, Any]):
+def test_user_equity_extra_field(valid_user_equity_data: dict[str, Any]) -> None:
     data_copy = valid_user_equity_data.copy()
     data_copy["extra"] = "data"
     with pytest.raises(ValidationError):
@@ -164,7 +166,7 @@ def test_user_equity_extra_field(valid_user_equity_data: dict[str, Any]):
 
 
 # HyperliquidRawVaultRelationshipData Tests
-def test_relationship_data_valid(valid_relationship_data: dict[str, list[str]]):
+def test_relationship_data_valid(valid_relationship_data: dict[str, list[str]]) -> None:
     data = HyperliquidRawVaultRelationshipData.model_validate(valid_relationship_data)
     assert data.child_addresses == valid_relationship_data["childAddresses"]
 
@@ -179,7 +181,7 @@ def test_relationship_data_valid(valid_relationship_data: dict[str, list[str]]):
 )
 def test_relationship_data_invalid(
     valid_relationship_data: dict[str, list[str]], field: str, value: Any
-):
+) -> None:
     data_copy = valid_relationship_data.copy()
     data_copy.pop("master", None)
     data_copy[field] = value
@@ -188,7 +190,7 @@ def test_relationship_data_invalid(
 
 
 # HyperliquidRawVaultRelationship Tests
-def test_relationship_valid(valid_relationship: dict[str, Any]):
+def test_relationship_valid(valid_relationship: dict[str, Any]) -> None:
     rel = HyperliquidRawVaultRelationship.model_validate(valid_relationship)
     assert rel.type == valid_relationship["type"]
     assert rel.data.child_addresses == valid_relationship["data"]["childAddresses"]
@@ -202,7 +204,7 @@ def test_relationship_valid(valid_relationship: dict[str, Any]):
         ("data", {"childAddresses": ["invalid"]}),
     ],
 )
-def test_relationship_invalid(valid_relationship: dict[str, Any], field: str, value: Any):
+def test_relationship_invalid(valid_relationship: dict[str, Any], field: str, value: Any) -> None:
     data_copy = valid_relationship.copy()
     if value is None:
         if field in data_copy:
@@ -213,7 +215,7 @@ def test_relationship_invalid(valid_relationship: dict[str, Any], field: str, va
         HyperliquidRawVaultRelationship.model_validate(data_copy)
 
 
-def test_relationship_extra_field(valid_relationship: dict[str, Any]):
+def test_relationship_extra_field(valid_relationship: dict[str, Any]) -> None:
     data_copy = valid_relationship.copy()
     data_copy["unexpected"] = 1
     with pytest.raises(ValidationError):
@@ -221,7 +223,7 @@ def test_relationship_extra_field(valid_relationship: dict[str, Any]):
 
 
 # HyperliquidRawVaultDetailsResponse Tests
-def test_vault_details_valid(valid_vault_details_data: dict[str, Any]):
+def test_vault_details_valid(valid_vault_details_data: dict[str, Any]) -> None:
     resp = HyperliquidRawVaultDetailsResponse.model_validate(valid_vault_details_data)
     assert resp.name == valid_vault_details_data["name"]
     assert resp.allow_deposits == valid_vault_details_data["allowDeposits"]
@@ -255,7 +257,7 @@ def test_vault_details_valid(valid_vault_details_data: dict[str, Any]):
 )
 def test_vault_details_invalid(
     valid_vault_details_data: dict[str, Any], field: str, value: Any, is_missing_test: bool
-):
+) -> None:
     data_copy = valid_vault_details_data.copy()
     if is_missing_test:
         if field in data_copy:
@@ -266,7 +268,7 @@ def test_vault_details_invalid(
         HyperliquidRawVaultDetailsResponse.model_validate(data_copy)
 
 
-def test_vault_details_extra_field(valid_vault_details_data: dict[str, Any]):
+def test_vault_details_extra_field(valid_vault_details_data: dict[str, Any]) -> None:
     data_copy = valid_vault_details_data.copy()
     data_copy["surprise"] = "field"
     with pytest.raises(ValidationError):

@@ -2,7 +2,7 @@
 Unit Tests for Hyperliquid Raw Staking Info Models
 """
 
-from typing import Any  # Added Optional
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -96,7 +96,7 @@ def valid_reward_item_data() -> dict[str, Any]:
 
 
 # HyperliquidRawDelegationItem
-def test_delegation_item_valid(valid_delegation_item_data: dict[str, Any]):
+def test_delegation_item_valid(valid_delegation_item_data: dict[str, Any]) -> None:
     item = HyperliquidRawDelegationItem.model_validate(valid_delegation_item_data)
     assert item.validator == valid_delegation_item_data["validator"]
     assert item.amount == valid_delegation_item_data["amount"]
@@ -106,7 +106,9 @@ def test_delegation_item_valid(valid_delegation_item_data: dict[str, Any]):
 @pytest.mark.parametrize(
     "field,val", [("validator", "short"), ("amount", "nan"), ("lockedUntilTimestamp", -1)]
 )
-def test_delegation_item_invalid(valid_delegation_item_data: dict[str, Any], field: str, val: Any):
+def test_delegation_item_invalid(
+    valid_delegation_item_data: dict[str, Any], field: str, val: Any
+) -> None:
     d = valid_delegation_item_data.copy()
     d[field] = val
     with pytest.raises(ValidationError):
@@ -114,20 +116,20 @@ def test_delegation_item_invalid(valid_delegation_item_data: dict[str, Any], fie
 
 
 # HyperliquidRawDelegationsResponse (RootModel)
-def test_delegations_response_valid():
+def test_delegations_response_valid() -> None:
     resp = HyperliquidRawDelegationsResponse.model_validate(VALID_DELEGATIONS_RESPONSE)
     assert len(resp.root) == 1
     assert resp.root[0].validator == VALID_DELEGATION_ITEM["validator"]
 
 
 @pytest.mark.parametrize("data", ["not-list", [{"validator": "invalid"}]])
-def test_delegations_response_invalid(data: Any):
+def test_delegations_response_invalid(data: Any) -> None:
     with pytest.raises(ValidationError):
         HyperliquidRawDelegationsResponse.model_validate(data)
 
 
 # HyperliquidRawDelegatorSummaryResponse
-def test_delegator_summary_valid(valid_delegator_summary_data: dict[str, Any]):
+def test_delegator_summary_valid(valid_delegator_summary_data: dict[str, Any]) -> None:
     item = HyperliquidRawDelegatorSummaryResponse.model_validate(valid_delegator_summary_data)
     assert item.delegated == valid_delegator_summary_data["delegated"]
     assert item.n_pending_withdrawals == valid_delegator_summary_data["nPendingWithdrawals"]
@@ -138,7 +140,7 @@ def test_delegator_summary_valid(valid_delegator_summary_data: dict[str, Any]):
 )
 def test_delegator_summary_invalid(
     valid_delegator_summary_data: dict[str, Any], field: str, val: Any | None
-):
+) -> None:
     d = valid_delegator_summary_data.copy()
     if val is None:
         del d[field]
@@ -149,7 +151,7 @@ def test_delegator_summary_invalid(
 
 
 # HyperliquidRawDelegatorHistoryDelegateDelta
-def test_hist_delegate_delta_valid(valid_history_delegate_delta_data: dict[str, Any]):
+def test_hist_delegate_delta_valid(valid_history_delegate_delta_data: dict[str, Any]) -> None:
     item = HyperliquidRawDelegatorHistoryDelegateDelta.model_validate(
         valid_history_delegate_delta_data
     )
@@ -158,14 +160,14 @@ def test_hist_delegate_delta_valid(valid_history_delegate_delta_data: dict[str, 
 
 
 # HyperliquidRawDelegatorHistoryDelta
-def test_hist_delta_valid(valid_history_delta_data: dict[str, Any]):
+def test_hist_delta_valid(valid_history_delta_data: dict[str, Any]) -> None:
     item = HyperliquidRawDelegatorHistoryDelta.model_validate(valid_history_delta_data)
     assert item.delegate is not None
     assert item.delegate.validator == valid_history_delta_data["delegate"]["validator"]
 
 
 # HyperliquidRawDelegatorHistoryItem
-def test_hist_item_valid(valid_history_item_data: dict[str, Any]):
+def test_hist_item_valid(valid_history_item_data: dict[str, Any]) -> None:
     item = HyperliquidRawDelegatorHistoryItem.model_validate(valid_history_item_data)
     assert item.hash == valid_history_item_data["hash"]
     assert item.delta.delegate is not None
@@ -173,21 +175,21 @@ def test_hist_item_valid(valid_history_item_data: dict[str, Any]):
 
 
 # HyperliquidRawDelegatorHistoryResponse (RootModel)
-def test_history_response_valid():
+def test_history_response_valid() -> None:
     resp = HyperliquidRawDelegatorHistoryResponse.model_validate(VALID_HISTORY_RESPONSE)
     assert len(resp.root) == 1
     assert resp.root[0].hash == VALID_HISTORY_ITEM["hash"]
 
 
 # HyperliquidRawDelegatorRewardItem
-def test_reward_item_valid(valid_reward_item_data: dict[str, Any]):
+def test_reward_item_valid(valid_reward_item_data: dict[str, Any]) -> None:
     item = HyperliquidRawDelegatorRewardItem.model_validate(valid_reward_item_data)
     assert item.source == valid_reward_item_data["source"]
     assert item.total_amount == valid_reward_item_data["totalAmount"]
 
 
 # HyperliquidRawDelegatorRewardsResponse (RootModel)
-def test_rewards_response_valid():
+def test_rewards_response_valid() -> None:
     resp = HyperliquidRawDelegatorRewardsResponse.model_validate(VALID_REWARDS_RESPONSE)
     assert len(resp.root) == 1
     assert resp.root[0].source == VALID_REWARD_ITEM["source"]
@@ -205,7 +207,9 @@ def test_rewards_response_valid():
         (HyperliquidRawDelegatorRewardItem, "valid_reward_item_data"),
     ],
 )
-def test_staking_models_extra_fields(model_class: Any, valid_data_fixture_name: str, request: Any):
+def test_staking_models_extra_fields(
+    model_class: Any, valid_data_fixture_name: str, request: Any
+) -> None:
     valid_data = request.getfixturevalue(valid_data_fixture_name)
     data_copy = valid_data.copy()
     if isinstance(data_copy.get("delegate"), dict):  # For HyperliquidRawDelegatorHistoryDelta
@@ -230,7 +234,9 @@ def test_staking_models_extra_fields(model_class: Any, valid_data_fixture_name: 
         ("delta", {"delegate": {"validator": "invalid"}}),
     ],
 )
-def test_hist_item_invalid(valid_history_item_data: dict[str, Any], field: str, val: Any | None):
+def test_hist_item_invalid(
+    valid_history_item_data: dict[str, Any], field: str, val: Any | None
+) -> None:
     d = valid_history_item_data.copy()
     # Deep copy nested dicts if modifying them to avoid test interference
     if (

@@ -33,7 +33,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawClearinghouseState as HyperliquidRawUserStateResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_vault_details import (
-    HyperliquidRawVaultDetailsResponse
+    HyperliquidRawVaultDetailsResponse,
+)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.utils.logging_config import get_logger
