@@ -308,13 +308,13 @@ class HyperliquidResponseHandler:
         # Fallback if raw_response_content was a dict but didn't validate directly and wasn't a list
         # This case should ideally be caught by initial isinstance(dict) and direct validation/failure
         # but as a safeguard:
-        if isinstance(raw_response_content, dict):
-            try:
-                return HyperliquidRawHistoricalOrderResponse.model_validate(raw_response_content)
-            except ValidationError as e_final_dict:
-                raise HyperliquidResponseHandler._handle_validation_error(
-                    e_final_dict, f"order status object in {context}", raw_response_content
-                ) from e_final_dict
+        try:
+            # Assuming raw_response_content is a dict here due to prior checks/raises
+            return HyperliquidRawHistoricalOrderResponse.model_validate(raw_response_content)
+        except ValidationError as e_final_dict:
+            raise HyperliquidResponseHandler._handle_validation_error(
+                e_final_dict, f"order status object in {context}", raw_response_content
+            ) from e_final_dict
 
         # Should not be reached if logic above is complete for list/dict
         raise APIError(
