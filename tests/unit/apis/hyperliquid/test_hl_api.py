@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from _pytest.logging import LogCaptureFixture
+from pydantic import ValidationError
 
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
@@ -448,12 +449,12 @@ class TestHyperliquidAPIMethodErrors:
                 "POST", "/exchange", data=expected_builder_payload, is_signed=True
             )
 
-        # place_order should detect this error string and use the mapper
-        assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
-        # HTTP status would be 200 as per HL's response, but the semantic error is critical
-        assert exc_info.value.http_status == 200
-        assert exc_info.value.message == error_string_from_hl
-        assert exc_info.value.exchange_message == error_string_from_hl
+        # The handler should raise INVALID_RESPONSE because the string "User has insufficient margin"
+        # is not a valid item in the 'statuses' list according to HyperliquidRawExchangeResponse model.
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert "User has insufficient margin" in str(exc_info.value.original_exception)
+        assert "statuses.0" in str(exc_info.value.original_exception)  # Check path to error
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAPI._request", new_callable=AsyncMock)

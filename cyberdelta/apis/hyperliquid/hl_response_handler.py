@@ -226,9 +226,9 @@ class HyperliquidResponseHandler:
     ) -> HyperliquidRawCandleSnapshotResponse:
         """Validates the /info response for candle_snapshot."""
         context = f"info (CandleSnapshot for {symbol} {interval})"
-        if not isinstance(raw_response_content, list):
+        if not isinstance(raw_response_content, dict):
             raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
+                message=f"Unexpected {context} response format: expected dict, "
                 f"got {type(raw_response_content)}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
