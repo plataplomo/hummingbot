@@ -7,7 +7,7 @@ Validates the raw structure only.
 Never use for internal business logic.
 """
 
-from typing import Any, cast
+from typing import cast
 
 from pydantic import (
     BaseModel,
@@ -39,7 +39,7 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
     @classmethod
     def validate_history_entry_tuple_structure(
         cls, v: object, info: ValidationInfo
-    ) -> list[object]:  # Return list for Pydantic to map to tuple elements
+    ) -> list[int | str]:  # Return list for Pydantic to map to tuple elements
         """
         Ensures input is a 2-element list/tuple or a dict {0: ts, 1: val}.
         Pydantic handles element validation against RawTimestampMsInt and RawFiniteDecimalStr.
@@ -47,8 +47,9 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
         field_name = info.field_name or "history_entry_tuple"
 
         if isinstance(v, dict):
-            v_dict = cast(dict[Any, Any], v)
-            assert isinstance(v_dict, dict)
+            # Cast v_dict to have values that are Union[int, str] to match return type.
+            # This assumes that the raw inputs for timestamp and value string are int or str.
+            v_dict = cast(dict[int, int | str], v)
 
             if 0 in v_dict and 1 in v_dict:
                 if len(v_dict) == 2:  # Ensure only keys 0 and 1 are present
@@ -71,8 +72,17 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
                     f"Field '{field_name}': Expected 2-element list/tuple, "
                     f"got length {len(v_sequence)}."
                 )
-            # Ensure it's a list of objects for Pydantic to process for the tuple
-            return list(v_sequence)
+            # Ensure it's a list of [int | str] for Pydantic to process for the tuple
+            # This involves casting elements from object to int | str.
+            # JUSTIFICATION (RULE-NO-SILENCING-V4): Required to match explicit
+            # return type list[int | str] mandated by user. Elements are originally
+            # object from the input sequence; Pydantic will validate them further.
+            # Runtime checks for actual types (int/str) are deferred to Pydantic.
+            # #[CAST-REVIEW-REQUIRED]
+            elem0 = cast(int | str, v_sequence[0])
+            # #[CAST-REVIEW-REQUIRED]
+            elem1 = cast(int | str, v_sequence[1])
+            return [elem0, elem1]
         else:
             raise ValueError(
                 f"Field '{field_name}': Expected 2-element list/tuple or dict {{0: ts, 1: val}}, "
