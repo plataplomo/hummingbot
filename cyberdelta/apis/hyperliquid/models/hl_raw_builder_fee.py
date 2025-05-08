@@ -7,13 +7,9 @@ Validates the raw structure only.
 Never use for internal business logic.
 """
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    ValidationInfo,
-    field_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field
+
+from cyberdelta.apis.hyperliquid.models.common_raw_types import RawStrictBool
 
 
 class HyperliquidRawBuilderFeeApprovalResponse(BaseModel):
@@ -23,19 +19,6 @@ class HyperliquidRawBuilderFeeApprovalResponse(BaseModel):
     Assuming a simple boolean status.
     """
 
-    approved: bool = Field(..., alias="approved")  # Assuming field name is 'approved'
+    approved: RawStrictBool = Field(..., alias="approved")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("approved", mode="before")
-    @classmethod
-    def validate_approved_bool(cls, v: object, info: ValidationInfo) -> bool:
-        field_name = info.field_name or "approved"
-        if isinstance(v, bool):
-            return v
-        if isinstance(v, str):
-            if v.lower() == "true":
-                return True
-            if v.lower() == "false":
-                return False
-        raise ValueError(f"{field_name}: Expected boolean, got {type(v).__name__}")

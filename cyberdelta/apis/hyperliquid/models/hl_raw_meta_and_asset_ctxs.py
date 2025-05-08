@@ -37,37 +37,17 @@ boundary validation only.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Self, TypeGuard
+from typing import Any, Literal, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
-
-
-def _validated_list_of_dict_str_any(obj: object) -> list[dict[str, Any]] | None:
-    """
-    Helper for runtime validation and static type narrowing: returns a list of dict[str, Any]
-    if valid, else None. This is the only way to satisfy both runtime and static type safety
-    without cast.
-    """
-    if not isinstance(obj, list):
-        return None
-    obj_list: list[Any] = obj
-    result: list[dict[str, Any]] = []
-    for item_obj in obj_list:
-        if not isinstance(item_obj, dict):
-            return None
-        item: dict[str, Any] = item_obj
-        keys: list[Any] = list(item.keys())
-        for k in keys:
-            if not isinstance(k, str):
-                return None
-        result.append(item)
-    return result
-
-
-def is_list_of_dict_str_any(obj: object) -> TypeGuard[list[dict[str, Any]]]:
-    return _validated_list_of_dict_str_any(obj) is not None
+from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawDefaultString,
+    RawFiniteDecimalStr,
+    RawNonNegativeInt,
+    RawStrictBool,
+)
+from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawAssetDefinition(BaseModel):
@@ -85,57 +65,11 @@ class HyperliquidRawAssetDefinition(BaseModel):
         only_isolated (bool): True if only isolated margin is allowed for this asset.
     """
 
-    name: str = Field(..., alias="name")
-    sz_decimals: int = Field(..., alias="szDecimals")
-    max_leverage: int = Field(..., alias="maxLeverage")
-    only_isolated: bool = Field(..., alias="onlyIsolated")
+    name: RawDefaultString = Field(..., alias="name", max_length=64)
+    sz_decimals: RawNonNegativeInt = Field(..., alias="szDecimals", ge=0, le=18)
+    max_leverage: RawNonNegativeInt = Field(..., alias="maxLeverage", ge=0, le=1000)
+    only_isolated: RawStrictBool = Field(..., alias="onlyIsolated")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("name", mode="before")
-    @classmethod
-    def validate_name(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'name' field to ensure it is a string of max length 64.
-        This prevents malformed or excessively long asset symbols from passing boundary validation.
-        """
-        return validate_str_field(v, field_name="name", max_length=64)
-
-    @field_validator("sz_decimals", mode="before")
-    @classmethod
-    def validate_sz_decimals(cls, v: object, info: ValidationInfo) -> int:
-        """
-        Validates the 'sz_decimals' field to ensure it is an integer in [0, 18].
-        This enforces correct precision constraints for asset sizes.
-        """
-        if not isinstance(v, int):
-            raise ValueError("sz_decimals: Expected int")
-        if v < 0 or v > 18:
-            raise ValueError("sz_decimals: Must be between 0 and 18")
-        return v
-
-    @field_validator("max_leverage", mode="before")
-    @classmethod
-    def validate_max_leverage(cls, v: object, info: ValidationInfo) -> int:
-        """
-        Validates the 'max_leverage' field to ensure it is an integer in [0, 1000].
-        This prevents unsafe leverage values from entering the system.
-        """
-        if not isinstance(v, int):
-            raise ValueError("max_leverage: Expected int")
-        if v < 0 or v > 1000:
-            raise ValueError("max_leverage: Must be between 0 and 1000")
-        return v
-
-    @field_validator("only_isolated", mode="before")
-    @classmethod
-    def validate_only_isolated(cls, v: object, info: ValidationInfo) -> bool:
-        """
-        Validates the 'only_isolated' field to ensure it is a boolean.
-        This enforces strict type safety for margin mode flags.
-        """
-        if not isinstance(v, bool):
-            raise ValueError("only_isolated: Expected bool")
-        return v
 
 
 class HyperliquidRawAssetCtx(BaseModel):
@@ -156,51 +90,13 @@ class HyperliquidRawAssetCtx(BaseModel):
         impact_px (Optional[str]): Impact price as a decimal string, or None.
     """
 
-    name: str = Field(..., alias="name")
-    funding: str = Field(..., alias="funding")
-    mark_px: str = Field(..., alias="markPx")
-    prev_day_px: str = Field(..., alias="prevDayPx")
-    day_ntl_vlm: str = Field(..., alias="dayNtlVlm")
-    impact_px: str | None = Field(None, alias="impactPx")
+    name: RawDefaultString = Field(..., alias="name", max_length=64)
+    funding: RawFiniteDecimalStr = Field(..., alias="funding")
+    mark_px: RawFiniteDecimalStr = Field(..., alias="markPx")
+    prev_day_px: RawFiniteDecimalStr = Field(..., alias="prevDayPx")
+    day_ntl_vlm: RawFiniteDecimalStr = Field(..., alias="dayNtlVlm")
+    impact_px: RawFiniteDecimalStr | None = Field(None, alias="impactPx")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("name", mode="before")
-    @classmethod
-    def validate_name(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'name' field to ensure it is a string of max length 64.
-        """
-        return validate_str_field(v, field_name="name", max_length=64)
-
-    @field_validator("funding", "mark_px", "prev_day_px", "day_ntl_vlm", mode="before")
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates that the field is a string representing a finite decimal (not NaN/inf),
-        with a maximum length of 64. This is critical for financial data integrity.
-        """
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
-
-    @field_validator("impact_px", mode="before")
-    @classmethod
-    def validate_impact_px(cls, v: object, info: ValidationInfo) -> str | None:
-        """
-        Validates the optional 'impact_px' field to ensure it is either None or a valid
-        decimal string.
-        """
-        if v is None:
-            return v
-        field_name = info.field_name or "impact_px"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
 
 
 class HyperliquidRawMetaResponse(BaseModel):
@@ -216,18 +112,6 @@ class HyperliquidRawMetaResponse(BaseModel):
 
     universe: list[HyperliquidRawAssetDefinition] = Field(..., alias="universe")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("universe", mode="before")
-    @classmethod
-    def validate_universe(cls, v: object, info: ValidationInfo) -> list[dict[str, Any]]:
-        """
-        Validates the 'universe' field to ensure it is a list of dicts with string keys.
-        This is a critical boundary check to prevent malformed asset lists from entering the system.
-        """
-        if not is_list_of_dict_str_any(v):
-            raise ValueError("universe: Expected a list of dict[str, Any] with str keys")
-        # At this point, Pyright knows v is list[dict[str, Any]]
-        return v
 
 
 class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
@@ -256,7 +140,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         *,
         strict: bool | None = None,
         from_attributes: bool | None = None,
-        context: None = None,
+        context: dict[str, Any] | None = None,
         by_alias: bool | None = None,
         by_name: bool | None = None,
     ) -> Self:
@@ -267,31 +151,47 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         is essential for robust boundary validation of upstream API data.
         """
         if not isinstance(obj, list):
-            raise ValueError("Invalid MetaAndAssetCtxs response structure: not a list")
-        obj_list: list[Any] = obj
-        if len(obj_list) != 2:
-            raise ValueError("Invalid MetaAndAssetCtxs response structure: not a 2-element list")
-        meta_obj_raw = obj_list[0]
-        asset_ctxs_obj_raw = obj_list[1]
+            raise ValueError("Invalid MetaAndAssetCtxs response: not a list")
+
+        list_obj = cast(list[object], obj)
+        assert isinstance(list_obj, list)
+
+        if len(list_obj) != 2:
+            raise ValueError("Invalid MetaAndAssetCtxs response: not a 2-element list")
+
+        meta_obj_raw = list_obj[0]
+        asset_ctxs_list_raw = list_obj[1]
+
         if not isinstance(meta_obj_raw, dict):
+            raise ValueError("Invalid MetaAndAssetCtxs response: first element (meta) must be dict")
+        if not isinstance(asset_ctxs_list_raw, list):
             raise ValueError(
-                "Invalid MetaAndAssetCtxs response structure: first element must be dict"
+                "Invalid MetaAndAssetCtxs response: second element (asset_ctxs) must be list"
             )
-        if not isinstance(asset_ctxs_obj_raw, list):
-            raise ValueError(
-                "Invalid MetaAndAssetCtxs response structure: second element must be list"
+
+        meta_dict = cast(dict[str, Any], meta_obj_raw)
+        assert isinstance(meta_dict, dict)
+
+        asset_ctxs_list_of_objects = cast(list[object], asset_ctxs_list_raw)
+        assert isinstance(asset_ctxs_list_of_objects, list)
+
+        meta = HyperliquidRawMetaResponse.model_validate(
+            meta_dict, strict=strict, context=context, from_attributes=from_attributes
+        )
+
+        validated_asset_ctxs: list[HyperliquidRawAssetCtx] = []
+        for i, item_obj in enumerate(asset_ctxs_list_of_objects):
+            if not isinstance(item_obj, dict):
+                raise ValueError(f"Invalid MetaAndAssetCtxs: asset_ctxs[{i}] must be a dictionary")
+            item_dict = cast(dict[str, Any], item_obj)
+            assert isinstance(item_dict, dict)
+            validated_asset_ctxs.append(
+                HyperliquidRawAssetCtx.model_validate(
+                    item_dict, strict=strict, context=context, from_attributes=from_attributes
+                )
             )
-        meta_obj: dict[str, Any] = meta_obj_raw
-        asset_ctxs_obj: list[Any] = asset_ctxs_obj_raw
-        asset_ctxs_checked = _validated_list_of_dict_str_any(asset_ctxs_obj)
-        if asset_ctxs_checked is None:
-            raise ValueError(
-                "Invalid MetaAndAssetCtxs response structure: asset_ctxs must be "
-                "list[dict[str, Any]]"
-            )
-        meta = HyperliquidRawMetaResponse.model_validate(meta_obj)
-        asset_ctxs = [HyperliquidRawAssetCtx.model_validate(x) for x in asset_ctxs_checked]
-        return cls(meta=meta, asset_ctxs=asset_ctxs)
+
+        return cls(meta=meta, asset_ctxs=validated_asset_ctxs)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
@@ -312,13 +212,8 @@ class HyperliquidRawMetaRequestPayload(BaseModel):
 
     @field_validator("type", mode="before")
     @classmethod
-    def validate_type(cls, v: object, info: ValidationInfo) -> str:
-        """Ensures type is exactly 'meta'."""
-        field_name = info.field_name or "type"
-        s = validate_str_field(v, field_name=field_name, max_length=16)
-        if s != "meta":
-            raise ValueError(f"{field_name} must be 'meta', got '{s}'")
-        return s
+    def validate_type_string(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 
 class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
@@ -337,13 +232,8 @@ class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
 
     @field_validator("type", mode="before")
     @classmethod
-    def validate_type(cls, v: object, info: ValidationInfo) -> str:
-        """Ensures type is exactly 'metaAndAssetCtxs'."""
-        field_name = info.field_name or "type"
-        s = validate_str_field(v, field_name=field_name, max_length=32)
-        if s != "metaAndAssetCtxs":
-            raise ValueError(f"{field_name} must be 'metaAndAssetCtxs', got '{s}'")
-        return s
+    def validate_type_string(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 
 class HyperliquidRawAllMetaRequestPayload(BaseModel):
@@ -359,13 +249,8 @@ class HyperliquidRawAllMetaRequestPayload(BaseModel):
 
     @field_validator("type", mode="before")
     @classmethod
-    def validate_type(cls, v: object, info: ValidationInfo) -> str:
-        """Ensures type is exactly 'allMeta'."""
-        field_name = info.field_name or "type"
-        s = validate_str_field(v, field_name=field_name, max_length=16)
-        if s != "allMeta":
-            raise ValueError(f"{field_name} must be 'allMeta', got '{s}'")
-        return s
+    def validate_type_string(cls, v: object, info: ValidationInfo) -> str:
+        return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 
 class HyperliquidRawUpdateLeverageRequest(BaseModel):
@@ -382,44 +267,10 @@ class HyperliquidRawUpdateLeverageRequest(BaseModel):
         leverage (int): Leverage value to set.
     """
 
-    asset: int = Field(..., alias="asset")
-    is_cross: bool = Field(..., alias="isCross")
-    leverage: int = Field(..., alias="leverage")
+    asset: RawNonNegativeInt = Field(..., alias="asset")
+    is_cross: RawStrictBool = Field(..., alias="isCross")
+    leverage: RawNonNegativeInt = Field(..., alias="leverage")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("asset", mode="before")
-    @classmethod
-    def validate_asset(cls, v: object, info: ValidationInfo) -> int:
-        """
-        Validates the 'asset' field to ensure it is an integer (asset index).
-        """
-        if not isinstance(v, int):
-            raise ValueError("asset: Expected int")
-        if v < 0:
-            raise ValueError("asset: Must be non-negative")
-        return v
-
-    @field_validator("is_cross", mode="before")
-    @classmethod
-    def validate_is_cross(cls, v: object, info: ValidationInfo) -> bool:
-        """
-        Validates the 'is_cross' field to ensure it is a boolean.
-        """
-        if not isinstance(v, bool):
-            raise ValueError("is_cross: Expected bool")
-        return v
-
-    @field_validator("leverage", mode="before")
-    @classmethod
-    def validate_leverage(cls, v: object, info: ValidationInfo) -> int:
-        """
-        Validates the 'leverage' field to ensure it is an integer (leverage value).
-        """
-        if not isinstance(v, int):
-            raise ValueError("leverage: Expected int")
-        if v < 0 or v > 1000:
-            raise ValueError("leverage: Must be between 0 and 1000")
-        return v
 
 
 class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
@@ -435,41 +286,7 @@ class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
         ntli (int): Notional amount to update.
     """
 
-    asset: int = Field(..., alias="asset")
-    is_buy: bool = Field(..., alias="isBuy")
-    ntli: int = Field(..., alias="ntli")
+    asset: RawNonNegativeInt = Field(..., alias="asset")
+    is_buy: RawStrictBool = Field(..., alias="isBuy")
+    ntli: RawNonNegativeInt = Field(..., alias="ntli")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("asset", mode="before")
-    @classmethod
-    def validate_asset(cls, v: object, info: ValidationInfo) -> int:
-        """
-        Validates the 'asset' field to ensure it is an integer (asset index).
-        """
-        if not isinstance(v, int):
-            raise ValueError("asset: Expected int")
-        if v < 0:
-            raise ValueError("asset: Must be non-negative")
-        return v
-
-    @field_validator("is_buy", mode="before")
-    @classmethod
-    def validate_is_buy(cls, v: object, info: ValidationInfo) -> bool:
-        """
-        Validates the 'is_buy' field to ensure it is a boolean.
-        """
-        if not isinstance(v, bool):
-            raise ValueError("is_buy: Expected bool")
-        return v
-
-    @field_validator("ntli", mode="before")
-    @classmethod
-    def validate_ntli(cls, v: object, info: ValidationInfo) -> int:
-        """
-        Validates the 'ntli' field to ensure it is an integer (notional amount).
-        """
-        if not isinstance(v, int):
-            raise ValueError("ntli: Expected int")
-        if v < 0:
-            raise ValueError("ntli: Must be non-negative")
-        return v

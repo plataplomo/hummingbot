@@ -16,6 +16,7 @@ from pydantic import ValidationInfo, WrapValidator
 
 from cyberdelta.utils.parsing import (
     parse_decimal_value,
+    validate_enum_field,
     validate_str_field,
 )
 
@@ -131,6 +132,34 @@ def _wrap_validate_strict_bool(
     return handler(v)
 
 
+# ADDED: Wrapper for enum string validation
+def _wrap_validate_enum_str(
+    v: object,
+    handler: Callable[[object], str],
+    info: ValidationInfo,
+    *,
+    field_name_default: str,
+    allowed_values: set[str],
+) -> str:
+    """General purpose wrapper for validating enum-like string fields."""
+    field_name = info.field_name or field_name_default
+    # First, ensure it passes basic string validation via the handler (if needed)
+    # For simple enum, handler might just be `str`
+    # If RawDefaultString is used as base, its lambda calls _wrap_validate_general_str
+    # which calls validate_str_field. Here, the core check is validate_enum_field.
+    # We assume `v` is already a string or will be by `handler` if `RawDefaultString` is base.
+    # However, to be safe for direct use, ensure basic string first.
+
+    # The `handler` call is if this is wrapping another Annotated type.
+    # If not, and if `v` is not guaranteed str, basic str check might be needed.
+    # For `RawSideStr`, it wraps `str`, so `handler` returns `v` if it's `str`.
+
+    # Simplified: Direct call to validate_enum_field, assumes v is str or str(v) is okay.
+    # Pydantic ensures v matches base type (str) before WrapValidator if not mode='before'.
+    # If used as Annotated[str, WrapValidator(...)], v will be str.
+    return validate_enum_field(v, allowed=allowed_values, field_name=field_name)
+
+
 # --- Annotated Raw Types ---
 
 # Raw String with default validation (non-empty, max_length can be customized by Field)
@@ -200,3 +229,36 @@ RawOptionalString = Annotated[
 # and the field `foo: RawOptionalStringType | None = None`.
 # The current `RawOptionalString` definition with `str | None` as the first arg to Annotated
 # means the validator logic itself doesn't need to handle `v is None`.
+
+# ADDED: RawSideStr
+RawSideStr = Annotated[
+    str,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_enum_str(
+            v, h, i, field_name_default="side_field", allowed_values={"B", "A"}
+        )
+    ),
+]
+"""A raw string representing an order side, must be 'B' (Buy) or 'A' (Ask/Sell)."""
+
+# ADDED: RawTpslStr
+RawTpslStr = Annotated[
+    str,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_enum_str(
+            v, h, i, field_name_default="tpsl_field", allowed_values={"tp", "sl"}
+        )
+    ),
+]
+"""A raw string representing a trigger type, must be 'tp' or 'sl'."""
+
+# ADDED: RawTifStr
+RawTifStr = Annotated[
+    str,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_enum_str(
+            v, h, i, field_name_default="tif_field", allowed_values={"Gtc", "Ioc", "Alo"}
+        )
+    ),
+]
+"""A raw string representing Time-In-Force, must be 'Gtc', 'Ioc', or 'Alo'."""

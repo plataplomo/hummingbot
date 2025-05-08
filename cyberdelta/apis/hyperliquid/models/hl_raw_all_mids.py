@@ -32,7 +32,7 @@ and market data.
     # ...then transform to internal model
 """
 
-from typing import Any, Literal, TypeGuard
+from typing import Literal, cast
 
 from pydantic import (
     BaseModel,
@@ -43,32 +43,8 @@ from pydantic import (
     model_validator,
 )
 
+# Import common types if needed (not directly used here yet, but good practice)
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
-
-
-def is_dict(obj: object) -> TypeGuard[dict[str, Any]]:
-    """TypeGuard to check if an object is a dictionary"""
-    return isinstance(obj, dict)
-
-
-def is_str_to_str_dict(obj: object) -> TypeGuard[dict[str, str]]:
-    """
-    TypeGuard to check if an object is a dictionary with string keys and string values.
-    This is robust for both runtime and static type checking,
-    and avoids unnecessary isinstance warnings.
-    """
-    if not isinstance(obj, dict):
-        return False
-
-    d: dict[Any, Any] = obj
-
-    def all_str_keys_and_values(d: dict[Any, Any]) -> bool:
-        for k, v in d.items():
-            if not isinstance(k, str) or not isinstance(v, str):
-                return False
-        return True
-
-    return all_str_keys_and_values(d)
 
 
 class HyperliquidRawAllMidsRequestPayload(BaseModel):
@@ -88,21 +64,11 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
 
     @field_validator("type", mode="before")
     @classmethod
-    def validate_type(cls, v: object) -> str:
+    def validate_type_string(cls, v: object) -> str:
         """
-        Validates the 'type' field to ensure it is exactly 'allMids' and a string of max length 32.
-
-        Args:
-            v (object): The value to validate (should be a string).
-        Returns:
-            str: The validated type string.
-        Raises:
-            ValueError: If the input is not 'allMids' or not a valid string.
+        Validates the 'type' field is a valid string. The Literal check handles the value.
         """
-        s = validate_str_field(v, field_name="type", max_length=32)
-        if s != "allMids":
-            raise ValueError("type: Must be 'allMids'")
-        return s
+        return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 
 class HyperliquidRawAllMids(RootModel[dict[str, str]]):
@@ -125,29 +91,37 @@ class HyperliquidRawAllMids(RootModel[dict[str, str]]):
     @classmethod
     def validate_all_mids(cls, value: object) -> dict[str, str]:
         """
-        Validates the root dictionary to ensure it maps string asset symbols to string mid prices.
-        Each symbol and price is validated for type, length, and decimal format.
-
-        Args:
-            value (object): The value to validate (should be a dict[str, str]).
-        Returns:
-            dict[str, str]: The validated mapping of asset symbols to mid prices.
-        Raises:
-            ValueError: If the input is not a valid mapping or contains invalid values.
+        Validates the root dictionary ensures keys/values are strings
+        and values are finite decimals.
         """
-        if not is_str_to_str_dict(value):
-            raise ValueError("__root__ must be a dict mapping string keys to string values")
+        if not isinstance(value, dict):
+            raise ValueError("__root__ must be a dictionary")
 
-        # Validate each symbol and price
+        dict_value = cast(dict[object, object], value)
+        assert isinstance(dict_value, dict)
+
         validated_data: dict[str, str] = {}
-        for symbol, price in value.items():
-            valid_symbol = validate_str_field(symbol, field_name="symbol", max_length=64)
-            valid_price = validate_str_field(price, field_name=f"price[{symbol}]", max_length=64)
+        for symbol, price in dict_value.items():
+            if not isinstance(symbol, str):
+                raise ValueError(f"Dictionary key must be a string, got {type(symbol).__name__}")
+            if not isinstance(price, str):
+                raise ValueError(
+                    f"Price value for key '{symbol}' must be a string, got {type(price).__name__}"
+                )
+
+            valid_symbol = validate_str_field(
+                symbol, field_name=f"symbol[{symbol}]", max_length=64, allow_empty=False
+            )
+            valid_price = validate_str_field(
+                price, field_name=f"price[{symbol}]", max_length=64, allow_empty=False
+            )
+
             d = parse_decimal_value(valid_price, allow_none=False, field_name=f"price[{symbol}]")
             if d is None or not d.is_finite():
                 raise ValueError(
-                    f"price[{symbol}]: Value must be a finite decimal (not NaN or inf)"
+                    f"price[{symbol}]: Value must be a parseable finite decimal string."
                 )
+
             validated_data[valid_symbol] = valid_price
 
         return validated_data

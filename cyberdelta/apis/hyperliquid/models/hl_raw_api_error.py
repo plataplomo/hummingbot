@@ -30,9 +30,9 @@ It is a core part of CyberDeltaEngine's boundary validation layer for error hand
     # ...then transform to internal error model or raise
 """
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.utils.parsing import validate_str_field
+from cyberdelta.apis.hyperliquid.models.common_raw_types import RawDefaultString
 
 
 class HyperliquidRawApiError(BaseModel):
@@ -46,23 +46,5 @@ class HyperliquidRawApiError(BaseModel):
         error (str): Error message string returned by the API (max length 1024).
     """
 
-    error: str = Field(..., alias="error")
+    error: RawDefaultString = Field(..., alias="error", max_length=1024)
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("error", mode="before")
-    @classmethod
-    def validate_error(cls, v: object) -> str:
-        """
-        Validates the 'error' field to ensure it is a string of max length 1024.
-
-        Args:
-            v (object): The value to validate (should be a string).
-        Returns:
-            str: The validated error message string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        try:
-            return validate_str_field(v, field_name="error", max_length=1024)
-        except Exception as e:
-            raise ValueError(f"error: Validation failed - {e}") from e

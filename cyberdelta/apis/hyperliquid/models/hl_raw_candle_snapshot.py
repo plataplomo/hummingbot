@@ -27,6 +27,12 @@ from decimal import Decimal, InvalidOperation
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawFiniteDecimalStr,
+    RawNonNegativeInt,
+    RawTimestampMsInt,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,74 +46,26 @@ class HyperliquidRawCandle(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
-    t: int = Field(..., description="Timestamp (Unix milliseconds)")
-    o: str = Field(..., description="Open price (string)")
-    h: str = Field(..., description="High price (string)")
-    low_price: str = Field(..., alias="l", description="Low price (string)")
-    c: str = Field(..., description="Close price (string)")
-    v: str = Field(..., description="Volume (string)")
-    n: int = Field(..., description="Number of trades")
+    t: RawTimestampMsInt = Field(..., description="Timestamp (Unix milliseconds)")
+    o: RawFiniteDecimalStr = Field(..., description="Open price (string)")
+    h: RawFiniteDecimalStr = Field(..., description="High price (string)")
+    low_price: RawFiniteDecimalStr = Field(..., alias="l", description="Low price (string)")
+    c: RawFiniteDecimalStr = Field(..., description="Close price (string)")
+    v: RawFiniteDecimalStr = Field(..., description="Volume (string)")
+    n: RawNonNegativeInt = Field(..., description="Number of trades")
 
-    @field_validator("t", "n", mode="before")
+    @field_validator("v", mode="after")
     @classmethod
-    def validate_non_negative_int(cls, v: object, info: ValidationInfo) -> object:
-        """Validate that the raw value is a non-negative integer.
-
-        Used for fields like timestamp (`t`) and number of trades (`n`).
-
-        Args:
-            v (object): The raw input value.
-            info (ValidationInfo): Pydantic validation context.
-
-        Returns:
-            object: The validated integer value.
-
-        Raises:
-            ValueError: If `v` is not an integer or is negative.
-        """
-        if not isinstance(v, int) or v < 0:
-            raise ValueError(f"Expected non-negative integer for {info.field_name}, got {type(v)}")
-        return v
-
-    @field_validator("o", "h", "low_price", "c", "v", mode="before")
-    @classmethod
-    def validate_decimal_string(cls, v: object, info: ValidationInfo) -> object:
-        """Validate that the raw value is a non-empty string parseable to a finite Decimal.
-
-        Used for price fields (o, h, l, c) and volume (v).
-        Volume specifically must be non-negative.
-
-        Args:
-            v (object): The raw input value.
-            info (ValidationInfo): Pydantic validation context.
-
-        Returns:
-            object: The validated string value.
-
-        Raises:
-            TypeError: If `v` is not a string.
-            ValueError: If `v` is not a valid, finite decimal string (or non-negative for volume).
-        """
-        if not isinstance(v, str):
-            raise TypeError(
-                f"Expected string for decimal parsing for field '{info.field_name}', got {type(v)}"
-            )
-        if not v.strip():  # Ensure not empty or just whitespace
-            raise ValueError(
-                f"Expected non-empty decimal string for field '{info.field_name}', got '{v}'"
-            )
+    def validate_volume_non_negative(cls, v: str, info: ValidationInfo) -> str:
+        """Ensure volume, already validated as a finite decimal string, is non-negative."""
         try:
             d = Decimal(v)
-            if not d.is_finite():
-                raise ValueError(
-                    f"Expected finite decimal string for field '{info.field_name}', got '{v}'"
-                )
-            if info.field_name == "v" and d < Decimal(0):
+            if d < Decimal(0):
                 raise ValueError(f"Volume (v) must be non-negative, got '{v}'")
-        except InvalidOperation as e:
-            raise ValueError(
-                f"Invalid decimal string format for field '{info.field_name}': '{v}'"
-            ) from e
+        except InvalidOperation:
+            log_msg = f"InvalidOperation parsing validated vol '{v}' for '{info.field_name}'"
+            logger.error(log_msg)
+            raise ValueError(f"Internal error parsing validated volume string '{v}'") from None
         return v
 
 
