@@ -16,16 +16,16 @@ from pydantic import (
     field_validator,
 )
 
-from cyberdelta.apis.hyperliquid.models.common_raw_types import RawEthereumAddressStr
+from cyberdelta.apis.hyperliquid.models.common_raw_types import RawLaxEthereumAddressStrHL
 
 
-class HyperliquidRawSubAccountsResponse(RootModel[list[RawEthereumAddressStr]]):
+class HyperliquidRawSubAccountsResponse(RootModel[list[RawLaxEthereumAddressStrHL]]):
     """
     Raw boundary model for the subaccounts list response.
     The root object is expected to be a list of strings (validated Ethereum addresses).
     """
 
-    root: list[RawEthereumAddressStr]
+    root: list[RawLaxEthereumAddressStrHL]
     model_config = ConfigDict(frozen=True)
 
     @field_validator("root", mode="before")

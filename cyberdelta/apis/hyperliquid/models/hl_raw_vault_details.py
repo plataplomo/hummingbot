@@ -19,8 +19,8 @@ from pydantic import (
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawDefaultString,
-    RawEthereumAddressStr,
     RawFiniteDecimalStr,
+    RawLaxEthereumAddressStrHL,
     RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
     RawStrictBool,
@@ -39,7 +39,7 @@ class HyperliquidRawVaultPerformanceHistoryItem(BaseModel):
 class HyperliquidRawVaultUserEquity(BaseModel):
     """Raw boundary model for a user's equity details within a vault."""
 
-    user: RawEthereumAddressStr = Field(..., alias="user")
+    user: RawLaxEthereumAddressStrHL = Field(..., alias="user")
     equity: RawFiniteDecimalStr = Field(..., alias="equity")
     all_time_pnl: RawFiniteDecimalStr = Field(..., alias="allTimePnl")
     days_following: RawNonNegativeInt = Field(..., alias="daysFollowing")
@@ -51,8 +51,8 @@ class HyperliquidRawVaultUserEquity(BaseModel):
 class HyperliquidRawVaultRelationshipData(BaseModel):
     """Raw boundary model for the 'data' field within the 'relationship' structure."""
 
-    child_addresses: list[RawEthereumAddressStr] | None = Field(None, alias="childAddresses")
-    master: RawEthereumAddressStr | None = Field(None, alias="master")
+    child_addresses: list[RawLaxEthereumAddressStrHL] | None = Field(None, alias="childAddresses")
+    master: RawLaxEthereumAddressStrHL | None = Field(None, alias="master")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow", frozen=True)
 
@@ -75,8 +75,8 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
     description: RawDefaultString = Field(..., alias="description", max_length=1024)
     allow_deposits: RawStrictBool = Field(..., alias="allowDeposits")
     always_close_on_withdraw: RawStrictBool = Field(..., alias="alwaysCloseOnWithdraw")
-    creator: RawEthereumAddressStr = Field(..., alias="creator")
-    vault_address: RawEthereumAddressStr = Field(..., alias="vaultAddress")
+    creator: RawLaxEthereumAddressStrHL = Field(..., alias="creator")
+    vault_address: RawLaxEthereumAddressStrHL = Field(..., alias="vaultAddress")
     max_balance: RawFiniteDecimalStr | None = Field(None, alias="maxBalance")
     curr_balance: RawFiniteDecimalStr = Field(..., alias="currBalance")
     total_pnl: RawFiniteDecimalStr = Field(..., alias="totalPnl")

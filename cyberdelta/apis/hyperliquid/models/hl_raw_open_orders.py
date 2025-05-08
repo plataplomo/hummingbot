@@ -46,8 +46,8 @@ from pydantic import (
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawAssetString64HL,
     RawCloidString64HL,
-    RawEthereumAddressStr,
     RawFiniteDecimalStr,
+    RawLaxEthereumAddressStrHL,
     RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
     RawOptionalNonEmptyString64HL,
@@ -217,7 +217,8 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]])
             if not isinstance(item_obj, dict):
                 item_type = type(item_obj).__name__
                 raise ValueError(
-                    f"Field '{field_name}', Item {item_idx}: Expected a dictionary, got {item_type}."
+                    f"Field '{field_name}', Item {item_idx}: Expected a dictionary, "
+                    f"got {item_type}."
                 )
 
             # CAST 2: For type checker, item_obj is already confirmed dict by runtime check
@@ -234,14 +235,14 @@ class HyperliquidRawOpenOrdersRequestPayload(BaseModel):
     Request payload for 'openOrders' info type.
     Fields:
         type: Must be 'openOrders' (Literal['openOrders'])
-        user: Wallet address (RawEthereumAddressStr)
+        user: Wallet address (RawLaxEthereumAddressStrHL)
     """
 
     type: Annotated[
         Literal["openOrders"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=16, allow_empty=False)),
     ] = Field("openOrders", alias="type")
-    user: RawEthereumAddressStr = Field(..., alias="user")
+    user: RawLaxEthereumAddressStrHL = Field(..., alias="user")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 

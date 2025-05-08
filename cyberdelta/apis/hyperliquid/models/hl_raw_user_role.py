@@ -14,7 +14,7 @@ from pydantic import (
 )
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
-    RawEthereumAddressStr,
+    RawLaxEthereumAddressStrHL,
     RawUserRoleString,
 )
 
@@ -25,8 +25,8 @@ class HyperliquidRawUserRoleData(BaseModel):
     Structure varies based on the role.
     """
 
-    user: RawEthereumAddressStr | None = Field(None, alias="user")
-    master: RawEthereumAddressStr | None = Field(None, alias="master")
+    user: RawLaxEthereumAddressStrHL | None = Field(None, alias="user")
+    master: RawLaxEthereumAddressStrHL | None = Field(None, alias="master")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow", frozen=True)
 

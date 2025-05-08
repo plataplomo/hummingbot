@@ -23,8 +23,8 @@ from pydantic import (
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawDefaultString,
-    RawEthereumAddressStr,
     RawFiniteDecimalStr,
+    RawLaxEthereumAddressStrHL,
     RawNonNegativeInt,
     RawStrictBool,
     RawTimestampMsInt,
@@ -37,7 +37,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 class HyperliquidRawDelegationItem(BaseModel):
     """Raw boundary model for a single delegation entry."""
 
-    validator: RawEthereumAddressStr = Field(..., alias="validator")
+    validator: RawLaxEthereumAddressStrHL = Field(..., alias="validator")
     amount: RawFiniteDecimalStr = Field(..., alias="amount")
     locked_until_timestamp: RawTimestampMsInt = Field(..., alias="lockedUntilTimestamp")
 
@@ -92,7 +92,7 @@ class HyperliquidRawDelegatorSummaryResponse(BaseModel):
 class HyperliquidRawDelegatorHistoryDelegateDelta(BaseModel):
     """Raw boundary model for the 'delegate' details within history delta."""
 
-    validator: RawEthereumAddressStr = Field(..., alias="validator")
+    validator: RawLaxEthereumAddressStrHL = Field(..., alias="validator")
     amount: RawFiniteDecimalStr = Field(..., alias="amount")
     is_undelegate: RawStrictBool = Field(..., alias="isUndelegate")
 

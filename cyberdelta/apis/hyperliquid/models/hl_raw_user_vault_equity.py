@@ -14,15 +14,15 @@ from pydantic import (
 )
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
-    RawEthereumAddressStr,
     RawFiniteDecimalStr,
+    RawLaxEthereumAddressStrHL,
 )
 
 
 class HyperliquidRawUserVaultEquityItem(BaseModel):
     """Raw boundary model for a single user vault equity entry."""
 
-    vault_address: RawEthereumAddressStr = Field(..., alias="vaultAddress")
+    vault_address: RawLaxEthereumAddressStrHL = Field(..., alias="vaultAddress")
     equity: RawFiniteDecimalStr = Field(..., alias="equity")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 

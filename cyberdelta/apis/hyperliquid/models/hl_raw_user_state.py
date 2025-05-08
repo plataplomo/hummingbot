@@ -42,8 +42,8 @@ from pydantic import (
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawAssetString64HL,
-    RawEthereumAddressStr,
     RawFiniteDecimalStr,
+    RawLaxEthereumAddressStrHL,
     RawLeverageTypeString,
     RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
@@ -140,5 +140,5 @@ class HyperliquidRawUserStateRequestPayload(BaseModel):
         Literal["clearinghouseState"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32, allow_empty=False)),
     ] = Field("clearinghouseState", alias="type")
-    user: RawEthereumAddressStr = Field(..., alias="user")
+    user: RawLaxEthereumAddressStrHL = Field(..., alias="user")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)

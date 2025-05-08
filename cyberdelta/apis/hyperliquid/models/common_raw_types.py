@@ -51,33 +51,48 @@ def _wrap_validate_finite_decimal_str(
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=True, field_name=field_name)
     if d is None or not d.is_finite():
-        raise ValueError(f"{field_name}: Invalid finite decimal string '{s}'")
+        raise ValueError(f"{field_name}: Value '{s}' must represent a finite decimal.")
     return handler(s)
 
 
-def _wrap_validate_eth_address_str(
+def _wrap_validate_lax_eth_address_str(
     v: object, handler: Callable[[object], str], info: ValidationInfo
 ) -> str:
     """
     Wrapper for validating Ethereum-like address strings (0x-prefixed, <=42 chars).
     NOTE: Relaxed validation based on test data mandate. Does NOT enforce hex or exact length 42.
+    Used for addresses received from API responses.
     """
     field_name = info.field_name or "eth_address_field"
     # Use validate_str_field for type, non-empty, max_length, UTF-8
     s = validate_str_field(v, field_name=field_name, max_length=42, allow_empty=False)
     if not s.startswith("0x"):
         raise ValueError(f"{field_name}: Must start with '0x'.")
-    # REMOVED: Strict length check based on test data mandate
-    # if len(s) != 42:
-    #     raise ValueError(f"{field_name}: Must be exactly 42 characters long.")
-    # REMOVED: Hex check based on test data mandate
-    # try:
-    #     int(s, 16)  # Check if it's a valid hex string
-    # except ValueError:
-    #     raise ValueError(
-    #         f"{field_name}: Must be a valid 0x-prefixed hexadecimal string of length 42."
-    #     ) from None
+    return handler(s)
 
+
+def _wrap_validate_strict_eth_address_str(
+    v: object, handler: Callable[[object], str], info: ValidationInfo
+) -> str:
+    """
+    Wrapper for validating STRICT Ethereum address strings.
+    Must be 0x-prefixed, exactly 42 characters, and valid hexadecimal.
+    Used for addresses provided as user input (e.g., in request payloads).
+    """
+    field_name = info.field_name or "strict_eth_address_field"
+    s = validate_str_field(
+        v, field_name=field_name, max_length=42, allow_empty=False
+    )  # Max length check is okay here
+    if not s.startswith("0x"):
+        raise ValueError(f"{field_name}: Must start with '0x'.")
+    if len(s) != 42:
+        raise ValueError(f"{field_name}: Must be exactly 42 characters long.")
+    try:
+        int(s, 16)  # Check if it's a valid hex string
+    except ValueError:
+        raise ValueError(
+            f"{field_name}: Must be a valid 0x-prefixed hexadecimal string of length 42."
+        ) from None
     return handler(s)
 
 
@@ -110,8 +125,8 @@ def _wrap_validate_raw_int(
         raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
 
     if not allow_negative and val_int < 0:
-        # Revert to this wording as it appears in more test assertions
-        raise ValueError(f"{field_name}: Value cannot be negative")
+        # Align with test_hl_resting_invalid, test_hl_filled_invalid
+        raise ValueError(f"{field_name}: Value must be non-negative.")
     return handler(val_int)
 
 
@@ -183,11 +198,10 @@ def _wrap_validate_non_negative_finite_decimal_str(
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=True, field_name=field_name)
     if d is None or not d.is_finite():
-        # Align with finite decimal error
-        raise ValueError(f"{field_name}: Invalid finite decimal string '{s}'")
+        raise ValueError(f"{field_name}: Value '{s}' must represent a finite decimal.")
     if d < type(d)(0):
-        # Ensure specific wording with period
-        raise ValueError(f"{field_name}: Value must be non-negative.")
+        # Align with test_volume_non_negative
+        raise ValueError(f"{field_name}: Value '{s}' must be non-negative.")
     return handler(s)
 
 
@@ -244,8 +258,13 @@ def validate_and_return_finite_decimal_str(
 RawFiniteDecimalStr = Annotated[str, WrapValidator(_wrap_validate_finite_decimal_str)]
 """A raw string type that must represent a finite decimal number. Retains string form."""
 
-RawEthereumAddressStr = Annotated[str, WrapValidator(_wrap_validate_eth_address_str)]
-"""A raw string type for Ethereum addresses (0x-prefixed, 42 characters)."""
+# Renamed from RawEthereumAddressStr
+RawLaxEthereumAddressStrHL = Annotated[str, WrapValidator(_wrap_validate_lax_eth_address_str)]
+"""A raw string type for Ethereum addresses from API (0x-prefixed, <=42 chars, lax hex)."""
+
+# New strict address type
+RawStrictEthereumAddressStrHL = Annotated[str, WrapValidator(_wrap_validate_strict_eth_address_str)]
+"""A raw string type for user-input Ethereum addresses (0x-prefixed, 42 chars, hex)."""
 
 RawTxHashStr = Annotated[str, WrapValidator(_wrap_validate_tx_hash_str)]
 """A raw string type for transaction hashes (0x-prefixed, 66 characters)."""

@@ -19,7 +19,7 @@ from pydantic import (
 )
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
-    RawEthereumAddressStr,
+    RawLaxEthereumAddressStrHL,
     RawNonNegativeFiniteDecimalStr,
     # RawDefaultString might be used or specific Annotated as decided
     RawTimestampMsInt,
@@ -30,7 +30,7 @@ from cyberdelta.utils.parsing import validate_str_field
 class HyperliquidRawReferredBy(BaseModel):
     """Raw boundary model for the 'referredBy' object."""
 
-    referrer: RawEthereumAddressStr = Field(..., alias="referrer")
+    referrer: RawLaxEthereumAddressStrHL = Field(..., alias="referrer")
     code: Annotated[
         str,
         BeforeValidator(lambda v: validate_str_field(v, "code", max_length=64, allow_empty=False)),
@@ -49,7 +49,7 @@ class HyperliquidRawReferralState(BaseModel):
         ..., alias="cumFeesRewardedToReferrer"
     )
     time_joined: RawTimestampMsInt = Field(..., alias="timeJoined")
-    user: RawEthereumAddressStr = Field(..., alias="user")
+    user: RawLaxEthereumAddressStrHL = Field(..., alias="user")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 

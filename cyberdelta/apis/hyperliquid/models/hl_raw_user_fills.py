@@ -50,13 +50,12 @@ from pydantic import (
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawAssetString64HL,
     RawDefaultString,
-    RawEthereumAddressStr,
     RawFiniteDecimalStr,
-    RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
     RawOptionalNonEmptyString128HL,
     RawSideStr,
     RawStrictBool,
+    RawStrictEthereumAddressStrHL,
     RawTimestampMsInt,
     RawTradeHashStringHL,
 )
@@ -80,7 +79,7 @@ class HyperliquidRawUserFill(BaseModel):
     start_position: RawFiniteDecimalStr = Field(..., alias="startPosition")
     dir: RawDefaultString = Field(..., alias="dir", max_length=64)
     hash: RawTradeHashStringHL = Field(..., alias="hash")
-    fee: RawNonNegativeFiniteDecimalStr = Field(..., alias="fee")
+    fee: RawFiniteDecimalStr = Field(..., alias="fee")
     is_maker: RawStrictBool = Field(..., alias="isMaker")
     liquidation_mark_px: RawFiniteDecimalStr | None = Field(None, alias="liquidationMarkPx")
     cloid: RawOptionalNonEmptyString128HL = Field(None, alias="cloid")
@@ -133,5 +132,5 @@ class HyperliquidRawUserFillsRequestPayload(BaseModel):
         Literal["userFills"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32, allow_empty=False)),
     ] = Field("userFills", alias="type")
-    user: RawEthereumAddressStr = Field(..., alias="user")
+    user: RawStrictEthereumAddressStrHL = Field(..., alias="user")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
