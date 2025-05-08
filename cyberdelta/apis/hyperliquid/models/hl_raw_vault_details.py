@@ -7,8 +7,6 @@ Validates the raw structure only, enforcing type and format constraints.
 Never use for internal business logic.
 """
 
-from typing import Any, TypeGuard
-
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -21,19 +19,6 @@ from cyberdelta.utils.parsing import (
     parse_decimal_value,
     validate_str_field,
 )
-
-
-# Define the TypeGuard
-def is_dict_with_str_keys(val: object) -> TypeGuard[dict[str, Any]]:
-    """Checks if a value is a dict with string keys."""
-    if not isinstance(val, dict):
-        return False
-    # For this raw validator, we assume if it's a dict, Pydantic will handle
-    # specific key errors if they aren't strings as expected by field names.
-    # A stricter check could iterate keys: all(isinstance(k, str) for k in val.keys())
-    # However, Pydantic's parsing of dicts into models implicitly expects string keys
-    # matching field names or aliases.
-    return True
 
 
 class HyperliquidRawVaultPerformanceHistoryItem(BaseModel):
@@ -153,10 +138,9 @@ class HyperliquidRawVaultRelationshipData(BaseModel):
             raise ValueError(f"{field_name}: Expected list or None")
 
         validated_list: list[str] = []
-        # Let Pyright infer current_list from v after the isinstance check (likely list[Any])
-        current_list = v
-        for item_idx, item_obj in enumerate(current_list):  # item_obj will be Any
-            if not isinstance(item_obj, str):  # Check if item_obj is str
+        source_list: list[object] = v
+        for item_idx, item_obj in enumerate(source_list):
+            if not isinstance(item_obj, str):
                 raise ValueError(
                     f"{field_name}[{item_idx}]: Expected string item, got {type(item_obj).__name__}"
                 )
@@ -165,6 +149,10 @@ class HyperliquidRawVaultRelationshipData(BaseModel):
             s = validate_str_field(item_obj, field_name=item_field_name, max_length=42)
             if len(s) != 42:
                 raise ValueError(f"{item_field_name}: Expected length 42, got {len(s)}")
+            if not s.startswith("0x"):
+                raise ValueError(
+                    f"{item_field_name}: Must start with 0x for an address-like string"
+                )
             validated_list.append(s)
         return validated_list
 
@@ -287,24 +275,17 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
 
     @field_validator("performance_history", "user_equities", mode="before")
     @classmethod
-    def validate_list_structure(cls, v: object, info: ValidationInfo) -> list[Dict[str, Any]]:
+    def validate_list_structure(cls, v: object, info: ValidationInfo) -> list[dict[str, str | int]]:
         field_name = info.field_name or "list_field"
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Expected list")
 
-        validated_items: list[Dict[str, Any]] = []
-        # Let Pyright infer source_list from v after the isinstance check (likely list[Any])
-        source_list = v
+        validated_items: list[dict[str, str | int]] = []
 
-        for item_idx, item_obj in enumerate(source_list):  # item_obj will be Any
-            # Use the TypeGuard to narrow down item_obj's type
-            if not is_dict_with_str_keys(
-                item_obj
-            ):  # TypeGuard expects object, gets Any. Narrows to Dict[str,Any]
+        for item_idx, item_obj in enumerate(v):
+            if not isinstance(item_obj, dict):
                 raise ValueError(
-                    f"{field_name}[{item_idx}]: Expected dict with string keys, "
-                    f"got {type(item_obj).__name__}"
+                    f"{field_name}[{item_idx}]: Expected dict item, got {type(item_obj).__name__}"
                 )
-            # item_obj is now known to be Dict[str, Any] by the type checker
             validated_items.append(item_obj)
         return validated_items
