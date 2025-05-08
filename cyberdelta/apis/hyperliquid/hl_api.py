@@ -32,13 +32,15 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeStatusObject,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
+from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
+    HyperliquidRawHistoricalOrderResponse,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersResponse,
-    HyperliquidRawOrderStatusResponse,
     HyperliquidRawTriggerSpec,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
@@ -956,7 +958,7 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.UNKNOWN.value,
                 )
 
-            validated_history_list: list[HyperliquidRawOrderStatusResponse] = (
+            validated_history_list: list[HyperliquidRawHistoricalOrderResponse] = (
                 HyperliquidResponseHandler.handle_query_order_history_response(
                     response_raw, self._wallet_address
                 )
@@ -967,7 +969,8 @@ class HyperliquidAPI(ExchangeAPI):
                     raw_order = raw_status_response.order
                     trigger_info = None
                     internal_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
-                        raw=raw_order, trigger=trigger_info
+                        raw=raw_order,  # type: ignore[arg-type]
+                        trigger=trigger_info,
                     )
                     if internal_order:
                         orders_list.append(internal_order)
@@ -1029,29 +1032,28 @@ class HyperliquidAPI(ExchangeAPI):
                     f"{type(response_raw)}. Expected list. Empty list."
                 )
                 return []
-            validated_fills_list: list[HyperliquidRawUserFillsResponse] = (
+            validated_fills_response: HyperliquidRawUserFillsResponse = (
                 HyperliquidResponseHandler.handle_info_user_fills_response(
                     cast(RawJsonResponse, response_raw), self._wallet_address
                 )
             )
             trades: list[Trade] = []
-            for fill_response_item in validated_fills_list:
-                for raw_fill in fill_response_item.root:
-                    try:
-                        if symbol is not None and raw_fill.coin != symbol:
-                            continue
-                        # Cast raw_fill (HyperliquidRawUserFill) to HyperliquidRawFill
-                        # for the mapper
-                        internal_trade = HyperliquidMapper.transform_raw_fill_to_internal(
-                            cast(HyperliquidRawFill, raw_fill)
-                        )
-                        trades.append(internal_trade)
-                    except (ValidationError, ValueError) as e_item:
-                        logger.warning(
-                            f"[{self.exchange_name}] Skipping fill due to validation/transform "
-                            f"error: {e_item}. Data: {raw_fill}"
-                        )
+            for raw_fill in validated_fills_response.root:
+                try:
+                    if symbol is not None and raw_fill.coin != symbol:
                         continue
+                    # Cast raw_fill (HyperliquidRawUserFill) to HyperliquidRawFill
+                    # for the mapper
+                    internal_trade = HyperliquidMapper.transform_raw_fill_to_internal(
+                        cast(HyperliquidRawFill, raw_fill)
+                    )
+                    trades.append(internal_trade)
+                except (ValidationError, ValueError) as e_item:
+                    logger.warning(
+                        f"[{self.exchange_name}] Skipping fill due to validation/transform "
+                        f"error: {e_item}. Data: {raw_fill}"
+                    )
+                    continue
             trades.sort(key=lambda t: t.executed_at, reverse=True)
             return trades[:limit]
         except APIError:
@@ -1589,13 +1591,14 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.UNKNOWN.value,
                 )
 
-            validated_status_response: HyperliquidRawOrderStatusResponse = (
+            validated_status_response: HyperliquidRawHistoricalOrderResponse = (
                 HyperliquidResponseHandler.handle_info_order_status_response(
                     response_data_raw, self._wallet_address, int(order_id)
                 )
             )
             return HyperliquidOrderMapper.transform_raw_order_to_internal(
-                raw=validated_status_response.order, trigger=None
+                raw=validated_status_response.order,  # type: ignore[arg-type]
+                trigger=None,
             )
         except APIError:
             raise
