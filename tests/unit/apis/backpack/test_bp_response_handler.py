@@ -26,25 +26,10 @@ def test_handle_get_ticker_response_valid() -> None:
     raw_data = {
         "symbol": "SOL_USDC",
         "price": "140.50",
-        "quantity": "100.0",
-        "quoteQuantity": "14050.0",
-        "bestBid": "140.49",
-        "bestAsk": "140.51",
-        "open": "138.00",
-        "high": "142.00",
-        "low": "137.50",
-        "close": "140.50",
-        "firstId": "1000",
-        "lastId": "1100",
-        "bidQuantity": "50.0",
-        "askQuantity": "60.0",
+        "bid": "140.49",
+        "ask": "140.51",
         "volume": "500000.0",
-        "quoteVolume": "70250000.0",
-        "trades": 100,
-        "timestamp": 1678886400000,
-        "priceChange": "2.50",
-        "priceChangePercent": "1.81",
-        "lastQuantity": "10.0",
+        "time": 1678886400000,
     }
     ticker: BackpackRawTicker = BackpackResponseHandler.handle_get_ticker_response(
         cast(Any, raw_data), "SOL_USDC"
@@ -69,26 +54,27 @@ def test_handle_get_ticker_response_validation_error() -> None:
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_get_ticker_response(cast(Any, raw_data), "SOL_USDC")
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for ticker" in exc_info.value.message
+    assert "Invalid ticker (SOL_USDC) response from exchange:" in exc_info.value.message
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "time" in str(exc_info.value.original_exception)
 
 
 def test_handle_get_order_book_response_valid() -> None:
     """Test handling a valid raw order book response."""
     raw_data = {
-        "symbol": "SOL_USDC",
         "bids": [["140.10", "10"], ["140.00", "20"]],
         "asks": [["140.20", "15"], ["140.30", "25"]],
-        "time": 1678886401000,
+        "lastUpdateId": "update123",
+        "timestamp": 1678886401000,
     }
     order_book: BackpackRawOrderBook = BackpackResponseHandler.handle_get_order_book_response(
         cast(Any, raw_data), "SOL_USDC"
     )
     assert isinstance(order_book, BackpackRawOrderBook)
     assert len(order_book.bids) == 2
-    assert order_book.bids[0] == ["140.10", "10"]  # type: ignore[comparison-overlap]
+    assert order_book.bids[0] == ("140.10", "10")
     assert len(order_book.asks) == 2
-    assert order_book.asks[0] == ["140.20", "15"]  # type: ignore[comparison-overlap]
+    assert order_book.asks[0] == ("140.20", "15")
 
 
 def test_handle_get_order_book_response_invalid_type() -> None:
@@ -104,16 +90,17 @@ def test_handle_get_order_book_response_invalid_type() -> None:
 def test_handle_get_order_book_response_validation_error() -> None:
     """Test handling an order book response with missing/invalid fields."""
     raw_data = {
-        "symbol": "SOL_USDC",
-        "bids": [["140.10", "10"], ["invalid_price", "20"]],  # Invalid price string
+        "bids": [["140.10", "10"], ["invalid_price", "20"]],
         "asks": [["140.20", "15"]],
-        "time": 1678886401000,
+        "lastUpdateId": "update123",
+        "timestamp": 1678886401000,
     }
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_get_order_book_response(cast(Any, raw_data), "SOL_USDC")
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for order book" in exc_info.value.message
+    assert "Invalid order book (SOL_USDC) response from exchange:" in exc_info.value.message
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "Invalid price value 'invalid_price'" in str(exc_info.value.original_exception)
 
 
 def test_handle_get_recent_trades_response_valid() -> None:
@@ -168,14 +155,13 @@ def test_handle_get_recent_trades_response_invalid_item_type() -> None:
             "id": "1001",
             "orderId": "order123",
         },
-        "not_a_dict",  # Invalid item type
+        "not_a_dict",
     ]
-    # It should log a warning and skip the invalid item
     with patch("cyberdelta.apis.backpack.bp_response_handler.logger.warning") as mock_log:
         trades: list[BackpackRawTrade] = BackpackResponseHandler.handle_get_recent_trades_response(
             cast(Any, raw_data), "SOL_USDC"
         )
-        assert len(trades) == 1  # Only the valid trade should be returned
+        assert len(trades) == 1
         assert trades[0].id == "1001"
         mock_log.assert_called_once()
         assert "Skipping non-dict item" in mock_log.call_args[0][0]
@@ -194,7 +180,6 @@ def test_handle_get_recent_trades_response_item_validation_error() -> None:
         },
         {
             "symbol": "SOL_USDC",
-            # Missing required 'price' field
             "qty": "0.5",
             "time": 1678886403000,
             "id": "1002",
@@ -204,8 +189,12 @@ def test_handle_get_recent_trades_response_item_validation_error() -> None:
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_get_recent_trades_response(cast(Any, raw_data), "SOL_USDC")
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for single trade item" in exc_info.value.message
+    assert (
+        "Invalid single trade item in recent trades (SOL_USDC) response from exchange:"
+        in exc_info.value.message
+    )
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "price" in str(exc_info.value.original_exception)
 
 
 def test_handle_get_balances_response_valid() -> None:
@@ -248,12 +237,11 @@ def test_handle_get_balances_response_invalid_type() -> None:
 def test_handle_get_balances_response_invalid_value_type() -> None:
     """Test handling balances dict containing a value that is not a dict."""
     raw_data = {"SOL": {"asset": "SOL", "available": "10.0", "total": "10.0"}, "USDC": "not_a_dict"}
-    # It should log a warning and skip the invalid item
     with patch("cyberdelta.apis.backpack.bp_response_handler.logger.warning") as mock_log:
         balances: dict[str, BackpackRawBalance] = (
             BackpackResponseHandler.handle_get_balances_response(cast(Any, raw_data))
         )
-        assert len(balances) == 1  # Only the valid balance should be returned
+        assert len(balances) == 1
         assert "SOL" in balances
         assert "USDC" not in balances
         mock_log.assert_called_once()
@@ -269,8 +257,9 @@ def test_handle_get_balances_response_item_validation_error() -> None:
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_get_balances_response(cast(Any, raw_data))
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for balance details for USDC" in exc_info.value.message
+    assert "Invalid balance details for USDC response from exchange:" in exc_info.value.message
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "available" in str(exc_info.value.original_exception)
 
 
 def test_handle_get_positions_response_valid() -> None:
@@ -282,10 +271,10 @@ def test_handle_get_positions_response_valid() -> None:
             "entryPrice": "130.00",
             "estLiquidationPrice": "120.00",
             "imf": "0.1",
-            "imfFunction": {"a": "1", "b": "0", "c": "0", "maxImf": "1"},
+            "imfFunction": {"base": "0.005", "factor": "0.000001"},
             "markPrice": "135.00",
             "mmf": "0.05",
-            "mmfFunction": {"a": "1", "b": "0", "c": "0", "maxMmf": "1"},
+            "mmfFunction": {"base": "0.002", "factor": "0.0000005"},
             "netCost": "325.00",
             "netQuantity": "2.5",
             "netExposureQuantity": "2.5",
@@ -303,10 +292,10 @@ def test_handle_get_positions_response_valid() -> None:
             "entryPrice": "55000.00",
             "estLiquidationPrice": "60000.00",
             "imf": "0.2",
-            "imfFunction": {"a": "1", "b": "0", "c": "0", "maxImf": "1"},
+            "imfFunction": {"base": "0.01", "factor": "0.000002"},
             "markPrice": "54000.00",
             "mmf": "0.1",
-            "mmfFunction": {"a": "1", "b": "0", "c": "0", "maxMmf": "1"},
+            "mmfFunction": {"base": "0.005", "factor": "0.000001"},
             "netCost": "-5500.00",
             "netQuantity": "-0.1",
             "netExposureQuantity": "-0.1",
@@ -348,10 +337,10 @@ def test_handle_get_positions_response_invalid_item_type() -> None:
             "entryPrice": "130.00",
             "estLiquidationPrice": "120.00",
             "imf": "0.1",
-            "imfFunction": {"a": "1", "b": "0", "c": "0", "maxImf": "1"},
+            "imfFunction": {"base": "0.005", "factor": "0.000001"},
             "markPrice": "135.00",
             "mmf": "0.05",
-            "mmfFunction": {"a": "1", "b": "0", "c": "0", "maxMmf": "1"},
+            "mmfFunction": {"base": "0.002", "factor": "0.0000005"},
             "netCost": "325.00",
             "netQuantity": "2.5",
             "netExposureQuantity": "2.5",
@@ -363,14 +352,13 @@ def test_handle_get_positions_response_invalid_item_type() -> None:
             "positionId": "pos123",
             "cumulativeInterest": "0.0",
         },
-        "not_a_dict",  # Invalid item type
+        "not_a_dict",
     ]
-    # It should log a warning and skip the invalid item
     with patch("cyberdelta.apis.backpack.bp_response_handler.logger.warning") as mock_log:
         positions: list[BackpackRawPosition] = (
             BackpackResponseHandler.handle_get_positions_response(cast(Any, raw_data), "all")
         )
-        assert len(positions) == 1  # Only the valid position should be returned
+        assert len(positions) == 1
         assert positions[0].symbol == "SOL_USDC"
         mock_log.assert_called_once()
         assert "Skipping non-dict item" in mock_log.call_args[0][0]
@@ -385,10 +373,10 @@ def test_handle_get_positions_response_item_validation_error() -> None:
             "entryPrice": "130.00",
             "estLiquidationPrice": "120.00",
             "imf": "0.1",
-            "imfFunction": {"a": "1", "b": "0", "c": "0", "maxImf": "1"},
+            "imfFunction": {"base": "0.005", "factor": "0.000001"},
             "markPrice": "135.00",
             "mmf": "0.05",
-            "mmfFunction": {"a": "1", "b": "0", "c": "0", "maxMmf": "1"},
+            "mmfFunction": {"base": "0.002", "factor": "0.0000005"},
             "netCost": "325.00",
             "netQuantity": "2.5",
             "netExposureQuantity": "2.5",
@@ -401,15 +389,14 @@ def test_handle_get_positions_response_item_validation_error() -> None:
             "cumulativeInterest": "0.0",
         },
         {
-            # Missing required 'symbol' field
             "breakEvenPrice": "54900.00",
             "entryPrice": "55000.00",
             "estLiquidationPrice": "60000.00",
             "imf": "0.2",
-            "imfFunction": {"a": "1", "b": "0", "c": "0", "maxImf": "1"},
+            "imfFunction": {"base": "0.01", "factor": "0.000002"},
             "markPrice": "54000.00",
             "mmf": "0.1",
-            "mmfFunction": {"a": "1", "b": "0", "c": "0", "maxMmf": "1"},
+            "mmfFunction": {"base": "0.005", "factor": "0.000001"},
             "netCost": "-5500.00",
             "netQuantity": "-0.1",
             "netExposureQuantity": "-0.1",
@@ -425,8 +412,12 @@ def test_handle_get_positions_response_item_validation_error() -> None:
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_get_positions_response(cast(Any, raw_data), "all")
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for single position item" in exc_info.value.message
+    assert (
+        "Invalid single position item in positions (all) response from exchange:"
+        in exc_info.value.message
+    )
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "symbol" in str(exc_info.value.original_exception)
 
 
 def test_handle_place_order_response_valid() -> None:
@@ -467,15 +458,15 @@ def test_handle_place_order_response_validation_error() -> None:
     raw_data = {
         "id": "987654321",
         "symbol": "SOL_USDC",
-        # Missing required fields like 'side', 'orderType', 'quantity'
         "status": "NEW",
         "createdAt": 1678886405000,
     }
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_place_order_response(cast(Any, raw_data))
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for place order response" in exc_info.value.message
+    assert "Invalid place order response response from exchange:" in exc_info.value.message
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "side" in str(exc_info.value.original_exception)
 
 
 def test_handle_cancel_order_response_none_input() -> None:
@@ -521,7 +512,7 @@ def test_handle_get_open_orders_response_valid() -> None:
             "quantity": "5.0",
             "price": "139.00",
             "timeInForce": "GTC",
-            "status": "OPEN",
+            "status": "NEW",
             "createdAt": 1678886410000,
             "executedQuantity": "1.0",
         },
@@ -533,7 +524,7 @@ def test_handle_get_open_orders_response_valid() -> None:
             "quantity": "0.1",
             "price": "56000.00",
             "timeInForce": "GTC",
-            "status": "OPEN",
+            "status": "NEW",
             "createdAt": 1678886411000,
             "executedQuantity": "0",
         },
@@ -569,7 +560,7 @@ def test_handle_get_open_orders_response_invalid_item_type() -> None:
             "quantity": "5.0",
             "price": "139.00",
             "timeInForce": "GTC",
-            "status": "OPEN",
+            "status": "NEW",
             "createdAt": 1678886410000,
             "executedQuantity": "1.0",
         },
@@ -596,19 +587,18 @@ def test_handle_get_open_orders_response_item_validation_error() -> None:
             "quantity": "5.0",
             "price": "139.00",
             "timeInForce": "GTC",
-            "status": "OPEN",
+            "status": "NEW",
             "createdAt": 1678886410000,
             "executedQuantity": "1.0",
         },
         {
             "id": "order002",
             "symbol": "BTC_USDT",
-            # Missing required 'side' field
             "orderType": "LIMIT",
             "quantity": "0.1",
             "price": "56000.00",
             "timeInForce": "GTC",
-            "status": "OPEN",
+            "status": "NEW",
             "createdAt": 1678886411000,
             "executedQuantity": "0",
         },
@@ -616,20 +606,22 @@ def test_handle_get_open_orders_response_item_validation_error() -> None:
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_get_open_orders_response(cast(Any, raw_data), "all")
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for single open order item" in exc_info.value.message
+    assert (
+        "Invalid single open order item in open orders (all) response from exchange:"
+        in exc_info.value.message
+    )
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "side" in str(exc_info.value.original_exception)
 
 
 def test_handle_get_funding_rate_response_valid() -> None:
     """Test handling a valid raw funding rate response."""
     raw_data = {
         "symbol": "SOL-PERP",
-        "fundingRate": "0.000123",
-        "fundingTime": 1678887000000,
-        "nextFundingRate": "0.000125",
-        "nextFundingTime": 1678890600000,
-        "openInterest": "150000.5",
-        "openInterestValue": "21000070.25",
+        "rate": "0.000123",
+        "markPrice": "140.00",
+        "indexPrice": "139.90",
+        "time": 1678887000000,
     }
     funding_rate: BackpackRawFundingRate = BackpackResponseHandler.handle_get_funding_rate_response(
         cast(Any, raw_data), "SOL-PERP"
@@ -637,6 +629,9 @@ def test_handle_get_funding_rate_response_valid() -> None:
     assert isinstance(funding_rate, BackpackRawFundingRate)
     assert funding_rate.symbol == "SOL-PERP"
     assert funding_rate.funding_rate == "0.000123"
+    assert funding_rate.mark_price == "140.00"
+    assert funding_rate.index_price == "139.90"
+    assert funding_rate.time == 1678887000000
 
 
 def test_handle_get_funding_rate_response_invalid_type() -> None:
@@ -653,14 +648,14 @@ def test_handle_get_funding_rate_response_validation_error() -> None:
     """Test handling funding rate response dict failing validation."""
     raw_data = {
         "symbol": "SOL-PERP",
-        # Missing required 'fundingRate' field
-        "fundingTime": 1678887000000,
+        "time": 1678887000000,
     }
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_get_funding_rate_response(cast(Any, raw_data), "SOL-PERP")
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for funding rate" in exc_info.value.message
+    assert "Invalid funding rate (SOL-PERP) response from exchange:" in exc_info.value.message
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "rate" in str(exc_info.value.original_exception)
 
 
 def test_handle_get_account_info_response_valid() -> None:
@@ -705,15 +700,15 @@ def test_handle_get_account_info_response_validation_error() -> None:
     raw_data = {
         "autoBorrowSettlements": True,
         "autoLend": False,
-        # Missing required 'leverageLimit' field
         "limitOrders": 50,
         "liquidating": False,
     }
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_get_account_info_response(cast(Any, raw_data))
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for account info" in exc_info.value.message
+    assert "Invalid account info response from exchange:" in exc_info.value.message
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "leverageLimit" in str(exc_info.value.original_exception)
 
 
 def test_handle_withdraw_response_valid() -> None:
@@ -728,7 +723,6 @@ def test_handle_withdraw_response_valid() -> None:
         "toAddress": "SOLANA_ADDRESS_HERE",
         "createdAt": "2023-03-15T10:00:00.000Z",
         "isInternal": False,
-        "transactionHash": "TX_HASH_HERE",
     }
     withdraw_response: BackpackRawWithdrawalResponse = (
         BackpackResponseHandler.handle_withdraw_response(cast(Any, raw_data))
@@ -755,18 +749,18 @@ def test_handle_withdraw_response_validation_error() -> None:
         "id": 12345,
         "blockchain": "Solana",
         "quantity": "100.0",
-        # Missing required 'fee' field
         "symbol": "USDC",
         "status": "confirmed",
         "toAddress": "SOLANA_ADDRESS_HERE",
         "createdAt": "2023-03-15T10:00:00.000Z",
-        "isInternal": False,
     }
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_withdraw_response(cast(Any, raw_data))
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for withdraw response" in exc_info.value.message
+    assert "Invalid withdraw response response from exchange:" in exc_info.value.message
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "fee" in str(exc_info.value.original_exception)
+    assert "isInternal" in str(exc_info.value.original_exception)
 
 
 def test_handle_get_order_history_response_valid() -> None:
@@ -783,7 +777,7 @@ def test_handle_get_order_history_response_valid() -> None:
             "status": "FILLED",
             "createdAt": 1678886000000,
             "executedQuantity": "12.0",
-            "averageExecutedPrice": "138.00",
+            "avgFillPrice": "138.00",
         },
         {
             "id": "histOrder002",
@@ -795,7 +789,7 @@ def test_handle_get_order_history_response_valid() -> None:
             "status": "FILLED",
             "createdAt": 1678886100000,
             "executedQuantity": "0.2",
-            "averageExecutedPrice": "55950.00",
+            "avgFillPrice": "55950.00",
         },
     ]
     orders: list[BackpackRawOrder] = BackpackResponseHandler.handle_get_order_history_response(
@@ -864,7 +858,6 @@ def test_handle_get_order_history_response_item_validation_error() -> None:
         {
             "id": "histOrder002",
             "symbol": "BTC_USDT",
-            # Missing required 'orderType' field
             "side": "sell",
             "quantity": "0.2",
             "status": "FILLED",
@@ -875,8 +868,12 @@ def test_handle_get_order_history_response_item_validation_error() -> None:
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_get_order_history_response(cast(Any, raw_data), "all")
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for single order history item" in exc_info.value.message
+    assert (
+        "Invalid single order history item in order history (all) response from exchange:"
+        in exc_info.value.message
+    )
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "orderType" in str(exc_info.value.original_exception)
 
 
 def test_handle_get_trade_history_response_valid() -> None:
@@ -955,7 +952,6 @@ def test_handle_get_trade_history_response_item_validation_error() -> None:
         },
         {
             "symbol": "SOL_USDC",
-            # Missing required 'price' field
             "qty": "0.5",
             "time": 1678886403000,
             "id": "trade1002",
@@ -965,14 +961,18 @@ def test_handle_get_trade_history_response_item_validation_error() -> None:
     with pytest.raises(APIError) as exc_info:
         BackpackResponseHandler.handle_get_trade_history_response(cast(Any, raw_data), "SOL_USDC")
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for single trade history item" in exc_info.value.message
+    assert (
+        "Invalid single trade history item in trade history (SOL_USDC) response from exchange:"
+        in exc_info.value.message
+    )
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "price" in str(exc_info.value.original_exception)
 
 
 def test_handle_get_market_data_response_valid() -> None:
     """Test handling a valid raw market data (klines) response."""
     raw_data = [
-        [1678886400000, "138.0", "139.5", "137.5", "139.0", "1000.0"],  # Example kline data
+        [1678886400000, "138.0", "139.5", "137.5", "139.0", "1000.0"],
         [1678886460000, "139.0", "140.0", "138.5", "139.8", "1200.0"],
     ]
     klines: list[Any] = BackpackResponseHandler.handle_get_market_data_response(
@@ -1001,17 +1001,18 @@ def test_handle_get_market_data_response_invalid_item_type() -> None:
     """Test handling market data list containing a non-list item."""
     raw_data = [
         [1678886400000, "138.0", "139.5", "137.5", "139.0", "1000.0"],
-        {"error": "not a list"},  # Invalid item
+        {"error": "not a list"},
     ]
-    # It should log a warning and skip the invalid item
     with patch("cyberdelta.apis.backpack.bp_response_handler.logger.warning") as mock_log:
         klines: list[Any] = BackpackResponseHandler.handle_get_market_data_response(
             cast(Any, raw_data), "SOL_USDC", "1m"
         )
         assert len(klines) == 1
         assert klines[0][0] == 1678886400000
-        mock_log.assert_called_once()
-        assert "Skipping non-list item" in mock_log.call_args[0][0]
+        assert mock_log.call_count == 2
+        assert any(
+            "Skipping non-list item" in call_args[0][0] for call_args in mock_log.call_args_list
+        )
 
 
 def test_handle_get_historical_trades_response_valid() -> None:
@@ -1095,7 +1096,6 @@ def test_handle_get_historical_trades_response_item_validation_error() -> None:
         {
             "symbol": "SOL_USDC",
             "qty": "1.0",
-            # Missing required 'price' field
             "time": 1678880100000,
             "id": "histTrade002",
             "orderId": "histOrderB",
@@ -1106,8 +1106,12 @@ def test_handle_get_historical_trades_response_item_validation_error() -> None:
             cast(Any, raw_data), "SOL_USDC"
         )
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for single historical trade item" in exc_info.value.message
+    assert (
+        "Invalid single historical trade item in historical trades (SOL_USDC) response from exchange:"
+        in exc_info.value.message
+    )
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "price" in str(exc_info.value.original_exception)
 
 
 def test_handle_get_order_status_response_valid() -> None:
@@ -1159,7 +1163,6 @@ def test_handle_get_order_status_response_validation_error() -> None:
     raw_data = {
         "id": "statusOrder123",
         "symbol": "SOL_USDC",
-        # Missing required fields like 'side', 'status'
         "quantity": "2.0",
         "createdAt": 1678889000000,
     }
@@ -1168,8 +1171,11 @@ def test_handle_get_order_status_response_validation_error() -> None:
             cast(Any, raw_data), identifier="statusOrder123"
         )
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for order status" in exc_info.value.message
+    assert (
+        "Invalid order status (id=statusOrder123) response from exchange:" in exc_info.value.message
+    )
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "side" in str(exc_info.value.original_exception)
 
 
 # All REST API handler tests are now implemented for BackpackResponseHandler.

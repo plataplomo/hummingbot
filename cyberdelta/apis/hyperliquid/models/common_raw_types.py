@@ -519,15 +519,31 @@ Optional string, max 1024 chars. If present, must be non-empty.
 Used for error messages or optional long text fields.
 """
 
+# --- Order Status (from spec and test_hl_raw_open_orders.py) ---
+_ALLOWED_ORDER_STATUSES_HL = {"open"}
 RawOrderStatusHL = Annotated[
-    str,
+    str,  # Base type
     WrapValidator(
         lambda v, h, i: _wrap_validate_enum_str(
-            v, h, i, field_name_default="order_status_field_hl", allowed_values={"open"}
+            v, h, i, field_name_default="order_status", allowed_values=_ALLOWED_ORDER_STATUSES_HL
         )
     ),
 ]
-"""A raw string representing a Hyperliquid order status, currently only 'open'."""
+
+# ADDED: More permissive status for historical/any orders
+_ALLOWED_HISTORICAL_ORDER_STATUSES_HL = {"open", "filled", "canceled", "rejected", "expired"}
+RawHistoricalOrderStatusHL = Annotated[
+    str,  # Base type
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_enum_str(
+            v,
+            h,
+            i,
+            field_name_default="historical_order_status",
+            allowed_values=_ALLOWED_HISTORICAL_ORDER_STATUSES_HL,
+        )
+    ),
+]
 
 RawPositiveFiniteDecimalStr = Annotated[
     str, WrapValidator(_wrap_validate_positive_finite_decimal_str)

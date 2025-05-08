@@ -15,15 +15,17 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
     HyperliquidRawExchangeStatusObject,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
+    HyperliquidRawHistoricalOrderResponse,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     HyperliquidRawMetaAndAssetCtxsResponse,
+    HyperliquidRawMetaResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrder,
     HyperliquidRawOpenOrdersResponse,
-    HyperliquidRawOrder,
-    HyperliquidRawOrderStatusResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
@@ -34,34 +36,68 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFillsResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
-from cyberdelta.apis.hyperliquid.models.hl_raw_vault_details import (
-    HyperliquidRawVaultDetailsResponse,
-)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
 
 def test_handle_exchange_response_valid() -> None:
-    """Test handling a valid raw exchange response."""
+    """Test handling a valid raw exchange response (e.g., order placement)."""
     raw_data = {
         "status": "ok",
-        "response": {"type": "order", "data": {"statuses": [{"resting": {"oid": 12345}}]}},
+        "data": {"type": "order", "statuses": [{"resting": {"oid": 12345}}, "canceled"]},
     }
-    exchange_response: HyperliquidRawExchangeResponse = (
-        HyperliquidResponseHandler.handle_exchange_response(cast(Any, raw_data), "order")
+    response: HyperliquidRawExchangeResponse = HyperliquidResponseHandler.handle_exchange_response(
+        cast(Any, raw_data), action_type="order"
     )
-    assert isinstance(exchange_response, HyperliquidRawExchangeResponse)
-    assert exchange_response.status == "ok"
-    assert exchange_response.data is not None  # Check that data field is present
-    assert exchange_response.data.type == "order"
-    assert isinstance(exchange_response.data.statuses, list)
+    assert isinstance(response, HyperliquidRawExchangeResponse)
+    assert response.status == "ok"
+    assert response.data is not None
+    assert response.data.type == "order"
+    assert len(response.data.statuses) == 2
+    # Check first status (object)
+    status1 = response.data.statuses[0]
+    assert isinstance(status1, HyperliquidRawExchangeStatusObject)
+    assert status1.resting is not None
+    assert status1.resting.oid == 12345
+    # Check second status (string)
+    status2 = response.data.statuses[1]
+    assert isinstance(status2, str)
+    assert status2 == "canceled"
 
-    # Access the status object within the list
-    status_obj = exchange_response.data.statuses[0]
-    # Assert it's the expected status object type and access attributes safely
-    assert isinstance(status_obj, HyperliquidRawExchangeStatusObject)
-    assert status_obj.resting is not None
-    assert status_obj.resting.oid == 12345
+
+def test_handle_exchange_response_validation_error() -> None:
+    """Test handling exchange response dict failing validation (e.g., missing status)."""
+    raw_data = {"data": {"type": "order", "statuses": [{"resting": {"oid": 12345}}]}}
+    with pytest.raises(APIError) as exc_info:
+        HyperliquidResponseHandler.handle_exchange_response(
+            cast(Any, raw_data), action_type="order"
+        )
+    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+    # Check correct message prefix and that the original exception mentions the missing field
+    assert "Invalid exchange (order) response from exchange:" in exc_info.value.message
+    assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "status" in str(exc_info.value.original_exception)
+
+
+def test_handle_exchange_response_top_level_status_error() -> None:
+    """Test handling an exchange response where top-level status is 'error'.
+    This should fail validation against HyperliquidRawExchangeResponse model which expects status='ok'.
+    """
+    raw_data = {
+        "status": "error",
+        "error": "Invalid order size",
+    }
+    with pytest.raises(APIError) as exc_info:
+        HyperliquidResponseHandler.handle_exchange_response(
+            cast(Any, raw_data), action_type="order"
+        )
+    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+    # Check correct message prefix and that the original exception mentions the literal error
+    assert "Invalid exchange (order) response from exchange:" in exc_info.value.message
+    assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "status" in str(exc_info.value.original_exception)
+    assert "Input should be 'ok'" in str(exc_info.value.original_exception)
+    assert "error" in str(exc_info.value.original_exception)  # Check the extra field error too
 
 
 def test_handle_exchange_response_invalid_type() -> None:
@@ -73,33 +109,72 @@ def test_handle_exchange_response_invalid_type() -> None:
     assert "expected dict" in exc_info.value.message
 
 
-def test_handle_exchange_response_validation_error() -> None:
-    """Test handling an exchange response with missing required fields."""
-    raw_data = {"status": "ok"}  # Missing 'response' field
+def test_handle_exchange_response_validation_error_ok_missing_data() -> None:
+    """Test handling exchange response with status='ok' but invalid/missing 'data' field."""
+    raw_data = {"status": "ok", "data": "not a valid data structure"}
     with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_exchange_response(cast(Any, raw_data), "order")
+        HyperliquidResponseHandler.handle_exchange_response(
+            cast(Any, raw_data), action_type="order"
+        )
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for exchange (order)" in exc_info.value.message
+    # Check correct message prefix and that the original exception mentions the data field error
+    assert "Invalid exchange (order) response from exchange:" in exc_info.value.message
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "data" in str(exc_info.value.original_exception)
+    assert "Input should be a valid dictionary" in str(exc_info.value.original_exception)
 
 
 def test_handle_info_meta_and_asset_ctxs_response_valid() -> None:
-    """Test handling a valid raw meta and asset contexts response."""
+    """Test handling a valid raw meta and asset ctxs response."""
+    # Structure: [meta_object, list_of_asset_ctx_objects]
     raw_data = [
-        {"universe": [{"name": "BTC", "szDecimals": 5}, {"name": "ETH", "szDecimals": 4}]},
-        [
-            {"name": "BTC", "maxLeverage": 50, "onlyIsolated": False},
-            {"name": "ETH", "maxLeverage": 40, "onlyIsolated": False},
+        {  # Meta Object
+            "universe": [
+                {
+                    "name": "BTC",
+                    "szDecimals": 5,
+                    "maxLeverage": 100,
+                    "onlyIsolated": False,
+                },
+                {
+                    "name": "ETH",
+                    "szDecimals": 4,
+                    "maxLeverage": 80,
+                    "onlyIsolated": False,
+                },
+            ]
+        },
+        [  # List of Asset Context Objects
+            {
+                "name": "BTC",
+                "funding": "0.0001",
+                "markPx": "55000.0",
+                "prevDayPx": "54000.0",
+                "dayNtlVlm": "1000000000.0",
+                "impactPx": "55010.0",
+            },
+            {
+                "name": "ETH",
+                "funding": "0.0002",
+                "markPx": "3000.0",
+                "prevDayPx": "2950.0",
+                "dayNtlVlm": "500000000.0",
+                "impactPx": "3005.0",
+            },
         ],
     ]
-    response: HyperliquidRawMetaAndAssetCtxsResponse = (
-        HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(cast(Any, raw_data))
+
+    meta_and_ctxs = HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
+        cast(Any, raw_data)
     )
-    assert isinstance(response, HyperliquidRawMetaAndAssetCtxsResponse)
-    assert len(response.meta.universe) == 2
-    assert response.meta.universe[0].name == "BTC"
-    assert len(response.asset_ctxs) == 2
-    assert response.asset_ctxs[1].name == "ETH"
+    assert isinstance(meta_and_ctxs, HyperliquidRawMetaAndAssetCtxsResponse)
+    assert isinstance(meta_and_ctxs.meta, HyperliquidRawMetaResponse)
+    assert len(meta_and_ctxs.meta.universe) == 2
+    assert meta_and_ctxs.meta.universe[0].name == "BTC"
+    assert isinstance(meta_and_ctxs.asset_ctxs, list)
+    assert len(meta_and_ctxs.asset_ctxs) == 2
+    assert isinstance(meta_and_ctxs.asset_ctxs[0], HyperliquidRawAssetCtx)
+    assert meta_and_ctxs.asset_ctxs[1].name == "ETH"
 
 
 def test_handle_info_meta_and_asset_ctxs_response_invalid_type() -> None:
@@ -112,26 +187,42 @@ def test_handle_info_meta_and_asset_ctxs_response_invalid_type() -> None:
 
 
 def test_handle_info_meta_and_asset_ctxs_response_validation_error() -> None:
-    """Test handling meta/ctxs response with invalid structure."""
-    # Missing the outer list structure
-    raw_data = {"universe": [{"name": "BTC"}]}
+    """Test handling meta/asset ctxs response with invalid data within the structure."""
+    # Invalid data: missing 'szDecimals' in the first universe item
+    raw_data = [
+        {
+            "universe": [
+                {
+                    "name": "BTC",
+                    # "szDecimals": 5, # Missing required field
+                    "maxLeverage": 100,
+                    "onlyIsolated": False,
+                }
+            ]
+        },
+        [
+            {
+                "name": "BTC",
+                "funding": "0.0001",
+                "markPx": "55000.0",
+                "prevDayPx": "54000.0",
+                "dayNtlVlm": "1000000000.0",
+                "impactPx": "55010.0",
+            }
+        ],
+    ]
     with pytest.raises(APIError) as exc_info:
         HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(cast(Any, raw_data))
-    # The error will be about expecting a list, not a dict
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "expected list" in exc_info.value.message
-    # Test with correct outer list but invalid inner structure
-    raw_data_inner = [
-        {"universe": [{"name": "BTC"}]},
-        ["invalid_asset_ctx_item"],  # AssetCtx should be a dict
-    ]
-    with pytest.raises(APIError) as exc_info_inner:
-        HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
-            cast(Any, raw_data_inner)
-        )
-    assert exc_info_inner.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed" in exc_info_inner.value.message
-    assert isinstance(exc_info_inner.value.original_exception, ValidationError)
+    # Check correct message prefix and that the original exception mentions the missing field
+    assert "Invalid info (MetaAndAssetCtxs) response from exchange:" in exc_info.value.message
+    assert isinstance(
+        exc_info.value.original_exception, ValueError
+    )  # Custom validator raises ValueError
+    assert "szDecimals" in str(exc_info.value.original_exception)
+    assert "Field required" in str(
+        exc_info.value.original_exception
+    )  # Ensure it's about missing field
 
 
 def test_handle_info_user_state_response_valid() -> None:
@@ -226,59 +317,79 @@ def test_handle_info_user_state_response_validation_error() -> None:
 
 
 def test_handle_info_open_orders_response_valid() -> None:
-    """Test handling a valid raw open orders response (list of order dicts)."""
+    """Test handling a valid raw open orders response."""
+    # Adjusted data to match HyperliquidRawOrder model and only 'open' status
     raw_data = [
         {
-            "coin": "ETH",
-            "limitPx": "3000.0",
-            "oid": 98765,
-            "origSz": "1.5",
-            "reduceOnly": False,
-            "side": "A",
-            "sz": "1.5",
-            "timestamp": 1678889100000,
-            "cloid": None,
+            "order": {
+                "asset": "ETH",
+                "limitPx": "3000.0",
+                "oid": 6001,
+                "reduceOnly": False,
+                "side": "B",
+                "sz": "0.5",
+                "timestamp": 1678889600000,
+                "orderType": {"limit": {"tif": "Gtc"}},
+                "remainingSz": "0.5",
+                "status": "open",
+                "statusTimestamp": 1678889601000,
+                "cloid": "clientOpen1",
+            },
+            "trigger": None,
         },
         {
-            "coin": "BTC",
-            "limitPx": "54000.0",
-            "oid": 98766,
-            "origSz": "0.1",
-            "reduceOnly": True,
-            "side": "B",
-            "sz": "0.1",
-            "timestamp": 1678889110000,
-            "cloid": "myClientOrderId123",
+            "order": {
+                "asset": "BTC",
+                "limitPx": "55000.0",
+                "oid": 6002,
+                "reduceOnly": True,
+                "side": "A",
+                "sz": "0.1",
+                "timestamp": 1678889700000,
+                "orderType": {"limit": {"tif": "Alo"}},
+                "remainingSz": "0.1",
+                "status": "open",
+                "statusTimestamp": 1678889701000,
+                "cloid": None,
+            },
+            "trigger": {
+                "triggerPx": "56000.0",
+                "isMarket": True,
+                "tpsl": "tp",
+            },
         },
     ]
-    user_address_placeholder = "0x1234567890abcdef1234567890abcdef12345678"
-    response_wrapper: HyperliquidRawOpenOrdersResponse = (
-        HyperliquidResponseHandler.handle_info_open_orders_response(
-            cast(Any, raw_data), user_address=user_address_placeholder
-        )
+    open_orders_response = HyperliquidResponseHandler.handle_info_open_orders_response(
+        cast(Any, raw_data), user_address="0x1234567890abcdef1234567890abcdef12345678"
     )
-    assert isinstance(response_wrapper, HyperliquidRawOpenOrdersResponse)
-    orders = response_wrapper.root
-    assert isinstance(orders, list)
-    assert len(orders) == 2
-    assert isinstance(orders[0], HyperliquidRawOpenOrder)
-    assert orders[0].order.oid == 98765
-    assert orders[0].order.asset == "ETH"
-    assert orders[1].order.side == "B"
-    assert orders[1].order.cloid == "myClientOrderId123"
+    # The response is the RootModel wrapping the list
+    assert isinstance(open_orders_response, HyperliquidRawOpenOrdersResponse)
+    open_orders = open_orders_response.root
+    assert isinstance(open_orders, list)
+    assert len(open_orders) == 2
+    assert isinstance(open_orders[0], HyperliquidRawOpenOrder)
+    assert open_orders[0].order.oid == 6001
+    assert open_orders[0].order.asset == "ETH"
+    assert open_orders[0].order.status == "open"
+    assert open_orders[1].order.asset == "BTC"
+    assert open_orders[1].order.status == "open"
+    assert open_orders[1].trigger is not None
+    assert open_orders[1].trigger.tpsl == "tp"
 
 
 def test_handle_info_open_orders_response_invalid_type() -> None:
     """Test handling open orders response with invalid type (dict instead of list)."""
     raw_data = {"error": "expected list"}
-    user_address_placeholder = "0x1234567890abcdef1234567890abcdef12345678"
     with pytest.raises(APIError) as exc_info:
         HyperliquidResponseHandler.handle_info_open_orders_response(
-            cast(Any, raw_data), user_address=user_address_placeholder
+            cast(Any, raw_data), user_address="0x1234567890abcdef1234567890abcdef12345678"
         )
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "expected list" in exc_info.value.message
-    assert "open orders" in exc_info.value.message
+    # Check exact error message for invalid top-level type
+    assert (
+        f"Unexpected info (OpenOrders for 0x1234567890abcdef1234567890abcdef12345678) response format: expected list, got {type(raw_data).__name__}"
+        in exc_info.value.message
+    )
 
 
 def test_handle_info_open_orders_response_invalid_item_type() -> None:
@@ -286,33 +397,31 @@ def test_handle_info_open_orders_response_invalid_item_type() -> None:
     raw_data = [
         {
             "order": {
-                "coin": "ETH",
+                "asset": "ETH",
                 "limitPx": "3000.0",
-                "oid": 98765,
-                "origSz": "1.5",
+                "oid": 6001,
                 "reduceOnly": False,
-                "side": "A",
-                "sz": "1.5",
-                "timestamp": 1678889100000,
+                "side": "B",
+                "sz": "0.5",
+                "timestamp": 1678889600000,
                 "orderType": {"limit": {"tif": "Gtc"}},
-                "remainingSz": "1.5",
+                "remainingSz": "0.5",
                 "status": "open",
-                "statusTimestamp": 1678889100000,
+                "statusTimestamp": 1678889601000,
+                "cloid": "clientOpen1",
             },
             "trigger": None,
         },
         "not_an_order_dict",
     ]
-    user_address_placeholder = "0x1234567890abcdef1234567890abcdef12345678"
     with patch("cyberdelta.apis.hyperliquid.hl_response_handler.logger.warning") as mock_log:
-        response_wrapper: HyperliquidRawOpenOrdersResponse = (
-            HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast(Any, raw_data), user_address=user_address_placeholder
-            )
+        # Expect the handler to skip the invalid item and return only the valid one
+        open_orders_response = HyperliquidResponseHandler.handle_info_open_orders_response(
+            cast(Any, raw_data), user_address="0x1234567890abcdef1234567890abcdef12345678"
         )
-        orders = response_wrapper.root
-        assert len(orders) == 1
-        assert orders[0].order.oid == 98765
+        open_orders = open_orders_response.root
+        assert len(open_orders) == 1
+        assert open_orders[0].order.oid == 6001
         mock_log.assert_called_once()
         assert "Skipping non-dict item" in mock_log.call_args[0][0]
 
@@ -322,157 +431,149 @@ def test_handle_info_open_orders_response_item_validation_error() -> None:
     raw_data = [
         {
             "order": {
-                "coin": "ETH",
+                "asset": "ETH",
                 "limitPx": "3000.0",
-                "oid": 98765,
-                "origSz": "1.5",
+                "oid": 6001,
                 "reduceOnly": False,
-                "side": "A",
-                "sz": "1.5",
-                "timestamp": 1678889100000,
+                "side": "B",
+                "sz": "0.5",
+                "timestamp": 1678889600000,
                 "orderType": {"limit": {"tif": "Gtc"}},
-                "remainingSz": "1.5",
+                "remainingSz": "0.5",
                 "status": "open",
-                "statusTimestamp": 1678889100000,
+                "statusTimestamp": 1678889601000,
+                "cloid": "clientOpen1",
             },
             "trigger": None,
         },
         {
             "order": {
-                "coin": "BTC",
-                "oid": 98766,
-                "origSz": "0.1",
+                "asset": "BTC",
+                "limitPx": "55000.0",
                 "reduceOnly": True,
-                "side": "B",
+                "side": "A",
                 "sz": "0.1",
-                "timestamp": 1678889110000,
-                "orderType": {"limit": {"tif": "Gtc"}},
+                "timestamp": 1678889700000,
+                "orderType": {"limit": {"tif": "Alo"}},
                 "remainingSz": "0.1",
                 "status": "open",
-                "statusTimestamp": 1678889110000,
+                "statusTimestamp": 1678889701000,
+                "cloid": None,
             },
             "trigger": None,
         },
     ]
-    user_address_placeholder = "0x1234567890abcdef1234567890abcdef12345678"
     with pytest.raises(APIError) as exc_info:
         HyperliquidResponseHandler.handle_info_open_orders_response(
-            cast(Any, raw_data), user_address=user_address_placeholder
+            cast(Any, raw_data), user_address="0x1234567890abcdef1234567890abcdef12345678"
         )
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for open orders" in exc_info.value.message
+    # Check correct message prefix and that the original exception mentions the missing field
+    assert (
+        "Invalid single open order item in info (OpenOrders for 0x1234567890abcdef1234567890abcdef12345678) response from exchange:"
+        in exc_info.value.message
+    )
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "order.oid" in str(exc_info.value.original_exception)
+    assert "Field required" in str(exc_info.value.original_exception)
 
 
 def test_handle_info_user_fills_response_valid() -> None:
-    """Test handling a valid raw user fills response (list of fill dicts)."""
+    """Test handling a valid raw user fills response."""
     raw_data = [
         {
-            "coin": "BTC",
-            "px": "55000.0",
-            "sz": "0.01",
+            "tid": 1001,
+            "coin": "ETH",
+            "px": "3000.1",
+            "sz": "0.5",
+            "time": 1678889800000,
             "side": "B",
-            "time": 1678889200000,
+            "oid": 6001,
             "startPosition": "0.0",
             "dir": "Open Long",
-            "closedPnl": "0.0",
-            "hash": "fillHash1",
-            "oid": 10001,
-            "crossed": True,
-            "fee": "0.55",
+            "hash": "0xfillhash1",
+            "fee": "1.5",
+            "isMaker": False,
             "liquidationMarkPx": None,
-            "tid": "tradeId1",
-            "cloid": None,
+            "cloid": "clientFill1",
         },
         {
-            "coin": "ETH",
-            "px": "3000.0",
-            "sz": "0.5",
+            "tid": 1002,
+            "coin": "BTC",
+            "px": "55000.5",
+            "sz": "0.1",
+            "time": 1678889900000,
             "side": "A",
-            "time": 1678889210000,
-            "startPosition": "1.0",
+            "oid": 6002,
+            "startPosition": "0.1",
             "dir": "Close Short",
-            "closedPnl": "50.0",
-            "hash": "fillHash2",
-            "oid": 10002,
-            "crossed": False,
-            "fee": "1.50",
-            "liquidationMarkPx": "2800.0",
-            "tid": "tradeId2",
-            "cloid": "clientFill002",
+            "hash": "0xfillhash2",
+            "fee": "5.5",
+            "isMaker": True,
+            "liquidationMarkPx": "50000.0",
+            "cloid": None,
         },
     ]
-    user_address_placeholder = "0x1234567890abcdef1234567890abcdef12345678"
-    # Expect a list of wrapper models
-    validated_fills_list: list[HyperliquidRawUserFillsResponse] = (
+    user_fills_response: HyperliquidRawUserFillsResponse = (
         HyperliquidResponseHandler.handle_info_user_fills_response(
-            cast(Any, raw_data), user_address=user_address_placeholder
+            cast(Any, raw_data), user_address="0x1234567890abcdef1234567890abcdef12345678"
         )
     )
-    assert isinstance(validated_fills_list, list)
-    assert len(validated_fills_list) == 2
-    # Check the first wrapper and its root list/item
-    assert isinstance(validated_fills_list[0], HyperliquidRawUserFillsResponse)
-    assert isinstance(validated_fills_list[0].root, list)
-    assert len(validated_fills_list[0].root) == 1
-    fill_item_0 = validated_fills_list[0].root[0]  # Access item within the root list
-    assert isinstance(fill_item_0, HyperliquidRawUserFill)
-    assert fill_item_0.coin == "BTC"
-    assert fill_item_0.oid == 10001
-    # Check the second wrapper and its root list/item
-    assert isinstance(validated_fills_list[1], HyperliquidRawUserFillsResponse)
-    assert isinstance(validated_fills_list[1].root, list)
-    assert len(validated_fills_list[1].root) == 1
-    fill_item_1 = validated_fills_list[1].root[0]  # Access item within the root list
-    assert isinstance(fill_item_1, HyperliquidRawUserFill)
-    assert fill_item_1.side == "A"
-    assert fill_item_1.cloid == "clientFill002"
+    # The handler returns the RootModel wrapping the list
+    assert isinstance(user_fills_response, HyperliquidRawUserFillsResponse)
+    user_fills = user_fills_response.root  # Access the list via .root
+    assert isinstance(user_fills, list)
+    assert len(user_fills) == 2
+    assert isinstance(user_fills[0], HyperliquidRawUserFill)
+    assert user_fills[0].tid == 1001
+    assert user_fills[1].coin == "BTC"
+    assert user_fills[1].is_maker is True
 
 
 def test_handle_info_user_fills_response_invalid_type() -> None:
     """Test handling user fills response with invalid type (dict instead of list)."""
     raw_data = {"error": "expected list"}
-    user_address_placeholder = "0x1234567890abcdef1234567890abcdef12345678"
     with pytest.raises(APIError) as exc_info:
         HyperliquidResponseHandler.handle_info_user_fills_response(
-            cast(Any, raw_data), user_address=user_address_placeholder
+            cast(Any, raw_data), user_address="0x1234567890abcdef1234567890abcdef12345678"
         )
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "expected list" in exc_info.value.message
-    assert "user fills" in exc_info.value.message
+    # Check exact error message for invalid top-level type
+    assert (
+        f"Unexpected info (UserFills for 0x1234567890abcdef1234567890abcdef12345678) response format: expected list, got {type(raw_data).__name__}"
+        in exc_info.value.message
+    )
 
 
 def test_handle_info_user_fills_response_invalid_item_type() -> None:
     """Test handling user fills list containing a non-dict item."""
     raw_data = [
-        {
-            "coin": "BTC",
-            "px": "55000.0",
-            "sz": "0.01",
+        {  # Valid fill
+            "tid": 1001,
+            "coin": "ETH",
+            "px": "3000.1",
+            "sz": "0.5",
+            "time": 1678889800000,
             "side": "B",
-            "time": 1678889200000,
+            "oid": 6001,
             "startPosition": "0.0",
             "dir": "Open Long",
-            "closedPnl": "0.0",
-            "hash": "fillHash1",
-            "oid": 10001,
-            "crossed": True,
-            "fee": "0.55",
-            "tid": "tradeId1",
+            "hash": "0xfillhash1",
+            "fee": "1.5",
+            "isMaker": False,
+            "liquidationMarkPx": None,
+            "cloid": "clientFill1",
         },
-        "not_a_fill_dict",
+        "not_a_fill_dict",  # Invalid item
     ]
-    user_address_placeholder = "0x1234567890abcdef1234567890abcdef12345678"
     with patch("cyberdelta.apis.hyperliquid.hl_response_handler.logger.warning") as mock_log:
-        validated_fills_list: list[HyperliquidRawUserFillsResponse] = (
-            HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast(Any, raw_data), user_address=user_address_placeholder
-            )
+        # Expect the handler to skip the invalid item
+        user_fills_response = HyperliquidResponseHandler.handle_info_user_fills_response(
+            cast(Any, raw_data), user_address="0x1234567890abcdef1234567890abcdef12345678"
         )
-        assert len(validated_fills_list) == 1
-        assert isinstance(validated_fills_list[0].root, list)
-        assert len(validated_fills_list[0].root) == 1
-        assert validated_fills_list[0].root[0].oid == 10001  # Correct access
+        user_fills = user_fills_response.root
+        assert len(user_fills) == 1
+        assert user_fills[0].tid == 1001
         mock_log.assert_called_once()
         assert "Skipping non-dict item" in mock_log.call_args[0][0]
 
@@ -480,46 +581,51 @@ def test_handle_info_user_fills_response_invalid_item_type() -> None:
 def test_handle_info_user_fills_response_item_validation_error() -> None:
     """Test handling user fills list with an item failing validation."""
     raw_data = [
-        {
-            "coin": "BTC",
-            "px": "55000.0",
-            "sz": "0.01",
+        {  # Valid fill
+            "tid": 1001,
+            "coin": "ETH",
+            "px": "3000.1",
+            "sz": "0.5",
+            "time": 1678889800000,
             "side": "B",
-            "time": 1678889200000,
+            "oid": 6001,
             "startPosition": "0.0",
             "dir": "Open Long",
-            "closedPnl": "0.0",
-            "hash": "fillHash1",
-            "oid": 10001,
-            "crossed": True,
-            "fee": "0.55",
-            "tid": "tradeId1",
+            "hash": "0xfillhash1",
+            "fee": "1.5",
+            "isMaker": False,
+            "liquidationMarkPx": None,
+            "cloid": "clientFill1",
         },
-        {
-            "coin": "ETH",
-            # Missing required 'px' field
-            "sz": "0.5",
+        {  # Invalid fill - missing 'tid'
+            "coin": "BTC",
+            "px": "55000.5",
+            "sz": "0.1",
+            "time": 1678889900000,
             "side": "A",
-            "time": 1678889210000,
-            "startPosition": "1.0",
+            "oid": 6002,
+            "startPosition": "0.1",
             "dir": "Close Short",
-            "closedPnl": "50.0",
-            "hash": "fillHash2",
-            "oid": 10002,
-            "crossed": False,
-            "fee": "1.50",
-            "tid": "tradeId2",
+            "hash": "0xfillhash2",
+            "fee": "5.5",
+            "isMaker": True,
+            "liquidationMarkPx": "50000.0",
+            "cloid": None,
         },
     ]
-    user_address_placeholder = "0x1234567890abcdef1234567890abcdef12345678"
     with pytest.raises(APIError) as exc_info:
         HyperliquidResponseHandler.handle_info_user_fills_response(
-            cast(Any, raw_data), user_address=user_address_placeholder
+            cast(Any, raw_data), user_address="0x1234567890abcdef1234567890abcdef12345678"
         )
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    # The error now occurs when validating a single item inside the loop
-    assert "validation failed for single user fill item" in exc_info.value.message
+    # Check correct message prefix and that the original exception mentions the missing field
+    assert (
+        "Invalid single user fill item in info (UserFills for 0x1234567890abcdef1234567890abcdef12345678) response from exchange:"
+        in exc_info.value.message
+    )
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "tid" in str(exc_info.value.original_exception)
+    assert "Field required" in str(exc_info.value.original_exception)
 
 
 def test_handle_info_funding_rate_response_valid() -> None:
@@ -645,8 +751,7 @@ def test_handle_info_recent_trades_response_valid() -> None:
             "px": "56100.0",
             "sz": "0.05",
             "time": 1678889400000,
-            "hash": "tradeHash1",
-            "tid": "trade1",
+            "hash": "0xtradeHash1",
         },
         {
             "coin": "BTC",
@@ -654,8 +759,7 @@ def test_handle_info_recent_trades_response_valid() -> None:
             "px": "56105.0",
             "sz": "0.02",
             "time": 1678889401000,
-            "hash": "tradeHash2",
-            "tid": "trade2",
+            "hash": "0xtradeHash2",
         },
     ]
     # Corrected type hint for the returned list
@@ -693,8 +797,7 @@ def test_handle_info_recent_trades_response_invalid_item_type() -> None:
             "px": "56100.0",
             "sz": "0.05",
             "time": 1678889400000,
-            "hash": "tradeHash1",
-            "tid": "trade1",
+            "hash": "0xtradeHash1",
         },
         "not_a_trade_dict",
     ]
@@ -706,7 +809,7 @@ def test_handle_info_recent_trades_response_invalid_item_type() -> None:
             )
         )
         assert len(trades) == 1
-        assert trades[0].hash == "tradeHash1"
+        assert trades[0].hash == "0xtradeHash1"
         mock_log.assert_called_once()
         assert "Skipping non-dict item" in mock_log.call_args[0][0]
 
@@ -720,8 +823,7 @@ def test_handle_info_recent_trades_response_item_validation_error() -> None:
             "px": "56100.0",
             "sz": "0.05",
             "time": 1678889400000,
-            "hash": "tradeHash1",
-            "tid": "trade1",
+            "hash": "0xtradeHash1",
         },
         {
             "coin": "BTC",
@@ -729,8 +831,7 @@ def test_handle_info_recent_trades_response_item_validation_error() -> None:
             # Missing required 'px' field
             "sz": "0.02",
             "time": 1678889401000,
-            "hash": "tradeHash2",
-            "tid": "trade2",
+            "hash": "0xtradeHash2",
         },
     ]
     with pytest.raises(APIError) as exc_info:
@@ -738,8 +839,14 @@ def test_handle_info_recent_trades_response_item_validation_error() -> None:
             cast(Any, raw_data), symbol="BTC"
         )
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for single recent trade item" in exc_info.value.message
+    # Check correct message prefix and that the original exception mentions the missing field
+    assert (
+        "Invalid single recent trade item in info (RecentTrades for BTC) response from exchange:"
+        in exc_info.value.message
+    )
     assert isinstance(exc_info.value.original_exception, ValidationError)
+    assert "px" in str(exc_info.value.original_exception)
+    assert "Field required" in str(exc_info.value.original_exception)
 
 
 def test_handle_info_candle_snapshot_response_valid() -> None:
@@ -824,381 +931,398 @@ def test_handle_info_candle_snapshot_response_validation_error() -> None:
     assert isinstance(exc_info.value.original_exception, ValidationError)
 
 
-def test_handle_info_order_status_response_valid() -> None:
-    """Test handling a valid raw order status response."""
-    raw_data = {
-        "order": {
-            "coin": "ETH",
-            "limitPx": "3000.0",
-            "oid": 12345,
-            "origSz": "1.0",
-            "reduceOnly": False,
-            "side": "B",
-            "sz": "0.5",  # Partially filled
-            "timestamp": 1678889600000,
-            "orderType": {"limit": {"tif": "Gtc"}},
-            "remainingSz": "0.5",
-            "status": "open",
-            "statusTimestamp": 1678889601000,
-            "cloid": "myOrderStatusClient1",
-        }
-    }
-    order_status_response: HyperliquidRawOrderStatusResponse = (
-        HyperliquidResponseHandler.handle_info_order_status_response(
-            cast(Any, raw_data), user_address="0xTestUser", order_id=12345
-        )
-    )
-    assert isinstance(order_status_response, HyperliquidRawOrderStatusResponse)
-    assert isinstance(order_status_response.order, HyperliquidRawOrder)
-    assert order_status_response.order.oid == 12345
-    assert order_status_response.order.asset == "ETH"
-    assert order_status_response.order.status == "open"
+class TestHandleQueryOrderHistoryResponse:
+    """Tests for handle_query_order_history_response."""
 
-
-def test_handle_info_order_status_response_invalid_type() -> None:
-    """Test handling order status response with invalid type (list instead of dict)."""
-    raw_data = [{"order": "invalid"}]
-    with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_info_order_status_response(
-            cast(Any, raw_data), user_address="0xTestUser", order_id=12345
-        )
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "expected dict" in exc_info.value.message
-    assert "Order Status for user 0xTestUser, order 12345" in exc_info.value.message
-
-
-def test_handle_info_order_status_response_validation_error_missing_order_key() -> None:
-    """Test handling order status response dict missing the 'order' key."""
-    raw_data = {"not_order": "data"}
-    with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_info_order_status_response(
-            cast(Any, raw_data), user_address="0xTestUser", order_id=12345
-        )
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for info (Order Status" in exc_info.value.message
-    assert isinstance(exc_info.value.original_exception, ValidationError)
-
-
-def test_handle_info_order_status_response_validation_error_invalid_nested_order() -> None:
-    """Test handling order status response with an invalid nested order dict."""
-    raw_data = {
-        "order": {
-            "coin": "ETH",
-            "limitPx": "3000.0",
-            # oid is missing, which is required for HyperliquidRawOrder
-            "origSz": "1.0",
-            "reduceOnly": False,
-            "side": "B",
-            "sz": "0.5",
-            "timestamp": 1678889600000,
-        }
-    }
-    with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_info_order_status_response(
-            cast(Any, raw_data), user_address="0xTestUser", order_id=12345
-        )
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for info (Order Status" in exc_info.value.message
-    assert isinstance(exc_info.value.original_exception, ValidationError)
-
-
-def test_handle_info_vault_details_response_valid() -> None:
-    """Test handling a valid raw vault details response."""
-    # Corrected mock data structure based on actual models
-    raw_data = {
-        "name": "Test Vault",
-        "description": "A vault for testing purposes.",
-        "allowDeposits": True,  # Corrected field
-        "alwaysCloseOnWithdraw": False,
-        "creator": "0xCreatorAddress",
-        "vaultAddress": "0xThisVaultAddress",
-        "maxBalance": "100000.0",
-        "currBalance": "10000.0",
-        "totalPnl": "500.0",
-        "allTimePnl": "1000.0",
-        "performanceHistory": [
-            {"time": 1678880000000, "pnl": "-500.0"},  # Corrected fields
-            {"time": 1678881000000, "pnl": "500.0"},
-        ],
-        "userEquities": [
+    def test_handle_query_order_history_response_valid(self) -> None:
+        """Test handling a valid raw query order history response."""
+        raw_data = [
             {
-                "user": "0xUser1",
-                "equity": "5000.0",
-                "allTimePnl": "200.0",
-                "daysFollowing": 10,
-                "vaultEntryTime": 1678800000000,
-                "lockupUntil": 1679880000000,
-            }
-        ],
-        "maxDistributable": "500.0",
-        "maxWithdrawable": "4500.0",
-        "isClosed": False,
-        "relationship": {
-            "type": "master_slave",
-            "data": {  # Nested data field
-                "master": "0xMasterVaultAddress",
-                "childAddresses": ["0xSlave1", "0xSlave2"],
+                "order": {
+                    "asset": "ETH",
+                    "limitPx": "2900.0",
+                    "oid": 7001,
+                    "reduceOnly": False,
+                    "side": "B",
+                    "sz": "1.0",
+                    "timestamp": 1678890000000,
+                    "orderType": {"limit": {"tif": "Gtc"}},
+                    "remainingSz": "0.0",
+                    "status": "filled",
+                    "statusTimestamp": 1678890001000,
+                    "cloid": "histClient1",
+                }
             },
-        },
-        # Removed fields not directly in VaultDetailsResponse or its direct children for clarity
-        # e.g. maxUserLossLimit, minUserDepositLimit, totalValueLocked, totalUserEquity,
-        # onlyVaultDepositors, vaultFee, rawVaultFee, manager, requireWhitelisting
-        # These might be part of a more complex actual response or a different endpoint.
-        # For this handler, we test against the defined HyperliquidRawVaultDetailsResponse.
-    }
-    vault_details: HyperliquidRawVaultDetailsResponse = (
-        HyperliquidResponseHandler.handle_info_vault_details_response(
-            cast(Any, raw_data), user_address="0xRequestingUser"
-        )
-    )
-    assert isinstance(vault_details, HyperliquidRawVaultDetailsResponse)
-    assert vault_details.name == "Test Vault"
-    assert vault_details.allow_deposits is True  # Corrected assertion
-    assert len(vault_details.performance_history) == 2
-    assert vault_details.performance_history[0].pnl == "-500.0"  # Corrected assertion
-    assert vault_details.relationship.data.master == "0xMasterVaultAddress"  # Corrected assertion
-
-
-def test_handle_info_vault_details_response_invalid_type() -> None:
-    """Test handling vault details response with invalid type (list instead of dict)."""
-    raw_data = ["invalid"]
-    with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_info_vault_details_response(
-            cast(Any, raw_data), user_address="0xRequestingUser"
-        )
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "expected dict" in exc_info.value.message
-    assert "Vault Details for 0xRequestingUser" in exc_info.value.message
-
-
-def test_handle_info_vault_details_response_validation_error() -> None:
-    """Test handling vault details response dict failing validation."""
-    raw_data: dict[str, Any] = {
-        "name": "Test Vault Error Case",
-        "description": "A vault for testing validation errors.",
-        "currBalance": "100.0",
-        "totalPnl": "10.0",
-        "allTimePnl": "20.0",
-        "performanceHistory": [
-            {"time": 1678880000000, "pnl": "-5.0"},
-            {"time": 1678881000000},
-        ],
-        "relationship": {"type": "master_only", "data": {"master": "0xMasterOnly"}},
-    }
-    with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_info_vault_details_response(
-            cast(Any, raw_data), user_address="0xRequestingUser"
-        )
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for info (Vault Details" in exc_info.value.message
-    assert isinstance(exc_info.value.original_exception, ValidationError)
-
-
-def test_handle_exchange_response_valid_success() -> None:
-    """Test handling a valid, successful raw exchange action response."""
-    raw_data = {
-        "status": "ok",
-        "data": {"type": "order", "statuses": [{"resting": {"oid": 12345}}]},
-    }
-    exchange_response: HyperliquidRawExchangeResponse = (
-        HyperliquidResponseHandler.handle_exchange_response(
-            cast(Any, raw_data), action_type="order"
-        )
-    )
-    assert isinstance(exchange_response, HyperliquidRawExchangeResponse)
-    assert exchange_response.status == "ok"
-    assert exchange_response.data is not None
-    assert exchange_response.data.type == "order"
-    assert isinstance(exchange_response.data.statuses, list)
-    assert len(exchange_response.data.statuses) == 1
-    status_obj = exchange_response.data.statuses[0]
-    assert isinstance(status_obj, HyperliquidRawExchangeStatusObject)
-    assert status_obj.resting is not None
-    assert status_obj.resting.oid == 12345
-
-
-def test_handle_exchange_response_top_level_status_error() -> None:
-    """Test handling an exchange response where top-level status is 'error'.
-    This should fail validation against HyperliquidRawExchangeResponse model which expects status='ok'.
-    """
-    raw_data = {
-        "status": "error",
-        "error": "Invalid order size",
-    }
-    with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_exchange_response(
-            cast(Any, raw_data), action_type="order"
-        )
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for Exchange Action (order)" in exc_info.value.message
-    assert isinstance(exc_info.value.original_exception, ValidationError)
-    # Check that the Pydantic error mentions the status field constraint
-    assert "Input 'error' is not a valid literal" in str(exc_info.value.original_exception)
-
-
-def test_handle_exchange_response_invalid_top_level_type() -> None:
-    """Test handling exchange response with invalid top-level type (list instead of dict)."""
-    raw_data = ["invalid"]
-    with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_exchange_response(
-            cast(Any, raw_data), action_type="order"
-        )
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "expected dict" in exc_info.value.message
-    assert "Exchange Action (order)" in exc_info.value.message
-
-
-def test_handle_exchange_response_validation_error_ok_missing_data() -> None:
-    """Test handling exchange response with status='ok' but missing 'data' field."""
-    raw_data = {
-        "status": "ok",
-        # Missing 'data' field which is expected when status is "ok" by the model
-    }
-    with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_exchange_response(
-            cast(Any, raw_data), action_type="order"
-        )
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for Exchange Action (order)" in exc_info.value.message
-    assert isinstance(exc_info.value.original_exception, ValidationError)
-
-
-def test_handle_query_order_history_response_valid() -> None:
-    """Test handling a valid raw query order history response."""
-    raw_data = [
-        {
-            "order": {
-                "coin": "ETH",
-                "limitPx": "2900.0",
-                "oid": 7001,
-                "origSz": "1.0",
-                "reduceOnly": False,
-                "side": "B",
-                "sz": "1.0",
-                "timestamp": 1678890000000,
-                "orderType": {"limit": {"tif": "Gtc"}},
-                "remainingSz": "0.0",
-                "status": "filled",
-                "statusTimestamp": 1678890001000,
-                "cloid": "histClient1",
-            }
-        },
-        {
-            "order": {
-                "coin": "BTC",
-                "limitPx": "53000.0",
-                "oid": 7002,
-                "origSz": "0.5",
-                "reduceOnly": True,
-                "side": "A",
-                "sz": "0.0",
-                "timestamp": 1678891000000,
-                "orderType": {"limit": {"tif": "Alo"}},
-                "remainingSz": "0.0",
-                "status": "canceled",
-                "statusTimestamp": 1678891001000,
-                "cloid": None,
-            }
-        },
-    ]
-    # The handler returns a list of validated HyperliquidRawOrderStatusResponse objects
-    order_history: list[HyperliquidRawOrderStatusResponse] = (
-        HyperliquidResponseHandler.handle_query_order_history_response(
-            cast(Any, raw_data), user_address="0xHistoryUser"
-        )
-    )
-    assert isinstance(order_history, list)
-    assert len(order_history) == 2
-    assert isinstance(order_history[0], HyperliquidRawOrderStatusResponse)
-    assert order_history[0].order.oid == 7001
-    assert order_history[0].order.status == "filled"
-    assert isinstance(order_history[1], HyperliquidRawOrderStatusResponse)
-    assert order_history[1].order.asset == "BTC"
-    assert order_history[1].order.cloid is None
-
-
-def test_handle_query_order_history_response_invalid_type() -> None:
-    """Test handling query order history response with invalid type (dict instead of list)."""
-    raw_data = {"error": "expected list"}
-    with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_query_order_history_response(
-            cast(Any, raw_data), user_address="0xHistoryUser"
-        )
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "expected list" in exc_info.value.message
-    assert "Order History for 0xHistoryUser" in exc_info.value.message
-
-
-def test_handle_query_order_history_response_invalid_item_type() -> None:
-    """Test handling query order history list containing a non-dict item."""
-    raw_data = [
-        {
-            "order": {
-                "coin": "ETH",
-                "limitPx": "2900.0",
-                "oid": 7001,
-                "origSz": "1.0",
-                "reduceOnly": False,
-                "side": "B",
-                "sz": "1.0",
-                "timestamp": 1678890000000,
-                "orderType": {"limit": {"tif": "Gtc"}},
-                "remainingSz": "0.0",
-                "status": "filled",
-                "statusTimestamp": 1678890001000,
-                "cloid": "histClient1",
-            }
-        },
-        "not_an_order_status_dict",
-    ]
-    with patch("cyberdelta.apis.hyperliquid.hl_response_handler.logger.warning") as mock_log:
-        order_history: list[HyperliquidRawOrderStatusResponse] = (
+            {
+                "order": {
+                    "asset": "BTC",
+                    "limitPx": "53000.0",
+                    "oid": 7002,
+                    "reduceOnly": True,
+                    "side": "A",
+                    "sz": "0.0",
+                    "timestamp": 1678891000000,
+                    "orderType": {"limit": {"tif": "Alo"}},
+                    "remainingSz": "0.2",
+                    "status": "canceled",
+                    "statusTimestamp": 1678891001000,
+                    "cloid": None,
+                }
+            },
+            {
+                "order": {
+                    "asset": "SOL",
+                    "limitPx": "90.0",
+                    "oid": 7003,
+                    "reduceOnly": False,
+                    "side": "B",
+                    "sz": "10.0",
+                    "timestamp": 1678892000000,
+                    "orderType": {"limit": {"tif": "Gtc"}},
+                    "remainingSz": "5.0",
+                    "status": "open",
+                    "statusTimestamp": 1678892001000,
+                    "cloid": "histClientOpen",
+                }
+            },
+        ]
+        order_history: list[HyperliquidRawHistoricalOrderResponse] = (
             HyperliquidResponseHandler.handle_query_order_history_response(
                 cast(Any, raw_data), user_address="0xHistoryUser"
             )
         )
-        assert len(order_history) == 1
+        assert isinstance(order_history, list)
+        assert len(order_history) == 3
+        assert isinstance(order_history[0], HyperliquidRawHistoricalOrderResponse)
         assert order_history[0].order.oid == 7001
-        mock_log.assert_called_once()
-        assert "Skipping non-dict item" in mock_log.call_args[0][0]
+        assert order_history[0].order.status == "filled"
+        assert order_history[1].order.status == "canceled"
+        assert order_history[2].order.status == "open"
+
+    def test_handle_query_order_history_response_invalid_type(self) -> None:
+        """Test handling query order history response with invalid type (dict instead of list)."""
+        raw_data = {"error": "expected list"}
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_query_order_history_response(
+                cast(Any, raw_data), user_address="0xHistoryUser"
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            f"Unexpected query_order_history (for 0xHistoryUser) response format: expected list, got {type(raw_data).__name__}"
+            in exc_info.value.message
+        )
+
+    def test_handle_query_order_history_response_invalid_item_type(self) -> None:
+        """Test handling query order history list containing a non-dict item."""
+        raw_data: list[Any] = [
+            {
+                "order": {
+                    "asset": "ETH",
+                    "limitPx": "2900.0",
+                    "oid": 7001,
+                    "reduceOnly": False,
+                    "side": "B",
+                    "sz": "1.0",
+                    "timestamp": 1678890000000,
+                    "orderType": {"limit": {"tif": "Gtc"}},
+                    "remainingSz": "0.0",
+                    "status": "filled",
+                    "statusTimestamp": 1678890001000,
+                    "cloid": "histClient1",
+                }
+            },
+            "not_an_order_status_dict",
+        ]
+        with patch("cyberdelta.apis.hyperliquid.hl_response_handler.logger.warning") as mock_log:
+            order_history: list[HyperliquidRawHistoricalOrderResponse] = (
+                HyperliquidResponseHandler.handle_query_order_history_response(
+                    cast(Any, raw_data), user_address="0xHistoryUser"
+                )
+            )
+            assert len(order_history) == 1
+            assert order_history[0].order.oid == 7001
+            mock_log.assert_called_once()
+            assert "Skipping non-dict item" in mock_log.call_args[0][0]
+
+    def test_handle_query_order_history_response_item_validation_error(self) -> None:
+        """Test handling query order history list with an item failing validation."""
+        raw_data = [
+            {
+                "order": {
+                    "asset": "ETH",
+                    "limitPx": "2900.0",
+                    "oid": 7001,
+                    "reduceOnly": False,
+                    "side": "B",
+                    "sz": "1.0",
+                    "timestamp": 1678890000000,
+                    "orderType": {"limit": {"tif": "Gtc"}},
+                    "remainingSz": "0.0",
+                    "status": "filled",
+                    "statusTimestamp": 1678890001000,
+                    "cloid": "histClient1",
+                }
+            },
+            {
+                "order": {  # Nested order is missing required 'oid'
+                    "asset": "BTC",
+                    "limitPx": "53000.0",
+                    "reduceOnly": True,
+                    "side": "A",
+                    "sz": "0.0",
+                    "timestamp": 1678891000000,
+                    "orderType": {"limit": {"tif": "Alo"}},
+                    "remainingSz": "0.2",
+                    "status": "canceled",
+                    "statusTimestamp": 1678891001000,
+                }
+            },
+        ]
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_query_order_history_response(
+                cast(Any, raw_data), user_address="0xHistoryUser"
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            "Invalid single order history item (index 1) in query_order_history (for 0xHistoryUser) response from exchange:"
+            in exc_info.value.message
+        )
+        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert "order.oid" in str(exc_info.value.original_exception)
+        assert "Field required" in str(exc_info.value.original_exception)
 
 
-def test_handle_query_order_history_response_item_validation_error() -> None:
-    """Test handling query order history list with an item failing validation."""
-    raw_data = [
-        {
+class TestHandleInfoOrderStatusResponse:
+    """Tests for handle_info_order_status_response."""
+
+    def test_handle_info_order_status_response_valid_open(self) -> None:
+        """Test valid order status response for an OPEN order."""
+        raw_data = {
             "order": {
-                "coin": "ETH",
-                "limitPx": "2900.0",
-                "oid": 7001,
-                "origSz": "1.0",
+                "asset": "ETH",
+                "limitPx": "3000.0",
+                "oid": 12345,
                 "reduceOnly": False,
                 "side": "B",
-                "sz": "1.0",
-                "timestamp": 1678890000000,
+                "sz": "0.5",
+                "timestamp": 1678889600000,
                 "orderType": {"limit": {"tif": "Gtc"}},
-                "remainingSz": "0.0",
-                "status": "filled",
-                "statusTimestamp": 1678890001000,
-                "cloid": "histClient1",
+                "remainingSz": "0.5",
+                "status": "open",
+                "statusTimestamp": 1678889601000,
+                "cloid": "clientOpen1",
             }
-        },
-        {
-            "order": {  # Nested order is missing required 'oid'
-                "coin": "BTC",
-                "limitPx": "53000.0",
-                "origSz": "0.5",
+        }
+        # API usually returns a list containing the dict
+        response = HyperliquidResponseHandler.handle_info_order_status_response(
+            cast(Any, [raw_data]), user_address="0xTestUser", order_id=12345
+        )
+        assert isinstance(response, HyperliquidRawHistoricalOrderResponse)
+        assert response.order.status == "open"
+        assert response.order.oid == 12345
+
+    def test_handle_info_order_status_response_valid_filled(self) -> None:
+        """Test valid order status response for a FILLED order."""
+        raw_data = {
+            "order": {
+                "asset": "BTC",
+                "limitPx": "50000.0",
+                "oid": 54321,
                 "reduceOnly": True,
                 "side": "A",
                 "sz": "0.0",
-                "timestamp": 1678891000000,
+                "timestamp": 1678889700000,
+                "orderType": {"limit": {"tif": "Ioc"}},
+                "remainingSz": "0.0",
+                "status": "filled",
+                "statusTimestamp": 1678889701000,
+                "cloid": "clientFilled1",
             }
-        },
-    ]
-    with pytest.raises(APIError) as exc_info:
-        HyperliquidResponseHandler.handle_query_order_history_response(
-            cast(Any, raw_data), user_address="0xHistoryUser"
+        }
+        response = HyperliquidResponseHandler.handle_info_order_status_response(
+            cast(Any, [raw_data]), user_address="0xTestUser", order_id=54321
         )
-    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "validation failed for single order history item" in exc_info.value.message
-    assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(response, HyperliquidRawHistoricalOrderResponse)
+        assert response.order.status == "filled"
+        assert response.order.oid == 54321
+
+    def test_handle_info_order_status_response_valid_canceled(self) -> None:
+        """Test valid order status response for a CANCELED order."""
+        raw_data = {
+            "order": {
+                "asset": "SOL",
+                "limitPx": "100.0",
+                "oid": 67890,
+                "reduceOnly": False,
+                "side": "B",
+                "sz": "0.0",
+                "timestamp": 1678889800000,
+                "orderType": {"limit": {"tif": "Gtc"}},
+                "remainingSz": "10.0",
+                "status": "canceled",
+                "statusTimestamp": 1678889801000,
+                "cloid": "clientCanceled1",
+            }
+        }
+        response = HyperliquidResponseHandler.handle_info_order_status_response(
+            cast(Any, [raw_data]), user_address="0xTestUser", order_id=67890
+        )
+        assert isinstance(response, HyperliquidRawHistoricalOrderResponse)
+        assert response.order.status == "canceled"
+        assert response.order.oid == 67890
+
+    def test_handle_info_order_status_response_invalid_status_value(self) -> None:
+        """Test order status response with an invalid status string."""
+        raw_data = {
+            "order": {
+                "asset": "ETH",
+                "limitPx": "3000.0",
+                "oid": 12345,
+                "reduceOnly": False,
+                "side": "B",
+                "sz": "0.5",
+                "timestamp": 1678889600000,
+                "orderType": {"limit": {"tif": "Gtc"}},
+                "remainingSz": "0.5",
+                "status": "unknown_status",
+                "statusTimestamp": 1678889601000,
+                "cloid": "clientInvalid1",
+            }
+        }
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_order_status_response(
+                cast(Any, [raw_data]), user_address="0xTestUser", order_id=12345
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            "order status object in info (OrderStatus for user 0xTestUser, oid 12345)"
+            in exc_info.value.message
+        )
+        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert "status" in str(exc_info.value.original_exception)
+        assert "Input 'unknown_status' is not a valid literal" in str(
+            exc_info.value.original_exception
+        )
+
+    def test_handle_info_order_status_response_invalid_type_in_list(self) -> None:
+        """Test handling order status list containing invalid item type (str instead of dict)."""
+        raw_data = ["unexpected_string"]
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_order_status_response(
+                cast(Any, raw_data), user_address="0xTestUser", order_id=12345
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            f"Unexpected string content in info (OrderStatus for user 0xTestUser, oid 12345) response: {raw_data[0]}"
+            in exc_info.value.message
+        )
+
+    def test_handle_info_order_status_response_validation_error_missing_order_key(self) -> None:
+        """Test handling order status response dict missing the 'order' key."""
+        raw_data = {"not_the_order_key": "data"}
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_order_status_response(
+                cast(Any, [raw_data]), user_address="0xTestUser", order_id=12345
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            "order status object in info (OrderStatus for user 0xTestUser, oid 12345)"
+            in exc_info.value.message
+        )
+        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert "order" in str(exc_info.value.original_exception)
+        assert "Field required" in str(exc_info.value.original_exception)
+
+    def test_handle_info_order_status_response_validation_error_invalid_nested_order(self) -> None:
+        """Test handling order status response with an invalid nested order dict (e.g. missing oid)."""
+        raw_data = {
+            "order": {
+                "asset": "ETH",
+                "limitPx": "3000.0",
+                "reduceOnly": False,
+                "side": "B",
+                "sz": "0.5",
+                "timestamp": 1678889600000,
+                "orderType": {"limit": {"tif": "Gtc"}},
+                "remainingSz": "0.5",
+                "status": "open",
+                "statusTimestamp": 1678889601000,
+            }
+        }
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_order_status_response(
+                cast(Any, [raw_data]), user_address="0xTestUser", order_id=12345
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            "order status object in info (OrderStatus for user 0xTestUser, oid 12345)"
+            in exc_info.value.message
+        )
+        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert "order.oid" in str(exc_info.value.original_exception)
+        assert "Field required" in str(exc_info.value.original_exception)
+
+    def test_handle_info_order_status_response_order_not_found_string(self) -> None:
+        """Test handling 'Order not found' string response from API (within a list)."""
+        raw_data = ["Order not found"]
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_order_status_response(
+                cast(Any, raw_data), user_address="0xTestUser", order_id=99999
+            )
+        assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
+        assert (
+            "Order 99999 for user 0xTestUser not found (string response: 'Order not found')"
+            in exc_info.value.message
+        )
+
+    def test_handle_info_order_status_response_empty_list(self) -> None:
+        """Test handling empty list response (order not found)."""
+        raw_data: list[Any] = []
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_order_status_response(
+                cast(Any, raw_data), user_address="0xTestUser", order_id=99999
+            )
+        assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
+        assert (
+            "Order 99999 for user 0xTestUser not found (empty list response)"
+            in exc_info.value.message
+        )
+
+    def test_handle_info_order_status_response_unexpected_string_in_list(self) -> None:
+        """Test handling unexpected string in list response."""
+        raw_data = ["Some other error string"]
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_order_status_response(
+                cast(Any, raw_data), user_address="0xTestUser", order_id=88888
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            "Unexpected string content in info (OrderStatus for user 0xTestUser, oid 88888) response: Some other error string"
+            in exc_info.value.message
+        )
+
+    def test_handle_info_order_status_response_unexpected_item_type_in_list(self) -> None:
+        """Test handling unexpected item type (not dict/str) in list response."""
+        raw_data = [12345]
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_order_status_response(
+                cast(Any, raw_data), user_address="0xTestUser", order_id=77777
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            "Unexpected item type in info (OrderStatus for user 0xTestUser, oid 77777) response list: expected dict, got int"
+            in exc_info.value.message
+        )
+
+    def test_handle_info_order_status_response_invalid_top_level_type(self) -> None:
+        """Test handler expecting list or dict, gets something else (e.g. int)."""
+        raw_data = 12345
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_order_status_response(
+                cast(Any, raw_data), user_address="0xTestUser", order_id=11111
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert (
+            "Unexpected info (OrderStatus for user 0xTestUser, oid 11111) response format: expected list or dict, got int"
+            in exc_info.value.message
+        )
