@@ -114,11 +114,30 @@ def _wrap_validate_strict_eth_address_str(
 def _wrap_validate_tx_hash_str(
     v: object, handler: Callable[[object], str], info: ValidationInfo
 ) -> str:
-    """Wrapper for validating transaction hash strings (0x-prefixed, 66 chars)."""
+    """Wrapper for validating transaction hash strings (0x-prefixed, 66 chars, hex)."""
     field_name = info.field_name or "tx_hash_field"
+    # Step 1: Basic string validation (type, non-empty)
+    # max_length is checked here, but exact length is checked later.
     s = validate_str_field(v, field_name=field_name, max_length=66, allow_empty=False)
+
+    # Step 2: Check for "0x" prefix
     if not s.startswith("0x"):
-        raise ValueError(f"{field_name}: Must start with '0x' and be 66 characters long.")
+        raise ValueError(f"{field_name}: Must start with '0x'. Value: '{s}'")
+
+    # Step 3: Check for exact length 66
+    if len(s) != 66:
+        raise ValueError(
+            f"{field_name}: Must be exactly 66 characters long. "
+            f"Actual length: {len(s)}. Value: '{s}'"
+        )
+
+    # Step 4: Check if the part after "0x" is valid hexadecimal
+    hex_part = s[2:]
+    if not all(c in "0123456789abcdefABCDEF" for c in hex_part):
+        raise ValueError(
+            f"{field_name}: Contains non-hexadecimal characters after '0x'. Value: '{s}'"
+        )
+
     return handler(s)
 
 

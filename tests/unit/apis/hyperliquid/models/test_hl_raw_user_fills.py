@@ -60,7 +60,7 @@ def valid_user_fill_data() -> dict[str, Any]:
         "oid": 987654321,
         "startPosition": "1.0",
         "dir": "Buy",
-        "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef123400",
+        "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456",
         "fee": "0.002",
         "isMaker": False,
         "liquidationMarkPx": None,

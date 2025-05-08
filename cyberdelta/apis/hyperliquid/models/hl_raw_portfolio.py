@@ -47,10 +47,9 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
         field_name = info.field_name or "history_entry_tuple"
 
         if isinstance(v, dict):
-            v_dict = cast(dict[Any, Any], v)  # Cast for type checker
-            # Handle dictionary input as per test_history_entry_valid_from_dict
-            # Convert to list [value_for_key_0, value_for_key_1]
-            # Pydantic will then validate elements against the tuple's types.
+            v_dict = cast(dict[Any, Any], v)
+            assert isinstance(v_dict, dict)
+
             if 0 in v_dict and 1 in v_dict:
                 if len(v_dict) == 2:  # Ensure only keys 0 and 1 are present
                     return [v_dict[0], v_dict[1]]
