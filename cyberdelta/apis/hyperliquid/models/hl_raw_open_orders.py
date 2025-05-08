@@ -31,11 +31,33 @@ Usage:
 Do not use these models for internal business logic—use your core models for that.
 """
 
-from typing import Any, Literal
+from typing import Annotated, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    RootModel,
+    field_validator,
+)
 
-from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
+from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawAssetString64HL,
+    RawCloidString64HL,
+    RawEthereumAddressStr,
+    RawFiniteDecimalStr,
+    RawNonNegativeInt,
+    RawOptionalNonEmptyString64HL,
+    RawOrderStatusHL,
+    RawPositiveFiniteDecimalStr,
+    RawSideStr,
+    RawStrictBool,
+    RawTifStr,
+    RawTimestampMsInt,
+    RawTpslStr,
+)
+from cyberdelta.utils.parsing import validate_str_field
 
 
 # --- Trigger Info/Spec ---
@@ -47,85 +69,29 @@ class HyperliquidRawTriggerInfo(BaseModel):
     format constraints for all fields. Never use for internal business logic.
 
     Fields:
-        trigger_px (str): Trigger price as a decimal string.
-        is_market (bool): True if the trigger is for a market order.
-        tpsl (str): Trigger type ('tp' for take-profit, 'sl' for stop-loss).
+        trigger_px (RawFiniteDecimalStr): Trigger price as a decimal string.
+        is_market (RawStrictBool): True if the trigger is for a market order.
+        tpsl (RawTpslStr): Trigger type ('tp' for take-profit, 'sl' for stop-loss).
     """
 
-    trigger_px: str = Field(..., alias="triggerPx")
-    is_market: bool = Field(..., alias="isMarket")
-    tpsl: str = Field(..., alias="tpsl")
+    trigger_px: RawFiniteDecimalStr = Field(..., alias="triggerPx")
+    is_market: RawStrictBool = Field(..., alias="isMarket")
+    tpsl: RawTpslStr = Field(..., alias="tpsl")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("trigger_px", mode="before")
-    @classmethod
-    def validate_trigger_px(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'trigger_px' field to ensure it is a string representing a finite
-        decimal (not NaN/inf), with a maximum length of 64.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated trigger price string.
-        Raises:
-            ValueError: If the input is not a valid decimal string.
-        """
-        s = validate_str_field(v, field_name="trigger_px", max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name="trigger_px")
-        if d is None or not d.is_finite():
-            raise ValueError("trigger_px: Value must be a finite decimal (not NaN or inf)")
-        return s
-
-    @field_validator("tpsl", mode="before")
-    @classmethod
-    def validate_tpsl(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'tpsl' field to ensure it is either 'tp' or 'sl'.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated trigger type string.
-        Raises:
-            ValueError: If the input is not 'tp' or 'sl'.
-        """
-        return validate_enum_field(v, allowed={"tp", "sl"}, field_name="tpsl")
-
-    @field_validator("is_market", mode="before")
-    @classmethod
-    def validate_is_market_bool(cls, v: object, info: ValidationInfo) -> bool:
-        """
-        Strictly enforce that is_market is a bool (no coercion). This is required by the raw
-        model policy.
-
-        Args:
-            v (object): The value to validate (should be a bool).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            bool: The validated boolean value.
-        Raises:
-            ValueError: If the input is not a bool.
-        """
-        if not isinstance(v, bool):
-            raise ValueError(f"is_market: Expected bool, got {type(v).__name__}")
-        return v
 
 
 class HyperliquidRawTriggerSpec(BaseModel):
     """
     Trigger spec for conditional orders.
     Fields:
-        trigger_px: Trigger price (str)
-        is_market: Is market order (bool)
-        tpsl: Trigger type ('tp' or 'sl')
+        trigger_px (RawFiniteDecimalStr): Trigger price (str)
+        is_market (RawStrictBool): Is market order (bool)
+        tpsl (RawTpslStr): Trigger type ('tp' or 'sl')
     """
 
-    trigger_px: str = Field(..., alias="triggerPx")
-    is_market: bool = Field(..., alias="isMarket")
-    tpsl: str = Field(..., alias="tpsl")
+    trigger_px: RawFiniteDecimalStr = Field(..., alias="triggerPx")
+    is_market: RawStrictBool = Field(..., alias="isMarket")
+    tpsl: RawTpslStr = Field(..., alias="tpsl")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
@@ -134,16 +100,11 @@ class HyperliquidRawTifLimit(BaseModel):
     """
     Time-in-force for limit orders.
     Fields:
-        tif: Time in force (str: 'Gtc', 'Ioc', 'Alo')
+        tif (RawTifStr): Time in force (str: 'Gtc', 'Ioc', 'Alo')
     """
 
-    tif: str = Field(..., alias="tif")
+    tif: RawTifStr = Field(..., alias="tif")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("tif", mode="before")
-    @classmethod
-    def validate_tif(cls, v: object, info: ValidationInfo) -> str:
-        return validate_enum_field(v, allowed={"Gtc", "Ioc", "Alo"}, field_name="tif")
 
 
 # --- Order Types ---
@@ -165,7 +126,7 @@ class HyperliquidRawOrderTypeMarket(BaseModel):
         market: dict (empty object)
     """
 
-    market: dict[str, Any] = Field(..., alias="market")
+    market: dict[str, object] = Field(..., alias="market")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
@@ -174,65 +135,33 @@ class HyperliquidRawOrder(BaseModel):
     """
     Core order details from open orders or order status.
     Fields:
-        oid: Order ID (int)
-        cloid: Client order ID (str | None)
-        asset: Asset symbol (str)
-        side: Side ('B' or 'A')
-        limit_px: Limit price (str)
-        sz: Size (str)
-        timestamp: Creation timestamp (int)
-        order_type: Order type (dict[str, Any])
-        reduce_only: Reduce-only flag (bool)
-        remaining_sz: Remaining size (str)
-        status: Status string (e.g., 'open')
-        status_timestamp: Last update timestamp (int)
+        oid (RawNonNegativeInt): Order ID.
+        cloid (RawOptionalNonEmptyString64HL | None): Client order ID.
+        asset (RawAssetString64HL): Asset symbol.
+        side (RawSideStr): Side ('B' or 'A').
+        limit_px (RawFiniteDecimalStr): Limit price.
+        sz (RawFiniteDecimalStr): Size.
+        timestamp (RawTimestampMsInt): Creation timestamp.
+        order_type (dict[str, object]): Order type.
+        reduce_only (RawStrictBool): Reduce-only flag.
+        remaining_sz (RawFiniteDecimalStr): Remaining size.
+        status (RawOrderStatusHL): Status string.
+        status_timestamp (RawTimestampMsInt): Last update timestamp.
     """
 
-    oid: int = Field(..., alias="oid")
-    cloid: str | None = Field(None, alias="cloid")
-    asset: str = Field(..., alias="asset")
-    side: str = Field(..., alias="side")
-    limit_px: str = Field(..., alias="limitPx")
-    sz: str = Field(..., alias="sz")
-    timestamp: int = Field(..., alias="timestamp")
-    order_type: dict[str, Any] = Field(..., alias="orderType")
-    reduce_only: bool = Field(..., alias="reduceOnly")
-    remaining_sz: str = Field(..., alias="remainingSz")
-    status: str = Field(..., alias="status")
-    status_timestamp: int = Field(..., alias="statusTimestamp")
+    oid: RawNonNegativeInt = Field(..., alias="oid")
+    cloid: RawOptionalNonEmptyString64HL = Field(None, alias="cloid")
+    asset: RawAssetString64HL = Field(..., alias="asset")
+    side: RawSideStr = Field(..., alias="side")
+    limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
+    sz: RawFiniteDecimalStr = Field(..., alias="sz")
+    timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
+    order_type: dict[str, object] = Field(..., alias="orderType")
+    reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
+    remaining_sz: RawFiniteDecimalStr = Field(..., alias="remainingSz")
+    status: RawOrderStatusHL = Field(..., alias="status")
+    status_timestamp: RawTimestampMsInt = Field(..., alias="statusTimestamp")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("asset", mode="before")
-    @classmethod
-    def validate_asset(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="asset", max_length=64)
-
-    @field_validator("side", mode="before")
-    @classmethod
-    def validate_side(cls, v: object, info: ValidationInfo) -> str:
-        return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
-
-    @field_validator("limit_px", "sz", "remaining_sz", mode="before")
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
-
-    @field_validator("cloid", mode="before")
-    @classmethod
-    def validate_cloid(cls, v: object, info: ValidationInfo) -> str | None:
-        if v is None:
-            return v
-        return validate_str_field(v, field_name="cloid", max_length=64)
-
-    @field_validator("status", mode="before")
-    @classmethod
-    def validate_status(cls, v: object, info: ValidationInfo) -> str:
-        return validate_enum_field(v, allowed={"open"}, field_name="status")
 
 
 class HyperliquidRawOpenOrder(BaseModel):
@@ -271,42 +200,15 @@ class HyperliquidRawOpenOrdersRequestPayload(BaseModel):
     Request payload for 'openOrders' info type.
     Fields:
         type: Must be 'openOrders' (Literal['openOrders'])
-        user: Wallet address (str)
+        user: Wallet address (RawEthereumAddressStr)
     """
 
-    type: Literal["openOrders"] = Field("openOrders", alias="type")
-    user: str = Field(..., alias="user")
+    type: Annotated[
+        Literal["openOrders"],
+        BeforeValidator(lambda v: validate_str_field(v, "type", max_length=16, allow_empty=False)),
+    ] = Field("openOrders", alias="type")
+    user: RawEthereumAddressStr = Field(..., alias="user")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def validate_type_literal(cls, v: object, info: ValidationInfo) -> str:
-        """Ensures type is exactly 'openOrders'."""
-        field_name = info.field_name or "type"
-        s = validate_str_field(v, field_name=field_name, max_length=16)
-        if s != "openOrders":
-            raise ValueError(f"{field_name} must be 'openOrders', got '{s}'")
-        return s
-
-    @field_validator("user", mode="before")
-    @classmethod
-    def validate_user_address(cls, v: object, info: ValidationInfo) -> str:
-        """Validates the user address string (e.g., Ethereum address format)."""
-        field_name = info.field_name or "user"
-        # Validate as a non-empty string with max length typical for addresses.
-        # allow_empty=False by default in validate_str_field if not specified.
-        s = validate_str_field(v, field_name=field_name, max_length=42)
-
-        # Additional specific checks for Ethereum-like addresses can be added here.
-        # For now, ensuring it's 42 characters long and starts with 0x.
-        if not s.startswith("0x"):
-            raise ValueError(f"{field_name}: Address '{s}' must start with '0x'.")
-        if len(s) != 42:
-            raise ValueError(
-                f"{field_name}: Address '{s}' must be 42 characters long, got {len(s)}."
-            )
-        # Could add regex for hex characters: ^0x[a-fA-F0-9]{40}$
-        return s
 
 
 # --- Order Spec (for placement/modify) ---
@@ -314,109 +216,58 @@ class HyperliquidRawOrderSpec(BaseModel):
     """
     Order spec for placing an order (exchange action request).
     Fields:
-        asset: Asset index (int, >=0).
-        is_buy: Is buy (bool).
-        limit_px: Limit price (str, validated as finite decimal).
-        sz: Size (str, validated as positive finite decimal).
-        reduce_only: Reduce-only flag (bool).
-        order_type: Order type details (dict[str, Any], must not be empty).
+        asset: Asset index (RawNonNegativeInt).
+        is_buy: Is buy (RawStrictBool).
+        limit_px: Limit price (RawFiniteDecimalStr).
+        sz: Size (RawPositiveFiniteDecimalStr, must be > 0).
+        reduce_only: Reduce-only flag (RawStrictBool).
+        order_type: Order type details (dict[str, object], must not be empty).
         trigger: Optional trigger spec (HyperliquidRawTriggerSpec | None).
-        cloid: Optional client order ID (str | None, non-empty if provided).
+        cloid: Optional client order ID (RawOptionalNonEmptyString64HL | None).
     """
 
-    asset: int = Field(..., alias="asset", ge=0)
-    is_buy: bool = Field(..., alias="isBuy")
-    limit_px: str = Field(..., alias="limitPx")
-    sz: str = Field(..., alias="sz")
-    reduce_only: bool = Field(..., alias="reduceOnly")
-    order_type: dict[str, Any] = Field(..., alias="orderType")
+    asset: RawNonNegativeInt = Field(..., alias="asset")
+    is_buy: RawStrictBool = Field(..., alias="isBuy")
+    limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
+    sz: RawPositiveFiniteDecimalStr = Field(..., alias="sz")
+    reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
+    order_type: dict[str, object] = Field(..., alias="orderType")
     trigger: HyperliquidRawTriggerSpec | None = Field(None, alias="trigger")
-    cloid: str | None = Field(None, alias="cloid")
+    cloid: RawOptionalNonEmptyString64HL = Field(None, alias="cloid")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("asset")
-    @classmethod
-    def _validate_asset_index(cls, value: int) -> int:
-        if value < 0:
-            raise ValueError("Asset index must be non-negative.")
-        return value
-
-    @field_validator("limit_px")
-    @classmethod
-    def _validate_limit_px_str(cls, value: str) -> str:
-        try:
-            parsed_val = parse_decimal_value(value, allow_none=False, field_name="limit_px")
-            if parsed_val is None:
-                raise ValueError("limit_px parsing unexpectedly returned None.")
-            if not parsed_val.is_finite():
-                raise ValueError("limit_px must represent a finite number.")
-        except (ValueError, TypeError) as e:
-            raise ValueError(f"limit_px '{value}' is not a valid finite decimal string: {e}") from e
-        return value
-
-    @field_validator("sz")
-    @classmethod
-    def _validate_sz_str(cls, value: str) -> str:
-        from decimal import Decimal
-
-        try:
-            parsed_val = parse_decimal_value(value, allow_none=False, field_name="sz")
-            if parsed_val is None:
-                raise ValueError("sz parsing unexpectedly returned None.")
-            if not parsed_val.is_finite():
-                raise ValueError("sz must represent a finite number.")
-            if parsed_val <= Decimal(0):
-                raise ValueError("sz must be greater than 0.")
-        except (ValueError, TypeError) as e:
-            raise ValueError(
-                f"sz '{value}' is not a valid positive finite decimal string: {e}"
-            ) from e
-        return value
 
     @field_validator("order_type")
     @classmethod
-    def _validate_order_type(cls, value: dict[str, Any]) -> dict[str, Any]:
+    def _validate_order_type_non_empty(cls, value: dict[str, object]) -> dict[str, object]:
         if not value:
             raise ValueError("order_type dictionary cannot be empty.")
         return value
 
     @field_validator("trigger", mode="before")
     @classmethod
-    def _validate_trigger_details(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+    def _validate_trigger_details_non_empty(cls, value: object) -> dict[str, object] | None:
         if value is None:
             return None
+        if not isinstance(value, dict):
+            raise ValueError("trigger details must be a dictionary if provided.")
+
         if not value:
             raise ValueError("trigger details dictionary cannot be empty if provided.")
-        return value
 
-    @field_validator("cloid", mode="before")
-    @classmethod
-    def _validate_cloid(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        if not value.strip():
-            raise ValueError("cloid cannot be an empty or whitespace-only string if provided.")
-        return value
+        return cast(dict[str, object], value)
 
 
 class HyperliquidRawModifyOrderRequest(BaseModel):
     """
     Modify order request payload.
     Fields:
-        oid: Order ID (int)
+        oid: Order ID (RawNonNegativeInt)
         order: HyperliquidRawOrderSpec
     """
 
-    oid: int = Field(..., alias="oid")
+    oid: RawNonNegativeInt = Field(..., alias="oid")
     order: HyperliquidRawOrderSpec = Field(..., alias="order")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("oid")
-    @classmethod
-    def _validate_oid(cls, value: int) -> int:
-        if value < 0:
-            raise ValueError("Order ID (oid) must be non-negative.")
-        return value
 
 
 # --- Cancel Requests ---
@@ -424,39 +275,25 @@ class HyperliquidRawCancelRequest(BaseModel):
     """
     Cancel request payload (by exchange OID).
     Fields:
-        asset: Asset index (int, >=0).
-        oid: Order ID (int, >=0).
+        asset: Asset index (RawNonNegativeInt).
+        oid: Order ID (RawNonNegativeInt).
     """
 
-    asset: int = Field(..., alias="asset", ge=0)
-    oid: int = Field(..., alias="oid", ge=0)
+    asset: RawNonNegativeInt = Field(..., alias="asset")
+    oid: RawNonNegativeInt = Field(..., alias="oid")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("asset")
-    @classmethod
-    def _validate_asset_index(cls, value: int) -> int:
-        if value < 0:
-            raise ValueError("Asset index must be non-negative.")
-        return value
-
-    @field_validator("oid")
-    @classmethod
-    def _validate_oid(cls, value: int) -> int:
-        if value < 0:
-            raise ValueError("Order ID (oid) must be non-negative.")
-        return value
 
 
 class HyperliquidRawCancelByCloidRequest(BaseModel):
     """
     Cancel request payload (by client OID).
     Fields:
-        asset: Asset index (int)
-        cloid: Client order ID (str)
+        asset: Asset index (RawNonNegativeInt)
+        cloid: Client order ID (RawCloidString64HL)
     """
 
-    asset: int = Field(..., alias="asset")
-    cloid: str = Field(..., alias="cloid")
+    asset: RawNonNegativeInt = Field(..., alias="asset")
+    cloid: RawCloidString64HL = Field(..., alias="cloid")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 

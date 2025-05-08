@@ -7,9 +7,15 @@ Hyperliquid Exchange API request when placing orders, specifically the
 `trigger` object and the `orderType` object within an order action.
 """
 
-from typing import Any, Literal, Self, cast
+from typing import Annotated, Literal, Self, cast
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    model_validator,
+)
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawTifStr,
@@ -53,12 +59,11 @@ class HyperliquidRawOrderType(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def check_exclusive_order_type(cls, data: Any) -> dict[str, Any]:
+    def check_exclusive_order_type(cls, data: object) -> dict[str, object]:
         if not isinstance(data, dict):
             raise TypeError("orderType must be a dictionary")
 
-        data_dict = cast(dict[str, Any], data)
-        assert isinstance(data_dict, dict)
+        data_dict = cast(dict[str, object], data)
 
         has_limit = "limit" in data_dict and data_dict["limit"] is not None
         has_market = "market" in data_dict and data_dict["market"] is not None
@@ -78,16 +83,14 @@ class HyperliquidRawQueryOrderHistoryRequestPayload(BaseModel):
     Timestamps are in milliseconds.
     """
 
-    type: Literal["queryOrderHistory"] = Field("queryOrderHistory")
+    type: Annotated[
+        Literal["queryOrderHistory"],
+        BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32, allow_empty=False)),
+    ] = Field("queryOrderHistory")
     start_time: RawTimestampMsInt = Field(..., alias="startTime")
     end_time: RawTimestampMsInt = Field(..., alias="endTime")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def validate_type_string(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
     @model_validator(mode="after")
     def check_start_end_time(self) -> Self:

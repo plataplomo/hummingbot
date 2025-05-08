@@ -160,6 +160,59 @@ def _wrap_validate_enum_str(
     return validate_enum_field(v, allowed=allowed_values, field_name=field_name)
 
 
+def _wrap_validate_positive_finite_decimal_str(
+    v: object, handler: Callable[[object], str], info: ValidationInfo
+) -> str:
+    """Wrapper for validating strings that must represent positive finite decimal numbers."""
+    field_name = info.field_name or "positive_finite_decimal_str_field"
+    s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
+    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+    if d is None or not d.is_finite() or not d > type(d)(0):
+        raise ValueError(
+            f"{field_name}: Value must be a parseable positive and finite decimal string."
+        )
+    return handler(s)
+
+
+# --- Helper functions for direct validation and parsing (not for WrapValidator) ---
+
+
+def validate_and_parse_raw_non_negative_int(raw_val: object, field_name: str) -> int:
+    """Validates raw input as a non-negative int, parsing from str if necessary."""
+    val_int: int
+    if isinstance(raw_val, str):
+        try:
+            val_int = int(raw_val)
+        except ValueError:
+            err_msg = f"{field_name}: Expected int or int-like string, got {type(raw_val).__name__} ('{raw_val}')"
+            raise ValueError(err_msg) from None
+    elif isinstance(raw_val, int):
+        val_int = raw_val
+    elif isinstance(raw_val, float) and raw_val.is_integer():
+        val_int = int(raw_val)
+    else:
+        raise ValueError(
+            f"{field_name}: Expected an integer or an integer-like string, got {type(raw_val).__name__}"
+        )
+
+    if val_int < 0:
+        raise ValueError(f"{field_name}: Value cannot be negative.")
+    return val_int
+
+
+def validate_and_return_finite_decimal_str(
+    raw_val: object, field_name: str, max_len: int = 64
+) -> str:
+    """Validates raw input as a non-empty string representing a finite decimal."""
+    # Use existing validate_str_field for initial string validation
+    s = validate_str_field(raw_val, field_name=field_name, max_length=max_len, allow_empty=False)
+    # Use existing parse_decimal_value for decimal properties
+    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+    if d is None or not d.is_finite():  # parse_decimal_value should raise, but defensive check.
+        raise ValueError(f"{field_name}: Value must be a parseable finite decimal string.")
+    return s  # Return the validated string itself
+
+
 # --- Annotated Raw Types ---
 
 # Raw String with default validation (non-empty, max_length can be customized by Field)
@@ -262,3 +315,70 @@ RawTifStr = Annotated[
     ),
 ]
 """A raw string representing Time-In-Force, must be 'Gtc', 'Ioc', or 'Alo'."""
+
+# Specific string types for Hyperliquid
+RawAssetString64HL = Annotated[
+    str,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_general_str(
+            v, h, i, field_name_default="asset_field_hl", max_length=64, allow_empty=False
+        )
+    ),
+]
+"""A raw string for Hyperliquid asset names, non-empty, max_length=64."""
+
+RawCloidString64HL = Annotated[
+    str,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_general_str(
+            v, h, i, field_name_default="cloid_field_hl", max_length=64, allow_empty=False
+        )
+    ),
+]
+"""A raw string for Hyperliquid client order IDs (when required), non-empty, max_length=64."""
+
+RawOptionalNonEmptyString64HL = Annotated[
+    str | None,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_general_str(
+            v,
+            h,
+            i,
+            field_name_default="optional_non_empty_str64_field_hl",
+            max_length=64,
+            allow_empty=False,  # If present, it must not be empty
+        )
+    ),
+]
+"""
+An optional raw string (e.g. for cloid). If present, it must be non-empty and
+adhere to max_length=64.
+"""
+
+RawOrderStatusHL = Annotated[
+    str,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_enum_str(
+            v, h, i, field_name_default="order_status_field_hl", allowed_values={"open"}
+        )
+    ),
+]
+"""A raw string representing a Hyperliquid order status, currently only 'open'."""
+
+RawPositiveFiniteDecimalStr = Annotated[
+    str, WrapValidator(_wrap_validate_positive_finite_decimal_str)
+]
+"""
+A raw string type that must represent a positive (GT 0) finite decimal number.
+Retains string form.
+"""
+
+RawTradeHashStringHL = Annotated[
+    str,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_general_str(
+            v, h, i, field_name_default="trade_hash_field_hl", max_length=66, allow_empty=False
+        )
+    ),
+]
+"""A raw string for Hyperliquid trade hashes, non-empty, max_length=66."""

@@ -32,11 +32,24 @@ Do not use these models for internal business logic—use your core models for t
 for boundary validation only.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    RootModel,
+)
 
-from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
+from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawAssetString64HL,
+    RawFiniteDecimalStr,
+    RawSideStr,
+    RawTimestampMsInt,
+    RawTradeHashStringHL,
+)
+from cyberdelta.utils.parsing import validate_str_field
 
 
 # --- Core Public Trade Model ---
@@ -49,75 +62,21 @@ class HyperliquidRawPublicTrade(BaseModel):
     business logic.
 
     Fields:
-        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
-        side (str): Side of the trade ('B' for buy, 'A' for ask/sell).
-        px (str): Price at which the trade occurred as a decimal string.
-        sz (str): Size of the trade as a decimal string.
-        time (int): Timestamp of the trade event (epoch ms).
-        hash (str): Unique trade hash.
+        coin (RawAssetString64HL): Asset symbol.
+        side (RawSideStr): Side of the trade ('B' for buy, 'A' for ask/sell).
+        px (RawFiniteDecimalStr): Price at which the trade occurred.
+        sz (RawFiniteDecimalStr): Size of the trade.
+        time (RawTimestampMsInt): Timestamp of the trade event (epoch ms).
+        hash (RawTradeHashStringHL): Unique trade hash.
     """
 
-    coin: str = Field(..., alias="coin")
-    side: str = Field(..., alias="side")
-    px: str = Field(..., alias="px")
-    sz: str = Field(..., alias="sz")
-    time: int = Field(..., alias="time")
-    hash: str = Field(..., alias="hash")
+    coin: RawAssetString64HL = Field(..., alias="coin")
+    side: RawSideStr = Field(..., alias="side")
+    px: RawFiniteDecimalStr = Field(..., alias="px")
+    sz: RawFiniteDecimalStr = Field(..., alias="sz")
+    time: RawTimestampMsInt = Field(..., alias="time")
+    hash: RawTradeHashStringHL = Field(..., alias="hash")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("coin", mode="before")
-    @classmethod
-    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'coin' field to ensure it is a string of max length 64.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated asset symbol string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        return validate_str_field(v, field_name="coin", max_length=64)
-
-    @field_validator("side", mode="before")
-    @classmethod
-    def validate_side(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'side' field to ensure it is either 'B' (buy) or 'A' (ask/sell).
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated side string.
-        Raises:
-            ValueError: If the input is not a valid side value.
-        """
-        return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
-
-    @field_validator("px", "sz", mode="before")
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates that the field is a string representing a finite decimal (not NaN/inf),
-        with a maximum length of 64. This is critical for financial data integrity.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated decimal string.
-        Raises:
-            ValueError: If the input is not a valid decimal string.
-        """
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
 
 
 # --- Batch/Array Response ---
@@ -156,35 +115,12 @@ class HyperliquidRawRecentTradesRequestPayload(BaseModel):
 
     Fields:
         type (Literal['recentTrades']): Must be 'recentTrades'.
-        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
+        coin (RawAssetString64HL): Asset symbol.
     """
 
-    type: Literal["recentTrades"] = Field("recentTrades", alias="type")
-    coin: str = Field(..., alias="coin")
+    type: Annotated[
+        Literal["recentTrades"],
+        BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32, allow_empty=False)),
+    ] = Field("recentTrades", alias="type")
+    coin: RawAssetString64HL = Field(..., alias="coin")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def validate_type_literal(cls, v: object, info: ValidationInfo) -> str:
-        """Ensures type is exactly 'recentTrades'."""
-        field_name = info.field_name or "type"
-        s = validate_str_field(v, field_name=field_name, max_length=32)
-        if s != "recentTrades":
-            raise ValueError(f"{field_name} must be 'recentTrades', got '{s}'")
-        return s
-
-    @field_validator("coin", mode="before")
-    @classmethod
-    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'coin' field to ensure it is a string of max length 64.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated asset symbol string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        return validate_str_field(v, field_name="coin", max_length=64)
