@@ -103,7 +103,7 @@ class HyperliquidRawDelegatorHistoryDelta(BaseModel):
     """Raw boundary model for the 'delta' object within history items."""
 
     delegate: HyperliquidRawDelegatorHistoryDelegateDelta | None = Field(None, alias="delegate")
-    model_config = ConfigDict(populate_by_name=True, extra="allow", frozen=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 class HyperliquidRawDelegatorHistoryItem(BaseModel):
