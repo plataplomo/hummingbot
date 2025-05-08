@@ -23,12 +23,12 @@ These models adhere to the Raw Model Policy:
 """
 
 import logging
-from decimal import Decimal, InvalidOperation
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawFiniteDecimalStr,
+    RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
     RawTimestampMsInt,
 )
@@ -51,22 +51,8 @@ class HyperliquidRawCandle(BaseModel):
     h: RawFiniteDecimalStr = Field(..., description="High price (string)")
     low_price: RawFiniteDecimalStr = Field(..., alias="l", description="Low price (string)")
     c: RawFiniteDecimalStr = Field(..., description="Close price (string)")
-    v: RawFiniteDecimalStr = Field(..., description="Volume (string)")
+    v: RawNonNegativeFiniteDecimalStr = Field(..., description="Volume (string, non-negative)")
     n: RawNonNegativeInt = Field(..., description="Number of trades")
-
-    @field_validator("v", mode="after")
-    @classmethod
-    def validate_volume_non_negative(cls, v: str, info: ValidationInfo) -> str:
-        """Ensure volume, already validated as a finite decimal string, is non-negative."""
-        try:
-            d = Decimal(v)
-            if d < Decimal(0):
-                raise ValueError(f"Volume (v) must be non-negative, got '{v}'")
-        except InvalidOperation:
-            log_msg = f"InvalidOperation parsing validated vol '{v}' for '{info.field_name}'"
-            logger.error(log_msg)
-            raise ValueError(f"Internal error parsing validated volume string '{v}'") from None
-        return v
 
 
 class HyperliquidRawCandleSnapshotResponse(BaseModel):

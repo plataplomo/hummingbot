@@ -21,6 +21,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawDefaultString,
     RawEthereumAddressStr,
     RawFiniteDecimalStr,
+    RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
     RawStrictBool,
     RawTimestampMsInt,
@@ -84,8 +85,8 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
         ..., alias="performanceHistory"
     )
     user_equities: list[HyperliquidRawVaultUserEquity] = Field(..., alias="userEquities")
-    max_distributable: RawFiniteDecimalStr = Field(..., alias="maxDistributable")
-    max_withdrawable: RawFiniteDecimalStr = Field(..., alias="maxWithdrawable")
+    max_distributable: RawNonNegativeFiniteDecimalStr = Field(..., alias="maxDistributable")
+    max_withdrawable: RawNonNegativeFiniteDecimalStr = Field(..., alias="maxWithdrawable")
     is_closed: RawStrictBool = Field(..., alias="isClosed")
     relationship: HyperliquidRawVaultRelationship = Field(..., alias="relationship")
 

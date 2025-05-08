@@ -7,61 +7,45 @@ Validates the raw structure only.
 Never use for internal business logic.
 """
 
-from collections.abc import Sequence
-from typing import cast
-
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     RootModel,
+    ValidationInfo,
     field_validator,
 )
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawFiniteDecimalStr,
-    validate_and_parse_raw_non_negative_int,
-    validate_and_return_finite_decimal_str,
-)
-from cyberdelta.utils.parsing import (
-    validate_str_field,
+    RawNonNegativeFiniteDecimalStr,
+    RawTimeframeString,
+    RawTimestampMsInt,
 )
 
 
-class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[int, str]]):
+class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, RawFiniteDecimalStr]]):
     """
     Raw boundary model for a single point in account value or PnL history.
-    Represents the [timestamp, value_str] list structure.
+    Represents the [timestamp, value_str] tuple structure, validated by Annotated types.
     """
 
-    root: tuple[int, str]
+    root: tuple[RawTimestampMsInt, RawFiniteDecimalStr]
 
     @field_validator("root", mode="before")
     @classmethod
-    def validate_history_entry_tuple(cls, v: object) -> tuple[int, str]:
+    def validate_history_entry_tuple_structure(cls, v: object, info: ValidationInfo) -> object:
+        """Ensures input is a 2-element list/tuple. Pydantic handles element validation."""
+        field_name = info.field_name or "history_entry_tuple"
         if not isinstance(v, (list, tuple)):
             raise ValueError(
-                "History entry: Expected 2-element list or tuple [timestamp, value_str]"
+                f"Field '{field_name}': Expected 2-element list/tuple, got {type(v).__name__}."
             )
-
-        # Cast to Sequence after type and basic structure check for type hinting
-        v_seq = cast(Sequence[object], v)
-        if len(v_seq) != 2:
+        if len(v) != 2:
             raise ValueError(
-                "History entry: Expected 2-element list or tuple [timestamp, value_str]"
+                f"Field '{field_name}': Expected 2-element list/tuple, got length {len(v)}."
             )
-
-        timestamp_raw: object = v_seq[0]
-        value_raw: object = v_seq[1]
-
-        timestamp = validate_and_parse_raw_non_negative_int(
-            timestamp_raw, field_name="history_entry.timestamp"
-        )
-        value_str = validate_and_return_finite_decimal_str(
-            value_raw, field_name="history_entry.value"
-        )
-
-        return (timestamp, value_str)
+        return v
 
 
 class HyperliquidRawPortfolioTimeframeData(BaseModel):
@@ -71,44 +55,46 @@ class HyperliquidRawPortfolioTimeframeData(BaseModel):
         ..., alias="accountValueHistory"
     )
     pnl_history: list[HyperliquidRawPortfolioHistoryEntry] = Field(..., alias="pnlHistory")
-    vlm: RawFiniteDecimalStr = Field(..., alias="vlm")
+    vlm: RawNonNegativeFiniteDecimalStr = Field(..., alias="vlm")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
-class HyperliquidRawPortfolioTupleItem(RootModel[tuple[str, HyperliquidRawPortfolioTimeframeData]]):
+class HyperliquidRawPortfolioTupleItem(
+    RootModel[tuple[RawTimeframeString, HyperliquidRawPortfolioTimeframeData]]
+):
     """Represents one item [timeframe_str, data_obj] in the main response list."""
 
-    root: tuple[str, HyperliquidRawPortfolioTimeframeData]
+    root: tuple[RawTimeframeString, HyperliquidRawPortfolioTimeframeData]
 
     @field_validator("root", mode="before")
     @classmethod
-    def validate_portfolio_tuple(cls, v: object) -> tuple[str, dict[str, object]]:
+    def validate_portfolio_tuple_item_structure(cls, v: object, info: ValidationInfo) -> object:
+        """Ensures input is a 2-element list/tuple. Pydantic handles element validation."""
+        field_name = info.field_name or "portfolio_tuple_item"
         if not isinstance(v, (list, tuple)):
             raise ValueError(
-                "Portfolio item: Expected 2-element list or tuple [timeframe_str, data_obj]"
+                f"Field '{field_name}': Expected 2-element list/tuple, got {type(v).__name__}."
             )
-
-        v_seq = cast(Sequence[object], v)
-        if len(v_seq) != 2:
+        if len(v) != 2:
             raise ValueError(
-                "Portfolio item: Expected 2-element list or tuple [timeframe_str, data_obj]"
+                f"Field '{field_name}': Expected 2-element list/tuple, got length {len(v)}."
             )
+        # Element 0 (timeframe) will be validated by RawTimeframeString by Pydantic.
+        # Element 1 (data_obj) needs to be a dict for HyperliquidRawPortfolioTimeframeData.
+        # Pydantic will raise error if el1 is not dict when trying to parse HyperliquidRawPortfolioTimeframeData.
+        # However, adding an explicit check here for el1 being a dict is a good pre-validation step.
 
-        timeframe_raw: object = v_seq[0]
-        data_raw: object = v_seq[1]
-
-        timeframe = validate_str_field(
-            timeframe_raw, field_name="timeframe", max_length=32, allow_empty=False
-        )
-
-        if not isinstance(data_raw, dict):
-            raise ValueError("Portfolio item: Expected data object (element 1) to be a dictionary")
-
-        return (timeframe, cast(dict[str, object], data_raw))
+        # Assign v[1] to a variable to potentially help linter with type inference for the error message.
+        element_1_value = v[1]
+        if not isinstance(element_1_value, dict):
+            actual_type_name = type(element_1_value).__name__
+            raise ValueError(
+                f"Field '{field_name}', element 1: Expected data object to be a dictionary, got {actual_type_name}."
+            )
+        return v  # Return raw tuple/list for Pydantic to process elements
 
 
-# Root model for the overall response which is a list of these tuples
 class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupleItem]]):
     """
     Raw boundary model for the portfolio history response.
@@ -119,7 +105,10 @@ class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupl
 
     @field_validator("root", mode="before")
     @classmethod
-    def validate_portfolio_list(cls, v: object) -> list[object]:
+    def validate_portfolio_list_structure(cls, v: object, info: ValidationInfo) -> object:
+        """Ensures the root input is a list. Pydantic will handle item validation."""
+        field_name = info.field_name or "portfolio_response_list"
         if not isinstance(v, list):
-            raise ValueError("Portfolio response: Expected root object to be a list")
-        return cast(list[object], v)
+            raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
+
+        return v

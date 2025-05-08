@@ -23,16 +23,26 @@ These models adhere to the Raw Model Policy, focusing on validating the external
 raw data types, and basic formats without incorporating business logic.
 """
 
-from typing import Literal, cast
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     ValidationInfo,
     field_validator,
 )
 
+# Import specific common types
+from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawDefaultString,
+    RawFiniteDecimalStr,
+    RawNonNegativeFiniteDecimalStr,
+    RawNonNegativeInt,
+    RawOptionalString,
+    RawTxHashStr,
+)
 from cyberdelta.utils.parsing import validate_str_field
 
 # ... (Existing models like HyperliquidRawOrder, HyperliquidRawFill remain) ...
@@ -44,19 +54,16 @@ from cyberdelta.utils.parsing import validate_str_field
 class HyperliquidRawExchangeStatusResting(BaseModel):
     """Raw model for a 'resting' order status within an exchange response."""
 
-    oid: int = Field(..., ge=0)  # Ensure non-negative
-    # Add other fields observed in resting order status if needed
-    # Example: remainingSz: str | None = None
+    oid: RawNonNegativeInt = Field(...)
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class HyperliquidRawExchangeStatusFilled(BaseModel):
     """Raw model for a 'filled' order status within an exchange response."""
 
-    oid: int = Field(..., ge=0)  # Ensure non-negative
-    total_sz: str = Field(..., alias="totalSz", max_length=64)
-    avg_px: str = Field(..., alias="avgPx", max_length=64)
-    # Potentially add fills list if present
+    oid: RawNonNegativeInt = Field(...)
+    total_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="totalSz")
+    avg_px: RawFiniteDecimalStr = Field(..., alias="avgPx")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
@@ -65,13 +72,15 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
 
     resting: HyperliquidRawExchangeStatusResting | None = Field(None)
     filled: HyperliquidRawExchangeStatusFilled | None = Field(None)
-    error: str | None = Field(None, max_length=1024)
-    withdrawal_submitted: str | None = Field(
-        None, alias="WithdrawalSubmitted", max_length=128
-    )  # e.g. 0x... tx hash
-    success: str | None = Field(
-        None, alias="Success", max_length=1024
-    )  # e.g. "L2 USDC Transfer successful."
+    error: RawOptionalString = Field(
+        default=None, description="Error message if any", max_length=1024
+    )
+    withdrawal_submitted: RawTxHashStr | None = Field(
+        default=None, alias="WithdrawalSubmitted", description="Withdrawal tx hash if submitted"
+    )
+    success: RawOptionalString = Field(
+        default=None, alias="Success", description="Success message if any", max_length=1024
+    )
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
@@ -79,63 +88,28 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
 class HyperliquidRawExchangeResponseData(BaseModel):
     """Raw model for the 'data' part of an exchange action response."""
 
-    type: str = Field(..., max_length=32)
-    # Corrected return type hint in validator below reflects the actual possible validated types
-    statuses: list[str | HyperliquidRawExchangeStatusObject] = Field(...)
+    type: RawDefaultString = Field(..., description="Type of response data", max_length=32)
+    statuses: list[RawDefaultString | HyperliquidRawExchangeStatusObject] = Field(...)
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     @field_validator("statuses", mode="before")
     @classmethod
-    def validate_statuses_list(
-        cls,
-        v: object,
-        info: ValidationInfo,
-    ) -> list[str | dict[str, object]]:
-        """Validate list containing strings or dicts for status objects."""
+    def validate_statuses_list_structure(cls, v: object, info: ValidationInfo) -> object:
+        """Validate the 'statuses' field is a list. Pydantic will handle item validation."""
         field_name = info.field_name or "statuses"
         if not isinstance(v, list):
-            raise TypeError(f"{field_name}: Must be a list, got {type(v).__name__}.")
-
-        # #[CAST-REVIEW-REQUIRED] - Casting input list for type checker item inference
-        list_of_objects = cast(list[object], v)
-        assert isinstance(list_of_objects, list)
-
-        validated_items: list[str | dict[str, object]] = []
-        for i, item_obj in enumerate(list_of_objects):
-            current_item_desc = f"{field_name}[{i}]"
-            if isinstance(item_obj, str):
-                # Validate the string status (e.g., "canceled")
-                # Using basic string validation logic here, adjust max_length as needed
-                validated_str = validate_str_field(
-                    item_obj, field_name=current_item_desc, max_length=64, allow_empty=False
-                )
-                validated_items.append(validated_str)
-            elif isinstance(item_obj, dict):
-                # Pass dict for Pydantic to validate against HyperliquidRawExchangeStatusObject
-                # #[CAST-REVIEW-REQUIRED] - Casting dict item for type checker compatibility
-                item_dict = cast(dict[str, object], item_obj)
-                assert isinstance(item_dict, dict)
-                validated_items.append(item_dict)
-            else:
-                raise TypeError(
-                    f"{current_item_desc}: Item must be a string or a dictionary, "
-                    f"got {type(item_obj).__name__}."
-                )
-        return validated_items
+            raise TypeError(f"Field '{field_name}': Must be a list, got {type(v).__name__}.")
+        return v
 
 
 class HyperliquidRawExchangeResponse(BaseModel):
     """Raw model for the top-level response from the /exchange endpoint."""
 
-    status: Literal["ok"] = Field(...)
+    status: Annotated[
+        Literal["ok"],
+        BeforeValidator(
+            lambda x: validate_str_field(x, field_name="status", max_length=16, allow_empty=False)
+        ),
+    ] = Field(...)
     data: HyperliquidRawExchangeResponseData | None = Field(None)
-    # Sometimes 'data' might be missing or structured differently on error/simple success?
-    # Making data optional and handling its absence might be safer.
-    model_config = ConfigDict(extra="forbid", frozen=True)  # Set extra='forbid' and frozen=True
-
-    @field_validator("status", mode="before")
-    @classmethod
-    def validate_status_string(cls, v: object, info: ValidationInfo) -> str:
-        """Validates the 'status' field is a valid string."""
-        # Literal["ok"] check happens after this.
-        return validate_str_field(v, field_name="status", max_length=16, allow_empty=False)
+    model_config = ConfigDict(extra="forbid", frozen=True)

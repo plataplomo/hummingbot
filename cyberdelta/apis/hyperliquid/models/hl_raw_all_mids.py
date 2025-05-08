@@ -32,19 +32,22 @@ and market data.
     # ...then transform to internal model
 """
 
-from typing import Literal, cast
+from typing import Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     RootModel,
+    ValidationInfo,
     field_validator,
-    model_validator,
 )
 
-# Import common types if needed (not directly used here yet, but good practice)
-from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawAssetString64HL,
+    RawFiniteDecimalStr,
+)
+from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawAllMidsRequestPayload(BaseModel):
@@ -71,7 +74,7 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
         return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 
-class HyperliquidRawAllMids(RootModel[dict[str, str]]):
+class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalStr]]):
     """
     Strict boundary model for the response from the 'allMids' endpoint, mapping asset
     symbols to mid prices.
@@ -81,47 +84,23 @@ class HyperliquidRawAllMids(RootModel[dict[str, str]]):
     business logic.
 
     Fields:
-        root (Dict[str, str]): Mapping from asset symbol (e.g., 'ETH', 'BTC') to mid price
-                               (as a string).
+        root (Dict[RawAssetString64HL, RawFiniteDecimalStr]): Mapping from validated asset
+                                                              symbol to validated mid price string.
     """
 
-    model_config = ConfigDict(frozen=True)
+    root: dict[RawAssetString64HL, RawFiniteDecimalStr]
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    @model_validator(mode="before")
+    @field_validator("root", mode="before")
     @classmethod
-    def validate_all_mids(cls, value: object) -> dict[str, str]:
+    def ensure_root_is_dict(cls, v: object, info: ValidationInfo) -> object:
         """
-        Validates the root dictionary ensures keys/values are strings
-        and values are finite decimals.
+        Validates that the root input is a dictionary. Pydantic will handle
+        key/value type validation using RawAssetString64HL and RawFiniteDecimalStr.
         """
-        if not isinstance(value, dict):
-            raise ValueError("__root__ must be a dictionary")
-
-        dict_value = cast(dict[object, object], value)
-        assert isinstance(dict_value, dict)
-
-        validated_data: dict[str, str] = {}
-        for symbol, price in dict_value.items():
-            if not isinstance(symbol, str):
-                raise ValueError(f"Dictionary key must be a string, got {type(symbol).__name__}")
-            if not isinstance(price, str):
-                raise ValueError(
-                    f"Price value for key '{symbol}' must be a string, got {type(price).__name__}"
-                )
-
-            valid_symbol = validate_str_field(
-                symbol, field_name=f"symbol[{symbol}]", max_length=64, allow_empty=False
+        if not isinstance(v, dict):
+            field_name = info.field_name if info.field_name else "all_mids_response"
+            raise ValueError(
+                f"Field '{field_name}': Expected a dictionary, got {type(v).__name__}."
             )
-            valid_price = validate_str_field(
-                price, field_name=f"price[{symbol}]", max_length=64, allow_empty=False
-            )
-
-            d = parse_decimal_value(valid_price, allow_none=False, field_name=f"price[{symbol}]")
-            if d is None or not d.is_finite():
-                raise ValueError(
-                    f"price[{symbol}]: Value must be a parseable finite decimal string."
-                )
-
-            validated_data[valid_symbol] = valid_price
-
-        return validated_data
+        return v

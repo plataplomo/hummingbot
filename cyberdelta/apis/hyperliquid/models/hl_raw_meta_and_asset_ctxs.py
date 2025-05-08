@@ -37,13 +37,14 @@ boundary validation only.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Self, cast
+from typing import Annotated, Any, Literal, Self, cast
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
-    RawDefaultString,
+    RawAssetString64HL,
     RawFiniteDecimalStr,
+    RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
     RawStrictBool,
 )
@@ -65,9 +66,9 @@ class HyperliquidRawAssetDefinition(BaseModel):
         only_isolated (bool): True if only isolated margin is allowed for this asset.
     """
 
-    name: RawDefaultString = Field(..., alias="name", max_length=64)
-    sz_decimals: RawNonNegativeInt = Field(..., alias="szDecimals", ge=0, le=18)
-    max_leverage: RawNonNegativeInt = Field(..., alias="maxLeverage", ge=0, le=1000)
+    name: RawAssetString64HL = Field(..., alias="name")
+    sz_decimals: RawNonNegativeInt = Field(..., alias="szDecimals", le=18)
+    max_leverage: RawNonNegativeInt = Field(..., alias="maxLeverage", le=1000)
     only_isolated: RawStrictBool = Field(..., alias="onlyIsolated")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
@@ -90,11 +91,11 @@ class HyperliquidRawAssetCtx(BaseModel):
         impact_px (Optional[str]): Impact price as a decimal string, or None.
     """
 
-    name: RawDefaultString = Field(..., alias="name", max_length=64)
+    name: RawAssetString64HL = Field(..., alias="name")
     funding: RawFiniteDecimalStr = Field(..., alias="funding")
     mark_px: RawFiniteDecimalStr = Field(..., alias="markPx")
     prev_day_px: RawFiniteDecimalStr = Field(..., alias="prevDayPx")
-    day_ntl_vlm: RawFiniteDecimalStr = Field(..., alias="dayNtlVlm")
+    day_ntl_vlm: RawNonNegativeFiniteDecimalStr = Field(..., alias="dayNtlVlm")
     impact_px: RawFiniteDecimalStr | None = Field(None, alias="impactPx")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
@@ -207,13 +208,13 @@ class HyperliquidRawMetaRequestPayload(BaseModel):
         type (Literal['meta']): Must be 'meta'.
     """
 
-    type: Literal["meta"] = Field("meta", alias="type")
+    type: Annotated[
+        Literal["meta"],
+        BeforeValidator(
+            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
+        ),
+    ] = Field("meta", alias="type")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def validate_type_string(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 
 class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
@@ -227,13 +228,13 @@ class HyperliquidRawMetaAndAssetCtxsRequestPayload(BaseModel):
         type (Literal['metaAndAssetCtxs']): Must be 'metaAndAssetCtxs'.
     """
 
-    type: Literal["metaAndAssetCtxs"] = Field("metaAndAssetCtxs", alias="type")
+    type: Annotated[
+        Literal["metaAndAssetCtxs"],
+        BeforeValidator(
+            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
+        ),
+    ] = Field("metaAndAssetCtxs", alias="type")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def validate_type_string(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 
 class HyperliquidRawAllMetaRequestPayload(BaseModel):
@@ -244,13 +245,13 @@ class HyperliquidRawAllMetaRequestPayload(BaseModel):
         type (Literal['allMeta']): Must be 'allMeta'.
     """
 
-    type: Literal["allMeta"] = Field("allMeta", alias="type")
+    type: Annotated[
+        Literal["allMeta"],
+        BeforeValidator(
+            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
+        ),
+    ] = Field("allMeta", alias="type")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def validate_type_string(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 
 class HyperliquidRawUpdateLeverageRequest(BaseModel):

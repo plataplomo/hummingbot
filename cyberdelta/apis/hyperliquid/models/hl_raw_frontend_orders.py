@@ -10,8 +10,10 @@ Never use for internal business logic.
 from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawAssetString64HL,
     RawDefaultString,
     RawFiniteDecimalStr,
+    RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
     RawSideStr,
     RawStrictBool,
@@ -24,16 +26,16 @@ class HyperliquidRawFrontendOpenOrder(BaseModel):
     Raw boundary model for a single open order with frontend-specific fields.
     """
 
-    coin: RawDefaultString = Field(..., alias="coin", max_length=64)
+    coin: RawAssetString64HL = Field(..., alias="coin")
     is_position_tpsl: RawStrictBool = Field(..., alias="isPositionTpsl")
     is_trigger: RawStrictBool = Field(..., alias="isTrigger")
     limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
     oid: RawNonNegativeInt = Field(..., alias="oid")
     order_type: RawDefaultString = Field(..., alias="orderType", max_length=64)
-    orig_sz: RawFiniteDecimalStr = Field(..., alias="origSz")
+    orig_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="origSz")
     reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
     side: RawSideStr = Field(..., alias="side")
-    sz: RawFiniteDecimalStr = Field(..., alias="sz")
+    sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="sz")
     timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
     trigger_condition: RawDefaultString = Field(..., alias="triggerCondition", max_length=128)
     trigger_px: RawFiniteDecimalStr = Field(..., alias="triggerPx")

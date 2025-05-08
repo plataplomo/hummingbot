@@ -35,292 +35,103 @@ Do not use these models for internal business logic—use your core models for t
 boundary validation only.
 """
 
-from typing import Literal
+from typing import Annotated, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    RootModel,
+    ValidationInfo,
+    field_validator,
+)
 
-from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
+from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawAssetString64HL,
+    RawDefaultString,
+    RawEthereumAddressStr,
+    RawFiniteDecimalStr,
+    RawNonNegativeFiniteDecimalStr,
+    RawNonNegativeInt,
+    RawOptionalNonEmptyString64HL,
+    RawPositiveFiniteDecimalStr,
+    RawSideStr,
+    RawStrictBool,
+    RawTimestampMsInt,
+    RawTradeHashStringHL,
+)
+from cyberdelta.utils.parsing import validate_str_field
 
 
 # --- Core User Fill Model ---
 class HyperliquidRawUserFill(BaseModel):
     """
     Strict boundary model for a user fill/trade object as returned in user fills endpoints.
-
-    This model validates the structure and content of individual user fill entries, enforcing strict
-    type and format constraints for all fields. Never use for internal business logic.
-
-    Fields:
-        tid (int): Trade ID.
-        coin (str): Asset symbol (e.g., 'ETH', 'BTC').
-        px (str): Price at which the fill occurred as a decimal string.
-        sz (str): Size of the fill as a decimal string.
-        time (int): Timestamp of the fill event (epoch ms).
-        side (str): Side of the trade ('B' for buy, 'A' for ask/sell).
-        oid (int): Order ID associated with the fill.
-        start_position (str): Start position before the fill.
-        dir (str): Direction of the fill.
-        hash (str): Unique trade hash.
-        fee (str): Fee paid for the fill as a decimal string.
-        is_maker (bool): True if the user was the maker in this trade.
-        liquidation_mark_px (Optional[str]): Liquidation mark price as a decimal string, if present.
-        cloid (Optional[str]): Client order ID, if present.
+    Validation handled by Annotated types from common_raw_types.
     """
 
-    tid: int = Field(..., alias="tid")
-    coin: str = Field(..., alias="coin")
-    px: str = Field(..., alias="px")
-    sz: str = Field(..., alias="sz")
-    time: int = Field(..., alias="time")
-    side: str = Field(..., alias="side")
-    oid: int = Field(..., alias="oid")
-    start_position: str = Field(..., alias="startPosition")
-    dir: str = Field(..., alias="dir")
-    hash: str = Field(..., alias="hash")
-    fee: str = Field(..., alias="fee")
-    is_maker: bool = Field(..., alias="isMaker")
-    liquidation_mark_px: str | None = Field(None, alias="liquidationMarkPx")
-    cloid: str | None = Field(None, alias="cloid", max_length=128)
+    tid: RawNonNegativeInt = Field(..., alias="tid")
+    coin: RawAssetString64HL = Field(..., alias="coin")
+    px: RawFiniteDecimalStr = Field(..., alias="px")
+    sz: RawPositiveFiniteDecimalStr = Field(..., alias="sz")
+    time: RawTimestampMsInt = Field(..., alias="time")
+    side: RawSideStr = Field(..., alias="side")
+    oid: RawNonNegativeInt = Field(..., alias="oid")
+    start_position: RawFiniteDecimalStr = Field(..., alias="startPosition")
+    dir: RawDefaultString = Field(..., alias="dir", max_length=64)
+    hash: RawTradeHashStringHL = Field(..., alias="hash")
+    fee: RawNonNegativeFiniteDecimalStr = Field(..., alias="fee")
+    is_maker: RawStrictBool = Field(..., alias="isMaker")
+    liquidation_mark_px: RawFiniteDecimalStr | None = Field(None, alias="liquidationMarkPx")
+    cloid: RawOptionalNonEmptyString64HL = Field(None, alias="cloid")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("tid", "oid", "time", mode="before")
-    @classmethod
-    def validate_non_negative_int(cls, v: object, info: ValidationInfo) -> int:
-        """Validate required non-negative integer fields."""
-        field_name = info.field_name or "int_field"
-        if not isinstance(v, int):
-            if isinstance(v, str) and v.isdigit():
-                v_int = int(v)
-            else:
-                raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
-        else:
-            v_int = v
-        if v_int < 0:
-            raise ValueError(f"{field_name}: Must be non-negative, got {v_int}")
-        return v_int
-
-    @field_validator("coin", mode="before")
-    @classmethod
-    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'coin' field to ensure it is a string of max length 64.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated asset symbol string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        return validate_str_field(v, field_name="coin", max_length=64)
-
-    @field_validator("px", "sz", "fee", "start_position", mode="before")
-    @classmethod
-    def validate_required_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates that the field is a non-empty string representing a finite decimal (not NaN/inf),
-        with a maximum length of 64. This is critical for financial data integrity.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated decimal string.
-        Raises:
-            ValueError: If the input is not a valid decimal string.
-        """
-        field_name = info.field_name or "decimal_field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
-
-    @field_validator("side", mode="before")
-    @classmethod
-    def validate_side(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'side' field to ensure it is either 'B' (buy) or 'A' (ask/sell).
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated side string.
-        Raises:
-            ValueError: If the input is not a valid side value.
-        """
-        return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
-
-    @field_validator("dir", "hash", mode="before")
-    @classmethod
-    def validate_non_empty_str(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates that the field is a non-empty string of max length 66 for hash and 64 for dir.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        field_name = info.field_name or "field"
-        max_len = 66 if field_name == "hash" else 64
-        return validate_str_field(v, field_name=field_name, max_length=max_len)
-
-    @field_validator("cloid", mode="before")
-    @classmethod
-    def validate_optional_str(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """
-        Validates that the field is either None or a string of max length 128 for cloid.
-
-        Args:
-            v (object): The value to validate (should be a string or None).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            Optional[str]: The validated string or None.
-        Raises:
-            ValueError: If the input is not a valid string or None.
-        """
-        if v is None:
-            return v
-        field_name = info.field_name or "cloid"
-        return validate_str_field(v, field_name=field_name, max_length=128, allow_empty=True)
-
-    @field_validator("is_maker", mode="before")
-    @classmethod
-    def validate_is_maker_bool(cls, v: object, info: ValidationInfo) -> bool:
-        """Validate that is_maker is a boolean."""
-        field_name = info.field_name or "is_maker"
-        if not isinstance(v, bool):
-            # Attempt to handle common string representations of booleans if necessary,
-            # but the Raw Model Policy usually expects the exact raw type.
-            # For now, strictly expect bool.
-            raise TypeError(f"{field_name}: Must be a boolean, got {type(v).__name__}.")
-        return v
-
-    @field_validator("liquidation_mark_px", mode="before")
-    @classmethod
-    def validate_liquidation_mark_px(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """
-        Validates the optional 'liquidation_mark_px' field.
-        If provided, ensures it's a non-empty string, max length 64,
-        and represents a finite decimal.
-        Args:
-            v (object | None): The raw input value.
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str | None: The validated raw string or None.
-        Raises:
-            TypeError: If `v` is not a string (and not None).
-            ValueError: If `v` is an empty string, exceeds max length, or not a finite decimal.
-        """
-        if v is None:
-            return None
-
-        field_name = info.field_name or "liquidation_mark_px"
-        # Validate as string first
-        s_val = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-
-        # Then validate as finite decimal string
-        try:
-            d = parse_decimal_value(s_val, allow_none=False, field_name=field_name)
-            if d is None or not d.is_finite():  # d is None check is defensive as allow_none=False
-                raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf).")
-        except ValueError as e:
-            # Catch parsing errors from parse_decimal_value or the explicit finite check
-            raise ValueError(
-                f"{field_name}: Invalid finite decimal string '{s_val}'. Reason: {e}"
-            ) from e
-        return s_val  # Return the validated string
-
-    @field_validator("cloid", "hash", mode="before")
-    @classmethod
-    def validate_no_null_bytes(cls, v: object | None, info: ValidationInfo) -> str | None:
-        """
-        Reject null bytes (\x00) in cloid and hash fields for safety and robustness.
-
-        Args:
-            v (object): The value to validate (should be a string or None).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            Optional[str]: The validated string or None.
-        Raises:
-            ValueError: If the input contains null bytes or is not a valid string or None.
-        """
-        if v is None:
-            return v
-        field_name = info.field_name or "field"
-        max_len = 66 if field_name == "hash" else 128
-        s = validate_str_field(v, field_name=field_name, max_length=max_len)
-        if "\x00" in s:
-            raise ValueError(f"{field_name}: Null byte (\\x00) not allowed in string")
-        return s
 
 
 # --- Batch/Array Response ---
 class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
-    """
-    Strict boundary model for an array of user fills as returned in the 'userFills'
-    endpoint response.
+    """Raw boundary model for a list of user fills."""
 
-    This model validates the structure and content of the batch response, enforcing strict
-    type and format constraints for all fields. Never use for internal business logic.
+    root: list[HyperliquidRawUserFill]
+    model_config = ConfigDict(frozen=True)
 
-    Fields:
-        root (List[HyperliquidRawUserFill]): List of user fill objects.
-    """
+    @field_validator("root", mode="before")
+    @classmethod
+    def validate_user_fills_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
+        """Ensures the root input is a list of dictionaries for user fills."""
+        field_name = info.field_name or "user_fills_list"
+        if not isinstance(v, list):
+            raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
 
-    pass
+        # CAST 1: For type checker, v is already confirmed list by runtime check
+        list_of_objects = cast(list[object], v)
+        assert isinstance(list_of_objects, list)
+
+        validated_items: list[dict[str, object]] = []
+        for item_idx, item_obj in enumerate(list_of_objects):
+            if not isinstance(item_obj, dict):
+                item_type = type(item_obj).__name__
+                raise ValueError(
+                    f"Field '{field_name}', Item {item_idx}: Expected a dictionary, got {item_type}."
+                )
+
+            # CAST 2: For type checker, item_obj is already confirmed dict by runtime check
+            item_dict = cast(dict[str, object], item_obj)
+            assert isinstance(item_dict, dict)
+
+            validated_items.append(item_dict)
+        return validated_items
 
 
 # --- Request Payload ---
 class HyperliquidRawUserFillsRequestPayload(BaseModel):
     """
     Strict boundary model for the request payload for the 'userFills' info type.
-
-    This model is used to construct and validate the payload sent to the Hyperliquid API when
-    requesting user fills for a specific wallet address. Enforces strict type and format
-    constraints for all fields. Never use for internal business logic.
-
-    Fields:
-        type (Literal['userFills']): Must be 'userFills'.
-        user (str): Wallet address of the user.
     """
 
-    type: Literal["userFills"] = Field("userFills", alias="type")
-    user: str = Field(..., alias="user")
+    type: Annotated[
+        Literal["userFills"],
+        BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32, allow_empty=False)),
+    ] = Field("userFills", alias="type")
+    user: RawEthereumAddressStr = Field(..., alias="user")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def validate_type_literal(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "type"
-        s = validate_str_field(v, field_name=field_name, max_length=16)
-        if s != "userFills":
-            raise ValueError(f"{field_name} must be 'userFills', got '{s}'")
-        return s
-
-    @field_validator("user", mode="before")
-    @classmethod
-    def validate_user_eth_address(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Enforce Ethereum address pattern ^0x[0-9a-fA-F]{40}$ for user field.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated Ethereum address string.
-        Raises:
-            ValueError: If the input is not a valid Ethereum address string.
-        """
-        s = validate_str_field(v, field_name="user", max_length=64)
-        import re
-
-        if not re.fullmatch(r"^0x[0-9a-fA-F]{40}$", s):
-            raise ValueError("user: Must be a valid Ethereum address (0x + 40 hex chars)")
-        return s

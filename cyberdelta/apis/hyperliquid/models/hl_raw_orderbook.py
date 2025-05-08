@@ -46,6 +46,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawAssetString64HL,
     RawFiniteDecimalStr,
     RawNonNegativeInt,
+    RawPositiveFiniteDecimalStr,
     RawTimestampMsInt,
 )
 from cyberdelta.utils.parsing import validate_str_field
@@ -77,12 +78,12 @@ class HyperliquidRawBookLevel(BaseModel):
 
     Fields:
         px (RawFiniteDecimalStr): Price at this level as a decimal string.
-        sz (RawFiniteDecimalStr): Size available at this price level as a decimal string.
+        sz (RawPositiveFiniteDecimalStr): Size available at this price level as a decimal string.
         n (RawNonNegativeInt): Number of orders at this price level.
     """
 
     px: RawFiniteDecimalStr = Field(..., alias="px")
-    sz: RawFiniteDecimalStr = Field(..., alias="sz")
+    sz: RawPositiveFiniteDecimalStr = Field(..., alias="sz")
     n: RawNonNegativeInt = Field(..., alias="n")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 

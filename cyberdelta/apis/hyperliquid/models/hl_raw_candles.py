@@ -33,21 +33,20 @@ and real-time price series.
     # ...then transform to internal candle model
 """
 
-from decimal import Decimal, InvalidOperation
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import (
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
-    ValidationInfo,
-    field_validator,
     model_validator,
 )
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawDefaultString,
     RawFiniteDecimalStr,
+    RawNonNegativeFiniteDecimalStr,
     RawTimestampMsInt,
 )
 from cyberdelta.utils.parsing import validate_str_field
@@ -87,25 +86,10 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     h: list[RawFiniteDecimalStr] = Field(..., alias="h")
     l: list[RawFiniteDecimalStr] = Field(..., alias="l")  # noqa: E741
     c: list[RawFiniteDecimalStr] = Field(..., alias="c")
-    v: list[RawFiniteDecimalStr] = Field(..., alias="v")
+    v: list[RawNonNegativeFiniteDecimalStr] = Field(..., alias="v")
     s: RawDefaultString = Field(..., alias="s", max_length=32)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @model_validator(mode="after")
-    def check_volume_non_negative(self) -> Self:
-        """Ensure all volume strings represent non-negative decimals."""
-        for i, vol_str in enumerate(self.v):
-            try:
-                d = Decimal(vol_str)
-                if d < Decimal(0):
-                    raise ValueError(f"Volume v[{i}] must be non-negative, got '{vol_str}'")
-            except InvalidOperation:
-                # This indicates a potential issue in RawFiniteDecimalStr validation
-                raise ValueError(
-                    f"Internal error: Could not parse validated volume string v[{i}]: '{vol_str}'"
-                ) from None
-        return self
 
     @model_validator(mode="after")
     def check_list_lengths(self) -> Self:
@@ -153,13 +137,12 @@ class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
     Uses a nested 'req' object.
     """
 
-    type: Literal["candleSnapshot"] = Field("candleSnapshot", alias="type")
+    type: Annotated[
+        Literal["candleSnapshot"],
+        BeforeValidator(
+            lambda v: validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
+        ),
+    ] = Field("candleSnapshot", alias="type")
     req: HyperliquidRawCandleRequestDetails
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def validate_type_string(cls, v: object, info: ValidationInfo) -> str:
-        """Validates the 'type' field is a valid string."""
-        return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)

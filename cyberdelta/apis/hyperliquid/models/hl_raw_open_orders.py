@@ -39,6 +39,7 @@ from pydantic import (
     ConfigDict,
     Field,
     RootModel,
+    ValidationInfo,
     field_validator,
 )
 
@@ -47,6 +48,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawCloidString64HL,
     RawEthereumAddressStr,
     RawFiniteDecimalStr,
+    RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
     RawOptionalNonEmptyString64HL,
     RawOrderStatusHL,
@@ -140,11 +142,11 @@ class HyperliquidRawOrder(BaseModel):
         asset (RawAssetString64HL): Asset symbol.
         side (RawSideStr): Side ('B' or 'A').
         limit_px (RawFiniteDecimalStr): Limit price.
-        sz (RawFiniteDecimalStr): Size.
+        sz (RawNonNegativeFiniteDecimalStr): Size.
         timestamp (RawTimestampMsInt): Creation timestamp.
         order_type (dict[str, object]): Order type.
         reduce_only (RawStrictBool): Reduce-only flag.
-        remaining_sz (RawFiniteDecimalStr): Remaining size.
+        remaining_sz (RawNonNegativeFiniteDecimalStr): Remaining size.
         status (RawOrderStatusHL): Status string.
         status_timestamp (RawTimestampMsInt): Last update timestamp.
     """
@@ -154,11 +156,11 @@ class HyperliquidRawOrder(BaseModel):
     asset: RawAssetString64HL = Field(..., alias="asset")
     side: RawSideStr = Field(..., alias="side")
     limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
-    sz: RawFiniteDecimalStr = Field(..., alias="sz")
+    sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="sz")
     timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
     order_type: dict[str, object] = Field(..., alias="orderType")
     reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
-    remaining_sz: RawFiniteDecimalStr = Field(..., alias="remainingSz")
+    remaining_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="remainingSz")
     status: RawOrderStatusHL = Field(..., alias="status")
     status_timestamp: RawTimestampMsInt = Field(..., alias="statusTimestamp")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
@@ -184,6 +186,8 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]])
         __root__: List of HyperliquidRawOpenOrder
     """
 
+    root: list[HyperliquidRawOpenOrder]
+
     @property
     def items(self) -> list[HyperliquidRawOpenOrder]:
         """
@@ -193,6 +197,36 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]])
         return self.root
 
     model_config = ConfigDict(frozen=True)
+
+    @field_validator("root", mode="before")
+    @classmethod
+    def validate_open_orders_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
+        """Ensures the root input is a list of dictionaries for open orders."""
+        field_name = info.field_name or "open_orders_list"
+
+        if not isinstance(v, list):
+            raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
+
+        # CAST 1: For type checker, v is already confirmed list by runtime check
+        list_of_objects = cast(list[object], v)
+        # Redundant runtime check, but harmless and good for clarity/assertion
+        assert isinstance(list_of_objects, list)
+
+        validated_items: list[dict[str, object]] = []
+        for item_idx, item_obj in enumerate(list_of_objects):
+            if not isinstance(item_obj, dict):
+                item_type = type(item_obj).__name__
+                raise ValueError(
+                    f"Field '{field_name}', Item {item_idx}: Expected a dictionary, got {item_type}."
+                )
+
+            # CAST 2: For type checker, item_obj is already confirmed dict by runtime check
+            item_dict = cast(dict[str, object], item_obj)
+            # Redundant runtime check
+            assert isinstance(item_dict, dict)
+
+            validated_items.append(item_dict)
+        return validated_items
 
 
 class HyperliquidRawOpenOrdersRequestPayload(BaseModel):

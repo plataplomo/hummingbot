@@ -174,6 +174,24 @@ def _wrap_validate_positive_finite_decimal_str(
     return handler(s)
 
 
+def _wrap_validate_non_negative_finite_decimal_str(
+    v: object, handler: Callable[[object], str], info: ValidationInfo
+) -> str:
+    """Wrapper for validating strings that must represent non-negative finite decimal numbers."""
+    field_name = info.field_name or "non_negative_finite_decimal_str_field"
+    s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
+    # parse_decimal_value will raise if not parseable or if allow_none=False and it is None.
+    # It also ensures finite by its internal logic if it successfully returns a Decimal.
+    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+    assert d is not None  # Added assertion to help type checker
+    # Additional check for non-negativity after confirming it's a finite Decimal.
+    if d < type(d)(0):
+        raise ValueError(
+            f"{field_name}: Value must be a parseable non-negative and finite decimal string."
+        )
+    return handler(s)
+
+
 # --- Helper functions for direct validation and parsing (not for WrapValidator) ---
 
 
@@ -373,6 +391,14 @@ A raw string type that must represent a positive (GT 0) finite decimal number.
 Retains string form.
 """
 
+RawNonNegativeFiniteDecimalStr = Annotated[
+    str, WrapValidator(_wrap_validate_non_negative_finite_decimal_str)
+]
+"""
+A raw string type that must represent a non-negative (>= 0) finite decimal number.
+Retains string form.
+"""
+
 RawTradeHashStringHL = Annotated[
     str,
     WrapValidator(
@@ -382,3 +408,43 @@ RawTradeHashStringHL = Annotated[
     ),
 ]
 """A raw string for Hyperliquid trade hashes, non-empty, max_length=66."""
+
+RawTimeframeString = Annotated[
+    str,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_general_str(
+            v, h, i, field_name_default="timeframe_field", max_length=32, allow_empty=False
+        )
+    ),
+]
+"""A raw string for timeframe identifiers (e.g., '1h', '1d'), non-empty, max_length=32."""
+
+_KNOWN_USER_ROLES = {"missing", "user", "agent", "vault", "subAccount"}
+RawUserRoleString = Annotated[
+    str,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_enum_str(
+            v,
+            h,
+            i,
+            field_name_default="user_role_field",
+            allowed_values=_KNOWN_USER_ROLES,
+        )
+    ),
+]
+"""A raw string representing a user role, must be one of {_KNOWN_USER_ROLES}."""
+
+_KNOWN_LEVERAGE_TYPES = {"cross", "isolated"}
+RawLeverageTypeString = Annotated[
+    str,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_enum_str(
+            v,
+            h,
+            i,
+            field_name_default="leverage_type_field",
+            allowed_values=_KNOWN_LEVERAGE_TYPES,
+        )
+    ),
+]
+"""A raw string representing a leverage type, must be one of {_KNOWN_LEVERAGE_TYPES}."""

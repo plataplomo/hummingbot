@@ -20,9 +20,9 @@ from pydantic import (
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawEthereumAddressStr,
-    RawFiniteDecimalStr,
-    RawTimestampMsInt,
+    RawNonNegativeFiniteDecimalStr,
     # RawDefaultString might be used or specific Annotated as decided
+    RawTimestampMsInt,
 )
 from cyberdelta.utils.parsing import validate_str_field
 
@@ -41,11 +41,11 @@ class HyperliquidRawReferredBy(BaseModel):
 class HyperliquidRawReferralState(BaseModel):
     """Raw boundary model for a single referral state within the referrer data."""
 
-    cum_vlm: RawFiniteDecimalStr = Field(..., alias="cumVlm")
-    cum_rewarded_fees_since_referred: RawFiniteDecimalStr = Field(
+    cum_vlm: RawNonNegativeFiniteDecimalStr = Field(..., alias="cumVlm")
+    cum_rewarded_fees_since_referred: RawNonNegativeFiniteDecimalStr = Field(
         ..., alias="cumRewardedFeesSinceReferred"
     )
-    cum_fees_rewarded_to_referrer: RawFiniteDecimalStr = Field(
+    cum_fees_rewarded_to_referrer: RawNonNegativeFiniteDecimalStr = Field(
         ..., alias="cumFeesRewardedToReferrer"
     )
     time_joined: RawTimestampMsInt = Field(..., alias="timeJoined")
@@ -90,10 +90,10 @@ class HyperliquidRawReferralResponse(BaseModel):
     """
 
     referred_by: HyperliquidRawReferredBy = Field(..., alias="referredBy")
-    cum_vlm: RawFiniteDecimalStr = Field(..., alias="cumVlm")
-    unclaimed_rewards: RawFiniteDecimalStr = Field(..., alias="unclaimedRewards")
-    claimed_rewards: RawFiniteDecimalStr = Field(..., alias="claimedRewards")
-    builder_rewards: RawFiniteDecimalStr = Field(..., alias="builderRewards")
+    cum_vlm: RawNonNegativeFiniteDecimalStr = Field(..., alias="cumVlm")
+    unclaimed_rewards: RawNonNegativeFiniteDecimalStr = Field(..., alias="unclaimedRewards")
+    claimed_rewards: RawNonNegativeFiniteDecimalStr = Field(..., alias="claimedRewards")
+    builder_rewards: RawNonNegativeFiniteDecimalStr = Field(..., alias="builderRewards")
     referrer_state: HyperliquidRawReferrerState = Field(..., alias="referrerState")
     reward_history: list[object] = Field(
         ..., alias="rewardHistory"

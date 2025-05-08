@@ -35,9 +35,22 @@ Do not use these models for internal business logic—use your core models for t
 for boundary validation only.
 """
 
-from typing import Any, TypeGuard, TypeVar
+from typing import TypeGuard, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawAssetString64HL,
+    RawDefaultString,
+    RawFiniteDecimalStr,
+    RawNonNegativeInt,
+    RawOptionalNonEmptyString64HL,
+    RawPositiveFiniteDecimalStr,
+    RawSideStr,
+    RawStrictBool,
+    RawTimestampMsInt,
+    RawTradeHashStringHL,
+)
 
 # Import canonical BookLevel
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawBookLevel
@@ -48,7 +61,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawBo
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawPositionInfo,
 )
-from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
 # Type variables for TypeGuard functions
 T = TypeVar("T")
@@ -75,130 +87,41 @@ class HyperliquidRawWsFillEvent(BaseModel):
         is_maker (bool): True if the user was the maker in this trade.
     """
 
-    coin: str = Field(..., alias="coin")
-    px: str = Field(..., alias="px")
-    sz: str = Field(..., alias="sz")
-    side: str = Field(..., alias="side")
-    time: int = Field(..., alias="time")
-    hash: str = Field(..., alias="hash")
-    oid: int = Field(..., alias="oid")
-    cloid: str | None = Field(None, alias="cloid")
-    is_maker: bool = Field(..., alias="isMaker")
+    coin: RawAssetString64HL = Field(..., alias="coin")
+    px: RawFiniteDecimalStr = Field(..., alias="px")
+    sz: RawPositiveFiniteDecimalStr = Field(..., alias="sz")
+    side: RawSideStr = Field(..., alias="side")
+    time: RawTimestampMsInt = Field(..., alias="time")
+    hash: RawTradeHashStringHL = Field(..., alias="hash")
+    oid: RawNonNegativeInt = Field(..., alias="oid")
+    cloid: RawOptionalNonEmptyString64HL = Field(None, alias="cloid")
+    is_maker: RawStrictBool = Field(..., alias="isMaker")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
-    @field_validator("coin", mode="before")
-    @classmethod
-    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'coin' field to ensure it is a string of max length 64.
 
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated asset symbol string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        return validate_str_field(v, field_name="coin", max_length=64)
-
-    @field_validator("px", "sz", mode="before")
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates that the field is a string representing a finite decimal (not NaN/inf),
-        with a maximum length of 64. This is critical for financial data integrity.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated decimal string.
-        Raises:
-            ValueError: If the input is not a valid decimal string.
-        """
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
-
-    @field_validator("side", mode="before")
-    @classmethod
-    def validate_side(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'side' field to ensure it is either 'B' (buy) or 'A' (ask/sell).
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated side string.
-        Raises:
-            ValueError: If the input is not a valid side value.
-        """
-        return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
-
-    @field_validator("hash", mode="before")
-    @classmethod
-    def validate_hash(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'hash' field to ensure it is a string of max length 64.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated hash string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        return validate_str_field(v, field_name="hash", max_length=64)
-
-    @field_validator("cloid", mode="before")
-    @classmethod
-    def validate_cloid(cls, v: object, info: ValidationInfo) -> str | None:
-        """
-        Validates the optional 'cloid' field to ensure
-        it is either None or a string of max length 64.
-
-        Args:
-            v (object): The value to validate (should be a string or None).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            Optional[str]: The validated client order ID string or None.
-        Raises:
-            ValueError: If the input is not a valid string or None.
-        """
-        if v is None:
-            return v
-        return validate_str_field(v, field_name="cloid", max_length=64)
-
-
-def is_list(obj: object) -> TypeGuard[list[Any]]:
+def is_list(obj: object) -> TypeGuard[list[object]]:
     """TypeGuard to check if an object is a list"""
     return isinstance(obj, list)
 
 
-def has_exact_length(lst: list[Any], length: int) -> bool:
+def has_exact_length(lst: list[object], length: int) -> bool:
     """Check if a list has exactly the specified length"""
     return len(lst) == length
 
 
-def is_dict(obj: object) -> TypeGuard[dict[str, Any]]:
+def is_dict(obj: object) -> TypeGuard[dict[str, object]]:
     """TypeGuard to check if an object is a dictionary with string keys"""
     return isinstance(obj, dict)
 
 
-def is_non_empty_dict(obj: object) -> TypeGuard[dict[str, Any]]:
+def is_non_empty_dict(obj: object) -> TypeGuard[dict[str, object]]:
     """TypeGuard to check if an object is a non-empty dictionary with string keys"""
     return is_dict(obj) and bool(obj)
 
 
-def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, Any]]]]:
+def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, object]]]]:
     """
-    Type guard to check if an object is a list of two lists of dict[str, Any].
+    Type guard to check if an object is a list of two lists of dict[str, object].
     Enables static type narrowing for both Mypy and Pyright.
     """
     # Check if it's a list
@@ -237,88 +160,28 @@ class HyperliquidRawWsBookUpdate(BaseModel):
         time (int): Snapshot timestamp (epoch ms).
     """
 
-    coin: str = Field(..., alias="coin")
+    coin: RawAssetString64HL = Field(..., alias="coin")
     levels: list[list[HyperliquidRawBookLevel]] = Field(..., alias="levels")
-    time: int = Field(..., alias="time")
+    time: RawTimestampMsInt = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("coin", mode="before")
-    @classmethod
-    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
-        """
-        Validates the 'coin' field to ensure it is a string of max length 64.
-
-        Args:
-            v (object): The value to validate (should be a string).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            str: The validated asset symbol string.
-        Raises:
-            ValueError: If the input is not a valid string.
-        """
-        return validate_str_field(v, field_name="coin", max_length=64)
 
     @field_validator("levels", mode="before")
     @classmethod
-    def validate_levels_structure(
-        cls, v: object, info: ValidationInfo
-    ) -> list[list[HyperliquidRawBookLevel]]:
+    def validate_levels_structure(cls, v: object, info: ValidationInfo) -> object:
         """
-        Validates and converts the 'levels' field to a list of two lists of HyperliquidRawBookLevel.
-        Uses explicit type checking patterns that satisfy both Mypy and Pyright.
-
-        Args:
-            v (object): The value to validate (should be a list of two lists).
-            info (ValidationInfo): Pydantic validation context.
-        Returns:
-            list[list[HyperliquidRawBookLevel]]: The validated nested list of book levels.
-        Raises:
-            ValueError: If the input is not a valid structure for order book levels.
+        Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
+        The inner elements will be parsed by Pydantic against HyperliquidRawBookLevel.
+        Returns the raw validated structure for Pydantic to process further.
         """
-        # First validate it's a list
         if not is_list(v):
-            raise ValueError("levels: Must be a list of two lists (bids, asks)")
-
-        # At this point, both mypy and pyright know v is a List[Any]
+            raise ValueError("levels: Must be a list.")
         if not has_exact_length(v, 2):
-            raise ValueError("levels: Must be a list of two lists (bids, asks)")
-
-        result: list[list[HyperliquidRawBookLevel]] = []
-
-        # Process each side (bids, asks)
-        for i, side_obj in enumerate(v):
-            if not is_list(side_obj):
-                raise ValueError(f"levels[{i}]: Must be a list of book levels")
-
-            # At this point, both mypy and pyright know side_obj is a List[Any]
-            side_result: list[HyperliquidRawBookLevel] = []
-
-            # Process each entry in this side
-            for j, entry in enumerate(side_obj):
-                if isinstance(entry, HyperliquidRawBookLevel):
-                    side_result.append(entry)
-                elif isinstance(entry, dict):
-                    try:
-                        # At this point, Pyright should recognize entry as Dict[Unknown, Unknown]
-                        # but mypy correctly infers Dict[Any, Any]
-                        # Use type annotation instead of cast
-                        dict_entry: dict[str, Any] = entry
-                        level = HyperliquidRawBookLevel.model_validate(dict_entry)
-                        side_result.append(level)
-                    except Exception as e:
-                        raise ValueError(f"levels[{i}][{j}]: Invalid book level: {e}") from e
-                else:
-                    raise ValueError(f"levels[{i}][{j}]: Must be dict or HyperliquidRawBookLevel")
-
-            result.append(side_result)
-
-        return result
-
-    @field_validator("time", mode="before")
-    @classmethod
-    def validate_time(cls, v: object, info: ValidationInfo) -> int:
-        if not isinstance(v, int):
-            raise ValueError("time: Expected int (epoch ms)")
+            raise ValueError("levels: Must be a list of two lists (bids, asks), length != 2.")
+        bids_raw, asks_raw = v[0], v[1]
+        if not is_list(bids_raw):
+            raise ValueError("levels[0] (bids): Must be a list.")
+        if not is_list(asks_raw):
+            raise ValueError("levels[1] (asks): Must be a list.")
         return v
 
 
@@ -339,38 +202,13 @@ class HyperliquidRawWsTradeEvent(BaseModel):
         hash (str): Unique trade hash.
     """
 
-    coin: str = Field(..., alias="coin")
-    px: str = Field(..., alias="px")
-    sz: str = Field(..., alias="sz")
-    side: str = Field(..., alias="side")
-    time: int = Field(..., alias="time")
-    hash: str = Field(..., alias="hash")
+    coin: RawAssetString64HL = Field(..., alias="coin")
+    px: RawFiniteDecimalStr = Field(..., alias="px")
+    sz: RawPositiveFiniteDecimalStr = Field(..., alias="sz")
+    side: RawSideStr = Field(..., alias="side")
+    time: RawTimestampMsInt = Field(..., alias="time")
+    hash: RawTradeHashStringHL = Field(..., alias="hash")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("coin", mode="before")
-    @classmethod
-    def validate_coin(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="coin", max_length=64)
-
-    @field_validator("px", "sz", mode="before")
-    @classmethod
-    def validate_decimal_str(cls, v: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or "field"
-        s = validate_str_field(v, field_name=field_name, max_length=64)
-        d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal (not NaN or inf)")
-        return s
-
-    @field_validator("side", mode="before")
-    @classmethod
-    def validate_side(cls, v: object, info: ValidationInfo) -> str:
-        return validate_enum_field(v, allowed={"B", "A"}, field_name="side")
-
-    @field_validator("hash", mode="before")
-    @classmethod
-    def validate_hash(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="hash", max_length=64)
 
 
 class HyperliquidRawWsOrderUpdate(BaseModel):
@@ -386,30 +224,18 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
         data (dict): Event data payload (structure may vary by event type).
     """
 
-    event_type: str = Field(..., alias="eventType")
-    data: dict[str, Any] = Field(..., alias="data")
+    event_type: RawDefaultString = Field(..., alias="eventType", max_length=32)
+    data: dict[str, object] = Field(..., alias="data")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("event_type", mode="before")
-    @classmethod
-    def validate_event_type(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="event_type", max_length=32)
 
     @field_validator("data", mode="before")
     @classmethod
-    def validate_data(cls, v: object, info: ValidationInfo) -> dict[str, Any]:
-        """
-        Validate that the data field is a non-empty dictionary with string keys.
-        Uses explicit type checking to ensure both runtime and static type safety.
-        """
-        # Check if the input is a non-empty dictionary
-        if not is_non_empty_dict(v):
-            raise ValueError("data: Must be a non-empty dict (event-specific structure)")
-
-        # Further validation could be added here based on event_type
-        # For now, we just ensure it's a non-empty dict
-
-        # At this point, both mypy and pyright know v is Dict[str, Any]
+    def validate_data(cls, v: object, info: ValidationInfo) -> dict[str, object]:
+        """Ensure data is a dictionary."""
+        # Note: Pydantic v2 might handle dict validation automatically for dict fields.
+        # Keeping explicit check for robustness with 'before' mode.
+        if not isinstance(v, dict):
+            raise ValueError("data: Must be a dictionary")
         return v
 
 
@@ -427,19 +253,7 @@ class HyperliquidRawWsPositionUpdateEvent(BaseModel):
         time (int): Timestamp of the position update event (epoch ms).
     """
 
-    asset: str = Field(..., alias="asset")
+    asset: RawAssetString64HL = Field(..., alias="asset")
     position: HyperliquidRawPositionInfo = Field(..., alias="position")
-    time: int = Field(..., alias="time")
+    time: RawTimestampMsInt = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-    @field_validator("asset", mode="before")
-    @classmethod
-    def validate_asset(cls, v: object, info: ValidationInfo) -> str:
-        return validate_str_field(v, field_name="asset", max_length=64)
-
-    @field_validator("time", mode="before")
-    @classmethod
-    def validate_time(cls, v: object, info: ValidationInfo) -> int:
-        if not isinstance(v, int):
-            raise ValueError("time: Expected int (epoch ms)")
-        return v
