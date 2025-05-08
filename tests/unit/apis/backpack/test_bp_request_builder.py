@@ -134,8 +134,8 @@ class TestBackpackRequestBuilder(unittest.TestCase):
     def test_build_place_order_payload_stop_limit(self) -> None:
         """Test build_place_order_payload for a STOP_LIMIT order."""
         # Assuming Backpack uses orderType "Stop" and then includes a price for limit part
-        # Or it might have a distinct orderType like "StopLimit". This needs Backpack doc verification.
-        # For now, let's assume it builds upon the STOP_MARKET structure.
+        # Or it might have a distinct orderType like "StopLimit". This needs Backpack doc
+        # verification.
         payload = BackpackRequestBuilder.build_place_order_payload(
             symbol="ETH_USDC",
             side=OrderSide.BUY,

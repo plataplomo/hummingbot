@@ -128,7 +128,8 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
             if not isinstance(item_obj, dict):
                 item_type = type(item_obj).__name__
                 raise ValueError(
-                    f"Field '{field_name}', Item {item_idx}: Expected a dictionary, got {item_type}."
+                    f"Field '{field_name}', Item {item_idx}: Expected a dictionary, "
+                    f"got {item_type}."
                 )
 
             # CAST 2: For type checker, item_obj is already confirmed dict by runtime check

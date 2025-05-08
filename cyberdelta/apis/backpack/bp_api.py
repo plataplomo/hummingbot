@@ -632,12 +632,14 @@ class BackpackAPI(ExchangeAPI):
                     )
                 except (APIError, ValidationError, ValueError) as e_direct_map:
                     logger.warning(
-                        f"[{self.exchange_name}] Failed to directly map initial place_order response (was dict): {e_direct_map}. "
-                        f"Response: {response_data!r}. Falling back to generic RawJsonResponse validation."
+                        f"[{self.exchange_name}] Failed to directly map initial place_order "
+                        f"response (was dict): {e_direct_map}. Response: {response_data!r}. "
+                        f"Falling back to generic RawJsonResponse validation."
                     )
-                    # Fall through if direct dict mapping fails, try validating response_data as RawJsonResponse
+                    # Fall through if direct dict mapping fails, try validating response_data
+                    # as RawJsonResponse
 
-            # Fallback or default path: Validate response_data as RawJsonResponse.
+            # Fallback or default path: Validate response_data as RawJsonResponse
             # This assumes response_data, despite being Any, holds the raw content.
             # If _request guarantees RawJsonResponse on success, this is safer.
             # If not, further checks on response_data structure might be needed here.
@@ -1019,10 +1021,12 @@ class BackpackAPI(ExchangeAPI):
                     )
                 except (APIError, ValidationError, ValueError) as e_direct_map:
                     logger.warning(
-                        f"[{self.exchange_name}] Failed to directly map initial withdraw response (was dict): {e_direct_map}. "
-                        f"Response: {response_data!r}. Falling back to generic RawJsonResponse validation."
+                        f"[{self.exchange_name}] Failed to directly map initial withdraw "
+                        f"response (was dict): {e_direct_map}. Response: {response_data!r}. "
+                        f"Falling back to generic RawJsonResponse validation."
                     )
-                    # Fall through
+                    # Fall through if direct dict mapping fails, try validating response_data
+                    # as RawJsonResponse
 
             # Fallback or default path: Validate response_data as RawJsonResponse
             validated_response: BackpackRawWithdrawalResponse = (
@@ -1042,7 +1046,8 @@ class BackpackAPI(ExchangeAPI):
             ValueError,
         ) as ve:  # Catch Pydantic/parsing errors if not wrapped by APIError
             logger.error(
-                f"[{self.exchange_name}] Validation/Value error during withdrawal: {ve}. Response: {response_data!r}",
+                f"[{self.exchange_name}] Validation/Value error during withdrawal: {ve}. "
+                f"Response: {response_data!r}",
                 exc_info=True,
             )
             raise APIError(
@@ -1054,7 +1059,8 @@ class BackpackAPI(ExchangeAPI):
             ) from ve
         except Exception as e:  # Catch any other unexpected errors
             logger.error(
-                f"[{self.exchange_name}] Unexpected error during withdrawal: {e}. Response: {response_data!r}",
+                f"[{self.exchange_name}] Unexpected error during withdrawal: {e}. "
+                f"Response: {response_data!r}",
                 exc_info=True,
             )
             raise APIError(
@@ -1219,7 +1225,8 @@ class BackpackAPI(ExchangeAPI):
                     else:
                         logger.warning(
                             f"[{self.exchange_name}] Skipping trade in history due to "
-                            f"transformation failure (mapper returned None). Data: {raw_trade_model.model_dump_json()}"
+                            f"transformation failure (mapper returned None). "
+                            f"Data: {raw_trade_model.model_dump_json()}"
                         )
                 except (
                     ValidationError,
@@ -1436,7 +1443,8 @@ class BackpackAPI(ExchangeAPI):
                     else:
                         logger.warning(
                             f"[{self.exchange_name}] Skipping trade in history due to "
-                            f"transformation failure (mapper returned None). Data: {trade_data_raw}"
+                            f"transformation failure (mapper returned None). "
+                            f"Data: {raw_trade_model.model_dump_json()}"
                         )
                 except (
                     ValidationError,
@@ -1504,7 +1512,8 @@ class BackpackAPI(ExchangeAPI):
             # Handle ORDER_NOT_FOUND specifically as per method contract
             if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
                 logger.debug(
-                    f"[{self.exchange_name}] Order {identifier} not found on Backpack (get_order_status)."
+                    f"[{self.exchange_name}] Order {identifier} not found on Backpack "
+                    f"(get_order_status)."
                 )
                 return None  # Return None for not found
 

@@ -258,16 +258,20 @@ class HyperliquidRequestBuilder:
                 tpsl="sl" if order_type == OrderType.STOP_MARKET else "tp",
             )
             trigger_payload = trigger_details.model_dump(by_alias=True)
-            # For triggered orders, the main 'orderType' might still be limit if they trigger into one.
+            # For triggered orders, the main 'orderType' might still be limit if they
+            # trigger into one.
             # However, Hyperliquid's structure suggests 'trigger' modifies behavior.
-            # If it's a STOP_MARKET, the core orderType might be implied or a simple limit with TIF.
-            # Original code set underlying_limit_px_str to "0" and did not set underlying_hl_order_type_dict
+            # If it's a STOP_MARKET, the core orderType might be implied or a simple limit
+            # with TIF.
+            # Original code set underlying_limit_px_str to "0" and did not set
+            # underlying_hl_order_type_dict
             # for pure trigger orders without a limit component post-trigger.
             # Re-checking Hyperliquid docs: trigger orders are specified by `trigger` field.
             # The main order part still needs `orderType` and `limitPx`.
             # If it's a market trigger, limitPx is 0, orderType might be a basic limit/GTC.
             # Let's assume for STOP_MARKET, it implicitly becomes a market order on trigger,
-            # so the underlying "orderType" part of the main payload might be minimal or just "limit" with TIF.
+            # so the underlying "orderType" part of the main payload might be minimal
+            # or just "limit" with TIF.
             # The original code sets underlying_limit_px_str = "0".
             # For market triggers, Hyperliquid might expect orderType: {"limit": {"tif": "Gtc"}}
             # and then the trigger payload overrides to market.

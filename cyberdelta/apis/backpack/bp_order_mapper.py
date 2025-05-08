@@ -118,7 +118,8 @@ class BackpackOrderMapper:
         Performs a case-insensitive match against known Backpack status strings.
 
         Args:
-            bp_status (str): The raw order status string from Backpack (e.g., "FILLED", "CANCELLED").
+            bp_status (str): The raw order status string from Backpack (e.g., "FILLED",
+                             "CANCELLED").
 
         Returns:
             OrderStatus: The corresponding internal `OrderStatus` enum value.
@@ -892,7 +893,8 @@ class BackpackOrderMapper:
         # Placeholder: Implement detailed mapping to a future internal AccountSummary model
         # For now, just dump the raw model.
         logger.debug(
-            f"[BackpackOrderMapper] Transforming BackpackRawAccountSummary. Raw data: {raw.model_dump(exclude_none=True)}"
+            f"[BackpackOrderMapper] Transforming BackpackRawAccountSummary. Raw data: "
+            f"{raw.model_dump(exclude_none=True)}"
         )
         return raw.model_dump(by_alias=True, exclude_none=True)
 
@@ -959,7 +961,8 @@ class BackpackOrderMapper:
 
             except ValueError as e_ts:
                 logger.warning(
-                    f"[BackpackOrderMapper] Could not parse ticker time '{raw.time}': {e_ts}, raising."
+                    f"[BackpackOrderMapper] Could not parse ticker time '{raw.time}': {e_ts}, "
+                    f"raising."
                 )
                 raise ValueError(f"Invalid ticker time '{raw.time}': {e_ts}") from e_ts
         else:

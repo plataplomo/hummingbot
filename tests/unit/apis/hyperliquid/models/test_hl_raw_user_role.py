@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from pydantic import ValidationError
+from pytest import FixtureRequest
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_role import (
     HyperliquidRawUserRoleData,
@@ -43,7 +44,7 @@ VALID_ROLE_DATA_SUBACCOUNT: dict[str, str | None] = {
         VALID_USER_ROLE_MISSING,
     ]
 )
-def valid_user_role_data(request: Any) -> dict[str, Any]:
+def valid_user_role_data(request: FixtureRequest) -> dict[str, Any]:
     return request.param.copy()  # Ensure individual test data is copied
 
 
@@ -55,7 +56,7 @@ def valid_user_role_data(request: Any) -> dict[str, Any]:
         {},  # Empty data
     ]
 )
-def valid_role_data_params(request: Any) -> dict[str, str | None]:
+def valid_role_data_params(request: FixtureRequest) -> dict[str, str | None]:
     return request.param.copy()
 
 
@@ -78,7 +79,7 @@ def test_role_data_valid(valid_role_data_params: dict[str, str | None]) -> None:
         ("master", 123),  # Invalid type
     ],
 )
-def test_role_data_invalid_address(field: str, value: Any) -> None:
+def test_role_data_invalid_address(field: str, value: object) -> None:
     data_payload = {field: value}
     with pytest.raises(ValidationError):
         HyperliquidRawUserRoleData.model_validate(data_payload)
@@ -121,13 +122,10 @@ def test_user_role_response_valid(valid_user_role_data: dict[str, Any]) -> None:
     ],
 )
 def test_user_role_response_invalid(
-    valid_user_role_data: dict[str, Any], field: str, value: Any, is_missing_test: bool
+    valid_user_role_data: dict[str, Any], field: str, value: object, is_missing_test: bool
 ) -> None:
     # Use a copy of one of the valid scenarios for manipulation
-    data_copy = VALID_USER_ROLE_AGENT.copy()
-    if "data" in data_copy and data_copy["data"] is not None:  # ensure data is dict for copy
-        data_copy["data"] = data_copy["data"].copy()
-
+    data_copy = valid_user_role_data.copy()
     if is_missing_test:
         if field in data_copy:
             del data_copy[field]

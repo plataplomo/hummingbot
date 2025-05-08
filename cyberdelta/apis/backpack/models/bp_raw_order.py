@@ -23,6 +23,7 @@ ensuring robustness and security at the data ingestion boundary.
 """
 
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
@@ -479,7 +480,8 @@ class BackpackRawOrderBook(BaseModel):
             current_entry_field_name = f"{field_name}[{i}]"
             if not isinstance(entry_raw_item, list):  # entry_raw_item is now known to be list
                 raise ValueError(
-                    f"{current_entry_field_name}: Expected list for entry, got {type(entry_raw_item).__name__}"
+                    f"{current_entry_field_name}: Expected list for entry, "
+                    f"got {type(entry_raw_item).__name__}"
                 )
 
             current_price_quantity_list: list[Any] = entry_raw_item  # Explicitly list[Any]
@@ -489,7 +491,8 @@ class BackpackRawOrderBook(BaseModel):
             ] = []  # This will hold the validated [price_str, quantity_str]
             if len(current_price_quantity_list) != 2:
                 raise ValueError(
-                    f"{current_entry_field_name}: Expected list of 2 items (price, quantity), got {len(current_price_quantity_list)}"
+                    f"{current_entry_field_name}: Expected list of 2 items (price, quantity), "
+                    f"got {len(current_price_quantity_list)}"
                 )
 
             price_obj: Any = current_price_quantity_list[0]
@@ -498,7 +501,8 @@ class BackpackRawOrderBook(BaseModel):
             # Validate price string
             if not isinstance(price_obj, str):
                 raise ValueError(
-                    f"{current_entry_field_name}[0]: Price must be a string, got {type(price_obj).__name__}"
+                    f"{current_entry_field_name}[0]: Price must be a string, "
+                    f"got {type(price_obj).__name__}"
                 )
             price_str: str = price_obj  # Now known to be str
             parse_decimal_value(price_str, field_name=f"{current_entry_field_name}[0] Price")
@@ -507,7 +511,8 @@ class BackpackRawOrderBook(BaseModel):
             # Validate quantity string
             if not isinstance(quantity_obj, str):
                 raise ValueError(
-                    f"{current_entry_field_name}[1]: Quantity must be a string, got {type(quantity_obj).__name__}"
+                    f"{current_entry_field_name}[1]: Quantity must be a string, "
+                    f"got {type(quantity_obj).__name__}"
                 )
             quantity_str: str = quantity_obj  # Now known to be str
             parse_decimal_value(quantity_str, field_name=f"{current_entry_field_name}[1] Quantity")

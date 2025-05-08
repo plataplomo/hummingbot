@@ -200,7 +200,8 @@ class HyperliquidErrorMapper(IErrorMapper):
                 specific_error_from_string.code != APIErrorCode.EXCHANGE_SPECIFIC.value
                 and error_body
             ):
-                return specific_error_from_string  # Use if string mapping was specific and body wasn't empty
+                return specific_error_from_string  # Use if string mapping was specific
+                # and body wasn't empty
 
             # If error_body is empty, provide a clearer default message for these statuses
             message = error_body if error_body else "Authentication failed"

@@ -314,10 +314,9 @@ class BackpackRawFill(BaseModel):
         # Then, attempt to parse it using the utility function to ensure it's a valid UTC datetime.
         try:
             dt_obj = parse_datetime_utc(raw_ts_str, field_name=field_name)
-            if (
-                dt_obj is None
-            ):  # parse_datetime_utc returns None if input is None, but here raw_ts_str is not None.
-                # This case should ideally not be hit if validate_str_field ensures non-empty string.
+            if dt_obj is None:
+                # This case should ideally not be hit if validate_str_field ensures
+                # non-empty string.
                 raise ValueError(
                     f"{field_name}: Successfully validated as string '{raw_ts_str}', "
                     f"but parse_datetime_utc returned None unexpectedly."

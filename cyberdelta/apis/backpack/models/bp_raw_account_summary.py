@@ -7,7 +7,6 @@ of the Backpack Exchange API response when querying for account summary details.
 """
 
 from decimal import Decimal
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -53,7 +52,7 @@ class BackpackRawAccountSummary(BaseModel):
         mode="before",
     )
     @classmethod
-    def _validate_decimal_strings(cls, v: Any, info: ValidationInfo) -> Decimal:
+    def _validate_decimal_strings(cls, v: object, info: ValidationInfo) -> Decimal:
         """Validates string fields that should be finite Decimals."""
         field_name_str = info.field_name
         if field_name_str is None:
@@ -73,7 +72,7 @@ class BackpackRawAccountSummary(BaseModel):
 
     @field_validator("limit_orders", "trigger_orders", mode="before")
     @classmethod
-    def _validate_positive_integer(cls, v: Any, info: ValidationInfo) -> int:
+    def _validate_positive_integer(cls, v: object, info: ValidationInfo) -> int:
         """Validates that integer fields are non-negative."""
         field_name_str = info.field_name
         if field_name_str is None:
@@ -95,7 +94,7 @@ class BackpackRawAccountSummary(BaseModel):
         mode="before",
     )
     @classmethod
-    def _validate_boolean_types(cls, v: Any, info: ValidationInfo) -> bool:
+    def _validate_boolean_types(cls, v: object, info: ValidationInfo) -> bool:
         """Validates boolean fields are actual booleans."""
         field_name_str = info.field_name
         if field_name_str is None:

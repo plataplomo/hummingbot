@@ -5,7 +5,8 @@ Unit Tests for Hyperliquid Raw Referral Info Models
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
+from pytest import FixtureRequest
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_referral import (
     HyperliquidRawReferralResponse,
@@ -244,10 +245,11 @@ def test_referral_response_invalid(
     ],
 )
 def test_all_referral_models_extra_fields(
-    model_class: Any,
+    model_class: type[BaseModel],
     valid_data_fixture_name: str,
-    request: Any,  # noqa: ANN401
+    request: FixtureRequest,  # noqa: ANN401
 ) -> None:
+    """Test that all referral-related models forbid extra fields."""
     valid_data = request.getfixturevalue(valid_data_fixture_name)
     data_copy = valid_data.copy()
     # For nested models, need to ensure the correct part is copied if mutable

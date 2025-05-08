@@ -22,7 +22,8 @@ class IErrorMapper(ABC):
         request_path: str | None = None,
     ) -> APIError:
         """
-        Maps a raw exchange error (from HTTP status, body, or parsed data) to a standardized APIError.
+        Maps a raw exchange error (from HTTP status, body, or parsed data) to a
+        standardized APIError.
         Implementations should handle specifics of their exchange's error reporting.
         """
         pass

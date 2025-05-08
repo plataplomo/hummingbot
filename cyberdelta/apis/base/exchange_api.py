@@ -135,7 +135,8 @@ class ExchangeAPI(ABC):
             )
 
         logger.info(
-            f"[{self.exchange_name}] API initialized. REST: {self.rest_endpoint}, WS: {self.ws_endpoint}"
+            f"[{self.exchange_name}] API initialized. REST: {self.rest_endpoint}, "
+            f"WS: {self.ws_endpoint}"
         )
 
     @property
@@ -155,7 +156,8 @@ class ExchangeAPI(ABC):
         is_public_info_endpoint: bool = False,
     ) -> ParsedJsonResponse | None:
         """
-        Execute an API request, delegating to HttpClient and handling exchange-specific error mapping.
+        Execute an API request, delegating to HttpClient and handling exchange-specific
+        error mapping.
 
         Args:
             method: HTTP method ('GET', 'POST', etc.)
@@ -168,7 +170,8 @@ class ExchangeAPI(ABC):
             is_public_info_endpoint: Flag for specific endpoints (e.g. Hyperliquid INFO).
 
         Returns:
-            Parsed API response content (JSON dict/list, raw text) or None for empty responses (204).
+            Parsed API response content (JSON dict/list, raw text) or None
+            for empty responses (204).
 
         Raises:
             APIError: For mapped exchange-specific errors or unrecoverable issues.
@@ -178,18 +181,21 @@ class ExchangeAPI(ABC):
 
         # Hyperliquid specific: if endpoint is full URL for /info, it bypasses _http_client
         # This logic should ideally be within HyperliquidAPI or HttpClient should handle full URLs.
-        # For now, assume if it's a full URL, the concrete API handles it or this isn't the method called.
+        # For now, assume if it's a full URL, the concrete API handles it or this isn't
+        # the method called.
         # Let's assume `endpoint` is typically a path.
         if endpoint.startswith("http://") or endpoint.startswith("https://"):
             # If endpoint is a full URL, this method might be called by a concrete API that
-            # wants to use the common error handling but not the standard _http_client path construction.
-            # In this case, path_for_http_client might not be used directly if the call is different.
-            # For error mapping, we'd still want to capture the full URL as the request_path.
+            # wants to use the common error handling but not the standard _http_client
+            # path construction.
+            # In this case, path_for_http_client might not be used directly if the call
+            # is different.
             path_for_http_client = (
                 endpoint  # This implies HttpClient can take full URLs, or this path won't be used
             )
             request_path_for_mapper = endpoint
-            # This scenario (full URL to _request) suggests a need for more flexible HttpClient or direct calling.
+            # This scenario (full URL to _request) suggests a need for more flexible HttpClient
+            # or direct calling.
             # For now, we assume _http_client.request is called with a *relative* path.
             # If Hyperliquid calls _request with a full INFO_URL, it must handle it differently
             # (e.g., not using self._http_client, or _http_client needs to support it)
@@ -200,11 +206,14 @@ class ExchangeAPI(ABC):
             # And path_for_http_client will likely be the relative part if extracted.
             # This part is tricky. For now, if full URL, we set path_for_http_client to it, but
             # it may not be what HttpClient expects if it strictly prepends its own base_url.
-            # Let's assume `endpoint` is always a relative path for calls going through `_http_client`.
-            # If a concrete API calls this `_request` with a full URL, it implies it has its own HTTP execution logic
+            # Let's assume `endpoint` is always a relative path for calls going through
+            # `_http_client`.
+            # If a concrete API calls this `_request` with a full URL, it implies it has its own
+            # HTTP execution logic
             # but wants to use this method for error mapping and rate limit header updates.
             # This case needs to be very carefully handled by the concrete API.
-            # A safer assumption: `endpoint` here is always a relative path when `_http_client` is used.
+            # A safer assumption: `endpoint` here is always a relative path when `_http_client`
+            # is used.
             logger.warning(
                 f"[{self.exchange_name}] _request called with full URL endpoint '{endpoint}'. "
                 f"Ensure HTTP execution logic is appropriate. HttpClient expects a relative path."
@@ -244,8 +253,9 @@ class ExchangeAPI(ABC):
 
         except HttpRequestFailedError as e_http_failed:
             logger.warning(
-                f"[{self.exchange_name}] HTTP request failed for {method} {request_path_for_mapper}: "
-                f"Status={e_http_failed.http_status}, Body='{e_http_failed.exchange_message}'"
+                f"[{self.exchange_name}] HTTP request failed for {method} "
+                f"{request_path_for_mapper}: Status={e_http_failed.http_status}, "
+                f"Body='{e_http_failed.exchange_message}'"
             )
             # Error is already HttpRequestFailedError (subclass of APIError)
             # We need to map its *contents* using the exchange-specific mapper
@@ -274,6 +284,7 @@ class ExchangeAPI(ABC):
         except (TimeoutError, aiohttp.ClientError) as e_client:
             # These are already raised by HttpClient after its retries
             logger.error(
+                f"[{self.exchange_name}] Unrecoverable client error for {method} "
                 f"[{self.exchange_name}] Unrecoverable client error for {method} {request_path_for_mapper}: {e_client}"
             )
             # Map to a generic APIError

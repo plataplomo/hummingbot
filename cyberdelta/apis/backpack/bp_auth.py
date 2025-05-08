@@ -83,7 +83,8 @@ class BackpackHmacAuthenticator(IAuthenticator):
         # Backpack's signature payload construction:
         # For GET: timestamp + sorted query string (e.g., "symbol=SOL_USDC&limit=10")
         # For POST/PUT/DELETE with JSON body: timestamp + JSON string of the body
-        # For POST/PUT/DELETE with form data: timestamp + sorted form data string (not handled here yet)
+        # For POST/PUT/DELETE with form data: timestamp + sorted form data string
+        # (not handled here yet)
 
         # Ensure params and data are processed correctly for signature
         processed_params = params

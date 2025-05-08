@@ -109,7 +109,8 @@ class TestBackpackAPI_Authentication:
 
         # Call the _authenticate method directly
         # The actual `headers` param to _authenticate itself is what _bp_authenticator receives.
-        # BackpackAPI._authenticate passes api.default_headers to its _bp_authenticator.prepare_request.
+        # BackpackAPI._authenticate passes api.default_headers to its
+        # _bp_authenticator.prepare_request.
         auth_result_dict = await api._authenticate(method, path, params, data)  # noqa: SLF001
         # headers param defaults to None
 
@@ -120,7 +121,8 @@ class TestBackpackAPI_Authentication:
             data=data,
             headers=api.default_headers.copy(),  # BackpackAPI._authenticate passes this header set
         )
-        # _authenticate should return a dict matching the structure of AuthenticatedRequestComponents
+        # _authenticate should return a dict matching the structure
+        # of AuthenticatedRequestComponents
         assert auth_result_dict["headers"] == expected_components_from_auth["headers"]
         assert auth_result_dict["params"] == expected_components_from_auth["params"]
         assert auth_result_dict["data"] == expected_components_from_auth["data"]

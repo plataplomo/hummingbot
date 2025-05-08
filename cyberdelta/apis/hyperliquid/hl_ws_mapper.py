@@ -211,3 +211,41 @@ class HyperliquidWebsocketMapper:
                 exc_info=True,
             )
             return None
+
+    def map_order_update(self, payload: dict[str, Any], timestamp: datetime) -> Order | None:
+        """
+        Parse an order update payload from a WebSocket user event.
+        Validates the payload using HyperliquidRawOrder and transforms it using
+        HyperliquidOrderMapper.
+
+        Args:
+            payload: The raw dictionary payload for the order, extracted from
+                     the 'data' field of a validated HyperliquidRawWsOrderUpdate event.
+            timestamp: The timestamp of the event.
+        Returns:
+            Order object or None if parsing/transformation fails.
+        """
+        try:
+            # Validate the raw order payload (which is payload here)
+            raw_order_obj = HyperliquidRawOrder.model_validate(payload)
+        except Exception as e:
+            logger.warning(
+                f"[HyperliquidWsMapper] Invalid order data in WS order update (dropped): {e} | "
+                f"Data: {payload!r}"
+            )
+            return None
+
+        try:
+            # Transform using the robust HyperliquidOrderMapper.
+            # Trigger info is typically not part of WS order update payload in this flat structure.
+            internal_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
+                raw_order_obj, trigger=None
+            )
+            return internal_order
+        except Exception as e:
+            logger.error(
+                f"[HyperliquidWsMapper] Error transforming raw order object from WS event: {e}. "
+                f"Raw: {raw_order_obj.model_dump()!r}",
+                exc_info=True,
+            )
+            return None

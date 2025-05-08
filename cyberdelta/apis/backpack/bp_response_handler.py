@@ -4,8 +4,6 @@ Response Handler for Backpack API Raw Responses.
 Validates raw JSON data against Pydantic models specific to Backpack\'s API endpoints.
 """
 
-from typing import TypeAlias
-
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
@@ -27,11 +25,10 @@ from cyberdelta.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-# More specific type alias for raw JSON potentially returned by HTTP client
-# Base case is dict or list, but can technically be other primitives too.
+# Type alias for raw JSON response from HTTP client
 RawJsonPrim = str | int | float | bool | None
 RawJson = dict[str, "RawJson"] | list["RawJson"] | RawJsonPrim
-RawJsonResponse: TypeAlias = RawJson  # Use TypeAlias for clarity
+type RawJsonResponse = RawJson  # Use type for clarity
 
 
 class BackpackResponseHandler:

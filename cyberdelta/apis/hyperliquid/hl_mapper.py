@@ -526,12 +526,14 @@ class HyperliquidMapper:
                 else:
                     logger.warning(
                         f"[HyperliquidMapper] Failed to map position for asset "
-                        f"'{raw_asset_pos.asset}'. Raw position info: {raw_asset_pos.position.model_dump()}"
+                        f"'{raw_asset_pos.asset}'. Raw position info: "
+                        f"{raw_asset_pos.position.model_dump()}"
                     )
             except (ValueError, TypeError, InvalidOperation) as e:
                 logger.error(
                     f"[HyperliquidMapper] Error mapping position for asset "
-                    f"'{raw_asset_pos.asset}': {e}. Raw position info: {raw_asset_pos.position.model_dump()}",
+                    f"'{raw_asset_pos.asset}': {e}. Raw position info: "
+                    f"{raw_asset_pos.position.model_dump()}",
                     exc_info=True,
                 )
         return derivative_positions

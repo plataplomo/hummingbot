@@ -106,7 +106,7 @@ def test_perf_history_item_valid(valid_perf_history_data: dict[str, Any]) -> Non
     ],
 )
 def test_perf_history_item_invalid_fields(
-    valid_perf_history_data: dict[str, Any], field: str, value: Any
+    valid_perf_history_data: dict[str, Any], field: str, value: object
 ) -> None:
     data_copy = valid_perf_history_data.copy()
     if value is None:
@@ -146,7 +146,7 @@ def test_user_equity_valid(valid_user_equity_data: dict[str, Any]) -> None:
     ],
 )
 def test_user_equity_invalid_fields(
-    valid_user_equity_data: dict[str, Any], field: str, value: Any
+    valid_user_equity_data: dict[str, Any], field: str, value: object
 ) -> None:
     data_copy = valid_user_equity_data.copy()
     if value is None:
@@ -180,11 +180,11 @@ def test_relationship_data_valid(valid_relationship_data: dict[str, list[str]]) 
     ],
 )
 def test_relationship_data_invalid(
-    valid_relationship_data: dict[str, list[str]], field: str, value: Any
+    valid_relationship_data: dict[str, list[str]], field: str, value: object
 ) -> None:
     data_copy = valid_relationship_data.copy()
     data_copy.pop("master", None)
-    data_copy[field] = value
+    data_copy[field] = value  # type: ignore[assignment]
     with pytest.raises(ValidationError):
         HyperliquidRawVaultRelationshipData.model_validate(data_copy)
 
@@ -204,7 +204,9 @@ def test_relationship_valid(valid_relationship: dict[str, Any]) -> None:
         ("data", {"childAddresses": ["invalid"]}),
     ],
 )
-def test_relationship_invalid(valid_relationship: dict[str, Any], field: str, value: Any) -> None:
+def test_relationship_invalid(
+    valid_relationship: dict[str, Any], field: str, value: object
+) -> None:
     data_copy = valid_relationship.copy()
     if value is None:
         if field in data_copy:
@@ -256,7 +258,7 @@ def test_vault_details_valid(valid_vault_details_data: dict[str, Any]) -> None:
     ],
 )
 def test_vault_details_invalid(
-    valid_vault_details_data: dict[str, Any], field: str, value: Any, is_missing_test: bool
+    valid_vault_details_data: dict[str, Any], field: str, value: object, is_missing_test: bool
 ) -> None:
     data_copy = valid_vault_details_data.copy()
     if is_missing_test:

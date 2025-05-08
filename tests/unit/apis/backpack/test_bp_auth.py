@@ -50,7 +50,8 @@ class TestBackpackHmacAuthenticator:
             method="GET", path="/api/v1/capital", params=None, data=None, headers=None
         )
         print(
-            f"[DEBUG BP_TESTS] Actual signature for GET no_params: {components['headers']['X-Signature']}"
+            f"[DEBUG BP_TESTS] Actual signature for GET no_params: "
+            f"{components['headers']['X-Signature']}"
         )  # DEBUG PRINT
         assert components["headers"]["X-Api-Key"] == "testkey123"
         assert components["headers"]["X-Timestamp"] == fixed_timestamp_str

@@ -249,7 +249,8 @@ class HttpClient:
                     # Check for 204 No Content BEFORE attempting to read body
                     if response.status == 204:
                         logger.info(
-                            f"[{self.exchange_name}] Request {full_url} successful with 204 No Content."
+                            f"[{self.exchange_name}] Request {full_url} successful "
+                            f"with 204 No Content."
                         )
                         return None, response.headers
 
@@ -257,7 +258,8 @@ class HttpClient:
                         response_text = await response.text()
                     except Exception as e_text:
                         logger.warning(
-                            f"[{self.exchange_name}] Error reading response text for {full_url}: {e_text}"
+                            f"[{self.exchange_name}] Error reading response text for "
+                            f"{full_url}: {e_text}"
                         )
                         # Continue to process status code, response_text will be None
 
@@ -284,7 +286,7 @@ class HttpClient:
                                 logger.warning(
                                     f"[{self.exchange_name}] JSON decode failed for {full_url} "
                                     f"(status {response.status}, type: {content_type}). Error: {je}. "
-                                    f"Text: '{response_text[:100] if response_text else ''}'...'"
+                                    f"Text: '{response_text[:100] if response_text else ''}'..."
                                 )
                                 if response_text is None:
                                     raise HttpRequestFailedError(
@@ -346,8 +348,8 @@ class HttpClient:
 
             except (TimeoutError, aiohttp.ClientError) as e:
                 logger.warning(
-                    f"[{self.exchange_name}] Request to {full_url} failed on attempt {current_attempt}: "
-                    f"{type(e).__name__} - {e}"
+                    f"[{self.exchange_name}] Request to {full_url} failed on attempt "
+                    f"{current_attempt}: {type(e).__name__} - {e}"
                 )
                 last_exception = e
                 # These are generally retryable

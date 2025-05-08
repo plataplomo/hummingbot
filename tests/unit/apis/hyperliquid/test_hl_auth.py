@@ -224,7 +224,8 @@ class TestHyperliquidEip712Authenticator:
         with patch("eth_account.Account.from_key", return_value=mock_account) as mock_from_key:
             auth = HyperliquidEip712Authenticator(
                 private_key_hex=self.VALID_PRIVATE_KEY,
-                wallet_address=self.MOCKED_ACCOUNT_WALLET_ADDRESS,  # Use derived address for this test
+                wallet_address=self.MOCKED_ACCOUNT_WALLET_ADDRESS,  # Use derived address
+                # for this test
                 chain_id=1337,
             )
             mock_from_key.assert_called_once_with(self.VALID_PRIVATE_KEY)
@@ -251,11 +252,15 @@ class TestHyperliquidEip712Authenticator:
         with patch("eth_account.Account.from_key", return_value=mock_account):
             with pytest.raises(
                 ValueError,
-                match=r"Provided wallet address does not match the one derived from the private key\.",
+                match=(
+                    r"Provided wallet address does not match the one derived "
+                    r"from the private key\."
+                ),
             ):
                 HyperliquidEip712Authenticator(
                     private_key_hex=self.VALID_PRIVATE_KEY,
-                    wallet_address=self.VALID_WALLET_ADDRESS_CLASS_SCOPE,  # Original, non-matching address
+                    wallet_address=self.VALID_WALLET_ADDRESS_CLASS_SCOPE,  # Original,
+                    # non-matching address
                     chain_id=1337,
                 )
 
@@ -263,7 +268,10 @@ class TestHyperliquidEip712Authenticator:
         """Test instantiation raises ValueError for empty private key."""
         with pytest.raises(
             ValueError,
-            match=r"Invalid private key: The private key must be exactly 32 bytes long, instead of 0 bytes.",
+            match=(
+                r"Invalid private key: The private key must be exactly 32 bytes long, "
+                r"instead of 0 bytes."
+            ),
         ):
             HyperliquidEip712Authenticator(
                 private_key_hex="",

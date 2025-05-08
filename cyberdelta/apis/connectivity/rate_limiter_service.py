@@ -48,14 +48,16 @@ class RateLimiterService(BaseModel):
                 rate_limits_data, dict
             ):  # Should not happen if config.get default is {}
                 logger.warning(
-                    f"[{exchange_name}] 'rate_limits' in config is not a dictionary. Attempting to use empty config."
+                    f"[{exchange_name}] 'rate_limits' in config is not a dictionary. "
+                    f"Attempting to use empty config."
                 )
                 rate_limits_data = {}
             parsed_rate_config = RateLimiterConfig.model_validate(rate_limits_data)
         except Exception as e:  # Includes Pydantic ValidationError
             logger.error(
                 f"[{exchange_name}] Failed to validate 'rate_limits' config: {e}. "
-                f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, bucket={SERVICE_FALLBACK_BUCKET_SIZE}."
+                f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, "
+                f"bucket={SERVICE_FALLBACK_BUCKET_SIZE}."
             )
 
             parsed_rate_config = RateLimiterConfig(

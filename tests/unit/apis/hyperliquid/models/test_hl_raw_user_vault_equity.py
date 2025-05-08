@@ -55,7 +55,10 @@ def test_user_vault_equity_item_valid(valid_user_vault_equity_item_data: dict[st
     ],
 )
 def test_user_vault_equity_item_invalid_fields(
-    valid_user_vault_equity_item_data: dict[str, Any], field: str, value: Any, is_missing_test: bool
+    valid_user_vault_equity_item_data: dict[str, Any],
+    field: str,
+    value: object,
+    is_missing_test: bool,
 ) -> None:
     data_copy = valid_user_vault_equity_item_data.copy()
     if is_missing_test:

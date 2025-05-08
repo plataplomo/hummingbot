@@ -105,8 +105,8 @@ class TestRateLimiterService:
         # Check for the generic fallback log message due to overall validation failure
         assert "Failed to validate 'rate_limits' config" in caplog.text
         assert (
-            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, bucket={SERVICE_FALLBACK_BUCKET_SIZE}"
-            in caplog.text
+            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, "
+            f"bucket={SERVICE_FALLBACK_BUCKET_SIZE}" in caplog.text
         )
         # Specific field errors should also be present in the detailed Pydantic error message
         assert "default_rate" in caplog.text and "invalid_float" in caplog.text
@@ -141,8 +141,8 @@ class TestRateLimiterService:
         assert "'rate_limits' in config is not a dictionary" in caplog.text
         assert "Failed to validate 'rate_limits' config" in caplog.text
         assert (
-            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, bucket={SERVICE_FALLBACK_BUCKET_SIZE}"
-            in caplog.text
+            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, "
+            f"bucket={SERVICE_FALLBACK_BUCKET_SIZE}" in caplog.text
         )
 
     def test_initialization_invalid_endpoints_structure(
@@ -159,8 +159,8 @@ class TestRateLimiterService:
         assert "Failed to validate 'rate_limits' config" in caplog.text
         assert "Input should be a valid dictionary" in caplog.text and "endpoints" in caplog.text
         assert (
-            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, bucket={SERVICE_FALLBACK_BUCKET_SIZE}"
-            in caplog.text
+            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, "
+            f"bucket={SERVICE_FALLBACK_BUCKET_SIZE}" in caplog.text
         )
 
     def test_initialization_invalid_endpoint_config_item_type(
@@ -181,8 +181,8 @@ class TestRateLimiterService:
         assert "endpoints.GET:/foo" in caplog.text
         assert "Input should be a valid dictionary or instance of EndpointRateConfig" in caplog.text
         assert (
-            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, bucket={SERVICE_FALLBACK_BUCKET_SIZE}"
-            in caplog.text
+            f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, "
+            f"bucket={SERVICE_FALLBACK_BUCKET_SIZE}" in caplog.text
         )
 
     def test_get_limiter_specific_method_path(

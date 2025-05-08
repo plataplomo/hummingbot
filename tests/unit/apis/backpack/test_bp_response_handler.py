@@ -76,6 +76,7 @@ def test_handle_get_ticker_response_validation_error() -> None:
 # - handle_withdraw_response (valid dict, invalid type, validation error)
 # - handle_get_order_history_response (valid list, list with non-dict, list with invalid dict)
 # - handle_get_trade_history_response (valid list, list with non-dict, list with invalid dict)
-# - handle_get_market_data_response (valid list[list], list with non-list item, list with invalid kline)
+# - handle_get_market_data_response (valid list[list], list with non-list item, list with
+#   invalid kline)
 # - handle_get_historical_trades_response (valid list, list with non-dict, list with invalid dict)
 # - handle_get_order_status_response (valid dict, None input, invalid type, validation error)

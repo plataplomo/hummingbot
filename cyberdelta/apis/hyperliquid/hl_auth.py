@@ -189,7 +189,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             # Mypy might complain here if it can't infer _account is definitely not None
             # despite the check. The type: ignore might be needed if a simple check isn't enough.
             # However, the explicit `if self._account is None:` check above should satisfy mypy.
-            # If not, and mypy still flags attr-defined on a checked Optional, this is a Mypy limitation.
+            # If not, and mypy still flags attr-defined on a checked Optional, this is
+            # a Mypy limitation.
             # Per RULE-RUNTIME-SAFETY-V4, the runtime check is paramount.
             # We will not use cast or ignore if the explicit check is present.
 

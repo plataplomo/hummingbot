@@ -8,7 +8,7 @@ Backpack Exchange API requests and responses related to withdrawals.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
@@ -212,14 +212,14 @@ class BackpackRawWithdrawalRequest(BaseModel):
         "address", "client_id", "two_factor_token", "symbol", "blockchain", mode="before"
     )
     @classmethod
-    def _validate_request_strings(cls, v: Any, info: ValidationInfo) -> str:
+    def _validate_request_strings(cls, v: object, info: ValidationInfo) -> str:
         if not isinstance(v, str):
             raise ValueError(f"Field {info.field_name} must be a string, got {type(v)}")
         return validate_str_field(v, field_name=str(info.field_name))  # Ensure field_name is str
 
     @field_validator("quantity", mode="before")
     @classmethod
-    def _validate_request_quantity(cls, v: Any, info: ValidationInfo) -> Decimal:
+    def _validate_request_quantity(cls, v: object, info: ValidationInfo) -> Decimal:
         if not isinstance(v, str):
             raise ValueError(f"Field {info.field_name} (quantity) must be a string, got {type(v)}")
         validated_str = validate_str_field(v, field_name=str(info.field_name))
@@ -267,7 +267,7 @@ class BackpackRawWithdrawalResponse(BaseModel):
 
     @field_validator("quantity", "fee", "fiat_fee", mode="before")
     @classmethod
-    def _validate_response_decimals(cls, v: Any, info: ValidationInfo) -> Decimal | None:
+    def _validate_response_decimals(cls, v: object, info: ValidationInfo) -> Decimal | None:
         if v is None:  # Allow optional Decimal fields to be None if not provided
             return None
         if not isinstance(v, str):
@@ -283,7 +283,7 @@ class BackpackRawWithdrawalResponse(BaseModel):
 
     @field_validator("created_at", mode="before")
     @classmethod
-    def _validate_created_at(cls, v: Any, info: ValidationInfo) -> datetime:
+    def _validate_created_at(cls, v: object, info: ValidationInfo) -> datetime:
         if not isinstance(v, str):
             raise ValueError(
                 f"Field {info.field_name} (created_at) must be a string, got {type(v)}"
@@ -313,7 +313,7 @@ class BackpackRawWithdrawalResponse(BaseModel):
         mode="before",
     )
     @classmethod
-    def _validate_response_strings(cls, v: Any, info: ValidationInfo) -> str | None:
+    def _validate_response_strings(cls, v: object, info: ValidationInfo) -> str | None:
         if v is None:  # Allow optional string fields to be None
             return None
         if not isinstance(v, str):
