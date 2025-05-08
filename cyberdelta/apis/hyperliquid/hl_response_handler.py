@@ -111,7 +111,7 @@ class HyperliquidResponseHandler:
     @staticmethod
     def handle_info_open_orders_response(
         raw_response_content: RawJsonResponse, user_address: str
-    ) -> list[HyperliquidRawOpenOrdersResponse]:
+    ) -> HyperliquidRawOpenOrdersResponse:
         """Validates the /info response for open_orders."""
         context = f"info (OpenOrders for {user_address})"
         if not isinstance(raw_response_content, list):
@@ -120,18 +120,12 @@ class HyperliquidResponseHandler:
                 f"got {type(raw_response_content)}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        validated_orders: list[HyperliquidRawOpenOrdersResponse] = []
-        for item in raw_response_content:
-            if not isinstance(item, dict):
-                logger.warning(f"Skipping non-dict item in {context} list: {item!r}")
-                continue
-            try:
-                validated_orders.append(HyperliquidRawOpenOrdersResponse.model_validate(item))
-            except ValidationError as e:
-                raise HyperliquidResponseHandler._handle_validation_error(
-                    e, f"single open order item in {context}", item
-                ) from e
-        return validated_orders
+        try:
+            return HyperliquidRawOpenOrdersResponse.model_validate(raw_response_content)
+        except ValidationError as e:
+            raise HyperliquidResponseHandler._handle_validation_error(
+                e, context, raw_response_content
+            ) from e
 
     @staticmethod
     def handle_info_user_fills_response(
@@ -255,17 +249,40 @@ class HyperliquidResponseHandler:
     ) -> HyperliquidRawOrderStatusResponse:
         """Validates the /info response for order_status."""
         context = f"info (OrderStatus for user {user_address}, oid {order_id})"
-        if not isinstance(raw_response_content, dict):
+        if not isinstance(raw_response_content, list):
             raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
+                message=f"Unexpected {context} response format: expected list, "
                 f"got {type(raw_response_content)}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
+        if not raw_response_content:
+            raise APIError(
+                f"Order {order_id} not found (empty list response).",
+                code=APIErrorCode.ORDER_NOT_FOUND.value,
+            )
+        status_item = raw_response_content[0]
+        if isinstance(status_item, str):
+            if status_item.lower() == "order not found":
+                raise APIError(
+                    f"Order {order_id} not found (string response).",
+                    code=APIErrorCode.ORDER_NOT_FOUND.value,
+                )
+            else:
+                raise APIError(
+                    message=f"Unexpected string content in {context} response: {status_item}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+        if not isinstance(status_item, dict):
+            raise APIError(
+                message=f"Unexpected item type in {context} response list: expected dict, "
+                f"got {type(status_item)}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
         try:
-            return HyperliquidRawOrderStatusResponse.model_validate(raw_response_content)
+            return HyperliquidRawOrderStatusResponse.model_validate(status_item)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e, f"order status object in {context}", status_item
             ) from e
 
     @staticmethod

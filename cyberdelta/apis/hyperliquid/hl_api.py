@@ -5,7 +5,7 @@ import time
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import aiohttp
 from pydantic import ValidationError
@@ -20,30 +20,41 @@ from cyberdelta.apis.hyperliquid.hl_mapper import (
     HyperliquidOrderMapper,
 )
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
-from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
-    HyperliquidRawCandleSnapshot,
+from cyberdelta.apis.hyperliquid.hl_response_handler import (
+    HyperliquidResponseHandler,
+    RawJsonResponse,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import (
+    HyperliquidRawCandleSnapshotResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
     HyperliquidRawExchangeStatusObject,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersResponse,
-    HyperliquidRawOrder,
     HyperliquidRawOrderStatusResponse,
-    HyperliquidRawTriggerInfo,
     HyperliquidRawTriggerSpec,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
+from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
+    HyperliquidRawL2Book,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
+    HyperliquidRawPublicTrade,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_state import HyperliquidRawClearinghouseState
+from cyberdelta.apis.hyperliquid.models.hl_raw_trade import (
+    HyperliquidRawRecentTradesResponse,
+    HyperliquidRawUserFill,
+)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models import (
@@ -206,7 +217,11 @@ class HyperliquidAPI(ExchangeAPI):
         )
 
         try:
-            validated_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response_raw)
+            validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
+                HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
+                    cast(RawJsonResponse, response_raw)
+                )
+            )
             for index, asset_def in enumerate(validated_response.meta.universe):
                 self._asset_to_index_cache[asset_def.name] = index
 
@@ -355,7 +370,11 @@ class HyperliquidAPI(ExchangeAPI):
                 f"{self.INFO_URL.rstrip('/')}/info",
                 data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
-            validated_state = HyperliquidRawClearinghouseState.model_validate(response)
+            validated_state: HyperliquidRawClearinghouseState = (
+                HyperliquidResponseHandler.handle_info_user_state_response(
+                    cast(RawJsonResponse, response), self._wallet_address
+                )
+            )
             return HyperliquidMapper.map_raw_clearinghouse_state_to_spot_balances(validated_state)
         except ValidationError as e:
             logger.error(
@@ -391,7 +410,11 @@ class HyperliquidAPI(ExchangeAPI):
                 f"{self.INFO_URL.rstrip('/')}/info",
                 data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
-            validated_state = HyperliquidRawClearinghouseState.model_validate(response)
+            validated_state: HyperliquidRawClearinghouseState = (
+                HyperliquidResponseHandler.handle_info_user_state_response(
+                    cast(RawJsonResponse, response), self._wallet_address
+                )
+            )
             positions_dict = HyperliquidMapper.map_raw_clearinghouse_state_to_derivative_positions(
                 validated_state
             )
@@ -433,15 +456,17 @@ class HyperliquidAPI(ExchangeAPI):
                 f"{self.INFO_URL.rstrip('/')}/info",
                 data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
-            validated: HyperliquidRawOpenOrdersResponse = (
-                HyperliquidRawOpenOrdersResponse.model_validate(response)
+            validated_response_wrapper: HyperliquidRawOpenOrdersResponse = (
+                HyperliquidResponseHandler.handle_info_open_orders_response(
+                    cast(RawJsonResponse, response), self._wallet_address
+                )
             )
             open_orders: list[Order] = []
-            for order_obj in validated.items:
-                order_data: HyperliquidRawOrder = order_obj.order
+            for order_obj in validated_response_wrapper.items:
+                order_data = order_obj.order
+                trigger_info = order_obj.trigger
                 order_symbol: str = order_data.asset
                 if symbol is None or order_symbol == symbol:
-                    trigger_info: HyperliquidRawTriggerInfo | None = order_obj.trigger
                     mapped_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
                         raw=order_data, trigger=trigger_info
                     )
@@ -470,13 +495,24 @@ class HyperliquidAPI(ExchangeAPI):
                 f"{self.INFO_URL.rstrip('/')}/info",
                 data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
-            validated = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response)
-            for asset_ctx in validated.asset_ctxs:
-                if asset_ctx.name == symbol:
-                    return HyperliquidMapper.map_raw_ctx_to_ticker(asset_ctx)
-            raise APIError(
-                f"Ticker data not found for {symbol}", code=APIErrorCode.SYMBOL_NOT_FOUND.value
+            validated_meta_ctxs: HyperliquidRawMetaAndAssetCtxsResponse = (
+                HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
+                    cast(RawJsonResponse, response)
+                )
             )
+            target_asset_ctx_raw: HyperliquidRawAssetCtx | None = None
+            for asset_ctx in validated_meta_ctxs.asset_ctxs:
+                if asset_ctx.name == symbol:
+                    target_asset_ctx_raw = asset_ctx
+                    break
+
+            if target_asset_ctx_raw is None:
+                raise APIError(
+                    f"Ticker data not found for {symbol} in asset contexts",
+                    code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+                )
+
+            return HyperliquidMapper.map_raw_ctx_to_ticker(target_asset_ctx_raw)
         except APIError:
             raise
         except Exception as e:
@@ -497,9 +533,11 @@ class HyperliquidAPI(ExchangeAPI):
                 f"{self.INFO_URL.rstrip('/')}/info",
                 data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
-            from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
-
-            validated = HyperliquidRawL2Book.model_validate(response)
+            validated: HyperliquidRawL2Book = (
+                HyperliquidResponseHandler.handle_info_l2_book_response(
+                    cast(RawJsonResponse, response), symbol
+                )
+            )
             return HyperliquidMapper.map_raw_order_book(validated, depth)
         except APIError:
             raise
@@ -521,14 +559,14 @@ class HyperliquidAPI(ExchangeAPI):
                 f"{self.INFO_URL.rstrip('/')}/info",
                 data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
-            from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
-                HyperliquidRawRecentTradesResponse,
+            validated_trades_list: list[HyperliquidRawRecentTradesResponse] = (
+                HyperliquidResponseHandler.handle_info_recent_trades_response(
+                    cast(RawJsonResponse, response), symbol
+                )
             )
-
-            validated: HyperliquidRawRecentTradesResponse = (
-                HyperliquidRawRecentTradesResponse.model_validate(response)
+            return HyperliquidMapper.map_raw_trades(
+                cast(list[HyperliquidRawPublicTrade], validated_trades_list), limit
             )
-            return HyperliquidMapper.map_raw_trades(validated.items, limit)
         except APIError:
             raise
         except Exception as e:
@@ -550,8 +588,14 @@ class HyperliquidAPI(ExchangeAPI):
                 f"{self.INFO_URL.rstrip('/')}/info",
                 data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
-            validated = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(response)
-            asset_ctx = next((ctx for ctx in validated.asset_ctxs if ctx.name == symbol), None)
+            validated_meta_ctxs: HyperliquidRawMetaAndAssetCtxsResponse = (
+                HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
+                    cast(RawJsonResponse, response)
+                )
+            )
+            asset_ctx = next(
+                (ctx for ctx in validated_meta_ctxs.asset_ctxs if ctx.name == symbol), None
+            )
             if asset_ctx is None:
                 logger.warning(f"[{self.exchange_name}] No asset context found for {symbol}.")
                 return None
@@ -589,7 +633,9 @@ class HyperliquidAPI(ExchangeAPI):
             response_raw = await self._request(
                 "POST", "/exchange", data=request_data, is_signed=True
             )
-            validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
+            validated_response: HyperliquidRawExchangeResponse = (
+                HyperliquidResponseHandler.handle_exchange_response(response_raw, "L2 Transfer")
+            )
 
             if not validated_response.data or not validated_response.data.statuses:
                 logger.warning(
@@ -691,7 +737,9 @@ class HyperliquidAPI(ExchangeAPI):
             response_raw = await self._request(
                 "POST", "/exchange", data=request_data, is_signed=True
             )
-            validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
+            validated_response: HyperliquidRawExchangeResponse = (
+                HyperliquidResponseHandler.handle_exchange_response(response_raw, "Withdrawal")
+            )
 
             if not validated_response.data or not validated_response.data.statuses:
                 logger.warning(
@@ -910,15 +958,16 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.UNKNOWN.value,
                 )
 
-            for order_data_raw in response_raw:
+            validated_history_list: list[HyperliquidRawOrderStatusResponse] = (
+                HyperliquidResponseHandler.handle_query_order_history_response(
+                    response_raw, self._wallet_address
+                )
+            )
+
+            for raw_status_response in validated_history_list:
                 try:
-                    raw_order = HyperliquidRawOrder.model_validate(order_data_raw)
-                    trigger_info_raw = order_data_raw.get("trigger")
-                    trigger_info = (
-                        HyperliquidRawTriggerInfo.model_validate(trigger_info_raw)
-                        if isinstance(trigger_info_raw, dict)
-                        else None
-                    )
+                    raw_order = raw_status_response.order
+                    trigger_info = None
                     internal_order = HyperliquidOrderMapper.transform_raw_order_to_internal(
                         raw=raw_order, trigger=trigger_info
                     )
@@ -927,7 +976,7 @@ class HyperliquidAPI(ExchangeAPI):
                 except (ValidationError, ValueError) as e_item:
                     logger.warning(
                         f"[{self.exchange_name}] Skipping order history item due to "
-                        f"validation/transform error: {e_item}. Raw: {order_data_raw}"
+                        f"validation/transform error: {e_item}. Raw: {raw_status_response}"
                     )
                     continue
 
@@ -982,21 +1031,25 @@ class HyperliquidAPI(ExchangeAPI):
                     f"{type(response_raw)}. Expected list. Empty list."
                 )
                 return []
+            validated_fills_list: list[HyperliquidRawUserFill] = (
+                HyperliquidResponseHandler.handle_info_user_fills_response(
+                    cast(RawJsonResponse, response_raw), self._wallet_address
+                )
+            )
             trades: list[Trade] = []
-            for fill_data_raw in response_raw:
-                if not isinstance(fill_data_raw, dict):
-                    logger.warning(f"Skipping non-dict item in userFills list: {fill_data_raw}")
+            for raw_fill in validated_fills_list:
+                if not isinstance(raw_fill, dict):
+                    logger.warning(f"Skipping non-dict item in userFills list: {raw_fill}")
                     continue
                 try:
-                    raw_fill = HyperliquidRawFill.model_validate(fill_data_raw)
-                    if symbol is not None and raw_fill.coin != symbol:
+                    if symbol is not None and raw_fill.asset != symbol:
                         continue
                     internal_trade = HyperliquidMapper.transform_raw_fill_to_internal(raw_fill)
                     trades.append(internal_trade)
                 except (ValidationError, ValueError) as e_item:
                     logger.warning(
                         f"[{self.exchange_name}] Skipping fill due to validation/transform "
-                        f"error: {e_item}. Data: {fill_data_raw}"
+                        f"error: {e_item}. Data: {raw_fill}"
                     )
                     continue
             trades.sort(key=lambda t: t.executed_at, reverse=True)
@@ -1099,7 +1152,12 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.EXCHANGE_SPECIFIC.value,
                 )
 
-            raw_snapshot = HyperliquidRawCandleSnapshot.model_validate(raw_response)
+            raw_snapshot: HyperliquidRawCandleSnapshotResponse = (
+                HyperliquidResponseHandler.handle_info_candle_snapshot_response(
+                    cast(RawJsonResponse, raw_response), symbol, timeframe
+                )
+            )
+            # The mapper now expects the full response object
             internal_candles = HyperliquidCandleMapper.map(raw_snapshot, symbol, timeframe)
             if limit > 0 and len(internal_candles) > limit:
                 internal_candles = internal_candles[-limit:]
@@ -1244,15 +1302,9 @@ class HyperliquidAPI(ExchangeAPI):
                 "POST", "/exchange", data=request_data, is_signed=True
             )
 
-            # Check if response_raw is dict before validation
-            if not isinstance(response_raw, dict):
-                raise APIError(
-                    f"Expected dict response for place_order, got {type(response_raw)}",
-                    code=APIErrorCode.UNKNOWN.value,
-                )
-
-            # Validate the entire response first
-            validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
+            validated_response: HyperliquidRawExchangeResponse = (
+                HyperliquidResponseHandler.handle_exchange_response(response_raw, "Place Order")
+            )
 
             if (
                 validated_response.status != "ok"
@@ -1403,7 +1455,9 @@ class HyperliquidAPI(ExchangeAPI):
             response_raw = await self._request(
                 "POST", "/exchange", data=request_data, is_signed=True
             )
-            validated_response = HyperliquidRawExchangeResponse.model_validate(response_raw)
+            validated_response: HyperliquidRawExchangeResponse = (
+                HyperliquidResponseHandler.handle_exchange_response(response_raw, "Cancel Order")
+            )
 
             if (
                 validated_response.status != "ok"
@@ -1535,8 +1589,10 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.UNKNOWN.value,
                 )
 
-            validated_status_response = HyperliquidRawOrderStatusResponse.model_validate(
-                status_part_raw
+            validated_status_response: HyperliquidRawOrderStatusResponse = (
+                HyperliquidResponseHandler.handle_info_order_status_response(
+                    response_data_raw, self._wallet_address, int(order_id)
+                )
             )
             return HyperliquidOrderMapper.transform_raw_order_to_internal(
                 raw=validated_status_response.order, trigger=None

@@ -29,7 +29,11 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from cyberdelta.apis.exchange_names import ExchangeName
-from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
+
+# Import the Response model containing list[HyperliquidRawCandle]
+from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import (
+    HyperliquidRawCandleSnapshotResponse,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     # HyperliquidRawAssetDefinition # No longer needed here if method is removed
@@ -878,25 +882,29 @@ class HyperliquidPositionMapper:
 
 class HyperliquidCandleMapper:
     """
-    Maps a validated HyperliquidRawCandleSnapshot to a list of internal Candle models.
+    Maps a validated HyperliquidRawCandleSnapshotResponse to a list of internal Candle models.
     """
 
     @staticmethod
-    def map(raw: HyperliquidRawCandleSnapshot, symbol: str, interval: str) -> list[Candle]:
+    # Change input type hint to the Response object containing the list
+    def map(
+        raw_response: HyperliquidRawCandleSnapshotResponse, symbol: str, interval: str
+    ) -> list[Candle]:
         candles: list[Candle] = []
-        n = len(raw.t)
-        for i in range(n):
+        # Iterate through the list of individual candle objects within the response
+        for raw_candle in raw_response.candles:
             try:
-                # Use parse_datetime_utc for millisecond timestamp
-                open_time_dt = parse_datetime_utc(raw.t[i], field_name="open_time")
-                open_ = parse_decimal_value(raw.o[i], allow_none=False, field_name="open")
-                high = parse_decimal_value(raw.h[i], allow_none=False, field_name="high")
-                low = parse_decimal_value(raw.l[i], allow_none=False, field_name="low")
-                close = parse_decimal_value(raw.c[i], allow_none=False, field_name="close")
-                volume = parse_decimal_value(raw.v[i], allow_none=False, field_name="volume")
+                # Access fields directly from the raw_candle object
+                open_time_dt = parse_datetime_utc(raw_candle.t, field_name="open_time")
+                open_ = parse_decimal_value(raw_candle.o, allow_none=False, field_name="open")
+                high = parse_decimal_value(raw_candle.h, allow_none=False, field_name="high")
+                # Use the correct alias 'low_price' for the field 'l'
+                low = parse_decimal_value(raw_candle.low_price, allow_none=False, field_name="low")
+                close = parse_decimal_value(raw_candle.c, allow_none=False, field_name="close")
+                volume = parse_decimal_value(raw_candle.v, allow_none=False, field_name="volume")
 
                 if None in (open_time_dt, open_, high, low, close, volume):
-                    logger.warning(f"Skipping candle at index {i} due to None value(s)")
+                    logger.warning(f"Skipping candle at time {raw_candle.t} due to None value(s)")
                     continue
 
                 # Ensure Non-None after check for MyPy
@@ -920,7 +928,9 @@ class HyperliquidCandleMapper:
                 )
                 candles.append(candle)
             except (ValidationError, ValueError, TypeError) as e:
-                logger.warning(f"Error processing or validating candle data at index {i}: {e}")
+                logger.warning(
+                    f"Error processing or validating candle data at time {raw_candle.t}: {e}"
+                )
                 continue
         return candles
 
