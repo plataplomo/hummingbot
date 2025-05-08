@@ -50,7 +50,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
-    HyperliquidRawRecentTradesResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFillsResponse,
@@ -560,14 +559,12 @@ class HyperliquidAPI(ExchangeAPI):
                 f"{self.INFO_URL.rstrip('/')}/info",
                 data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
-            validated_trades_list: list[HyperliquidRawRecentTradesResponse] = (
+            validated_trades_list: list[HyperliquidRawPublicTrade] = (
                 HyperliquidResponseHandler.handle_info_recent_trades_response(
                     cast(RawJsonResponse, response), symbol
                 )
             )
-            return HyperliquidMapper.map_raw_trades(
-                cast(list[HyperliquidRawPublicTrade], validated_trades_list), limit
-            )
+            return HyperliquidMapper.map_raw_trades(validated_trades_list, limit)
         except APIError:
             raise
         except Exception as e:

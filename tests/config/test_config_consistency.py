@@ -16,6 +16,7 @@ CONFIG_DIR = PROJECT_ROOT / "cyberdelta" / "config"
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
 CONFIG_PATH = CONFIG_DIR / "config.yaml"
 EXAMPLE_CONFIG_PATH = CONFIG_DIR / "config.yaml.example"
+SCHEMA_PATH = CONFIG_DIR / "config.schema.json"
 EXAMPLE_SCRIPT_PATH = EXAMPLES_DIR / "config_example.py"
 
 
@@ -38,8 +39,10 @@ def get_yaml_keys_from_string(yaml_string: str) -> set[str]:
     try:
         data = yaml.safe_load(yaml_string)
         if not isinstance(data, dict):
+            # If loaded data is not a dict (e.g., list, scalar, None), return empty set
             return set()
-        return _extract_keys(cast(dict[str, Any], data))
+        # Now data is confirmed to be a dict
+        return _extract_keys(data)  # No cast needed here, _extract_keys expects dict
     except yaml.YAMLError as e:
         pytest.fail(f"Error parsing YAML string: {e}")
 
@@ -133,11 +136,31 @@ class TestConfigConsistency:
         )
 
     @pytest.mark.skipif(not EXAMPLE_CONFIG_PATH.exists(), reason=f"{EXAMPLE_CONFIG_PATH} not found")
+    @pytest.mark.skipif(not SCHEMA_PATH.exists(), reason=f"{SCHEMA_PATH} not found")
     def test_example_config_validates_against_schema(self) -> None:
         """Ensure config.yaml.example validates against the schema."""
         # Load schema
-        with open(schema_path) as f:
-            schema = json.load(f)
+        try:
+            with open(SCHEMA_PATH) as f:
+                schema = json.load(f)
+        except Exception as e:
+            pytest.fail(f"Failed to load schema {SCHEMA_PATH}: {e}")
+
+        # Load example config
+        try:
+            with open(EXAMPLE_CONFIG_PATH) as f:
+                example_config = yaml.safe_load(f)
+            if example_config is None:
+                example_config = {}
+        except Exception as e:
+            pytest.fail(f"Failed to load example config {EXAMPLE_CONFIG_PATH}: {e}")
+
+        # Ensure example_config is a dict before validation
+        if not isinstance(example_config, dict):
+            pytest.fail(
+                f"Example config {EXAMPLE_CONFIG_PATH} did not load as a dictionary "
+                f"(loaded type: {type(example_config)}). Cannot validate."
+            )
 
         # Validate example against schema
         try:
