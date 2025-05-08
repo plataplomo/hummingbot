@@ -61,26 +61,27 @@ def valid_referral_state_item_data() -> dict[str, Any]:
 
 
 @pytest.fixture
-def valid_referrer_data_data() -> dict[str, Any]:  # Renamed for clarity from valid_referrer_data
+def valid_referrer_data_data(valid_referral_state_item_data: dict[str, Any]) -> dict[str, Any]:
     data = VALID_REFERRER_DATA.copy()
-    data["referralStates"] = [rs.copy() for rs in data["referralStates"]]
+    data["referralStates"] = [valid_referral_state_item_data]
     return data
 
 
 @pytest.fixture
-def valid_referrer_state_data() -> dict[str, Any]:  # Renamed for clarity
+def valid_referrer_state_data(valid_referrer_data_data: dict[str, Any]) -> dict[str, Any]:
     data = VALID_REFERRER_STATE.copy()
-    # Deep copy nested data
-    data["data"] = valid_referrer_data_data()  # Use the fixture for referrer data
+    data["data"] = valid_referrer_data_data
     return data
 
 
 @pytest.fixture
-def valid_referral_response_data() -> dict[str, Any]:
+def valid_referral_response_data(
+    valid_referred_by_data: dict[str, Any], valid_referrer_state_data: dict[str, Any]
+) -> dict[str, Any]:
     data = VALID_REFERRAL_RESPONSE.copy()
-    data["referredBy"] = valid_referred_by_data()
-    data["referrerState"] = valid_referrer_state_data()
-    data["rewardHistory"] = VALID_REFERRAL_RESPONSE["rewardHistory"][:]  # Copy list
+    data["referredBy"] = valid_referred_by_data
+    data["referrerState"] = valid_referrer_state_data
+    data["rewardHistory"] = list(VALID_REFERRAL_RESPONSE["rewardHistory"])
     return data
 
 

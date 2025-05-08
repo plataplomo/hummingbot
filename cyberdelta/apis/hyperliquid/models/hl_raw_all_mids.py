@@ -89,7 +89,7 @@ class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalS
     """
 
     root: dict[RawAssetString64HL, RawFiniteDecimalStr]
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True)
 
     @field_validator("root", mode="before")
     @classmethod

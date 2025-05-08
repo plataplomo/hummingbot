@@ -508,25 +508,25 @@ def test_hl_raw_user_fill_invalid_types(
 @pytest.mark.parametrize(
     "field, invalid_value, expected_msg_part",
     [
-        ("tid", -1, "Must be non-negative"),
+        ("tid", -1, "Value cannot be negative"),
         ("coin", "", "String cannot be empty"),
         ("coin", "X" * 65, "String value too long (max 64 chars)"),
         ("px", "", "String cannot be empty"),
-        ("px", "inf", "must be a finite decimal"),
-        ("sz", "NaN", "must be a finite decimal"),
-        ("time", -1000, "Must be non-negative"),
-        ("side", "BUY", ("Invalid value 'BUY'", "Expected one of")),  # Check substrings
-        ("oid", -1, "Must be non-negative"),
+        ("px", "inf", "must be a parseable finite decimal string"),
+        ("sz", "NaN", "must be a parseable finite decimal string"),
+        ("time", -1000, "Value cannot be negative"),
+        ("side", "BUY", ("Invalid value 'BUY'", "Expected one of")),
+        ("oid", -1, "Value cannot be negative"),
         ("startPosition", "", "String cannot be empty"),
         ("dir", "", "String cannot be empty"),
         ("hash", "", "String cannot be empty"),
         ("hash", "X" * 67, "String value too long (max 66 chars)"),
-        # ("fee", "-0.1", "must be a finite decimal"), # Validator allows negative finite decimals
+        ("fee", "-0.1", "Value must be non-negative"),
         ("liquidationMarkPx", "", "String cannot be empty"),
         (
             "liquidationMarkPx",
             "inf",
-            "liquidation_mark_px: Value must be a finite decimal (not NaN or inf)",
+            "Value must be a parseable finite decimal string",
         ),
         ("cloid", "", "String cannot be empty"),
         ("cloid", "Y" * 129, "String value too long (max 128 chars)"),

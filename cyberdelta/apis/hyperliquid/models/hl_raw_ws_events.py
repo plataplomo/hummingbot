@@ -231,11 +231,11 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
     @field_validator("data", mode="before")
     @classmethod
     def validate_data(cls, v: object, info: ValidationInfo) -> dict[str, object]:
-        """Ensure data is a dictionary."""
-        # Note: Pydantic v2 might handle dict validation automatically for dict fields.
-        # Keeping explicit check for robustness with 'before' mode.
+        """Ensure data is a non-empty dictionary."""
         if not isinstance(v, dict):
             raise ValueError("data: Must be a dictionary")
+        if not v:  # Test expects empty dict to fail
+            raise ValueError("data: Dictionary cannot be empty")
         return cast(dict[str, object], v)
 
 

@@ -5,7 +5,7 @@ Unit Tests for Hyperliquid Raw Staking Info Models
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_staking import (
     HyperliquidRawDelegationItem,
@@ -160,18 +160,67 @@ def test_hist_delegate_delta_valid(valid_history_delegate_delta_data: dict[str, 
 
 
 # HyperliquidRawDelegatorHistoryDelta
-def test_hist_delta_valid(valid_history_delta_data: dict[str, Any]) -> None:
-    item = HyperliquidRawDelegatorHistoryDelta.model_validate(valid_history_delta_data)
-    assert item.delegate is not None
-    assert item.delegate.validator == valid_history_delta_data["delegate"]["validator"]
+class TestHyperliquidRawDelegatorHistoryDelta:
+    def test_hist_delta_valid(self, valid_history_delegate_delta_data: dict[str, Any]) -> None:
+        data = {"delegate": valid_history_delegate_delta_data}
+        delta = HyperliquidRawDelegatorHistoryDelta.model_validate(data)
+        assert delta.delegate is not None
+        assert delta.delegate.validator == valid_history_delegate_delta_data["validator"]
 
 
 # HyperliquidRawDelegatorHistoryItem
-def test_hist_item_valid(valid_history_item_data: dict[str, Any]) -> None:
-    item = HyperliquidRawDelegatorHistoryItem.model_validate(valid_history_item_data)
-    assert item.hash == valid_history_item_data["hash"]
-    assert item.delta.delegate is not None
-    assert item.delta.delegate.amount == valid_history_item_data["delta"]["delegate"]["amount"]
+class TestHyperliquidRawDelegatorHistoryItem:
+    def test_hist_item_valid(self, valid_history_delta_data: dict[str, Any]) -> None:
+        data = {
+            "time": 1678886400000,
+            "hash": "0x" + "a" * 64,
+            "delta": valid_history_delta_data,  # Use fixture directly
+        }
+        item = HyperliquidRawDelegatorHistoryItem.model_validate(data)
+        assert item.time == data["time"]
+        assert item.hash == data["hash"]
+        assert item.delta.delegate is not None
+        # Access nested delegate data via fixture used
+        assert item.delta.delegate.validator == valid_history_delta_data["delegate"]["validator"]
+
+    @pytest.mark.parametrize(
+        "field, value",
+        [
+            ("time", None),
+            ("time", "abc"),
+            ("time", -100),
+            ("hash", None),
+            ("hash", "short"),
+            ("hash", "0x" + "g" * 64),
+            ("delta", None),
+            ("delta", "not-a-dict"),
+            ("delta", {"delegate": "invalid"}),
+        ],
+    )
+    def test_hist_item_invalid(
+        self, field: str, value: Any, valid_history_delta_data: dict[str, Any]
+    ) -> None:
+        base_data = {
+            "time": 1678886400000,
+            "hash": "0x" + "a" * 64,
+            "delta": valid_history_delta_data,
+        }
+        data_to_test = base_data.copy()
+        # Ensure delta is deep copied if modified
+        if field == "delta" and isinstance(data_to_test.get("delta"), dict):
+            data_to_test["delta"] = data_to_test["delta"].copy()
+            # Also copy the nested 'delegate' if it exists and is a dict
+            if isinstance(data_to_test["delta"].get("delegate"), dict):
+                data_to_test["delta"]["delegate"] = data_to_test["delta"]["delegate"].copy()
+
+        if value is None:
+            if field in data_to_test:
+                del data_to_test[field]
+        else:
+            data_to_test[field] = value
+
+        with pytest.raises(ValidationError):
+            HyperliquidRawDelegatorHistoryItem.model_validate(data_to_test)
 
 
 # HyperliquidRawDelegatorHistoryResponse (RootModel)
@@ -195,62 +244,39 @@ def test_rewards_response_valid() -> None:
     assert resp.root[0].source == VALID_REWARD_ITEM["source"]
 
 
-# Parametrized test for extra fields across all relevant models
+# Extra Fields Tests
 @pytest.mark.parametrize(
-    "model_class, valid_data_fixture_name",
+    "model, valid_data_fixture_name",
     [
         (HyperliquidRawDelegationItem, "valid_delegation_item_data"),
         (HyperliquidRawDelegatorSummaryResponse, "valid_delegator_summary_data"),
         (HyperliquidRawDelegatorHistoryDelegateDelta, "valid_history_delegate_delta_data"),
-        (HyperliquidRawDelegatorHistoryDelta, "valid_history_delta_data"),
-        (HyperliquidRawDelegatorHistoryItem, "valid_history_item_data"),
+        (HyperliquidRawDelegatorHistoryDelta, "valid_history_delta_data"),  # Use fixture name
+        (HyperliquidRawDelegatorHistoryItem, "valid_history_item_data"),  # Use fixture name
         (HyperliquidRawDelegatorRewardItem, "valid_reward_item_data"),
     ],
 )
 def test_staking_models_extra_fields(
-    model_class: Any, valid_data_fixture_name: str, request: Any
+    model: type[BaseModel],
+    valid_data_fixture_name: str,
+    request: pytest.FixtureRequest,
 ) -> None:
+    """Test that extra fields are forbidden across specific staking models."""
     valid_data = request.getfixturevalue(valid_data_fixture_name)
-    data_copy = valid_data.copy()
-    if isinstance(data_copy.get("delegate"), dict):  # For HyperliquidRawDelegatorHistoryDelta
-        data_copy["delegate"] = data_copy["delegate"].copy()
-    if isinstance(data_copy.get("delta"), dict):  # For HyperliquidRawDelegatorHistoryItem
-        data_copy["delta"] = data_copy["delta"].copy()
-        if isinstance(data_copy["delta"].get("delegate"), dict):
-            data_copy["delta"]["delegate"] = data_copy["delta"]["delegate"].copy()
+    data_with_extra = valid_data.copy()
 
-    data_copy["extraField"] = "test"
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        model_class.model_validate(data_copy)
+    # Deep copy relevant nested structures before adding extra field
+    if isinstance(data_with_extra.get("delegate"), dict):
+        data_with_extra["delegate"] = data_with_extra["delegate"].copy()
+    if isinstance(data_with_extra.get("delta"), dict):
+        data_with_extra["delta"] = data_with_extra["delta"].copy()
+        if isinstance(data_with_extra["delta"].get("delegate"), dict):
+            data_with_extra["delta"]["delegate"] = data_with_extra["delta"]["delegate"].copy()
 
+    data_with_extra["extra_field"] = "should_fail"
 
-# Example for one of the more complex invalid cases (e.g. history item)
-@pytest.mark.parametrize(
-    "field, val",
-    [
-        ("time", "abc"),
-        ("hash", "short"),
-        ("delta", None),
-        ("delta", {"delegate": {"validator": "invalid"}}),
-    ],
-)
-def test_hist_item_invalid(
-    valid_history_item_data: dict[str, Any], field: str, val: Any | None
-) -> None:
-    d = valid_history_item_data.copy()
-    # Deep copy nested dicts if modifying them to avoid test interference
-    if (
-        field == "delta"
-        and isinstance(val, dict)
-        and "delegate" in val
-        and isinstance(val["delegate"], dict)
-    ):
-        d["delta"] = {"delegate": val["delegate"].copy()}  # Simplified example
-    elif field == "delta" and val is None:
-        if field in d:
-            del d[field]
-    else:
-        d[field] = val
-
-    with pytest.raises(ValidationError):
-        HyperliquidRawDelegatorHistoryItem.model_validate(d)
+    with pytest.raises(ValidationError) as exc_info:
+        model.model_validate(data_with_extra)
+    assert "Extra inputs are not permitted" in str(exc_info.value) or "extra_field" in str(
+        exc_info.value
+    )

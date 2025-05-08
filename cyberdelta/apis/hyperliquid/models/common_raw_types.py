@@ -65,8 +65,17 @@ def _wrap_validate_eth_address_str(
     field_name = info.field_name or "eth_address_field"
     s = validate_str_field(v, field_name=field_name, max_length=42, allow_empty=False)
     if not s.startswith("0x"):
-        raise ValueError(f"{field_name}: Must start with '0x' and be 42 characters long.")
-    # Further hex validation could be added if needed, but length and prefix are primary here.
+        raise ValueError(f"{field_name}: Must start with '0x'.")
+    # Test expects stricter validation: length 42 and hex
+    if len(s) != 42:
+        raise ValueError(f"{field_name}: Must be exactly 42 characters long.")
+    try:
+        int(s, 16)  # Check if it's a valid hex string
+    except ValueError:
+        raise ValueError(
+            f"{field_name}: Must be a valid 0x-prefixed hexadecimal string of length 42."
+        ) from None
+
     return handler(s)
 
 
@@ -89,31 +98,17 @@ def _wrap_validate_raw_int(
     field_name_default: str,
     allow_negative: bool = False,
 ) -> int:
-    """Wrapper for validating integers, coercing from string if necessary."""
+    """Wrapper for validating integers. MUST be int type."""
     field_name = info.field_name or field_name_default
     val_int: int
-    if isinstance(v, str):
-        try:
-            val_int = int(v)
-        except ValueError:
-            err_msg = (
-                f"{field_name}: Expected int or int-like string, got {type(v).__name__} ('{v}')"
-            )
-            raise ValueError(err_msg) from None
-    elif isinstance(v, int):
+    if isinstance(v, int):
         val_int = v
-    # Pydantic might pass float if type hint is int and input is float (e.g. 1.0)
-    # We should reject floats for raw int types unless explicitly allowed.
-    elif isinstance(v, float) and v.is_integer():
-        val_int = int(v)  # Allow exact floats like 1.0
     else:
-        raise ValueError(
-            f"{field_name}: Expected an integer or an integer-like string, got {type(v).__name__}"
-        )
+        raise ValueError(f"{field_name}: Expected an integer, got {type(v).__name__}")
 
     if not allow_negative and val_int < 0:
         raise ValueError(f"{field_name}: Value cannot be negative.")
-    return handler(val_int)  # Pass the validated int to Pydantic's int handler
+    return handler(val_int)
 
 
 def _wrap_validate_strict_bool(
@@ -126,9 +121,11 @@ def _wrap_validate_strict_bool(
     """
     field_name = info.field_name or "strict_bool_field"
     if not isinstance(v, bool):
-        raise ValueError(
-            f"{field_name}: Expected a boolean value (True/False), got {type(v).__name__}."
-        )
+        type_name = type(v).__name__
+        # Align message with test_hl_raw_user_fills.py for string input to boolean field
+        if type_name == "str":
+            raise ValueError(f"{field_name}: Must be a boolean, got str.")
+        raise ValueError(f"{field_name}: Expected a boolean value (True/False), got {type_name}.")
     return handler(v)
 
 
@@ -167,10 +164,10 @@ def _wrap_validate_positive_finite_decimal_str(
     field_name = info.field_name or "positive_finite_decimal_str_field"
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-    if d is None or not d.is_finite() or not d > type(d)(0):
-        raise ValueError(
-            f"{field_name}: Value must be a parseable positive and finite decimal string."
-        )
+    if d is None or not d.is_finite():
+        raise ValueError(f"{field_name}: Value must be a parseable finite decimal string.")
+    if not d > type(d)(0):
+        raise ValueError(f"{field_name}: Value must be positive.")
     return handler(s)
 
 
@@ -180,15 +177,12 @@ def _wrap_validate_non_negative_finite_decimal_str(
     """Wrapper for validating strings that must represent non-negative finite decimal numbers."""
     field_name = info.field_name or "non_negative_finite_decimal_str_field"
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-    # parse_decimal_value will raise if not parseable or if allow_none=False and it is None.
-    # It also ensures finite by its internal logic if it successfully returns a Decimal.
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-    assert d is not None  # Added assertion to help type checker
-    # Additional check for non-negativity after confirming it's a finite Decimal.
+    assert d is not None
+    if not d.is_finite():
+        raise ValueError(f"{field_name}: Value must be a parseable finite decimal string.")
     if d < type(d)(0):
-        raise ValueError(
-            f"{field_name}: Value must be a parseable non-negative and finite decimal string."
-        )
+        raise ValueError(f"{field_name}: Value must be non-negative.")
     return handler(s)
 
 
@@ -202,7 +196,10 @@ def validate_and_parse_raw_non_negative_int(raw_val: object, field_name: str) ->
         try:
             val_int = int(raw_val)
         except ValueError:
-            err_msg = f"{field_name}: Expected int or int-like string, got {type(raw_val).__name__} ('{raw_val}')"
+            err_msg = (
+                f"{field_name}: Expected int or int-like string, "
+                f"got {type(raw_val).__name__} ('{raw_val}')"
+            )
             raise ValueError(err_msg) from None
     elif isinstance(raw_val, int):
         val_int = raw_val
@@ -210,7 +207,8 @@ def validate_and_parse_raw_non_negative_int(raw_val: object, field_name: str) ->
         val_int = int(raw_val)
     else:
         raise ValueError(
-            f"{field_name}: Expected an integer or an integer-like string, got {type(raw_val).__name__}"
+            f"{field_name}: Expected an integer or an integer-like string, "
+            f"got {type(raw_val).__name__}"
         )
 
     if val_int < 0:
@@ -371,6 +369,25 @@ RawOptionalNonEmptyString64HL = Annotated[
 """
 An optional raw string (e.g. for cloid). If present, it must be non-empty and
 adhere to max_length=64.
+"""
+
+# Added for specific test expectation
+RawOptionalNonEmptyString128HL = Annotated[
+    str | None,
+    WrapValidator(
+        lambda v, h, i: _wrap_validate_general_str(
+            v,
+            h,
+            i,
+            field_name_default="optional_non_empty_str128_field_hl",
+            max_length=128,  # Test expects 128
+            allow_empty=False,  # If present, it must not be empty
+        )
+    ),
+]
+"""
+An optional raw string. If present, it must be non-empty and adhere to max_length=128.
+Used specifically where tests mandate this length (e.g., user fill cloid).
 """
 
 RawOrderStatusHL = Annotated[

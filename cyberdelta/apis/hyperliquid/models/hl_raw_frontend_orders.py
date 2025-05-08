@@ -38,7 +38,7 @@ class HyperliquidRawFrontendOpenOrder(BaseModel):
     sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="sz")
     timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
     trigger_condition: RawDefaultString = Field(..., alias="triggerCondition", max_length=128)
-    trigger_px: RawFiniteDecimalStr = Field(..., alias="triggerPx")
+    trigger_px: RawNonNegativeFiniteDecimalStr = Field(..., alias="triggerPx")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
