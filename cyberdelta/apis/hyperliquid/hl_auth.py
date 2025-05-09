@@ -126,7 +126,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         method: str,
         path: str,
         params: dict[str, Any] | None,
-        data: dict[str, Any] | None,  # For Hyperliquid /exchange, this 'data' is the action payload
+        data: str
+        | dict[str, Any]
+        | None,  # For Hyperliquid /exchange, this 'data' is the action payload
         headers: dict[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
         """
@@ -137,7 +139,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             method: The HTTP method (e.g., 'POST').
             path: The API endpoint path (e.g., '/exchange').
             params: Optional dictionary of query parameters.
-            data: Dictionary of request body data (the 'action' payload for Hyperliquid).
+            data: Dictionary of request body data (the 'action' payload for
+                Hyperliquid) or JSON string.
             headers: Optional dictionary of existing headers.
 
         Returns:
@@ -146,7 +149,29 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         Raises:
             APIError: If data payload is missing for signing or if signing fails.
         """
-        if data is None:  # The /exchange endpoint actions always require a data payload
+        print(
+            f"[DEBUG_HL_AUTH_PREPARE_REQUEST_ENTRY] data type: {type(data)}, data value: {data!r}"
+        )  # DEBUG
+
+        action_dict: dict[str, Any]
+        if isinstance(data, str):
+            print(f"[DEBUG_HL_AUTH] isinstance(data, str) is TRUE. data: {data!r}")  # DEBUG
+            try:
+                print("[DEBUG_HL_AUTH] Attempting json.loads(data)")  # DEBUG
+                action_dict = json.loads(data)
+                print("[DEBUG_HL_AUTH] json.loads(data) SUCCEEDED.")  # DEBUG
+            except json.JSONDecodeError as e:
+                print(f"[DEBUG_HL_AUTH] json.loads(data) FAILED with {e!r}")  # DEBUG
+                self.logger.error(f"Invalid JSON in data payload for signing: {e}", exc_info=True)
+                raise APIError(
+                    f"Action data payload is an invalid JSON string: {data!r}.",
+                    code=APIErrorCode.INVALID_PARAMS.value,
+                    http_status=400,
+                    original_exception=e,
+                ) from e
+        elif isinstance(data, dict):
+            action_dict = data
+        elif data is None:  # The /exchange endpoint actions always require a data payload
             self.logger.error(
                 "HyperliquidEip712Authenticator: Data payload (action) is required "
                 "for signing Hyperliquid /exchange requests."
@@ -157,7 +182,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             )
 
         current_nonce_ms = await self._get_next_nonce_ms()
-        connection_id_bytes = self._generate_connection_id(data)
+        connection_id_bytes = self._generate_connection_id(action_dict)
 
         # Construct the EIP-712 message for Agent signature
         # Source "a" is commonly used for agent signatures by exchanges like Hyperliquid
@@ -224,7 +249,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         return AuthenticatedRequestComponents(
             headers=final_headers,
             params=params,
-            data=data,  # Params and data are returned as is
+            data=action_dict,  # Return the parsed dict if original data was string
         )
 
 

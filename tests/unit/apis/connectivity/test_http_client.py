@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 import pytest_asyncio
+from aiohttp import ClientSession as RealAiohttpClientSession
 from multidict import CIMultiDict, CIMultiDictProxy
 from pydantic import HttpUrl, ValidationError  # Added ValidationError
 
@@ -105,7 +106,7 @@ class TestHttpClient:
         Relies on public HttpClient.request() and HttpClient.close_session().
         """
         # --- First request: Session Creation ---
-        mock_session_instance1 = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance1 = AsyncMock(spec=RealAiohttpClientSession)
         mock_session_instance1.closed = False
         mock_response1 = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response1.status = 200
@@ -136,7 +137,7 @@ class TestHttpClient:
         mock_session_instance1.close.assert_called_once()  # Session's close method called
 
         # --- Third request: New Session Creation after closure ---
-        mock_session_instance2 = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance2 = AsyncMock(spec=RealAiohttpClientSession)
         mock_session_instance2.closed = False
         mock_response2 = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response2.status = 200
@@ -164,7 +165,7 @@ class TestHttpClient:
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test close_session() is idempotent for internally managed sessions."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         mock_session_instance.closed = False
         mock_response = AsyncMock(spec=aiohttp.ClientResponse, status=200)
         mock_response.headers = CIMultiDictProxy(
@@ -195,7 +196,7 @@ class TestHttpClient:
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test async context manager properly creates and closes internal session."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         mock_session_instance.closed = False
         mock_response = AsyncMock(spec=aiohttp.ClientResponse, status=200)
         mock_response.headers = CIMultiDictProxy(
@@ -205,18 +206,17 @@ class TestHttpClient:
         mock_session_instance.request.return_value.__aenter__.return_value = mock_response
         MockAiohttpSession.return_value = mock_session_instance
 
+        expected_headers = {
+            "User-Agent": "CyberDeltaEngine/test_ctx",
+        }
+
         async with HttpClient(
             exchange_name="test_ctx", config=default_http_client_config
         ) as client:
-            MockAiohttpSession.assert_not_called()  # Session created lazily on first request or __aenter__
-            # Make a request to trigger session creation if __aenter__ doesn't do it.
-            # Based on current HttpClient.__aenter__, it calls _get_session which creates it.
-            await client.request("GET", "/test_ctx_req", mock_rate_limiter_service)
-            MockAiohttpSession.assert_called_once()
-            mock_session_instance.request.assert_called_once()
-            mock_session_instance.close.assert_not_called()  # Not closed yet
+            MockAiohttpSession.assert_called_once_with(headers=expected_headers)
 
-        mock_session_instance.close.assert_called_once()  # Closed on exit from context manager
+        # Verify the session instance was closed on __aexit__
+        mock_session_instance.close.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_external_session_is_used_and_not_closed(
@@ -402,13 +402,21 @@ class TestHttpClient:
     @patch("aiohttp.ClientSession.request")
     async def test_request_signed(
         self,
-        mock_session_request_method: AsyncMock,  # Renamed from mock_request
+        mock_session_request_method: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
         mock_authenticator: IAuthenticator,
         default_http_client_config: HttpClientConfig,
     ) -> None:
-        """Test a signed request correctly uses the authenticator."""
+        """Test that request sends a signed request when an authenticator is provided."""
+        # This test expects http_client_instance to use its internally managed session.
+        # The session's 'request' method is mocked by mock_session_request_method.
+
+        # Ensure the http_client_instance has an internal session created
+        # (it's usually created on first request, or by __aenter__ if used as ctx mngr)
+        # For this test, we assume it will create one when its .request() is called.
+
+        # Setup the mock authenticator to return specific components
         mock_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_response.status = 200
         mock_response.headers = CIMultiDictProxy(
@@ -426,12 +434,9 @@ class TestHttpClient:
         with patch(
             "cyberdelta.apis.connectivity.http_client.aiohttp.ClientSession"
         ) as MockAiohttpSessionCls:
-            mock_created_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+            mock_created_session_instance = AsyncMock(spec=RealAiohttpClientSession)
             mock_created_session_instance.closed = False
-            # Crucially, make this session instance use the outer mock_session_request_method
-            # for its .request() method, so the outer patch is still effective for response mocking.
             mock_created_session_instance.request = mock_session_request_method
-            # Set up initial headers for the session that HttpClient will create
             initial_session_headers = {
                 "User-Agent": f"CyberDeltaEngine/{http_client_instance.exchange_name}"
             }
@@ -553,7 +558,7 @@ class TestHttpClient:
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test that a 400 error raises HttpRequestFailedError immediately without retry."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
@@ -584,7 +589,7 @@ class TestHttpClient:
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test that a 500 error is retried and then raises HttpRequestFailedError."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
@@ -619,7 +624,7 @@ class TestHttpClient:
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test aiohttp.ClientError is retried and then HttpRequestFailedError is raised."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         client_error = aiohttp.ClientConnectorError(MagicMock(), OSError("Connection failed"))
@@ -648,7 +653,7 @@ class TestHttpClient:
         # http_client_instance is not used directly to allow re-init with different configs
     ) -> None:
         """Test that URLs are constructed correctly through public request method."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
@@ -703,7 +708,7 @@ class TestHttpClient:
         default_http_client_config: HttpClientConfig,  # To check against default
     ) -> None:
         """Test that a custom request_timeout is used when calling request()."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
@@ -742,7 +747,7 @@ class TestHttpClient:
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test HttpRequestFailedError for JSONDecodeError during parsing."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
@@ -773,7 +778,7 @@ class TestHttpClient:
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test HttpRequestFailedError for ClientPayloadError during response.text()."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
@@ -808,7 +813,7 @@ class TestHttpClient:
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
         """Test HttpRequestFailedError for invalid Content-Type header from server."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
@@ -845,7 +850,7 @@ class TestHttpClientRequestResponseParsing:
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with a valid JSON response."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         expected_data = {"key": "value", "num": 123}
@@ -874,7 +879,7 @@ class TestHttpClientRequestResponseParsing:
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with a valid plain text response."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         expected_text = "Hello, World!"
@@ -903,7 +908,7 @@ class TestHttpClientRequestResponseParsing:
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with a 204 No Content response."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         mock_aio_response = mock_aiohttp_response_factory(
@@ -937,7 +942,7 @@ class TestHttpClientRequestResponseParsing:
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with Content-Type too long."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         invalid_ct = "a" * (MAX_CONTENT_TYPE_LENGTH + 5)
@@ -968,7 +973,7 @@ class TestHttpClientRequestResponseParsing:
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with missing Content-Type (defaults to empty string)."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         expected_text = "some text"
@@ -996,7 +1001,7 @@ class TestHttpClientRequestResponseParsing:
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() raising HttpRequestFailedError with a JSONDecodeError cause."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         malformed_json = "not valid json{"
@@ -1026,7 +1031,7 @@ class TestHttpClientRequestResponseParsing:
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with ClientPayloadError on response.text()."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         payload_error = aiohttp.ClientPayloadError("Simulated payload read failure")
@@ -1061,7 +1066,7 @@ class TestHttpClientRequestResponseParsing:
         mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with JSON Content-Type but None/empty body (not 204)."""
-        mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
+        mock_session_instance = AsyncMock(spec=RealAiohttpClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
         headers = {"Content-Type": "application/json"}

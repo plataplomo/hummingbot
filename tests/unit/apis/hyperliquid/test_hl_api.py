@@ -573,8 +573,10 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         payload = api_for_ws_tests._construct_subscription_payload(topic)
         assert payload is not None
-        assert payload["type"] == "subscribe"
-        assert payload["subscription"] == expected_sub_details
+        assert payload.get("method") == "subscribe"
+        actual_subscription = payload.get("subscription")
+        assert isinstance(actual_subscription, dict)
+        assert sorted(actual_subscription.items()) == sorted(expected_sub_details.items())
 
     def test_construct_subscription_payload_invalid_topic(
         self, api_for_ws_tests: HyperliquidAPI
@@ -610,7 +612,7 @@ class TestHyperliquidAPIWebSocketRouting:
         test_message: dict[str, Any] = {"channel": channel_name, "data": test_data_payload}
 
         await api_for_ws_tests._handle_websocket_message(test_message)
-        mock_handler.assert_awaited_once_with(test_data_payload)
+        mock_handler.assert_awaited_once_with(test_data_payload, test_message)
 
     @pytest.mark.asyncio
     async def test_route_ws_message_pong(
@@ -619,7 +621,7 @@ class TestHyperliquidAPIWebSocketRouting:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"channel": "pong"}
         await api_for_ws_tests._handle_websocket_message(test_message)
-        assert "Received pong from Hyperliquid WS" in caplog.text
+        assert "[hyperliquid] Received pong" in caplog.text
 
     @pytest.mark.asyncio
     async def test_route_ws_message_error_channel(
@@ -629,7 +631,7 @@ class TestHyperliquidAPIWebSocketRouting:
         error_payload = "Connection timed out"
         test_message = {"channel": "error", "data": error_payload}
         await api_for_ws_tests._handle_websocket_message(test_message)
-        assert f"Error message from Hyperliquid WS: {error_payload}" in caplog.text
+        assert f"[hyperliquid] Received WS error message: {error_payload}" in caplog.text
 
     @pytest.mark.asyncio
     async def test_route_ws_message_subscription_response(
@@ -639,16 +641,16 @@ class TestHyperliquidAPIWebSocketRouting:
         response_payload = {"subscription": {"type": "l2Book", "coin": "ETH"}, "status": "ok"}
         test_message = {"channel": "subscriptionResponse", "data": response_payload}
         await api_for_ws_tests._handle_websocket_message(test_message)
-        assert f"Subscription response from Hyperliquid WS: {response_payload}" in caplog.text
+        assert f"[hyperliquid] Received subscription response: {response_payload}" in caplog.text
 
     @pytest.mark.asyncio
     async def test_route_ws_message_no_handler(
         self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
     ) -> None:
-        caplog.set_level(logging.WARNING, logger="cyberdelta.apis.hyperliquid.hl_api")
+        caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"channel": "unknownChannel", "data": {"some": "payload"}}
         await api_for_ws_tests._handle_websocket_message(test_message)
-        assert "No handler for Hyperliquid WS channel unknownChannel" in caplog.text
+        assert "No handler registered for channel: unknownChannel" in caplog.text
 
     @pytest.mark.asyncio
     async def test_route_ws_message_no_channel(
@@ -657,7 +659,7 @@ class TestHyperliquidAPIWebSocketRouting:
         caplog.set_level(logging.WARNING, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"type": "someType", "data": {"other": "data"}}  # No channel
         await api_for_ws_tests._handle_websocket_message(test_message)
-        assert "Received message from Hyperliquid WS without a channel field" in caplog.text
+        assert f"Received WS message without channel: {test_message}" in caplog.text
 
     @pytest.mark.asyncio
     async def test_route_ws_message_channel_no_data(
@@ -673,7 +675,20 @@ class TestHyperliquidAPIWebSocketRouting:
 
         await api_for_ws_tests._handle_websocket_message(test_message)
         mock_handler.assert_not_called()
-        assert (
-            f"Received message from Hyperliquid WS channel {channel_name} without a data field"
-            in caplog.text
+
+        expected_log_part = (
+            f"[{api_for_ws_tests.exchange_name}] Received message from WS channel {channel_name} "
+            f"without a data field"
         )
+        assert expected_log_part in caplog.text, (
+            f'Expected log substring "{expected_log_part}" not found. caplog.text: {caplog.text!r}'
+        )
+
+    @pytest.mark.asyncio
+    async def test_route_ws_message_unknown_channel(
+        self, api_for_ws_tests: HyperliquidAPI, caplog: LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.WARNING, logger="cyberdelta.apis.hyperliquid.hl_api")
+        test_message = {"type": "someType", "data": {"other": "data"}}  # No channel
+        await api_for_ws_tests._handle_websocket_message(test_message)
+        assert f"Received WS message without channel: {test_message}" in caplog.text

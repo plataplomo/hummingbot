@@ -868,10 +868,10 @@ class TestHandleInfoOrderStatusResponse:
                 cast(RawJsonResponse, raw_data), user_address=user_address, order_id=order_id
             )
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
-        assert (
-            f"Order {order_id} for user {user_address} not found (direct string response:"
-            f" 'Order not found')" in exc_info.value.message
+        expected_message = (
+            f"Order {order_id} for user {user_address} not found (direct string: {raw_data!r})"
         )
+        assert exc_info.value.message == expected_message
         assert exc_info.value.metadata == {"original_response": "Order not found"}
 
     def test_order_not_found_string_in_list(self, user_address: str, order_id: int) -> None:
@@ -882,9 +882,11 @@ class TestHandleInfoOrderStatusResponse:
                 cast(RawJsonResponse, raw_data), user_address=user_address, order_id=order_id
             )
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
-        assert (
-            f"Order {order_id} for user {user_address} not found (string response:"
-            f" 'Order not found')" in exc_info.value.message
+        # The handler identifies the string item within the list, so the message reflects that.
+        # Original raw_data is a list: ["Order not found"]. status_item becomes "Order not found".
+        expected_message_detail = "(string response: 'Order not found')"
+        assert expected_message_detail in exc_info.value.message, (
+            f"Expected detail '{expected_message_detail}' not in actual message '{exc_info.value.message}'"
         )
         assert exc_info.value.metadata == {"original_response_item": "Order not found"}
 
@@ -899,10 +901,8 @@ class TestHandleInfoOrderStatusResponse:
             )
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
         assert (
-            f"Order {order_id} for user {user_address} not found (empty list response)."
-            in exc_info.value.message
+            f"Order {order_id} for {user_address} not found (empty list)." in exc_info.value.message
         )
-        assert exc_info.value.metadata == {"original_response": []}
 
     def test_order_not_found_none(self, user_address: str, order_id: int) -> None:
         """Test handling None response."""

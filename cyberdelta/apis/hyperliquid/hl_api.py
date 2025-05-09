@@ -321,16 +321,16 @@ class HyperliquidAPI(ExchangeAPI):
         if data_payload is None:
             # This case might be valid for some simple channel messages (like pong, handled above)
             # but for most data-carrying channels, data_payload is expected.
-            logger.debug(
-                f"[{self.exchange_name}] Received message on channel '{channel}' "
-                f"but no data: {message}"
+            logger.warning(
+                f"[{self.exchange_name}] Received message from WS channel {channel} "
+                f"without a data field. Full message: {message!r}"
             )
             return
 
         handler: MessageHandler | None = self._ws_handlers.get(channel)
         if handler:
             try:
-                await handler(data_payload, message)  # Pass full message for context
+                await handler(data_payload, message)
             except Exception:  # noqa: BLE001
                 logger.exception(
                     f"[{self.exchange_name}] Error in WS handler for channel '{channel}'",

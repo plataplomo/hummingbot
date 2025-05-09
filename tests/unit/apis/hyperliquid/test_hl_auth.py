@@ -487,12 +487,12 @@ class TestHyperliquidEip712Authenticator:
 
     @pytest.mark.asyncio
     async def test_prepare_request_action_with_string_payload_invalid_json(
-        self, authenticator_eip712: HyperliquidEip712Authenticator
+        self, authenticator_instance: HyperliquidEip712Authenticator
     ) -> None:
         action_payload_invalid_json = '{"key": "value", syntax_error'  # Invalid JSON string
 
         with pytest.raises(APIError) as excinfo:
-            await authenticator_eip712.prepare_request(
+            await authenticator_instance.prepare_request(
                 method="POST",
                 path="/exchange",
                 data={"action": "agent", "payload": action_payload_invalid_json},
