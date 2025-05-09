@@ -246,6 +246,15 @@ class HyperliquidResponseHandler:
         """Validates the /info response for order_status."""
         context = f"info (OrderStatus for user {user_address}, oid {order_id})"
 
+        # Handle direct "Order not found" string before list check
+        if isinstance(raw_response_content, str) and "Order not found" in raw_response_content:
+            logger.debug(f"{context}: Received direct string '{raw_response_content}'.")
+            raise APIError(
+                message=f"Order {order_id} for user {user_address} not found (direct string response: '{raw_response_content}')",
+                code=APIErrorCode.ORDER_NOT_FOUND.value,
+                metadata={"original_response": raw_response_content},
+            )
+
         # Based on observed API behavior and previous logic, response can be a list.
         if not isinstance(raw_response_content, list):
             # If it's already a dict, it might be a direct valid response
@@ -274,11 +283,11 @@ class HyperliquidResponseHandler:
         # If it IS a list (common case from API)
         if isinstance(raw_response_content, list):
             if not raw_response_content:  # Empty list means order not found
+                logger.debug(f"{context}: Received empty list, interpreting as order not found.")
                 raise APIError(
-                    message=(
-                        f"Order {order_id} for user {user_address} not found (empty list response)."
-                    ),
+                    message=f"Order {order_id} for user {user_address} not found (empty list response).",
                     code=APIErrorCode.ORDER_NOT_FOUND.value,
+                    metadata={"original_response": []},
                 )
 
             status_item = raw_response_content[0]  # Get the first (and usually only) item
@@ -291,18 +300,24 @@ class HyperliquidResponseHandler:
                             f"(string response: '{status_item}')."
                         ),
                         code=APIErrorCode.ORDER_NOT_FOUND.value,
+                        metadata={"original_response_item": status_item},
                     )
                 else:
+                    logger.warning(
+                        f"{context}: Unexpected string content in list: '{status_item}'."
+                    )
                     raise APIError(
                         message=f"Unexpected string content in {context} response: {status_item}",
                         code=APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"original_response_item": status_item},
                     )
 
             if not isinstance(status_item, dict):
+                logger.warning(f"{context}: Unexpected item type in list: {type(status_item)}.")
                 raise APIError(
-                    message=f"Unexpected item type in {context} response list: expected dict, "
-                    f"got {type(status_item).__name__}",
+                    message=f"Unexpected item type in {context} response list: expected dict, got {type(status_item).__name__}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
+                    metadata={"original_response_item": status_item},
                 )
             # At this point, status_item is a dictionary from the list
             try:

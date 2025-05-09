@@ -7,10 +7,15 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import aiohttp
 import pytest
+from multidict import CIMultiDict, CIMultiDictProxy
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.connectivity.connectivity_models import (
+    ProcessedResponseHeaders,
+    WebSocketManagerConfig,
+)
 from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -243,7 +248,7 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
         loop=mock_loop,
     )
 
-    # Mock return value of HttpClient.request: (content, headers_multidict)
+    # Mock return value of HttpClient.request: (content, processed_headers, raw_headers_multidict)
     mock_response_content = {"data": "success_payload"}
     # CIMultiDictProxy is tricky to mock directly if not imported; use MagicMock with items()
     mock_response_headers = MagicMock()
@@ -251,7 +256,17 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
         ("X-Response-ID", "123"),
         ("Content-Type", "application/json"),
     ]
-    mock_http_client_request.return_value = (mock_response_content, mock_response_headers)
+    # HttpClient.request returns 3 items: content, processed_headers, raw_headers_multidict
+    mock_processed_headers = ProcessedResponseHeaders(content_type="application/json")
+    mock_raw_headers_multidict = CIMultiDictProxy(
+        CIMultiDict(mock_response_headers.items.return_value)
+    )
+
+    mock_http_client_request.return_value = (
+        mock_response_content,
+        mock_processed_headers,
+        mock_raw_headers_multidict,
+    )
 
     method = "POST"
     endpoint = "/submit_data"
@@ -277,11 +292,12 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
         headers=custom_headers,
         is_signed=True,
     )
-    # Check that _update_rate_limit_from_headers was called with the processed headers
+    # Check that _update_rate_limit_from_headers was called with the raw_headers_multidict
+    # that HttpClient.request would have returned.
     api.mock_update_rate_limit_method.assert_called_once_with(
-        mock_response_headers,  # Pass the multidict proxy directly
+        mock_raw_headers_multidict,  # This is the CIMultiDictProxy instance
         method,
-        endpoint.lstrip("/"),  # Ensure consistent path format
+        endpoint.lstrip("/"),
     )
 
 
@@ -456,16 +472,26 @@ class TestExchangeAPIWebSocketIntegration:
 
         api = ConcreteTestExchangeAPI("test_ws", current_config, {}, mock_error_mapper)
 
-        assert api._ws_manager == mock_ws_instance
+        assert api._ws_manager == mock_ws_instance  # pyright: ignore [reportPrivateUsage]
+        # ExchangeAPI now passes a WebSocketManagerConfig object
+        # Replicate ExchangeAPI's logic of filtering None values
+        ws_config_params_from_current = {
+            "ws_url": current_config["ws_endpoint"],
+            "ping_interval": current_config.get("ws_ping_interval"),
+            "reconnect_delay": current_config.get("ws_reconnect_delay"),
+            "max_reconnect_attempts": current_config.get("ws_max_reconnect_attempts"),
+            "connection_timeout": current_config.get("ws_connection_timeout"),
+        }
+        filtered_ws_config_params = {
+            k: v for k, v in ws_config_params_from_current.items() if v is not None
+        }
+        expected_ws_config = WebSocketManagerConfig(**filtered_ws_config_params)
+
         MockWebSocketManagerClass.assert_called_once_with(
             exchange_name="test_ws",
-            ws_url=current_config["ws_endpoint"],
-            message_handler=api._handle_websocket_message,
-            on_connected_callback=api._on_ws_connected,
-            ping_interval=None,
-            reconnect_delay=None,
-            max_reconnect_attempts=None,
-            connection_timeout=None,
+            config=expected_ws_config,  # Expect WebSocketManagerConfig instance
+            message_handler=api._handle_websocket_message,  # pyright: ignore [reportPrivateUsage]
+            on_connected_callback=api._on_ws_connected,  # pyright: ignore [reportPrivateUsage]
         )
 
     def test_initialization_without_ws_endpoint(

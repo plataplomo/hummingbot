@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import urllib.parse
 from types import TracebackType
 from typing import Any
 
@@ -208,11 +209,29 @@ class HttpClient:
         if response.status == 204:
             return None, processed_headers, raw_response_headers  # Should have already returned
 
+        # Ensure we don't try to parse JSON if there's no body, even if headers suggest it.
+        # This handles cases where response.text() might yield an empty string for an empty body.
+        if not response_text:  # Handles both None and empty string for non-204
+            if "application/json" in processed_headers.content_type:
+                logger.warning(
+                    f"[{self.exchange_name}] JSON content type received, but response body is empty/None "
+                    f"for {full_url} (status {response.status})."
+                )
+                raise HttpRequestFailedError(
+                    message=f"JSON content type with empty/None body from {full_url}",
+                    http_status_code=response.status,
+                    response_body=response_text,  # Pass the original empty/None text
+                    api_error_code=APIErrorCode.INVALID_RESPONSE,  # Use the enum member directly
+                )
+            # If not JSON and empty, it could be valid (e.g. just headers)
+            return None, processed_headers, raw_response_headers
+
         # For 200-299 (excluding 204 handled above)
         if "application/json" in processed_headers.content_type:
             try:
-                # response_text is guaranteed to be a string here because 204s return earlier,
-                # and response.text() returns str. json.loads will handle empty string if necessary.
+                # Ensure response_text is a string for json.loads
+                # The check `if not response_text:` above handles None or empty string.
+                # So here, response_text should be a non-empty string.
                 parsed_json: ParsedJsonResponse = json.loads(response_text)
                 return parsed_json, processed_headers, raw_response_headers
             except json.JSONDecodeError as je:
@@ -258,7 +277,11 @@ class HttpClient:
         if endpoint_path.startswith(("http://", "https://")):
             full_url = endpoint_path
         else:
-            full_url = f"{self.rest_endpoint}/{endpoint_path.lstrip('/')}"
+            # Ensure rest_endpoint has no trailing slash before appending one for urljoin
+            clean_base = self.rest_endpoint.rstrip("/")
+            # Ensure relative_path has no leading slash
+            clean_relative_path = endpoint_path.lstrip("/")
+            full_url = urllib.parse.urljoin(f"{clean_base}/", clean_relative_path)
 
         effective_timeout = (
             request_timeout if request_timeout is not None else self.default_request_timeout
@@ -339,12 +362,18 @@ class HttpClient:
                             )
                             last_exception = e_parse  # Store it
                             # Decide if this specific parsing error should allow a retry.
-                            # For now, assume content validation errors are not retryable.
                             if e_parse.code == APIErrorCode.INVALID_RESPONSE.value:
                                 raise  # Fail fast on bad content from server
-                            # Fall through to retry for NETWORK_ISSUE from body read
+                            # For other parse errors (like NETWORK_ISSUE from payload problem),
+                            # treat this attempt as failed and proceed to next retry.
+                            continue  # Ensure we go to the next retry attempt
 
-                    # Handle HTTP errors (>= 400)
+                    # Handle HTTP errors (>= 400) or other non-2xx/non-3xx cases
+                    # This block is reached if status is not 2xx, or if a 2xx parsing error (not INVALID_RESPONSE)
+                    # occurred and we continued, but then the outer try block finishes.
+                    # To prevent re-processing a response that already had a parse error, we check last_exception.
+                    # However, the `continue` above should prevent falling through here for handled parse errors.
+                    # This part is primarily for non-2xx status codes directly.
                     logger.warning(
                         f"[{self.exchange_name}] HTTP Error {response.status} for {full_url}. "
                         # Attempt to read body for error context, but guard it

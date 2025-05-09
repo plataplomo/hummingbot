@@ -294,7 +294,19 @@ def valid_raw_order_history(valid_raw_order: dict[str, Any]) -> list[dict[str, A
 
 @pytest.fixture
 def valid_raw_trade_history(valid_raw_trade_item: dict[str, Any]) -> list[dict[str, Any]]:
-    return valid_raw_recent_trades(valid_raw_trade_item)  # Assuming same structure for now
+    # Define trade history directly, similar to valid_raw_recent_trades
+    item1 = valid_raw_trade_item.copy()
+    item1["id"] = "histTradeX001"  # Differentiate from recent trades if necessary
+    item1["orderId"] = "histOrderX001"
+    item1["time"] = 1678880000000  # Earlier timestamp
+
+    item2 = valid_raw_trade_item.copy()
+    item2["id"] = "histTradeX002"
+    item2["price"] = "141.05"  # Slightly different price
+    item2["qty"] = "0.75"
+    item2["time"] = 1678880005000
+    item2["orderId"] = "histOrderX002"
+    return [item1, item2]
 
 
 @pytest.fixture
@@ -524,8 +536,8 @@ class TestHandleGetTradeHistoryResponse:
         assert isinstance(trades, list)
         assert len(trades) == 2
         assert isinstance(trades[0], BackpackRawTrade)
-        assert trades[0].id == "1001"
-        assert trades[1].order_id == "order124"
+        assert trades[0].id == "histTradeX001"
+        assert trades[1].order_id == "histOrderX002"
 
 
 class TestHandleGetMarketDataResponse:
@@ -667,8 +679,8 @@ _invalid_type_test_cases: list[InvalidTypeTestCaseType] = [
         BackpackResponseHandler.handle_get_market_data_response,
         {"error": "expected list"},
         "list",
-        {"symbol": "symbol_spot", "interval": "1m"},
-        "market data (klines {symbol}, {interval})",
+        {"symbol": "symbol_spot", "timeframe": "1m"},
+        "market data (klines {symbol}, {timeframe})",
     ),
     (
         BackpackResponseHandler.handle_get_historical_trades_response,
@@ -728,9 +740,16 @@ def test_handler_invalid_top_level_type(
         handler_method(invalid_data, **actual_handler_args)
 
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert (
-        f"Unexpected {final_context_string} response format: expected {expected_container_type}"
-    ) in exc_info.value.message
+    # Adjust expected message based on handler specifics
+    if handler_method is BackpackResponseHandler.handle_place_order_response:
+        expected_message_part = (
+            f"Unexpected {final_context_string} format: expected {expected_container_type}"
+        )
+    else:
+        expected_message_part = (
+            f"Unexpected {final_context_string} response format: expected {expected_container_type}"
+        )
+    assert expected_message_part in exc_info.value.message
     assert (
         f"got {type(invalid_data)}" in exc_info.value.message
         or f"got {type(invalid_data).__name__}" in exc_info.value.message
@@ -1011,8 +1030,8 @@ _list_item_error_cases: list[ListItemErrorTestCaseStructure] = [
         "valid_raw_market_data",
         {"insert_invalid_item": {"error": "not a list"}, "index": 1},
         "Skipping non-list item",
-        {"symbol": "symbol_spot", "interval": "1m"},
-        "market data (klines {symbol}, {interval})",
+        {"symbol": "symbol_spot", "timeframe": "1m"},
+        "market data (klines {symbol}, {timeframe})",
         True,
     ),
     # get_market_data: Item validation error (wrong length)
@@ -1115,18 +1134,26 @@ def test_handler_list_item_errors(
 
     if expect_warning_log:
         # Test for warning log and correct return value (usually filtered list)
-        with patch("cyberdelta.apis.backpack.bp_response_handler.logger.warning") as mock_warn:
-            # Cast removed as redundant
-            result = handler_method(invalid_data, **actual_handler_args)
-            # Check that the result is the filtered list/dict (or appropriate type)
-            if isinstance(valid_data, list):
-                assert isinstance(result, list)
-            elif isinstance(valid_data, dict):
-                assert isinstance(result, dict)
+        # Remove the patch, rely on caplog to capture logs from the handler's logger.
+        # Ensure the logger in bp_response_handler is configured to emit warnings that caplog can capture.
 
-            # Check log message
-            assert any(expected_log_or_error in record.getMessage() for record in caplog.records)
-            mock_warn.assert_called()  # Ensure the mock was used
+        # Call the handler method directly
+        result = handler_method(invalid_data, **actual_handler_args)
+
+        # Check that the result is the filtered list/dict (or appropriate type)
+        if isinstance(valid_data, list):
+            assert isinstance(result, list)
+        elif isinstance(valid_data, dict):
+            assert isinstance(result, dict)
+
+        # Check log message using caplog.records
+        log_found = any(expected_log_or_error in record.getMessage() for record in caplog.records)
+        if not log_found:
+            print(
+                f"Test {request.node.name} failed. Expected log containing: '{expected_log_or_error}'"
+            )
+            print(f"Captured logs:\n{caplog.text}")
+        assert log_found
     else:
         # Test for APIError with specific validation message
         with pytest.raises(APIError) as exc_info:

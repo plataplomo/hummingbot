@@ -356,7 +356,7 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse, symbol: str, timeframe: str
     ) -> list[RawJson]:  # Return list of RawJson until specific Kline model exists
         """Validates the raw response for the Get Market Data (Klines) endpoint."""
-        context = f"market data (klines {symbol} {timeframe})"
+        context = f"market data (klines {symbol}, {timeframe})"
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "

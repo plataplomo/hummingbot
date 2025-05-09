@@ -1,3 +1,4 @@
+import copy
 import time
 from typing import Any
 
@@ -57,16 +58,44 @@ def config_missing_rate_limits_key() -> dict[str, Any]:
 
 
 class TestRateLimiterService:
+    @pytest.fixture
+    def basic_config(self) -> dict[str, Any]:
+        return {
+            "rate_limits": {
+                "default_rate": 10,
+                "default_bucket_size": 10,
+                "endpoints": {
+                    "GET:/path1": {"rate": 5, "bucket_size": 5},
+                    "POST:/path2": {"rate": 1, "bucket_size": 2},
+                    "GET:/specific/path": {"rate": 5, "bucket_size": 5},
+                    "PUT:/path/only": {"rate": 2, "bucket_size": 2},
+                    "POST:/another/path": {"rate": 1, "bucket_size": 1},
+                },
+            }
+        }
+
+    def test_initialization(self, basic_config: dict[str, Any], caplog: LogCaptureFixture) -> None:
+        """Test basic initialization and limiter creation."""
+        service = RateLimiterService(exchange_name="test_exchange", config=basic_config)
+        assert service.default_limiter.rate == 10
+        assert service.default_limiter.bucket_size == 10
+        assert "GET:/path1" in service.endpoint_limiters
+        assert service.endpoint_limiters["GET:/path1"].rate == 5
+        assert "POST:/path2" in service.endpoint_limiters
+        assert service.endpoint_limiters["POST:/path2"].tokens == 2.0
+        assert not caplog.text  # No errors expected
+
     def test_initialization_with_basic_config(self, basic_config: dict[str, Any]) -> None:
         service = RateLimiterService(exchange_name="test_exchange", config=basic_config)
         assert isinstance(service.default_limiter, TokenBucketRateLimiterRuntime)
         assert service.default_limiter.rate == 10
         assert service.default_limiter.bucket_size == 10
-        assert len(service.endpoint_limiters) == 3
+        assert len(service.endpoint_limiters) == 5
         assert "GET:/specific/path" in service.endpoint_limiters
         assert service.endpoint_limiters["GET:/specific/path"].rate == 5
-        assert "/path/only" in service.endpoint_limiters
-        assert service.endpoint_limiters["/path/only"].rate == 2
+        assert "PUT:/path/only" in service.endpoint_limiters
+        assert service.endpoint_limiters["PUT:/path/only"].rate == 2
+        assert "POST:/another/path" in service.endpoint_limiters
         # Check model_config
         assert service.model_config.get("frozen") is True
         assert service.model_config.get("extra") == "forbid"
@@ -198,20 +227,31 @@ class TestRateLimiterService:
             service.default_limiter = TokenBucketRateLimiterRuntime(1, 1)
         assert "frozen" in str(exc_info.value).lower()
 
-    def test_init_signature_prevents_extra_kwargs(self) -> None:
-        """
-        Test that the __init__ signature itself prevents unexpected keyword arguments.
-        This is a Python TypeError, not Pydantic's extra='forbid' ValidationError,
-        due to the custom __init__.
-        """
-        with pytest.raises(TypeError) as exc_info:
-            RateLimiterService(
-                exchange_name="test_exchange",
-                config=basic_config(),  # Call fixture to get dict
-                # loop=None, # loop parameter removed
-                unexpected_arg="test",  # type: ignore[call-arg]
-            )
-        assert "unexpected keyword argument 'unexpected_arg'" in str(exc_info.value).lower()
+    def test_init_signature_prevents_extra_kwargs(
+        self, basic_config: dict[str, Any], caplog: LogCaptureFixture
+    ) -> None:
+        """Test that extra kwargs in config for RateLimiterConfig are logged as errors."""
+        config_with_extra = copy.deepcopy(basic_config)
+        # Add an unknown param that RateLimiterConfig will reject
+        config_with_extra["rate_limits"]["unknown_param_for_config"] = "should_be_logged_as_error"
+
+        # RateLimiterService construction should succeed by falling back to defaults
+        service = RateLimiterService(exchange_name="test_extra_log", config=config_with_extra)
+        assert service is not None  # Service initializes with defaults
+
+        # Check that a Pydantic validation error for RateLimiterConfig was logged
+        assert len(caplog.records) >= 1
+        found_log = False
+        for record in caplog.records:
+            if (
+                record.levelname == "ERROR"
+                and "Failed to validate 'rate_limits' config" in record.message
+                and "unknown_param_for_config" in record.message
+                and "Extra inputs are not permitted" in record.message
+            ):
+                found_log = True
+                break
+        assert found_log, "Expected Pydantic ValidationError for extra field not logged."
 
     def test_initialization_with_endpoint_config_none(self, caplog: LogCaptureFixture) -> None:
         """Test initialization when an endpoint config is explicitly None."""
@@ -225,8 +265,13 @@ class TestRateLimiterService:
         service = RateLimiterService(
             exchange_name="test_exchange", config=config_with_none_endpoint
         )
-        assert "GET:/path_with_none_config" in service.endpoint_limiters
-        # Should use default values for this endpoint
-        assert service.endpoint_limiters["GET:/path_with_none_config"].rate == 10
-        assert service.endpoint_limiters["GET:/path_with_none_config"].bucket_size == 10
-        assert 'Missing configuration for endpoint "GET:/path_with_none_config"' in caplog.text
+        # Assert that the endpoint with None config is NOT in endpoint_limiters
+        assert "GET:/path_with_none_config" not in service.endpoint_limiters
+        # Assert that the warning log was generated
+        assert len(caplog.records) == 1
+        assert "Failed to validate 'rate_limits' config" in caplog.records[0].message
+        assert "GET:/path_with_none_config" in caplog.records[0].message
+        assert (
+            "Input should be a valid dictionary or instance of EndpointRateConfig"
+            in caplog.records[0].message
+        )

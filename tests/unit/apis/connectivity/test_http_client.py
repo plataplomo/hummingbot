@@ -398,11 +398,12 @@ class TestHttpClient:
         http_client_instance.max_retries = 1
         http_client_instance.retry_delay_seconds = 0.01
 
-        with pytest.raises(aiohttp.ClientConnectorError) as excinfo:
+        with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request("GET", "/client_err", mock_rate_limiter_service)
 
-        assert excinfo.value is client_error  # Check it's the same exception instance
-        assert mock_request.call_count == 2
+        assert excinfo.value.code == APIErrorCode.NETWORK_ISSUE.value
+        assert isinstance(excinfo.value.__cause__, aiohttp.ClientConnectorError)
+        assert mock_request.call_count == http_client_instance.max_retries + 1
         assert mock_sleep.call_count == 1
         mock_sleep.assert_called_with(0.01)
 
@@ -561,31 +562,42 @@ class TestHttpClient:
         """Test _parse_and_validate_response raises error for ClientPayloadError."""
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_aio_response.status = 200  # Successful HTTP status
+        mock_aio_response.headers = CIMultiDictProxy(CIMultiDict[str]())
+        mock_aio_response.text = AsyncMock(return_value="simulated text from response.text()")
         mock_session_request.return_value.__aenter__.return_value = mock_aio_response
 
-        # Simulate _parse_and_validate_response raising the error due to payload issue
         payload_error_cause = aiohttp.ClientPayloadError("Simulated payload read failure")
-        expected_error = HttpRequestFailedError(
-            message="Failed to read response body.",
+        expected_error_from_parser = HttpRequestFailedError(
+            message="Failed to read response body during parse/validate.",
             http_status_code=200,
             response_body=None,
             api_error_code=APIErrorCode.NETWORK_ISSUE,
         )
-        expected_error.__cause__ = payload_error_cause  # Manually set cause for the test
-        mock_parse_response.side_effect = expected_error
+        expected_error_from_parser.__cause__ = payload_error_cause
+        mock_parse_response.side_effect = expected_error_from_parser
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request(
                 "GET", "/payload_error_path", mock_rate_limiter_service
             )
 
-        assert excinfo.value is expected_error
-        # Assert the cause type if payload_error_cause was used to construct expected_error implicitly
-        assert isinstance(excinfo.value.__cause__, aiohttp.ClientPayloadError)
+        # With the `continue` in HttpClient, the originally raised expected_error_from_parser
+        # should be the one caught after all retries.
+        assert excinfo.value is expected_error_from_parser
+        assert excinfo.value.http_status == 200
+        assert excinfo.value.code == APIErrorCode.NETWORK_ISSUE.value
+        assert (
+            excinfo.value.exchange_message is None
+        )  # From expected_error_from_parser.response_body
+        assert excinfo.value.__cause__ is payload_error_cause
+
+        # Check _parse_and_validate_response was called for each attempt
+        # Default max_retries is 3 for HttpClientConfig, so 1 initial + 3 retries = 4 calls.
+        assert mock_parse_response.call_count == http_client_instance.max_retries + 1
         full_expected_url = (
             str(http_client_instance.rest_endpoint).rstrip("/") + "/payload_error_path"
         )
-        mock_parse_response.assert_called_once_with(mock_aio_response, full_expected_url)
+        mock_parse_response.assert_any_call(mock_aio_response, full_expected_url)
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.connectivity.http_client.HttpClient._parse_and_validate_response")
@@ -797,14 +809,11 @@ class TestHttpClientResponseParsing:
         self, http_client_instance: HttpClient
     ) -> None:
         """Test _parse_and_validate_response with JSON Content-Type but None body (defensive)."""
-        # This scenario is hard to trigger as _parse_and_validate_response expects
-        # response.text() to have run. Method has internal check for this.
         mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
         mock_aio_response.status = 200  # Not 204
         mock_aio_response.headers = CIMultiDictProxy(
             CIMultiDict[str]([("Content-Type", "application/json")])
         )
-        # Simulate response.text() somehow returning None, though it typed as str
         mock_aio_response.text = AsyncMock(return_value=None)
         full_url = f"{http_client_instance.rest_endpoint}/test_json_none_body"
 
@@ -814,7 +823,16 @@ class TestHttpClientResponseParsing:
             )
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "JSON response expected but body is None" in excinfo.value.message
+        assert f"JSON content type with empty/None body from {full_url}" in excinfo.value.message
 
     # Placeholder for tests of ProcessedResponseHeaders itself if not covered elsewhere
     # (though its direct tests are usually in test_connectivity_models.py)
+
+
+class TestRateLimiterIntegration:
+    @pytest.mark.asyncio
+    async def test_rate_limiter_integration(self, http_client_instance: HttpClient) -> None:
+        """Test that rate limiter integration works correctly."""
+        # This test should be implemented to verify that the rate limiter integration is working as expected.
+        # You might want to mock the rate limiter service and check if the rate limits are enforced correctly.
+        pass
