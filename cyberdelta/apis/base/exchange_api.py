@@ -151,15 +151,19 @@ class ExchangeAPI(ABC):
         self._ws_manager: WebSocketManager | None = None
         if self.ws_endpoint:  # At this point, ws_endpoint is either a valid string or None
             ws_config_data = {"ws_url": self.ws_endpoint}  # ws_url is required
-            # Add other params only if present in self._config to let Pydantic defaults work
-            if "ws_ping_interval" in self._config:
-                ws_config_data["ping_interval"] = self._config["ws_ping_interval"]
-            if "ws_reconnect_delay" in self._config:
-                ws_config_data["reconnect_delay"] = self._config["ws_reconnect_delay"]
-            if "ws_max_reconnect_attempts" in self._config:
-                ws_config_data["max_reconnect_attempts"] = self._config["ws_max_reconnect_attempts"]
-            if "ws_connection_timeout" in self._config:
-                ws_config_data["connection_timeout"] = self._config["ws_connection_timeout"]
+
+            websocket_params_to_check = {
+                "ws_ping_interval": "ping_interval",
+                "ws_reconnect_delay": "reconnect_delay",
+                "ws_max_reconnect_attempts": "max_reconnect_attempts",
+                "ws_connection_timeout": "connection_timeout",
+            }
+
+            for config_key, model_key in websocket_params_to_check.items():
+                if config_key in self._config:  # Check if key exists in the main config
+                    value = self._config[config_key]
+                    if value is not None:  # Only add if value is not None
+                        ws_config_data[model_key] = value
 
             # Use model_validate for robust parsing and type coercion.
             websocket_manager_config = WebSocketManagerConfig.model_validate(ws_config_data)
