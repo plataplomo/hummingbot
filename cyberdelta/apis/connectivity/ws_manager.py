@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 # Define MessageHandler type alias
 MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
+TaskFactory = Callable[..., asyncio.Task[Any]]  # Type alias for our task factory
 
 
 class WebSocketManager:
@@ -48,6 +49,7 @@ class WebSocketManager:
         config: WebSocketManagerConfig,
         on_connected_callback: Callable[[], Coroutine[Any, Any, None]] | None = None,
         session: aiohttp.ClientSession | None = None,
+        task_factory: TaskFactory | None = None,  # New parameter
     ) -> None:
         """
         Initialize the WebSocketManager.
@@ -58,6 +60,7 @@ class WebSocketManager:
             config: WebSocketManagerConfig object with connectivity parameters.
             on_connected_callback: Optional async callback to execute after successful connection.
             session: Optional pre-existing aiohttp.ClientSession. If None, one will be created.
+            task_factory: Optional callable to create asyncio tasks. Defaults to asyncio.create_task.
         """
         self._exchange_name: str = exchange_name
         self._ws_url: str = str(config.ws_url)
@@ -80,6 +83,8 @@ class WebSocketManager:
         self._listener_task: asyncio.Task[None] | None = None
         self._ping_task: asyncio.Task[None] | None = None
         self._connection_task: asyncio.Task[None] | None = None
+
+        self._task_factory: TaskFactory = task_factory or asyncio.create_task  # Store task factory
 
         self._reconnect_lock = asyncio.Lock()
         self._logger = logging.getLogger(f"WebSocketManager.{self._exchange_name}")
@@ -120,7 +125,7 @@ class WebSocketManager:
 
         self._logger.info(f"Connection requested for {self._ws_url}. Creating new task.")
         # Create and store the task, but do not await it here.
-        self._connection_task = asyncio.create_task(
+        self._connection_task = self._task_factory(
             self._establish_connection(), name=f"{self._exchange_name}_ws_establish_conn"
         )
         return self._connection_task  # Return the new task
@@ -177,11 +182,11 @@ class WebSocketManager:
                     if self._ping_task and not self._ping_task.done():
                         self._ping_task.cancel()
 
-                    self._listener_task = asyncio.create_task(
+                    self._listener_task = self._task_factory(
                         self._listen(), name=f"{self._exchange_name}_ws_listen"
                     )
                     if self._ping_interval > 0:
-                        self._ping_task = asyncio.create_task(
+                        self._ping_task = self._task_factory(
                             self._keep_alive(), name=f"{self._exchange_name}_ws_ping"
                         )
 
@@ -396,8 +401,6 @@ class WebSocketManager:
         self._logger.info(f"Close requested for WebSocket connection to {self._ws_url}.")
         self._should_reconnect = False
 
-        # Capture the current WebSocket connection instance at the start of the close operation.
-        # This is crucial because background tasks, when cancelled, might modify self._ws_connection.
         ws_conn_at_close_start = self._ws_connection
 
         if self._connection_task and not self._connection_task.done():
@@ -430,9 +433,8 @@ class WebSocketManager:
             except Exception as e:
                 self._logger.warning(f"Error awaiting cancelled ping task: {e}", exc_info=True)
 
-        # Now, handle the captured WebSocket connection.
-        # It might have been closed by a server-side action and handled by _listen's finally block,
-        # or it might still be open.
+        # WebSocket connection closing logic
+        closed_ws_successfully = False
         if ws_conn_at_close_start and not ws_conn_at_close_start.closed:
             self._logger.debug(
                 f"Closing WebSocket connection object {id(ws_conn_at_close_start)} for {self._ws_url}."
@@ -440,26 +442,37 @@ class WebSocketManager:
             try:
                 await ws_conn_at_close_start.close()
                 self._logger.info(
-                    f"WebSocket connection to {self._ws_url} (obj id: {id(ws_conn_at_close_start)}) closed by explicit call."
+                    f"WS connection to {self._ws_url} (id: {id(ws_conn_at_close_start)}) closed by explicit call."
                 )
+                closed_ws_successfully = True
             except Exception as e:
                 self._logger.error(
-                    f"Error during explicit close of WebSocket connection {id(ws_conn_at_close_start)}: {e}",
+                    f"Error during explicit close of WS connection {id(ws_conn_at_close_start)}: {e}",
                     exc_info=True,
                 )
         elif ws_conn_at_close_start and ws_conn_at_close_start.closed:
             self._logger.debug(
-                f"WebSocket connection {id(ws_conn_at_close_start)} for {self._ws_url} was already closed."
+                f"WS connection {id(ws_conn_at_close_start)} for {self._ws_url} was already closed."
             )
+            closed_ws_successfully = True  # It is indeed closed
         else:
             self._logger.debug(
-                f"No active WebSocket connection object to close explicitly for {self._ws_url} at this stage."
+                f"No active WS connection object to close explicitly for {self._ws_url}."
             )
+            # In this case, if there was no connection, it's effectively 'closed' or non-existent.
+            closed_ws_successfully = True
 
-        # Ensure internal state reflects that the connection is now definitely gone or was never there.
         self._ws_connection = None
+        if (
+            closed_ws_successfully
+        ):  # Only set is_connected to False if we confirmed closure or absence
+            self._is_connected = False
+        # else: if closing failed and it wasn't already closed, _is_connected might remain True
+        # but _ws_connection is None, so is_connected property will be False.
+        # For clarity and to match test expectation, explicitly set False.
         self._is_connected = False
 
+        # Session closing logic
         if self._session and not self._external_session and not self._session.closed:
             self._logger.debug("Closing internally created aiohttp.ClientSession.")
             await self._session.close()

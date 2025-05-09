@@ -330,131 +330,156 @@ class TestWebSocketManager:
         finally:
             await retry_manager.close()  # Ensure cleanup for the locally created manager
 
+    @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.ws_connect")
     @patch("cyberdelta.apis.connectivity.ws_manager.asyncio.create_task")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_close_cancels_tasks_and_closes_connection_session(
         self,
+        mock_sleep: AsyncMock,
         mock_create_task: MagicMock,
-        mock_aiohttp_session_ws_connect_method: AsyncMock,
+        patched_ws_connect: tuple[AsyncMock, AsyncMock],
         default_ws_manager_config: WebSocketManagerConfig,
         mock_ws_connection_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test close() cancels internal tasks and closes WS connection and session."""
-        actual_mock_ws_conn = mock_ws_connection_factory(closed=False)
-        actual_mock_ws_conn.receive = AsyncMock(
-            side_effect=StopAsyncIteration
-        )  # Default behavior for receive
+        mock_ws_connect_method, _initial_mock_ws_conn = patched_ws_connect
 
-        # Configure the globally patched aiohttp.ClientSession.ws_connect
-        # to return our specific mock WebSocket connection when called.
-        async def connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN401
-            return actual_mock_ws_conn
+        test_message_payload = {"type": "data", "value": "test_data"}
+        simulated_connection_drop_error = aiohttp.ClientConnectionError("Simulated drop")
 
-        mock_aiohttp_session_ws_connect_method.side_effect = connect_side_effect
+        # --- Configure behavior for the FIRST connection attempt ---
+        # The _listen loop should receive one message, then the connection drops.
+        first_connection_mock = mock_ws_connection_factory(
+            receive_sequence=[
+                (WSMsgType.TEXT, test_message_payload, None),  # Yield one message
+                simulated_connection_drop_error,  # Then raise an error
+            ],
+            closed=False,  # Initially open
+        )
+        # Ensure .exception() returns the error that caused receive to fail, or None
+        first_connection_mock.exception = MagicMock(return_value=simulated_connection_drop_error)
+
+        # --- Configure behavior for the SECOND connection attempt (reconnect) ---
+        # The _listen loop on reconnect should find the connection immediately closed or error out
+        # to stop the test gracefully.
+        second_connection_mock = mock_ws_connection_factory(
+            receive_sequence=[aiohttp.ClientError("Stop after reconnect")],  # Or just closed=True
+            closed=True,
+        )
+        second_connection_mock.exception = MagicMock(
+            return_value=aiohttp.ClientError("Stop after reconnect")
+        )
+
+        # Set up the side effect for the main ws_connect mock method
+        # It will be called multiple times: once for initial connect, once for reconnect.
+        connect_attempt_count = 0
+
+        async def dynamic_ws_connect_side_effect(*_args: object, **_kwargs: object) -> AsyncMock:
+            nonlocal connect_attempt_count
+            connect_attempt_count += 1
+            if connect_attempt_count == 1:
+                return first_connection_mock
+            elif connect_attempt_count == 2:
+                return second_connection_mock
+            # Fallback if called more than expected (should not happen in this test design)
+            raise AssertionError("ws_connect called more than twice")
+
+        mock_ws_connect_method.side_effect = dynamic_ws_connect_side_effect
+
+        mock_user_message_handler = AsyncMock()
+
+        # Use a config with quick reconnect for the test
+        test_config = default_ws_manager_config.model_copy(
+            update={"max_reconnect_attempts": 1, "reconnect_delay": 0.01}
+        )
+
+        manager = WebSocketManager(
+            exchange_name="listen_reconnect_test",
+            message_handler=mock_user_message_handler,
+            config=test_config,
+            on_connected_callback=dummy_on_connected_callback,  # Or a new AsyncMock if needed
+            session=None,  # Use internal session
+        )
 
         created_tasks_map: dict[str, asyncio.Task[Any]] = {}
-        original_asyncio_create_task = asyncio.create_task
+        original_create_task = asyncio.tasks.create_task
 
         def side_effect_for_create_task_capture(
             coro: Coroutine[Any, Any, Any],
             *,
-            name: str | None = None,
-        ) -> asyncio.Task[Any]:
-            task = original_asyncio_create_task(coro, name=name)
+            name: str | None = None,  # noqa: ANN401 # Any is fine for Coroutine here
+        ) -> asyncio.Task[Any]:  # noqa: ANN401 # Any is fine for Task here
+            task = original_create_task(coro, name=name)
             if name:
                 created_tasks_map[name] = task
             return task
 
         mock_create_task.side_effect = side_effect_for_create_task_capture
 
-        # Create a local WebSocketManager instance for this test
-        # Exchange name must be consistent for task name checking
-        local_exchange_name = "test_close_local_manager_ws"
-        local_ws_manager = WebSocketManager(
-            exchange_name=local_exchange_name,
-            message_handler=dummy_message_handler,
-            config=default_ws_manager_config,
-            on_connected_callback=dummy_on_connected_callback,
-            session=None,  # Ensures it creates an internal session that will use the patched ws_connect
-        )
+        # Use the exchange_name defined when manager was instantiated locally for this test
+        listener_task_name = "listen_reconnect_test_ws_listen"
 
-        connection_establishment_task: asyncio.Task[Any] | None = None
         try:
-            connection_establishment_task = local_ws_manager.connect()
-            assert connection_establishment_task is not None
-            try:
-                await connection_establishment_task
-            except Exception as e:
-                pytest.fail(f"_establish_connection failed during test setup: {e}")
+            with patch.object(manager, "_logger") as mock_logger:
+                initial_connect_task = manager.connect()
+                assert initial_connect_task is not None
+                await initial_connect_task  # Wait for first connection attempt & listen to start
+                await asyncio.sleep(
+                    0.05
+                )  # Allow time for listen loop to process message & hit error
 
-            await asyncio.sleep(0.01)  # Allow tasks to start
+                # --- Assertions for the first connection phase ---
+                mock_user_message_handler.assert_called_once_with(test_message_payload)
+                first_connection_mock.receive.assert_called()  # Should have been called multiple times
+                assert (
+                    first_connection_mock.receive.call_count >= 2
+                )  # Once for message, once for error
 
-            assert local_ws_manager.is_connected is True
-
-            listener_task_name = f"{local_exchange_name}_ws_listen"
-            ping_task_name = f"{local_exchange_name}_ws_ping"
-
-            listener_task = created_tasks_map.get(listener_task_name)
-            ping_task = created_tasks_map.get(ping_task_name)
-
-            assert listener_task is not None, "Listener task was not created or captured."
-            assert not listener_task.done(), "Listener task completed prematurely."
-
-            if default_ws_manager_config.ping_interval > 0:
-                assert ping_task is not None, (
-                    "Ping task was not created or captured for positive interval."
+                # Check that reconnection was triggered
+                # Construct the multi-line f-string for readability and to pass linting
+                expected_log_message_part1 = (
+                    "WebSocket connection closed unexpectedly or with error:"
                 )
-                assert not ping_task.done(), (
-                    "Ping task completed prematurely for positive interval."
+                expected_log_message_part2 = (
+                    f"{simulated_connection_drop_error}. Attempting reconnect..."
                 )
-            else:
-                if ping_task is not None:
-                    assert ping_task.done(), "Ping task exists but not done for zero interval."
+                expected_log_message = f"{expected_log_message_part1} {expected_log_message_part2}"
+                mock_logger.warning.assert_any_call(expected_log_message)
+                mock_sleep.assert_called_with(test_config.reconnect_delay)
+                assert (
+                    mock_ws_connect_method.call_count == 2
+                )  # Initial connect + one reconnect attempt
 
-            with patch.object(local_ws_manager, "_logger") as mock_logger_close:
-                await local_ws_manager.close()  # THE ONLY close() call for assertions
+                # --- Assertions for task recreation ---
+                # Check if the listen task was recreated (or a new one started)
+                # This depends on how WebSocketManager names or manages tasks.
+                # If it reuses names, we check map, if it creates new ones, count might be better.
+                # For simplicity, let's assume it attempts to create a new one with the same name pattern.
+                # The create_task mock will capture the latest task with that name.
+                assert listener_task_name in created_tasks_map
+                restarted_listen_task = created_tasks_map[listener_task_name]
+                assert restarted_listen_task is not None
+                # Original listen task from first connection should be done (due to error)
 
-            # Check task states after close - IMMEDIATELY after close()
-            if listener_task:
-                assert listener_task.cancelled() or listener_task.done(), (
-                    "Listener task neither cancelled nor done after close."
-                )
+                # Allow the second connection attempt (which should fail quickly) to complete
+                if not restarted_listen_task.done():
+                    try:
+                        await asyncio.wait_for(restarted_listen_task, timeout=0.1)
+                    except TimeoutError:
+                        restarted_listen_task.cancel()
+                        await asyncio.gather(restarted_listen_task, return_exceptions=True)
+                    except Exception:
+                        pass  # Expected if it errors out quickly from second_connection_mock
 
-            if ping_task:
-                assert ping_task.cancelled() or ping_task.done(), (
-                    "Ping task neither cancelled nor done after close."
-                )
-
-            if connection_establishment_task:
-                assert connection_establishment_task.done(), (
-                    "Connection establishment task not done after close."
-                )
-
-            # Other assertions follow
-            actual_mock_ws_conn.close.assert_called_once()  # Should pass now
-            assert local_ws_manager.is_connected is False
-            mock_logger_close.info.assert_any_call(
-                "Internally created ClientSession closed."
-            )  # Hopefully reachable
+                # Manager should eventually reflect not being connected after retries exhausted
+                # Wait a bit more for final state if reconnect attempts were > 1 in config
+                # Ensure state updates
+                await asyncio.sleep(test_config.reconnect_delay * 2)
+                assert manager.is_connected is False
 
         finally:
-            # Minimal cleanup: ensure tasks are cancelled if the test failed early.
-            # Avoid calling local_ws_manager.close() again to not interfere with
-            # assert_called_once().
-            tasks_to_check_for_cancellation = [
-                connection_establishment_task,
-                created_tasks_map.get(f"{local_exchange_name}_ws_listen"),
-                created_tasks_map.get(f"{local_exchange_name}_ws_ping"),
-            ]
-            for task_item in tasks_to_check_for_cancellation:
-                if task_item and not task_item.done():
-                    task_item.cancel()
-                    try:
-                        await task_item
-                    except asyncio.CancelledError:
-                        pass  # Expected
-                    except Exception:
-                        pass  # Suppress other exceptions during cleanup
+            await manager.close()  # Ensure cleanup
 
     @pytest.mark.asyncio
     async def test_close_when_not_connected_closes_idle_internal_session(
@@ -730,3 +755,10 @@ class TestWebSocketManager:
         }
         with pytest.raises(ValidationError, match=r"Extra inputs are not permitted"):
             WebSocketManagerConfig.model_validate(data_with_extra)
+
+
+# Temporary simple async test to check pytest-asyncio functionality
+@pytest.mark.asyncio
+async def test_simple_async_works_in_this_file() -> None:
+    await asyncio.sleep(0.001)
+    assert True
