@@ -18,7 +18,8 @@ from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
-from aiohttp import ClientWebSocketResponse
+from aiohttp import ClientTimeout, ClientWebSocketResponse
+from aiohttp.helpers import sentinel
 
 # Import the config model
 from .connectivity_models import WebSocketManagerConfig
@@ -93,8 +94,13 @@ class WebSocketManager:
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create an aiohttp ClientSession."""
         if self._session is None or self._session.closed:
-            self._logger.info("Creating new aiohttp.ClientSession.")
-            self._session = aiohttp.ClientSession()
+            self._logger.info(
+                "Creating new aiohttp.ClientSession with connect timeout: %s",
+                self._connection_timeout,
+            )
+            # Use self._connection_timeout for the 'connect' part of ClientTimeout
+            session_timeout = ClientTimeout(connect=self._connection_timeout)
+            self._session = aiohttp.ClientSession(timeout=session_timeout)
             self._external_session = False
         return self._session
 
@@ -171,7 +177,7 @@ class WebSocketManager:
                     self._ws_connection = await session.ws_connect(
                         self._ws_url,
                         heartbeat=server_expected_ping_interval,
-                        timeout=self._connection_timeout,  # type: ignore[arg-type] # Reverting to float + ignore
+                        timeout=sentinel,
                     )
                     self._is_connected = True
                     current_attempt = 0
@@ -437,7 +443,8 @@ class WebSocketManager:
         closed_ws_successfully = False
         if ws_conn_at_close_start and not ws_conn_at_close_start.closed:
             self._logger.debug(
-                f"Closing WebSocket connection object {id(ws_conn_at_close_start)} for {self._ws_url}."
+                f"Closing WebSocket connection object {id(ws_conn_at_close_start)} "
+                f"for {self._ws_url}."
             )
             try:
                 await ws_conn_at_close_start.close()
