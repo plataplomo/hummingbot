@@ -1,5 +1,6 @@
 import json  # For JSONDecodeError test
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
@@ -39,7 +40,7 @@ def mock_rate_limiter_service() -> RateLimiterService:
     service = MagicMock(spec=RateLimiterService)
     limiter_instance = AsyncMock(spec=TokenBucketRateLimiterRuntime)
     service.get_limiter.return_value = limiter_instance
-    return service  # Workaround for type checker struggling with MagicMock as RateLimiterService
+    return service
 
 
 @pytest.fixture
@@ -48,18 +49,46 @@ def mock_authenticator() -> IAuthenticator:
     auth.prepare_request.return_value = AuthenticatedRequestComponents(
         headers={"X-Auth": "dummy_sig"},
         params={"auth_param": "val"},
-        data=None,  # Authenticator typically doesn't modify body data, just params/headers
+        data=None,
     )
-    return auth  # Workaround
+    return auth
 
 
 @pytest_asyncio.fixture
 async def http_client_instance(
     default_http_client_config: HttpClientConfig,
-) -> AsyncGenerator[HttpClient]:  # Added None to AsyncGenerator type
+) -> AsyncGenerator[HttpClient]:
     client = HttpClient(exchange_name="test_exchange", config=default_http_client_config)
     yield client
     await client.close_session()
+
+
+@pytest.fixture
+def mock_aiohttp_response_factory() -> Callable[..., AsyncMock]:
+    """Factory fixture to create AsyncMock(spec=aiohttp.ClientResponse) instances."""
+
+    def _factory(
+        status_code: int = 200,
+        headers_dict: dict[str, str] | None = None,
+        body_text: str | None = None,
+        json_body: dict[str, Any] | list[Any] | None = None,
+        side_effect_for_text: Exception | None = None,
+        reason: str | None = None,  # Added reason for status line
+    ) -> AsyncMock:
+        response_mock = AsyncMock(spec=aiohttp.ClientResponse)
+        response_mock.status = status_code
+        response_mock.reason = reason  # Standard attribute for HTTP status reason
+        response_mock.headers = CIMultiDictProxy(CIMultiDict[str](headers_dict or {}))
+
+        if side_effect_for_text:
+            response_mock.text = AsyncMock(side_effect=side_effect_for_text)
+        elif json_body is not None:
+            response_mock.text = AsyncMock(return_value=json.dumps(json_body))
+        else:
+            response_mock.text = AsyncMock(return_value=body_text or "")
+        return response_mock
+
+    return _factory
 
 
 class TestHttpClient:
@@ -267,8 +296,10 @@ class TestHttpClient:
         assert processed_headers.content_type == "application/json; charset=utf-8"
         assert raw_headers.get("Content-Type") == "application/json; charset=utf-8"
 
-        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/test")  # type: ignore[attr-defined]
-        mock_rate_limiter_service.get_limiter.return_value.acquire.assert_called_once()  # type: ignore[attr-defined]
+        # pyright: ignore [reportAttributeAccessIssue]
+        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/test")
+        # pyright: ignore [reportAttributeAccessIssue]
+        mock_rate_limiter_service.get_limiter.return_value.acquire.assert_called_once()
 
         full_expected_url = str(default_http_client_config.rest_endpoint).rstrip("/") + "/test"
         # We can't easily get the session_for_headers without private access.
@@ -768,18 +799,17 @@ class TestHttpClientRequestResponseParsing:
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
+        mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with a valid JSON response."""
         mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
-        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_aio_response.status = 200
-        mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]([("Content-Type", "application/json; charset=utf-8")])
-        )
         expected_data = {"key": "value", "num": 123}
-        mock_aio_response.text = AsyncMock(return_value=json.dumps(expected_data))
+        headers = {"Content-Type": "application/json; charset=utf-8"}
+        mock_aio_response = mock_aiohttp_response_factory(
+            status_code=200, json_body=expected_data, headers_dict=headers
+        )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, processed_headers, raw_headers = await http_client_instance.request(
@@ -798,18 +828,17 @@ class TestHttpClientRequestResponseParsing:
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
+        mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with a valid plain text response."""
         mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
-        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_aio_response.status = 200
-        mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]([("Content-Type", "text/plain")])
-        )
         expected_text = "Hello, World!"
-        mock_aio_response.text = AsyncMock(return_value=expected_text)
+        headers = {"Content-Type": "text/plain"}
+        mock_aio_response = mock_aiohttp_response_factory(
+            status_code=200, body_text=expected_text, headers_dict=headers
+        )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, processed_headers, raw_headers = await http_client_instance.request(
@@ -828,15 +857,18 @@ class TestHttpClientRequestResponseParsing:
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
+        mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with a 204 No Content response."""
         mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
-        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_aio_response.status = 204
-        mock_aio_response.headers = CIMultiDictProxy(CIMultiDict[str]())  # Empty headers for 204
-        mock_aio_response.text = AsyncMock(return_value="")  # Should not be called
+        mock_aio_response = mock_aiohttp_response_factory(
+            status_code=204, headers_dict={}
+        )  # Empty headers for 204
+        # For 204, text() should ideally not be called by the client code,
+        # but if it were, factory provides "" by default for body_text=None.
+        # The key is that HttpClient._parse_and_validate_response should not call .text() for 204.
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, processed_headers, raw_headers = await http_client_instance.request(
@@ -847,6 +879,8 @@ class TestHttpClientRequestResponseParsing:
         assert processed_headers.content_type == ""  # Default if not present
         assert isinstance(raw_headers, CIMultiDictProxy)
         assert not raw_headers  # Empty
+        # To assert that response.text() was not called by HttpClient._parse_and_validate_response,
+        # we need to access the .text mock on mock_aio_response created by the factory.
         mock_aio_response.text.assert_not_called()
         mock_session_instance.request.assert_called_once()
 
@@ -857,18 +891,19 @@ class TestHttpClientRequestResponseParsing:
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
+        mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with Content-Type too long."""
         mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
-        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_aio_response.status = 200
         invalid_ct = "a" * (MAX_CONTENT_TYPE_LENGTH + 5)
-        mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]([("Content-Type", invalid_ct)])
+        headers = {"Content-Type": invalid_ct}
+        mock_aio_response = mock_aiohttp_response_factory(
+            status_code=200,
+            headers_dict=headers,
+            body_text='{"key": "value"}',  # Body itself is fine
         )
-        mock_aio_response.text = AsyncMock(return_value='{"key": "value"}')
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
@@ -887,16 +922,18 @@ class TestHttpClientRequestResponseParsing:
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
+        mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with missing Content-Type (defaults to empty string)."""
         mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
-        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_aio_response.status = 200
-        mock_aio_response.headers = CIMultiDictProxy(CIMultiDict[str]())  # No C-Type header
         expected_text = "some text"
-        mock_aio_response.text = AsyncMock(return_value=expected_text)
+        mock_aio_response = mock_aiohttp_response_factory(
+            status_code=200,
+            headers_dict={},  # No Content-Type header
+            body_text=expected_text,
+        )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         content, processed_headers, _ = await http_client_instance.request(
@@ -913,18 +950,17 @@ class TestHttpClientRequestResponseParsing:
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
+        mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() raising HttpRequestFailedError with a JSONDecodeError cause."""
         mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
-        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_aio_response.status = 200
-        mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]([("Content-Type", "application/json")])
-        )
         malformed_json = "not valid json{"
-        mock_aio_response.text = AsyncMock(return_value=malformed_json)
+        headers = {"Content-Type": "application/json"}
+        mock_aio_response = mock_aiohttp_response_factory(
+            status_code=200, headers_dict=headers, body_text=malformed_json
+        )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
@@ -944,18 +980,19 @@ class TestHttpClientRequestResponseParsing:
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
+        mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with ClientPayloadError on response.text()."""
         mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
-        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_aio_response.status = 200
-        mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]([("Content-Type", "application/json")])  # C-Type doesn't matter here
-        )
         payload_error = aiohttp.ClientPayloadError("Simulated payload read failure")
-        mock_aio_response.text = AsyncMock(side_effect=payload_error)
+        # Content-Type doesn't matter here as .text() will fail first
+        mock_aio_response = mock_aiohttp_response_factory(
+            status_code=200,
+            headers_dict={"Content-Type": "application/json"},
+            side_effect_for_text=payload_error,
+        )
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         http_client_instance.max_retries = 0  # Test with no retries for direct error
@@ -964,10 +1001,10 @@ class TestHttpClientRequestResponseParsing:
                 "GET", "/test_payload_err", mock_rate_limiter_service
             )
 
-        assert excinfo.value.http_status == 200  # Original status from response object
+        assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.NETWORK_ISSUE.value
         assert "Failed to read response body" in excinfo.value.message
-        assert excinfo.value.exchange_message is None  # Body could not be read
+        assert excinfo.value.exchange_message is None
         assert isinstance(excinfo.value.__cause__, aiohttp.ClientPayloadError)
         mock_session_instance.request.assert_called_once()
 
@@ -978,17 +1015,18 @@ class TestHttpClientRequestResponseParsing:
         MockAiohttpSession: MagicMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
+        mock_aiohttp_response_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test request() with JSON Content-Type but None/empty body (not 204)."""
         mock_session_instance = AsyncMock(spec=aiohttp.ClientSession)
         MockAiohttpSession.return_value = mock_session_instance
 
-        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_aio_response.status = 200  # Not 204
-        mock_aio_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]([("Content-Type", "application/json")])
+        headers = {"Content-Type": "application/json"}
+        mock_aio_response = mock_aiohttp_response_factory(
+            status_code=200,  # Not 204
+            headers_dict=headers,
+            body_text="",  # Simulate empty body string
         )
-        mock_aio_response.text = AsyncMock(return_value="")  # Simulate empty body string
         mock_session_instance.request.return_value.__aenter__.return_value = mock_aio_response
 
         with pytest.raises(HttpRequestFailedError) as excinfo:

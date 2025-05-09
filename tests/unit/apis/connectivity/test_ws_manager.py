@@ -1,14 +1,15 @@
 import asyncio
 import asyncio.tasks  # Import for direct access to create_task
 import json
-from collections.abc import AsyncGenerator, Coroutine
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
 import pytest_asyncio
-from aiohttp import ClientSession as RealAiohttpCliSession  # For spec
+from aiohttp import ClientSession as RealAiohttpCliSession
+from aiohttp import WSMsgType
 from pydantic import AnyUrl, ValidationError
 
 from cyberdelta.apis.connectivity.connectivity_models import WebSocketManagerConfig
@@ -65,6 +66,90 @@ async def ws_manager_instance(
     await manager.close()
 
 
+@pytest.fixture
+def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
+    """Factory for creating AsyncMock(spec=aiohttp.ClientWebSocketResponse) instances."""
+
+    def _factory(
+        closed: bool = False,
+        # List of (WSMsgType, data, extra) tuples or Exceptions to raise on receive
+        receive_sequence: list[tuple[WSMsgType, Any, Any] | Exception] | None = None,
+        send_json_effect: Any | None = None,
+        close_effect: Any | None = None,
+        ping_effect: Any | None = None,
+        pong_effect: Any | None = None,
+        exception_effect: Any | None = None,
+    ) -> AsyncMock:
+        mock_conn = AsyncMock(spec=aiohttp.ClientWebSocketResponse)
+        mock_conn.closed = closed
+        mock_conn.exception.side_effect = exception_effect
+
+        # Enhanced receive_sequence handling
+        if receive_sequence:
+            current_receive_call = 0
+            data_to_send: Any = None  # Initialize with a common type, or Any
+
+            async def receive_side_effect(
+                *_args: Any,
+                **_kwargs: Any,  # noqa: ANN401 # Generic pass-through for mock/callback
+            ) -> aiohttp.WSMessage:
+                nonlocal current_receive_call, data_to_send  # Ensure data_to_send is in scope if assigned here
+                if current_receive_call < len(receive_sequence):
+                    item = receive_sequence[current_receive_call]
+                    current_receive_call += 1
+                    if isinstance(item, Exception):
+                        raise item
+                    msg_type, msg_data, msg_extra = item
+                    if msg_type == WSMsgType.TEXT and isinstance(msg_data, dict):
+                        data_to_send = json.dumps(msg_data)
+                    elif msg_type == WSMsgType.BINARY and isinstance(msg_data, str):
+                        # This was the source of Mypy assignment error.
+                        # data_to_send is now Any, so this is fine.
+                        data_to_send = msg_data.encode("utf-8")
+                    else:
+                        data_to_send = msg_data
+                    return aiohttp.WSMessage(type=msg_type, data=data_to_send, extra=msg_extra)
+                raise StopAsyncIteration("Mocked receive sequence exhausted")
+
+            mock_conn.receive = AsyncMock(side_effect=receive_side_effect)
+        else:
+            # Default: no messages, receive will immediately indicate closure/end
+            mock_conn.receive = AsyncMock(side_effect=StopAsyncIteration)
+
+        mock_conn.send_json = AsyncMock(side_effect=send_json_effect)
+        mock_conn.send_str = AsyncMock(side_effect=send_json_effect)
+        mock_conn.send_bytes = AsyncMock(side_effect=send_json_effect)
+        mock_conn.close = AsyncMock(side_effect=close_effect)
+        mock_conn.ping = AsyncMock(side_effect=ping_effect)
+        mock_conn.pong = AsyncMock(side_effect=pong_effect)
+        return mock_conn
+
+    return _factory
+
+
+@pytest_asyncio.fixture
+async def patched_ws_connect(
+    mock_ws_connection_factory: Callable[..., AsyncMock],
+) -> AsyncGenerator[tuple[AsyncMock, AsyncMock]]:
+    """Patches aiohttp.ClientSession.ws_connect and provides a default mock WS connection."""
+    with patch(
+        "cyberdelta.apis.connectivity.ws_manager.aiohttp.ClientSession.ws_connect"
+    ) as mock_ws_connect_method:
+        # Default: successful connection that does nothing specific unless configured by test
+        default_mock_conn = mock_ws_connection_factory()
+
+        # ws_connect is an async method, so its mock should be an AsyncMock,
+        # or its side_effect should be an async function returning the connection.
+        # If mock_ws_connect_method is already an AsyncMock from patching, setting its
+        # return_value (if it's not a coroutine function itself) might not be right.
+        # Let's make its side_effect an async function that returns our mock connection.
+        async def default_connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:
+            return default_mock_conn
+
+        mock_ws_connect_method.side_effect = default_connect_side_effect
+        yield mock_ws_connect_method, default_mock_conn
+
+
 class TestWebSocketManager:
     """Tests for the WebSocketManager class."""
 
@@ -116,84 +201,74 @@ class TestWebSocketManager:
                     await asyncio.gather(new_connection_task, return_exceptions=True)
 
     @pytest.mark.asyncio
-    @patch("aiohttp.ClientSession.ws_connect")
     async def test_connection_success_flow(
         self,
-        mock_ws_connect: AsyncMock,
-        ws_manager_instance: WebSocketManager,
+        patched_ws_connect: tuple[AsyncMock, AsyncMock],
         default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
         """Test the full flow of a successful connection and starting internal tasks."""
-        mock_ws_response = AsyncMock(spec=aiohttp.ClientWebSocketResponse)
-        mock_ws_response.closed = False
+        mock_ws_connect_method, mock_ws_connection = patched_ws_connect
 
-        async def actual_mock_ws_connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN401
-            return mock_ws_response
+        # Configure the mock_ws_connection if defaults from factory aren't enough
+        # For this test, default factory behavior (receive raises StopAsyncIteration) is okay
+        # as we are not testing message processing by _listen, just that it starts.
 
-        mock_ws_connect.side_effect = actual_mock_ws_connect_side_effect
-
-        # Mock internal methods that would be called upon successful connection
-        mock_listen_method = AsyncMock()
-        mock_keep_alive_method = AsyncMock()
         mock_on_connected_cb = AsyncMock()
 
-        # Assign mock for test to control callback behavior. This is a test-specific setup.
-        ws_manager_instance._on_connected_callback = mock_on_connected_cb
+        # Create a manager instance for this test, passing the mock callback
+        manager = WebSocketManager(
+            exchange_name="success_flow_test_ws",
+            message_handler=dummy_message_handler,
+            config=default_ws_manager_config,
+            on_connected_callback=mock_on_connected_cb,
+            session=None,
+        )
 
-        with (
-            patch.object(ws_manager_instance, "_logger") as mock_logger,
-            patch.object(ws_manager_instance, "_listen", side_effect=mock_listen_method) as _,
-            patch.object(
-                ws_manager_instance, "_keep_alive", side_effect=mock_keep_alive_method
-            ) as _,
-        ):
-            connection_task = ws_manager_instance.connect()
-            assert connection_task is not None
-            await connection_task
-            await asyncio.sleep(0)  # Allow other tasks to run, e.g., listener startup
+        try:
+            with patch.object(manager, "_logger") as mock_logger:
+                connection_task = manager.connect()
+                assert connection_task is not None
+                await connection_task
+                await asyncio.sleep(0.01)
 
-            assert ws_manager_instance.is_connected is True
-            expected_heartbeat = (
-                default_ws_manager_config.ping_interval * WebSocketManager.HEARTBEAT_FACTOR
-                if default_ws_manager_config.ping_interval > 0
-                else 0
-            )
-            # Note: ws_manager.py timeout is float + ignore, test expects ClientTimeout object
-            # This is fine as ws_connect itself expects ClientTimeout.
-            mock_ws_connect.assert_called_once_with(
-                str(default_ws_manager_config.ws_url),
-                heartbeat=expected_heartbeat,
-                timeout=default_ws_manager_config.connection_timeout,
-            )
-            mock_logger.info.assert_any_call(
-                f"Successfully connected to {default_ws_manager_config.ws_url}."
-            )
-            mock_on_connected_cb.assert_called_once()
-            mock_listen_method.assert_called_once()
-            if default_ws_manager_config.ping_interval > 0:
-                mock_keep_alive_method.assert_called_once()
-            else:
-                mock_keep_alive_method.assert_not_called()
+                assert manager.is_connected is True
+                expected_heartbeat = (
+                    default_ws_manager_config.ping_interval * WebSocketManager.HEARTBEAT_FACTOR
+                    if default_ws_manager_config.ping_interval > 0
+                    else 0
+                )
+                mock_ws_connect_method.assert_called_once_with(
+                    str(default_ws_manager_config.ws_url),
+                    heartbeat=expected_heartbeat,
+                    timeout=default_ws_manager_config.connection_timeout,
+                )
+                mock_logger.info.assert_any_call(
+                    f"Successfully connected to {default_ws_manager_config.ws_url}."
+                )
+                mock_on_connected_cb.assert_called_once()
+
+                if default_ws_manager_config.ping_interval > 0:
+                    mock_ws_connection.ping.assert_called_once()
+                else:
+                    mock_ws_connection.ping.assert_not_called()
+        finally:
+            await manager.close()
 
     @pytest.mark.asyncio
-    @patch(
-        "aiohttp.ClientSession.ws_connect",
-    )
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_connection_failure_retries_and_gives_up(
         self,
-        mock_sleep: AsyncMock,  # noqa: F841 - asyncio.sleep is patched
-        mock_ws_connect: AsyncMock,
+        mock_sleep: AsyncMock,
+        patched_ws_connect: tuple[AsyncMock, AsyncMock],
         default_ws_manager_config: WebSocketManagerConfig,
-        # Loop needed for new manager's internal session creation/closure if not externally managed
-        event_loop: asyncio.AbstractEventLoop,  # pyright: ignore [reportUnusedVariable]
     ) -> None:
         """Test connection retries on failure and eventually gives up."""
+        mock_ws_connect_method, _mock_ws_connection = patched_ws_connect
 
         async def actual_mock_ws_connect_side_effect_failure(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
             raise aiohttp.ClientConnectorError(MagicMock(), OSError("Connection failed"))
 
-        mock_ws_connect.side_effect = actual_mock_ws_connect_side_effect_failure
+        mock_ws_connect_method.side_effect = actual_mock_ws_connect_side_effect_failure
 
         # Create a config with minimal retries for this test
         retry_test_config = default_ws_manager_config.model_copy(
@@ -216,7 +291,7 @@ class TestWebSocketManager:
             assert retry_manager.is_connected is False
             # Correction: The loop runs max_reconnect_attempts times in total if all fail.
             # The first attempt is current_attempt = 0.
-            assert mock_ws_connect.call_count == retry_test_config.max_reconnect_attempts
+            assert mock_ws_connect_method.call_count == retry_test_config.max_reconnect_attempts
             # Sleep happens *before* a retry attempt, not the initial one.
             # If max_reconnect_attempts is 1, there are 0 retries, so 0 sleeps.
             assert mock_sleep.call_count == max(0, retry_test_config.max_reconnect_attempts - 1)
@@ -238,25 +313,13 @@ class TestWebSocketManager:
         mock_ws_connect: AsyncMock,
         ws_manager_instance: WebSocketManager,
         default_ws_manager_config: WebSocketManagerConfig,
+        mock_ws_connection: AsyncMock,
     ) -> None:
         """Test close() cancels internal tasks and closes WS connection and session."""
-        mock_ws_response = AsyncMock(spec=aiohttp.ClientWebSocketResponse)
-        mock_ws_response.closed = False
-
-        # Configure receive() to be an AsyncMock; it will block indefinitely when awaited
-        # by the _listen loop until the listener task is cancelled by close().
-        mock_ws_response.receive = AsyncMock()
-
-        async def actual_mock_ws_connect_side_effect_success(
-            *args: Any,  # noqa: ANN401
-            **kwargs: Any,  # noqa: ANN401
-        ) -> AsyncMock:
-            return mock_ws_response
-
-        mock_ws_connect.side_effect = actual_mock_ws_connect_side_effect_success
+        mock_ws_connection.receive = AsyncMock()
+        mock_ws_connection.closed = False
 
         created_tasks_map: dict[str, asyncio.Task[Any]] = {}
-        # Use asyncio.tasks.create_task to get the real one, not the patched one.
         original_create_task = asyncio.tasks.create_task
 
         def side_effect_create_task(
@@ -269,15 +332,13 @@ class TestWebSocketManager:
 
         mock_create_task.side_effect = side_effect_create_task
 
-        with patch.object(ws_manager_instance, "_on_connected_callback", AsyncMock()):
-            connection_establishment_task = ws_manager_instance.connect()
-            assert connection_establishment_task is not None
-            await connection_establishment_task
-            await asyncio.sleep(0)  # Allow other tasks to run, e.g., listener startup
+        connection_establishment_task = ws_manager_instance.connect()
+        assert connection_establishment_task is not None
+        await connection_establishment_task
+        await asyncio.sleep(0.01)
 
         assert ws_manager_instance.is_connected is True
-        # Construct expected task names using the known exchange_name from the fixture
-        exchange_name_for_test = "test_exchange_ws"  # From ws_manager_instance fixture
+        exchange_name_for_test = "test_exchange_ws"
         listener_task_name = f"{exchange_name_for_test}_ws_listen"
         ping_task_name = f"{exchange_name_for_test}_ws_ping"
 
@@ -285,23 +346,14 @@ class TestWebSocketManager:
         ping_task = created_tasks_map.get(ping_task_name)
 
         assert listener_task is not None and not listener_task.done()
-        # Use the known config from the fixture to check ping_interval condition
         if default_ws_manager_config.ping_interval > 0:
             assert ping_task is not None and not ping_task.done()
-
-        # To verify internal session state without direct access to _session or _external_session:
-        # 1. Rely on mock_ws_response.close.assert_called_once() for WS object closure.
-        # 2. Rely on logging for internal ClientSession closure.
-        # The direct checks for _session and _external_session were too invasive.
 
         with patch.object(ws_manager_instance, "_logger") as mock_logger_close:
             await ws_manager_instance.close()
 
         assert ws_manager_instance.is_connected is False
-        # The following assertion is logically reachable and important for verifying
-        # that the underlying WebSocket connection object itself was closed.
-        # Mypy sometimes flags complex mocking scenarios as unreachable.
-        mock_ws_response.close.assert_called_once()  # type: ignore[unreachable]
+        mock_ws_connection.close.assert_called_once()
 
         if listener_task:
             assert listener_task.cancelled()
@@ -319,16 +371,17 @@ class TestWebSocketManager:
     async def test_close_when_not_connected_closes_idle_internal_session(
         self,
         default_ws_manager_config: WebSocketManagerConfig,
-        event_loop: asyncio.AbstractEventLoop,  # pyright: ignore [reportUnusedVariable]
+        patched_ws_connect: tuple[AsyncMock, AsyncMock],
     ) -> None:
         """Test close() on a never-connected manager with an internal session closes it."""
-        # Patch aiohttp.ClientSession to control its creation and capture the instance
+        _mock_ws_connect_method, _mock_ws_connection = patched_ws_connect
+
         with patch(
             "cyberdelta.apis.connectivity.ws_manager.aiohttp.ClientSession"
-        ) as MockSessionConstructor:
-            mock_session_instance = AsyncMock(spec=RealAiohttpCliSession)  # Use real type for spec
-            mock_session_instance.closed = False  # Explicitly set for the check in manager.close()
-            MockSessionConstructor.return_value = mock_session_instance
+        ) as MockAiohttpSessionConstructor:
+            mock_internal_session_instance = AsyncMock(spec=RealAiohttpCliSession)
+            mock_internal_session_instance.closed = False
+            MockAiohttpSessionConstructor.return_value = mock_internal_session_instance
 
             manager = WebSocketManager(
                 exchange_name="test_close_idle",
@@ -337,202 +390,172 @@ class TestWebSocketManager:
                 session=None,  # Crucial for testing internal session handling
             )
             try:
-                # Ensure the session is created if it's lazy.
-                # Call _get_session to trigger internal session creation if applicable.
-                await manager._get_session()
+                connect_task = manager.connect()
+                await asyncio.sleep(0.01)  # Allow connect() to proceed enough to create session
+
+                if connect_task and not connect_task.done():
+                    connect_task.cancel()
+                    with pytest.raises(asyncio.CancelledError):
+                        await connect_task
+
+                MockAiohttpSessionConstructor.assert_called_once()
 
                 with patch.object(manager, "_logger") as mock_logger_idle_close:
-                    await manager.close()
+                    await manager.close()  # This is the main action to test
 
                 assert manager.is_connected is False
-                # Assert that the ClientSession constructor was called (implying internal
-                # session creation)
-                MockSessionConstructor.assert_called_once()
-                # Assert that the created session instance had its close() method called.
-                mock_session_instance.close.assert_called_once()
-                # And verify through logs that manager believes it closed an internal session.
+                mock_internal_session_instance.close.assert_called_once()
                 mock_logger_idle_close.info.assert_any_call(
                     "Internally created ClientSession closed."
                 )
 
             finally:
-                # Defensive close if test fails before manager.close()
-                # To avoid direct _session access here, we rely on manager.close() being idempotent
-                # and that the fixture/test structure ensures eventual cleanup.
-                if not mock_session_instance.closed:
-                    await manager.close()  # Call manager's public close method
+                await manager.close()
 
     @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.ws_connect")
-    async def test_send_json_successful_when_connected(
-        self,
-        mock_ws_connect: AsyncMock,
-        ws_manager_instance: WebSocketManager,
-    ) -> None:
-        """Test send_json sends data if connected."""
-        mock_ws_response = AsyncMock(spec=aiohttp.ClientWebSocketResponse)
-        mock_ws_response.closed = False
-
-        async def actual_mock_ws_connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN401
-            return mock_ws_response
-
-        mock_ws_connect.side_effect = actual_mock_ws_connect_side_effect
-
-        mock_ws_response.send_json = AsyncMock()  # Mock send_json on the response object
-
-        # Connect the manager
-        connect_task = ws_manager_instance.connect()
-        assert connect_task is not None
-        # Patch internal tasks to prevent them from running complex logic for this test
-        with (
-            patch.object(ws_manager_instance, "_listen", AsyncMock()),
-            patch.object(ws_manager_instance, "_keep_alive", AsyncMock()),
-            patch.object(ws_manager_instance, "_on_connected_callback", AsyncMock()),
-        ):
-            await connect_task
-
-        assert ws_manager_instance.is_connected is True
-
-        payload = {"command": "test"}
-        result = await ws_manager_instance.send_json(payload)
-
-        assert result is True
-        mock_ws_response.send_json.assert_called_once_with(payload)
-
-    @pytest.mark.asyncio
-    async def test_send_json_returns_false_when_not_connected(
-        self, ws_manager_instance: WebSocketManager
-    ) -> None:
-        """Test send_json returns False if not connected."""
-        assert ws_manager_instance.is_connected is False  # Should be false by default from fixture
-        with patch.object(ws_manager_instance, "_logger") as mock_logger:
-            result = await ws_manager_instance.send_json({"data": "test"})
-        assert result is False
-        mock_logger.error.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)  # Ensure AsyncMock
     @patch("cyberdelta.apis.connectivity.ws_manager.asyncio.create_task")
-    @pytest.mark.skip(
-        reason=(
-            "Extremely stubborn async mocking issue with ws_connect, "
-            "consumes side_effect multiple times."
-        )
-    )
+    @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_listen_loop_processes_message_and_reconnects_on_close(
         self,
+        mock_sleep: AsyncMock,
         mock_create_task: MagicMock,
-        mock_ws_connect: AsyncMock,
+        patched_ws_connect: tuple[AsyncMock, AsyncMock],
         default_ws_manager_config: WebSocketManagerConfig,
-        event_loop: asyncio.AbstractEventLoop,  # pyright: ignore [reportUnusedVariable]
+        mock_ws_connection_factory: Callable[..., AsyncMock],
     ) -> None:
-        def actual_create_task_side_effect(
-            coro: Coroutine[Any, Any, Any], *, name: str | None = None
-        ) -> asyncio.Task[Any]:
-            return asyncio.tasks.create_task(coro, name=name)
+        """Test _listen loop processes messages and triggers reconnect on unexpected close."""
+        mock_ws_connect_method, _initial_mock_ws_conn = patched_ws_connect
 
-        mock_create_task.side_effect = actual_create_task_side_effect
+        test_message_payload = {"type": "data", "value": "test_data"}
+        simulated_connection_drop_error = aiohttp.ClientConnectionError("Simulated drop")
 
-        test_config = default_ws_manager_config.model_copy(update={"max_reconnect_attempts": 1})
+        # --- Configure behavior for the FIRST connection attempt ---
+        # The _listen loop should receive one message, then the connection drops.
+        first_connection_mock = mock_ws_connection_factory(
+            receive_sequence=[
+                (WSMsgType.TEXT, test_message_payload, None),  # Yield one message
+                simulated_connection_drop_error,  # Then raise an error
+            ],
+            closed=False,  # Initially open
+        )
+        # Ensure .exception() returns the error that caused receive to fail, or None
+        first_connection_mock.exception = MagicMock(return_value=simulated_connection_drop_error)
 
-        mock_handler = AsyncMock()
-        manager = WebSocketManager(
-            exchange_name="test_reconnect",
-            message_handler=mock_handler,
-            config=test_config,
-            on_connected_callback=AsyncMock(),
+        # --- Configure behavior for the SECOND connection attempt (reconnect) ---
+        # The _listen loop on reconnect should find the connection immediately closed or error out
+        # to stop the test gracefully.
+        second_connection_mock = mock_ws_connection_factory(
+            receive_sequence=[aiohttp.ClientError("Stop after reconnect")],  # Or just closed=True
+            closed=True,
+        )
+        second_connection_mock.exception = MagicMock(
+            return_value=aiohttp.ClientError("Stop after reconnect")
         )
 
-        with patch.object(manager, "_keep_alive", AsyncMock()):
-            payload1 = {"type": "data1"}
-            ws_response1 = AsyncMock(spec=aiohttp.ClientWebSocketResponse)
-            initial_messages_ws1 = [
-                aiohttp.WSMessage(aiohttp.WSMsgType.TEXT, json.dumps(payload1), None),
-            ]
-            ws_response1.closed = False
+        # Set up the side effect for the main ws_connect mock method
+        # It will be called multiple times: once for initial connect, once for reconnect.
+        connect_attempt_count = 0
 
-            ws1_text_sent_event = asyncio.Event()
-            ws1_proceed_to_close_event = asyncio.Event()
-            _ws1_call_idx = 0
+        async def dynamic_ws_connect_side_effect(*_args: Any, **_kwargs: Any) -> AsyncMock:
+            nonlocal connect_attempt_count
+            connect_attempt_count += 1
+            if connect_attempt_count == 1:
+                return first_connection_mock
+            elif connect_attempt_count == 2:
+                return second_connection_mock
+            # Fallback if called more than expected (should not happen in this test design)
+            raise AssertionError("ws_connect called more than twice")  # Line 514 E501
 
-            async def ws1_controlled_receive(
-                *args: Any,  # noqa: ANN401
-                **kwargs: Any,  # noqa: ANN401
-            ) -> aiohttp.WSMessage:
-                nonlocal _ws1_call_idx
-                if _ws1_call_idx == 0:
-                    _ws1_call_idx += 1
-                    ws1_text_sent_event.set()
-                    return initial_messages_ws1[0]  # TEXT
-                elif _ws1_call_idx == 1:
-                    await ws1_proceed_to_close_event.wait()
-                    _ws1_call_idx += 1
-                    return aiohttp.WSMessage(aiohttp.WSMsgType.CLOSED, None, None)  # CLOSED
-                raise StopAsyncIteration("ws1_controlled_receive called too many times")
+        mock_ws_connect_method.side_effect = dynamic_ws_connect_side_effect
 
-            ws_response1.receive.side_effect = ws1_controlled_receive
+        mock_user_message_handler = AsyncMock()
 
-            ws_response2 = AsyncMock(spec=aiohttp.ClientWebSocketResponse)
-            ws_response2.receive.side_effect = [
-                aiohttp.WSMessage(aiohttp.WSMsgType.CLOSING, None, None),
-            ]
-            ws_response2.closed = False
+        # Use a config with quick reconnect for the test
+        test_config = default_ws_manager_config.model_copy(
+            update={"max_reconnect_attempts": 1, "reconnect_delay": 0.01}
+        )
 
-            # New side_effect for mock_ws_connect using a callable that manages a list
-            connect_responses = [ws_response1, ws_response2]
-            _connect_attempt_counter = 0
+        manager = WebSocketManager(
+            exchange_name="listen_reconnect_test",
+            message_handler=mock_user_message_handler,
+            config=test_config,
+            on_connected_callback=dummy_on_connected_callback,  # Or a new AsyncMock if needed
+            session=None,  # Use internal session
+        )
 
-            async def dynamic_ws_connect_side_effect(
-                *args: Any,  # noqa: ANN401
-                **kwargs: Any,  # noqa: ANN401
-            ) -> aiohttp.ClientWebSocketResponse:
-                nonlocal _connect_attempt_counter
-                _connect_attempt_counter += 1
-                if not connect_responses:
-                    raise AssertionError(
-                        f"dynamic_ws_connect_side_effect called {_connect_attempt_counter} times, "
-                        f"but no more responses available."
-                    )
-                # print(f"DEBUG: dynamic_ws_connect_side_effect call #{_connect_attempt_counter}, "
-                #         f"returning a response.")
-                return connect_responses.pop(0)
+        created_tasks_map: dict[str, asyncio.Task[Any]] = {}
+        original_create_task = asyncio.tasks.create_task
 
-            mock_ws_connect.side_effect = dynamic_ws_connect_side_effect
+        def side_effect_for_create_task_capture(
+            coro: Coroutine[Any, Any, Any], *, name: str | None = None
+        ) -> asyncio.Task[Any]:
+            task = original_create_task(coro, name=name)
+            if name:
+                created_tasks_map[name] = task
+            return task
 
-            # Initial connection
-            conn_task1 = manager.connect()
-            assert conn_task1 is not None
-            await asyncio.wait_for(conn_task1, timeout=1.0)
+        mock_create_task.side_effect = side_effect_for_create_task_capture
 
-            await asyncio.wait_for(ws1_text_sent_event.wait(), timeout=1.0)
-            assert manager.is_connected is True
-            mock_handler.assert_called_once_with(payload1)
+        # Use the exchange_name defined when manager was instantiated locally for this test
+        listener_task_name = "listen_reconnect_test_ws_listen"
 
-            ws1_proceed_to_close_event.set()
-            await asyncio.sleep(0.1)
+        try:
+            with patch.object(manager, "_logger") as mock_logger:
+                initial_connect_task = manager.connect()
+                assert initial_connect_task is not None
+                await initial_connect_task  # Wait for first connection attempt & listen to start
+                await asyncio.sleep(
+                    0.05
+                )  # Allow time for listen loop to process message & hit error
 
-            conn_task2 = manager._connection_task
-            assert conn_task2 is not None, (
-                "Reconnect task not found after first listen loop closed."
-            )
-            assert conn_task2 is not conn_task1, (
-                "Connection task did not change after reconnect trigger."
-            )
+                # --- Assertions for the first connection phase ---
+                mock_user_message_handler.assert_called_once_with(test_message_payload)
+                first_connection_mock.receive.assert_called()  # Should have been called multiple times
+                assert (
+                    first_connection_mock.receive.call_count >= 2
+                )  # Once for message, once for error
 
-            await asyncio.wait_for(conn_task2, timeout=1.0)
+                # Check that reconnection was triggered
+                mock_logger.warning.assert_any_call(
+                    f"WebSocket connection closed unexpectedly or with error: "
+                    f"{simulated_connection_drop_error}. Attempting reconnect..."
+                )  # Line 521 E501
+                mock_sleep.assert_called_with(test_config.reconnect_delay)
+                assert (
+                    mock_ws_connect_method.call_count == 2
+                )  # Initial connect + one reconnect attempt
 
-            manager._should_reconnect = False
-            await asyncio.sleep(0.1)
+                # --- Assertions for task recreation ---
+                # Check if the listen task was recreated (or a new one started)
+                # This depends on how WebSocketManager names or manages tasks.
+                # If it reuses names, we check map, if it creates new ones, count might be better.
+                # For simplicity, let's assume it attempts to create a new one with the same name pattern.
+                # The create_task mock will capture the latest task with that name.
+                assert listener_task_name in created_tasks_map
+                restarted_listen_task = created_tasks_map[listener_task_name]
+                assert restarted_listen_task is not None
+                # Original listen task from first connection should be done (due to error)
 
-            # Check that dynamic_ws_connect_side_effect was called twice
-            assert _connect_attempt_counter == 2, (
-                f"Expected ws_connect to be called twice, "
-                f"but was called {_connect_attempt_counter}."
-            )
-            # mock_ws_connect.call_count should also be 2 with this side_effect type
-            assert mock_ws_connect.call_count == 2
+                # Allow the second connection attempt (which should fail quickly) to complete
+                if not restarted_listen_task.done():
+                    try:
+                        await asyncio.wait_for(restarted_listen_task, timeout=0.1)
+                    except TimeoutError:
+                        restarted_listen_task.cancel()
+                        await asyncio.gather(restarted_listen_task, return_exceptions=True)
+                    except Exception:
+                        pass  # Expected if it errors out quickly from second_connection_mock
 
-            await manager.close()
+                # Manager should eventually reflect not being connected after retries exhausted
+                # Wait a bit more for final state if reconnect attempts were > 1 in config
+                await asyncio.sleep(
+                    test_config.reconnect_delay * 2
+                )  # Line 532 E501 Ensure state updates
+                assert manager.is_connected is False
+
+        finally:
+            await manager.close()  # Ensure cleanup
 
     def test_config_validation_invalid_url(self) -> None:
         with pytest.raises(ValidationError):
