@@ -1,6 +1,6 @@
 import re
 
-from pydantic import AnyUrl, BaseModel, Field, HttpUrl, field_validator
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 # Define a reasonable max length for content type strings
 MAX_CONTENT_TYPE_LENGTH = 256
@@ -15,6 +15,8 @@ class ProcessedResponseHeaders(BaseModel):
     Pydantic model to hold validated and processed HTTP response header information,
     specifically the Content-Type.
     """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     content_type: str = Field(
         default="",
@@ -42,18 +44,22 @@ class ProcessedResponseHeaders(BaseModel):
 class HttpClientConfig(BaseModel):
     """Configuration for HttpClient."""
 
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
     rest_endpoint: HttpUrl
-    default_request_timeout: float = Field(30.0, gt=0)
-    max_retries: int | None = Field(default=3, ge=0)
-    retry_delay_seconds: float | None = Field(default=5.0, ge=0.0)
+    default_request_timeout: float = Field(default=30.0, gt=0.0, le=120.0)
+    max_retries: int | None = Field(default=3, ge=0, le=10)
+    retry_delay_seconds: float | None = Field(default=5.0, gt=0.0, le=300.0)
 
 
 class WebSocketManagerConfig(BaseModel):
     """Configuration for WebSocketManager."""
 
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
     # Using AnyUrl as WebSocketUrl caused linter errors (Pydantic v1 or type resolution issue?)
     ws_url: AnyUrl
-    ping_interval: float = Field(30.0, ge=0.0)
-    reconnect_delay: float = Field(5.0, ge=0.0)
-    max_reconnect_attempts: int = Field(10, ge=0)
-    connection_timeout: float = Field(30.0, gt=0.0)
+    ping_interval: float = Field(default=30.0, gt=0.0, le=60.0)
+    reconnect_delay: float = Field(default=5.0, gt=0.0, le=300.0)
+    max_reconnect_attempts: int = Field(default=10, ge=0, le=20)
+    connection_timeout: float = Field(default=30.0, gt=0.0, le=120.0)
