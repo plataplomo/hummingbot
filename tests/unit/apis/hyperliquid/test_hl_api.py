@@ -80,7 +80,7 @@ def test_hl_api_init_with_key(
         chain_id=HyperliquidAPI.CHAIN_ID,
     )
     assert api.authenticator is mock_instance
-    assert api._hl_authenticator is mock_instance  # pyright: ignore [reportPrivateUsage]
+    assert api._hl_authenticator is mock_instance
 
 
 def test_hl_api_init_without_key(
@@ -92,7 +92,7 @@ def test_hl_api_init_without_key(
 
     mock_auth_class.assert_not_called()
     assert api.authenticator is None
-    assert api._hl_authenticator is None  # pyright: ignore [reportPrivateUsage]
+    assert api._hl_authenticator is None
 
 
 def test_hl_api_init_auth_init_fails(
@@ -106,7 +106,7 @@ def test_hl_api_init_auth_init_fails(
 
     mock_auth_class.assert_called_once()  # Still attempted
     assert api.authenticator is None
-    assert api._hl_authenticator is None  # pyright: ignore [reportPrivateUsage]
+    assert api._hl_authenticator is None
     assert "Failed to init HL authenticator: Bad key format" in caplog.text
 
 
@@ -119,7 +119,7 @@ def test_hl_api_init_no_address(
 
     mock_auth_class.assert_not_called()  # Authenticator shouldn't be called without address
     assert api.authenticator is None
-    assert api._hl_authenticator is None  # pyright: ignore [reportPrivateUsage]
+    assert api._hl_authenticator is None
     assert "HLAPI: Wallet address required" in caplog.text
 
 
@@ -143,10 +143,14 @@ async def test_authenticate_success(
     )
     mock_instance.prepare_request.return_value = expected_components
 
-    result = await api._authenticate(method, path, params, data)  # pyright: ignore [reportPrivateUsage]
+    result = await api._authenticate(method, path, params, data)
 
     mock_instance.prepare_request.assert_awaited_once_with(
-        method, path, params, data, api.default_headers.copy()
+        method,  # pyright: ignore[reportArgumentType]
+        path,  # pyright: ignore[reportArgumentType]
+        params,
+        data,
+        api.default_headers.copy(),
     )
     # Verify returned dict structure matches what current _request expects
     assert result == {
@@ -167,7 +171,7 @@ async def test_authenticate_no_authenticator(
     assert api.authenticator is None
 
     with pytest.raises(APIError, match="HL authenticator not initialized") as excinfo:
-        await api._authenticate("POST", "/exchange", None, {"d": 1})  # pyright: ignore [reportPrivateUsage]
+        await api._authenticate("POST", "/exchange", None, {"d": 1})
     assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
 
 
@@ -184,7 +188,7 @@ async def test_authenticate_prepare_request_fails(
     )
 
     with pytest.raises(APIError, match="Signing failed internally") as excinfo:
-        await api._authenticate("POST", "/exchange", None, {"d": 1})  # pyright: ignore [reportPrivateUsage]
+        await api._authenticate("POST", "/exchange", None, {"d": 1})
     assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
 
 
@@ -241,7 +245,7 @@ async def test_place_order_calls_authenticate_and_request(
             chain_id=HyperliquidAPI.CHAIN_ID,
         )
         assert api.authenticator is mock_auth_for_test
-        assert api._hl_authenticator is mock_auth_for_test  # pyright: ignore [reportPrivateUsage]
+        assert api._hl_authenticator is mock_auth_for_test
 
         # Define a side effect for the mocked _request
         async def mock_request_side_effect(
@@ -552,7 +556,7 @@ class TestHyperliquidAPIWebSocketRouting:
         # We are primarily testing routing, not live connection
         api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
         # Mock the ws_manager for these tests
-        api._ws_manager = AsyncMock()  # pyright: ignore [reportPrivateUsage]
+        api._ws_manager = AsyncMock()
         return api
 
     @pytest.mark.parametrize(
@@ -567,37 +571,36 @@ class TestHyperliquidAPIWebSocketRouting:
     def test_construct_subscription_payload_valid_topics(
         self, api_for_ws_tests: HyperliquidAPI, topic: str, expected_sub_details: dict[str, Any]
     ) -> None:
-        payload = api_for_ws_tests._construct_subscription_payload(  # pyright: ignore [reportPrivateUsage]
-            topic, expected_sub_details["type"]
-        )
+        payload = api_for_ws_tests._construct_subscription_payload(topic)
         assert payload is not None
-        assert payload["method"] == "subscribe"
+        assert payload["type"] == "subscribe"
         assert payload["subscription"] == expected_sub_details
 
     def test_construct_subscription_payload_invalid_topic(
         self, api_for_ws_tests: HyperliquidAPI
     ) -> None:
-        with pytest.raises(ValueError, match="Invalid topic format"):
-            api_for_ws_tests._construct_subscription_payload("invalidTopicFormat", "l2Book")  # pyright: ignore [reportPrivateUsage]
+        payload = api_for_ws_tests._construct_subscription_payload("invalidTopicFormat")
+        assert payload is None
 
     def test_construct_subscription_payload_user_event_no_address(
         self, mock_hl_auth_init: tuple[MagicMock, MagicMock]
     ) -> None:
         # Test userEvents subscription when API is initialized without wallet address
         # Ensure authenticator mock is not influencing this part
-        _, _ = mock_hl_auth_init  # Unpack to show it's available but not directly used here
+        mock_auth_class, _ = mock_hl_auth_init
+        # Simulate no wallet address during API init
+        with patch.object(HyperliquidAPI, "_wallet_address", None, create=True):
+            api_no_addr = HyperliquidAPI(BASE_API_CONFIG, SECRETS_NO_ADDRESS)
+            mock_auth_class.assert_not_called()  # Ensure authenticator not called due to no address
 
-        api_no_addr = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_NO_KEY)
-        assert api_no_addr._wallet_address is None  # pyright: ignore [reportPrivateUsage]
-
-        with pytest.raises(ValueError, match="Wallet address required for userEvents"):
-            api_no_addr._construct_subscription_payload("userEvents", "userEvents")  # pyright: ignore [reportPrivateUsage]
+            payload = api_no_addr._construct_subscription_payload("userEvents")
+            assert payload is None, "Should not construct userEvents payload without address"
 
     @pytest.mark.asyncio
     async def test_route_ws_message_known_channel(self, api_for_ws_tests: HyperliquidAPI) -> None:
         mock_handler: AsyncMock = AsyncMock()
         channel_name = "l2Book:ETH"  # Example specific channel name
-        api_for_ws_tests._ws_handlers[channel_name] = mock_handler  # pyright: ignore [reportPrivateUsage]
+        api_for_ws_tests._ws_handlers[channel_name] = mock_handler
 
         test_data_payload: dict[str, Any] = {
             "coin": "ETH",
@@ -606,7 +609,7 @@ class TestHyperliquidAPIWebSocketRouting:
         }
         test_message: dict[str, Any] = {"channel": channel_name, "data": test_data_payload}
 
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore [reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         mock_handler.assert_awaited_once_with(test_data_payload)
 
     @pytest.mark.asyncio
@@ -615,7 +618,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         caplog.set_level(logging.DEBUG, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"channel": "pong"}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore [reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         assert "Received pong from Hyperliquid WS" in caplog.text
 
     @pytest.mark.asyncio
@@ -625,7 +628,7 @@ class TestHyperliquidAPIWebSocketRouting:
         caplog.set_level(logging.ERROR, logger="cyberdelta.apis.hyperliquid.hl_api")
         error_payload = "Connection timed out"
         test_message = {"channel": "error", "data": error_payload}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore [reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         assert f"Error message from Hyperliquid WS: {error_payload}" in caplog.text
 
     @pytest.mark.asyncio
@@ -635,7 +638,7 @@ class TestHyperliquidAPIWebSocketRouting:
         caplog.set_level(logging.INFO, logger="cyberdelta.apis.hyperliquid.hl_api")
         response_payload = {"subscription": {"type": "l2Book", "coin": "ETH"}, "status": "ok"}
         test_message = {"channel": "subscriptionResponse", "data": response_payload}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore [reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         assert f"Subscription response from Hyperliquid WS: {response_payload}" in caplog.text
 
     @pytest.mark.asyncio
@@ -644,7 +647,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         caplog.set_level(logging.WARNING, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"channel": "unknownChannel", "data": {"some": "payload"}}
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore [reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         assert "No handler for Hyperliquid WS channel unknownChannel" in caplog.text
 
     @pytest.mark.asyncio
@@ -653,7 +656,7 @@ class TestHyperliquidAPIWebSocketRouting:
     ) -> None:
         caplog.set_level(logging.WARNING, logger="cyberdelta.apis.hyperliquid.hl_api")
         test_message = {"type": "someType", "data": {"other": "data"}}  # No channel
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore [reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         assert "Received message from Hyperliquid WS without a channel field" in caplog.text
 
     @pytest.mark.asyncio
@@ -665,10 +668,10 @@ class TestHyperliquidAPIWebSocketRouting:
         # but good to test. The _route_ws_message has a check for data_payload is None.
         mock_handler: AsyncMock = AsyncMock()
         channel_name = "dataCheckChannel"
-        api_for_ws_tests._ws_handlers[channel_name] = mock_handler  # pyright: ignore [reportPrivateUsage]
+        api_for_ws_tests._ws_handlers[channel_name] = mock_handler
         test_message: dict[str, Any] = {"channel": channel_name}  # No 'data' field
 
-        await api_for_ws_tests._handle_websocket_message(test_message)  # pyright: ignore [reportPrivateUsage]
+        await api_for_ws_tests._handle_websocket_message(test_message)
         mock_handler.assert_not_called()
         assert (
             f"Received message from Hyperliquid WS channel {channel_name} without a data field"

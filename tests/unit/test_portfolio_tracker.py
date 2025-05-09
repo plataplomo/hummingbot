@@ -104,16 +104,16 @@ class TestPortfolioTracker:
             ),
         }
         mock_hl_api.get_balances.return_value = test_balances
-        await portfolio_tracker._fetch_exchange_balances("hyperliquid")  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        await portfolio_tracker._fetch_exchange_balances("hyperliquid")
         mock_hl_api.get_balances.assert_called_once()
-        assert "hyperliquid" in portfolio_tracker._balances  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        assert "hyperliquid" in portfolio_tracker._balances
         # Check individual balances instead of exact dict match
-        assert "USDC" in portfolio_tracker._balances["hyperliquid"]  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-        assert isinstance(portfolio_tracker._balances["hyperliquid"]["USDC"], SpotBalance)  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-        assert "BTC" in portfolio_tracker._balances["hyperliquid"]  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-        assert isinstance(portfolio_tracker._balances["hyperliquid"]["BTC"], SpotBalance)  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-        assert "hyperliquid" in portfolio_tracker._last_update_time  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-        assert isinstance(portfolio_tracker._last_update_time["hyperliquid"], datetime)  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        assert "USDC" in portfolio_tracker._balances["hyperliquid"]
+        assert isinstance(portfolio_tracker._balances["hyperliquid"]["USDC"], SpotBalance)
+        assert "BTC" in portfolio_tracker._balances["hyperliquid"]
+        assert isinstance(portfolio_tracker._balances["hyperliquid"]["BTC"], SpotBalance)
+        assert "hyperliquid" in portfolio_tracker._last_update_time
+        assert isinstance(portfolio_tracker._last_update_time["hyperliquid"], datetime)
 
     @pytest.mark.asyncio()
     async def test_fetch_exchange_positions(
@@ -132,14 +132,16 @@ class TestPortfolioTracker:
             )
         ]
         mock_hl_api.get_positions.return_value = test_positions_list
-        success = await portfolio_tracker._fetch_exchange_positions("hyperliquid")  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        success = await portfolio_tracker._fetch_exchange_positions("hyperliquid")
         assert success is True
         mock_hl_api.get_positions.assert_called_once()
-        assert "hyperliquid" in portfolio_tracker._positions  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        assert "hyperliquid" in portfolio_tracker._positions
         assert (
-            "BTC" in portfolio_tracker._positions["hyperliquid"]  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation # Check for symbol BTC
+            "BTC" in portfolio_tracker._positions["hyperliquid"]  # Check for symbol BTC
         )
-        assert portfolio_tracker._positions["hyperliquid"]["BTC"] == test_positions_list[0]  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation # Check value using symbol BTC
+        assert (
+            portfolio_tracker._positions["hyperliquid"]["BTC"] == test_positions_list[0]
+        )  # Check value using symbol BTC
 
     @pytest.mark.asyncio()
     async def test_fetch_exchange_orders(
@@ -168,14 +170,14 @@ class TestPortfolioTracker:
         ]
         test_orders_dict = {order.client_order_id: order for order in test_orders_list}
         mock_hl_api.get_open_orders.return_value = test_orders_list
-        await portfolio_tracker._fetch_exchange_orders("hyperliquid")  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        await portfolio_tracker._fetch_exchange_orders("hyperliquid")
         mock_hl_api.get_open_orders.assert_called_once()
-        assert "hyperliquid" in portfolio_tracker._orders  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        assert "hyperliquid" in portfolio_tracker._orders
         for order_id, order in test_orders_dict.items():
-            assert order_id in portfolio_tracker._orders["hyperliquid"]  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-            assert portfolio_tracker._orders["hyperliquid"][order_id] == order  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-        assert "hyperliquid" in portfolio_tracker._last_update_time  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-        assert isinstance(portfolio_tracker._last_update_time["hyperliquid"], datetime)  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+            assert order_id in portfolio_tracker._orders["hyperliquid"]
+            assert portfolio_tracker._orders["hyperliquid"][order_id] == order
+        assert "hyperliquid" in portfolio_tracker._last_update_time
+        assert isinstance(portfolio_tracker._last_update_time["hyperliquid"], datetime)
 
     @pytest.mark.asyncio()
     async def test_update(self, portfolio_tracker: PortfolioTracker) -> None:
@@ -208,7 +210,7 @@ class TestPortfolioTracker:
                     hasattr(portfolio_tracker, "reconciliation_interval")
                     and portfolio_tracker.reconciliation_interval > 0
                 )
-                portfolio_tracker._last_reconciliation_time = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+                portfolio_tracker._last_reconciliation_time = {
                     "hyperliquid": now
                     - timedelta(seconds=portfolio_tracker.reconciliation_interval + 1),
                     "backpack": now
@@ -222,10 +224,10 @@ class TestPortfolioTracker:
                 m_b.reset_mock()
                 m_p.reset_mock()
                 m_o.reset_mock()
-                portfolio_tracker._last_reconciliation_time = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+                portfolio_tracker._last_reconciliation_time = {
                     "hyperliquid": now - timedelta(seconds=10),
                     "backpack": now - timedelta(seconds=10),
-                }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
+                }
                 await portfolio_tracker.update()
                 assert m_b.call_count == 0
                 assert m_p.call_count == 0
@@ -251,8 +253,8 @@ class TestPortfolioTracker:
             signal_id=None,  # Add missing
         )
         portfolio_tracker.update_order("hyperliquid", test_order)
-        assert "test-order-123" in portfolio_tracker._orders["hyperliquid"]  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-        assert portfolio_tracker._orders["hyperliquid"]["test-order-123"] == test_order  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        assert "test-order-123" in portfolio_tracker._orders["hyperliquid"]
+        assert portfolio_tracker._orders["hyperliquid"]["test-order-123"] == test_order
         filled_order = Order(
             symbol="BTC",
             side=OrderSide.BUY,
@@ -273,9 +275,9 @@ class TestPortfolioTracker:
         )
         portfolio_tracker.update_order("hyperliquid", filled_order)
         assert (
-            portfolio_tracker._orders["hyperliquid"]["test-order-123"].status == OrderStatus.FILLED  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+            portfolio_tracker._orders["hyperliquid"]["test-order-123"].status == OrderStatus.FILLED
         )
-        assert portfolio_tracker._orders["hyperliquid"][  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        assert portfolio_tracker._orders["hyperliquid"][
             "test-order-123"
         ].quantity_filled == Decimal("0.1")  # noqa: SLF001
 
@@ -290,8 +292,8 @@ class TestPortfolioTracker:
             timestamp=datetime.now(UTC),  # Added required field
         )
         portfolio_tracker.update_position("hyperliquid", test_position)
-        assert "BTC" in portfolio_tracker._positions["hyperliquid"]  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-        assert portfolio_tracker._positions["hyperliquid"]["BTC"] == test_position  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        assert "BTC" in portfolio_tracker._positions["hyperliquid"]
+        assert portfolio_tracker._positions["hyperliquid"]["BTC"] == test_position
 
         updated_position = DerivativePosition(
             symbol="BTC",
@@ -302,7 +304,7 @@ class TestPortfolioTracker:
             timestamp=datetime.now(UTC),  # Added required field
         )
         portfolio_tracker.update_position("hyperliquid", updated_position)
-        assert portfolio_tracker._positions["hyperliquid"]["BTC"] == updated_position  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        assert portfolio_tracker._positions["hyperliquid"]["BTC"] == updated_position
 
     def test_update_balance(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test updating a balance.
@@ -321,10 +323,10 @@ class TestPortfolioTracker:
             total_quantity=usdc_amount,
             available_quantity=usdc_amount,
         )
-        portfolio_tracker._balances["hyperliquid"] = {"USDC": usdc_balance_obj}  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        portfolio_tracker._balances["hyperliquid"] = {"USDC": usdc_balance_obj}
 
         # Verify the balance was stored as a SpotBalance object
-        balance_obj = portfolio_tracker._balances["hyperliquid"].get("USDC")  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        balance_obj = portfolio_tracker._balances["hyperliquid"].get("USDC")
         assert balance_obj is not None and balance_obj.total_quantity == Decimal("10000.0")
         # Removed checks for BTC/ETH as they are not set in this test
         # balance_obj_btc = portfolio_tracker._balances["hyperliquid"].get("BTC")  # noqa: SLF001
@@ -348,17 +350,17 @@ class TestPortfolioTracker:
             total_quantity=Decimal("1.0"),
             available_quantity=Decimal("1.0"),
         )
-        portfolio_tracker._balances = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        portfolio_tracker._balances = {
             "hyperliquid": {"USDC": test_balance_usdc, "BTC": test_balance_btc}
         }  # noqa: SLF001
         # balance_obj = portfolio_tracker.get_exchange_balance("hyperliquid", "USDC") # Method doesn't exist
-        balance_obj = portfolio_tracker._balances["hyperliquid"].get("USDC")  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        balance_obj = portfolio_tracker._balances["hyperliquid"].get("USDC")
         assert balance_obj is not None and balance_obj.total_quantity == Decimal("10000.0")
         # balance_obj_btc = portfolio_tracker.get_exchange_balance("hyperliquid", "BTC") # Method doesn't exist
-        balance_obj_btc = portfolio_tracker._balances["hyperliquid"].get("BTC")  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        balance_obj_btc = portfolio_tracker._balances["hyperliquid"].get("BTC")
         assert balance_obj_btc is not None and balance_obj_btc.total_quantity == Decimal("1.0")
         # balance_obj_eth = portfolio_tracker.get_exchange_balance("hyperliquid", "ETH") # Method doesn't exist
-        balance_obj_eth = portfolio_tracker._balances["hyperliquid"].get("ETH")  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        balance_obj_eth = portfolio_tracker._balances["hyperliquid"].get("ETH")
         assert balance_obj_eth is None
 
     @pytest.mark.asyncio()
@@ -369,7 +371,7 @@ class TestPortfolioTracker:
         mock_hl_api = mock_api_clients["hyperliquid"]
         mock_bp_api = mock_api_clients["backpack"]
         now = datetime.now(UTC)
-        portfolio_tracker._balances = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        portfolio_tracker._balances = {
             "hyperliquid": {
                 "USDC": SpotBalance(
                     asset="USDC",
@@ -395,7 +397,7 @@ class TestPortfolioTracker:
                     available_quantity=Decimal("5000.0"),
                 )
             },
-        }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
+        }
 
         async def mock_get_ticker_usdc(symbol: str) -> Ticker | None:
             await asyncio.sleep(0)  # Simulate async behavior if needed
@@ -459,7 +461,7 @@ class TestPortfolioTracker:
         mock_hl_api = mock_api_clients["hyperliquid"]
         # Fix SpotBalance: add missing fields
         now = datetime.now(UTC)
-        portfolio_tracker._balances = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        portfolio_tracker._balances = {
             "hyperliquid": {
                 "USDC": SpotBalance(
                     asset="USDC",
@@ -470,7 +472,7 @@ class TestPortfolioTracker:
                 )
             }
         }
-        portfolio_tracker._positions = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        portfolio_tracker._positions = {
             "hyperliquid": {
                 "BTC": DerivativePosition(
                     symbol="BTC",
@@ -489,7 +491,7 @@ class TestPortfolioTracker:
                     timestamp=now,
                 ),
             }
-        }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
+        }
 
         async def mock_get_ticker(symbol: str) -> Ticker | None:
             await asyncio.sleep(0)
@@ -527,7 +529,7 @@ class TestPortfolioTracker:
         mock_bp_api = mock_api_clients["backpack"]
         # Fix SpotBalance instantiations: add missing fields
         now = datetime.now(UTC)
-        portfolio_tracker._balances = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        portfolio_tracker._balances = {
             "hyperliquid": {
                 "USDT": SpotBalance(
                     asset="USDT",
@@ -547,7 +549,7 @@ class TestPortfolioTracker:
                 )
             },
         }
-        portfolio_tracker._positions = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        portfolio_tracker._positions = {
             "hyperliquid": {
                 "btc_pos_tot": DerivativePosition(
                     symbol="BTC",
@@ -568,7 +570,7 @@ class TestPortfolioTracker:
                     timestamp=now,  # Add missing
                 )
             },
-        }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
+        }
 
         async def mock_get_ticker(symbol: str) -> Ticker | None:
             await asyncio.sleep(0)
@@ -603,7 +605,7 @@ class TestPortfolioTracker:
             hl_mocked_ticker.assert_any_call("BTC-USDT")
             bp_mocked_ticker.assert_any_call("ETH-USDT")
 
-            portfolio_tracker._positions = {}  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation # White-box test: protected member access required for state validation; no public getter exists
+            portfolio_tracker._positions = {}  # White-box test: protected member access required for state validation; no public getter exists
             total_exposure_none = await portfolio_tracker.get_total_exposure(valuation_asset="USDT")
             assert total_exposure_none == Decimal("0.0")
 
@@ -613,7 +615,7 @@ class TestPortfolioTracker:
     ) -> None:
         """Test calculating realized and unrealized PNL."""
         mock_hl_api = mock_api_clients["hyperliquid"]
-        portfolio_tracker._balances = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        portfolio_tracker._balances = {
             "hyperliquid": {
                 "USDC": SpotBalance(
                     asset="USDC",
@@ -623,8 +625,8 @@ class TestPortfolioTracker:
                     timestamp=datetime.now(UTC),  # Add missing
                 )
             }
-        }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
-        portfolio_tracker._positions = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        }
+        portfolio_tracker._positions = {
             "hyperliquid": {
                 "btc_pos_pnl": DerivativePosition(
                     symbol="BTC-USDC",
@@ -645,7 +647,7 @@ class TestPortfolioTracker:
                     timestamp=datetime.now(UTC),  # Add missing
                 ),
             }
-        }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
+        }
 
         async def mock_get_ticker(symbol: str) -> Ticker | None:
             await asyncio.sleep(0)
@@ -666,7 +668,9 @@ class TestPortfolioTracker:
             return None
 
         with patch.object(mock_hl_api, "get_ticker", side_effect=mock_get_ticker) as _mocked_ticker:
-            portfolio_tracker._realized_pnl = Decimal("25.0")  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation # White-box test: protected member access required for state validation; no public getter exists
+            portfolio_tracker._realized_pnl = Decimal(
+                "25.0"
+            )  # White-box test: protected member access required for state validation; no public getter exists
             # await needed for async call
             realized_pnl, unrealized_pnl = await portfolio_tracker.get_pnl()
 
@@ -691,7 +695,9 @@ class TestPortfolioTracker:
             exchange="hyperliquid",  # Add missing
             timestamp=datetime.now(UTC),  # Add missing
         )
-        portfolio_tracker._positions = {"hyperliquid": {"position123": test_position}}  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation # White-box test: protected member access required for state validation; no public getter exists
+        portfolio_tracker._positions = {
+            "hyperliquid": {"position123": test_position}
+        }  # White-box test: protected member access required for state validation; no public getter exists
         retrieved_position = portfolio_tracker.get_position("hyperliquid", "position123")
         assert retrieved_position == test_position
         retrieved_none = portfolio_tracker.get_position("hyperliquid", "nonexistent")
@@ -739,7 +745,7 @@ class TestPortfolioTracker:
                 "eth_pos_1": position_eth,
             },
             "backpack": {"btc_pos_3": position_btc_bp},
-        }  # noqa: SLF001  # White-box test: protected member access required for state validation; no public getter exists
+        }
 
         positions_btc_hl = portfolio_tracker.get_positions_by_symbol("hyperliquid", "BTC")
         assert len(positions_btc_hl) == 2
@@ -760,7 +766,7 @@ class TestPortfolioTracker:
     def test_to_dict(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test serializing the portfolio state to a dictionary."""
         now_for_test = datetime.now(UTC)
-        portfolio_tracker._balances = {  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        portfolio_tracker._balances = {
             "hyperliquid": {
                 "USDC": SpotBalance(
                     asset="USDC",
@@ -799,8 +805,8 @@ class TestPortfolioTracker:
         )
         portfolio_tracker._orders = {"hyperliquid": {"test-order-1": test_order}}
         now = datetime.now(UTC)
-        portfolio_tracker._last_update_time["hyperliquid"] = now  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
-        portfolio_tracker._last_reconciliation_time["hyperliquid"] = now  # noqa: SLF001 # White-box test: Accessing internal state for setup/validation
+        portfolio_tracker._last_update_time["hyperliquid"] = now
+        portfolio_tracker._last_reconciliation_time["hyperliquid"] = now
 
         state_dict = portfolio_tracker.to_dict()
 

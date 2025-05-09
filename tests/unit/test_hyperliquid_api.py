@@ -205,7 +205,7 @@ class TestHyperliquidAPI:
         # Prevent actual network calls
         client._request = AsyncMock(side_effect=RuntimeError("Network call attempted!"))  # type: ignore[method-assign]  # Test mock override
         # Ensure wallet address is set if needed for method mocks
-        client._wallet_address = hyperliquid_secrets.get(  # noqa: SLF001 - Test setup
+        client._wallet_address = hyperliquid_secrets.get(
             "HYPERLIQUID_WALLET_ADDRESS", "0xMockAddress"
         )
         return client

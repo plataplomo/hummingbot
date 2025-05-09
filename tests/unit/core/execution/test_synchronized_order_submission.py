@@ -846,7 +846,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_balances.return_value = mock_balance_result_dict
 
         # Call the actual method on the service instance
-        result_dict = await service_instance._verify_pre_execution(mock_opportunity)  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
+        result_dict = await service_instance._verify_pre_execution(mock_opportunity)
 
         assert result_dict.get("success") is True
         # Check mocked methods on dependencies were called
@@ -864,7 +864,7 @@ class TestSynchronizedOrderSubmissionService:
         # Configure CB mock to fail
         mock_circuit_breaker_system.can_execute.return_value = (False, "CB Tripped")
 
-        result_cb_fail = await service_instance._verify_pre_execution(mock_opportunity)  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
+        result_cb_fail = await service_instance._verify_pre_execution(mock_opportunity)
         assert result_cb_fail.get("success") is False
         assert "CB Tripped" in result_cb_fail.get("error", "")
         # Check mocked methods
@@ -888,7 +888,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_verify_market_conditions.return_value = mock_market_fail_dict
         mock_verify_balances.return_value = mock_balance_result_dict  # Ensure balance mock passes
 
-        result_market_fail = await service_instance._verify_pre_execution(mock_opportunity)  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
+        result_market_fail = await service_instance._verify_pre_execution(mock_opportunity)
         assert result_market_fail.get("success") is False
         assert "Bad Market" in result_market_fail.get("error", "")
         # Check mocked methods
@@ -912,7 +912,7 @@ class TestSynchronizedOrderSubmissionService:
         }
         mock_verify_balances.return_value = mock_balance_fail_dict
 
-        result_balance_fail = await service_instance._verify_pre_execution(mock_opportunity)  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
+        result_balance_fail = await service_instance._verify_pre_execution(mock_opportunity)
         assert result_balance_fail.get("success") is False
         assert "Low Balance" in result_balance_fail.get("error", "")
         # Check mocked methods
@@ -974,7 +974,7 @@ class TestSynchronizedOrderSubmissionService:
 
         final_result_dict = await service_instance._verify_post_execution(
             mock_opportunity,
-            mock_execution_result,  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
+            mock_execution_result,
         )
 
         assert final_result_dict.get("success") is True
@@ -1002,7 +1002,7 @@ class TestSynchronizedOrderSubmissionService:
 
         final_result_pos_fail = await service_instance._verify_post_execution(
             mock_opportunity,
-            mock_execution_result,  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
+            mock_execution_result,
         )
 
         assert final_result_pos_fail.get("success") is False
@@ -1031,7 +1031,7 @@ class TestSynchronizedOrderSubmissionService:
 
         final_result_fill_fail = await service_instance._verify_post_execution(
             mock_opportunity,
-            mock_execution_result,  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
+            mock_execution_result,
         )
 
         assert final_result_fill_fail.get("success") is False
@@ -1057,7 +1057,7 @@ class TestSynchronizedOrderSubmissionService:
 
         final_result_order_fail = await service_instance._verify_post_execution(
             mock_opportunity,
-            mock_execution_result,  # noqa: SLF001  # White-box test: protected member access required for test; no public getter exists
+            mock_execution_result,
         )
 
         assert final_result_order_fail.get("success") is False

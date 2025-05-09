@@ -181,14 +181,14 @@ class TestPortfolioTracker:
 
         # Verify internal state was updated
         # Access internal state directly for verification
-        hyperliquid_usdc_balance = portfolio_tracker._balances.get("hyperliquid", {}).get("USDC")  # noqa: SLF001 - Test verification
+        hyperliquid_usdc_balance = portfolio_tracker._balances.get("hyperliquid", {}).get("USDC")
         assert isinstance(hyperliquid_usdc_balance, SpotBalance)
         if hyperliquid_usdc_balance:
             assert hyperliquid_usdc_balance.total_quantity == sample_balances["hyperliquid"]["USDC"]
         else:
             pytest.fail("Hyperliquid USDC balance not found in tracker state")
 
-        backpack_eth_balance = portfolio_tracker._balances.get("backpack", {}).get("ETH")  # noqa: SLF001 - Test verification
+        backpack_eth_balance = portfolio_tracker._balances.get("backpack", {}).get("ETH")
         assert isinstance(backpack_eth_balance, SpotBalance)
         if backpack_eth_balance:
             assert backpack_eth_balance.total_quantity == sample_balances["backpack"]["ETH"]
@@ -198,13 +198,13 @@ class TestPortfolioTracker:
         # Verify positions were stored properly
         for exchange_id, positions in sample_positions.items():
             for position in positions:
-                stored_position = portfolio_tracker._positions[exchange_id].get(position.symbol)  # noqa: SLF001 - Test verification
+                stored_position = portfolio_tracker._positions[exchange_id].get(position.symbol)
                 assert stored_position is not None
 
         # Verify orders were stored properly
         for exchange_id, orders in sample_orders.items():
             for order in orders:
-                stored_order = portfolio_tracker._orders[exchange_id].get(order.client_order_id)  # noqa: SLF001 - Test verification
+                stored_order = portfolio_tracker._orders[exchange_id].get(order.client_order_id)
                 assert stored_order is not None
 
     @pytest.mark.asyncio
@@ -233,10 +233,10 @@ class TestPortfolioTracker:
             client.get_open_orders.reset_mock()
 
         # Set last reconciliation time to be recent to prevent full update
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = datetime.now(  # noqa: SLF001 - Test setup requires modifying internal state
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = datetime.now( requires modifying internal state
             UTC
         ) - timedelta(seconds=10)
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = datetime.now(  # noqa: SLF001 - Test setup requires modifying internal state
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = datetime.now( requires modifying internal state
             UTC
         ) - timedelta(seconds=10)
 
@@ -250,10 +250,10 @@ class TestPortfolioTracker:
             client.get_open_orders.assert_called_once()
 
         # Now force reconciliation by setting last check time far in the past
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = (  # noqa: SLF001 - Test setup requires modifying internal state
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = ( requires modifying internal state
             datetime.min.replace(tzinfo=UTC)
         )
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = (  # noqa: SLF001 - Test setup requires modifying internal state
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = ( requires modifying internal state
             datetime.min.replace(tzinfo=UTC)
         )
 
@@ -322,7 +322,7 @@ class TestPortfolioTracker:
         portfolio_tracker.update_position("hyperliquid", test_position)
 
         # Verify the position was stored
-        stored_position = portfolio_tracker._positions["hyperliquid"].get("BTC")  # noqa: SLF001 - Test verification
+        stored_position = portfolio_tracker._positions["hyperliquid"].get("BTC")
         assert stored_position is not None
         assert stored_position.symbol == "BTC"
         assert stored_position.size == Decimal("0.5")
@@ -334,7 +334,7 @@ class TestPortfolioTracker:
         portfolio_tracker.update_position("hyperliquid", test_position)
 
         # Verify the position was updated
-        stored_position = portfolio_tracker._positions["hyperliquid"].get("BTC")  # noqa: SLF001 - Test verification
+        stored_position = portfolio_tracker._positions["hyperliquid"].get("BTC")
         assert stored_position is not None
         assert stored_position.mark_price == Decimal("52000.0")
         assert stored_position.unrealized_pnl == Decimal("2000.0")
@@ -351,10 +351,10 @@ class TestPortfolioTracker:
             total_quantity=usdc_amount,
             available_quantity=usdc_amount,
         )
-        portfolio_tracker._balances["hyperliquid"]["USDC"] = usdc_balance_obj  # noqa: SLF001 - Test setup
+        portfolio_tracker._balances["hyperliquid"]["USDC"] = usdc_balance_obj
 
         # Verify the balance was stored as a SpotBalance object
-        balance_obj = portfolio_tracker._balances["hyperliquid"].get("USDC")  # noqa: SLF001 - Test verification
+        balance_obj = portfolio_tracker._balances["hyperliquid"].get("USDC")
         assert isinstance(balance_obj, SpotBalance)
         assert balance_obj.asset == "USDC"
         assert balance_obj.total_quantity == usdc_amount  # Correct attribute
@@ -377,21 +377,21 @@ class TestPortfolioTracker:
                     total_quantity=amount,
                     available_quantity=amount,
                 )
-                if exchange_id not in portfolio_tracker._balances:  # noqa: SLF001 - Test setup
-                    portfolio_tracker._balances[exchange_id] = {}  # noqa: SLF001 - Test setup
-                portfolio_tracker._balances[exchange_id][asset] = balance_obj  # noqa: SLF001 - Test setup
+                if exchange_id not in portfolio_tracker._balances:
+                    portfolio_tracker._balances[exchange_id] = {}
+                portfolio_tracker._balances[exchange_id][asset] = balance_obj
 
         # Test getting balances - check object type and total value by accessing internal state
-        usdc_balance = portfolio_tracker._balances["hyperliquid"].get("USDC")  # noqa: SLF001 - Test verification
+        usdc_balance = portfolio_tracker._balances["hyperliquid"].get("USDC")
         assert isinstance(usdc_balance, SpotBalance)
         assert usdc_balance.total_quantity == Decimal("100000.0")  # Correct attribute
 
-        eth_balance = portfolio_tracker._balances["backpack"].get("ETH")  # noqa: SLF001 - Test verification
+        eth_balance = portfolio_tracker._balances["backpack"].get("ETH")
         assert isinstance(eth_balance, SpotBalance)
         assert eth_balance.total_quantity == Decimal("20.0")  # Correct attribute
 
         # Test getting non-existent balance by accessing internal state
-        assert portfolio_tracker._balances["hyperliquid"].get("XYZ") is None  # noqa: SLF001 - Test verification
+        assert portfolio_tracker._balances["hyperliquid"].get("XYZ") is None
 
     def test_get_total_capital(
         self,
@@ -410,9 +410,9 @@ class TestPortfolioTracker:
                     total_quantity=amount,
                     available_quantity=amount,
                 )
-                if exchange_id not in portfolio_tracker._balances:  # noqa: SLF001 - Test setup
-                    portfolio_tracker._balances[exchange_id] = {}  # noqa: SLF001 - Test setup
-                portfolio_tracker._balances[exchange_id][asset] = balance_obj  # noqa: SLF001 - Test setup
+                if exchange_id not in portfolio_tracker._balances:
+                    portfolio_tracker._balances[exchange_id] = {}
+                portfolio_tracker._balances[exchange_id][asset] = balance_obj
 
         # Expected total capital: 100000 + 50000 = 150000 USDC
         assert portfolio_tracker.get_total_capital() == Decimal("150000.0")
@@ -601,9 +601,9 @@ class TestPortfolioTracker:
                     total_quantity=amount,
                     available_quantity=amount,
                 )
-                if exchange_id not in portfolio_tracker._balances:  # noqa: SLF001 - Test setup
-                    portfolio_tracker._balances[exchange_id] = {}  # noqa: SLF001 - Test setup
-                portfolio_tracker._balances[exchange_id][asset] = balance_obj  # noqa: SLF001 - Test setup
+                if exchange_id not in portfolio_tracker._balances:
+                    portfolio_tracker._balances[exchange_id] = {}
+                portfolio_tracker._balances[exchange_id][asset] = balance_obj
 
         for exchange_id, positions in sample_positions.items():
             for position in positions:
@@ -625,7 +625,7 @@ class TestPortfolioTracker:
         # Verify balances were restored by accessing internal state
         for exchange_id, balances in sample_balances.items():
             for asset, amount in balances.items():
-                restored_balance = new_tracker._balances[exchange_id].get(asset)  # noqa: SLF001 - Test verification
+                restored_balance = new_tracker._balances[exchange_id].get(asset)
                 assert isinstance(restored_balance, SpotBalance)
                 assert restored_balance.total_quantity == amount  # Correct attribute
 
@@ -656,22 +656,22 @@ class TestPortfolioTracker:
     def test_last_reconciliation_time(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test the last_reconciliation_time attribute."""
         # Verify initial state - Accessing internal state for verification
-        assert not portfolio_tracker._last_reconciliation_time  # noqa: SLF001 - Test verification
+        assert not portfolio_tracker._last_reconciliation_time
 
         # Set last reconciliation time - Directly manipulating internal state
         exchange_id = "hyperliquid"
         previous_time = datetime.now(UTC)
-        portfolio_tracker._last_reconciliation_time[exchange_id] = previous_time  # noqa: SLF001 - Test setup
-        assert portfolio_tracker._last_reconciliation_time[exchange_id] == previous_time  # noqa: SLF001 - Test verification
+        portfolio_tracker._last_reconciliation_time[exchange_id] = previous_time
+        assert portfolio_tracker._last_reconciliation_time[exchange_id] == previous_time
 
         # Verify subsequent updates - Directly manipulating internal state
         expected_time = datetime.now(UTC)
-        portfolio_tracker._last_reconciliation_time[exchange_id] = expected_time  # noqa: SLF001 - Test setup
-        assert portfolio_tracker._last_reconciliation_time[exchange_id] == expected_time  # noqa: SLF001 - Test verification
+        portfolio_tracker._last_reconciliation_time[exchange_id] = expected_time
+        assert portfolio_tracker._last_reconciliation_time[exchange_id] == expected_time
 
         # Verify reset - Directly manipulating internal state
-        del portfolio_tracker._last_reconciliation_time[exchange_id]  # noqa: SLF001 - Test setup
-        assert exchange_id not in portfolio_tracker._last_reconciliation_time  # noqa: SLF001 - Test verification
+        del portfolio_tracker._last_reconciliation_time[exchange_id]
+        assert exchange_id not in portfolio_tracker._last_reconciliation_time
 
     @pytest.mark.asyncio
     async def test_fetch_exchange_balances(
@@ -698,16 +698,16 @@ class TestPortfolioTracker:
         }
         mock_hl_api.get_balances.return_value = test_balances
         # Call protected method for test verification
-        await portfolio_tracker._fetch_exchange_balances("hyperliquid")  # noqa: SLF001 - Test verification
+        await portfolio_tracker._fetch_exchange_balances("hyperliquid")
         mock_hl_api.get_balances.assert_called_once()
         # Access protected member for test verification
-        assert "hyperliquid" in portfolio_tracker._balances  # noqa: SLF001 - Test verification
+        assert "hyperliquid" in portfolio_tracker._balances
         # Access protected member for test verification
-        assert portfolio_tracker._balances["hyperliquid"] == test_balances  # noqa: SLF001 - Test verification
+        assert portfolio_tracker._balances["hyperliquid"] == test_balances
         # Access protected member for test verification
-        assert "hyperliquid" in portfolio_tracker._last_update_time  # noqa: SLF001 - Test verification
+        assert "hyperliquid" in portfolio_tracker._last_update_time
         # Access protected member for test verification
-        assert isinstance(portfolio_tracker._last_update_time["hyperliquid"], datetime)  # noqa: SLF001 - Test verification
+        assert isinstance(portfolio_tracker._last_update_time["hyperliquid"], datetime)
 
     @pytest.mark.asyncio
     async def test_fetch_exchange_positions(
@@ -731,18 +731,18 @@ class TestPortfolioTracker:
         ]
         mock_hl_api.get_positions.return_value = test_positions_list
         # Call protected method for test verification
-        success = await portfolio_tracker._fetch_exchange_positions("hyperliquid")  # noqa: SLF001 - Test verification
+        success = await portfolio_tracker._fetch_exchange_positions("hyperliquid")
         assert success is True
         mock_hl_api.get_positions.assert_called_once()
         # Access protected member for test verification
-        assert "hyperliquid" in portfolio_tracker._positions  # noqa: SLF001 - Test verification
+        assert "hyperliquid" in portfolio_tracker._positions
         assert (
             # Access protected member for test verification
             # Assuming position_key is symbol for simplicity here
-            "BTC" in portfolio_tracker._positions["hyperliquid"]  # noqa: SLF001 - Test verification
+            "BTC" in portfolio_tracker._positions["hyperliquid"]
         )
         # Access protected member for test verification
-        assert portfolio_tracker._positions["hyperliquid"]["BTC"] == test_positions_list[0]  # noqa: SLF001 - Test verification
+        assert portfolio_tracker._positions["hyperliquid"]["BTC"] == test_positions_list[0]
 
     @pytest.mark.asyncio
     async def test_fetch_exchange_orders(
@@ -773,19 +773,19 @@ class TestPortfolioTracker:
         test_orders_dict = {order.client_order_id: order for order in test_orders_list}
         mock_hl_api.get_open_orders.return_value = test_orders_list
         # Call protected method for test verification
-        await portfolio_tracker._fetch_exchange_orders("hyperliquid")  # noqa: SLF001 - Test verification
+        await portfolio_tracker._fetch_exchange_orders("hyperliquid")
         mock_hl_api.get_open_orders.assert_called_once()
         # Access protected member for test verification
-        assert "hyperliquid" in portfolio_tracker._orders  # noqa: SLF001 - Test verification
+        assert "hyperliquid" in portfolio_tracker._orders
         for order_id, order in test_orders_dict.items():
             # Access protected member for test verification
-            assert order_id in portfolio_tracker._orders["hyperliquid"]  # noqa: SLF001 - Test verification
+            assert order_id in portfolio_tracker._orders["hyperliquid"]
             # Access protected member for test verification
-            assert portfolio_tracker._orders["hyperliquid"][order_id] == order  # noqa: SLF001 - Test verification
+            assert portfolio_tracker._orders["hyperliquid"][order_id] == order
         # Access protected member for test verification
-        assert "hyperliquid" in portfolio_tracker._last_update_time  # noqa: SLF001 - Test verification
+        assert "hyperliquid" in portfolio_tracker._last_update_time
         # Access protected member for test verification
-        assert isinstance(portfolio_tracker._last_update_time["hyperliquid"], datetime)  # noqa: SLF001 - Test verification
+        assert isinstance(portfolio_tracker._last_update_time["hyperliquid"], datetime)
 
     @pytest.mark.asyncio
     async def test_fetch_exchange_filled_orders(

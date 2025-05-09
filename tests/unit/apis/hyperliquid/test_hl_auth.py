@@ -62,10 +62,10 @@ def test_hl_auth_init_success(mock_account: MagicMock) -> None:
         wallet_address=VALID_WALLET_ADDRESS,
         chain_id=VALID_CHAIN_ID,
     )
-    assert auth._wallet_address.lower() == VALID_WALLET_ADDRESS.lower()  # noqa: SLF001
-    assert auth._chain_id == VALID_CHAIN_ID  # noqa: SLF001
-    assert auth._account is not None  # noqa: SLF001
-    assert auth._account.address.lower() == VALID_WALLET_ADDRESS.lower()  # noqa: SLF001
+    assert auth._wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
+    assert auth._chain_id == VALID_CHAIN_ID
+    assert auth._account is not None
+    assert auth._account.address.lower() == VALID_WALLET_ADDRESS.lower()
 
 
 def test_hl_auth_init_success_no_0x(mock_account: MagicMock) -> None:
@@ -75,7 +75,7 @@ def test_hl_auth_init_success_no_0x(mock_account: MagicMock) -> None:
         wallet_address=VALID_WALLET_ADDRESS,
         chain_id=VALID_CHAIN_ID,
     )
-    assert auth._account is not None  # noqa: SLF001
+    assert auth._account is not None
 
 
 def test_hl_auth_init_no_private_key(mock_account: MagicMock) -> None:
@@ -229,10 +229,10 @@ class TestHyperliquidEip712Authenticator:
                 chain_id=1337,
             )
             mock_from_key.assert_called_once_with(self.VALID_PRIVATE_KEY)
-            assert auth._account == mock_account  # noqa: SLF001
-            assert auth._wallet_address == self.MOCKED_ACCOUNT_WALLET_ADDRESS  # noqa: SLF001
-            assert auth._chain_id == 1337  # noqa: SLF001
-            assert auth._domain_data["chainId"] == 1337  # noqa: SLF001
+            assert auth._account == mock_account
+            assert auth._wallet_address == self.MOCKED_ACCOUNT_WALLET_ADDRESS
+            assert auth._chain_id == 1337
+            assert auth._domain_data["chainId"] == 1337
 
     def test_instantiation_private_key_no_prefix(self, mock_account: MagicMock) -> None:
         """Test instantiation with private key missing '0x' prefix."""
@@ -349,10 +349,10 @@ class TestHyperliquidEip712Authenticator:
                 "connectionId": HexBytes(fixed_32_byte_connection_id_hexstring),
             }
             expected_structured_data = {
-                "domain": auth._domain_data,  # noqa: SLF001
+                "domain": auth._domain_data,
                 "message": expected_agent_message,
                 "primaryType": "Agent",
-                "types": auth._agent_typed_data_message_types,  # noqa: SLF001
+                "types": auth._agent_typed_data_message_types,
             }
             mock_encode_typed_data.assert_called_once_with(full_message=expected_structured_data)
             mock_account.sign_message.assert_called_once_with(mock_signable_message)
@@ -463,7 +463,7 @@ class TestHyperliquidEip712Authenticator:
             )
             mock_hl_auth_from_key.assert_called_once_with("0xIrrelevantKeyDueToPatch")
 
-        auth._account = None  # Manually force _account to None post-initialization # noqa: SLF001
+        auth._account = None  # Force _account to None
 
         with pytest.raises(APIError, match="Authenticator account not initialized."):
             await auth.prepare_request("POST", "/exchange", None, {"key": "value"}, None)
@@ -473,43 +473,31 @@ class TestHyperliquidEip712Authenticator:
     async def test_prepare_request_with_non_dict_data(
         self, authenticator_instance: HyperliquidEip712Authenticator
     ) -> None:
-        """Test how prepare_request handles non-dict data (currently seems not to raise)."""
-        # Original test expected APIError wrapping TypeError.
-        # However, pytest reports DID NOT RAISE.
-        # This suggests the underlying library might handle it, or the error isn't
-        # propagated as expected.
-        # For now, just run the call and see if it completes without error.
-        # Further investigation needed if signing non-dict data SHOULD fail.
-        try:
+        """Test prepare_request raises APIError if data is None (as per current implementation)."""
+        expected_message = "Data payload (action) required for Hyperliquid signed request."
+        with pytest.raises(APIError, match=re.escape(expected_message)) as excinfo:
             await authenticator_instance.prepare_request(
-                "POST",
-                "/exchange",
-                None,
-                data="not_a_dict",
-                headers=None,  # type: ignore[arg-type]
+                "POST", "/exchange", data=None, params=None, headers=None
             )
-            # If it completes without raising, the behavior might have changed or
-            # the test was wrong.
-            # Add assertions here if specific return values are expected in this non-error case.
-            pass  # Placeholder: Test passes if no exception is raised
-        except Exception as e:
-            # If *any* other exception occurs, fail the test.
-            pytest.fail(f"prepare_request with non-dict data raised unexpected Exception: {e}")
+        assert excinfo.value.code == APIErrorCode.INVALID_PARAMS.value
+        # The original test was trying to pass data=\"not_a_dict\", which is a type error.
+        # prepare_request expects data: dict | None. If data is a string, json.dumps
+        # will process it, and no error specific to \"non-dict data\" will be raised
+        # by the current authenticator logic other than for None.
 
     @pytest.mark.asyncio
     async def test_prepare_request_action_with_string_payload_invalid_json(
         self, authenticator_eip712: HyperliquidEip712Authenticator
     ) -> None:
-        """Test prepare_request with a string payload that is invalid JSON."""
-        # invalid_json_string = "not_json_parsable_string{" # This variable is unused now
-        expected_error_msg = (
-            "Hyperliquid action payload must be a valid JSON string representation of a dict"
-        )
-        with pytest.raises(ValueError, match=re.escape(expected_error_msg)):
+        action_payload_invalid_json = '{"key": "value", syntax_error'  # Invalid JSON string
+
+        with pytest.raises(APIError) as excinfo:
             await authenticator_eip712.prepare_request(
                 method="POST",
                 path="/exchange",
+                data={"action": "agent", "payload": action_payload_invalid_json},
                 params=None,
-                data=None,  # Corrected: Pass None to satisfy type hint
-                headers={},
+                headers=None,
             )
+        assert excinfo.value.code == APIErrorCode.INVALID_PARAMS.value
+        assert "Failed to serialize EIP-712 typed data payload" in excinfo.value.message

@@ -1150,8 +1150,10 @@ def test_handler_list_item_errors(
         # Check log message using caplog.records
         log_found = any(expected_log_or_error in record.getMessage() for record in caplog.records)
         if not log_found:
-            print(f"Test {request.node.name} failed. Expected log: '{expected_log_or_error}'")
-            print(f"Captured logs:\n{caplog.text}")
+            # Using getattr to safely access node.name, or provide a default.
+            node_name = getattr(getattr(request, "node", None), "name", "Unknown Test Node")
+            print(f"Test {node_name} failed. Expected log: '{expected_log_or_error}'")
+            print(f"Captured logs:\\n{caplog.text}")
         assert log_found
     else:
         # Test for APIError with specific validation message

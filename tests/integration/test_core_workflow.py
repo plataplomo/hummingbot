@@ -462,7 +462,7 @@ async def test_happy_path_full_cycle(
     portfolio_tracker.reset()  # Explicitly reset state for this test
     # Directly set balances for testing via internal API (necessary for mocks)
     # Consider adding a test-specific method to PortfolioTracker if this pattern persists
-    portfolio_tracker._update_balance(  # noqa: SLF001 - Use internal update for mock setup
+    portfolio_tracker._update_balance(
         "mock_hl",
         SpotBalance(
             exchange="mock_hl",
@@ -472,7 +472,7 @@ async def test_happy_path_full_cycle(
             available_quantity=initial_usdc_balance,
         ),
     )
-    portfolio_tracker._update_balance(  # noqa: SLF001 - Use internal update for mock setup
+    portfolio_tracker._update_balance(
         "mock_bp",
         SpotBalance(
             exchange="mock_bp",
@@ -617,8 +617,8 @@ async def test_happy_path_full_cycle(
     # 5. Validate & Size Opportunity with RiskManager
     # RM needs portfolio state (balances mainly)
     # Verify balances directly via internal dict for test setup accuracy
-    logger.info(f"HL balance before sizing: {portfolio_tracker._balances.get('mock_hl')}")  # noqa: SLF001 - Test verification
-    logger.info(f"BP balance before sizing: {portfolio_tracker._balances.get('mock_bp')}")  # noqa: SLF001 - Test verification
+    logger.info(f"HL balance before sizing: {portfolio_tracker._balances.get('mock_hl')}")
+    logger.info(f"BP balance before sizing: {portfolio_tracker._balances.get('mock_bp')}")
     # Let's assume RM uses get_total_capital directly from balances for now
     logger.info(
         f"Portfolio Total Capital for Sizing (from getter): {portfolio_tracker.get_total_capital()}"
@@ -673,8 +673,8 @@ async def test_happy_path_full_cycle(
     logger.info("Verifying portfolio state post-execution...")
 
     # Get final balances - check internal state directly for test verification
-    hl_balance_dict = portfolio_tracker._balances.get("mock_hl", {})  # noqa: SLF001 - Test verification
-    bp_balance_dict = portfolio_tracker._balances.get("mock_bp", {})  # noqa: SLF001 - Test verification
+    hl_balance_dict = portfolio_tracker._balances.get("mock_hl", {})
+    bp_balance_dict = portfolio_tracker._balances.get("mock_bp", {})
     hl_balance = hl_balance_dict.get("USD")
     bp_balance = bp_balance_dict.get("USDC")
 
@@ -691,8 +691,8 @@ async def test_happy_path_full_cycle(
     # Add assertions about balance changes if fees/costs are accurately simulated
 
     # Get final positions (should be updated by ExecutionHandler via PortfolioTracker.record_trade)
-    hl_pos = portfolio_tracker._positions.get("mock_hl", {}).get(symbol_base)  # noqa: SLF001 - Test verification
-    bp_pos = portfolio_tracker._positions.get("mock_bp", {}).get(symbol_base)  # noqa: SLF001 - Test verification
+    hl_pos = portfolio_tracker._positions.get("mock_hl", {}).get(symbol_base)
+    bp_pos = portfolio_tracker._positions.get("mock_bp", {}).get(symbol_base)
 
     logger.debug(f"Final HL Position: {hl_pos}")
     logger.debug(f"Final BP Position: {bp_pos}")
@@ -1058,7 +1058,7 @@ async def test_partial_fill(
 
     # --- Add Debug Logging ---
     # Get balances using internal dict for test verification
-    logger.debug(f"PT Balances before RM validation: {portfolio_tracker._balances}")  # noqa: SLF001 - Test verification
+    logger.debug(f"PT Balances before RM validation: {portfolio_tracker._balances}")
     total_cap_debug = portfolio_tracker.get_total_capital()
     logger.debug(f"PT get_total_capital() before RM validation: {total_cap_debug}")
     # --- End Debug Logging ---
@@ -1358,7 +1358,7 @@ async def test_execution_failure_compensation(
 
     # --- Add Debug Logging ---
     # Get balances using internal dict for test verification
-    logger.debug(f"PT Balances before RM validation: {portfolio_tracker._balances}")  # noqa: SLF001 - Test verification
+    logger.debug(f"PT Balances before RM validation: {portfolio_tracker._balances}")
     total_cap_debug = portfolio_tracker.get_total_capital()
     logger.debug(f"PT get_total_capital() before RM validation: {total_cap_debug}")
     # --- End Debug Logging ---
@@ -1406,7 +1406,7 @@ async def test_execution_failure_compensation(
     logger.info(f"Final BP Position: {final_bp_pos}")
     logger.info(f"Final HL Position: {final_hl_pos}")
     # Get balances using internal dict for test verification
-    logger.info(f"Final Balances: {portfolio_tracker._balances}")  # noqa: SLF001 - Test verification
+    logger.info(f"Final Balances: {portfolio_tracker._balances}")
 
     # Check logs for confirmation
     expected_log_part = (
@@ -1551,12 +1551,12 @@ async def test_failed_execution(
 
     # --- Verify Portfolio State (Should be largely unchanged) ---
     # Use internal dict for test verification
-    hl_balance_dict = portfolio_tracker._balances.get("mock_hl", {})  # noqa: SLF001 - Test verification
-    bp_balance_dict = portfolio_tracker._balances.get("mock_bp", {})  # noqa: SLF001 - Test verification
+    hl_balance_dict = portfolio_tracker._balances.get("mock_hl", {})
+    bp_balance_dict = portfolio_tracker._balances.get("mock_bp", {})
     hl_balance = hl_balance_dict.get("USD")
     bp_balance = bp_balance_dict.get("USDC")
-    hl_pos = portfolio_tracker._positions.get("mock_hl", {}).get(symbol_key)  # noqa: SLF001 - Test verification
-    bp_pos = portfolio_tracker._positions.get("mock_bp", {}).get(symbol_key)  # noqa: SLF001 - Test verification
+    hl_pos = portfolio_tracker._positions.get("mock_hl", {}).get(symbol_key)
+    bp_pos = portfolio_tracker._positions.get("mock_bp", {}).get(symbol_key)
 
     assert (
         hl_balance is not None and hl_balance.total_quantity == initial_hl_balance.total_quantity

@@ -62,10 +62,10 @@ class TestBackpackAPI_Authentication:
         mock_loop: MagicMock,
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        assert api._bp_authenticator is not None  # noqa: SLF001
-        assert isinstance(api._bp_authenticator, BackpackHmacAuthenticator)  # noqa: SLF001
-        assert api._api_key == "test_key"  # noqa: SLF001
-        assert api._api_secret == "test_secret"  # noqa: SLF001
+        assert api._bp_authenticator is not None
+        assert isinstance(api._bp_authenticator, BackpackHmacAuthenticator)
+        assert api._api_key == "test_key"
+        assert api._api_secret == "test_secret"
 
     def test_backpack_api_initialization_with_invalid_secrets(
         self,
@@ -75,7 +75,7 @@ class TestBackpackAPI_Authentication:
         caplog: LogCaptureFixture,
     ) -> None:
         api = BackpackAPI(default_bp_config, bp_secrets_invalid)
-        assert api._bp_authenticator is None  # noqa: SLF001
+        assert api._bp_authenticator is None
         assert "Authenticator not initialized" in caplog.text
 
     @pytest.mark.asyncio
@@ -87,7 +87,7 @@ class TestBackpackAPI_Authentication:
     ) -> None:
         """Test that _authenticate method correctly uses the BackpackHmacAuthenticator."""
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        api._bp_authenticator = mock_bp_authenticator_instance  # noqa: SLF001 # type: ignore[assignment]
+        api._bp_authenticator = mock_bp_authenticator_instance
 
         method = "GET"
         path = "/api/v1/capital"
@@ -111,7 +111,7 @@ class TestBackpackAPI_Authentication:
         # The actual `headers` param to _authenticate itself is what _bp_authenticator receives.
         # BackpackAPI._authenticate passes api.default_headers to its
         # _bp_authenticator.prepare_request.
-        auth_result_dict = await api._authenticate(method, path, params, data)  # noqa: SLF001
+        auth_result_dict = await api._authenticate(method, path, params, data)
         # headers param defaults to None
 
         mock_bp_authenticator_instance.prepare_request.assert_called_once_with(
@@ -138,7 +138,7 @@ class TestBackpackAPI_Authentication:
             default_bp_config, bp_secrets_invalid
         )  # Initializes with no authenticator
         with pytest.raises(APIError) as exc_info:
-            await api._authenticate("GET", "/test", None, None)  # noqa: SLF001
+            await api._authenticate("GET", "/test", None, None)
         assert exc_info.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
         assert "Backpack authenticator not initialized" in exc_info.value.message
 
@@ -199,7 +199,7 @@ class TestBackpackAPI_Authentication:
                 api_key="test_key", api_secret="test_secret"
             )
             assert api.authenticator is mock_auth_for_test
-            assert api._bp_authenticator is mock_auth_for_test  # noqa: SLF001
+            assert api._bp_authenticator is mock_auth_for_test
 
             # Define a side effect for the mocked _request
             async def mock_request_side_effect(
@@ -277,7 +277,7 @@ class TestBackpackAPIMethodErrors:
         """Test get_ticker correctly maps a 400 error for invalid symbol."""
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
         # Ensure the session exists before patching its request method
-        await api._http_client._get_session()  # noqa: SLF001
+        await api._http_client._get_session()
 
         http_status_from_exchange = 400
         # Example error body from Backpack for invalid symbol
@@ -292,7 +292,7 @@ class TestBackpackAPIMethodErrors:
         # Patch the request method on the HttpClient's session object
         with patch.object(
             api._http_client._session, "request", side_effect=http_failure
-        ) as mock_session_request:  # noqa: SLF001
+        ) as mock_session_request:
             # Also patch the request builder used by get_ticker
             with patch(
                 "cyberdelta.apis.backpack.bp_api.BackpackRequestBuilder.build_get_ticker_params"
@@ -334,7 +334,7 @@ class TestBackpackAPIMethodErrors:
     ) -> None:
         """Test place_order maps insufficient funds error from Backpack."""
         api = BackpackAPI(default_bp_config, bp_secrets_valid)
-        await api._http_client._get_session()  # noqa: SLF001
+        await api._http_client._get_session()
 
         http_status_from_exchange = 400
         error_body_from_exchange = (
@@ -352,7 +352,7 @@ class TestBackpackAPIMethodErrors:
         with patch.object(
             api._http_client,
             "request",
-            side_effect=http_failure,  # noqa: SLF001
+            side_effect=http_failure,
         ) as mock_http_client_request:
             # Also patch the request builder used by place_order
             with patch(
@@ -417,12 +417,12 @@ class TestBackpackAPIWebSocketRouting:
             type(mock_instance).is_connected = PropertyMock(return_value=True)
             MockWebSocketManager.return_value = mock_instance
             api = BackpackAPI(default_bp_config, bp_secrets_valid)
-            api._ws_manager = mock_instance  # noqa: SLF001
+            api._ws_manager = mock_instance
             return api
 
     def test_construct_subscription_payload(self, api_for_ws_tests: BackpackAPI) -> None:
         topic = "depth.SOL_USDC"
-        payload = api_for_ws_tests._construct_subscription_payload(topic)  # noqa: SLF001
+        payload = api_for_ws_tests._construct_subscription_payload(topic)
         assert payload == {
             "op": "subscribe",
             "channel": topic,
@@ -433,7 +433,7 @@ class TestBackpackAPIWebSocketRouting:
     async def test_route_ws_message_public_topic(self, api_for_ws_tests: BackpackAPI) -> None:
         mock_handler = AsyncMock()
         topic = "depth.SOL_USDC"
-        if api_for_ws_tests._ws_manager:  # noqa: SLF001
+        if api_for_ws_tests._ws_manager:
             # Ensure send_json is an AsyncMock on the instance for this test path
             api_for_ws_tests._ws_manager.send_json = AsyncMock()  # type: ignore[method-assign]
             # is_connected is handled by PropertyMock in fixture, no need to set here
@@ -443,7 +443,7 @@ class TestBackpackAPIWebSocketRouting:
         test_message_data = {"bids": [["100", "1"]], "asks": [["101", "2"]]}
         test_message = {"topic": topic, "data": test_message_data}
 
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)
         # The handler should receive both the data payload and the full message
         mock_handler.assert_called_once_with(test_message_data, test_message)
 
@@ -453,7 +453,7 @@ class TestBackpackAPIWebSocketRouting:
     ) -> None:
         mock_handler = AsyncMock()
         topic_internal = "fills"
-        if api_for_ws_tests._ws_manager:  # noqa: SLF001
+        if api_for_ws_tests._ws_manager:
             # Ensure send_json is an AsyncMock
             api_for_ws_tests._ws_manager.send_json = AsyncMock()  # type: ignore[method-assign]
             # is_connected is handled by PropertyMock
@@ -463,7 +463,7 @@ class TestBackpackAPIWebSocketRouting:
         test_fill_data = {"id": "fill123", "price": "150", "qty": "0.5"}
         test_message = {"type": "fills", "data": test_fill_data}
 
-        await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+        await api_for_ws_tests._handle_websocket_message(test_message)
         # For private streams like fills, the handler receives the full message as data_payload
         # and the full message again as the second argument.
         mock_handler.assert_called_once_with(test_message, test_message)
@@ -477,7 +477,7 @@ class TestBackpackAPIWebSocketRouting:
         test_message = {"topic": "unhandled.topic", "data": {"key": "value"}}
         api_for_ws_tests._ws_handlers.clear()  # Ensure no pre-existing handlers
         with patch("cyberdelta.apis.backpack.bp_api.logger.debug") as mock_logger_debug:
-            await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+            await api_for_ws_tests._handle_websocket_message(test_message)
             print(f"mock_logger_debug calls: {mock_logger_debug.call_args_list}")  # DEBUG PRINT
             # Assert based on actual logged message from debug print
             mock_logger_debug.assert_called_once_with(
@@ -496,7 +496,7 @@ class TestBackpackAPIWebSocketRouting:
             "data": {"key": "value"},
         }
         with patch("cyberdelta.apis.backpack.bp_api.logger.debug") as mock_logger_debug:
-            await api_for_ws_tests._handle_websocket_message(test_message)  # noqa: SLF001
+            await api_for_ws_tests._handle_websocket_message(test_message)
             print(f"mock_logger_debug calls: {mock_logger_debug.call_args_list}")  # DEBUG PRINT
             # Assert based on actual logged message from debug print
             mock_logger_debug.assert_called_once_with(
@@ -511,8 +511,8 @@ class TestBackpackAPIWebSocketRouting:
         mock_handler = AsyncMock()
         topic = "public.depth.SOL_USDC"
         # Ensure _ws_manager exists and send_json is an AsyncMock before calling subscribe
-        assert api_for_ws_tests._ws_manager is not None  # noqa: SLF001
-        api_for_ws_tests._ws_manager.send_json = AsyncMock()  # type: ignore[method-assign] # noqa: SLF001
+        assert api_for_ws_tests._ws_manager is not None
+        api_for_ws_tests._ws_manager.send_json = AsyncMock()  # type: ignore[method-assign]
 
         await api_for_ws_tests.subscribe(topic, mock_handler)
         # The original test had an assignment to mock_ws_mgr_instance.send_json after subscribe,

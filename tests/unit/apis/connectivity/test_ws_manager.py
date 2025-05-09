@@ -138,7 +138,7 @@ class TestWebSocketManager:
         mock_on_connected_cb = AsyncMock()
 
         # Assign mock for test to control callback behavior. This is a test-specific setup.
-        ws_manager_instance._on_connected_callback = mock_on_connected_cb  # pyright: ignore [reportPrivateUsage]
+        ws_manager_instance._on_connected_callback = mock_on_connected_cb
 
         with (
             patch.object(ws_manager_instance, "_logger") as mock_logger,
@@ -339,7 +339,7 @@ class TestWebSocketManager:
             try:
                 # Ensure the session is created if it's lazy.
                 # Call _get_session to trigger internal session creation if applicable.
-                await manager._get_session()  # pyright: ignore [reportPrivateUsage]
+                await manager._get_session()
 
                 with patch.object(manager, "_logger") as mock_logger_idle_close:
                     await manager.close()
@@ -511,7 +511,7 @@ class TestWebSocketManager:
             ws1_proceed_to_close_event.set()
             await asyncio.sleep(0.1)
 
-            conn_task2 = manager._connection_task  # pyright: ignore [reportPrivateUsage]
+            conn_task2 = manager._connection_task
             assert conn_task2 is not None, (
                 "Reconnect task not found after first listen loop closed."
             )
@@ -521,7 +521,7 @@ class TestWebSocketManager:
 
             await asyncio.wait_for(conn_task2, timeout=1.0)
 
-            manager._should_reconnect = False  # pyright: ignore [reportPrivateUsage]
+            manager._should_reconnect = False
             await asyncio.sleep(0.1)
 
             # Check that dynamic_ws_connect_side_effect was called twice

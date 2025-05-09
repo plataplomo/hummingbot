@@ -66,28 +66,28 @@ class TestHttpClient:
     @pytest.mark.asyncio
     async def test_get_session_creation_and_reuse(self, http_client_instance: HttpClient) -> None:
         """Test that a session is created and reused."""
-        session1 = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        session1 = await http_client_instance._get_session()
         assert isinstance(session1, aiohttp.ClientSession)
         assert not session1.closed
 
-        session2 = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        session2 = await http_client_instance._get_session()
         assert session1 is session2
 
         await http_client_instance.close_session()
-        assert http_client_instance._session is None  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        assert http_client_instance._session is None
 
-        session3 = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        session3 = await http_client_instance._get_session()
         assert isinstance(session3, aiohttp.ClientSession)
         assert session1 is not session3
 
     @pytest.mark.asyncio
     async def test_close_session_idempotent(self, http_client_instance: HttpClient) -> None:
         """Test that closing the session is idempotent."""
-        await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        await http_client_instance._get_session()
         await http_client_instance.close_session()
-        assert http_client_instance._session is None  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        assert http_client_instance._session is None
         await http_client_instance.close_session()
-        assert http_client_instance._session is None  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        assert http_client_instance._session is None
 
     @pytest.mark.asyncio
     async def test_async_context_manager(
@@ -97,9 +97,9 @@ class TestHttpClient:
         async with HttpClient(
             exchange_name="test_ctx", config=default_http_client_config
         ) as client:
-            assert client._session is not None  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
-            assert not client._session.closed  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
-        assert client._session is None  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+            assert client._session is not None
+            assert not client._session.closed
+        assert client._session is None
 
     @pytest.mark.asyncio
     @patch("cyberdelta.apis.connectivity.http_client.HttpClient._parse_and_validate_response")
@@ -143,7 +143,7 @@ class TestHttpClient:
         mock_rate_limiter_service.get_limiter.return_value.acquire.assert_called_once()  # type: ignore[attr-defined]
 
         full_expected_url = str(default_http_client_config.rest_endpoint).rstrip("/") + "/test"
-        session_for_headers = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        session_for_headers = await http_client_instance._get_session()
         mock_session_request.assert_called_once_with(
             "GET",
             full_expected_url,
@@ -265,7 +265,7 @@ class TestHttpClient:
         assert processed_headers.content_type == "application/json"
         assert isinstance(raw_headers, CIMultiDictProxy)
 
-        session = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        session = await http_client_instance._get_session()
         expected_headers_for_auth = session.headers.copy()
         expected_headers_for_auth.update(original_headers)
 
@@ -419,7 +419,7 @@ class TestHttpClient:
         # Scenario 1: Relative path with base URL not ending in slash
         config1 = HttpClientConfig(rest_endpoint=HttpUrl("http://base.url/v1"))
         async with HttpClient(exchange_name="url_test1", config=config1) as client1:
-            session1 = await client1._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+            session1 = await client1._get_session()
             mock_response1 = AsyncMock(spec=aiohttp.ClientResponse)
             mock_response1.status = 200
             mock_response1.headers = CIMultiDictProxy(CIMultiDict[str]())
@@ -456,7 +456,7 @@ class TestHttpClient:
         # Scenario 3: Absolute URL in endpoint_path
         config2 = HttpClientConfig(rest_endpoint=HttpUrl("http://shouldbeignored.com"))
         async with HttpClient(exchange_name="url_test2", config=config2) as client2:
-            session2 = await client2._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+            session2 = await client2._get_session()
             mock_response2 = AsyncMock(spec=aiohttp.ClientResponse)
             mock_response2.status = 200
             mock_response2.headers = CIMultiDictProxy(CIMultiDict[str]())
@@ -501,7 +501,7 @@ class TestHttpClient:
             rate_limiter_service=mock_rate_limiter_service,
             request_timeout=custom_timeout,
         )
-        session_for_headers = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        session_for_headers = await http_client_instance._get_session()
         mock_request.assert_called_once_with(
             "GET",
             str(default_http_client_config.rest_endpoint).rstrip("/") + "/custom_timeout_test",
@@ -659,9 +659,7 @@ class TestHttpClientResponseParsing:
             content,
             processed_headers,
             raw_headers,
-        ) = await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
-            mock_aio_response, full_url
-        )
+        ) = await http_client_instance._parse_and_validate_response(mock_aio_response, full_url)
 
         assert content == {"key": "value", "num": 123}
         assert isinstance(processed_headers, ProcessedResponseHeaders)
@@ -685,9 +683,7 @@ class TestHttpClientResponseParsing:
             content,
             processed_headers,
             raw_headers,
-        ) = await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
-            mock_aio_response, full_url
-        )
+        ) = await http_client_instance._parse_and_validate_response(mock_aio_response, full_url)
 
         assert content == "Hello, World!"
         assert isinstance(processed_headers, ProcessedResponseHeaders)
@@ -710,9 +706,7 @@ class TestHttpClientResponseParsing:
             content,
             processed_headers,
             raw_headers,
-        ) = await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
-            mock_aio_response, full_url
-        )
+        ) = await http_client_instance._parse_and_validate_response(mock_aio_response, full_url)
 
         assert content is None
         assert isinstance(processed_headers, ProcessedResponseHeaders)
@@ -735,9 +729,7 @@ class TestHttpClientResponseParsing:
         full_url = f"{http_client_instance.rest_endpoint}/test_ct_too_long"
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
-                mock_aio_response, full_url
-            )
+            await http_client_instance._parse_and_validate_response(mock_aio_response, full_url)
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid Content-Type" in excinfo.value.message
@@ -752,7 +744,7 @@ class TestHttpClientResponseParsing:
         mock_aio_response.text = AsyncMock(return_value="some text")
         full_url = f"{http_client_instance.rest_endpoint}/test_ct_missing"
 
-        content, processed_headers, _ = await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
+        content, processed_headers, _ = await http_client_instance._parse_and_validate_response(
             mock_aio_response, full_url
         )
         assert content == "some text"
@@ -771,9 +763,7 @@ class TestHttpClientResponseParsing:
         full_url = f"{http_client_instance.rest_endpoint}/test_json_decode_err"
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
-                mock_aio_response, full_url
-            )
+            await http_client_instance._parse_and_validate_response(mock_aio_response, full_url)
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Failed to decode JSON" in excinfo.value.message
@@ -795,9 +785,7 @@ class TestHttpClientResponseParsing:
         full_url = f"{http_client_instance.rest_endpoint}/test_payload_err"
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
-                mock_aio_response, full_url
-            )
+            await http_client_instance._parse_and_validate_response(mock_aio_response, full_url)
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.NETWORK_ISSUE.value
         assert "Failed to read response body" in excinfo.value.message
@@ -818,9 +806,7 @@ class TestHttpClientResponseParsing:
         full_url = f"{http_client_instance.rest_endpoint}/test_json_none_body"
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
-            await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
-                mock_aio_response, full_url
-            )
+            await http_client_instance._parse_and_validate_response(mock_aio_response, full_url)
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"JSON content type with empty/None body from {full_url}" in excinfo.value.message

@@ -17,8 +17,8 @@ def mock_time_patch() -> Generator[MagicMock]:
 class TestBackpackHmacAuthenticator:
     def test_initialization(self) -> None:
         auth = BackpackHmacAuthenticator(api_key="test_key", api_secret="test_secret")
-        assert auth._api_key == "test_key"  # noqa: SLF001
-        assert auth._api_secret == "test_secret"  # noqa: SLF001
+        assert auth._api_key == "test_key"
+        assert auth._api_secret == "test_secret"
 
     def test_initialization_missing_key_raises_value_error(self, caplog: LogCaptureFixture) -> None:
         with pytest.raises(ValueError, match="API key cannot be empty"):
