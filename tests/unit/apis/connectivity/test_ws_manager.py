@@ -439,7 +439,8 @@ class TestWebSocketManager:
 
         finally:
             # Minimal cleanup: ensure tasks are cancelled if the test failed early.
-            # Avoid calling local_ws_manager.close() again to not interfere with assert_called_once().
+            # Avoid calling local_ws_manager.close() again to not interfere with
+            # assert_called_once().
             tasks_to_check_for_cancellation = [
                 connection_establishment_task,
                 created_tasks_map.get(f"{local_exchange_name}_ws_listen"),

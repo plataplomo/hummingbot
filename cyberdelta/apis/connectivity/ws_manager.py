@@ -396,6 +396,10 @@ class WebSocketManager:
         self._logger.info(f"Close requested for WebSocket connection to {self._ws_url}.")
         self._should_reconnect = False
 
+        # Capture the current WebSocket connection instance at the start of the close operation.
+        # This is crucial because background tasks, when cancelled, might modify self._ws_connection.
+        ws_conn_at_close_start = self._ws_connection
+
         if self._connection_task and not self._connection_task.done():
             self._logger.debug("Cancelling in-progress connection task.")
             self._connection_task.cancel()
@@ -426,11 +430,33 @@ class WebSocketManager:
             except Exception as e:
                 self._logger.warning(f"Error awaiting cancelled ping task: {e}", exc_info=True)
 
-        if self._ws_connection and not self._ws_connection.closed:
-            self._logger.debug(f"Closing WebSocket connection object for {self._ws_url}.")
-            await self._ws_connection.close()
-            self._logger.info(f"WebSocket connection to {self._ws_url} closed.")
+        # Now, handle the captured WebSocket connection.
+        # It might have been closed by a server-side action and handled by _listen's finally block,
+        # or it might still be open.
+        if ws_conn_at_close_start and not ws_conn_at_close_start.closed:
+            self._logger.debug(
+                f"Closing WebSocket connection object {id(ws_conn_at_close_start)} for {self._ws_url}."
+            )
+            try:
+                await ws_conn_at_close_start.close()
+                self._logger.info(
+                    f"WebSocket connection to {self._ws_url} (obj id: {id(ws_conn_at_close_start)}) closed by explicit call."
+                )
+            except Exception as e:
+                self._logger.error(
+                    f"Error during explicit close of WebSocket connection {id(ws_conn_at_close_start)}: {e}",
+                    exc_info=True,
+                )
+        elif ws_conn_at_close_start and ws_conn_at_close_start.closed:
+            self._logger.debug(
+                f"WebSocket connection {id(ws_conn_at_close_start)} for {self._ws_url} was already closed."
+            )
+        else:
+            self._logger.debug(
+                f"No active WebSocket connection object to close explicitly for {self._ws_url} at this stage."
+            )
 
+        # Ensure internal state reflects that the connection is now definitely gone or was never there.
         self._ws_connection = None
         self._is_connected = False
 
