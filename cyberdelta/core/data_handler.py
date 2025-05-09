@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Awaitable, Callable, Coroutine
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker
@@ -24,9 +24,9 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # Type alias for the observer callback
-MarketDataObserver: TypeAlias = Callable[[Candle], Coroutine[Any, Any, None]]
-OrderBookObserver: TypeAlias = Callable[[OrderBook], Coroutine[Any, Any, None]]
-FundingRateObserver: TypeAlias = Callable[[FundingRate], Coroutine[Any, Any, None]]
+type MarketDataObserver = Callable[[Candle], Coroutine[Any, Any, None]]
+type OrderBookObserver = Callable[[OrderBook], Coroutine[Any, Any, None]]
+type FundingRateObserver = Callable[[FundingRate], Coroutine[Any, Any, None]]
 # Add other observer types as needed
 
 
@@ -88,14 +88,14 @@ class DataHandler:
         # Ignore unnecessary isinstance and unknown types from .get()
         if isinstance(defaults, dict):  # type: ignore [misc]
             ticker_val = defaults.get("ticker", 60.0)  # type: ignore [union-attr, var-annotated]
-            default_ticker_sec = float(ticker_val) if isinstance(ticker_val, (int, float)) else 60.0
+            default_ticker_sec = float(ticker_val) if isinstance(ticker_val, int | float) else 60.0
 
         default_funding_sec = 3600.0
         # Ignore unnecessary isinstance and unknown types from .get()
         if isinstance(defaults, dict):  # type: ignore [misc]
             funding_val = defaults.get("funding_rate", 3600.0)  # type: ignore [union-attr, var-annotated]
             default_funding_sec = (
-                float(funding_val) if isinstance(funding_val, (int, float)) else 3600.0
+                float(funding_val) if isinstance(funding_val, int | float) else 3600.0
             )
 
         exchanges_conf = self.config.get("exchanges", {})
@@ -234,7 +234,8 @@ class DataHandler:
                     )
                 else:
                     logger.error(
-                        f"Cannot start connection for {exchange_id}: Client missing connect_ws/subscribe methods."
+                        f"Cannot start connection for {exchange_id}: Client missing "
+                        f"connect_ws/subscribe methods."
                     )
 
         if connect_tasks:
@@ -250,15 +251,17 @@ class DataHandler:
             logger.warning("No WebSocket connections configured or enabled.")
 
     async def _connect_and_subscribe(self, exchange_id: str, client: ExchangeAPI) -> None:
-        """Connect to WebSocket and subscribe to necessary channels."""
+        """Connect to an exchange and subscribe to initial topics."""
         try:
-            logger.info(f"Connecting to {exchange_id} WebSocket...")
-            await client.connect()
-            logger.info(f"Connected to {exchange_id} WebSocket.")
+            logger.info(f"Connecting to {exchange_id} and subscribing to topics...")
+            await client.connect_websocket()
 
-            # Get symbols for this exchange
-            symbols_conf = self.config.get(f"exchanges.{exchange_id}.symbols", [])
-            symbols = cast(list[str], symbols_conf if isinstance(symbols_conf, list) else [])
+            # Standardize symbol format for internal use
+            configured_symbols_raw = self.config.get(f"exchanges.{exchange_id}.symbols", [])
+            symbols = cast(
+                list[str],
+                configured_symbols_raw if isinstance(configured_symbols_raw, list) else [],
+            )
 
             if not symbols:
                 logger.warning(f"No symbols configured for {exchange_id}. Skipping subscriptions.")
@@ -315,7 +318,8 @@ class DataHandler:
                 else:
                     # Handle potential connection closure or empty messages
                     logger.warning(
-                        f"Received empty message or connection closed for {exchange_id}. Attempting reconnect?"
+                        f"Received empty message or connection closed for {exchange_id}. "
+                        f"Attempting reconnect?"
                     )
                     # Implement reconnection logic if needed
                     await asyncio.sleep(5)  # Basic wait before potentially breaking
@@ -369,7 +373,8 @@ class DataHandler:
                     # Log the unexpected type case
                     logger.warning(
                         f"Unexpected type from parse_ticker_message for {exchange_id}: "
-                        f"{type(parsed_data)}. Expected: Ticker or tuple[str, Ticker]. Message: {message}"
+                        f"{type(parsed_data)}. Expected: Ticker or tuple[str, Ticker]. "
+                        f"Message: {message}"
                     )
                     return
 
@@ -378,13 +383,15 @@ class DataHandler:
                     # DEFENSIVE CHECK: Ensure ticker price is valid Decimal before use.
                     if ticker_obj.price is None or not ticker_obj.price.is_finite():
                         logger.warning(
-                            f"Invalid ticker price for {exchange_id}/{symbol}: {ticker_obj.price}. Skipping update."
+                            f"Invalid ticker price for {exchange_id}/{symbol}: "
+                            f"{ticker_obj.price}. Skipping update."
                         )
                         return
                     # DEFENSIVE CHECK: Ensure timestamp is valid datetime before use.
                     if ticker_obj.timestamp is None:
                         logger.warning(
-                            f"Invalid ticker timestamp for {exchange_id}/{symbol}. Using current time."
+                            f"Invalid ticker timestamp for {exchange_id}/{symbol}. "
+                            f"Using current time."
                         )
                         timestamp_to_use = now
                     else:
@@ -412,7 +419,8 @@ class DataHandler:
                     # DEFENSIVE CHECK: Ensure timestamp is valid.
                     if parsed_data.timestamp is None:
                         logger.warning(
-                            f"OrderBook for {exchange_id}/{parsed_data.symbol} missing timestamp. Using current time."
+                            f"OrderBook for {exchange_id}/{parsed_data.symbol} missing "
+                            f"timestamp. Using current time."
                         )
                         parsed_data.timestamp = now
                     self._update_order_book(exchange_id, parsed_data.symbol, parsed_data, now)
@@ -425,16 +433,19 @@ class DataHandler:
                     # DEFENSIVE CHECK: Ensure rate and timestamp are valid.
                     if parsed_data.funding_rate is None or not parsed_data.funding_rate.is_finite():
                         logger.warning(
-                            f"Invalid funding rate for {exchange_id}/{parsed_data.symbol}. Skipping update."
+                            f"Invalid funding rate for {exchange_id}/{parsed_data.symbol}. "
+                            f"Skipping update."
                         )
                         return
                     if parsed_data.timestamp is None:
                         logger.warning(
-                            f"FundingRate for {exchange_id}/{parsed_data.symbol} missing timestamp. Using current time."
+                            f"FundingRate for {exchange_id}/{parsed_data.symbol} missing "
+                            f"timestamp. Using current time."
                         )
                         parsed_data.timestamp = now
 
-                    # DEFENSIVE CHECK: Assert timestamp is datetime after None check. Mypy=[redundant-expr]
+                    # DEFENSIVE CHECK: Assert timestamp is datetime after None check.
+                    # Mypy=[redundant-expr]
                     assert parsed_data.timestamp is not None
                     self._update_funding_rate(exchange_id, parsed_data.symbol, parsed_data, now)
                     await self._notify_funding_rate_observers(parsed_data)
@@ -589,7 +600,7 @@ class DataHandler:
         """Register an observer for data updates."""
         # Infer type based on annotation (basic example)
         # TODO: Improve this with more robust type checking or explicit registration methods
-        sig = observer.__annotations__.get("return")
+        observer.__annotations__.get("return")
         param_key = next(iter(observer.__annotations__), None)
         param_type = observer.__annotations__.get(param_key) if param_key else None
 
@@ -670,7 +681,10 @@ class DataHandler:
 
         if last_update is None or threshold is None:
             # If no update time or threshold, assume not stale (or handle as error)
-            # logger.warning(f"Missing update time or threshold for staleness check: {exchange_id}/{symbol}/{data_type}")
+            # logger.warning(
+            #     f"Missing update time/threshold for staleness check: "
+            #     f"{exchange_id}/{symbol}/{data_type}"
+            # )
             return False
 
         # Ensure tz-aware comparison
@@ -680,7 +694,8 @@ class DataHandler:
 
         time_since_update = now - last_update
 
-        # DEFENSIVE CHECK: Ensure comparison is between timedelta and timedelta. Mypy=[comparison-overlap]
+        # DEFENSIVE CHECK: Ensure comparison is between timedelta and timedelta.
+        # Mypy=[comparison-overlap]
         assert isinstance(time_since_update, timedelta)
         assert isinstance(threshold, timedelta)
 
@@ -688,6 +703,7 @@ class DataHandler:
         if is_stale:
             logger.debug(
                 f"Data considered stale: {exchange_id}/{symbol}/{data_type}. "
-                f"Last update: {last_update}, Time since: {time_since_update}, Threshold: {threshold}"
+                f"Last update: {last_update}, Time since: {time_since_update}, "
+                f"Threshold: {threshold}"
             )
         return is_stale

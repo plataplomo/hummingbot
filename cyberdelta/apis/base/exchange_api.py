@@ -641,13 +641,31 @@ class ExchangeAPI(ABC):
     # --- WebSocket Management & Subscriptions --- #
 
     async def connect_websocket(self) -> None:
-        """Establish the WebSocket connection via WebSocketManager."""
+        """Connects the WebSocket client if it's initialized."""
         if self._ws_manager:
-            await self._ws_manager.connect()
+            logger.info(f"[{self.exchange_name}] Explicit WebSocket connection requested.")
+            connect_task = self._ws_manager.connect()
+            if connect_task:
+                # Ensure task is not None before awaiting, for stricter type checking
+                assert (
+                    connect_task is not None
+                )  # DEFENSIVE CHECK: Mypy/Pyright sometimes miss the if-guard.
+                try:
+                    await connect_task
+                except Exception as e:
+                    logger.error(
+                        f"[{self.exchange_name}] Error during WebSocket connect task: {e}",
+                        exc_info=True,
+                    )
+                    # Optionally re-raise or handle as an APIError
+                    raise APIError(
+                        message=f"WebSocket connection task failed: {e}",
+                        code=APIErrorCode.CONNECTION_ERROR.value,
+                    ) from e
         else:
             logger.warning(
-                f"[{self.exchange_name}] WebSocket endpoint not configured. "
-                f"Cannot connect WebSocket."
+                f"[{self.exchange_name}] WebSocket connection requested but manager not "
+                f"initialized."
             )
 
     async def ping_websocket(self) -> None:

@@ -120,20 +120,20 @@ class TestHttpClientConfig:
             ("retry_delay_seconds", 300.1, "Input should be less than or equal to 300.0"),
         ],
     )
-    def test_invalid_field_values(self, field: str, invalid_value: Any, error_part: str) -> None:
+    def test_invalid_field_values(self, field: str, invalid_value: Any, error_part: str) -> None:  # noqa: ANN401 - Testing with various invalid types is intended here
         """Test invalid values for various fields, expecting ValidationError."""
         valid_base = {"rest_endpoint": HttpUrl("https://api.example.com")}
         init_data = {**valid_base, field: invalid_value}
 
         with pytest.raises(ValidationError) as exc_info:
-            HttpClientConfig(**init_data)  # type: ignore[arg-type]
+            HttpClientConfig(**init_data)  # type: ignore[arg-type] # Pyright needs this to allow invalid types for testing
         assert error_part.lower() in str(exc_info.value).lower()
 
     def test_frozen_behavior(self) -> None:
         """Test that the model is frozen."""
         config = HttpClientConfig(rest_endpoint=HttpUrl("https://api.example.com"))
         with pytest.raises(ValidationError) as exc_info:
-            config.default_request_timeout = 15.0  # type: ignore[misc]
+            config.default_request_timeout = 15.0  # type: ignore[misc] # Pyright needs this for frozen field test
         assert "frozen" in str(exc_info.value).lower()
 
     def test_extra_forbid_behavior(self) -> None:
@@ -192,20 +192,20 @@ class TestWebSocketManagerConfig:
             ("connection_timeout", 120.1, "Input should be less than or equal to 120.0"),
         ],
     )
-    def test_invalid_field_values(self, field: str, invalid_value: Any, error_part: str) -> None:
+    def test_invalid_field_values(self, field: str, invalid_value: Any, error_part: str) -> None:  # noqa: ANN401 - Testing with various invalid types is intended here
         """Test invalid values for various fields, expecting ValidationError."""
         valid_base = {"ws_url": AnyUrl("wss://ws.example.com")}
         init_data = {**valid_base, field: invalid_value}
 
         with pytest.raises(ValidationError) as exc_info:
-            WebSocketManagerConfig(**init_data)  # type: ignore[arg-type]
+            WebSocketManagerConfig(**init_data)  # type: ignore[arg-type] # Pyright needs this to allow invalid types for testing
         assert error_part.lower() in str(exc_info.value).lower()
 
     def test_frozen_behavior(self) -> None:
         """Test that the model is frozen."""
         config = WebSocketManagerConfig(ws_url=AnyUrl("wss://ws.example.com"))
         with pytest.raises(ValidationError) as exc_info:
-            config.ping_interval = 10.0  # type: ignore[misc]
+            config.ping_interval = 10.0  # type: ignore[misc] # Pyright needs this for frozen field test
         assert "frozen" in str(exc_info.value).lower()
 
     def test_extra_forbid_behavior(self) -> None:
