@@ -833,6 +833,7 @@ class TestRateLimiterIntegration:
     @pytest.mark.asyncio
     async def test_rate_limiter_integration(self, http_client_instance: HttpClient) -> None:
         """Test that rate limiter integration works correctly."""
-        # This test should be implemented to verify that the rate limiter integration is working as expected.
-        # You might want to mock the rate limiter service and check if the rate limits are enforced correctly.
+        # This test should be implemented to verify that the rate limiter integration
+        # is working as expected. You might want to mock the rate limiter service
+        # and check if the rate limits are enforced correctly.
         pass

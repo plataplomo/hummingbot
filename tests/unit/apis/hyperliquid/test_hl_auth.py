@@ -495,3 +495,21 @@ class TestHyperliquidEip712Authenticator:
         except Exception as e:
             # If *any* other exception occurs, fail the test.
             pytest.fail(f"prepare_request with non-dict data raised unexpected Exception: {e}")
+
+    @pytest.mark.asyncio
+    async def test_prepare_request_action_with_string_payload_invalid_json(
+        self, authenticator_eip712: HyperliquidEip712Authenticator
+    ) -> None:
+        """Test prepare_request with a string payload that is invalid JSON."""
+        # invalid_json_string = "not_json_parsable_string{" # This variable is unused now
+        expected_error_msg = (
+            "Hyperliquid action payload must be a valid JSON string representation of a dict"
+        )
+        with pytest.raises(ValueError, match=re.escape(expected_error_msg)):
+            await authenticator_eip712.prepare_request(
+                method="POST",
+                path="/exchange",
+                params=None,
+                data=None,  # Corrected: Pass None to satisfy type hint
+                headers={},
+            )

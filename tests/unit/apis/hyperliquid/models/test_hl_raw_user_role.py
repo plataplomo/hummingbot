@@ -2,7 +2,7 @@
 Unit Tests for Hyperliquid Raw User Role Models
 """
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -58,6 +58,37 @@ def valid_user_role_data(request: FixtureRequest) -> dict[str, Any]:
 )
 def valid_role_data_params(request: FixtureRequest) -> dict[str, str | None]:
     return request.param.copy()
+
+
+@pytest.fixture
+def valid_raw_user_role_data() -> dict[str, Any]:
+    """Return a valid raw user role data dictionary."""
+    return cast(
+        dict[str, Any],
+        {
+            "roles": [
+                {"role": "withdraw", "maxAmount": "100000000000"},
+                {"role": "cancel", "maxTimestamp": 1672531199000},
+            ],
+        },
+    )
+
+
+@pytest.fixture
+def valid_raw_create_user_role_payload() -> dict[str, str | None]:
+    """Return a valid raw create user role payload dictionary."""
+    return cast(
+        dict[str, str | None],
+        {
+            "vaultAddress": "0x1234567890123456789012345678901234567890",
+            "signature": "0xabcdef",
+            "agentAddress": "0x0987654321098765432109876543210987654321",
+            "agentName": "Test Agent",
+            "maxAmount": "50000",
+            "maxTimestamp": "1700000000000",  # Example timestamp
+            "nonce": "12345",
+        },
+    )
 
 
 # --- Test Cases for HyperliquidRawUserRoleData --- #

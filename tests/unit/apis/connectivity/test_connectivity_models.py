@@ -145,6 +145,31 @@ class TestHttpClientConfig:
             )
         assert "extra inputs are not permitted" in str(exc_info.value).lower()
 
+    def test_max_retries_validation(self) -> None:
+        """Test max_retries validation."""
+        config_no_validation = HttpClientConfig(
+            rest_endpoint="http://example.com",
+            default_request_timeout=10.0,
+            max_retries=1,  # Valid value that shouldn't trigger the ignore
+            retry_delay_seconds=1.0,
+        )
+        assert config_no_validation.max_retries == 1
+
+        # Test with max_retries = 0 (valid)
+        config_zero_retries = HttpClientConfig(
+            rest_endpoint="http://example.com", default_request_timeout=10.0, max_retries=0
+        )
+        assert config_zero_retries.max_retries == 0
+
+        # Test with max_retries = None (should use default)
+        config_no_validation = HttpClientConfig(
+            rest_endpoint="http://example.com",
+            default_request_timeout=10.0,
+            max_retries=None,
+            retry_delay_seconds=1.0,
+        )
+        assert config_no_validation.max_retries is None
+
 
 class TestWebSocketManagerConfig:
     """Tests for the WebSocketManagerConfig model."""
@@ -216,3 +241,59 @@ class TestWebSocketManagerConfig:
                 some_other_param="value",  # type: ignore[call-arg]
             )
         assert "extra inputs are not permitted" in str(exc_info.value).lower()
+
+    def test_max_retries_validation(self) -> None:
+        """Test max_reconnect_attempts validation."""
+        config_no_validation = WebSocketManagerConfig(
+            ws_url="ws://example.com",
+            ping_interval=10.0,  # Valid value
+            reconnect_delay=5.0,
+            max_reconnect_attempts=1,
+            connection_timeout=30.0,
+        )
+        assert config_no_validation.max_reconnect_attempts == 1
+
+        # Test with max_reconnect_attempts = 0 (valid)
+        config_zero_attempts = WebSocketManagerConfig(
+            ws_url="ws://example.com",
+            ping_interval=10.0,
+            reconnect_delay=5.0,
+            max_reconnect_attempts=0,
+            connection_timeout=30.0,
+        )
+        assert config_zero_attempts.max_reconnect_attempts == 0
+
+        # Test with max_reconnect_attempts = None (should use default or handle as no reconnect)
+        config_no_validation = WebSocketManagerConfig(
+            ws_url="ws://example.com",
+            ping_interval=10.0,  # Valid value
+            reconnect_delay=5.0,
+            max_reconnect_attempts=None,
+            connection_timeout=30.0,
+        )
+        assert config_no_validation.max_reconnect_attempts is None
+
+    def test_ping_interval_validation(self) -> None:
+        """Test ping_interval validation."""
+        config_no_validation = WebSocketManagerConfig(
+            ws_url="ws://example.com",
+            ping_interval=10.0,  # Valid value
+            reconnect_delay=5.0,
+            max_reconnect_attempts=1,
+            connection_timeout=30.0,
+        )
+        assert config_no_validation.ping_interval == 10.0
+
+        # Test with ping_interval = 0 (valid, means no auto-ping)
+        config_zero_ping = WebSocketManagerConfig(ws_url="ws://example.com", ping_interval=0)
+        assert config_zero_ping.ping_interval == 0
+
+        # Test with ping_interval = None (should use default or handle as no ping)
+        config_no_validation = WebSocketManagerConfig(
+            ws_url="ws://example.com",
+            ping_interval=None,
+            reconnect_delay=5.0,
+            max_reconnect_attempts=1,
+            connection_timeout=30.0,
+        )
+        assert config_no_validation.ping_interval is None

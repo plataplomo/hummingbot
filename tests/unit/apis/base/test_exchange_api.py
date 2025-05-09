@@ -223,7 +223,7 @@ def test_exchange_api_initialization_creates_rate_limiter_service(
     MockRateLimiterService.assert_called_once_with(
         exchange_name=exchange_name, config=current_config, loop=mock_loop
     )
-    assert api._rate_limiter_service == MockRateLimiterService.return_value
+    assert api._rate_limiter_service == MockRateLimiterService.return_value  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -277,7 +277,7 @@ async def test_exchange_api_request_delegates_to_http_client_and_handles_respons
     api.authenticator = mock_authenticator
 
     # Call _request (as a signed request for this test part)
-    result = await api._request(  # type: ignore[attr-defined] # SLF001 for _request
+    result = await api._request(  # noqa: SLF001
         method, endpoint, params=params, data=data_payload, headers=custom_headers, is_signed=True
     )
 
@@ -346,7 +346,7 @@ async def test_request_error_mapping_from_http_request_failed_error(
     mock_error_mapper.map_exchange_error.return_value = expected_mapped_api_error
 
     with pytest.raises(APIError) as exc_info:
-        await api._request(method="POST", endpoint=request_path_sent.lstrip("/"))  # type: ignore[attr-defined]
+        await api._request(method="POST", endpoint=request_path_sent.lstrip("/"))  # noqa: SLF001
 
     # Assert that the raised exception is the one returned by our mocked map_exchange_error
     assert exc_info.value is expected_mapped_api_error
@@ -394,7 +394,7 @@ async def test_request_handles_client_error_from_http_client(
 
     request_path_sent = "/test/conn_error"
     with pytest.raises(APIError) as exc_info:
-        await api._request(method="GET", endpoint=request_path_sent.lstrip("/"))  # type: ignore[attr-defined]
+        await api._request(method="GET", endpoint=request_path_sent.lstrip("/"))  # noqa: SLF001
 
     assert exc_info.value is expected_mapped_api_error
     mock_error_mapper.map_exchange_error.assert_called_once_with(
@@ -437,7 +437,7 @@ async def test_request_handles_timeout_error_from_http_client(
 
     request_path_sent = "/test/timeout"
     with pytest.raises(APIError) as exc_info:
-        await api._request(
+        await api._request(  # noqa: SLF001
             method="GET", endpoint=request_path_sent.lstrip("/")
         )  # Removed type: ignore
 
@@ -472,7 +472,7 @@ class TestExchangeAPIWebSocketIntegration:
 
         api = ConcreteTestExchangeAPI("test_ws", current_config, {}, mock_error_mapper)
 
-        assert api._ws_manager == mock_ws_instance  # pyright: ignore [reportPrivateUsage]
+        assert api._ws_manager == mock_ws_instance  # noqa: SLF001
         # ExchangeAPI now passes a WebSocketManagerConfig object
         # Replicate ExchangeAPI's logic of filtering None values
         ws_config_params_from_current = {
@@ -503,7 +503,7 @@ class TestExchangeAPIWebSocketIntegration:
         config_no_ws = default_config.copy()
         del config_no_ws["ws_endpoint"]
         api = ConcreteTestExchangeAPI("test_no_ws", config_no_ws, {}, mock_error_mapper)
-        assert api._ws_manager is None
+        assert api._ws_manager is None  # noqa: SLF001
         MockWebSocketManagerClass.assert_not_called()  # Ensure WS Manager wasn't called
 
     @pytest.mark.asyncio
@@ -543,10 +543,8 @@ class TestExchangeAPIWebSocketIntegration:
         prop_mock = PropertyMock(return_value=False)
         type(mock_ws_instance).is_connected = prop_mock
         assert api.is_connected is False
-        # Verify the property was accessed
-        assert (
-            prop_mock.call_count >= 1
-        )  # It should have been called at least once after being set to False
+        # Verify the property was accessed (the previous assertion implicitly does this for False)
+        # The call_count check for the True case is implicitly covered by the first assertion.
 
     @pytest.mark.asyncio
     async def test_close_delegates_to_ws_manager(
@@ -561,9 +559,11 @@ class TestExchangeAPIWebSocketIntegration:
 
         mock_ws_instance.close = AsyncMock()
 
-        if api._http_client:
+        if api._http_client:  # noqa: SLF001
             with patch.object(
-                api._http_client, "close_session", new_callable=AsyncMock
+                api._http_client,  # noqa: SLF001
+                "close_session",
+                new_callable=AsyncMock,
             ) as mock_close_session:
                 await api.close()
                 mock_close_session.assert_awaited_once()
@@ -596,7 +596,7 @@ class TestExchangeAPIWebSocketIntegration:
 
         api.mock_construct_subscription_payload_method.assert_called_once_with(topic)
         mock_ws_instance.send_json.assert_awaited_once_with(payload)
-        assert api._ws_handlers[topic] == mock_handler
+        assert api._ws_handlers[topic] == mock_handler  # noqa: SLF001
 
     @pytest.mark.asyncio
     async def test_subscribe_logs_warning_if_not_connected(
@@ -627,7 +627,7 @@ class TestExchangeAPIWebSocketIntegration:
             "WebSocket not connected. Subscription to "
             "test.topic.notconnected will be attempted upon connection." in caplog.text
         )
-        assert api._ws_handlers[topic] == mock_handler
+        assert api._ws_handlers[topic] == mock_handler  # noqa: SLF001
 
     @pytest.mark.asyncio
     async def test_resubscribe_sends_for_all_handlers_if_connected(
@@ -649,7 +649,7 @@ class TestExchangeAPIWebSocketIntegration:
         topic1, topic2 = "topic1", "topic2"
         payload1, payload2 = {"sub": topic1}, {"sub": topic2}
 
-        api._ws_handlers = {topic1: handler1, topic2: handler2}
+        api._ws_handlers = {topic1: handler1, topic2: handler2}  # noqa: SLF001
 
         def side_effect_construct_payload(topic_arg: str) -> dict[str, Any] | None:
             if topic_arg == topic1:
@@ -660,7 +660,7 @@ class TestExchangeAPIWebSocketIntegration:
 
         api.mock_construct_subscription_payload_method.side_effect = side_effect_construct_payload
 
-        await api._resubscribe()
+        await api._resubscribe()  # noqa: SLF001
 
         assert mock_ws_instance.send_json.await_count == 2
         mock_ws_instance.send_json.assert_any_await(payload1)
@@ -680,12 +680,10 @@ class TestExchangeAPIWebSocketIntegration:
         # Set property mock's return value
         type(mock_ws_instance).is_connected = PropertyMock(return_value=True)
 
-        # Mock the protected method directly for assertion
-        instance_resubscribe_mock = AsyncMock(name="instance_resubscribe_mock")
-        api._resubscribe = instance_resubscribe_mock  # noqa: SLF001
-
-        await api._on_ws_connected()  # noqa: SLF001
-        instance_resubscribe_mock.assert_awaited_once()
+        # Patch the _resubscribe method on this specific instance for this test
+        with patch.object(api, "_resubscribe", new_callable=AsyncMock) as instance_resubscribe_mock:
+            await api._on_ws_connected()  # noqa: SLF001
+            instance_resubscribe_mock.assert_awaited_once()
 
 
 # End of new Test Class

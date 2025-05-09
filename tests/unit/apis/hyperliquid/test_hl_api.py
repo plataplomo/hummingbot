@@ -449,8 +449,9 @@ class TestHyperliquidAPIMethodErrors:
                 "POST", "/exchange", data=expected_builder_payload, is_signed=True
             )
 
-        # The handler should raise INVALID_RESPONSE because the string "User has insufficient margin"
-        # is not a valid item in the 'statuses' list according to HyperliquidRawExchangeResponse model.
+        # The handler should raise INVALID_RESPONSE because the string
+        # "User has insufficient margin" is not a valid item in the 'statuses' list
+        # according to HyperliquidRawExchangeResponse model.
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert isinstance(exc_info.value.original_exception, ValidationError)
         assert "User has insufficient margin" in str(exc_info.value.original_exception)

@@ -114,7 +114,7 @@ class WebSocketManager:
         self._should_reconnect = True
         if self._connection_task and not self._connection_task.done():
             self._logger.debug(
-                f"Connection attempt for {self._ws_url} already in progress. Returning existing task."
+                f"Connection attempt for {self._ws_url} already in progress. Using existing task."
             )
             return self._connection_task  # Return existing task
 

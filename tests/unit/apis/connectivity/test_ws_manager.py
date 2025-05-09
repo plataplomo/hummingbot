@@ -413,7 +413,7 @@ class TestWebSocketManager:
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)  # Ensure AsyncMock
     @patch("cyberdelta.apis.connectivity.ws_manager.asyncio.create_task")
     @pytest.mark.skip(
-        reason="Extremely stubborn async mocking issue with ws_connect, consuming side_effect multiple times per call."
+        reason="Extremely stubborn async mocking issue with ws_connect, consumes side_effect multiple times."
     )
     async def test_listen_loop_processes_message_and_reconnects_on_close(
         self,
@@ -479,9 +479,11 @@ class TestWebSocketManager:
                 _connect_attempt_counter += 1
                 if not connect_responses:
                     raise AssertionError(
-                        f"dynamic_ws_connect_side_effect called {_connect_attempt_counter} times, but no more responses available."
+                        f"dynamic_ws_connect_side_effect called {_connect_attempt_counter} times, "
+                        f"but no more responses available."
                     )
-                # print(f"DEBUG: dynamic_ws_connect_side_effect call #{_connect_attempt_counter}, returning a response.")
+                # print(f"DEBUG: dynamic_ws_connect_side_effect call #{_connect_attempt_counter}, "
+                #         f"returning a response.")
                 return connect_responses.pop(0)
 
             mock_ws_connect.side_effect = dynamic_ws_connect_side_effect
@@ -513,7 +515,7 @@ class TestWebSocketManager:
 
             # Check that dynamic_ws_connect_side_effect was called twice
             assert _connect_attempt_counter == 2, (
-                f"Expected ws_connect to be called twice, but was called {_connect_attempt_counter} times."
+                f"Expected ws_connect to be called twice, but was called {_connect_attempt_counter}."
             )
             # mock_ws_connect.call_count should also be 2 with this side_effect type
             assert mock_ws_connect.call_count == 2

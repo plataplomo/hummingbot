@@ -1135,7 +1135,8 @@ def test_handler_list_item_errors(
     if expect_warning_log:
         # Test for warning log and correct return value (usually filtered list)
         # Remove the patch, rely on caplog to capture logs from the handler's logger.
-        # Ensure the logger in bp_response_handler is configured to emit warnings that caplog can capture.
+        # Ensure the logger in bp_response_handler is configured to emit warnings
+        # that caplog can capture.
 
         # Call the handler method directly
         result = handler_method(invalid_data, **actual_handler_args)
@@ -1149,9 +1150,7 @@ def test_handler_list_item_errors(
         # Check log message using caplog.records
         log_found = any(expected_log_or_error in record.getMessage() for record in caplog.records)
         if not log_found:
-            print(
-                f"Test {request.node.name} failed. Expected log containing: '{expected_log_or_error}'"
-            )
+            print(f"Test {request.node.name} failed. Expected log: '{expected_log_or_error}'")
             print(f"Captured logs:\n{caplog.text}")
         assert log_found
     else:

@@ -250,7 +250,8 @@ class HyperliquidResponseHandler:
         if isinstance(raw_response_content, str) and "Order not found" in raw_response_content:
             logger.debug(f"{context}: Received direct string '{raw_response_content}'.")
             raise APIError(
-                message=f"Order {order_id} for user {user_address} not found (direct string response: '{raw_response_content}')",
+                message=f"Order {order_id} for user {user_address} not found (direct string:"
+                f" '{raw_response_content}')",
                 code=APIErrorCode.ORDER_NOT_FOUND.value,
                 metadata={"original_response": raw_response_content},
             )
@@ -315,7 +316,8 @@ class HyperliquidResponseHandler:
             if not isinstance(status_item, dict):
                 logger.warning(f"{context}: Unexpected item type in list: {type(status_item)}.")
                 raise APIError(
-                    message=f"Unexpected item type in {context} response list: expected dict, got {type(status_item).__name__}",
+                    message=f"Unexpected item type in {context} response list: expected dict, "
+                    f"got {type(status_item).__name__}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     metadata={"original_response_item": status_item},
                 )

@@ -214,8 +214,8 @@ class HttpClient:
         if not response_text:  # Handles both None and empty string for non-204
             if "application/json" in processed_headers.content_type:
                 logger.warning(
-                    f"[{self.exchange_name}] JSON content type received, but response body is empty/None "
-                    f"for {full_url} (status {response.status})."
+                    f"[{self.exchange_name}] JSON content type, but response body is empty/None"
+                    f" for {full_url} (status {response.status})."
                 )
                 raise HttpRequestFailedError(
                     message=f"JSON content type with empty/None body from {full_url}",
@@ -369,11 +369,13 @@ class HttpClient:
                             continue  # Ensure we go to the next retry attempt
 
                     # Handle HTTP errors (>= 400) or other non-2xx/non-3xx cases
-                    # This block is reached if status is not 2xx, or if a 2xx parsing error (not INVALID_RESPONSE)
-                    # occurred and we continued, but then the outer try block finishes.
-                    # To prevent re-processing a response that already had a parse error, we check last_exception.
-                    # However, the `continue` above should prevent falling through here for handled parse errors.
-                    # This part is primarily for non-2xx status codes directly.
+                    # This block is reached if status is not 2xx, or if a 2xx parsing error
+                    # (not INVALID_RESPONSE) occurred and we continued, but then the outer
+                    # try block finishes.
+                    # To prevent re-processing a response that already had a parse error,
+                    # we check last_exception.
+                    # However, the `continue` above should prevent falling through here
+                    # for handled parse errors. This part is primarily for non-2xx.
                     logger.warning(
                         f"[{self.exchange_name}] HTTP Error {response.status} for {full_url}. "
                         # Attempt to read body for error context, but guard it
