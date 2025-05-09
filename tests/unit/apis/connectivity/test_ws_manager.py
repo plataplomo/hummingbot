@@ -122,7 +122,29 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
         mock_conn.send_json = AsyncMock(side_effect=send_json_effect)
         mock_conn.send_str = AsyncMock(side_effect=send_json_effect)
         mock_conn.send_bytes = AsyncMock(side_effect=send_json_effect)
-        mock_conn.close = AsyncMock(side_effect=close_effect)
+
+        # Simulate actual .closed behavior upon calling .close()
+        original_close_side_effect = close_effect
+
+        async def close_side_effect_wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+            mock_conn.closed = True  # Simulate closed state update
+            if original_close_side_effect:
+                if isinstance(original_close_side_effect, Exception):
+                    raise original_close_side_effect
+                if asyncio.iscoroutinefunction(original_close_side_effect) or (
+                    callable(original_close_side_effect)
+                    and asyncio.iscoroutine(original_close_side_effect)
+                ):
+                    # Explicitly check if it is a coroutine object too for partials
+                    # or already awaited coroutines passed as side_effect
+                    return await original_close_side_effect(*args, **kwargs)
+                if callable(original_close_side_effect):
+                    return original_close_side_effect(*args, **kwargs)
+                # Note: Iterable side effects for a close method are uncommon and complex to generically handle here.
+                # If needed, the test providing the iterable side_effect should ensure it yields awaitables or exceptions.
+            return None  # Default return for async mock method if no side effect
+
+        mock_conn.close = AsyncMock(side_effect=close_side_effect_wrapper)
         mock_conn.ping = AsyncMock(side_effect=ping_effect)
         mock_conn.pong = AsyncMock(side_effect=pong_effect)
         return mock_conn
@@ -384,10 +406,7 @@ class TestWebSocketManager:
         with patch.object(ws_manager_instance, "_logger") as mock_logger_close:
             await ws_manager_instance.close()
 
-        assert ws_manager_instance.is_connected is False
-        actual_mock_ws_conn.close.assert_called_once()
-
-        # Check task states after close
+        # Check task states after close - IMMEDIATELY after close()
         if listener_task:  # Should always exist if connection was successful
             assert listener_task.cancelled() or listener_task.done(), (
                 "Listener task neither cancelled nor done after close."
@@ -398,7 +417,13 @@ class TestWebSocketManager:
                 "Ping task neither cancelled nor done after close."
             )
 
-        assert connection_establishment_task.done()
+        assert connection_establishment_task.done(), (
+            "Connection establishment task not done after close."
+        )
+
+        # Other assertions follow
+        actual_mock_ws_conn.close.assert_called_once()
+        assert ws_manager_instance.is_connected is False
         mock_logger_close.info.assert_any_call("Internally created ClientSession closed.")
 
     @pytest.mark.asyncio
@@ -590,7 +615,8 @@ class TestWebSocketManager:
 
                 # Manager should eventually reflect not being connected after retries exhausted
                 # Wait a bit more for final state if reconnect attempts were > 1 in config
-                await asyncio.sleep(test_config.reconnect_delay * 2)  # Ensure state updates
+                # Ensure state updates
+                await asyncio.sleep(test_config.reconnect_delay * 2)
                 assert manager.is_connected is False
 
         finally:
