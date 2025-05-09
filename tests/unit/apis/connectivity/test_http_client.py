@@ -212,7 +212,7 @@ class TestHttpClient:
 
         async with HttpClient(
             exchange_name="test_ctx", config=default_http_client_config
-        ) as client:
+        ) as _:  # Changed 'client' to '_' as it's unused
             MockAiohttpSession.assert_called_once_with(headers=expected_headers)
 
         # Verify the session instance was closed on __aexit__
@@ -248,11 +248,11 @@ class TestHttpClient:
                 "GET", "/test_ext", mock_rate_limiter_service
             )
 
-            MockAiohttpSessionClsConstruction.assert_not_called()  # Internal session constructor not called
+            MockAiohttpSessionClsConstruction.assert_not_called()  # Internal session ctor !called
             external_session_mock.request.assert_called_once()
 
             await client_with_external_session.close_session()
-            external_session_mock.close.assert_not_called()  # External session should not be closed by HttpClient
+            external_session_mock.close.assert_not_called()  # Ext session !closed by HTTPClient
 
         # Verify context manager also doesn't close external session
         with patch(
@@ -296,17 +296,14 @@ class TestHttpClient:
         assert processed_headers.content_type == "application/json; charset=utf-8"
         assert raw_headers.get("Content-Type") == "application/json; charset=utf-8"
 
-        # JUSTIFICATION: mock_rate_limiter_service.get_limiter is an attribute derived from a
-        # MagicMock(spec=RateLimiterService). At runtime, unittest.mock ensures that
-        # accessing an attribute that is a method on the spec (like get_limiter) results
-        # in a new MagicMock instance (or AsyncMock if the original was async).
-        # However, the type checker, relying on the RateLimiterService spec, only sees
-        # the original method signature (Callable[[str, str], TokenBucketRateLimiterRuntime]).
-        # To access mock-specific attributes like assert_called_once_with, we must cast to
-        # inform the type checker of its true runtime nature as a MagicMock.
-        # Alternative typing solutions (e.g. changing fixture type hints, local type hints
-        # without cast) have proven insufficient as the spec's signature takes precedence.
-        # This cast is safe because the object *is* a MagicMock at this point.
+        # JUSTIFICATION: mock_rate_limiter_service.get_limiter is an attribute from a
+        # MagicMock(spec=RateLimiterService). Runtime: unittest.mock ensures that
+        # accessing a spec attribute that is a method (like get_limiter) results
+        # in a new MagicMock/AsyncMock. Type checker sees original signature.
+        # To access mock-specific attrs (assert_called_once_with), we cast to tell
+        # the type checker its true runtime MagicMock nature.
+        # Alternatives (changing fixture types, local hints without cast) failed due
+        # to spec's signature precedence. Cast is safe: object *is* MagicMock.
         # [CAST-REVIEW-REQUIRED]
         get_limiter_mock = cast(MagicMock, mock_rate_limiter_service.get_limiter)
         assert isinstance(get_limiter_mock, MagicMock)
@@ -462,7 +459,7 @@ class TestHttpClient:
         expected_headers_for_auth_prep = initial_session_headers.copy()
         expected_headers_for_auth_prep.update(original_headers)
 
-        # JUSTIFICATION: mock_authenticator.prepare_request is an attribute derived from an
+        # JUSTIFICATION: mock_authenticator.prepare_request is an attribute from an
         # AsyncMock(spec=IAuthenticator). At runtime, unittest.mock ensures that
         # accessing an attribute that is an async method on the spec (like prepare_request)
         # results in a new AsyncMock instance.

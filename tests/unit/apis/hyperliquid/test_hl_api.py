@@ -249,22 +249,35 @@ async def test_place_order_calls_authenticate_and_request(
 
         # Define a side effect for the mocked _request
         async def mock_request_side_effect(
-            *args: Any,  # noqa: ANN401
+            *_args: Any,  # noqa: ANN401
             **kwargs: Any,  # noqa: ANN401
         ) -> dict[str, Any]:
-            # Simulate the internal call to prepare_request
+            # When api._request("POST", "/exchange", data=..., is_signed=True) is called,
+            # the side_effect receives _args = ("POST", "/exchange") and
+            # kwargs = {"data": ..., "is_signed": True}.
+            # `self` is not part of _args for a side_effect function.
+
             if kwargs.get("is_signed") is True and api.authenticator:
+                actual_method_from_args = _args[0] if _args else None
+                actual_path_from_args = _args[1] if len(_args) > 1 else None
+
+                if not isinstance(actual_method_from_args, str):
+                    pytest.fail(
+                        f"prepare_request: method from _args[0] not str: {actual_method_from_args=} ({type(actual_method_from_args)})"
+                    )
+                if not isinstance(actual_path_from_args, str):
+                    pytest.fail(
+                        f"prepare_request: path from _args[1] not str: {actual_path_from_args=} ({type(actual_path_from_args)})"
+                    )
+
                 await api.authenticator.prepare_request(
-                    method=kwargs.get("method", args[0] if args else None),
-                    path=kwargs.get(
-                        "endpoint", args[1] if len(args) > 1 else None
-                    ),  # Base _request uses 'endpoint'
+                    method=actual_method_from_args,  # From _args[0]
+                    path=actual_path_from_args,  # From _args[1]
                     params=kwargs.get("params"),
                     data=kwargs.get("data"),
-                    headers=dict(api.default_headers),  # Simulate passing headers
+                    headers=dict(api.default_headers),
                 )
-            # Return ONLY the expected content, matching ExchangeAPI._request signature
-            return mock_http_response_content  # NOT the tuple
+            return mock_http_response_content
 
         # Patch the _request method on the API instance
         with patch.object(
@@ -574,9 +587,42 @@ class TestHyperliquidAPIWebSocketRouting:
         payload = api_for_ws_tests._construct_subscription_payload(topic)
         assert payload is not None
         assert payload.get("method") == "subscribe"
-        actual_subscription = payload.get("subscription")
-        assert isinstance(actual_subscription, dict)
-        assert sorted(actual_subscription.items()) == sorted(expected_sub_details.items())
+
+        actual_subscription_raw = payload.get("subscription")
+        assert actual_subscription_raw is not None, "Subscription data is missing"
+        assert isinstance(actual_subscription_raw, dict), "Subscription data is not a dictionary"
+
+        typed_actual_subscription: dict[str, str] = {}
+        for k_raw, v_raw in actual_subscription_raw.items():  # k_raw, v_raw are Any here to Pyright
+            key_str: str
+            if isinstance(k_raw, str):
+                key_str = k_raw
+            else:
+                # k_raw is not str. Using type() and repr() for safety.
+                pytest.fail(f"Actual_raw: k !str, type={type(k_raw)}, repr={repr(k_raw)}")
+                continue  # Ensure key_str is assigned if loop continues for value check
+
+            value_str: str
+            if isinstance(v_raw, str):
+                value_str = v_raw
+            else:
+                pytest.fail(
+                    f"Actual_raw: v !str for k '{key_str}'. T={type(v_raw)}, R={repr(v_raw)}"
+                )
+                continue
+
+            typed_actual_subscription[key_str] = value_str
+
+        typed_expected_sub_details: dict[str, str] = {}
+        for key, value in expected_sub_details.items():
+            if isinstance(value, str):
+                typed_expected_sub_details[key] = value
+            else:
+                pytest.fail(f"Expected_sub: val type {type(value)} for key {key!r}. Val={value!r}")
+
+        assert sorted(typed_actual_subscription.items()) == sorted(
+            typed_expected_sub_details.items()
+        )
 
     def test_construct_subscription_payload_invalid_topic(
         self, api_for_ws_tests: HyperliquidAPI

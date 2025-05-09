@@ -335,7 +335,7 @@ class TestWebSocketManager:
         """Test connection retries on failure and eventually gives up."""
         mock_ws_connect_method, _mock_ws_connection = patched_ws_connect
 
-        async def actual_mock_ws_connect_side_effect_failure(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        async def actual_mock_ws_connect_side_effect_failure() -> None:
             raise aiohttp.ClientConnectorError(MagicMock(), OSError("Connection failed"))
 
         mock_ws_connect_method.side_effect = actual_mock_ws_connect_side_effect_failure
@@ -437,7 +437,7 @@ class TestWebSocketManager:
 
             assert local_ws_manager.is_connected is False
             # DEFENSIVE CHECK: _ws_connection cleared by close(). Mypy=[unreachable]
-            assert local_ws_manager._ws_connection is None  # type: ignore[unreachable] # noqa: SLF001
+            assert local_ws_manager._ws_connection is None  # noqa: SLF001
             assert local_ws_manager._should_reconnect is False  # noqa: SLF001
 
             assert listener_task_for_close.cancelled()
@@ -448,19 +448,17 @@ class TestWebSocketManager:
             assert local_ws_manager._session is None  # noqa: SLF001
 
         finally:
-            if local_ws_manager.is_connected:  # pragma: no cover
+            if local_ws_manager.is_connected:
                 await local_ws_manager.close()
-            if (
-                connection_establishment_task and not connection_establishment_task.done()
-            ):  # pragma: no cover
+            if connection_establishment_task and not connection_establishment_task.done():
                 connection_establishment_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await connection_establishment_task
-            if listener_task_for_close and not listener_task_for_close.done():  # pragma: no cover
+            if listener_task_for_close and not listener_task_for_close.done():
                 listener_task_for_close.cancel()
                 with suppress(asyncio.CancelledError):
                     await listener_task_for_close
-            if ping_task_for_close and not ping_task_for_close.done():  # pragma: no cover
+            if ping_task_for_close and not ping_task_for_close.done():
                 ping_task_for_close.cancel()
                 with suppress(asyncio.CancelledError):
                     await ping_task_for_close
@@ -482,7 +480,7 @@ class TestWebSocketManager:
             MockAiohttpSessionConstructor.return_value = mock_internal_session_instance
 
             # Define a side effect for the session's close to update its 'closed' status
-            async def session_close_side_effect(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+            async def session_close_side_effect() -> None:
                 mock_internal_session_instance.closed = True
 
             mock_internal_session_instance.close = AsyncMock(side_effect=session_close_side_effect)

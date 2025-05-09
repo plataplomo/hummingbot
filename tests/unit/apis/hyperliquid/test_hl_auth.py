@@ -62,10 +62,10 @@ def test_hl_auth_init_success(mock_account: MagicMock) -> None:
         wallet_address=VALID_WALLET_ADDRESS,
         chain_id=VALID_CHAIN_ID,
     )
-    assert auth._wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
-    assert auth._chain_id == VALID_CHAIN_ID
-    assert auth._account is not None
-    assert auth._account.address.lower() == VALID_WALLET_ADDRESS.lower()
+    assert auth._wallet_address.lower() == VALID_WALLET_ADDRESS.lower()  # noqa: SLF001
+    assert auth._chain_id == VALID_CHAIN_ID  # noqa: SLF001
+    assert auth._account is not None  # noqa: SLF001
+    assert auth._account.address.lower() == VALID_WALLET_ADDRESS.lower()  # noqa: SLF001
 
 
 def test_hl_auth_init_success_no_0x(mock_account: MagicMock) -> None:
@@ -75,7 +75,7 @@ def test_hl_auth_init_success_no_0x(mock_account: MagicMock) -> None:
         wallet_address=VALID_WALLET_ADDRESS,
         chain_id=VALID_CHAIN_ID,
     )
-    assert auth._account is not None
+    assert auth._account is not None  # noqa: SLF001
 
 
 def test_hl_auth_init_no_private_key(mock_account: MagicMock) -> None:
@@ -167,7 +167,7 @@ async def test_prepare_request_no_private_key(
             wallet_address=mock_account.address,
             chain_id=VALID_CHAIN_ID,
         )
-    auth._account = None
+    auth._account = None  # noqa: SLF001
 
     with pytest.raises(APIError, match="Authenticator account not initialized.") as excinfo:
         await auth.prepare_request("POST", "/exchange", None, {"action": "test"}, None)
@@ -229,10 +229,10 @@ class TestHyperliquidEip712Authenticator:
                 chain_id=1337,
             )
             mock_from_key.assert_called_once_with(self.VALID_PRIVATE_KEY)
-            assert auth._account == mock_account
-            assert auth._wallet_address == self.MOCKED_ACCOUNT_WALLET_ADDRESS
-            assert auth._chain_id == 1337
-            assert auth._domain_data["chainId"] == 1337
+            assert auth._account == mock_account  # noqa: SLF001
+            assert auth._wallet_address == self.MOCKED_ACCOUNT_WALLET_ADDRESS  # noqa: SLF001
+            assert auth._chain_id == 1337  # noqa: SLF001
+            assert auth._domain_data["chainId"] == 1337  # noqa: SLF001
 
     def test_instantiation_private_key_no_prefix(self, mock_account: MagicMock) -> None:
         """Test instantiation with private key missing '0x' prefix."""
@@ -349,10 +349,10 @@ class TestHyperliquidEip712Authenticator:
                 "connectionId": HexBytes(fixed_32_byte_connection_id_hexstring),
             }
             expected_structured_data = {
-                "domain": auth._domain_data,
+                "domain": auth._domain_data,  # noqa: SLF001
                 "message": expected_agent_message,
                 "primaryType": "Agent",
-                "types": auth._agent_typed_data_message_types,
+                "types": auth._agent_typed_data_message_types,  # noqa: SLF001
             }
             mock_encode_typed_data.assert_called_once_with(full_message=expected_structured_data)
             mock_account.sign_message.assert_called_once_with(mock_signable_message)
@@ -463,7 +463,7 @@ class TestHyperliquidEip712Authenticator:
             )
             mock_hl_auth_from_key.assert_called_once_with("0xIrrelevantKeyDueToPatch")
 
-        auth._account = None  # Force _account to None
+        auth._account = None  # noqa: SLF001 # Force _account to None
 
         with pytest.raises(APIError, match="Authenticator account not initialized."):
             await auth.prepare_request("POST", "/exchange", None, {"key": "value"}, None)
