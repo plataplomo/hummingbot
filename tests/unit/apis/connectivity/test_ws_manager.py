@@ -436,7 +436,7 @@ class TestWebSocketManager:
             await local_ws_manager.close()
 
             assert local_ws_manager.is_connected is False
-            # DEFENSIVE CHECK: _ws_connection cleared by close(). Mypy=[unreachable]
+            # DEFENSIVE CHECK: _ws_connection cleared by close(). Mypy=[unreachable] Ruff=[SLF001]
             assert local_ws_manager._ws_connection is None  # noqa: SLF001
             assert local_ws_manager._should_reconnect is False  # noqa: SLF001
 

@@ -80,7 +80,7 @@ def test_hl_api_init_with_key(
         chain_id=HyperliquidAPI.CHAIN_ID,
     )
     assert api.authenticator is mock_instance
-    assert api._hl_authenticator is mock_instance
+    assert api._hl_authenticator is mock_instance  # noqa: SLF001
 
 
 def test_hl_api_init_without_key(
@@ -92,7 +92,7 @@ def test_hl_api_init_without_key(
 
     mock_auth_class.assert_not_called()
     assert api.authenticator is None
-    assert api._hl_authenticator is None
+    assert api._hl_authenticator is None  # noqa: SLF001
 
 
 def test_hl_api_init_auth_init_fails(
@@ -106,7 +106,7 @@ def test_hl_api_init_auth_init_fails(
 
     mock_auth_class.assert_called_once()  # Still attempted
     assert api.authenticator is None
-    assert api._hl_authenticator is None
+    assert api._hl_authenticator is None  # noqa: SLF001
     assert "Failed to init HL authenticator: Bad key format" in caplog.text
 
 
@@ -119,7 +119,7 @@ def test_hl_api_init_no_address(
 
     mock_auth_class.assert_not_called()  # Authenticator shouldn't be called without address
     assert api.authenticator is None
-    assert api._hl_authenticator is None
+    assert api._hl_authenticator is None  # noqa: SLF001
     assert "HLAPI: Wallet address required" in caplog.text
 
 
@@ -245,7 +245,7 @@ async def test_place_order_calls_authenticate_and_request(
             chain_id=HyperliquidAPI.CHAIN_ID,
         )
         assert api.authenticator is mock_auth_for_test
-        assert api._hl_authenticator is mock_auth_for_test
+        assert api._hl_authenticator is mock_auth_for_test  # noqa: SLF001
 
         # Define a side effect for the mocked _request
         async def mock_request_side_effect(
@@ -263,11 +263,13 @@ async def test_place_order_calls_authenticate_and_request(
 
                 if not isinstance(actual_method_from_args, str):
                     pytest.fail(
-                        f"prepare_request: method from _args[0] not str: {actual_method_from_args=} ({type(actual_method_from_args)})"
+                        f"prepare_request: method from _args[0] not str: "
+                        f"{actual_method_from_args=} ({type(actual_method_from_args)})"
                     )
                 if not isinstance(actual_path_from_args, str):
                     pytest.fail(
-                        f"prepare_request: path from _args[1] not str: {actual_path_from_args=} ({type(actual_path_from_args)})"
+                        f"prepare_request: path from _args[1] not str: "
+                        f"{actual_path_from_args=} ({type(actual_path_from_args)})"
                     )
 
                 await api.authenticator.prepare_request(
@@ -569,7 +571,7 @@ class TestHyperliquidAPIWebSocketRouting:
         # We are primarily testing routing, not live connection
         api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
         # Mock the ws_manager for these tests
-        api._ws_manager = AsyncMock()
+        api._ws_manager = AsyncMock()  # noqa: SLF001
         return api
 
     @pytest.mark.parametrize(
@@ -593,23 +595,21 @@ class TestHyperliquidAPIWebSocketRouting:
         assert isinstance(actual_subscription_raw, dict), "Subscription data is not a dictionary"
 
         typed_actual_subscription: dict[str, str] = {}
-        for k_raw, v_raw in actual_subscription_raw.items():  # k_raw, v_raw are Any here to Pyright
+        for k_raw_any, v_raw_any in actual_subscription_raw.items():
             key_str: str
-            if isinstance(k_raw, str):
-                key_str = k_raw
+            if isinstance(k_raw_any, str):
+                key_str = k_raw_any
             else:
                 # k_raw is not str. Using type() and repr() for safety.
-                pytest.fail(f"Actual_raw: k !str, type={type(k_raw)}, repr={repr(k_raw)}")
-                continue  # Ensure key_str is assigned if loop continues for value check
+                pytest.fail(f"Actual_raw: k !str, type={type(k_raw_any)}, repr={repr(k_raw_any)}")
 
             value_str: str
-            if isinstance(v_raw, str):
-                value_str = v_raw
+            if isinstance(v_raw_any, str):
+                value_str = v_raw_any
             else:
                 pytest.fail(
-                    f"Actual_raw: v !str for k '{key_str}'. T={type(v_raw)}, R={repr(v_raw)}"
+                    f"Actual_raw: v !str for k '{key_str}'. T={type(v_raw_any)}, R={repr(v_raw_any)}"
                 )
-                continue
 
             typed_actual_subscription[key_str] = value_str
 
