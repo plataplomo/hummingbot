@@ -20,7 +20,7 @@ class RateLimiterService(BaseModel):
 
     default_limiter: TokenBucketRateLimiterRuntime
     endpoint_limiters: dict[str, TokenBucketRateLimiterRuntime]
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True, extra="forbid")
 
     def __init__(
         self,

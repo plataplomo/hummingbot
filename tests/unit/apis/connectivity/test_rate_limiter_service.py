@@ -1,9 +1,8 @@
-import asyncio
 import time
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 from pytest import LogCaptureFixture
 
 from cyberdelta.apis.connectivity.rate_limiter_service import (
@@ -12,11 +11,6 @@ from cyberdelta.apis.connectivity.rate_limiter_service import (
     RateLimiterService,
 )
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
-
-
-@pytest.fixture
-def mock_loop() -> MagicMock:
-    return MagicMock(spec=asyncio.AbstractEventLoop)
 
 
 @pytest.fixture
@@ -63,12 +57,8 @@ def config_missing_rate_limits_key() -> dict[str, Any]:
 
 
 class TestRateLimiterService:
-    def test_initialization_with_basic_config(
-        self, basic_config: dict[str, Any], mock_loop: MagicMock
-    ) -> None:
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=basic_config, loop=mock_loop
-        )
+    def test_initialization_with_basic_config(self, basic_config: dict[str, Any]) -> None:
+        service = RateLimiterService(exchange_name="test_exchange", config=basic_config)
         assert isinstance(service.default_limiter, TokenBucketRateLimiterRuntime)
         assert service.default_limiter.rate == 10
         assert service.default_limiter.bucket_size == 10
@@ -77,38 +67,29 @@ class TestRateLimiterService:
         assert service.endpoint_limiters["GET:/specific/path"].rate == 5
         assert "/path/only" in service.endpoint_limiters
         assert service.endpoint_limiters["/path/only"].rate == 2
+        # Check model_config
+        assert service.model_config.get("frozen") is True
+        assert service.model_config.get("extra") == "forbid"
+        assert service.model_config.get("arbitrary_types_allowed") is True
 
-    def test_initialization_no_endpoints(
-        self, config_no_endpoints: dict[str, Any], mock_loop: MagicMock
-    ) -> None:
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=config_no_endpoints, loop=mock_loop
-        )
+    def test_initialization_no_endpoints(self, config_no_endpoints: dict[str, Any]) -> None:
+        service = RateLimiterService(exchange_name="test_exchange", config=config_no_endpoints)
         assert service.default_limiter.rate == 20
         assert service.default_limiter.bucket_size == 20
         assert len(service.endpoint_limiters) == 0
 
     def test_initialization_invalid_types_uses_defaults(
-        self, config_invalid_types: dict[str, Any], mock_loop: MagicMock, caplog: LogCaptureFixture
+        self, config_invalid_types: dict[str, Any], caplog: LogCaptureFixture
     ) -> None:
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=config_invalid_types, loop=mock_loop
-        )
-        # Default values should be used when parsing fails
+        service = RateLimiterService(exchange_name="test_exchange", config=config_invalid_types)
         assert service.default_limiter.rate == SERVICE_FALLBACK_RATE
         assert service.default_limiter.bucket_size == SERVICE_FALLBACK_BUCKET_SIZE
-        # Endpoint with invalid types should also use defaults for that endpoint
-        # because RateLimiterConfig validation will fail, leading to full fallback config.
-        # Therefore, endpoint_limiters will be empty.
         assert not service.endpoint_limiters
-
-        # Check for the generic fallback log message due to overall validation failure
         assert "Failed to validate 'rate_limits' config" in caplog.text
         assert (
             f"Using service fallbacks: rate={SERVICE_FALLBACK_RATE}, "
             f"bucket={SERVICE_FALLBACK_BUCKET_SIZE}" in caplog.text
         )
-        # Specific field errors should also be present in the detailed Pydantic error message
         assert "default_rate" in caplog.text and "invalid_float" in caplog.text
         assert "default_bucket_size" in caplog.text and "invalid_int" in caplog.text
         assert "endpoints.GET:/specific/path.rate" in caplog.text and "bad_rate" in caplog.text
@@ -118,26 +99,21 @@ class TestRateLimiterService:
         )
 
     def test_initialization_missing_rate_limits_key_uses_defaults(
-        self, config_missing_rate_limits_key: dict[str, Any], mock_loop: MagicMock
+        self, config_missing_rate_limits_key: dict[str, Any]
     ) -> None:
         service = RateLimiterService(
-            exchange_name="test_exchange", config=config_missing_rate_limits_key, loop=mock_loop
+            exchange_name="test_exchange", config=config_missing_rate_limits_key
         )
         assert service.default_limiter.rate == SERVICE_FALLBACK_RATE
         assert service.default_limiter.bucket_size == SERVICE_FALLBACK_BUCKET_SIZE
         assert len(service.endpoint_limiters) == 0
 
-    def test_initialization_invalid_rate_limits_structure(
-        self, mock_loop: MagicMock, caplog: LogCaptureFixture
-    ) -> None:
+    def test_initialization_invalid_rate_limits_structure(self, caplog: LogCaptureFixture) -> None:
         config_bad_structure = {"rate_limits": "not_a_dict"}
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=config_bad_structure, loop=mock_loop
-        )
+        service = RateLimiterService(exchange_name="test_exchange", config=config_bad_structure)
         assert service.default_limiter.rate == SERVICE_FALLBACK_RATE
         assert service.default_limiter.bucket_size == SERVICE_FALLBACK_BUCKET_SIZE
         assert len(service.endpoint_limiters) == 0
-        # Check for the warning about rate_limits not being a dict, and the subsequent fallback log
         assert "'rate_limits' in config is not a dictionary" in caplog.text
         assert "Failed to validate 'rate_limits' config" in caplog.text
         assert (
@@ -145,17 +121,12 @@ class TestRateLimiterService:
             f"bucket={SERVICE_FALLBACK_BUCKET_SIZE}" in caplog.text
         )
 
-    def test_initialization_invalid_endpoints_structure(
-        self, mock_loop: MagicMock, caplog: LogCaptureFixture
-    ) -> None:
+    def test_initialization_invalid_endpoints_structure(self, caplog: LogCaptureFixture) -> None:
         config_bad_endpoints = {"rate_limits": {"endpoints": "not_a_dict"}}
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=config_bad_endpoints, loop=mock_loop
-        )
+        service = RateLimiterService(exchange_name="test_exchange", config=config_bad_endpoints)
         assert service.default_limiter.rate == SERVICE_FALLBACK_RATE
         assert service.default_limiter.bucket_size == SERVICE_FALLBACK_BUCKET_SIZE
         assert len(service.endpoint_limiters) == 0
-        # Check for the Pydantic validation error concerning 'endpoints' not being a dict
         assert "Failed to validate 'rate_limits' config" in caplog.text
         assert "Input should be a valid dictionary" in caplog.text and "endpoints" in caplog.text
         assert (
@@ -164,19 +135,13 @@ class TestRateLimiterService:
         )
 
     def test_initialization_invalid_endpoint_config_item_type(
-        self, mock_loop: MagicMock, caplog: LogCaptureFixture
+        self, caplog: LogCaptureFixture
     ) -> None:
         config_bad_item = {"rate_limits": {"endpoints": {"GET:/foo": "not_a_dict"}}}
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=config_bad_item, loop=mock_loop
-        )
-        assert service.default_limiter.rate == SERVICE_FALLBACK_RATE  # Service falls back fully
+        service = RateLimiterService(exchange_name="test_exchange", config=config_bad_item)
+        assert service.default_limiter.rate == SERVICE_FALLBACK_RATE
         assert service.default_limiter.bucket_size == SERVICE_FALLBACK_BUCKET_SIZE
-        assert (
-            len(service.endpoint_limiters) == 0
-        )  # Malformed endpoint config leads to full fallback
-
-        # Check for the Pydantic validation error concerning the specific endpoint item
+        assert len(service.endpoint_limiters) == 0
         assert "Failed to validate 'rate_limits' config" in caplog.text
         assert "endpoints.GET:/foo" in caplog.text
         assert "Input should be a valid dictionary or instance of EndpointRateConfig" in caplog.text
@@ -185,55 +150,32 @@ class TestRateLimiterService:
             f"bucket={SERVICE_FALLBACK_BUCKET_SIZE}" in caplog.text
         )
 
-    def test_get_limiter_specific_method_path(
-        self, basic_config: dict[str, Any], mock_loop: MagicMock
+    @pytest.mark.parametrize(
+        "method, path, expected_rate, expected_bucket_size",
+        [
+            ("GET", "/specific/path", 5, 5),  # Specific method and path
+            ("gEt", "/specific/path", 5, 5),  # Case-insensitive method match
+            ("PUT", "/path/only", 2, 2),  # Path-only match
+            ("DELETE", "/unknown/path", 10, 10),  # Default fallback
+            ("POST", "/another/path", 1, 1),  # Another specific method and path
+        ],
+    )
+    def test_get_limiter(
+        self,
+        basic_config: dict[str, Any],
+        method: str,
+        path: str,
+        expected_rate: float,
+        expected_bucket_size: int,
     ) -> None:
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=basic_config, loop=mock_loop
-        )
-        limiter = service.get_limiter("GET", "/specific/path")
-        assert limiter.rate == 5
-        assert limiter.bucket_size == 5
-
-    def test_get_limiter_specific_path_only(
-        self, basic_config: dict[str, Any], mock_loop: MagicMock
-    ) -> None:
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=basic_config, loop=mock_loop
-        )
-        limiter = service.get_limiter(
-            "PUT", "/path/only"
-        )  # Method doesn't match specific, but path does
-        assert limiter.rate == 2
-        assert limiter.bucket_size == 2
-
-    def test_get_limiter_default_no_match(
-        self, basic_config: dict[str, Any], mock_loop: MagicMock
-    ) -> None:
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=basic_config, loop=mock_loop
-        )
-        limiter = service.get_limiter("DELETE", "/unknown/path")
-        assert limiter.rate == 10
-        assert limiter.bucket_size == 10
-
-    def test_get_limiter_case_insensitivity_for_method(
-        self, basic_config: dict[str, Any], mock_loop: MagicMock
-    ) -> None:
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=basic_config, loop=mock_loop
-        )
-        limiter = service.get_limiter("gEt", "/specific/path")
-        assert limiter.rate == 5
-        assert limiter.bucket_size == 5
+        service = RateLimiterService(exchange_name="test_exchange", config=basic_config)
+        limiter = service.get_limiter(method, path)
+        assert limiter.rate == expected_rate
+        assert limiter.bucket_size == expected_bucket_size
 
     @pytest.mark.asyncio
-    async def test_limiter_acquires_token(
-        self, basic_config: dict[str, Any], mock_loop: MagicMock
-    ) -> None:
-        service = RateLimiterService(
-            exchange_name="test_exchange", config=basic_config, loop=mock_loop
-        )
+    async def test_limiter_acquires_token(self, basic_config: dict[str, Any]) -> None:
+        service = RateLimiterService(exchange_name="test_exchange", config=basic_config)
         limiter = service.get_limiter("POST", "/another/path")  # Rate 1, Bucket 1
         assert limiter.rate == 1
         assert limiter.bucket_size == 1
@@ -244,9 +186,47 @@ class TestRateLimiterService:
         assert duration1 < 0.1  # Should be very fast
 
         start_time_2 = time.monotonic()
-        # Second acquire should block for approx 1 second (1/rate)
-        # because bucket is 1 and it was just consumed.
-        await limiter.acquire()
+        await limiter.acquire()  # Second acquire should block for approx 1 second (1/rate)
         duration2 = time.monotonic() - start_time_2
-        # Allow for some timing inaccuracies
-        assert 0.9 < duration2 < 1.2  # Check it waited roughly 1 sec
+        # Allow for some scheduling leeway
+        assert 0.9 < duration2 < 1.2  # Bucket was 1, rate 1.0/s
+
+    def test_frozen_behavior(self, basic_config: dict[str, Any]) -> None:
+        """Test that the RateLimiterService model is frozen."""
+        service = RateLimiterService(exchange_name="test_exchange", config=basic_config)
+        with pytest.raises(ValidationError) as exc_info:  # Pydantic v2 raises ValidationError
+            service.default_limiter = TokenBucketRateLimiterRuntime(1, 1)
+        assert "frozen" in str(exc_info.value).lower()
+
+    def test_init_signature_prevents_extra_kwargs(self) -> None:
+        """
+        Test that the __init__ signature itself prevents unexpected keyword arguments.
+        This is a Python TypeError, not Pydantic's extra='forbid' ValidationError,
+        due to the custom __init__.
+        """
+        with pytest.raises(TypeError) as exc_info:
+            RateLimiterService(
+                exchange_name="test_exchange",
+                config=basic_config(),  # Call fixture to get dict
+                # loop=None, # loop parameter removed
+                unexpected_arg="test",  # type: ignore[call-arg]
+            )
+        assert "unexpected keyword argument 'unexpected_arg'" in str(exc_info.value).lower()
+
+    def test_initialization_with_endpoint_config_none(self, caplog: LogCaptureFixture) -> None:
+        """Test initialization when an endpoint config is explicitly None."""
+        config_with_none_endpoint = {
+            "rate_limits": {
+                "default_rate": 10,
+                "default_bucket_size": 10,
+                "endpoints": {"GET:/path_with_none_config": None},
+            }
+        }
+        service = RateLimiterService(
+            exchange_name="test_exchange", config=config_with_none_endpoint
+        )
+        assert "GET:/path_with_none_config" in service.endpoint_limiters
+        # Should use default values for this endpoint
+        assert service.endpoint_limiters["GET:/path_with_none_config"].rate == 10
+        assert service.endpoint_limiters["GET:/path_with_none_config"].bucket_size == 10
+        assert 'Missing configuration for endpoint "GET:/path_with_none_config"' in caplog.text
