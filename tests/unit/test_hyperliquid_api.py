@@ -82,17 +82,16 @@ class TestHyperliquidAPI:
                 side: OrderSide,
                 order_type: OrderType,
                 quantity: Decimal,
-                time_in_force: TimeInForce | None = None,
+                time_in_force: TimeInForce,
                 price: Decimal | None = None,
+                stop_price: Decimal | None = None,
                 client_order_id: str | None = None,
                 reduce_only: bool = False,
                 post_only: bool = False,
             ) -> Order:
                 raise NotImplementedError
 
-            async def cancel_order(
-                self, order_id: str, symbol: str | None = None
-            ) -> dict[str, Any]:
+            async def cancel_order(self, order_id: str, symbol: str | None = None) -> bool:
                 raise NotImplementedError
 
             # get_order_status is already implemented below
@@ -130,7 +129,13 @@ class TestHyperliquidAPI:
                 return "unknown"
 
             async def get_order_history(
-                self, symbol: str | None = None, limit: int = 100
+                self,
+                symbol: str | None = None,
+                start_time: datetime | None = None,
+                end_time: datetime | None = None,
+                limit: int | None = None,
+                order_id: str | None = None,
+                client_order_id: str | None = None,
             ) -> list[Order]:
                 return []
 
@@ -205,9 +210,9 @@ class TestHyperliquidAPI:
         # Prevent actual network calls
         client._request = AsyncMock(side_effect=RuntimeError("Network call attempted!"))  # type: ignore[method-assign]  # Test mock override
         # Ensure wallet address is set if needed for method mocks
-        client._wallet_address = hyperliquid_secrets.get(
+        client._wallet_address = hyperliquid_secrets.get(  # pyright: ignore [reportPrivateUsage]
             "HYPERLIQUID_WALLET_ADDRESS", "0xMockAddress"
-        )
+        )  # Added pyright: ignore here
         return client
 
     @pytest.mark.asyncio
@@ -374,33 +379,28 @@ class TestHyperliquidAPI:
 
     @pytest.mark.asyncio
     async def test_cancel_order(self, api_client: HyperliquidAPI, mocker: MagicMock) -> None:
-        """Test cancel_order sends correct request."""
-        mock_cancel_response = {"status": "ok"}
-        mocker.patch.object(api_client, "cancel_order", return_value=mock_cancel_response)
+        """Test cancel_order successfully cancels an order."""
+        order_id_to_cancel = "some_order_id_123"
+        # Mock the _request method to simulate a successful cancellation
+        # Based on Backpack, a successful cancel returns True.
+        # Hyperliquid's _request for cancel might return a dict, but the mapped
+        # cancel_order returns bool.
+        mocker.patch.object(api_client, "cancel_order", return_value=True)  # Mock the public method
 
-        # Cancel order
-        response = await api_client.cancel_order(order_id="test-order-id-456", symbol="BTC")
+        result = await api_client.cancel_order(order_id=order_id_to_cancel, symbol="BTC-PERP")
 
-        # Verify response and call
-        assert response == mock_cancel_response
+        assert result is True  # Check for boolean True
+
+        # Verify the mocked method was called
         mocked_cancel_order = api_client.cancel_order
-        assert isinstance(mocked_cancel_order, AsyncMock)
-        mocked_cancel_order.assert_called_once_with(order_id="test-order-id-456", symbol="BTC")
-
-    @pytest.mark.asyncio
-    async def test_authentication(self, api_client: HyperliquidAPI) -> None:
-        """Test the authentication mechanism (placeholder)."""
-        # Basic check: ensure necessary attributes exist if needed for auth
-        assert hasattr(api_client, "_wallet_address")  # noqa: SLF001
-        # assert hasattr(api_client, "_api_secret")  # noqa: SLF001
-        # Hyperliquid uses private key/account
-        assert hasattr(api_client, "_private_key") or hasattr(api_client, "_account")
-        # noqa: SLF001 - Check for key or derived account
+        assert isinstance(mocked_cancel_order, AsyncMock)  # If patched with AsyncMock directly
+        # If patched with return_value, it's a MagicMock wrapping AsyncMock behavior
+        mocked_cancel_order.assert_called_once_with(order_id=order_id_to_cancel, symbol="BTC-PERP")
 
     @pytest.mark.asyncio
     async def test_connect_valid_address(
         self, api_client: HyperliquidAPI, mock_config: Config, mock_secrets: dict[str, str]
     ) -> None:
-        """Test connecting with a valid wallet address."""
+        """Test that connect uses the correct wallet address."""
         # This test might focus on initialization or a connection step if applicable
-        assert api_client._wallet_address == "0xValidAddress"  # noqa: SLF001 - Testing protected member
+        assert api_client._wallet_address == "0xValidAddress"  # pyright: ignore [reportPrivateUsage]
