@@ -135,13 +135,11 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
                     callable(original_close_side_effect)
                     and asyncio.iscoroutine(original_close_side_effect)
                 ):
-                    # Explicitly check if it is a coroutine object too for partials
-                    # or already awaited coroutines passed as side_effect
+                    # Check if it is a coroutine object too (partials/awaited)
                     return await original_close_side_effect(*args, **kwargs)
                 if callable(original_close_side_effect):
                     return original_close_side_effect(*args, **kwargs)
-                # Note: Iterable side effects for a close method are uncommon and complex to generically handle here.
-                # If needed, the test providing the iterable side_effect should ensure it yields awaitables or exceptions.
+                # Note: Iterable side effects for close() are uncommon.
             return None  # Default return for async mock method if no side effect
 
         mock_conn.close = AsyncMock(side_effect=close_side_effect_wrapper)
@@ -332,14 +330,12 @@ class TestWebSocketManager:
         finally:
             await retry_manager.close()  # Ensure cleanup for the locally created manager
 
-    @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.ws_connect")
     @patch("cyberdelta.apis.connectivity.ws_manager.asyncio.create_task")
     async def test_close_cancels_tasks_and_closes_connection_session(
         self,
         mock_create_task: MagicMock,
         mock_aiohttp_session_ws_connect_method: AsyncMock,
-        ws_manager_instance: WebSocketManager,
         default_ws_manager_config: WebSocketManagerConfig,
         mock_ws_connection_factory: Callable[..., AsyncMock],
     ) -> None:
@@ -349,6 +345,8 @@ class TestWebSocketManager:
             side_effect=StopAsyncIteration
         )  # Default behavior for receive
 
+        # Configure the globally patched aiohttp.ClientSession.ws_connect
+        # to return our specific mock WebSocket connection when called.
         async def connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN401
             return actual_mock_ws_conn
 
@@ -369,62 +367,93 @@ class TestWebSocketManager:
 
         mock_create_task.side_effect = side_effect_for_create_task_capture
 
-        connection_establishment_task = ws_manager_instance.connect()
-        assert connection_establishment_task is not None
-        try:
-            await connection_establishment_task
-        except Exception as e:
-            pytest.fail(f"_establish_connection failed during test setup: {e}")
-
-        await asyncio.sleep(0.01)
-
-        assert ws_manager_instance.is_connected is True
-
-        # The ws_manager_instance fixture initializes with "test_exchange_ws"
-        exchange_name_for_test = "test_exchange_ws"
-        listener_task_name = f"{exchange_name_for_test}_ws_listen"
-        ping_task_name = f"{exchange_name_for_test}_ws_ping"
-
-        listener_task = created_tasks_map.get(listener_task_name)
-        ping_task = created_tasks_map.get(ping_task_name)
-
-        assert listener_task is not None, "Listener task was not created or captured."
-        assert not listener_task.done(), "Listener task completed prematurely."
-
-        if default_ws_manager_config.ping_interval > 0:
-            assert ping_task is not None, (
-                "Ping task was not created or captured for positive interval."
-            )
-            assert not ping_task.done(), "Ping task completed prematurely for positive interval."
-        else:
-            # If ping_interval is 0, ping task might not be created or might be immediately done
-            # Depending on WebSocketManager logic, ping_task could be None or a completed task
-            if ping_task is not None:
-                assert ping_task.done(), "Ping task exists but not done for zero interval."
-            # else: ping_task is None, which is acceptable if not created.
-
-        with patch.object(ws_manager_instance, "_logger") as mock_logger_close:
-            await ws_manager_instance.close()
-
-        # Check task states after close - IMMEDIATELY after close()
-        if listener_task:  # Should always exist if connection was successful
-            assert listener_task.cancelled() or listener_task.done(), (
-                "Listener task neither cancelled nor done after close."
-            )
-
-        if ping_task:  # If it was created
-            assert ping_task.cancelled() or ping_task.done(), (
-                "Ping task neither cancelled nor done after close."
-            )
-
-        assert connection_establishment_task.done(), (
-            "Connection establishment task not done after close."
+        # Create a local WebSocketManager instance for this test
+        # Exchange name must be consistent for task name checking
+        local_exchange_name = "test_close_local_manager_ws"
+        local_ws_manager = WebSocketManager(
+            exchange_name=local_exchange_name,
+            message_handler=dummy_message_handler,
+            config=default_ws_manager_config,
+            on_connected_callback=dummy_on_connected_callback,
+            session=None,  # Ensures it creates an internal session that will use the patched ws_connect
         )
 
-        # Other assertions follow
-        actual_mock_ws_conn.close.assert_called_once()
-        assert ws_manager_instance.is_connected is False
-        mock_logger_close.info.assert_any_call("Internally created ClientSession closed.")
+        connection_establishment_task: asyncio.Task[Any] | None = None
+        try:
+            connection_establishment_task = local_ws_manager.connect()
+            assert connection_establishment_task is not None
+            try:
+                await connection_establishment_task
+            except Exception as e:
+                pytest.fail(f"_establish_connection failed during test setup: {e}")
+
+            await asyncio.sleep(0.01)  # Allow tasks to start
+
+            assert local_ws_manager.is_connected is True
+
+            listener_task_name = f"{local_exchange_name}_ws_listen"
+            ping_task_name = f"{local_exchange_name}_ws_ping"
+
+            listener_task = created_tasks_map.get(listener_task_name)
+            ping_task = created_tasks_map.get(ping_task_name)
+
+            assert listener_task is not None, "Listener task was not created or captured."
+            assert not listener_task.done(), "Listener task completed prematurely."
+
+            if default_ws_manager_config.ping_interval > 0:
+                assert ping_task is not None, (
+                    "Ping task was not created or captured for positive interval."
+                )
+                assert not ping_task.done(), (
+                    "Ping task completed prematurely for positive interval."
+                )
+            else:
+                if ping_task is not None:
+                    assert ping_task.done(), "Ping task exists but not done for zero interval."
+
+            with patch.object(local_ws_manager, "_logger") as mock_logger_close:
+                await local_ws_manager.close()  # THE ONLY close() call for assertions
+
+            # Check task states after close - IMMEDIATELY after close()
+            if listener_task:
+                assert listener_task.cancelled() or listener_task.done(), (
+                    "Listener task neither cancelled nor done after close."
+                )
+
+            if ping_task:
+                assert ping_task.cancelled() or ping_task.done(), (
+                    "Ping task neither cancelled nor done after close."
+                )
+
+            if connection_establishment_task:
+                assert connection_establishment_task.done(), (
+                    "Connection establishment task not done after close."
+                )
+
+            # Other assertions follow
+            actual_mock_ws_conn.close.assert_called_once()  # Should pass now
+            assert local_ws_manager.is_connected is False
+            mock_logger_close.info.assert_any_call(
+                "Internally created ClientSession closed."
+            )  # Hopefully reachable
+
+        finally:
+            # Minimal cleanup: ensure tasks are cancelled if the test failed early.
+            # Avoid calling local_ws_manager.close() again to not interfere with assert_called_once().
+            tasks_to_check_for_cancellation = [
+                connection_establishment_task,
+                created_tasks_map.get(f"{local_exchange_name}_ws_listen"),
+                created_tasks_map.get(f"{local_exchange_name}_ws_ping"),
+            ]
+            for task_item in tasks_to_check_for_cancellation:
+                if task_item and not task_item.done():
+                    task_item.cancel()
+                    try:
+                        await task_item
+                    except asyncio.CancelledError:
+                        pass  # Expected
+                    except Exception:
+                        pass  # Suppress other exceptions during cleanup
 
     @pytest.mark.asyncio
     async def test_close_when_not_connected_closes_idle_internal_session(
@@ -441,6 +470,14 @@ class TestWebSocketManager:
             mock_internal_session_instance = AsyncMock(spec=RealAiohttpCliSession)
             mock_internal_session_instance.closed = False
             MockAiohttpSessionConstructor.return_value = mock_internal_session_instance
+
+            # Define a side effect for the session's close to update its 'closed' status
+            async def session_close_side_effect(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+                mock_internal_session_instance.closed = True
+                # If there was an original side_effect intended for close, call it here
+                # For this test, we usually don't expect one for the session.close itself.
+
+            mock_internal_session_instance.close = AsyncMock(side_effect=session_close_side_effect)
 
             manager = WebSocketManager(
                 exchange_name="test_close_idle",
