@@ -45,7 +45,7 @@ VALID_ROLE_DATA_SUBACCOUNT: dict[str, str | None] = {
     ]
 )
 def valid_user_role_data(request: FixtureRequest) -> dict[str, Any]:
-    return request.param.copy()  # Ensure individual test data is copied
+    return cast(dict[str, Any], request.param).copy()  # Ensure individual test data is copied
 
 
 @pytest.fixture(
@@ -57,7 +57,7 @@ def valid_user_role_data(request: FixtureRequest) -> dict[str, Any]:
     ]
 )
 def valid_role_data_params(request: FixtureRequest) -> dict[str, str | None]:
-    return request.param.copy()
+    return cast(dict[str, str | None], request.param).copy()
 
 
 @pytest.fixture

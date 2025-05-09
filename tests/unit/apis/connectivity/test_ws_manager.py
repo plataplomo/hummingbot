@@ -27,7 +27,7 @@ async def dummy_on_connected_callback() -> None:
 
 
 # Helper function for mock side_effect
-def create_async_mock_task_for_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:
+def create_async_mock_task_for_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN401
     """Helper to create an AsyncMock, intended for use as a side_effect."""
     return AsyncMock()
 
@@ -127,7 +127,7 @@ class TestWebSocketManager:
         mock_ws_response = AsyncMock(spec=aiohttp.ClientWebSocketResponse)
         mock_ws_response.closed = False
 
-        async def actual_mock_ws_connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:
+        async def actual_mock_ws_connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN401
             return mock_ws_response
 
         mock_ws_connect.side_effect = actual_mock_ws_connect_side_effect
@@ -190,7 +190,7 @@ class TestWebSocketManager:
     ) -> None:
         """Test connection retries on failure and eventually gives up."""
 
-        async def actual_mock_ws_connect_side_effect_failure(*args: Any, **kwargs: Any) -> None:
+        async def actual_mock_ws_connect_side_effect_failure(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
             raise aiohttp.ClientConnectorError(MagicMock(), OSError("Connection failed"))
 
         mock_ws_connect.side_effect = actual_mock_ws_connect_side_effect_failure
@@ -248,7 +248,8 @@ class TestWebSocketManager:
         mock_ws_response.receive = AsyncMock()
 
         async def actual_mock_ws_connect_side_effect_success(
-            *args: Any, **kwargs: Any
+            *args: Any,  # noqa: ANN401
+            **kwargs: Any,  # noqa: ANN401
         ) -> AsyncMock:
             return mock_ws_response
 
@@ -259,8 +260,8 @@ class TestWebSocketManager:
         original_create_task = asyncio.tasks.create_task
 
         def side_effect_create_task(
-            coro: Coroutine[Any, Any, None], *, name: str | None = None
-        ) -> asyncio.Task[None]:
+            coro: Coroutine[Any, Any, Any], *, name: str | None = None
+        ) -> asyncio.Task[Any]:
             task = original_create_task(coro, name=name)
             if name:
                 created_tasks_map[name] = task
@@ -372,7 +373,7 @@ class TestWebSocketManager:
         mock_ws_response = AsyncMock(spec=aiohttp.ClientWebSocketResponse)
         mock_ws_response.closed = False
 
-        async def actual_mock_ws_connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:
+        async def actual_mock_ws_connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN401
             return mock_ws_response
 
         mock_ws_connect.side_effect = actual_mock_ws_connect_side_effect
@@ -413,7 +414,10 @@ class TestWebSocketManager:
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)  # Ensure AsyncMock
     @patch("cyberdelta.apis.connectivity.ws_manager.asyncio.create_task")
     @pytest.mark.skip(
-        reason="Extremely stubborn async mocking issue with ws_connect, consumes side_effect multiple times."
+        reason=(
+            "Extremely stubborn async mocking issue with ws_connect, "
+            "consumes side_effect multiple times."
+        )
     )
     async def test_listen_loop_processes_message_and_reconnects_on_close(
         self,
@@ -422,9 +426,12 @@ class TestWebSocketManager:
         default_ws_manager_config: WebSocketManagerConfig,
         event_loop: asyncio.AbstractEventLoop,  # pyright: ignore [reportUnusedVariable]
     ) -> None:
-        mock_create_task.side_effect = lambda coro, *, name=None: asyncio.tasks.create_task(
-            coro, name=name
-        )
+        def actual_create_task_side_effect(
+            coro: Coroutine[Any, Any, Any], *, name: str | None = None
+        ) -> asyncio.Task[Any]:
+            return asyncio.tasks.create_task(coro, name=name)
+
+        mock_create_task.side_effect = actual_create_task_side_effect
 
         test_config = default_ws_manager_config.model_copy(update={"max_reconnect_attempts": 1})
 
@@ -448,7 +455,10 @@ class TestWebSocketManager:
             ws1_proceed_to_close_event = asyncio.Event()
             _ws1_call_idx = 0
 
-            async def ws1_controlled_receive(*args: Any, **kwargs: Any) -> aiohttp.WSMessage:
+            async def ws1_controlled_receive(
+                *args: Any,  # noqa: ANN401
+                **kwargs: Any,  # noqa: ANN401
+            ) -> aiohttp.WSMessage:
                 nonlocal _ws1_call_idx
                 if _ws1_call_idx == 0:
                     _ws1_call_idx += 1
@@ -473,7 +483,8 @@ class TestWebSocketManager:
             _connect_attempt_counter = 0
 
             async def dynamic_ws_connect_side_effect(
-                *args: Any, **kwargs: Any
+                *args: Any,  # noqa: ANN401
+                **kwargs: Any,  # noqa: ANN401
             ) -> aiohttp.ClientWebSocketResponse:
                 nonlocal _connect_attempt_counter
                 _connect_attempt_counter += 1
@@ -515,7 +526,8 @@ class TestWebSocketManager:
 
             # Check that dynamic_ws_connect_side_effect was called twice
             assert _connect_attempt_counter == 2, (
-                f"Expected ws_connect to be called twice, but was called {_connect_attempt_counter}."
+                f"Expected ws_connect to be called twice, "
+                f"but was called {_connect_attempt_counter}."
             )
             # mock_ws_connect.call_count should also be 2 with this side_effect type
             assert mock_ws_connect.call_count == 2
@@ -538,7 +550,7 @@ class TestWebSocketManager:
     def test_config_validation_numeric_bounds(
         self,
         field: str,
-        invalid_value: Any,  # noqa: ANN401 - Testing with various invalid types is intended here
+        invalid_value: Any,  # noqa: ANN401
         error_part: str,
         default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:

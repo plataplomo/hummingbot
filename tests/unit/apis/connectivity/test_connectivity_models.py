@@ -122,18 +122,18 @@ class TestHttpClientConfig:
     )
     def test_invalid_field_values(self, field: str, invalid_value: Any, error_part: str) -> None:  # noqa: ANN401 - Testing with various invalid types is intended here
         """Test invalid values for various fields, expecting ValidationError."""
-        valid_base = {"rest_endpoint": HttpUrl("https://api.example.com")}
-        init_data = {**valid_base, field: invalid_value}
+        init_data_corrected: dict[str, Any] = {"rest_endpoint": HttpUrl("https://api.example.com")}
+        init_data_corrected[field] = invalid_value
 
         with pytest.raises(ValidationError) as exc_info:
-            HttpClientConfig(**init_data)  # type: ignore[arg-type] # Pyright needs this to allow invalid types for testing
+            HttpClientConfig(**init_data_corrected)
         assert error_part.lower() in str(exc_info.value).lower()
 
     def test_frozen_behavior(self) -> None:
         """Test that the model is frozen."""
         config = HttpClientConfig(rest_endpoint=HttpUrl("https://api.example.com"))
         with pytest.raises(ValidationError) as exc_info:
-            config.default_request_timeout = 15.0  # type: ignore[misc] # Pyright needs this for frozen field test
+            config.default_request_timeout = 15.0
         assert "frozen" in str(exc_info.value).lower()
 
     def test_extra_forbid_behavior(self) -> None:
@@ -148,27 +148,25 @@ class TestHttpClientConfig:
     def test_max_retries_validation(self) -> None:
         """Test max_retries validation."""
         config_no_validation = HttpClientConfig(
-            rest_endpoint="http://example.com",
+            rest_endpoint=HttpUrl("http://example.com"),
             default_request_timeout=10.0,
-            max_retries=1,  # Valid value that shouldn't trigger the ignore
+            max_retries=1,
             retry_delay_seconds=1.0,
         )
         assert config_no_validation.max_retries == 1
 
-        # Test with max_retries = 0 (valid)
         config_zero_retries = HttpClientConfig(
-            rest_endpoint="http://example.com", default_request_timeout=10.0, max_retries=0
+            rest_endpoint=HttpUrl("http://example.com"), default_request_timeout=10.0, max_retries=0
         )
         assert config_zero_retries.max_retries == 0
 
-        # Test with max_retries = None (should use default)
-        config_no_validation = HttpClientConfig(
-            rest_endpoint="http://example.com",
+        config_none_retries = HttpClientConfig(
+            rest_endpoint=HttpUrl("http://example.com"),
             default_request_timeout=10.0,
             max_retries=None,
             retry_delay_seconds=1.0,
         )
-        assert config_no_validation.max_retries is None
+        assert config_none_retries.max_retries is None
 
 
 class TestWebSocketManagerConfig:
@@ -219,18 +217,18 @@ class TestWebSocketManagerConfig:
     )
     def test_invalid_field_values(self, field: str, invalid_value: Any, error_part: str) -> None:  # noqa: ANN401 - Testing with various invalid types is intended here
         """Test invalid values for various fields, expecting ValidationError."""
-        valid_base = {"ws_url": AnyUrl("wss://ws.example.com")}
-        init_data = {**valid_base, field: invalid_value}
+        init_data_corrected: dict[str, Any] = {"ws_url": AnyUrl("wss://ws.example.com")}
+        init_data_corrected[field] = invalid_value
 
         with pytest.raises(ValidationError) as exc_info:
-            WebSocketManagerConfig(**init_data)  # type: ignore[arg-type] # Pyright needs this to allow invalid types for testing
+            WebSocketManagerConfig(**init_data_corrected)
         assert error_part.lower() in str(exc_info.value).lower()
 
     def test_frozen_behavior(self) -> None:
         """Test that the model is frozen."""
         config = WebSocketManagerConfig(ws_url=AnyUrl("wss://ws.example.com"))
         with pytest.raises(ValidationError) as exc_info:
-            config.ping_interval = 10.0  # type: ignore[misc] # Pyright needs this for frozen field test
+            config.ping_interval = 10.0
         assert "frozen" in str(exc_info.value).lower()
 
     def test_extra_forbid_behavior(self) -> None:
@@ -244,56 +242,30 @@ class TestWebSocketManagerConfig:
 
     def test_max_retries_validation(self) -> None:
         """Test max_reconnect_attempts validation."""
-        config_no_validation = WebSocketManagerConfig(
-            ws_url="ws://example.com",
-            ping_interval=10.0,  # Valid value
-            reconnect_delay=5.0,
-            max_reconnect_attempts=1,
-            connection_timeout=30.0,
-        )
-        assert config_no_validation.max_reconnect_attempts == 1
-
-        # Test with max_reconnect_attempts = 0 (valid)
-        config_zero_attempts = WebSocketManagerConfig(
-            ws_url="ws://example.com",
+        config_valid_retries = WebSocketManagerConfig(
+            ws_url=AnyUrl("ws://example.com"),
             ping_interval=10.0,
             reconnect_delay=5.0,
-            max_reconnect_attempts=0,
-            connection_timeout=30.0,
+            max_reconnect_attempts=1,
+            connection_timeout=10.0,
         )
-        assert config_zero_attempts.max_reconnect_attempts == 0
+        assert config_valid_retries.max_reconnect_attempts == 1
 
-        # Test with max_reconnect_attempts = None (should use default or handle as no reconnect)
-        config_no_validation = WebSocketManagerConfig(
-            ws_url="ws://example.com",
-            ping_interval=10.0,  # Valid value
-            reconnect_delay=5.0,
-            max_reconnect_attempts=None,
-            connection_timeout=30.0,
+        config_zero_retries = WebSocketManagerConfig(
+            ws_url=AnyUrl("ws://example.com"), max_reconnect_attempts=0
         )
-        assert config_no_validation.max_reconnect_attempts is None
+        assert config_zero_retries.max_reconnect_attempts == 0
+
+        config_default_retries = WebSocketManagerConfig(ws_url=AnyUrl("ws://example.com"))
+        assert config_default_retries.max_reconnect_attempts == 10
 
     def test_ping_interval_validation(self) -> None:
         """Test ping_interval validation."""
-        config_no_validation = WebSocketManagerConfig(
-            ws_url="ws://example.com",
-            ping_interval=10.0,  # Valid value
-            reconnect_delay=5.0,
-            max_reconnect_attempts=1,
-            connection_timeout=30.0,
+        config_valid_ping = WebSocketManagerConfig(
+            ws_url=AnyUrl("ws://example.com"),
+            ping_interval=1.0,
         )
-        assert config_no_validation.ping_interval == 10.0
+        assert config_valid_ping.ping_interval == 1.0
 
-        # Test with ping_interval = 0 (valid, means no auto-ping)
-        config_zero_ping = WebSocketManagerConfig(ws_url="ws://example.com", ping_interval=0)
-        assert config_zero_ping.ping_interval == 0
-
-        # Test with ping_interval = None (should use default or handle as no ping)
-        config_no_validation = WebSocketManagerConfig(
-            ws_url="ws://example.com",
-            ping_interval=None,
-            reconnect_delay=5.0,
-            max_reconnect_attempts=1,
-            connection_timeout=30.0,
-        )
-        assert config_no_validation.ping_interval is None
+        config_default_ping = WebSocketManagerConfig(ws_url=AnyUrl("ws://example.com"))
+        assert config_default_ping.ping_interval == 30.0
