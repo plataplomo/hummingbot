@@ -283,10 +283,10 @@ class HyperliquidResponseHandler:
 
         # If it IS a list (common case from API)
         if isinstance(raw_response_content, list):
-            if not raw_response_content:  # Empty list means order not found
+            if not raw_response_content:  # Empty list implies order not found
                 logger.debug(f"{context}: Received empty list, interpreting as order not found.")
                 raise APIError(
-                    message=f"Order {order_id} for user {user_address} not found (empty list response).",
+                    message=f"Order {order_id} for {user_address} not found (empty list).",
                     code=APIErrorCode.ORDER_NOT_FOUND.value,
                     metadata={"original_response": []},
                 )
