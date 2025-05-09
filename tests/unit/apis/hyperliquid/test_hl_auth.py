@@ -489,15 +489,22 @@ class TestHyperliquidEip712Authenticator:
     async def test_prepare_request_action_with_string_payload_invalid_json(
         self, authenticator_instance: HyperliquidEip712Authenticator
     ) -> None:
+        """Test prepare_request with a direct invalid JSON string as data."""
         action_payload_invalid_json = '{"key": "value", syntax_error'  # Invalid JSON string
 
         with pytest.raises(APIError) as excinfo:
+            # Pass the invalid JSON string directly as data to test that path
             await authenticator_instance.prepare_request(
                 method="POST",
                 path="/exchange",
-                data={"action": "agent", "payload": action_payload_invalid_json},
+                data=action_payload_invalid_json,  # MODIFIED: Pass string directly
                 params=None,
                 headers=None,
             )
+        # This path should raise APIError due to json.JSONDecodeError from prepare_request
         assert excinfo.value.code == APIErrorCode.INVALID_PARAMS.value
-        assert "Failed to serialize EIP-712 typed data payload" in excinfo.value.message
+        assert (
+            f"Action data payload is an invalid JSON string: {action_payload_invalid_json!r}."
+            in excinfo.value.message
+        )
+        assert isinstance(excinfo.value.original_exception, json.JSONDecodeError)

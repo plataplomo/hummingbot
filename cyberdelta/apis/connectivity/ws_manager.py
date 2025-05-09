@@ -241,11 +241,14 @@ class WebSocketManager:
 
     async def _listen(self) -> None:
         """Listens for messages on the WebSocket and handles them."""
+        self._logger.info(f"[{self._exchange_name} _listen] Task started.")
         if not self._ws_connection:
-            self._logger.error("Listener started without a valid WebSocket connection.")
+            self._logger.error(
+                f"[{self._exchange_name} _listen] Listener started without a valid WebSocket connection."
+            )
             return
 
-        self._logger.info("Listener task started.")
+        self._logger.info(f"[{self._exchange_name} _listen] Entering main loop.")
         original_connection = self._ws_connection
         was_cancelled_flag = False
         try:
@@ -302,6 +305,11 @@ class WebSocketManager:
                 current_task and current_task.cancelled()
             ) or was_cancelled_flag
 
+            self._logger.info(
+                f"[{self._exchange_name} _listen] Finally block. Task: {current_task.get_name() if current_task else 'None'}, "
+                f"Cancelled state: {final_is_cancelled_state}, Should Reconnect: {self._should_reconnect}"
+            )
+
             if current_task:  # pragma: no cover
                 pass  # Keep block for structure if needed later
 
@@ -320,11 +328,16 @@ class WebSocketManager:
 
     async def _keep_alive(self) -> None:
         """Periodically sends a ping to keep the connection alive."""
+        self._logger.info(f"[{self._exchange_name} _keep_alive] Task started.")
+
         if not self._ping_interval or self._ping_interval <= 0:
-            self._logger.info("Ping interval is zero or negative, keep-alive task will not run.")
+            self._logger.info(
+                f"[{self._exchange_name} _keep_alive] Ping interval zero/negative, task will not run."
+            )
             return
 
         try:
+            self._logger.info(f"[{self._exchange_name} _keep_alive] Entering main loop.")
             while self.is_connected and self._should_reconnect:
                 if not self._ws_connection or self._ws_connection.closed:
                     self._logger.warning(
@@ -347,25 +360,24 @@ class WebSocketManager:
                 await asyncio.sleep(self._ping_interval)
 
         except asyncio.CancelledError:
-            self._logger.info("Keep-alive task cancelled.")
+            self._logger.info(f"[{self._exchange_name} _keep_alive] Task cancelled.")
         except Exception as e:
             self._logger.error(
-                f"Unexpected error in keep-alive loop for {self._exchange_name}: {e}",
+                f"[{self._exchange_name} _keep_alive] Unexpected error in loop: {e}",
                 exc_info=True,
             )
             self._is_connected = False
             if self._should_reconnect:
                 self._logger.info(
-                    f"Attempting to reconnect {self._exchange_name} due to "
-                    f"unexpected error in keep-alive."
+                    f"[{self._exchange_name} _keep_alive] Attempting reconnect due to error."
                 )
                 new_connection_attempt_task = self.connect()
                 if not new_connection_attempt_task:
                     self._logger.debug(
-                        "Reconnect from _keep_alive did not start new task (already running?)."
+                        f"[{self._exchange_name} _keep_alive] Reconnect from error did not start new task."
                     )
         finally:
-            self._logger.debug(f"Keep-alive for {self._exchange_name} ending.")
+            self._logger.info(f"[{self._exchange_name} _keep_alive] Task ending.")
 
     async def send_json(self, data: dict[str, Any]) -> bool:
         """
