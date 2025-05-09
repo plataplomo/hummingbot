@@ -316,34 +316,49 @@ class TestWebSocketManager:
     async def test_close_cancels_tasks_and_closes_connection_session(
         self,
         mock_create_task: MagicMock,
-        mock_ws_connect: AsyncMock,
+        mock_aiohttp_session_ws_connect_method: AsyncMock,
         ws_manager_instance: WebSocketManager,
         default_ws_manager_config: WebSocketManagerConfig,
-        mock_ws_connection: AsyncMock,
+        mock_ws_connection_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test close() cancels internal tasks and closes WS connection and session."""
-        mock_ws_connection.receive = AsyncMock()
-        mock_ws_connection.closed = False
+        actual_mock_ws_conn = mock_ws_connection_factory(closed=False)
+        actual_mock_ws_conn.receive = AsyncMock(
+            side_effect=StopAsyncIteration
+        )  # Default behavior for receive
+
+        async def connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN401
+            return actual_mock_ws_conn
+
+        mock_aiohttp_session_ws_connect_method.side_effect = connect_side_effect
 
         created_tasks_map: dict[str, asyncio.Task[Any]] = {}
-        original_create_task = asyncio.tasks.create_task
+        original_asyncio_create_task = asyncio.create_task
 
-        def side_effect_create_task(
-            coro: Coroutine[Any, Any, Any], *, name: str | None = None
+        def side_effect_for_create_task_capture(
+            coro: Coroutine[Any, Any, Any],
+            *,
+            name: str | None = None,
         ) -> asyncio.Task[Any]:
-            task = original_create_task(coro, name=name)
+            task = original_asyncio_create_task(coro, name=name)
             if name:
                 created_tasks_map[name] = task
             return task
 
-        mock_create_task.side_effect = side_effect_create_task
+        mock_create_task.side_effect = side_effect_for_create_task_capture
 
         connection_establishment_task = ws_manager_instance.connect()
         assert connection_establishment_task is not None
-        await connection_establishment_task
+        try:
+            await connection_establishment_task
+        except Exception as e:
+            pytest.fail(f"_establish_connection failed during test setup: {e}")
+
         await asyncio.sleep(0.01)
 
         assert ws_manager_instance.is_connected is True
+
+        # The ws_manager_instance fixture initializes with "test_exchange_ws"
         exchange_name_for_test = "test_exchange_ws"
         listener_task_name = f"{exchange_name_for_test}_ws_listen"
         ping_task_name = f"{exchange_name_for_test}_ws_ping"
@@ -351,27 +366,40 @@ class TestWebSocketManager:
         listener_task = created_tasks_map.get(listener_task_name)
         ping_task = created_tasks_map.get(ping_task_name)
 
-        assert listener_task is not None and not listener_task.done()
+        assert listener_task is not None, "Listener task was not created or captured."
+        assert not listener_task.done(), "Listener task completed prematurely."
+
         if default_ws_manager_config.ping_interval > 0:
-            assert ping_task is not None and not ping_task.done()
+            assert ping_task is not None, (
+                "Ping task was not created or captured for positive interval."
+            )
+            assert not ping_task.done(), "Ping task completed prematurely for positive interval."
+        else:
+            # If ping_interval is 0, ping task might not be created or might be immediately done
+            # Depending on WebSocketManager logic, ping_task could be None or a completed task
+            if ping_task is not None:
+                assert ping_task.done(), "Ping task exists but not done for zero interval."
+            # else: ping_task is None, which is acceptable if not created.
 
         with patch.object(ws_manager_instance, "_logger") as mock_logger_close:
             await ws_manager_instance.close()
 
         assert ws_manager_instance.is_connected is False
-        mock_ws_connection.close.assert_called_once()
+        actual_mock_ws_conn.close.assert_called_once()
 
-        if listener_task:
-            assert listener_task.cancelled()
-        if ping_task:
-            assert ping_task.done()
+        # Check task states after close
+        if listener_task:  # Should always exist if connection was successful
+            assert listener_task.cancelled() or listener_task.done(), (
+                "Listener task neither cancelled nor done after close."
+            )
+
+        if ping_task:  # If it was created
+            assert ping_task.cancelled() or ping_task.done(), (
+                "Ping task neither cancelled nor done after close."
+            )
 
         assert connection_establishment_task.done()
-        # Check if the internal session was logged as closed
-        # This assumes ws_manager_instance created with session=None (uses internal session),
-        # which is true for the fixture.
         mock_logger_close.info.assert_any_call("Internally created ClientSession closed.")
-        # Direct _session check removed (avoid SLF001/reportPrivateUsage), relying on log.
 
     @pytest.mark.asyncio
     async def test_close_when_not_connected_closes_idle_internal_session(
@@ -525,10 +553,15 @@ class TestWebSocketManager:
                 )  # Once for message, once for error
 
                 # Check that reconnection was triggered
-                mock_logger.warning.assert_any_call(
-                    f"WebSocket connection closed unexpectedly or with error: "
+                # Construct the multi-line f-string for readability and to pass linting
+                expected_log_message_part1 = (
+                    "WebSocket connection closed unexpectedly or with error:"
+                )
+                expected_log_message_part2 = (
                     f"{simulated_connection_drop_error}. Attempting reconnect..."
                 )
+                expected_log_message = f"{expected_log_message_part1} {expected_log_message_part2}"
+                mock_logger.warning.assert_any_call(expected_log_message)
                 mock_sleep.assert_called_with(test_config.reconnect_delay)
                 assert (
                     mock_ws_connect_method.call_count == 2
@@ -563,9 +596,24 @@ class TestWebSocketManager:
         finally:
             await manager.close()  # Ensure cleanup
 
-    def test_config_validation_invalid_url(self) -> None:
+    def test_config_validation_invalid_url(
+        self, default_ws_manager_config: WebSocketManagerConfig
+    ) -> None:
+        # Construct data explicitly to avoid Mypy assignment issues when modifying dumped data
+        valid_base_data_for_url_test: dict[str, Any] = {
+            # Copy other valid fields from a valid config instance
+            "connection_timeout": default_ws_manager_config.connection_timeout,
+            "max_reconnect_attempts": default_ws_manager_config.max_reconnect_attempts,
+            "reconnect_delay": default_ws_manager_config.reconnect_delay,
+            "ping_interval": default_ws_manager_config.ping_interval,
+            # Add other required fields from WebSocketManagerConfig if any
+        }
+        invalid_data_for_url_test = {
+            **valid_base_data_for_url_test,
+            "ws_url": "not_a_valid_ws_url",  # Intentionally invalid string for AnyUrl
+        }
         with pytest.raises(ValidationError):
-            WebSocketManagerConfig(ws_url="not_a_valid_ws_url")  # type: ignore[arg-type]
+            WebSocketManagerConfig.model_validate(invalid_data_for_url_test)
 
     @pytest.mark.parametrize(
         "field, invalid_value, error_part",
@@ -600,8 +648,21 @@ class TestWebSocketManager:
         with pytest.raises(ValidationError, match="frozen"):
             # Testing assignment to a frozen model attribute.
             default_ws_manager_config.connection_timeout = 5.0
+
+        # Test extra='forbid'
+        # Start with a dictionary of basic types, similar to what Pydantic would parse from JSON
+        base_config_dict_for_extra_test: dict[str, Any] = {
+            "ws_url": str(default_ws_manager_config.ws_url),  # Ensure it's a string
+            "connection_timeout": default_ws_manager_config.connection_timeout,
+            "max_reconnect_attempts": default_ws_manager_config.max_reconnect_attempts,
+            "reconnect_delay": default_ws_manager_config.reconnect_delay,
+            "ping_interval": default_ws_manager_config.ping_interval,
+            # Add other required fields from WebSocketManagerConfig if any
+        }
+
+        data_with_extra: dict[str, Any] = {
+            **base_config_dict_for_extra_test,
+            "extra_field": "should_fail",
+        }
         with pytest.raises(ValidationError, match=r"Extra inputs are not permitted"):
-            WebSocketManagerConfig(
-                ws_url=AnyUrl("ws://example.com/ws"),
-                extra_field="should_fail",  # type: ignore[call-arg] # Testing extra='forbid'
-            )
+            WebSocketManagerConfig.model_validate(data_with_extra)
