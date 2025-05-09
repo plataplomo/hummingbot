@@ -215,7 +215,7 @@ class TestPortfolioTracker:
                     - timedelta(seconds=portfolio_tracker.reconciliation_interval + 1),
                     "backpack": now
                     - timedelta(seconds=portfolio_tracker.reconciliation_interval + 1),
-                }  # noqa: SLF001
+                }
                 await portfolio_tracker.update()
                 assert mock_config_get.call_count > 0
                 assert m_b.call_count == 2
@@ -279,7 +279,7 @@ class TestPortfolioTracker:
         )
         assert portfolio_tracker._orders["hyperliquid"][
             "test-order-123"
-        ].quantity_filled == Decimal("0.1")  # noqa: SLF001
+        ].quantity_filled == Decimal("0.1")
 
     def test_update_position(self, portfolio_tracker: PortfolioTracker) -> None:
         """Test updating a position."""
@@ -329,9 +329,9 @@ class TestPortfolioTracker:
         balance_obj = portfolio_tracker._balances["hyperliquid"].get("USDC")
         assert balance_obj is not None and balance_obj.total_quantity == Decimal("10000.0")
         # Removed checks for BTC/ETH as they are not set in this test
-        # balance_obj_btc = portfolio_tracker._balances["hyperliquid"].get("BTC")  # noqa: SLF001
+        # balance_obj_btc = portfolio_tracker._balances["hyperliquid"].get("BTC")
         # assert balance_obj_btc is not None and balance_obj_btc.total_quantity == Decimal("1.0")
-        # balance_obj_eth = portfolio_tracker._balances["hyperliquid"].get("ETH")  # noqa: SLF001
+        # balance_obj_eth = portfolio_tracker._balances["hyperliquid"].get("ETH")
         # assert balance_obj_eth is None
 
     def test_get_exchange_balance(self, portfolio_tracker: PortfolioTracker) -> None:
@@ -352,7 +352,7 @@ class TestPortfolioTracker:
         )
         portfolio_tracker._balances = {
             "hyperliquid": {"USDC": test_balance_usdc, "BTC": test_balance_btc}
-        }  # noqa: SLF001
+        }
         # balance_obj = portfolio_tracker.get_exchange_balance("hyperliquid", "USDC") # Method doesn't exist
         balance_obj = portfolio_tracker._balances["hyperliquid"].get("USDC")
         assert balance_obj is not None and balance_obj.total_quantity == Decimal("10000.0")
