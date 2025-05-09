@@ -227,8 +227,9 @@ class BackpackOrderMapper:
             stp (str | None): The raw STP string (e.g., "aggressive", "passive"), or None.
 
         Returns:
-            SelfTradePrevention | None: The corresponding internal `SelfTradePrevention` enum value, or None.
-                                        Logs a warning and returns None if mapping fails.
+            SelfTradePrevention | None: The corresponding internal `SelfTradePrevention`
+                                        enum value, or None. Logs a warning and returns
+                                        None if mapping fails.
         """
         if not stp:
             return None
@@ -249,8 +250,8 @@ class BackpackOrderMapper:
             reason (str | None): The raw expiry reason string, or None.
 
         Returns:
-            OrderExpiryReason | None: The corresponding internal `OrderExpiryReason` enum value, or None.
-                                      Logs a warning and returns None if mapping fails.
+            OrderExpiryReason | None: The corresponding internal `OrderExpiryReason` enum value,
+                                      or None. Logs a warning and returns None if mapping fails.
         """
         if not reason:
             return None
@@ -271,8 +272,8 @@ class BackpackOrderMapper:
             origin (str | None): The raw origin string (e.g., "USER_ACTION", "SYSTEM"), or None.
 
         Returns:
-            OrderUpdateOrigin | None: The corresponding internal `OrderUpdateOrigin` enum value, or None.
-                                        Logs a warning and returns None if mapping fails.
+            OrderUpdateOrigin | None: The corresponding internal `OrderUpdateOrigin` enum value,
+                                        or None. Logs a warning and returns None if mapping fails.
         """
         if not origin:
             return None
@@ -472,8 +473,8 @@ class BackpackOrderMapper:
             raw (BackpackRawTrade): The validated raw trade data from Backpack.
 
         Returns:
-            Trade | None: The corresponding internal `Trade` object, or `None` if essential information
-                          (like side) cannot be determined from the raw data.
+            Trade | None: The corresponding internal `Trade` object, or `None` if essential
+                          information (like side) cannot be determined from the raw data.
 
         Raises:
             ValueError: If essential fields (price, qty, time) are missing or cannot be parsed,
@@ -483,11 +484,11 @@ class BackpackOrderMapper:
         quantity_dec = parse_decimal_value(raw.quantity, allow_none=False, field_name="quantity")
         timestamp = parse_datetime_utc(raw.time, field_name="time")
 
-        if price_dec is None:  # Should be unreachable
+        if price_dec is None:
             raise ValueError("price missing/invalid in BackpackRawTrade")
-        if quantity_dec is None:  # Should be unreachable
+        if quantity_dec is None:
             raise ValueError("quantity missing/invalid in BackpackRawTrade")
-        if timestamp is None:  # Should be unreachable
+        if timestamp is None:
             raise ValueError("time missing/invalid in BackpackRawTrade")
 
         # Backpack REST API for recent trades doesn't provide side, fee, or maker status.
@@ -518,8 +519,8 @@ class BackpackOrderMapper:
             FundingRate: The corresponding internal `FundingRate` object.
 
         Raises:
-            ValueError: If essential fields (`funding_rate`, `time`) are missing or cannot be parsed,
-                        despite prior raw validation.
+            ValueError: If essential fields (`funding_rate`, `time`) are missing or
+                        cannot be parsed, despite prior raw validation.
         """
         funding_rate_dec = parse_decimal_value(
             raw.funding_rate, allow_none=False, field_name="funding_rate"
@@ -527,9 +528,9 @@ class BackpackOrderMapper:
         mark_price_dec = parse_decimal_value(raw.mark_price, field_name="mark_price")
         timestamp = parse_datetime_utc(raw.time, field_name="time")
 
-        if funding_rate_dec is None:  # Should be unreachable
+        if funding_rate_dec is None:
             raise ValueError("funding_rate missing/invalid in BackpackRawFundingRate")
-        if timestamp is None:  # Should be unreachable
+        if timestamp is None:
             raise ValueError("time missing/invalid in BackpackRawFundingRate")
 
         return FundingRate(
@@ -599,8 +600,9 @@ class BackpackOrderMapper:
         Transforms a validated `BackpackRawFill` object (from REST API /history/fills endpoint)
         into an internal `Trade` domain model.
 
-        This method handles comprehensive mapping, including parsing numeric strings (price, quantity, fee)
-        to Decimals, ISO timestamp string to datetime, and mapping the side string to `OrderSide` enum.
+        This method handles comprehensive mapping, including parsing numeric strings
+        (price, quantity, fee) to Decimals, ISO timestamp string to datetime,
+        and mapping the side string to `OrderSide` enum.
         Assumes `raw` has been validated by `BackpackRawFill` Pydantic model.
 
         Args:
@@ -662,7 +664,8 @@ class BackpackOrderMapper:
         into an internal `Ticker` domain model.
 
         Maps available fields (e.g., `lastPrice` to `price`, `volume`). Bid and Ask prices are
-        typically not included in Backpack ticker events and are set to `None` in the internal model.
+        typically not included in Backpack ticker events and are set to `None` in the
+        internal model.
         The timestamp is set to the current UTC time as ticker events may not provide one.
 
         Args:
@@ -709,13 +712,13 @@ class BackpackOrderMapper:
         symbol: str, raw: BackpackRawDepthUpdateEvent
     ) -> OrderBook:
         """
-        Transforms a validated raw Backpack WebSocket depth update event (`BackpackRawDepthUpdateEvent`)
-        into an internal `OrderBook` domain model.
+        Transforms a validated raw Backpack WebSocket depth update event
+        (`BackpackRawDepthUpdateEvent`) into an internal `OrderBook` domain model.
 
         This method assumes the WebSocket event provides a snapshot of order book levels.
         If it were a differential update, the logic would need significant changes.
-        The timestamp is set to the current UTC time as Backpack WebSocket depth events often do not
-        include an explicit event timestamp in the main payload structure mapped here.
+        The timestamp is set to the current UTC time as Backpack WebSocket depth events often
+        do not include an explicit event timestamp in the main payload structure mapped here.
 
         Args:
             symbol (str): The market symbol for the order book.
@@ -779,12 +782,11 @@ class BackpackOrderMapper:
             Trade: The corresponding internal `Trade` object.
 
         Raises:
-            ValueError: If essential fields (price, quantity, timestamp) are missing or cannot be parsed,
-                        despite prior raw validation.
+            ValueError: If essential fields (price, quantity, timestamp) are missing or
+                        cannot be parsed, despite prior raw validation.
         """
         price_dec = parse_decimal_value(raw.price, allow_none=False, field_name="price")
         quantity_dec = parse_decimal_value(raw.quantity, allow_none=False, field_name="quantity")
-        # Use engine_timestamp if available, else event_time
         timestamp_raw = raw.engine_timestamp if raw.engine_timestamp is not None else raw.event_time
         timestamp_dt = parse_datetime_utc(timestamp_raw)
 
@@ -933,7 +935,8 @@ class BackpackOrderMapper:
             Ticker: The corresponding internal `Ticker` object.
 
         Raises:
-            ValueError: If essential numeric fields cannot be parsed correctly or timestamp is invalid.
+            ValueError: If essential numeric fields cannot be parsed correctly or timestamp
+                        is invalid.
         """
         # Defensive parsing for safety
         parsed_price = parse_decimal_value(raw.price, allow_none=True, field_name="price")
@@ -945,12 +948,13 @@ class BackpackOrderMapper:
         if raw.time is not None:
             try:
                 parsed_ts: datetime | None
-                if isinstance(raw.time, int | float):
+                if isinstance(raw.time, int | float):  # Assume ms if numeric
                     if raw.time > 1e11:  # Likely milliseconds
                         parsed_ts = parse_datetime_utc(raw.time / 1000, field_name="time")
                     else:  # Likely seconds
                         parsed_ts = parse_datetime_utc(raw.time, field_name="time")
-                else:  # Must be str if not None and not int/float, due to BackpackRawTicker.time type hint
+                else:  # Must be str if not None and not int/float,
+                    # due to BackpackRawTicker.time type hint
                     parsed_ts = parse_datetime_utc(raw.time, field_name="time")
 
                 if parsed_ts is None:
@@ -971,17 +975,22 @@ class BackpackOrderMapper:
             )
             # According to Ticker model, timestamp is required. Raising error if None.
             # However, BackpackRawTicker defines time as optional. If it's truly optional and
-            # a Ticker *can* be created without a server-provided timestamp (e.g. by using current time),
-            # this logic would change. For now, assuming Ticker *requires* a valid parsed timestamp.
-            # The Ticker model's @field_validator for timestamp will raise if parse_datetime_utc returns None.
+            # a Ticker *can* be created without a server-provided timestamp
+            # (e.g. by using current time), this logic would change.
+            # For now, assuming Ticker *requires* a valid parsed timestamp.
+            # The Ticker model's @field_validator for timestamp will raise if
+            # parse_datetime_utc returns None.
             # So, if raw.time is None, this will lead to an error at Ticker instantiation.
             # Let's make it explicit: Ticker requires a timestamp.
             raise ValueError(
                 "Ticker time (raw.time) cannot be None for Backpack ticker transformation."
             )
 
+        # Determine the final symbol
+        symbol = symbol_override or raw.symbol
+
         return Ticker(
-            symbol=symbol_override or raw.symbol,
+            symbol=symbol,
             timestamp=timestamp_dt,
             price=parsed_price,
             bid=parsed_bid,

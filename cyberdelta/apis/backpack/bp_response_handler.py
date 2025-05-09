@@ -204,8 +204,12 @@ class BackpackResponseHandler:
     def handle_cancel_order_response(
         raw_response_content: RawJsonResponse, order_id: str, symbol: str
     ) -> bool:
-        """Validates the raw response for the Cancel Order endpoint (expects no content on success)."""
+        """Validates the raw response for the Cancel Order endpoint.
+        Expects no content on success.
+        """
         if raw_response_content not in [None, {}]:
+            # If we get content, it might be an error structure or unexpected success data.
+            # For Backpack, successful cancel usually returns 200 OK with empty body or {}.
             logger.warning(
                 f"Received unexpected content after cancelling order {order_id} "
                 f"for {symbol}: {raw_response_content!r}"

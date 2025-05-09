@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from types import TracebackType
-from typing import Any, Self
+from typing import Any
 
 import aiohttp
 from multidict import CIMultiDictProxy
@@ -46,7 +46,7 @@ class HttpRequestFailedError(APIError):
             f"HTTP {self.http_status}" if self.http_status is not None else "HTTP UnknownStatus"
         )
         body_preview = self.exchange_message or "N/A"
-        body_str = str(body_preview) if body_preview is not None else "N/A"
+        body_str = str(body_preview)
         return f"HttpRequestFailedError ({status_str}): {self.message}. Body: {body_str[:50]}..."
 
 
@@ -174,7 +174,7 @@ class HttpClient:
         request_headers.update(headers or {})  # Merge with any explicitly passed headers
 
         current_attempt = 0
-        last_exception: Exception | None = None
+        last_exception: Exception | None = None  # Initialize last_exception
 
         # Authentication (if required) - outside retry loop if auth components don't change per try
         # However, if nonce/timestamp is part of auth, it might need to be in the loop
@@ -224,9 +224,6 @@ class HttpClient:
             )
             if params:
                 request_log_details += f" | Params: {params}"
-            # Avoid logging full data payload if it's large or sensitive by default
-            # logger.debug(f"[{self.exchange_name}] {request_log_details} | "
-            #              f"Headers: {request_headers} | Data: {request_data}")
             logger.info(f"[{self.exchange_name}] {request_log_details}")
 
             try:
@@ -239,7 +236,7 @@ class HttpClient:
                     else None,  # Send as JSON if data exists and not GET/DELETE
                     data=None
                     if method.upper() not in ["GET", "DELETE"] and request_data is not None
-                    else request_data,  # handle plain data if not json
+                    else request_data,  # Pass data directly for GET/DELETE or non-json POST/PUT
                     headers=request_headers,
                     timeout=aiohttp.ClientTimeout(total=effective_timeout),
                 ) as response:
@@ -248,25 +245,38 @@ class HttpClient:
 
                     # Check for 204 No Content BEFORE attempting to read body
                     if response.status == 204:
-                        logger.info(
-                            f"[{self.exchange_name}] Request {full_url} successful "
-                            f"with 204 No Content."
+                        logger.debug(
+                            f"[{self.exchange_name}] Received 204 No Content for {full_url}."
                         )
-                        return None, response.headers
+                        return None, response_headers
 
                     try:
                         response_text = await response.text()
-                    except Exception as e_text:
+                    except aiohttp.ClientPayloadError as e_payload:
                         logger.warning(
-                            f"[{self.exchange_name}] Error reading response text for "
-                            f"{full_url}: {e_text}"
+                            f"[{self.exchange_name}] Error reading response body for {full_url} "
+                            f"(status {response.status}): {e_payload}"
                         )
-                        # Continue to process status code, response_text will be None
+                        # Treat as an HTTP request failure if we can't read the body of an otherwise
+                        # successful (pre-400) response, as we can't parse it.
+                        # If response.headers was accessible, it could be returned,
+                        # but it might not be if the connection is already broken.
+                        # For simplicity, raising without headers if body read fails.
+                        request_error = HttpRequestFailedError(
+                            message=f"Failed to read response body. Status: {response.status}",
+                            http_status_code=response.status,
+                            response_body=None,
+                            api_error_code=APIErrorCode.NETWORK_ISSUE,
+                        )
+                        # This exception will be caught by the outer except block below
+                        # to handle retries if applicable
+                        # Raise the specific error to be caught by the except block below
+                        raise request_error from e_payload
 
                     logger.debug(
                         f"[{self.exchange_name}] Response from {method} {full_url}: "
                         f"Status={response.status}, Headers={response_headers}, "
-                        f"Body='{response_text[:200] if response_text else '[None/Unread]'}'...'"
+                        f"Body='{response_text[:200] if response_text else '[Empty]'}'...'"
                     )
 
                     if response.status == 204:  # No Content
@@ -280,42 +290,33 @@ class HttpClient:
                         content_type = response_headers.get("Content-Type", "").lower()
                         if "application/json" in content_type:
                             try:
-                                parsed_json: ParsedJsonResponse = await response.json()
+                                parsed_json: ParsedJsonResponse = json.loads(response_text or "")
                                 return parsed_json, response_headers
                             except json.JSONDecodeError as je:
                                 logger.warning(
                                     f"[{self.exchange_name}] JSON decode failed for {full_url} "
-                                    f"(status {response.status}, type: {content_type}). Error: {je}. "
-                                    f"Text: '{response_text[:100] if response_text else ''}'..."
+                                    f"(status {response.status}, type: {content_type}). "
+                                    f"Error: {je}. "
+                                    f"Text: '{response_text[:70]}...'"
                                 )
-                                if response_text is None:
-                                    raise HttpRequestFailedError(
-                                        message=(
-                                            f"Failed to read response body after JSON decode error. "
-                                            f"Status: {response.status}"
-                                        ),
-                                        http_status_code=response.status,
-                                        response_body=None,
-                                        api_error_code=APIErrorCode.UNKNOWN,
-                                    ) from je
-                                return response_text, response_headers
-                        else:  # Not JSON, return raw text
-                            if response_text is None:
                                 raise HttpRequestFailedError(
                                     message=(
-                                        f"Successfully received status {response.status} "
-                                        f"but failed to read response body."
+                                        f"Failed to decode JSON response. Status: {response.status}"
                                     ),
                                     http_status_code=response.status,
-                                    response_body=None,
-                                    api_error_code=APIErrorCode.UNKNOWN,
-                                )
+                                    response_body=response_text,
+                                    api_error_code=APIErrorCode.INVALID_RESPONSE,
+                                ) from je
+                        else:  # Not JSON, return raw text
+                            assert response_text is not None, (
+                                "DEFENSIVE: response_text is None post-read for 2xx non-204 status"
+                            )
                             return response_text, response_headers
 
                     # If status is >= 400, it's an HTTP error
                     logger.warning(
                         f"[{self.exchange_name}] HTTP Error {response.status} for {full_url}. "
-                        f"Body: {response_text[:200] if response_text else '[N/A]'}"
+                        f"Body: {response_text[:200] if response_text else '[Empty]'}"
                     )
                     # This error will be caught by the outer try-except for retries or final raise
                     # We create it here to capture status and body correctly
@@ -362,6 +363,10 @@ class HttpClient:
                 if isinstance(last_exception, HttpRequestFailedError):
                     raise last_exception
                 # Pylance indicates last_exception cannot be None here.
+                # Need to ensure last_exception is always assigned before raising
+                assert last_exception is not None, (
+                    "DEFENSIVE: last_exception is None after all retries failed"
+                )
                 raise last_exception  # Re-raise other aiohttp/asyncio/APIError exceptions
 
             if last_exception:  # If an exception occurred that qualifies for retry
@@ -379,7 +384,7 @@ class HttpClient:
             code=APIErrorCode.UNKNOWN.value,
         )
 
-    async def __aenter__(self) -> Self:
+    async def __aenter__(self) -> HttpClient:
         await self._get_session()  # Ensure session is created if used in "async with"
         return self
 

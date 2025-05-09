@@ -1076,11 +1076,12 @@ class HyperliquidAPI(ExchangeAPI):
                 f"{self.INFO_URL.rstrip('/')}/info",
                 data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
+
             if (
                 not isinstance(response_raw, list)
                 or len(response_raw) != 2
-                or not isinstance(response_raw[0], dict)
-                or not isinstance(response_raw[1], list)
+                or not isinstance(response_raw[0], dict)  # Meta part
+                or not isinstance(response_raw[1], list)  # Asset contexts part
             ):
                 raise APIError(
                     f"Unexpected response structure for allMeta: {type(response_raw)}, "
@@ -1088,17 +1089,19 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.UNKNOWN.value,
                 )
 
-            asset_ctx_list_raw: list[Any] = response_raw[1]
+            # response_raw[0] is the metadata dictionary (not used here for funding rates)
+            # response_raw[1] is the list of asset context dictionaries
+            # Cast to list[dict[str, Any]] to give more type information to Pyright
+            asset_contexts_data: list[dict[str, Any]] = cast(list[dict[str, Any]], response_raw[1])
             result: list[FundingRate] = []
-            for asset_ctx_raw in asset_ctx_list_raw:
-                if not isinstance(asset_ctx_raw, dict):
-                    logger.warning(
-                        f"[{self.exchange_name}] Skipping non-dict asset_ctx in allMeta "
-                        f"response: {asset_ctx_raw!r}"
-                    )
-                    continue
+
+            for asset_ctx_item_data in asset_contexts_data:
+                # No need to check isinstance(asset_ctx_item_data, dict) here
+                # as the cast and list type imply items are dicts.
+                # The HyperliquidRawAssetCtx.model_validate will raise if an item is not a dict.
                 try:
-                    validated_asset_ctx = HyperliquidRawAssetCtx.model_validate(asset_ctx_raw)
+                    # Validate each asset context item from the list
+                    validated_asset_ctx = HyperliquidRawAssetCtx.model_validate(asset_ctx_item_data)
                     market_symbol: str = validated_asset_ctx.name
                     if symbols is not None and market_symbol not in symbols:
                         continue
@@ -1109,13 +1112,13 @@ class HyperliquidAPI(ExchangeAPI):
                         result.append(funding_rate)
                 except ValidationError as ve_ctx:
                     logger.warning(
-                        f"[{self.exchange_name}] Failed to validate asset_ctx for funding: "
-                        f"{ve_ctx}. Data: {asset_ctx_raw!r}"
+                        f"[{self.exchange_name}] Failed to validate asset_ctx for funding rate: "
+                        f"{ve_ctx}. Data: {asset_ctx_item_data!r}"
                     )
                 except Exception as e_map_ctx:
                     logger.error(
                         f"[{self.exchange_name}] Error mapping asset_ctx to funding rate: "
-                        f"{e_map_ctx}. Data: {asset_ctx_raw!r}",
+                        f"{e_map_ctx}. Data: {asset_ctx_item_data!r}",
                         exc_info=True,
                     )
             return result
@@ -1574,31 +1577,15 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.ORDER_NOT_FOUND.value,
                 )
 
-            status_part_raw: Any = response_data[0]
-
-            if isinstance(status_part_raw, str):
-                if status_part_raw.lower() == "order not found":
-                    raise APIError(
-                        f"Order not found: id={order_id}", code=APIErrorCode.ORDER_NOT_FOUND.value
-                    )
-                raise APIError(
-                    f"Unexpected string from get_order_status: {status_part_raw}",
-                    code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-                )
-            if not isinstance(status_part_raw, dict):
-                raise APIError(
-                    f"Unexpected status object format, expected dict: {status_part_raw}",
-                    code=APIErrorCode.UNKNOWN.value,
-                )
-
             validated_status_response: HyperliquidRawHistoricalOrderResponse = (
                 HyperliquidResponseHandler.handle_info_order_status_response(
                     response_data_raw, self._wallet_address, int(order_id)
                 )
             )
-            return HyperliquidOrderMapper.transform_raw_order_to_internal(
-                raw=validated_status_response.order,  # type: ignore[arg-type]
-                trigger=None,
+            # Use the correct mapper for HyperliquidRawHistoricalOrder
+            return HyperliquidOrderMapper.transform_raw_historical_order_to_internal(
+                raw_historical_order=validated_status_response.order,
+                trigger=None,  # Assuming no separate trigger info here
             )
         except APIError:
             raise

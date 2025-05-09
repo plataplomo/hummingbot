@@ -54,7 +54,8 @@ class BackpackRawFill(BaseModel):
         quantity (str): The executed quantity for this fill (validated as a decimal string).
         side (str): The side of the order ('Bid' or 'Ask').
         symbol (str): The trading symbol.
-        timestamp (str): The execution timestamp in ISO 8601 format (e.g., "YYYY-MM-DDTHH:MM:SS.ffffffZ").
+        timestamp (str): The execution timestamp in ISO 8601 format
+                         (e.g., "YYYY-MM-DDTHH:MM:SS.ffffffZ").
         trade_id (int): The unique ID for this trade/fill.
         client_id (str | None): Optional client-provided order ID.
     """
@@ -186,7 +187,8 @@ class BackpackRawFill(BaseModel):
             v (str | None): The value of `clientId` after 'before' validation and assignment.
 
         Returns:
-            str | None: The validated `clientId` (will not be an empty/whitespace string if not None).
+            str | None: The validated `clientId` (will not be an empty/whitespace
+                        string if not None).
 
         Raises:
             ValueError: If `v` is a string but consists only of whitespace or is empty.

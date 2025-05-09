@@ -248,7 +248,8 @@ class HyperliquidResponseHandler:
 
         # Based on observed API behavior and previous logic, response can be a list.
         if not isinstance(raw_response_content, list):
-            # If it's already a dict, it might be a direct valid response (or an error dict not yet handled)
+            # If it's already a dict, it might be a direct valid response
+            # (or an error dict not yet handled)
             if isinstance(raw_response_content, dict):
                 try:
                     # Attempt to validate directly if it's a dict that matches the model
@@ -260,7 +261,8 @@ class HyperliquidResponseHandler:
                     # or just not the expected order status structure.
                     # The original logic mostly expected a list, so we proceed to that check
                     # if direct dict validation fails, or raise a more generic error.
-                    # For now, let's assume if it's a dict and fails, it's an invalid format unless handled by specific error checks.
+                    # For now, let's assume if it's a dict and fails, it's an invalid
+                    # format unless handled by specific error checks.
                     pass  # Fall through to list processing or general error if not a list
             else:
                 raise APIError(
@@ -273,7 +275,9 @@ class HyperliquidResponseHandler:
         if isinstance(raw_response_content, list):
             if not raw_response_content:  # Empty list means order not found
                 raise APIError(
-                    message=f"Order {order_id} for user {user_address} not found (empty list response).",
+                    message=(
+                        f"Order {order_id} for user {user_address} not found (empty list response)."
+                    ),
                     code=APIErrorCode.ORDER_NOT_FOUND.value,
                 )
 
@@ -282,7 +286,10 @@ class HyperliquidResponseHandler:
             if isinstance(status_item, str):  # Handle string messages like "Order not found"
                 if "order not found" in status_item.lower():  # Case-insensitive check
                     raise APIError(
-                        message=f"Order {order_id} for user {user_address} not found (string response: '{status_item}').",
+                        message=(
+                            f"Order {order_id} for user {user_address} not found "
+                            f"(string response: '{status_item}')."
+                        ),
                         code=APIErrorCode.ORDER_NOT_FOUND.value,
                     )
                 else:
@@ -306,8 +313,8 @@ class HyperliquidResponseHandler:
                 ) from e
 
         # Fallback if raw_response_content was a dict but didn't validate directly and wasn't a list
-        # This case should ideally be caught by initial isinstance(dict) and direct validation/failure
-        # but as a safeguard:
+        # This case should ideally be caught by initial isinstance(dict) and direct
+        # validation/failure but as a safeguard:
         try:
             # Assuming raw_response_content is a dict here due to prior checks/raises
             return HyperliquidRawHistoricalOrderResponse.model_validate(raw_response_content)
@@ -318,7 +325,8 @@ class HyperliquidResponseHandler:
 
         # Should not be reached if logic above is complete for list/dict
         raise APIError(
-            message=f"Unhandled response structure in {context}: {type(raw_response_content).__name__}",
+            message=f"Unhandled response structure in {context}: "
+            f"{type(raw_response_content).__name__}",
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 

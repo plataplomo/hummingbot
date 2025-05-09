@@ -285,7 +285,8 @@ class ExchangeAPI(ABC):
             # These are already raised by HttpClient after its retries
             logger.error(
                 f"[{self.exchange_name}] Unrecoverable client error for {method} "
-                f"[{self.exchange_name}] Unrecoverable client error for {method} {request_path_for_mapper}: {e_client}"
+                f"[{self.exchange_name}] Unrecoverable client error for {method} "
+                f"{request_path_for_mapper}: {e_client}"
             )
             # Map to a generic APIError
             # Here, we don't have a specific exchange error body, so pass what we have.
@@ -301,7 +302,8 @@ class ExchangeAPI(ABC):
             raise
         except Exception as e_unhandled:
             logger.exception(
-                f"[{self.exchange_name}] Unhandled exception during request {method} {request_path_for_mapper}: {e_unhandled}"
+                f"[{self.exchange_name}] Unhandled exception during request {method} "
+                f"{request_path_for_mapper}: {e_unhandled}"
             )
             # Map to a generic unknown APIError
             mapped_error = self.error_mapper.map_exchange_error(
@@ -352,7 +354,8 @@ class ExchangeAPI(ABC):
         if not self.error_mapper:
             # This should not happen if __init__ forces error_mapper
             logger.error(
-                f"[{self.exchange_name}] Error mapper not configured. Falling back to generic error."
+                f"[{self.exchange_name}] Error mapper not configured. "
+                f"Falling back to generic error."
             )
             return APIError(
                 message=f"Exchange error (mapper not configured): {error_body}",
@@ -409,15 +412,18 @@ class ExchangeAPI(ABC):
                 logger.info(f"[{self.exchange_name}] Sent subscription request for topic: {topic}")
             else:
                 logger.warning(
-                    f"[{self.exchange_name}] Could not construct subscription payload for {topic}. Not subscribing."
+                    f"[{self.exchange_name}] Could not construct subscription payload "
+                    f"for {topic}. Not subscribing."
                 )
         elif self._ws_manager:
             logger.warning(
-                f"[{self.exchange_name}] WebSocket not connected. Subscription to {topic} will be attempted upon connection."
+                f"[{self.exchange_name}] WebSocket not connected. Subscription to {topic} "
+                f"will be attempted upon connection."
             )
         else:
             logger.error(
-                f"[{self.exchange_name}] WebSocket manager not initialized. Cannot subscribe to {topic}."
+                f"[{self.exchange_name}] WebSocket manager not initialized. "
+                f"Cannot subscribe to {topic}."
             )
 
     @abstractmethod
@@ -458,12 +464,14 @@ class ExchangeAPI(ABC):
                         )
                 else:
                     logger.warning(
-                        f"[{self.exchange_name}] Could not construct resubscription payload for {topic}."
+                        f"[{self.exchange_name}] Could not construct resubscription "
+                        f"payload for {topic}."
                     )
                 await asyncio.sleep(0.1)
         else:
             logger.warning(
-                f"[{self.exchange_name}] Cannot resubscribe, WebSocket not connected or manager not available."
+                f"[{self.exchange_name}] Cannot resubscribe, WebSocket not connected "
+                f"or manager not available."
             )
 
     @abstractmethod
@@ -600,7 +608,8 @@ class ExchangeAPI(ABC):
             await self._ws_manager.connect()
         else:
             logger.warning(
-                f"[{self.exchange_name}] WebSocket endpoint not configured. Cannot connect WebSocket."
+                f"[{self.exchange_name}] WebSocket endpoint not configured. "
+                f"Cannot connect WebSocket."
             )
 
     async def ping_websocket(self) -> None:
@@ -608,13 +617,17 @@ class ExchangeAPI(ABC):
         Default WebSocketManager handles standard pings automatically if ping_interval > 0.
         This method can be used for custom application-level pings if required by the exchange.
         """
-        if self._ws_manager and self.is_connected:
+        if self._ws_manager and self.is_connected:  # Check is_connected for active session
+            # Custom ping logic would go here if needed, e.g., sending a specific JSON message
+            # For now, log that standard ping is handled by WebSocketManager
             logger.debug(
-                f"[{self.exchange_name}] Standard WebSocket ping is handled by WebSocketManager if configured. Call this for custom pings."
+                f"[{self.exchange_name}] Standard WebSocket ping is handled by WebSocketManager "
+                f"if configured. Call this for custom pings."
             )
         else:
             logger.warning(
-                f"[{self.exchange_name}] Cannot send custom ping, WebSocket not connected or manager not available."
+                f"[{self.exchange_name}] Cannot send custom ping, WebSocket not connected "
+                f"or manager not available."
             )
 
     # --- Helper Methods --- #

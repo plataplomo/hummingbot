@@ -86,8 +86,9 @@ class RateLimiterService(BaseModel):
                         )
                     except Exception as e:  # Catch potential errors during limiter creation
                         logger.warning(
-                            f'[{exchange_name}] Error creating limiter for endpoint "{endpoint_pattern}": {e}. '
-                            f"Using default limiter values (rate={parsed_rate_config.default_rate}, "
+                            f'[{exchange_name}] Error creating limiter for endpoint "'
+                            f'{endpoint_pattern}": {e}. Using default limiter values '
+                            f"(rate={parsed_rate_config.default_rate}, "
                             f"bucket={parsed_rate_config.default_bucket_size}) for this endpoint."
                         )
                         initialized_endpoint_limiters[endpoint_pattern] = (
@@ -98,8 +99,8 @@ class RateLimiterService(BaseModel):
                         )
                 else:
                     logger.warning(
-                        f'[{exchange_name}] Missing configuration for endpoint "{endpoint_pattern}". '
-                        f"Using default limiter values for this endpoint."
+                        f'[{exchange_name}] Missing configuration for endpoint "'
+                        f'{endpoint_pattern}". Using default limiter values for this endpoint.'
                     )
                     initialized_endpoint_limiters[endpoint_pattern] = TokenBucketRateLimiterRuntime(
                         rate=parsed_rate_config.default_rate,

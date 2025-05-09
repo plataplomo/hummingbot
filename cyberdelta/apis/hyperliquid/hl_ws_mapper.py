@@ -178,7 +178,8 @@ class HyperliquidWebsocketMapper:
     ) -> Order | None:
         """
         Parse an order update payload from a WebSocket user event.
-        Validates the payload using HyperliquidRawOrder and transforms it using HyperliquidOrderMapper.
+        Validates the payload using HyperliquidRawOrder and transforms it using
+        HyperliquidOrderMapper.
 
         Args:
             event_order_payload: The raw dictionary payload for the order, extracted from

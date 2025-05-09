@@ -34,6 +34,11 @@ from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import (
     HyperliquidRawCandleSnapshotResponse,
 )
+
+# Import the historical order model needed for the new mapper method
+from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
+    HyperliquidRawHistoricalOrder,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     # HyperliquidRawAssetDefinition # No longer needed here if method is removed
@@ -212,6 +217,89 @@ class HyperliquidOrderMapper:
             created_at=created_at,
             updated_at=updated_at or created_at,  # Default updated_at to created_at if None
             triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
+        )
+
+    @staticmethod
+    def transform_raw_historical_order_to_internal(
+        raw_historical_order: HyperliquidRawHistoricalOrder,
+        trigger: HyperliquidRawTriggerInfo | None = None,  # Keep trigger for consistency if needed
+    ) -> Order:
+        """
+        Transforms a validated `HyperliquidRawHistoricalOrder` object into an internal `Order`.
+        Handles the potentially different status enum.
+        """
+        # NOTE: This implementation is largely identical to transform_raw_order_to_internal
+        #       but takes HyperliquidRawHistoricalOrder as input.
+        #       The status mapping needs to correctly handle RawHistoricalOrderStatusHL.
+
+        # Defensive parsing and mapping
+        side = HyperliquidOrderMapper.map_side_to_internal(raw_historical_order.side)
+        # map_type_to_internal expects order_type dict, trigger info
+        order_type = HyperliquidOrderMapper.map_type_to_internal(
+            raw_historical_order.order_type, trigger
+        )
+        # map_status_to_internal should handle the broader status set from historical orders
+        status = HyperliquidOrderMapper.map_status_to_internal(raw_historical_order.status)
+        # map_time_in_force expects order_type dict
+        time_in_force = HyperliquidOrderMapper.map_time_in_force(raw_historical_order.order_type)
+
+        quantity_requested = parse_decimal_value(
+            raw_historical_order.sz, allow_none=False, field_name="sz"
+        )
+        if quantity_requested is None:
+            raise ValueError("quantity_requested (sz) is required and could not be parsed.")
+        remaining_sz = parse_decimal_value(
+            str(raw_historical_order.remaining_sz),
+            allow_none=True,
+            field_name="remainingSz",
+        )
+        if remaining_sz is None:
+            remaining_sz = Decimal("0")
+        quantity_filled = quantity_requested - remaining_sz
+        price = parse_decimal_value(
+            str(raw_historical_order.limit_px), allow_none=True, field_name="limitPx"
+        )
+        created_at = parse_datetime_utc(raw_historical_order.timestamp, field_name="timestamp")
+        if created_at is None:
+            raise ValueError("created_at (timestamp) is required and could not be parsed.")
+        updated_at = parse_datetime_utc(
+            raw_historical_order.status_timestamp, field_name="statusTimestamp"
+        )
+
+        # Trigger/stop logic (assuming trigger info might be passed, though often absent)
+        stop_price = None
+        trigger_by = None
+        if trigger:
+            stop_price = parse_decimal_value(
+                str(getattr(trigger, "trigger_px", "")), allow_none=True, field_name="triggerPx"
+            )
+            # Hyperliquid does not specify trigger_by (Mark/Last/Index),
+            #   so leave as None or infer if possible
+
+        return Order(
+            client_order_id=raw_historical_order.cloid or str(raw_historical_order.oid),
+            exchange_order_id=str(raw_historical_order.oid),
+            related_order_id=None,
+            exchange="hyperliquid",
+            symbol=raw_historical_order.asset,
+            side=side,
+            order_type=order_type,
+            status=status,
+            quantity_requested=quantity_requested,
+            quantity_filled=quantity_filled,
+            price=price,
+            stop_price=stop_price,
+            average_fill_price=None,  # Not directly available here
+            trigger_by=trigger_by,
+            time_in_force=time_in_force,
+            reduce_only=raw_historical_order.reduce_only,
+            post_only=False,  # Cannot determine from this data alone
+            created_at=created_at,
+            updated_at=updated_at,
+            triggered_at=None,  # Not directly available here
             strategy_name=None,
             signal_id=None,
             trades=[],

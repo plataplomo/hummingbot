@@ -320,48 +320,55 @@ class WebSocketManager:
                     self._logger.debug("Reconnection task already scheduled or running.")
 
     async def _keep_alive(self) -> None:
-        """Periodically sends ping frames to keep the connection alive."""
-        if not (self._ping_interval > 0):
-            self._logger.info("Ping interval is 0 or less, keep-alive task will not run.")
+        """Periodically sends a ping to keep the connection alive."""
+        if not self._ping_interval or self._ping_interval <= 0:
+            self._logger.info("Ping interval is zero or negative, keep-alive task will not run.")
             return
 
-        self._logger.info(f"Keep-alive task started. Ping interval: {self._ping_interval}s.")
-        try:
+        try:  # Outer try for CancelledError and general loop/sleep issues
             while self.is_connected and self._should_reconnect:
+                if not self._ws_connection or self._ws_connection.closed:
+                    self._logger.warning(
+                        "Keep-alive: WebSocket connection is not available or closed."
+                    )
+                    break  # Exit loop if connection is no longer valid
+
+                try:  # Inner try specifically for ping operation
+                    self._logger.debug(f"Sending ping frame for {self._exchange_name}")
+                    await self._ws_connection.ping()
+                except ConnectionResetError:
+                    self._logger.warning(
+                        "Keep-alive: Connection reset during ping. Attempting to reconnect."
+                    )
+                    self._is_connected = False  # Mark as disconnected
+                    asyncio.create_task(self.connect())  # Attempt to reconnect
+                    break  # Exit _keep_alive loop as connection is reset
+
+                # If there was a custom ping message to send via self._ws_connection.send_str()
+                # or similar, it would go here, also within a try-except if needed.
+
+                self._logger.debug(f"Keep-alive: sleeping for {self._ping_interval}s after ping.")
                 await asyncio.sleep(self._ping_interval)
-                if self.is_connected:
-                    assert self._ws_connection is not None, (
-                        "WebSocket connection is None despite is_connected being True"
-                    )
-                    try:
-                        self._logger.debug("Sending WebSocket ping.")
-                        await self._ws_connection.ping()
-                    except asyncio.CancelledError:
-                        raise
-                    except ConnectionResetError:
-                        self._logger.warning("Connection reset during ping. Assuming disconnected.")
-                        self._is_connected = False
-                        self._ws_connection = None
-                        break
-                    except Exception as e:
-                        self._logger.warning(
-                            f"Failed to send WebSocket ping: {e}. Connection might be stale."
-                        )
-                        self._is_connected = False
-                        self._ws_connection = None
-                        break
-                else:  # type: ignore[unreachable]
-                    self._logger.debug(
-                        "Keep-alive: Not connected or should_reconnect is false, "
-                        "stopping ping task."
-                    )
-                    break
+
         except asyncio.CancelledError:
             self._logger.info("Keep-alive task cancelled.")
-        except Exception as e:
-            self._logger.exception(f"Unexpected error in keep-alive task: {e}")
+            # self._is_connected = False # Optional: update state, though task is ending
+            # self._ws_connection = None
+        except Exception as e:  # Catch other unexpected errors in the loop/sleep
+            self._logger.error(
+                f"Unexpected error in keep-alive loop for {self._exchange_name}: {e}",
+                exc_info=True,
+            )
+            self._is_connected = False  # Ensure state reflects potential issue
+            # self._ws_connection = None # Connection is likely broken
+            if self._should_reconnect:  # Only attempt reconnect if it's enabled
+                self._logger.info(
+                    f"Attempting to reconnect {self._exchange_name} due to "
+                    f"unexpected error in keep-alive."
+                )
+                asyncio.create_task(self.connect())
         finally:
-            self._logger.info("Keep-alive task stopped.")
+            self._logger.debug(f"Keep-alive task for {self._exchange_name} is ending.")
 
     async def send_json(self, data: dict[str, Any]) -> bool:
         """
