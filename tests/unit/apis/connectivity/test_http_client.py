@@ -36,7 +36,7 @@ def default_http_client_config() -> HttpClientConfig:
 
 
 @pytest.fixture
-def mock_rate_limiter_service() -> RateLimiterService:
+def mock_rate_limiter_service() -> MagicMock:
     service = MagicMock(spec=RateLimiterService)
     limiter_instance = AsyncMock(spec=TokenBucketRateLimiterRuntime)
     service.get_limiter.return_value = limiter_instance
@@ -122,7 +122,7 @@ class TestHttpClient:
         # Check headers passed to ClientSession constructor
         _constructor_args, constructor_kwargs = MockAiohttpSession.call_args  # _ to denote unused
         assert constructor_kwargs["headers"] == {
-            "User-Agent": f"CyberDeltaEngine/{http_client_instance.exchange_name}"
+            "User-Agent": f"CyberDeltaEngine/{http_client_instance.exchange_name}",
         }
         mock_session_instance1.request.assert_called_once()  # Session's request method called
 
@@ -297,9 +297,14 @@ class TestHttpClient:
         assert raw_headers.get("Content-Type") == "application/json; charset=utf-8"
 
         # pyright: ignore [reportAttributeAccessIssue]
-        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/test")
+        # Mocking limitations: service.get_limiter is a MagicMock due to fixture setup,
+        # but type checkers infer original signature. Mock attributes are correct at runtime.
+        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/test")  # type: ignore[attr-defined]
+
         # pyright: ignore [reportAttributeAccessIssue]
-        mock_rate_limiter_service.get_limiter.return_value.acquire.assert_called_once()
+        # Mocking limitations: service.get_limiter.return_value is an AsyncMock.
+        limiter_mock = mock_rate_limiter_service.get_limiter.return_value  # type: ignore[attr-defined]
+        limiter_mock.acquire.assert_called_once()  # type: ignore[attr-defined]
 
         full_expected_url = str(default_http_client_config.rest_endpoint).rstrip("/") + "/test"
         # We can't easily get the session_for_headers without private access.

@@ -1,7 +1,7 @@
 import asyncio
 import asyncio.tasks  # Import for direct access to create_task
 import json
-from collections.abc import AsyncGenerator, Callable, Coroutine
+from collections.abc import AsyncGenerator, Callable, Coroutine, Iterable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -28,7 +28,10 @@ async def dummy_on_connected_callback() -> None:
 
 
 # Helper function for mock side_effect
-def create_async_mock_task_for_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN401
+def create_async_mock_task_for_side_effect(
+    *args: object,
+    **kwargs: object,  # noqa: ANN401 # Generic pass-through for mock/callback
+) -> AsyncMock:
     """Helper to create an AsyncMock, intended for use as a side_effect."""
     return AsyncMock()
 
@@ -74,11 +77,11 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
         closed: bool = False,
         # List of (WSMsgType, data, extra) tuples or Exceptions to raise on receive
         receive_sequence: list[tuple[WSMsgType, Any, Any] | Exception] | None = None,
-        send_json_effect: Any | None = None,
-        close_effect: Any | None = None,
-        ping_effect: Any | None = None,
-        pong_effect: Any | None = None,
-        exception_effect: Any | None = None,
+        send_json_effect: Callable[..., object] | Exception | Iterable[object] | None = None,
+        close_effect: Callable[..., object] | Exception | Iterable[object] | None = None,
+        ping_effect: Callable[..., object] | Exception | Iterable[object] | None = None,
+        pong_effect: Callable[..., object] | Exception | Iterable[object] | None = None,
+        exception_effect: Callable[..., object] | Exception | Iterable[object] | None = None,
     ) -> AsyncMock:
         mock_conn = AsyncMock(spec=aiohttp.ClientWebSocketResponse)
         mock_conn.closed = closed
@@ -87,13 +90,13 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
         # Enhanced receive_sequence handling
         if receive_sequence:
             current_receive_call = 0
-            data_to_send: Any = None  # Initialize with a common type, or Any
+            data_to_send: Any = None
 
             async def receive_side_effect(
-                *_args: Any,
-                **_kwargs: Any,  # noqa: ANN401 # Generic pass-through for mock/callback
+                *_args: object,
+                **_kwargs: object,  # noqa: ANN401 # Generic pass-through for mock/callback
             ) -> aiohttp.WSMessage:
-                nonlocal current_receive_call, data_to_send  # Ensure data_to_send is in scope if assigned here
+                nonlocal current_receive_call, data_to_send
                 if current_receive_call < len(receive_sequence):
                     item = receive_sequence[current_receive_call]
                     current_receive_call += 1
@@ -143,7 +146,10 @@ async def patched_ws_connect(
         # If mock_ws_connect_method is already an AsyncMock from patching, setting its
         # return_value (if it's not a coroutine function itself) might not be right.
         # Let's make its side_effect an async function that returns our mock connection.
-        async def default_connect_side_effect(*args: Any, **kwargs: Any) -> AsyncMock:
+        async def default_connect_side_effect(
+            *args: object,
+            **kwargs: object,  # noqa: ANN401 # Generic pass-through for mock/callback
+        ) -> AsyncMock:
             return default_mock_conn
 
         mock_ws_connect_method.side_effect = default_connect_side_effect
@@ -457,7 +463,7 @@ class TestWebSocketManager:
         # It will be called multiple times: once for initial connect, once for reconnect.
         connect_attempt_count = 0
 
-        async def dynamic_ws_connect_side_effect(*_args: Any, **_kwargs: Any) -> AsyncMock:
+        async def dynamic_ws_connect_side_effect(*_args: object, **_kwargs: object) -> AsyncMock:
             nonlocal connect_attempt_count
             connect_attempt_count += 1
             if connect_attempt_count == 1:
@@ -465,7 +471,7 @@ class TestWebSocketManager:
             elif connect_attempt_count == 2:
                 return second_connection_mock
             # Fallback if called more than expected (should not happen in this test design)
-            raise AssertionError("ws_connect called more than twice")  # Line 514 E501
+            raise AssertionError("ws_connect called more than twice")
 
         mock_ws_connect_method.side_effect = dynamic_ws_connect_side_effect
 
@@ -488,8 +494,10 @@ class TestWebSocketManager:
         original_create_task = asyncio.tasks.create_task
 
         def side_effect_for_create_task_capture(
-            coro: Coroutine[Any, Any, Any], *, name: str | None = None
-        ) -> asyncio.Task[Any]:
+            coro: Coroutine[Any, Any, Any],
+            *,
+            name: str | None = None,  # noqa: ANN401 # Any is fine for Coroutine here
+        ) -> asyncio.Task[Any]:  # noqa: ANN401 # Any is fine for Task here
             task = original_create_task(coro, name=name)
             if name:
                 created_tasks_map[name] = task
@@ -520,7 +528,7 @@ class TestWebSocketManager:
                 mock_logger.warning.assert_any_call(
                     f"WebSocket connection closed unexpectedly or with error: "
                     f"{simulated_connection_drop_error}. Attempting reconnect..."
-                )  # Line 521 E501
+                )
                 mock_sleep.assert_called_with(test_config.reconnect_delay)
                 assert (
                     mock_ws_connect_method.call_count == 2
@@ -549,9 +557,7 @@ class TestWebSocketManager:
 
                 # Manager should eventually reflect not being connected after retries exhausted
                 # Wait a bit more for final state if reconnect attempts were > 1 in config
-                await asyncio.sleep(
-                    test_config.reconnect_delay * 2
-                )  # Line 532 E501 Ensure state updates
+                await asyncio.sleep(test_config.reconnect_delay * 2)  # Ensure state updates
                 assert manager.is_connected is False
 
         finally:
