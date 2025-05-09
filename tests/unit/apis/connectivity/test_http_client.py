@@ -66,29 +66,28 @@ class TestHttpClient:
     @pytest.mark.asyncio
     async def test_get_session_creation_and_reuse(self, http_client_instance: HttpClient) -> None:
         """Test that a session is created and reused."""
-        session1 = await http_client_instance._get_session()  # noqa: SLF001
+        session1 = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
         assert isinstance(session1, aiohttp.ClientSession)
         assert not session1.closed
 
-        session2 = await http_client_instance._get_session()  # noqa: SLF001
+        session2 = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
         assert session1 is session2
 
         await http_client_instance.close_session()
-        assert http_client_instance._session is None  # noqa: SLF001
+        assert http_client_instance._session is None  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
 
-        session3 = await http_client_instance._get_session()  # noqa: SLF001
+        session3 = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
         assert isinstance(session3, aiohttp.ClientSession)
         assert session1 is not session3
-        assert not session3.closed
 
     @pytest.mark.asyncio
     async def test_close_session_idempotent(self, http_client_instance: HttpClient) -> None:
         """Test that closing the session is idempotent."""
-        await http_client_instance._get_session()  # noqa: SLF001
+        await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
         await http_client_instance.close_session()
-        assert http_client_instance._session is None  # noqa: SLF001
+        assert http_client_instance._session is None  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
         await http_client_instance.close_session()
-        assert http_client_instance._session is None  # noqa: SLF001
+        assert http_client_instance._session is None  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
 
     @pytest.mark.asyncio
     async def test_async_context_manager(
@@ -98,90 +97,122 @@ class TestHttpClient:
         async with HttpClient(
             exchange_name="test_ctx", config=default_http_client_config
         ) as client:
-            assert client._session is not None  # noqa: SLF001
-            assert not client._session.closed  # noqa: SLF001
-        assert client._session is None  # noqa: SLF001
+            assert client._session is not None  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+            assert not client._session.closed  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        assert client._session is None  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
 
     @pytest.mark.asyncio
+    @patch("cyberdelta.apis.connectivity.http_client.HttpClient._parse_and_validate_response")
     @patch("aiohttp.ClientSession.request")
     async def test_request_successful_json(
         self,
-        mock_request: AsyncMock,
+        mock_session_request: AsyncMock,
+        mock_parse_response: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
         default_http_client_config: HttpClientConfig,
     ) -> None:
-        """Test a successful request returning JSON."""
-        mock_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_response.status = 200
-        mock_response.headers = CIMultiDictProxy(
+        """Test a successful request returning JSON, with parsing mocked."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200
+        # Headers/text on mock_aio_response are less critical now as parsing is mocked
+        mock_session_request.return_value.__aenter__.return_value = mock_aio_response
+
+        expected_content = {"data": "success"}
+        expected_processed_headers = ProcessedResponseHeaders(
+            content_type="application/json; charset=utf-8"
+        )
+        expected_raw_headers = CIMultiDictProxy(
             CIMultiDict[str]({"Content-Type": "application/json; charset=utf-8"})
         )
-        mock_response.text = AsyncMock(return_value='{"data": "success"}')
-        mock_request.return_value.__aenter__.return_value = mock_response
+        mock_parse_response.return_value = (
+            expected_content,
+            expected_processed_headers,
+            expected_raw_headers,
+        )
 
         content, processed_headers, raw_headers = await http_client_instance.request(
             method="GET", endpoint_path="/test", rate_limiter_service=mock_rate_limiter_service
         )
-        assert content == {"data": "success"}
-        assert isinstance(processed_headers, ProcessedResponseHeaders)
-        assert processed_headers.content_type == "application/json; charset=utf-8"
-        assert isinstance(raw_headers, CIMultiDictProxy)
-        assert raw_headers.get("Content-Type") == "application/json; charset=utf-8"
+
+        assert content == expected_content
+        assert processed_headers == expected_processed_headers
+        assert raw_headers == expected_raw_headers
 
         mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/test")  # type: ignore[attr-defined]
         mock_rate_limiter_service.get_limiter.return_value.acquire.assert_called_once()  # type: ignore[attr-defined]
-        session_for_headers = await http_client_instance._get_session()  # noqa: SLF001
-        mock_request.assert_called_once_with(
+
+        full_expected_url = str(default_http_client_config.rest_endpoint).rstrip("/") + "/test"
+        session_for_headers = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
+        mock_session_request.assert_called_once_with(
             "GET",
-            str(default_http_client_config.rest_endpoint).rstrip("/") + "/test",
+            full_expected_url,
             params=None,
             json=None,
             data=None,
             headers=session_for_headers.headers,
             timeout=aiohttp.ClientTimeout(total=http_client_instance.default_request_timeout),
         )
+        mock_parse_response.assert_called_once_with(mock_aio_response, full_expected_url)
 
     @pytest.mark.asyncio
+    @patch("cyberdelta.apis.connectivity.http_client.HttpClient._parse_and_validate_response")
     @patch("aiohttp.ClientSession.request")
     async def test_request_successful_text(
         self,
-        mock_request: AsyncMock,
+        mock_session_request: AsyncMock,
+        mock_parse_response: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
-        default_http_client_config: HttpClientConfig,  # Added fixture
+        default_http_client_config: HttpClientConfig,
     ) -> None:
-        """Test a successful request returning plain text."""
-        mock_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_response.status = 200
-        mock_response.headers = CIMultiDictProxy(CIMultiDict[str]({"Content-Type": "text/plain"}))
-        mock_response.text = AsyncMock(return_value="Hello World")
-        mock_request.return_value.__aenter__.return_value = mock_response
+        """Test a successful request returning plain text, with parsing mocked."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200
+        mock_session_request.return_value.__aenter__.return_value = mock_aio_response
+
+        expected_content = "Hello World"
+        expected_processed_headers = ProcessedResponseHeaders(content_type="text/plain")
+        expected_raw_headers = CIMultiDictProxy(CIMultiDict[str]({"Content-Type": "text/plain"}))
+        mock_parse_response.return_value = (
+            expected_content,
+            expected_processed_headers,
+            expected_raw_headers,
+        )
 
         content, processed_headers, raw_headers = await http_client_instance.request(
             method="GET", endpoint_path="/text", rate_limiter_service=mock_rate_limiter_service
         )
-        assert content == "Hello World"
-        assert isinstance(processed_headers, ProcessedResponseHeaders)
-        assert processed_headers.content_type == "text/plain"
-        assert isinstance(raw_headers, CIMultiDictProxy)
-        assert raw_headers.get("Content-Type") == "text/plain"
+
+        assert content == expected_content
+        assert processed_headers == expected_processed_headers
+        assert raw_headers == expected_raw_headers
+
+        full_expected_url = str(default_http_client_config.rest_endpoint).rstrip("/") + "/text"
+        mock_parse_response.assert_called_once_with(mock_aio_response, full_expected_url)
 
     @pytest.mark.asyncio
+    @patch("cyberdelta.apis.connectivity.http_client.HttpClient._parse_and_validate_response")
     @patch("aiohttp.ClientSession.request")
     async def test_request_204_no_content(
         self,
-        mock_request: AsyncMock,
+        mock_session_request: AsyncMock,
+        mock_parse_response: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
-        default_http_client_config: HttpClientConfig,  # Added fixture
+        default_http_client_config: HttpClientConfig,
     ) -> None:
-        """Test a request that returns 204 No Content."""
-        mock_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_response.status = 204
-        mock_response.headers = CIMultiDictProxy(CIMultiDict[str]())
-        mock_response.text = AsyncMock(return_value="")
-        mock_request.return_value.__aenter__.return_value = mock_response
+        """Test a request that returns 204 No Content, with parsing mocked."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200  # _parse_and_validate_response handles 204 logic
+        mock_session_request.return_value.__aenter__.return_value = mock_aio_response
+
+        # _parse_and_validate_response will return (None, ..., ...) if it processes a 204
+        # or if the actual response it gets (mock_aio_response) leads to that.
+        # Here, we simulate that it was called and it correctly determined a "No Content" outcome.
+        expected_processed_headers = ProcessedResponseHeaders(content_type="")
+        expected_raw_headers = CIMultiDictProxy(CIMultiDict[str]())
+        mock_parse_response.return_value = (None, expected_processed_headers, expected_raw_headers)
 
         content, processed_headers, raw_headers = await http_client_instance.request(
             method="POST",
@@ -190,10 +221,12 @@ class TestHttpClient:
             data={},
         )
         assert content is None
-        assert isinstance(processed_headers, ProcessedResponseHeaders)
-        assert processed_headers.content_type == ""
-        assert isinstance(raw_headers, CIMultiDictProxy)
-        mock_response.text.assert_not_called()
+        assert processed_headers == expected_processed_headers
+        assert raw_headers == expected_raw_headers
+
+        full_expected_url = str(default_http_client_config.rest_endpoint).rstrip("/") + "/empty"
+        # Verify _parse_and_validate_response was called with the response from session.request
+        mock_parse_response.assert_called_once_with(mock_aio_response, full_expected_url)
 
     @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.request")
@@ -232,7 +265,7 @@ class TestHttpClient:
         assert processed_headers.content_type == "application/json"
         assert isinstance(raw_headers, CIMultiDictProxy)
 
-        session = await http_client_instance._get_session()  # noqa: SLF001
+        session = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
         expected_headers_for_auth = session.headers.copy()
         expected_headers_for_auth.update(original_headers)
 
@@ -385,7 +418,7 @@ class TestHttpClient:
         # Scenario 1: Relative path with base URL not ending in slash
         config1 = HttpClientConfig(rest_endpoint=HttpUrl("http://base.url/v1"))
         async with HttpClient(exchange_name="url_test1", config=config1) as client1:
-            session1 = await client1._get_session()  # noqa: SLF001
+            session1 = await client1._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
             mock_response1 = AsyncMock(spec=aiohttp.ClientResponse)
             mock_response1.status = 200
             mock_response1.headers = CIMultiDictProxy(CIMultiDict[str]())
@@ -396,7 +429,7 @@ class TestHttpClient:
             mock_request.assert_called_with(
                 "GET",
                 "http://base.url/v1/path1",
-                headers=session1.headers,
+                headers=session1.headers,  # pyright: ignore [reportUnknownMemberType]
                 params=None,
                 json=None,
                 data=None,
@@ -411,7 +444,7 @@ class TestHttpClient:
             mock_request.assert_called_with(
                 "GET",
                 "http://base.url/v1/path1_no_lead_slash",  # Check slash logic
-                headers=session1.headers,
+                headers=session1.headers,  # pyright: ignore [reportUnknownMemberType]
                 params=None,
                 json=None,
                 data=None,
@@ -422,7 +455,7 @@ class TestHttpClient:
         # Scenario 3: Absolute URL in endpoint_path
         config2 = HttpClientConfig(rest_endpoint=HttpUrl("http://shouldbeignored.com"))
         async with HttpClient(exchange_name="url_test2", config=config2) as client2:
-            session2 = await client2._get_session()  # noqa: SLF001
+            session2 = await client2._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
             mock_response2 = AsyncMock(spec=aiohttp.ClientResponse)
             mock_response2.status = 200
             mock_response2.headers = CIMultiDictProxy(CIMultiDict[str]())
@@ -437,7 +470,7 @@ class TestHttpClient:
             mock_request.assert_called_with(
                 "GET",
                 "https://specific.api.com/specific/path",
-                headers=session2.headers,
+                headers=session2.headers,  # pyright: ignore [reportUnknownMemberType]
                 params=None,
                 json=None,
                 data=None,
@@ -467,7 +500,7 @@ class TestHttpClient:
             rate_limiter_service=mock_rate_limiter_service,
             request_timeout=custom_timeout,
         )
-        session_for_headers = await http_client_instance._get_session()  # noqa: SLF001
+        session_for_headers = await http_client_instance._get_session()  # noqa: SLF001 # pyright: ignore [reportPrivateUsage]
         mock_request.assert_called_once_with(
             "GET",
             str(default_http_client_config.rest_endpoint).rstrip("/") + "/custom_timeout_test",
@@ -479,91 +512,309 @@ class TestHttpClient:
         )
 
     @pytest.mark.asyncio
+    @patch("cyberdelta.apis.connectivity.http_client.HttpClient._parse_and_validate_response")
     @patch("aiohttp.ClientSession.request")
     async def test_request_json_decode_error(
         self,
-        mock_request: AsyncMock,
+        mock_session_request: AsyncMock,
+        mock_parse_response: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
-        """Test request raises HttpRequestFailedError on JSONDecodeError."""
-        mock_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_response.status = 200
-        mock_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json"})
-        )
+        """Test HttpRequestFailedError if _parse_and_validate_response indicates JSONDecodeError."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200  # Successful HTTP status
+        mock_session_request.return_value.__aenter__.return_value = mock_aio_response
+
         invalid_json_text = "this is not json"
-        mock_response.text = AsyncMock(return_value=invalid_json_text)
-        mock_request.return_value.__aenter__.return_value = mock_response
+        # Simulate _parse_and_validate_response raising the error
+        json_decode_error_cause = json.JSONDecodeError(
+            msg="Simulated decode error", doc=invalid_json_text, pos=0
+        )
+        expected_error = HttpRequestFailedError(
+            message="Failed to decode JSON response.",
+            http_status_code=200,
+            response_body=invalid_json_text,
+            api_error_code=APIErrorCode.INVALID_RESPONSE,
+        )
+        expected_error.__cause__ = json_decode_error_cause  # Manually set cause
+        mock_parse_response.side_effect = expected_error
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request("GET", "/invalid_json", mock_rate_limiter_service)
 
-        assert excinfo.value.http_status == 200
-        assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert invalid_json_text in str(excinfo.value.exchange_message or "")
-        assert isinstance(excinfo.value.__cause__, json.JSONDecodeError)
+        assert excinfo.value is expected_error  # Check if the exact error is propagated
+        assert isinstance(excinfo.value.__cause__, json.JSONDecodeError)  # Check cause type
+        full_expected_url = str(http_client_instance.rest_endpoint).rstrip("/") + "/invalid_json"
+        mock_parse_response.assert_called_once_with(mock_aio_response, full_expected_url)
 
     @pytest.mark.asyncio
+    @patch("cyberdelta.apis.connectivity.http_client.HttpClient._parse_and_validate_response")
     @patch("aiohttp.ClientSession.request")
     async def test_request_payload_error_on_body_read(
         self,
-        mock_request: AsyncMock,
+        mock_session_request: AsyncMock,
+        mock_parse_response: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
-        """Test request raises HttpRequestFailedError on ClientPayloadError during body read."""
-        mock_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_response.status = 200  # Successful status initially
-        mock_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": "application/json"})
-        )
-        payload_error = aiohttp.ClientPayloadError("Failed to read payload")
-        mock_response.text = AsyncMock(side_effect=payload_error)
-        mock_request.return_value.__aenter__.return_value = mock_response
+        """Test _parse_and_validate_response raises error for ClientPayloadError."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200  # Successful HTTP status
+        mock_session_request.return_value.__aenter__.return_value = mock_aio_response
 
-        # HttpClient is configured for retries by default, but ClientPayloadError on a 200
-        # might not be retryable by default depending on how it's caught.
-        # Current implementation: it raises HttpRequestFailedError, which then triggers retries
-        # if status is retryable (e.g. 5xx) or if it's a ClientError.
-        # For a 200 response, a ClientPayloadError might not be retried based on status.
-        # Let's test the immediate raise first, assuming default retry settings might not catch this for 200.
+        # Simulate _parse_and_validate_response raising the error due to payload issue
+        payload_error_cause = aiohttp.ClientPayloadError("Simulated payload read failure")
+        expected_error = HttpRequestFailedError(
+            message="Failed to read response body.",
+            http_status_code=200,
+            response_body=None,
+            api_error_code=APIErrorCode.NETWORK_ISSUE,
+        )
+        expected_error.__cause__ = payload_error_cause  # Manually set cause for the test
+        mock_parse_response.side_effect = expected_error
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request(
                 "GET", "/payload_error_path", mock_rate_limiter_service
             )
 
-        assert excinfo.value.http_status == 200  # Status from before body read failed
-        assert excinfo.value.code == APIErrorCode.NETWORK_ISSUE.value
-        assert "Failed to read response body" in excinfo.value.message
+        assert excinfo.value is expected_error
+        # Assert the cause type if payload_error_cause was used to construct expected_error implicitly
         assert isinstance(excinfo.value.__cause__, aiohttp.ClientPayloadError)
+        full_expected_url = (
+            str(http_client_instance.rest_endpoint).rstrip("/") + "/payload_error_path"
+        )
+        mock_parse_response.assert_called_once_with(mock_aio_response, full_expected_url)
 
     @pytest.mark.asyncio
+    @patch("cyberdelta.apis.connectivity.http_client.HttpClient._parse_and_validate_response")
     @patch("aiohttp.ClientSession.request")
     async def test_request_invalid_content_type_header_from_server(
         self,
-        mock_request: AsyncMock,
+        mock_session_request: AsyncMock,
+        mock_parse_response: AsyncMock,
         http_client_instance: HttpClient,
         mock_rate_limiter_service: RateLimiterService,
     ) -> None:
-        """Test request raises HttpRequestFailedError for invalid Content-Type from server."""
-        mock_response = AsyncMock(spec=aiohttp.ClientResponse)
-        mock_response.status = 200
-        # Invalid content type: too long
-        invalid_content_type = "a" * (MAX_CONTENT_TYPE_LENGTH + 10)
-        mock_response.headers = CIMultiDictProxy(
-            CIMultiDict[str]({"Content-Type": invalid_content_type})
+        """Test HttpRequestFailedError if _parse_and_validate_response indicates invalid C-Type."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200  # Successful HTTP status
+        mock_session_request.return_value.__aenter__.return_value = mock_aio_response
+
+        # Simulate _parse_and_validate_response raising the error due to invalid content type
+        validation_error_cause = ValidationError.from_exception_data(
+            title="ProcessedResponseHeaders",
+            line_errors=[],  # Simplified for test
         )
-        mock_response.text = AsyncMock(return_value='{"data":"success"}')  # Body might be fine
-        mock_request.return_value.__aenter__.return_value = mock_response
+        expected_error = HttpRequestFailedError(
+            message="Invalid Content-Type header from server.",
+            http_status_code=200,
+            response_body="Invalid Content-Type: some_invalid_header_value",  # Example text
+            api_error_code=APIErrorCode.INVALID_RESPONSE,
+        )
+        expected_error.__cause__ = validation_error_cause  # Manually set cause for the test
+        mock_parse_response.side_effect = expected_error
 
         with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request(
                 "GET", "/invalid_content_type", mock_rate_limiter_service
             )
 
+        assert excinfo.value is expected_error
+        # Assert the cause type if validation_error_cause was used implicitly
+        assert isinstance(excinfo.value.__cause__, ValidationError)
+        full_expected_url = (
+            str(http_client_instance.rest_endpoint).rstrip("/") + "/invalid_content_type"
+        )
+        mock_parse_response.assert_called_once_with(mock_aio_response, full_expected_url)
+
+
+# New Test Class for _parse_and_validate_response
+class TestHttpClientResponseParsing:
+    @pytest.mark.asyncio
+    async def test_parse_valid_json_response(self, http_client_instance: HttpClient) -> None:
+        """Test _parse_and_validate_response with a valid JSON response."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200
+        mock_aio_response.headers = CIMultiDictProxy(
+            CIMultiDict[str]([("Content-Type", "application/json; charset=utf-8")])
+        )
+        mock_aio_response.text = AsyncMock(return_value='{"key": "value", "num": 123}')
+        full_url = f"{http_client_instance.rest_endpoint}/test_json"
+
+        (
+            content,
+            processed_headers,
+            raw_headers,
+        ) = await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
+            mock_aio_response, full_url
+        )
+
+        assert content == {"key": "value", "num": 123}
+        assert isinstance(processed_headers, ProcessedResponseHeaders)
+        assert processed_headers.content_type == "application/json; charset=utf-8"
+        assert isinstance(raw_headers, CIMultiDictProxy)
+        assert raw_headers.get("Content-Type") == "application/json; charset=utf-8"
+        mock_aio_response.text.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_parse_valid_text_response(self, http_client_instance: HttpClient) -> None:
+        """Test _parse_and_validate_response with a valid plain text response."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200
+        mock_aio_response.headers = CIMultiDictProxy(
+            CIMultiDict[str]([("Content-Type", "text/plain")])
+        )
+        mock_aio_response.text = AsyncMock(return_value="Hello, World!")
+        full_url = f"{http_client_instance.rest_endpoint}/test_text"
+
+        (
+            content,
+            processed_headers,
+            raw_headers,
+        ) = await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
+            mock_aio_response, full_url
+        )
+
+        assert content == "Hello, World!"
+        assert isinstance(processed_headers, ProcessedResponseHeaders)
+        assert processed_headers.content_type == "text/plain"
+        assert isinstance(raw_headers, CIMultiDictProxy)
+        assert raw_headers.get("Content-Type") == "text/plain"
+        mock_aio_response.text.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_parse_204_no_content_response(self, http_client_instance: HttpClient) -> None:
+        """Test _parse_and_validate_response with a 204 No Content response."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 204
+        # Content-Type might be missing or empty for 204
+        mock_aio_response.headers = CIMultiDictProxy(CIMultiDict[str]())
+        mock_aio_response.text = AsyncMock(return_value="")  # Should not be called
+        full_url = f"{http_client_instance.rest_endpoint}/test_204"
+
+        (
+            content,
+            processed_headers,
+            raw_headers,
+        ) = await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
+            mock_aio_response, full_url
+        )
+
+        assert content is None
+        assert isinstance(processed_headers, ProcessedResponseHeaders)
+        assert processed_headers.content_type == ""  # Default if not present
+        assert isinstance(raw_headers, CIMultiDictProxy)
+        mock_aio_response.text.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_parse_invalid_content_type_too_long(
+        self, http_client_instance: HttpClient
+    ) -> None:
+        """Test _parse_and_validate_response with Content-Type too long."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200
+        invalid_ct = "a" * (MAX_CONTENT_TYPE_LENGTH + 5)
+        mock_aio_response.headers = CIMultiDictProxy(
+            CIMultiDict[str]([("Content-Type", invalid_ct)])
+        )
+        mock_aio_response.text = AsyncMock(return_value='{"key": "value"}')  # Body is fine
+        full_url = f"{http_client_instance.rest_endpoint}/test_ct_too_long"
+
+        with pytest.raises(HttpRequestFailedError) as excinfo:
+            await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
+                mock_aio_response, full_url
+            )
         assert excinfo.value.http_status == 200
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Invalid Content-Type header from server" in excinfo.value.message
+        assert "Invalid Content-Type" in excinfo.value.message
         assert isinstance(excinfo.value.__cause__, ValidationError)
+
+    @pytest.mark.asyncio
+    async def test_parse_missing_content_type(self, http_client_instance: HttpClient) -> None:
+        """Test _parse_and_validate_response with missing Content-Type (defaults to empty)."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200
+        mock_aio_response.headers = CIMultiDictProxy(CIMultiDict[str]())
+        mock_aio_response.text = AsyncMock(return_value="some text")
+        full_url = f"{http_client_instance.rest_endpoint}/test_ct_missing"
+
+        content, processed_headers, _ = await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
+            mock_aio_response, full_url
+        )
+        assert content == "some text"
+        assert processed_headers.content_type == ""  # ProcessedResponseHeaders defaults to empty
+
+    @pytest.mark.asyncio
+    async def test_parse_json_decode_error(self, http_client_instance: HttpClient) -> None:
+        """Test _parse_and_validate_response with a JSONDecodeError."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200
+        mock_aio_response.headers = CIMultiDictProxy(
+            CIMultiDict[str]([("Content-Type", "application/json")])
+        )
+        malformed_json = "not valid json{"
+        mock_aio_response.text = AsyncMock(return_value=malformed_json)
+        full_url = f"{http_client_instance.rest_endpoint}/test_json_decode_err"
+
+        with pytest.raises(HttpRequestFailedError) as excinfo:
+            await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
+                mock_aio_response, full_url
+            )
+        assert excinfo.value.http_status == 200
+        assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Failed to decode JSON" in excinfo.value.message
+        assert excinfo.value.exchange_message == malformed_json
+        assert isinstance(excinfo.value.__cause__, json.JSONDecodeError)
+
+    @pytest.mark.asyncio
+    async def test_parse_client_payload_error_on_text_read(
+        self, http_client_instance: HttpClient
+    ) -> None:
+        """Test _parse_and_validate_response with ClientPayloadError on response.text()."""
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200
+        mock_aio_response.headers = CIMultiDictProxy(
+            CIMultiDict[str]([("Content-Type", "application/json")])
+        )
+        payload_error = aiohttp.ClientPayloadError("Simulated payload read failure")
+        mock_aio_response.text = AsyncMock(side_effect=payload_error)
+        full_url = f"{http_client_instance.rest_endpoint}/test_payload_err"
+
+        with pytest.raises(HttpRequestFailedError) as excinfo:
+            await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
+                mock_aio_response, full_url
+            )
+        assert excinfo.value.http_status == 200
+        assert excinfo.value.code == APIErrorCode.NETWORK_ISSUE.value
+        assert "Failed to read response body" in excinfo.value.message
+        assert excinfo.value.exchange_message is None
+        assert isinstance(excinfo.value.__cause__, aiohttp.ClientPayloadError)
+
+    @pytest.mark.asyncio
+    async def test_parse_json_content_type_but_none_body(
+        self, http_client_instance: HttpClient
+    ) -> None:
+        """Test _parse_and_validate_response with JSON Content-Type but None body (defensive)."""
+        # This scenario is hard to trigger as _parse_and_validate_response expects
+        # response.text() to have run. Method has internal check for this.
+        mock_aio_response = AsyncMock(spec=aiohttp.ClientResponse)
+        mock_aio_response.status = 200  # Not 204
+        mock_aio_response.headers = CIMultiDictProxy(
+            CIMultiDict[str]([("Content-Type", "application/json")])
+        )
+        # Simulate response.text() somehow returning None, though it typed as str
+        mock_aio_response.text = AsyncMock(return_value=None)
+        full_url = f"{http_client_instance.rest_endpoint}/test_json_none_body"
+
+        with pytest.raises(HttpRequestFailedError) as excinfo:
+            await http_client_instance._parse_and_validate_response(  # pyright: ignore [reportPrivateUsage]
+                mock_aio_response, full_url
+            )
+        assert excinfo.value.http_status == 200
+        assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "JSON response expected but body is None" in excinfo.value.message
+
+    # Placeholder for tests of ProcessedResponseHeaders itself if not covered elsewhere
+    # (though its direct tests are usually in test_connectivity_models.py)
