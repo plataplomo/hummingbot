@@ -233,8 +233,8 @@ class ExchangeAPI(ABC):
         response_headers_dict: Mapping[str, str] = {}
 
         try:
-            # HttpClient.request returns a tuple: (content, headers_multidict)
-            content, headers_multidict = await self._http_client.request(
+            # HttpClient.request returns a tuple: (content, processed_headers, raw_headers)
+            content, _processed_headers, raw_headers_multidict = await self._http_client.request(
                 method=method,
                 endpoint_path=path_for_http_client,  # This must be a relative path
                 rate_limiter_service=self._rate_limiter_service,
@@ -245,7 +245,8 @@ class ExchangeAPI(ABC):
                 is_signed=is_signed,  # Pass is_signed to HttpClient
             )
             response_content = content
-            response_headers_dict = headers_multidict
+            # Assign the raw headers for rate limit processing
+            response_headers_dict = raw_headers_multidict
             self._update_rate_limit_from_headers(
                 response_headers_dict, method, path_for_http_client
             )

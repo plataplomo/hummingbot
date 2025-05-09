@@ -8,9 +8,18 @@ from typing import Any
 import aiohttp
 from multidict import CIMultiDictProxy
 
+# Removed pydantic imports, now in connectivity_models
+from pydantic import ValidationError
+
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
+)
+
+# Import the model and constants from the new location
+from cyberdelta.apis.connectivity.connectivity_models import (
+    MAX_CONTENT_TYPE_LENGTH,
+    ProcessedResponseHeaders,
 )
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 from cyberdelta.apis.models.api_error import APIError
@@ -128,7 +137,7 @@ class HttpClient:
         headers: dict[str, Any] | None = None,
         is_signed: bool = False,
         request_timeout: float | None = None,
-    ) -> tuple[ParsedJsonResponse | str | None, CIMultiDictProxy[str]]:
+    ) -> tuple[ParsedJsonResponse | str | None, ProcessedResponseHeaders, CIMultiDictProxy[str]]:
         """
         Executes an HTTP request with authentication, rate limiting, and retries.
 
@@ -146,7 +155,8 @@ class HttpClient:
         Returns:
             A tuple containing:
             - The parsed response content (JSON dict/list, raw text, or None for 204).
-            - The response headers.
+            - The processed response headers as a ProcessedResponseHeaders instance.
+            - The raw CIMultiDictProxy response headers.
 
         Raises:
             HttpRequestFailedError: For HTTP status codes >= 400 after retries.
@@ -241,14 +251,36 @@ class HttpClient:
                     timeout=aiohttp.ClientTimeout(total=effective_timeout),
                 ) as response:
                     response_text: str | None = None
-                    response_headers: CIMultiDictProxy[str] = response.headers
+                    raw_response_headers: CIMultiDictProxy[str] = response.headers
+
+                    # Process relevant headers into the Pydantic model
+                    try:
+                        processed_content_type_str = raw_response_headers.get(
+                            "Content-Type", ""
+                        ).lower()
+                        processed_headers = ProcessedResponseHeaders(
+                            content_type=processed_content_type_str
+                        )
+                    except ValidationError as ve:
+                        original_content_type = raw_response_headers.get("Content-Type", "")
+                        logger.warning(
+                            f"[{self.exchange_name}] Invalid Content-Type header received: {ve}. "
+                            f"Raw value (first {MAX_CONTENT_TYPE_LENGTH + 20} chars): "
+                            f"'{original_content_type[: MAX_CONTENT_TYPE_LENGTH + 20]}..."
+                        )
+                        raise HttpRequestFailedError(
+                            message="Invalid Content-Type header from server.",
+                            http_status_code=response.status,
+                            response_body=f"Invalid Content-Type: {original_content_type}",
+                            api_error_code=APIErrorCode.INVALID_RESPONSE,
+                        ) from ve
 
                     # Check for 204 No Content BEFORE attempting to read body
                     if response.status == 204:
                         logger.debug(
                             f"[{self.exchange_name}] Received 204 No Content for {full_url}."
                         )
-                        return None, response_headers
+                        return None, processed_headers, raw_response_headers
 
                     try:
                         response_text = await response.text()
@@ -275,7 +307,7 @@ class HttpClient:
 
                     logger.debug(
                         f"[{self.exchange_name}] Response from {method} {full_url}: "
-                        f"Status={response.status}, Headers={response_headers}, "
+                        f"Status={response.status}, Headers={raw_response_headers}, "
                         f"Body='{response_text[:200] if response_text else '[Empty]'}'...'"
                     )
 
@@ -283,20 +315,19 @@ class HttpClient:
                         logger.info(
                             f"[{self.exchange_name}] Received 204 No Content for {full_url}."
                         )
-                        return None, response_headers
+                        return None, processed_headers, raw_response_headers
 
                     if response.status >= 200 and response.status < 300:
-                        # Attempt to parse JSON if content type suggests it
-                        content_type = response_headers.get("Content-Type", "").lower()
-                        if "application/json" in content_type:
+                        # Use content_type from our processed_headers model
+                        if "application/json" in processed_headers.content_type:
                             try:
                                 parsed_json: ParsedJsonResponse = json.loads(response_text or "")
-                                return parsed_json, response_headers
+                                return parsed_json, processed_headers, raw_response_headers
                             except json.JSONDecodeError as je:
                                 logger.warning(
                                     f"[{self.exchange_name}] JSON decode failed for {full_url} "
-                                    f"(status {response.status}, type: {content_type}). "
-                                    f"Error: {je}. "
+                                    f"(status {response.status}, type: "
+                                    f"{processed_headers.content_type}). Error: {je}. "
                                     f"Text: '{response_text[:70]}...'"
                                 )
                                 raise HttpRequestFailedError(
@@ -311,7 +342,7 @@ class HttpClient:
                             assert response_text is not None, (
                                 "DEFENSIVE: response_text is None post-read for 2xx non-204 status"
                             )
-                            return response_text, response_headers
+                            return response_text, processed_headers, raw_response_headers
 
                     # If status is >= 400, it's an HTTP error
                     logger.warning(
