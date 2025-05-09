@@ -1,6 +1,6 @@
 import json  # For JSONDecodeError test
 from collections.abc import AsyncGenerator, Callable
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
@@ -296,16 +296,34 @@ class TestHttpClient:
         assert processed_headers.content_type == "application/json; charset=utf-8"
         assert raw_headers.get("Content-Type") == "application/json; charset=utf-8"
 
-        # pyright: ignore [reportAttributeAccessIssue]
-        # Mocking limitations: service.get_limiter is a MagicMock due to fixture setup,
-        # but type checkers infer original signature. Mock attributes are correct at runtime.
-        mock_rate_limiter_service.get_limiter.assert_called_once_with("GET", "/test")  # type: ignore[attr-defined]
+        # JUSTIFICATION: mock_rate_limiter_service.get_limiter is an attribute derived from a
+        # MagicMock(spec=RateLimiterService). At runtime, unittest.mock ensures that
+        # accessing an attribute that is a method on the spec (like get_limiter) results
+        # in a new MagicMock instance (or AsyncMock if the original was async).
+        # However, the type checker, relying on the RateLimiterService spec, only sees
+        # the original method signature (Callable[[str, str], TokenBucketRateLimiterRuntime]).
+        # To access mock-specific attributes like assert_called_once_with, we must cast to
+        # inform the type checker of its true runtime nature as a MagicMock.
+        # Alternative typing solutions (e.g. changing fixture type hints, local type hints
+        # without cast) have proven insufficient as the spec's signature takes precedence.
+        # This cast is safe because the object *is* a MagicMock at this point.
+        # [CAST-REVIEW-REQUIRED]
+        get_limiter_mock = cast(MagicMock, mock_rate_limiter_service.get_limiter)
+        assert isinstance(get_limiter_mock, MagicMock)
+        get_limiter_mock.assert_called_once_with("GET", "/test")
 
-        # pyright: ignore [reportAttributeAccessIssue]
-        # Mocking limitations: service.get_limiter.return_value is an AsyncMock.
-        limiter_mock = mock_rate_limiter_service.get_limiter.return_value  # type: ignore[attr-defined]
-        limiter_mock.acquire.assert_called_once()  # type: ignore[attr-defined]
+        # JUSTIFICATION: get_limiter_mock.return_value was configured in the fixture to be an
+        # AsyncMock(spec=TokenBucketRateLimiterRuntime). The type checker may only see it
+        # as TokenBucketRateLimiterRuntime based on the original get_limiter signature.
+        # We cast to AsyncMock to access its mock-specific attributes (e.g., .acquire which
+        # is also an AsyncMock).
+        # This cast is safe due to the fixture's explicit setup.
+        # [CAST-REVIEW-REQUIRED]
+        limiter_instance_mock = cast(AsyncMock, get_limiter_mock.return_value)
+        assert isinstance(limiter_instance_mock, AsyncMock)
+        limiter_instance_mock.acquire.assert_called_once()
 
+        # E501: Break long assignment
         full_expected_url = str(default_http_client_config.rest_endpoint).rstrip("/") + "/test"
         # We can't easily get the session_for_headers without private access.
         # Instead, we trust that _get_session() was called internally and prepared headers.
@@ -439,7 +457,18 @@ class TestHttpClient:
         expected_headers_for_auth_prep = initial_session_headers.copy()
         expected_headers_for_auth_prep.update(original_headers)
 
-        mock_authenticator.prepare_request.assert_called_once_with(  # type: ignore[attr-defined]
+        # JUSTIFICATION: mock_authenticator.prepare_request is an attribute derived from an
+        # AsyncMock(spec=IAuthenticator). At runtime, unittest.mock ensures that
+        # accessing an attribute that is an async method on the spec (like prepare_request)
+        # results in a new AsyncMock instance.
+        # The type checker, relying on the IAuthenticator spec, only sees the original
+        # method signature. To access mock-specific attributes like assert_called_once_with,
+        # we must cast to inform the type checker of its true runtime nature as an AsyncMock.
+        # This cast is safe because the object *is* an AsyncMock here.
+        # [CAST-REVIEW-REQUIRED]
+        prepare_request_mock_signed = cast(AsyncMock, mock_authenticator.prepare_request)
+        assert isinstance(prepare_request_mock_signed, AsyncMock)
+        prepare_request_mock_signed.assert_called_once_with(
             method="POST",
             path="/signed_action",
             params=original_params,
@@ -461,7 +490,7 @@ class TestHttpClient:
         final_sent_params = final_call_kwargs["params"]
         assert final_sent_params["auth_param"] == "val"
         # Check if original_params were augmented or replaced based on authenticator mock behavior
-        auth_result_params = mock_authenticator.prepare_request.return_value["params"]  # type: ignore
+        auth_result_params = prepare_request_mock_signed.return_value["params"]
         if auth_result_params is not original_params:
             assert "client_param" not in final_sent_params  # Assuming authenticator replaces params
         else:
@@ -495,7 +524,16 @@ class TestHttpClient:
     ) -> None:
         """Test that if authenticator.prepare_request fails, the APIError is propagated."""
         auth_error = APIError("Auth Prep Failed", code=APIErrorCode.AUTHENTICATION_FAILED.value)
-        mock_authenticator.prepare_request.side_effect = auth_error  # type: ignore[attr-defined]
+
+        # JUSTIFICATION: Similar to prepare_request_mock_signed, mock_authenticator.prepare_request
+        # is an AsyncMock at runtime. The type checker sees the original IAuthenticator signature.
+        # We need to cast to AsyncMock to assign to its .side_effect attribute.
+        # This cast is safe because the object *is* an AsyncMock here.
+        # [CAST-REVIEW-REQUIRED]
+        prepare_request_mock_error = cast(AsyncMock, mock_authenticator.prepare_request)
+        assert isinstance(prepare_request_mock_error, AsyncMock)
+        prepare_request_mock_error.side_effect = auth_error
+
         with pytest.raises(APIError) as excinfo:
             await http_client_instance.request(
                 method="POST",
