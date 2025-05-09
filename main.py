@@ -12,12 +12,14 @@ import structlog
 from cyberdelta.apis.backpack_api import BackpackAPI
 from cyberdelta.apis.exchange_names import ExchangeName
 from cyberdelta.apis.hyperliquid_api import HyperliquidAPI
-from cyberdelta.apis.models.exchange_api_config import ExchangeAPI
+from cyberdelta.apis.models.exchange_api_config import ExchangeAPIConfig
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.engine import TradingEngine
+from cyberdelta.core.engine import Engine
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.portfolio_tracker import PortfolioTracker, PortfolioTrackerProtocol
 from cyberdelta.core.risk_manager import ConfigError, RiskManager
+from cyberdelta.core.signal_queue import PrioritySignalQueue
+from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
@@ -175,8 +177,6 @@ async def main() -> None:
         app_state["risk_manager"] = risk_manager
 
         # PrioritySignalQueue expects handler and config (assume import and correct signature)
-        from cyberdelta.core.signal_queue import PrioritySignalQueue
-
         signal_queue = PrioritySignalQueue(
             config,
             circuit_breaker,
@@ -184,7 +184,7 @@ async def main() -> None:
         app_state["signal_queue"] = signal_queue
 
         # Engine expects name (optional)
-        engine = TradingEngine(name="CyberDeltaEngine_Core")
+        engine = Engine(name="CyberDeltaEngine_Core")
         app_state["engine"] = engine
 
         # DataHandler expects Config
@@ -208,7 +208,7 @@ async def main() -> None:
         sys.exit(1)
 
     # 2. Initialize API Clients and link to components
-    api_clients: dict[str, ExchangeAPI] = {}
+    api_clients: dict[str, ExchangeAPIConfig] = {}
     try:
         logger.info("Initializing API clients...")
         secrets: dict[str, dict[str, str | None]] = {

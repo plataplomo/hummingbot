@@ -233,10 +233,10 @@ class TestPortfolioTracker:
             client.get_open_orders.reset_mock()
 
         # Set last reconciliation time to be recent to prevent full update
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = datetime.now( requires modifying internal state
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = datetime.now(
             UTC
         ) - timedelta(seconds=10)
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = datetime.now( requires modifying internal state
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = datetime.now(
             UTC
         ) - timedelta(seconds=10)
 
@@ -250,10 +250,10 @@ class TestPortfolioTracker:
             client.get_open_orders.assert_called_once()
 
         # Now force reconciliation by setting last check time far in the past
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = ( requires modifying internal state
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = (
             datetime.min.replace(tzinfo=UTC)
         )
-        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = ( requires modifying internal state
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = (
             datetime.min.replace(tzinfo=UTC)
         )
 
@@ -1151,3 +1151,53 @@ class TestPortfolioTracker:
         # _cancelled_balance_history is populated.
         # This test likely needs adjustment based on actual balance history tracking logic.
         pass  # Placeholder: Assertion needs clarification based on PortfolioTracker implementation.
+
+    @pytest.mark.asyncio
+    async def test_update_all_balances_and_positions_after_long_time(
+        self, portfolio_tracker: PortfolioTracker, api_clients: dict[str, AsyncMock]
+    ) -> None:
+        # Set last reconciliation time to be ancient to force full update
+        past_time = datetime.now(UTC) - timedelta(days=100)
+        for exchange_id in api_clients:
+            portfolio_tracker._last_reconciliation_time[exchange_id] = past_time
+
+        await portfolio_tracker.update()  # Should fetch everything initially
+
+        for client_mock in api_clients.values():
+            client_mock.get_all_spot_balances.assert_called_once()
+            client_mock.get_all_derivative_positions.assert_called_once()
+            client_mock.get_all_margin_account_summaries.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_update_throttled_if_recent_check(
+        self, portfolio_tracker: PortfolioTracker, api_clients: dict[str, AsyncMock]
+    ) -> None:
+        # Set last reconciliation time to be recent to prevent full update
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = datetime.now(
+            UTC
+        ) - timedelta(seconds=10)
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = datetime.now(
+            UTC
+        ) - timedelta(seconds=10)
+
+        await portfolio_tracker.update()  # Should be throttled
+
+        for client_mock in api_clients.values():
+            client_mock.get_all_spot_balances.assert_not_called()
+            client_mock.get_all_derivative_positions.assert_not_called()
+            client_mock.get_all_margin_account_summaries.assert_not_called()
+
+        # Now force reconciliation by setting last check time far in the past
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[0]] = (
+            datetime.min.replace(tzinfo=UTC)
+        )
+        portfolio_tracker._last_reconciliation_time[list(api_clients.keys())[1]] = (
+            datetime.min.replace(tzinfo=UTC)
+        )
+
+        await portfolio_tracker.update()  # Should now fetch everything
+        for _exchange_id, client in api_clients.items():  # B007: Use _ for unused var
+            # Check counts after full reconciliation (add 1 to previous checks)
+            assert client.get_balances.call_count == 1
+            assert client.get_positions.call_count == 1
+            assert client.get_open_orders.call_count == 2  # Called once before, once now
