@@ -102,26 +102,29 @@ class WebSocketManager:
             and not self._ws_connection.closed
         )
 
-    async def connect(self) -> None:
+    def connect(self) -> asyncio.Task[None] | None:
         """
-        Initiates the WebSocket connection process if not already connected or connecting.
-        This method is idempotent.
+        Initiates the WebSocket connection process by creating and returning a task
+        for _establish_connection. Does not await the task itself.
+        This method is idempotent based on task status.
+
+        Returns:
+            The asyncio.Task for the connection attempt, or None if already connecting.
         """
         self._should_reconnect = True
         if self._connection_task and not self._connection_task.done():
-            self._logger.debug("Connection attempt already in progress.")
-            return
+            self._logger.debug(
+                f"Connection attempt for {self._ws_url} already in progress. Returning existing task."
+            )
+            return self._connection_task  # Return existing task
 
-        self._logger.info("Connection requested.")
+        self._logger.info(f"Connection requested for {self._ws_url}. Creating new task.")
+        # Create and store the task, but do not await it here.
         self._connection_task = asyncio.create_task(
             self._establish_connection(), name=f"{self._exchange_name}_ws_establish_conn"
         )
-        try:
-            await self._connection_task
-        except asyncio.CancelledError:
-            self._logger.info("Connection task was cancelled.")
-        except Exception as e:
-            self._logger.error(f"Error during connection task: {e}", exc_info=True)
+        return self._connection_task  # Return the new task
+        # Removed internal try/except await for self._connection_task
 
     async def _establish_connection(self) -> None:
         """
@@ -163,7 +166,7 @@ class WebSocketManager:
                     self._ws_connection = await session.ws_connect(
                         self._ws_url,
                         heartbeat=server_expected_ping_interval,
-                        timeout=self._connection_timeout,  # type: ignore[arg-type] # Known stub vs doc mismatch
+                        timeout=self._connection_timeout,  # type: ignore[arg-type] # Reverting to float + ignore
                     )
                     self._is_connected = True
                     current_attempt = 0
@@ -291,12 +294,13 @@ class WebSocketManager:
             if self._should_reconnect:
                 self._logger.info("Scheduling reconnection from listener task termination.")
                 if self._connection_task is None or self._connection_task.done():
-                    self._connection_task = asyncio.create_task(
-                        self._establish_connection(),
-                        name=f"{self._exchange_name}_ws_re_establish_conn_from_listen",
-                    )
+                    new_connection_attempt_task = self.connect()
+                    if not new_connection_attempt_task:
+                        self._logger.debug(
+                            "Reconnect from _listen did not start new task (already running?)."
+                        )
                 else:
-                    self._logger.debug("Reconnection task already scheduled or running.")
+                    self._logger.debug("Reconnect task from _listen already running.")
 
     async def _keep_alive(self) -> None:
         """Periodically sends a ping to keep the connection alive."""
@@ -320,7 +324,7 @@ class WebSocketManager:
                         "Keep-alive: Connection reset during ping. Attempting to reconnect."
                     )
                     self._is_connected = False  # Mark as disconnected
-                    asyncio.create_task(self.connect())  # Attempt to reconnect
+                    self.connect()  # Attempt to reconnect - connect() handles task creation
                     break  # Exit _keep_alive loop as connection is reset
 
                 # If there was a custom ping message to send via self._ws_connection.send_str()
@@ -345,9 +349,13 @@ class WebSocketManager:
                     f"Attempting to reconnect {self._exchange_name} due to "
                     f"unexpected error in keep-alive."
                 )
-                asyncio.create_task(self.connect())
+                new_connection_attempt_task = self.connect()
+                if not new_connection_attempt_task:
+                    self._logger.debug(
+                        "Reconnect from _keep_alive did not start new task (already running?)."
+                    )
         finally:
-            self._logger.debug(f"Keep-alive task for {self._exchange_name} is ending.")
+            self._logger.debug(f"Keep-alive for {self._exchange_name} ending.")
 
     async def send_json(self, data: dict[str, Any]) -> bool:
         """
