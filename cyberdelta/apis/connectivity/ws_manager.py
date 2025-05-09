@@ -20,6 +20,9 @@ from typing import TYPE_CHECKING, Any
 import aiohttp
 from aiohttp import ClientWebSocketResponse
 
+# Import the config model
+from .connectivity_models import WebSocketManagerConfig
+
 if TYPE_CHECKING:
     pass
 
@@ -41,35 +44,23 @@ class WebSocketManager:
     def __init__(
         self,
         exchange_name: str,
-        ws_url: str,
         message_handler: MessageHandler,
+        config: WebSocketManagerConfig,
         on_connected_callback: Callable[[], Coroutine[Any, Any, None]] | None = None,
         session: aiohttp.ClientSession | None = None,
-        ping_interval: float | None = None,  # Seconds
-        reconnect_delay: float | None = None,  # Base seconds
-        max_reconnect_attempts: int | None = None,
-        connection_timeout: float | None = None,  # Seconds
     ) -> None:
         """
         Initialize the WebSocketManager.
 
         Args:
             exchange_name: Name of the exchange for logging purposes.
-            ws_url: The WebSocket URL to connect to.
             message_handler: Async callable to process incoming messages.
+            config: WebSocketManagerConfig object with connectivity parameters.
             on_connected_callback: Optional async callback to execute after successful connection.
             session: Optional pre-existing aiohttp.ClientSession. If None, one will be created.
-            ping_interval: Interval in seconds to send pings. Defaults to DEFAULT_PING_INTERVAL.
-                           If 0 or None, pings are disabled.
-            reconnect_delay: Initial delay in seconds before attempting to reconnect.
-                             Defaults to DEFAULT_RECONNECT_DELAY.
-            max_reconnect_attempts: Maximum number of reconnection attempts.
-                                    Defaults to DEFAULT_MAX_RECONNECT_ATTEMPTS.
-            connection_timeout: Timeout for establishing the connection.
-                                Defaults to DEFAULT_CONNECTION_TIMEOUT.
         """
         self._exchange_name: str = exchange_name
-        self._ws_url: str = ws_url
+        self._ws_url: str = str(config.ws_url)
         self._message_handler: MessageHandler = message_handler
         self._on_connected_callback: Callable[[], Coroutine[Any, Any, None]] | None = (
             on_connected_callback
@@ -77,22 +68,10 @@ class WebSocketManager:
         self._external_session: bool = session is not None
         self._session: aiohttp.ClientSession | None = session
 
-        self._ping_interval: float = (
-            ping_interval if ping_interval is not None else self.DEFAULT_PING_INTERVAL
-        )
-        self._reconnect_delay: float = (
-            reconnect_delay if reconnect_delay is not None else self.DEFAULT_RECONNECT_DELAY
-        )
-        self._max_reconnect_attempts: int = (
-            max_reconnect_attempts
-            if max_reconnect_attempts is not None
-            else self.DEFAULT_MAX_RECONNECT_ATTEMPTS
-        )
-        self._connection_timeout: float = (
-            connection_timeout
-            if connection_timeout is not None
-            else self.DEFAULT_CONNECTION_TIMEOUT
-        )
+        self._ping_interval: float = config.ping_interval
+        self._reconnect_delay: float = config.reconnect_delay
+        self._max_reconnect_attempts: int = config.max_reconnect_attempts
+        self._connection_timeout: float = config.connection_timeout
 
         self._ws_connection: ClientWebSocketResponse | None = None
         self._is_connected: bool = False

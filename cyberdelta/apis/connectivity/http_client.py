@@ -19,6 +19,7 @@ from cyberdelta.apis.base.authenticator_interface import (
 # Import the model and constants from the new location
 from cyberdelta.apis.connectivity.connectivity_models import (
     MAX_CONTENT_TYPE_LENGTH,
+    HttpClientConfig,
     ProcessedResponseHeaders,
 )
 from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
@@ -71,28 +72,24 @@ class HttpClient:
     def __init__(
         self,
         exchange_name: str,
-        rest_endpoint: str,
-        default_request_timeout: float = 30.0,
-        max_retries: int | None = None,
-        retry_delay_seconds: float | None = None,
+        config: HttpClientConfig,
     ) -> None:
         """
         Initializes the HttpClient.
 
         Args:
             exchange_name: Name of the exchange (for logging).
-            rest_endpoint: Base REST API endpoint URL.
-            default_request_timeout: Default timeout for requests in seconds.
-            max_retries: Maximum number of retries for transient errors.
-            retry_delay_seconds: Base delay in seconds between retries (exponential backoff).
+            config: HttpClientConfig object with all necessary parameters.
         """
         self.exchange_name = exchange_name
-        self.rest_endpoint = rest_endpoint.rstrip("/")
-        self.default_request_timeout = default_request_timeout
-        self.max_retries = max_retries if max_retries is not None else self.DEFAULT_MAX_RETRIES
+        self.rest_endpoint = str(config.rest_endpoint).rstrip("/")
+        self.default_request_timeout = config.default_request_timeout
+        self.max_retries = (
+            config.max_retries if config.max_retries is not None else self.DEFAULT_MAX_RETRIES
+        )
         self.retry_delay_seconds = (
-            retry_delay_seconds
-            if retry_delay_seconds is not None
+            config.retry_delay_seconds
+            if config.retry_delay_seconds is not None
             else self.DEFAULT_RETRY_DELAY_SECONDS
         )
 

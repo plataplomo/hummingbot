@@ -1,6 +1,6 @@
 import re
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AnyUrl, BaseModel, Field, HttpUrl, field_validator
 
 # Define a reasonable max length for content type strings
 MAX_CONTENT_TYPE_LENGTH = 256
@@ -34,3 +34,26 @@ class ProcessedResponseHeaders(BaseModel):
         if v and not v.strip():  # If not empty, it shouldn't be just whitespace
             raise ValueError("Content-Type cannot be only whitespace.")
         return v
+
+
+# --- New Config Models ---
+
+
+class HttpClientConfig(BaseModel):
+    """Configuration for HttpClient."""
+
+    rest_endpoint: HttpUrl
+    default_request_timeout: float = Field(30.0, gt=0)
+    max_retries: int | None = Field(default=3, ge=0)
+    retry_delay_seconds: float | None = Field(default=5.0, ge=0.0)
+
+
+class WebSocketManagerConfig(BaseModel):
+    """Configuration for WebSocketManager."""
+
+    # Using AnyUrl as WebSocketUrl caused linter errors (Pydantic v1 or type resolution issue?)
+    ws_url: AnyUrl
+    ping_interval: float = Field(30.0, ge=0.0)
+    reconnect_delay: float = Field(5.0, ge=0.0)
+    max_reconnect_attempts: int = Field(10, ge=0)
+    connection_timeout: float = Field(30.0, gt=0.0)

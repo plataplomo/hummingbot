@@ -13,6 +13,10 @@ import aiohttp
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
+from cyberdelta.apis.connectivity.connectivity_models import (
+    HttpClientConfig,
+    WebSocketManagerConfig,
+)
 from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
     HttpRequestFailedError,
@@ -93,45 +97,78 @@ class ExchangeAPI(ABC):
         self.authenticator = authenticator
         self._ws_handlers: dict[str, MessageHandler] = {}
 
+        # Construct HttpClientConfig parameters carefully
+        http_config_data = {}
+        rest_ep_val = self._config.get("rest_endpoint", self._config.get("base_url"))
+        if rest_ep_val is not None:  # HttpUrl field is not Optional
+            http_config_data["rest_endpoint"] = rest_ep_val
+
+        # For fields with defaults in Pydantic, only include if explicitly in main config
+        # to let Pydantic defaults apply correctly for missing keys.
+        if "request_timeout" in self._config:
+            http_config_data["default_request_timeout"] = self._config["request_timeout"]
+        if "max_retries" in self._config:
+            http_config_data["max_retries"] = self._config["max_retries"]
+        if "retry_delay_seconds" in self._config:
+            http_config_data["retry_delay_seconds"] = self._config["retry_delay_seconds"]
+
+        # Use model_validate for robust parsing and type coercion from the dict.
+        # Pydantic will raise ValidationError here if required fields (like rest_endpoint)
+        # are missing or if types are incorrect, which is the desired behavior.
+        http_client_config = HttpClientConfig.model_validate(http_config_data)
+
         self._rate_limiter_service = RateLimiterService(
             exchange_name=self.exchange_name,
-            config=self._config,
+            config=self._config,  # RateLimiterService has its own config parsing
             loop=self.loop,
         )
 
-        self.rest_endpoint = self._config.get("rest_endpoint", self._config.get("base_url"))
-        if not self.rest_endpoint or not isinstance(self.rest_endpoint, str):
+        self.rest_endpoint = str(http_client_config.rest_endpoint)  # Get validated endpoint
+        # Ensure rest_endpoint is still validated as before, though Pydantic does it now
+        if not self.rest_endpoint:
             raise ValueError(
                 f"[{exchange_name}] Missing or invalid 'rest_endpoint' or 'base_url' in config"
             )
 
         self.ws_endpoint = self._config.get("ws_endpoint", self._config.get("ws_url"))
-        if not self.ws_endpoint or not isinstance(self.ws_endpoint, str):
+        if self.ws_endpoint and not isinstance(self.ws_endpoint, str):
             logger.warning(
-                f"[{exchange_name}] Missing or invalid 'ws_endpoint'/'ws_url' in config. "
+                f"[{exchange_name}] Invalid 'ws_endpoint'/'ws_url' in config (must be str). "
                 f"WebSocket functionality will be disabled."
             )
             self.ws_endpoint = None
+        elif not self.ws_endpoint:
+            logger.warning(
+                f"[{exchange_name}] Missing 'ws_endpoint'/'ws_url' in config. "
+                f"WebSocket functionality will be disabled."
+            )
 
         self._http_client = HttpClient(
             exchange_name=self.exchange_name,
-            rest_endpoint=self.rest_endpoint,
-            default_request_timeout=self._config.get("request_timeout", 30.0),
-            max_retries=self._config.get("max_retries"),
-            retry_delay_seconds=self._config.get("retry_delay_seconds"),
+            config=http_client_config,
         )
 
         self._ws_manager: WebSocketManager | None = None
-        if self.ws_endpoint:
+        if self.ws_endpoint:  # At this point, ws_endpoint is either a valid string or None
+            ws_config_data = {"ws_url": self.ws_endpoint}  # ws_url is required
+            # Add other params only if present in self._config to let Pydantic defaults work
+            if "ws_ping_interval" in self._config:
+                ws_config_data["ping_interval"] = self._config["ws_ping_interval"]
+            if "ws_reconnect_delay" in self._config:
+                ws_config_data["reconnect_delay"] = self._config["ws_reconnect_delay"]
+            if "ws_max_reconnect_attempts" in self._config:
+                ws_config_data["max_reconnect_attempts"] = self._config["ws_max_reconnect_attempts"]
+            if "ws_connection_timeout" in self._config:
+                ws_config_data["connection_timeout"] = self._config["ws_connection_timeout"]
+
+            # Use model_validate for robust parsing and type coercion.
+            websocket_manager_config = WebSocketManagerConfig.model_validate(ws_config_data)
+
             self._ws_manager = WebSocketManager(
                 exchange_name=self.exchange_name,
-                ws_url=self.ws_endpoint,
+                config=websocket_manager_config,  # Pass the WebSocketManagerConfig object
                 message_handler=self._handle_websocket_message,
                 on_connected_callback=self._on_ws_connected,
-                ping_interval=self._config.get("ws_ping_interval"),
-                reconnect_delay=self._config.get("ws_reconnect_delay"),
-                max_reconnect_attempts=self._config.get("ws_max_reconnect_attempts"),
-                connection_timeout=self._config.get("ws_connection_timeout"),
             )
 
         logger.info(
