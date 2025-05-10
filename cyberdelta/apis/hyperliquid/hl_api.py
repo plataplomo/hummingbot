@@ -5,7 +5,7 @@ import time
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import aiohttp
 from pydantic import ValidationError
@@ -41,11 +41,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersResponse,
-    HyperliquidRawTriggerSpec,
-)
-from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
-    HyperliquidRawLimitOrderTypeDetails,
-    HyperliquidRawMarketOrderTypeDetails,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
     HyperliquidRawL2Book,
@@ -1076,48 +1071,33 @@ class HyperliquidAPI(ExchangeAPI):
                 data=HyperliquidRequestBuilder.build_info_request_payload(),
             )
 
-            if (
-                not isinstance(response_raw, list)
-                or len(response_raw) != 2
-                or not isinstance(response_raw[0], dict)  # Meta part
-                or not isinstance(response_raw[1], list)  # Asset contexts part
-            ):
-                raise APIError(
-                    f"Unexpected response structure for allMeta: {type(response_raw)}, "
-                    f"len {len(response_raw) if isinstance(response_raw, list) else 'N/A'}",
-                    code=APIErrorCode.UNKNOWN.value,
+            # Use the consistent response handler for MetaAndAssetCtxs
+            validated_meta_ctxs: HyperliquidRawMetaAndAssetCtxsResponse = (
+                HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
+                    cast(RawJsonResponse, response_raw)
                 )
+            )
 
-            # response_raw[0] is the metadata dictionary (not used here for funding rates)
-            # response_raw[1] is the list of asset context dictionaries
-            # Cast to list[dict[str, Any]] to give more type information to Pyright
-            asset_contexts_data: list[dict[str, Any]] = cast(list[dict[str, Any]], response_raw[1])
             result: list[FundingRate] = []
 
-            for asset_ctx_item_data in asset_contexts_data:
-                # No need to check isinstance(asset_ctx_item_data, dict) here
-                # as the cast and list type imply items are dicts.
-                # The HyperliquidRawAssetCtx.model_validate will raise if an item is not a dict.
+            for asset_ctx_item in validated_meta_ctxs.asset_ctxs:
                 try:
-                    # Validate each asset context item from the list
-                    validated_asset_ctx = HyperliquidRawAssetCtx.model_validate(asset_ctx_item_data)
-                    market_symbol: str = validated_asset_ctx.name
+                    # HyperliquidRawAssetCtx is already validated by the response handler
+                    market_symbol: str = asset_ctx_item.name
                     if symbols is not None and market_symbol not in symbols:
                         continue
-                    funding_rate = HyperliquidMapper.map_raw_ctx_to_funding_rate(
-                        validated_asset_ctx
-                    )
+                    funding_rate = HyperliquidMapper.map_raw_ctx_to_funding_rate(asset_ctx_item)
                     if funding_rate:
                         result.append(funding_rate)
-                except ValidationError as ve_ctx:
+                except ValidationError as ve_ctx:  # Should ideally not happen if handler worked
                     logger.warning(
                         f"[{self.exchange_name}] Failed to validate asset_ctx for funding rate: "
-                        f"{ve_ctx}. Data: {asset_ctx_item_data!r}"
+                        f"{ve_ctx}. Data: {asset_ctx_item.model_dump_json()!r}"
                     )
                 except Exception as e_map_ctx:
                     logger.error(
                         f"[{self.exchange_name}] Error mapping asset_ctx to funding rate: "
-                        f"{e_map_ctx}. Data: {asset_ctx_item_data!r}",
+                        f"{e_map_ctx}. Data: {asset_ctx_item.model_dump_json()!r}",
                         exc_info=True,
                     )
             return result
@@ -1198,95 +1178,8 @@ class HyperliquidAPI(ExchangeAPI):
     ) -> Order:
         """Place an order on Hyperliquid."""
         asset_index = await self._get_asset_index(symbol)
-        is_buy = side == OrderSide.BUY
-        sz_str = str(quantity)
-        underlying_hl_order_type_dict: dict[str, Any] = {}
-        underlying_limit_px_str: str = "0"
-        trigger_payload: dict[str, Any] | None = None
-        tif_map: dict[TimeInForce, Literal["Gtc", "Ioc", "Alo"]] = {
-            TimeInForce.GTC: "Gtc",
-            TimeInForce.IOC: "Ioc",
-            TimeInForce.ALO: "Alo",
-        }
-        raw_tif_str_candidate = tif_map.get(time_in_force)
-        if post_only and order_type in [
-            OrderType.LIMIT,
-            OrderType.STOP_LIMIT,
-            OrderType.TAKE_PROFIT_LIMIT,
-        ]:
-            raw_tif_str_candidate = "Alo"
-        if raw_tif_str_candidate is None:
-            logger.warning(
-                f"[{self.exchange_name}] Unmapped TIF '{time_in_force}' "
-                f"and post_only='{post_only}', defaulting Gtc."
-            )
-            raw_tif_str_candidate = "Gtc"
 
-        effective_tif: Literal["Gtc", "Ioc", "Alo"]
-        if raw_tif_str_candidate == "Gtc":
-            effective_tif = "Gtc"
-        elif raw_tif_str_candidate == "Ioc":
-            effective_tif = "Ioc"
-        elif raw_tif_str_candidate == "Alo":
-            effective_tif = "Alo"
-        else:
-            raise AssertionError(
-                f"Internal TIF logic error: unexpected raw_tif_str_candidate "
-                f"'{raw_tif_str_candidate}'."
-            )
-
-        if order_type == OrderType.MARKET:
-            underlying_hl_order_type_dict = {
-                "market": HyperliquidRawMarketOrderTypeDetails().model_dump()
-            }
-            underlying_limit_px_str = "0"
-        elif order_type == OrderType.LIMIT:
-            if price is None:
-                raise ValueError("Price is required for LIMIT orders.")
-            underlying_limit_px_str = str(price)
-            underlying_hl_order_type_dict = {
-                "limit": HyperliquidRawLimitOrderTypeDetails(tif=effective_tif).model_dump()
-            }
-        elif order_type in [OrderType.STOP_MARKET, OrderType.TAKE_PROFIT_MARKET]:
-            if stop_price is None:
-                raise ValueError(f"stop_price is required for {order_type.value} orders.")
-            underlying_limit_px_str = "0"
-            trigger_details = HyperliquidRawTriggerSpec(
-                triggerPx=str(stop_price),
-                isMarket=True,
-                tpsl="sl" if order_type == OrderType.STOP_MARKET else "tp",
-            )
-            trigger_payload = trigger_details.model_dump(by_alias=True)
-        elif order_type in [OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
-            if price is None:
-                raise ValueError(f"price (for triggered limit) is required for {order_type.value}.")
-            if stop_price is None:
-                raise ValueError(f"stop_price is required for {order_type.value} orders.")
-            underlying_limit_px_str = str(price)
-            underlying_hl_order_type_dict = {
-                "limit": HyperliquidRawLimitOrderTypeDetails(tif=effective_tif).model_dump()
-            }
-            trigger_details = HyperliquidRawTriggerSpec(
-                triggerPx=str(stop_price),
-                isMarket=False,
-                tpsl="sl" if order_type == OrderType.STOP_LIMIT else "tp",
-            )
-            trigger_payload = trigger_details.model_dump(by_alias=True)
-        else:
-            raise NotImplementedError(f"Order type {order_type.value} is not supported.")
-
-        action_payload: dict[str, Any] = {
-            "asset": asset_index,
-            "isBuy": is_buy,
-            "sz": sz_str,
-            "limitPx": underlying_limit_px_str,
-            "orderType": underlying_hl_order_type_dict,
-            "reduceOnly": reduce_only,
-        }
-        if client_order_id:
-            action_payload["cloid"] = client_order_id
-        if trigger_payload:
-            action_payload["trigger"] = trigger_payload
+        # Delegate payload construction to the request builder
         request_data = HyperliquidRequestBuilder.build_place_order_payload(
             asset_index=asset_index,
             side=side,
@@ -1307,7 +1200,9 @@ class HyperliquidAPI(ExchangeAPI):
             )
 
             validated_response: HyperliquidRawExchangeResponse = (
-                HyperliquidResponseHandler.handle_exchange_response(response_raw, "Place Order")
+                HyperliquidResponseHandler.handle_exchange_response(
+                    cast(RawJsonResponse, response_raw), "Place Order"
+                )
             )
 
             if (

@@ -14,6 +14,9 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawOrderType,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
+    HyperliquidRawL2UsdTransferPayload,
+)
 
 
 # Model for ETH specific withdrawal action (part of the signed payload)
@@ -54,18 +57,18 @@ class HyperliquidRawOrderItemSpec(BaseModel):
     s: RawFiniteDecimalStr = Field(..., alias="size")
     r: RawStrictBool = Field(..., alias="reduce_only")
     t: HyperliquidRawOrderType = Field(..., alias="order_type_details")
-    c: RawOptionalNonEmptyString64HL = Field(default=None, alias="client_order_id")
+    c: RawOptionalNonEmptyString64HL | None = Field(default=None, alias="client_order_id")
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
 
-# Model for the overall order placement action (signed payload)
-class HyperliquidRawPlaceOrderActionPayload(BaseModel):
+# Model for the overall BATCH order placement action (signed payload)
+class HyperliquidRawBatchPlaceOrderActionPayload(BaseModel):
     """
-    Represents the action payload for placing one or more orders.
+    Represents the action payload for placing one or more orders in a batch.
     This forms part of the signed message for the /exchange endpoint.
 
-    Corresponds to the 'action' field when 'type' is 'order'.
+    Corresponds to the 'action' field when 'type' is 'order' for batch operations.
     """
 
     type: Literal["order"] = "order"
@@ -73,3 +76,28 @@ class HyperliquidRawPlaceOrderActionPayload(BaseModel):
     orders: list[HyperliquidRawOrderItemSpec]
 
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+# --- New Models to Add ---
+
+
+class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
+    """
+    Represents the 'action' details for an L2 USD transfer.
+    """
+
+    chain: Literal["L2"]
+    payload: HyperliquidRawL2UsdTransferPayload
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+
+class HyperliquidRawCancelOrderAction(BaseModel):
+    """
+    Represents the 'action' payload for cancelling an order.
+    """
+
+    asset: RawNonNegativeInt
+    oid: RawNonNegativeInt
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)

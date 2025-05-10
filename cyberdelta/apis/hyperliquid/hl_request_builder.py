@@ -3,10 +3,18 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Literal
 
-from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawTriggerSpec
+# Specific model imports for type hints and construction
+from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
+    HyperliquidRawCancelOrderAction,
+    HyperliquidRawEthWithdrawalActionPayload,
+    HyperliquidRawL2UsdTransferActionDetails,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
+    HyperliquidRawOrderType,
+    HyperliquidRawPlaceOrderAction,
+    HyperliquidRawTriggerDetails,  # Ensure this is imported if used separately
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
@@ -58,14 +66,13 @@ class HyperliquidRequestBuilder:
                 "Destination address (to_account) is required for Hyperliquid L2 transfer."
             )
 
-        transfer_action_payload = HyperliquidRawL2UsdTransferPayload(
+        transfer_payload_model = HyperliquidRawL2UsdTransferPayload(
             destination=destination_address, token="USDC", amount=str(amount)
         )
-        action_details = {
-            "chain": "L2",
-            "payload": transfer_action_payload.model_dump(by_alias=True),
-        }
-        return {"type": "usdTransfer", "action": action_details}
+        action_details_model = HyperliquidRawL2UsdTransferActionDetails(
+            chain="L2", payload=transfer_payload_model
+        )
+        return {"type": "usdTransfer", "action": action_details_model.model_dump(by_alias=True)}
 
     @staticmethod
     def build_withdrawal_payload(
@@ -93,13 +100,16 @@ class HyperliquidRequestBuilder:
 
         if asset.upper() == "ETH":
             action_type = "withdrawEth"
-            action_payload_dict = {"amount": str(amount), "destination": destination_address}
+            eth_withdrawal_model = HyperliquidRawEthWithdrawalActionPayload(
+                amount=str(amount), destination=destination_address
+            )
+            action_payload_dict = eth_withdrawal_model.model_dump(by_alias=True)
         else:
             # Assuming other assets use the generic 'withdraw' type
-            withdrawal_payload = HyperliquidRawWithdrawalToL1ActionPayload(
+            withdrawal_payload_model = HyperliquidRawWithdrawalToL1ActionPayload(
                 token=asset.upper(), amount=str(amount), destination=destination_address
             )
-            action_payload_dict = withdrawal_payload.model_dump()
+            action_payload_dict = withdrawal_payload_model.model_dump(by_alias=True)
             action_type = "withdraw"
 
         return {"type": action_type, "action": action_payload_dict}
@@ -110,14 +120,9 @@ class HyperliquidRequestBuilder:
     ) -> dict[str, Any]:
         """
         Builds the payload for querying order history.
-
-        Args:
-            wallet_address: The user's wallet address.
-            start_time_ms: The start time in milliseconds.
-            end_time_ms: The end time in milliseconds.
-
-        Returns:
-            dict[str, Any]: The request payload dictionary.
+        This is a request payload, not an exchange action, and should use its own model if needed.
+        For now, returning a dict as per existing structure, assuming it's validated by the caller.
+        Alternatively, this could return a HyperliquidRawQueryOrderHistoryRequestPayload model instance.
         """
         return {
             "type": "queryOrderHistory",
@@ -132,20 +137,12 @@ class HyperliquidRequestBuilder:
     ) -> dict[str, Any]:
         """
         Builds the payload for fetching candle snapshots.
-
-        Args:
-            symbol: The trading symbol (e.g., "ETH-PERP").
-            timeframe: The candle interval (e.g., "1m", "1h").
-            start_time_ms: The start time for candles in milliseconds.
-            end_time_ms: The end time for candles in milliseconds.
-
-        Returns:
-            dict[str, Any]: The request payload dictionary.
+        This is a request payload, not an exchange action.
         """
         return {
             "type": "candleSnapshot",
             "req": {
-                "coin": symbol.upper(),  # Ensure coin is uppercase as per typical API behavior
+                "coin": symbol.upper(),
                 "interval": timeframe,
                 "startTime": start_time_ms,
                 "endTime": end_time_ms,
@@ -163,42 +160,22 @@ class HyperliquidRequestBuilder:
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
         reduce_only: bool = False,
-        post_only: bool = False,  # Added to align with place_order signature
+        post_only: bool = False,
     ) -> dict[str, Any]:
         """
-        Builds the payload for placing an order.
-
-        Args:
-            asset_index: The numerical index of the asset.
-            side: The order side (BUY or SELL).
-            order_type: The type of order (MARKET, LIMIT, etc.).
-            quantity: The quantity of the order.
-            time_in_force: The time in force for the order (GTC, IOC, ALO).
-            price: The limit price for LIMIT or STOP_LIMIT orders.
-            stop_price: The trigger price for STOP or TAKE_PROFIT orders.
-            client_order_id: Optional client-specified order ID.
-            reduce_only: Whether the order is reduce-only.
-            post_only: Whether the order is post-only (maker only).
-
-        Returns:
-            dict[str, Any]: The request payload dictionary.
-
-        Raises:
-            ValueError: If required parameters for an order type are missing.
-            NotImplementedError: If the order type is not supported.
+        Builds the payload for placing an order using HyperliquidRawPlaceOrderAction.
         """
         is_buy = side == OrderSide.BUY
         sz_str = str(quantity)
-        underlying_hl_order_type_dict: dict[str, Any] = {}
-        underlying_limit_px_str: str = "0"
-        trigger_payload: dict[str, Any] | None = None
+        hl_order_type: HyperliquidRawOrderType
+        limit_px_str: str
+        hl_trigger_details: HyperliquidRawTriggerDetails | None = None
 
         tif_map: dict[TimeInForce, Literal["Gtc", "Ioc", "Alo"]] = {
             TimeInForce.GTC: "Gtc",
             TimeInForce.IOC: "Ioc",
-            TimeInForce.ALO: "Alo",  # For "Maker Only" or "Post Only"
+            TimeInForce.ALO: "Alo",
         }
-        # Determine effective TIF based on post_only and time_in_force
         raw_tif_str_candidate = tif_map.get(time_in_force)
 
         if post_only and order_type in [
@@ -206,24 +183,12 @@ class HyperliquidRequestBuilder:
             OrderType.STOP_LIMIT,
             OrderType.TAKE_PROFIT_LIMIT,
         ]:
-            raw_tif_str_candidate = "Alo"  # Hyperliquid uses ALO for Post-Only Limit
+            raw_tif_str_candidate = "Alo"
 
         if raw_tif_str_candidate is None:
-            # Defaulting logic, ensure it's robust or raises error for unhandled TIF
-            # For now, let's assume a default or rely on downstream validation if HL API allows it.
-            # Given the original code's warning, it's safer to ensure mapping.
-            # If a TIF is not in map and not post_only, it might be an issue.
-            # The original code defaulted to "Gtc" with a warning.
-            # Here, we should ensure 'effective_tif' is one of the Literal types.
-            # This part needs careful review based on Hyperliquid's actual TIF handling.
-            # For now, directly map or raise if unmapped and not PostOnly.
             if time_in_force not in tif_map:
                 raise ValueError(f"Unsupported TimeInForce: {time_in_force}")
-            # If it is in tif_map, raw_tif_str_candidate would have been set.
-            # This path implies raw_tif_str_candidate became None after post_only logic,
-            # which shouldn't happen if post_only only switches to ALO.
-            # Let's stick to the original's default for safety if it's truly unmapped:
-            raw_tif_str_candidate = "Gtc"
+            raw_tif_str_candidate = "Gtc"  # Defaulting as per original logic
 
         effective_tif: Literal["Gtc", "Ioc", "Alo"]
         if raw_tif_str_candidate == "Gtc":
@@ -233,90 +198,62 @@ class HyperliquidRequestBuilder:
         elif raw_tif_str_candidate == "Alo":
             effective_tif = "Alo"
         else:
-            # This path should not be reachable if raw_tif_str_candidate is derived correctly.
             raise ValueError(f"Internal TIF logic error, unexpected: {raw_tif_str_candidate}")
 
         if order_type == OrderType.MARKET:
-            underlying_hl_order_type_dict = {
-                "market": HyperliquidRawMarketOrderTypeDetails().model_dump()
-            }
-            underlying_limit_px_str = "0"  # Market orders don't have a limit price.
+            hl_order_type = HyperliquidRawOrderType(market=HyperliquidRawMarketOrderTypeDetails())
+            limit_px_str = "0"
         elif order_type == OrderType.LIMIT:
             if price is None:
                 raise ValueError("Price is required for LIMIT orders.")
-            underlying_limit_px_str = str(price)
-            underlying_hl_order_type_dict = {
-                "limit": HyperliquidRawLimitOrderTypeDetails(tif=effective_tif).model_dump()
-            }
+            limit_px_str = str(price)
+            hl_order_type = HyperliquidRawOrderType(
+                limit=HyperliquidRawLimitOrderTypeDetails(tif=effective_tif)
+            )
         elif order_type in [OrderType.STOP_MARKET, OrderType.TAKE_PROFIT_MARKET]:
             if stop_price is None:
                 raise ValueError(f"stop_price is required for {order_type.value} orders.")
-            underlying_limit_px_str = "0"  # Triggered market order
-            trigger_details = HyperliquidRawTriggerSpec(
+            limit_px_str = "0"
+            hl_trigger_details = HyperliquidRawTriggerDetails(
                 triggerPx=str(stop_price),
                 isMarket=True,
                 tpsl="sl" if order_type == OrderType.STOP_MARKET else "tp",
             )
-            trigger_payload = trigger_details.model_dump(by_alias=True)
-            # For triggered orders, the main 'orderType' might still be limit if they
-            # trigger into one.
-            # However, Hyperliquid's structure suggests 'trigger' modifies behavior.
-            # If it's a STOP_MARKET, the core orderType might be implied or a simple limit
-            # with TIF.
-            # Original code set underlying_limit_px_str to "0" and did not set
-            # underlying_hl_order_type_dict
-            # for pure trigger orders without a limit component post-trigger.
-            # Re-checking Hyperliquid docs: trigger orders are specified by `trigger` field.
-            # The main order part still needs `orderType` and `limitPx`.
-            # If it's a market trigger, limitPx is 0, orderType might be a basic limit/GTC.
-            # Let's assume for STOP_MARKET, it implicitly becomes a market order on trigger,
-            # so the underlying "orderType" part of the main payload might be minimal
-            # or just "limit" with TIF.
-            # The original code sets underlying_limit_px_str = "0".
-            # For market triggers, Hyperliquid might expect orderType: {"limit": {"tif": "Gtc"}}
-            # and then the trigger payload overrides to market.
-            # Let's use a GTC limit as the base for triggered orders for now if not market.
-            underlying_hl_order_type_dict = {
-                "limit": HyperliquidRawLimitOrderTypeDetails(
-                    tif="Gtc"
-                ).model_dump()  # Default TIF for the underlying order part
-            }
+            # For pure market triggers, HL might expect underlying order type to be a basic limit/GTC.
+            hl_order_type = HyperliquidRawOrderType(
+                limit=HyperliquidRawLimitOrderTypeDetails(tif="Gtc")
+            )
         elif order_type in [OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
-            if price is None:  # This is the limit price of the triggered order
+            if price is None:
                 raise ValueError(f"price (for triggered limit) is required for {order_type.value}.")
-            if stop_price is None:  # This is the trigger price
+            if stop_price is None:
                 raise ValueError(f"stop_price is required for {order_type.value} orders.")
-            underlying_limit_px_str = str(price)
-            underlying_hl_order_type_dict = {
-                # The TIF for the limit order that gets placed after trigger.
-                "limit": HyperliquidRawLimitOrderTypeDetails(tif=effective_tif).model_dump()
-            }
-            trigger_details = HyperliquidRawTriggerSpec(
+            limit_px_str = str(price)
+            hl_order_type = HyperliquidRawOrderType(
+                limit=HyperliquidRawLimitOrderTypeDetails(tif=effective_tif)
+            )
+            hl_trigger_details = HyperliquidRawTriggerDetails(
                 triggerPx=str(stop_price),
-                isMarket=False,  # It's a limit order after trigger
+                isMarket=False,
                 tpsl="sl" if order_type == OrderType.STOP_LIMIT else "tp",
             )
-            trigger_payload = trigger_details.model_dump(by_alias=True)
         else:
             raise NotImplementedError(
                 f"Order type {order_type.value} is not supported by HyperliquidRequestBuilder."
             )
 
-        action_payload: dict[str, Any] = {
-            "asset": asset_index,
-            "isBuy": is_buy,
-            "sz": sz_str,
-            "limitPx": underlying_limit_px_str,
-            "orderType": underlying_hl_order_type_dict,
-            "reduceOnly": reduce_only,
-        }
-        if client_order_id:
-            # Hyperliquid uses "cloid" for client order ID
-            action_payload["cloid"] = client_order_id
-        if trigger_payload:
-            action_payload["trigger"] = trigger_payload
+        place_order_action = HyperliquidRawPlaceOrderAction(
+            asset=asset_index,
+            isBuy=is_buy,
+            sz=sz_str,
+            limitPx=limit_px_str,
+            orderType=hl_order_type,
+            reduceOnly=reduce_only,
+            cloid=client_order_id if client_order_id else None,  # Ensure None if empty
+            trigger=hl_trigger_details,
+        )
 
-        return {"type": "order", "actions": [action_payload]}
+        return {"type": "order", "actions": [place_order_action.model_dump(by_alias=True)]}
 
     @staticmethod
     def build_cancel_order_payload(asset_index: int, order_id: int) -> dict[str, Any]:
@@ -330,20 +267,14 @@ class HyperliquidRequestBuilder:
         Returns:
             dict[str, Any]: The request payload dictionary.
         """
-        action_payload = {"asset": asset_index, "oid": order_id}
-        return {"type": "cancel", "action": action_payload}
+        action_model = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id)
+        return {"type": "cancel", "action": action_model.model_dump(by_alias=True)}
 
     @staticmethod
     def build_order_status_payload(wallet_address: str, order_id: int) -> dict[str, Any]:
         """
         Builds the payload for fetching the status of a specific order.
-
-        Args:
-            wallet_address: The user's wallet address.
-            order_id: The exchange-assigned ID of the order.
-
-        Returns:
-            dict[str, Any]: The request payload dictionary.
+        This is a request payload, not an exchange action.
         """
         return {"type": "orderStatus", "user": wallet_address, "oid": order_id}
 
