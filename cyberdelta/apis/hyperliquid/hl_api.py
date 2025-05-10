@@ -24,6 +24,10 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
     RawJsonResponse,
 )
+from cyberdelta.apis.hyperliquid.models.hl_processed_exchange_responses import (
+    HyperliquidErrorStatus,
+    HyperliquidSuccessfulOrderStatus,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
 )
@@ -43,7 +47,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
-    HyperliquidRawL2Book,
+    HyperliquidRawL2Book as HyperliquidRawOrderBookResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
@@ -536,7 +540,7 @@ class HyperliquidAPI(ExchangeAPI):
                 f"{self.INFO_URL.rstrip('/')}/info",
                 data=request_payload_data,  # This is already None or dict
             )
-            validated: HyperliquidRawL2Book = (
+            validated: HyperliquidRawOrderBookResponse = (
                 HyperliquidResponseHandler.handle_info_l2_book_response(
                     cast(RawJsonResponse, response), symbol
                 )
@@ -1305,57 +1309,51 @@ class HyperliquidAPI(ExchangeAPI):
             order_id_to_fetch: int | None = None
             log_message_prefix = "Order placement status unclear"
 
-            if isinstance(processed_status, str):
-                # It's a string status (e.g., "canceled", or an error string)
-                benign_string_statuses = {"canceled", "modified", "success"}
-                if processed_status.lower() in benign_string_statuses:
+            if isinstance(processed_status, HyperliquidSuccessfulOrderStatus):
+                if processed_status.oid is not None:
+                    if processed_status.status_type == "resting":
+                        order_id_to_fetch = processed_status.oid
+                        log_message_prefix = f"Order OID:{processed_status.oid} resting"
+                    elif processed_status.status_type == "filled":
+                        order_id_to_fetch = processed_status.oid
+                        log_message_prefix = (
+                            f"Order OID:{processed_status.oid} filled (avgPx: "
+                            f"{processed_status.avg_px}, "
+                            f"sz: {processed_status.total_sz})"
+                        )
+                        logger.info(f"[{self.exchange_name}] {log_message_prefix}")
+                    elif processed_status.status_type == "canceled":  # Object variant
+                        order_id_to_fetch = processed_status.oid
+                        log_message_prefix = (
+                            f"Order OID:{processed_status.oid} canceled (via object status)"
+                        )
+                        logger.info(f"[{self.exchange_name}] {log_message_prefix}")
+                # If status_type is "canceled_str" or oid is None for other types,
+                # order_id_to_fetch remains None by default. The subsequent logic
+                # handles cases where order_id_to_fetch is None.
+                elif processed_status.status_type == "canceled_str":
                     logger.info(
-                        f"[{self.exchange_name}] Order placement status (string): "
-                        f"{processed_status}"
+                        f"[{self.exchange_name}] Order placement returned 'canceled' string status."
                     )
-                    # This might still be an unclear outcome for a *new* order if it says "canceled"
-                    # For now, if it's benign, we don't raise an error from it directly.
-                    # The logic to fetch order status later will determine the final state.
-                    # If no OID is found later, it will raise an error.
-                else:
-                    logger.warning(
-                        f"[{self.exchange_name}] Order placement returned unhandled/error "
-                        f"string status: {processed_status}"
-                    )
-                    error_to_raise_from_status = self.error_mapper.map_string_error(
-                        processed_status,
-                        http_status=200,  # Assuming 200 if we got this far
-                    )
-            elif isinstance(processed_status, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
-                # It's a complex status object
-                status_object = processed_status
-                if error_msg := status_object.error:
-                    logger.warning(
-                        f"[{self.exchange_name}] Order placement object has error: {error_msg}"
-                    )
-                    error_to_raise_from_status = self.error_mapper.map_string_error(
-                        error_msg,
-                        http_status=200,  # Assuming 200
-                    )
-                elif resting_details := status_object.resting:
-                    order_id_to_fetch = resting_details.oid
-                    log_message_prefix = f"Order OID:{resting_details.oid} resting"
-                elif filled_details := status_object.filled:
-                    order_id_to_fetch = filled_details.oid
-                    log_message_prefix = (
-                        f"Order OID:{filled_details.oid} filled (avgPx: "
-                        f"{filled_details.avg_px}, "
-                        f"sz: {filled_details.total_sz})"
-                    )
-                    logger.info(f"[{self.exchange_name}] {log_message_prefix}")
-                # Add other conditions from HyperliquidRawExchangeStatusObject if necessary (e.g. success msg)
-                elif success_msg := status_object.success:
-                    logger.info(
-                        f"[{self.exchange_name}] Order placement success message: {success_msg}"
-                    )
-                    # This is a success message but might not provide an OID directly.
-                    # We will rely on the subsequent get_order_status call if no OID found.
-                    pass  # No OID from this branch, but not an error yet.
+                    # No OID from "canceled_str", but not an error.
+                    # Relies on subsequent get_order_status if a client_order_id was provided,
+                    # or raises "status unclear" if no OID and no client_order_id to track.
+
+            elif isinstance(processed_status, HyperliquidErrorStatus):
+                # Ensure it is, for safety, or directly use its attributes if type is guaranteed
+                # The linter correctly points out that if the first `isinstance` for
+                # HyperliquidSuccessfulOrderStatus is false, and the function only returns
+                # these two types, then this else branch implies processed_status IS HyperliquidErrorStatus.
+                # Casting for type checker clarity if needed, or direct access.
+                processed_status = cast(HyperliquidErrorStatus, processed_status)
+                logger.warning(
+                    f"[{self.exchange_name}] Order placement failed with error: "
+                    f"{processed_status.message}"
+                )
+                error_to_raise_from_status = self.error_mapper.map_string_error(
+                    processed_status.message,
+                    http_status=200,  # Assuming 200 if we got this far
+                )
 
             # After processing with the new handler:
             if error_to_raise_from_status:

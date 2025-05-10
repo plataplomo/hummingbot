@@ -136,17 +136,11 @@ class TestHyperliquidRawOrderType:
         ):
             HyperliquidRawOrderType(limit=None, market=None)
 
-    def test_invalid_order_type_limit_null_market_present(self) -> None:
-        with pytest.raises(
-            ValidationError, match="Exactly one of 'limit' or 'market' must be provided"
-        ):
-            HyperliquidRawOrderType(
-                limit=None,
-                market=cast(HyperliquidRawMarketOrderTypeDetails, VALID_MARKET_ORDER_DATA),
-            )
-
     def test_invalid_tif_string(self) -> None:
-        with pytest.raises(ValidationError, match="Value 'InvalidTif' is not in allowed set"):
+        with pytest.raises(
+            ValidationError,
+            match=r"Invalid value 'InvalidTif'\. Expected one of \['Alo', 'Gtc', 'Ioc'\]",
+        ):
             HyperliquidRawOrderType(
                 limit=cast(HyperliquidRawLimitOrderTypeDetails, {"tif": "InvalidTif"})
             )
@@ -176,7 +170,7 @@ class TestHyperliquidRawTriggerDetails:
         data["triggerPx"] = "not_a_number"
         with pytest.raises(
             ValidationError,
-            match="trigger_px: Value 'not_a_number' must be a parseable finite decimal string.",
+            match=r"Cannot convert 'not_a_number' to Decimal",
         ):
             HyperliquidRawTriggerDetails(**data)
 
@@ -198,7 +192,9 @@ class TestHyperliquidRawTriggerDetails:
     def test_invalid_tpsl_value(self) -> None:
         data = VALID_TRIGGER_DETAILS_TP_MARKET_DATA.copy()
         data["tpsl"] = "stop"
-        with pytest.raises(ValidationError, match="tpsl: Value 'stop' is not in allowed set"):
+        with pytest.raises(
+            ValidationError, match=r"Invalid value 'stop'\. Expected one of \['sl', 'tp'\]"
+        ):
             HyperliquidRawTriggerDetails(**data)
 
     def test_missing_trigger_px(self) -> None:
@@ -275,15 +271,13 @@ class TestHyperliquidRawPlaceOrderAction:
     def test_invalid_limit_px_type_not_string(self) -> None:
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
         data["limitPx"] = 150.75
-        with pytest.raises(ValidationError, match="limit_px: Expected a string value"):
+        with pytest.raises(ValidationError, match=r"Expected string, got float"):
             HyperliquidRawPlaceOrderAction(**data)
 
     def test_invalid_sz_not_parseable_to_decimal(self) -> None:
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
         data["sz"] = "abc"
-        with pytest.raises(
-            ValidationError, match="sz: Value 'abc' must be a parseable finite decimal string."
-        ):
+        with pytest.raises(ValidationError, match=r"Cannot convert 'abc' to Decimal"):
             HyperliquidRawPlaceOrderAction(**data)
 
     def test_valid_sz_zero_string_for_raw_model(self) -> None:

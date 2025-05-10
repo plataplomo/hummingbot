@@ -89,7 +89,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             self.logger.critical(f"HyperliquidEip712Authenticator: {impos_msg}")
             raise RuntimeError(impos_msg)
 
-        # DEFENSIVE CHECK: _account not None post-init. Mypy=[unreachable] Ruff=[None]
+        # DEFENSIVE CHECK: _account cannot be None after successful initialization. Mypy=[unreachable] Ruff=[RUF005,ERA001]
         if self._account is None:
             # This path should be logically unreachable if above logic is correct.
             self.logger.error(
@@ -174,18 +174,17 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             APIError: If signing fails or account is not properly initialized.
             ValueError: If data is None or not a dictionary, as it's required for HL Agent sig.
         """
-        if data is None:
-            msg = (
-                "Invalid 'data' for Hyperliquid EIP-712 Agent signature: "
-                "Must be a dictionary and not None."
-            )
-            self.logger.error(f"HyperliquidEip712Authenticator: {msg} Received: {type(data)}")
+        if not isinstance(data, dict):
+            msg = "Invalid 'data' for Hyperliquid EIP-712 Agent signature: Must be a dictionary."
+            self.logger.error(f"HyperliquidEip712Authenticator: {msg} Received type: {type(data)}")
             raise ValueError(msg)
 
         # At this point, 'data' is confirmed to be a dict (due to type hint and above check)
         # and is the action_payload.
         action_payload: Mapping[str, Any] = data
 
+        # Capture current time for timestamp BEFORE getting potentially incremented nonce
+        current_timestamp_ms = int(time.time() * 1000)
         current_nonce_ms = await self._get_next_nonce_ms()
         connection_id_bytes = self._generate_connection_id(dict(action_payload))
 
@@ -201,7 +200,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             "types": self._agent_typed_data_message_types,
         }
 
-        # DEFENSIVE CHECK: _account not None for signing. Mypy=[unreachable] Ruff=[None]
+        # DEFENSIVE CHECK: _account cannot be None if __init__ succeeded. Mypy=[unreachable] Ruff=[RUF005,ERA001]
         if self._account is None:
             # This should not be reached if __init__ succeeded
             self.logger.error(
@@ -241,8 +240,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         # Hyperliquid expects headers with "X-HL-" prefix for agent signature components
         updated_headers.update(
             {
-                "X-HL-Timestamp": str(current_nonce_ms),  # Timestamp is used as nonce
-                "X-HL-Nonce": str(current_nonce_ms),  # Nonce is also the timestamp
+                "X-HL-Timestamp": str(current_timestamp_ms),  # Use actual captured timestamp
+                "X-HL-Nonce": str(current_nonce_ms),  # Use strictly increasing nonce
                 "X-HL-Signature": signature_hex,
             }
         )

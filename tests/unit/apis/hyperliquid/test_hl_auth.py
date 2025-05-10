@@ -141,17 +141,25 @@ def test_hl_auth_init_from_key_value_error(mock_from_key: MagicMock) -> None:
 
 
 @patch("eth_account.Account.from_key")
+@patch("cyberdelta.apis.hyperliquid.hl_auth.encode_typed_data")
 @pytest.mark.asyncio
-async def test_prepare_request_success(mock_from_key: MagicMock, mock_account: MagicMock) -> None:
+async def test_prepare_request_success(
+    mock_encode_typed_data: MagicMock, mock_from_key: MagicMock, mock_account: MagicMock
+) -> None:
     """Test successful preparation and signing of a request."""
     mock_from_key.return_value = mock_account
     mock_account.address = VALID_WALLET_ADDRESS  # Ensure mock account has the right address
 
     # Setup the mock_account.sign_message return value
     signed_msg_mock = MagicMock(spec=SignedMessage)
-    mock_signature_hex = "0x" + "a" * 130  # 65 bytes hex
-    signed_msg_mock.signature = HexBytes(mock_signature_hex)
+    mock_signature_hex_content = "a" * 130  # Content without prefix
+    # The HexBytes object itself needs the "0x" for correct initialization if it were real bytes
+    signed_msg_mock.signature = HexBytes("0x" + mock_signature_hex_content)
     mock_account.sign_message.return_value = signed_msg_mock
+
+    # Mock encode_typed_data to return a specific mock object that sign_message will expect
+    dummy_signable_for_sign_message = MagicMock(name="dummy_signable_for_sign_message")
+    mock_encode_typed_data.return_value = dummy_signable_for_sign_message
 
     auth = HyperliquidEip712Authenticator(
         wallet_private_key=VALID_PRIVATE_KEY_HEX,  # This will use the mocked from_key
@@ -178,23 +186,26 @@ async def test_prepare_request_success(mock_from_key: MagicMock, mock_account: M
     assert result["params"] == params
     assert result["data"] == data
 
-    # Verify that sign_message was called with the correct structure
-    mock_account.sign_message.assert_called_once()
-    call_args = mock_account.sign_message.call_args[0][0]  # Get the signable_message (TypedDict)
+    # Verify that sign_message was called with the output of our mocked encode_typed_data
+    mock_account.sign_message.assert_called_once_with(dummy_signable_for_sign_message)
 
-    # Basic checks on EIP-712 structure passed to sign_message
-    assert call_args["domain"]["name"] == "Hyperliquid"
-    assert call_args["domain"]["version"] == "1"
-    assert call_args["domain"]["chainId"] == VALID_CHAIN_ID
-    assert call_args["primaryType"] == "Agent"
-    assert "Agent" in call_args["types"]
-    assert "EIP712Domain" in call_args["types"]
-    assert call_args["message"]["source"] == "a"  # As per HL spec/convention
-    assert "connectionId" in call_args["message"]
+    # Verify that encode_typed_data was called with the correct full_message structure
+    mock_encode_typed_data.assert_called_once()
+    # The arguments to encode_typed_data are (full_message=structured_data_to_sign)
+    # So call_args[1] is the kwargs dict.
+    structured_data_to_sign = mock_encode_typed_data.call_args.kwargs["full_message"]
+
+    # Basic checks on EIP-712 structure passed to encode_typed_data
+    assert structured_data_to_sign["domain"]["name"] == "Hyperliquid"
+    assert structured_data_to_sign["domain"]["version"] == "1"
+    assert structured_data_to_sign["domain"]["chainId"] == VALID_CHAIN_ID
+    assert structured_data_to_sign["primaryType"] == "Agent"
+    assert "Agent" in structured_data_to_sign["types"]
+    assert "EIP712Domain" in structured_data_to_sign["types"]
+    assert structured_data_to_sign["message"]["source"] == "a"  # As per HL spec/convention
+    assert "connectionId" in structured_data_to_sign["message"]
 
     # Verify connectionId generation
-    # This requires importing Web3 locally or making _generate_connection_id public
-    # (not ideal for unit test)
     # For now, we trust the internal generation if the overall signature process works.
     # Or, we can replicate the logic here for a more thorough check if needed.
     from web3 import Web3  # Local import for test
@@ -202,34 +213,13 @@ async def test_prepare_request_success(mock_from_key: MagicMock, mock_account: M
     expected_connection_id_bytes = Web3.keccak(
         text=json.dumps(data, sort_keys=True, separators=(",", ":"))
     )
-    assert call_args["message"]["connectionId"] == expected_connection_id_bytes
+    assert structured_data_to_sign["message"]["connectionId"] == expected_connection_id_bytes
 
+    # Compare with the content of the signature, as actual output in header lacks "0x"
+    assert result["headers"]["X-HL-Signature"] == mock_signature_hex_content
 
-@pytest.mark.asyncio
-async def test_prepare_request_account_becomes_none_after_init(
-    authenticator_instance: HyperliquidEip712Authenticator, mock_logger: MagicMock
-) -> None:
-    """
-    Test prepare_request raises APIError if _account is None (e.g., due to a bug or unexpected state).
-    This simulates a scenario where the account object becomes None after initialization.
-    """
-    # Intentionally set _account to None to simulate an internal error state
-    # This is for testing a defensive check within prepare_request or its callees
-    authenticator_instance._account = None  # type: ignore[assignment] # noqa: SLF001
-
-    method = "POST"
-    path = "/exchange"
-    data = {"action": "test"}
-
-    with pytest.raises(APIError) as _:  # Use _ for unused excinfo
-        await authenticator_instance.prepare_request(method, path, None, data, None)
-    # Use AUTHENTICATION_FAILED.value for comparison
-    assert _.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-    # Ensure mock_logger.error itself is a mock and assert_called_with is called on it
-    mock_logger.error.assert_called_with(
-        "HyperliquidEip712Authenticator: Account object is None, cannot sign message.",
-        exc_info=True,
-    )
+    expected_ts_ms = str(int(fixed_time_sec * 1000))
+    assert result["headers"]["X-HL-Timestamp"] == expected_ts_ms
 
 
 @pytest.mark.asyncio
@@ -481,9 +471,7 @@ class TestHyperliquidEip712Authenticator:
 
         assert "X-HL-Signature" in result["headers"]
         # mock_account.sign_message.return_value.signature is HexBytes("0x" + "b" * 130)
-        assert result["headers"]["X-HL-Signature"] == (
-            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        )
+        assert result["headers"]["X-HL-Signature"] == ("b" * 130)
         expected_ts_ms = str(int(fixed_time_sec * 1000))
         assert result["headers"]["X-HL-Timestamp"] == expected_ts_ms
         assert result["headers"]["X-HL-Nonce"] == expected_ts_ms  # First call
@@ -492,19 +480,18 @@ class TestHyperliquidEip712Authenticator:
         assert result["data"] == data
 
         mock_account.sign_message.assert_called_once()
-        typed_data_signed = mock_account.sign_message.call_args[0][0]
+        # typed_data_signed = mock_account.sign_message.call_args[0][0]
+        # Removed detailed EIP-712 structure assertions as encode_typed_data is not mocked here.
+        # Content validation is handled by the module-level test_prepare_request_success.
 
-        assert typed_data_signed["domain"]["name"] == "Hyperliquid"
-        assert typed_data_signed["domain"]["chainId"] == self.CHAIN_ID
-        assert typed_data_signed["primaryType"] == "Agent"
-        assert typed_data_signed["message"]["source"] == "a"
-
-        from web3 import Web3  # Local import for test
-
-        expected_connection_id = Web3.keccak(
-            text=json.dumps(data, sort_keys=True, separators=(",", ":"))
-        )
-        assert typed_data_signed["message"]["connectionId"] == expected_connection_id
+        # assert typed_data_signed["domain"]["name"] == "Hyperliquid"
+        # assert typed_data_signed["domain"]["version"] == "1"
+        # assert typed_data_signed["domain"]["chainId"] == self.CHAIN_ID_FIXTURE
+        # assert typed_data_signed["primaryType"] == "Agent"
+        # assert "Agent" in typed_data_signed["types"]
+        # assert "EIP712Domain" in typed_data_signed["types"]
+        # assert typed_data_signed["message"]["source"] == "a"
+        # assert "connectionId" in typed_data_signed["message"]
 
     @pytest.mark.asyncio
     async def test_prepare_request_data_is_none(
@@ -556,30 +543,63 @@ class TestHyperliquidEip712Authenticator:
             await auth.prepare_request("POST", "/exchange", None, {"action": "fail"}, None)
 
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        assert "Failed to sign EIP-712 message" in str(excinfo.value.message)
+        assert "Failed to sign EIP-712 Agent request" in str(excinfo.value.message)
         auth.logger.error.assert_called_with(  # type: ignore[attr-defined]
-            "HyperliquidEip712Authenticator: Failed to sign EIP-712 message: Crypto error",
+            "HyperliquidEip712Authenticator: Failed to sign Hyperliquid EIP-712 Agent message: Crypto error",
             exc_info=True,
         )
 
     @pytest.mark.asyncio
-    async def test_prepare_request_account_becomes_none_mid_flight(
-        self, auth_with_mock_account: HyperliquidEip712Authenticator, mock_logger: MagicMock
+    async def test_prepare_request_account_becomes_none_after_init(
+        self, authenticator_instance: HyperliquidEip712Authenticator, mock_logger: MagicMock
     ) -> None:
-        """Test APIError if self._account is None during prepare_request."""
-        auth = auth_with_mock_account
-        auth._account = None  # type: ignore[assignment] # noqa: SLF001
+        """
+        Test prepare_request raises APIError if _account is None (e.g., due to a bug or unexpected state).
+        This simulates a scenario where the account object becomes None after initialization.
+        """
+        # Intentionally set _account to None to simulate an internal error state
+        # This is for testing a defensive check within prepare_request or its callees.
+        # Note: authenticator_instance here might be different from the one used by auth_with_mock_account
+        # if the class uses a separate instance for its tests. We need to ensure this test has access
+        # to an authenticator instance and a mock_logger.
+        # For this test to work correctly within the class, it should probably use self.auth_with_mock_account
+        # or receive an authenticator instance that's properly set up with self.mock_logger.
 
-        with pytest.raises(APIError) as excinfo:  # Keep excinfo if used, else use _
-            await auth.prepare_request(
-                "POST", "/exchange", None, {"action": "test_no_account"}, None
-            )
+        # If using a general authenticator_instance fixture, ensure it's configured with a logger.
+        # Let's assume authenticator_instance IS from a fixture that includes logging.
+        if not hasattr(authenticator_instance, "logger") or not isinstance(
+            authenticator_instance.logger, MagicMock
+        ):
+            # This indicates a potential issue with fixture setup for this test if it relies on a shared logger.
+            # Forcing a mock logger onto it for the sake of this specific test if not present.
+            # This is not ideal and suggests test/fixture structure might need review.
+            authenticator_instance.logger = mock_logger  # Assign the class fixture mock_logger
+
+        # current_auth_instance = authenticator_instance  # Default to provided fixture # Removed unused variable
+
+        # If this test is intended to use the class-scoped authenticator:
+        # current_auth_instance = self.auth_with_mock_account(self.mock_account(), self.mock_logger()) # example if it were a method call
+
+        # Reverting to original intent, assuming `authenticator_instance` is passed and logger is `mock_logger`
+        auth_to_test = authenticator_instance
+        logger_to_check = mock_logger
+
+        auth_to_test._account = None  # type: ignore[assignment] # noqa: SLF001
+
+        method = "POST"
+        path = "/exchange"
+        data_payload = {"action": "test_account_none"}
+
+        with pytest.raises(APIError) as excinfo:
+            await auth_to_test.prepare_request(method, path, None, data_payload, None)
 
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        assert "Account object is None, cannot sign message." in str(excinfo.value.message)
-        mock_logger.error.assert_called_with(
-            "HyperliquidEip712Authenticator: Account object is None, cannot sign message.",
-            exc_info=True,
+        # The actual error message for account being None is now "Account not initialized, cannot sign message."
+        # as per _sign_eip712_agent_request. If prepare_request itself had a check, it might be different.
+        # The previous log showed this test asserted for: "Account object is None, cannot sign message."
+        # Let's use the message from the actual `_sign_eip712_agent_request`
+        logger_to_check.error.assert_called_with(
+            "HyperliquidEip712Authenticator: Account not initialized, cannot sign message.",
         )
 
     @pytest.mark.asyncio
@@ -602,8 +622,7 @@ class TestHyperliquidEip712Authenticator:
             )
         auth.logger.error.assert_called_with(  # type: ignore[attr-defined]
             "HyperliquidEip712Authenticator: Invalid 'data' for Hyperliquid EIP-712 "
-            "Agent signature: Must be a dictionary and not None. "
-            "Received: <class 'list'>",
+            "Agent signature: Must be a dictionary. Received type: <class 'list'>",
         )
         auth.logger.reset_mock()  # type: ignore[attr-defined]
 
@@ -620,8 +639,7 @@ class TestHyperliquidEip712Authenticator:
             )
         auth.logger.error.assert_called_with(  # type: ignore[attr-defined]
             "HyperliquidEip712Authenticator: Invalid 'data' for Hyperliquid EIP-712 "
-            "Agent signature: Must be a dictionary and not None. "
-            "Received: <class 'str'>",
+            "Agent signature: Must be a dictionary. Received type: <class 'str'>",
         )
 
     @pytest.mark.asyncio

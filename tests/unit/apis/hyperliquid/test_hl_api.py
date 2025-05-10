@@ -85,8 +85,7 @@ def test_hl_api_init_with_key(
     api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
 
     mock_auth_class.assert_called_once_with(
-        private_key_hex=TEST_PRIVATE_KEY,
-        wallet_address=TEST_WALLET_ADDRESS,
+        wallet_private_key=TEST_PRIVATE_KEY,
         chain_id=HyperliquidAPI.CHAIN_ID,
     )
     assert api.authenticator is mock_instance
@@ -258,8 +257,7 @@ async def test_place_order_calls_authenticate_and_request(
         api = HyperliquidAPI(api_config=BASE_API_CONFIG, secrets=SECRETS_WITH_KEY)
         # Assert API instance uses our mock authenticator
         mock_auth_constructor.assert_called_once_with(
-            private_key_hex=TEST_PRIVATE_KEY,
-            wallet_address=TEST_WALLET_ADDRESS,
+            wallet_private_key=TEST_PRIVATE_KEY,
             chain_id=HyperliquidAPI.CHAIN_ID,
         )
         assert api.authenticator is mock_auth_for_test
@@ -292,7 +290,8 @@ async def test_place_order_calls_authenticate_and_request(
                     )
 
                 # The data passed to prepare_request should be the Pydantic model's dump
-                await api.authenticator.prepare_request(
+                # Use mock_auth_for_test as api.authenticator points to it in this test context
+                await mock_auth_for_test.prepare_request(
                     method=actual_method_from_args,
                     path=actual_path_from_args,
                     params=kwargs.get("params"),
@@ -542,13 +541,7 @@ class TestHyperliquidAPIMethodErrors:
             quantity_val: Decimal = Decimal("0.001")
             price_val: Decimal = Decimal("1")
             time_in_force_val: TimeInForce = TimeInForce.GTC
-            # These are the specific args for the builder for this test case
-            # expected_builder_args = { # Commented out as unused
-            #     "symbol": symbol_val,
-            #     "side": side_val,
-            #     "order_type": order_type_val,
-            # }
-            # This is the payload the builder would create (as a Pydantic model)
+
             expected_action_payload_error_obj = HyperliquidRawPlaceOrderAction(
                 asset=1,
                 isBuy=True,
@@ -564,7 +557,6 @@ class TestHyperliquidAPIMethodErrors:
             expected_request_model_error_obj = HyperliquidApiPlaceOrderRequest(
                 type="order", actions=[expected_action_payload_error_obj]
             )
-            # This is what _request will receive after .model_dump()
             expected_data_for_request_error_obj = expected_request_model_error_obj.model_dump(
                 by_alias=True, exclude_none=True
             )
@@ -581,7 +573,6 @@ class TestHyperliquidAPIMethodErrors:
                     time_in_force=time_in_force_val,
                 )
 
-            # Verify builder was called correctly
             mock_build_payload.assert_called_once_with(
                 asset_index=1,
                 side=side_val,
@@ -594,14 +585,13 @@ class TestHyperliquidAPIMethodErrors:
                 reduce_only=False,
                 post_only=False,
             )
-            # Verify api._request was called with the payload from the builder
             mock_hl_request.assert_awaited_once_with(
                 "POST", "/exchange", data=expected_data_for_request_error_obj, is_signed=True
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_ORDER_SIZE.value
         assert exc_info.value.http_status == 200
-        assert "Order size too small" in exc_info.value.message
+        assert error_message_from_hl in exc_info.value.message
         assert exc_info.value.exchange_message == error_message_from_hl
 
 
