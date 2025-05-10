@@ -18,6 +18,7 @@ from pydantic import (
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawFiniteDecimalStr,
+    RawLaxEthereumAddressStrHL,
     RawNonNegativeInt,
     RawOptionalNonEmptyString64HL,
     RawStrictBool,
@@ -63,19 +64,18 @@ class HyperliquidRawOrderType(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def check_exclusive_order_type(cls, data: object) -> dict[str, object]:
-        if not isinstance(data, dict):
+    def check_exclusive_order_type(cls, data: dict[str, object]) -> dict[str, object]:
+        # DEFENSIVE: Raw input may not be dict. Pylance=[reportUnnecessaryIsInstance]
+        if not isinstance(data, dict):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError("orderType input must be a dictionary")
 
         has_limit = "limit" in data and data["limit"] is not None
         has_market = "market" in data and data["market"] is not None
 
-        if has_limit and has_market:
-            raise ValueError("Exactly one of 'limit' or 'market' must be provided, not both.")
-        if not has_limit and not has_market:
+        if not (has_limit ^ has_market):
             raise ValueError("Exactly one of 'limit' or 'market' must be provided.")
 
-        return data
+        return data  # DEFENSIVE CHECK: Mypy struggles with precise dict content type. Mypy=[misc]
 
 
 class HyperliquidRawTriggerDetails(BaseModel):
@@ -123,6 +123,7 @@ class HyperliquidRawQueryOrderHistoryRequestPayload(BaseModel):
         Literal["queryOrderHistory"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32, allow_empty=False)),
     ] = Field("queryOrderHistory")
+    user: RawLaxEthereumAddressStrHL = Field(..., description="User's wallet address")
     start_time: RawTimestampMsInt = Field(..., alias="startTime")
     end_time: RawTimestampMsInt = Field(..., alias="endTime")
 

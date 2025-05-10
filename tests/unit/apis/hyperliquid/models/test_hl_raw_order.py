@@ -18,11 +18,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
 
 # --- Test Data ---
 VALID_LIMIT_ORDER_DATA: dict[str, str] = {"tif": "Gtc"}
-VALID_MARKET_ORDER_DATA: dict[Any, Any] = {}
+VALID_MARKET_ORDER_DATA: dict[str, Any] = {}
 
 VALID_LIMIT_ORDER_TYPE_GTC: dict[str, dict[str, str]] = {"limit": VALID_LIMIT_ORDER_DATA}
 VALID_LIMIT_ORDER_TYPE_IOC: dict[str, dict[str, str]] = {"limit": {"tif": "Ioc"}}
-VALID_MARKET_ORDER_TYPE: dict[str, dict[Any, Any]] = {"market": VALID_MARKET_ORDER_DATA}
+VALID_MARKET_ORDER_TYPE: dict[str, dict[str, Any]] = {"market": VALID_MARKET_ORDER_DATA}
 
 VALID_TRIGGER_DETAILS_TP_MARKET_DATA: dict[str, Any] = {
     "triggerPx": "100.50",

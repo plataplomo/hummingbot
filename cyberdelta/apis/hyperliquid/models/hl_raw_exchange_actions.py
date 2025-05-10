@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawFiniteDecimalStr,
+    RawNonNegativeInt,
+    RawOptionalNonEmptyString64HL,
+    RawStrictBool,
+    RawStrictEthereumAddressStrHL,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
+    HyperliquidRawOrderType,
+)
+
+
+# Model for ETH specific withdrawal action (part of the signed payload)
+class HyperliquidRawEthWithdrawalActionPayload(BaseModel):
+    """
+    Represents the specific action payload for withdrawing ETH to L1.
+    This forms part of the signed message for the /exchange endpoint.
+    """
+
+    amount: RawFiniteDecimalStr
+    destination: RawStrictEthereumAddressStrHL
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+# Model for individual order specifications within a bulk order placement
+class HyperliquidRawOrderItemSpec(BaseModel):
+    """
+    Represents the detailed specification for a single order
+    within the 'orders' list of a batch order placement action.
+    This forms part of the signed message for the /exchange endpoint.
+
+    Corresponds to the 'OrderRequest' structure in Hyperliquid's documentation.
+    struct OrderRequest {
+        asset: u32,
+        is_buy: bool,
+        reduce_only: bool,
+        limit_px: RustDecimal,
+        sz: RustDecimal,
+        order_type: OrderTypeWire,
+        cloid: Option<Bytes16>,
+    }
+    """
+
+    a: RawNonNegativeInt = Field(..., alias="asset_index")
+    b: RawStrictBool = Field(..., alias="is_buy")
+    p: RawFiniteDecimalStr = Field(..., alias="limit_px")
+    s: RawFiniteDecimalStr = Field(..., alias="size")
+    r: RawStrictBool = Field(..., alias="reduce_only")
+    t: HyperliquidRawOrderType = Field(..., alias="order_type_details")
+    c: RawOptionalNonEmptyString64HL = Field(default=None, alias="client_order_id")
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+
+# Model for the overall order placement action (signed payload)
+class HyperliquidRawPlaceOrderActionPayload(BaseModel):
+    """
+    Represents the action payload for placing one or more orders.
+    This forms part of the signed message for the /exchange endpoint.
+
+    Corresponds to the 'action' field when 'type' is 'order'.
+    """
+
+    type: Literal["order"] = "order"
+    grouping: Literal["na"] = "na"
+    orders: list[HyperliquidRawOrderItemSpec]
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
