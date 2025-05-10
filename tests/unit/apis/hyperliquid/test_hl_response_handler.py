@@ -8,8 +8,14 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
+    HyperliquidErrorStatus,
     HyperliquidResponseHandler,
+    HyperliquidSuccessfulOrderStatus,
     RawJsonResponse,
+)
+from cyberdelta.apis.hyperliquid.models.hl_processed_exchange_responses import (
+    HyperliquidErrorStatus,
+    HyperliquidSuccessfulOrderStatus,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
@@ -896,7 +902,7 @@ class TestHandleInfoOrderStatusResponse:
         # Original raw_data is a list: ["Order not found"]. status_item becomes "Order not found".
         expected_message_detail = "(string response: 'Order not found')"
         assert expected_message_detail in exc_info.value.message, (
-            f"Expected detail '{expected_message_detail}' not in actual message '{exc_info.value.message}'"
+            f"Detail '{expected_message_detail}' not in msg '{exc_info.value.message}'"
         )
         assert exc_info.value.metadata == {"original_response_item": "Order not found"}
 
@@ -979,6 +985,94 @@ class TestHandleInfoOrderStatusResponse:
         # and raw_data in context
         # No direct exc_info.value.metadata check needed if _handle_validation_error
         # structure is trusted
+
+
+class TestProcessFirstExchangeStatus:
+    """Tests for HyperliquidResponseHandler.process_first_exchange_status."""
+
+    ACTION_DESC = "test_action"  # Common action description for these tests
+
+    @pytest.mark.parametrize(
+        "raw_status, expected_type, expected_details",
+        [
+            (
+                {"resting": {"oid": 12345}},
+                HyperliquidSuccessfulOrderStatus,
+                {"status_type": "resting", "oid": 12345},
+            ),
+            (
+                {"filled": {"oid": 67890, "totalSz": "1.0", "avgPx": "3000.0"}},
+                HyperliquidSuccessfulOrderStatus,
+                {"status_type": "filled", "oid": 67890, "total_sz": "1.0", "avg_px": "3000.0"},
+            ),
+            (
+                {"canceled": {"oid": 54321}},
+                HyperliquidSuccessfulOrderStatus,
+                {"status_type": "canceled", "oid": 54321},
+            ),
+            (
+                "canceled",
+                HyperliquidSuccessfulOrderStatus,
+                {"status_type": "canceled_str"},
+            ),
+            (
+                {"error": "Insufficient margin"},
+                HyperliquidErrorStatus,
+                {"message": "Insufficient margin"},
+            ),
+        ],
+    )
+    def test_valid_statuses(
+        self,
+        raw_status: RawJsonResponse,
+        expected_type: type[HyperliquidSuccessfulOrderStatus | HyperliquidErrorStatus],
+        expected_details: dict[str, Any],
+    ) -> None:
+        """Test processing various valid raw status objects and strings."""
+        result = HyperliquidResponseHandler.process_first_exchange_status(
+            raw_status, action_description=self.ACTION_DESC
+        )
+        assert isinstance(result, expected_type)
+
+        if isinstance(result, HyperliquidSuccessfulOrderStatus):
+            assert result.status_type == expected_details["status_type"]
+            if result.status_type in ["resting", "filled", "canceled"]:
+                assert result.oid == expected_details["oid"]
+            if result.status_type == "filled":
+                assert result.total_sz == expected_details["total_sz"]
+                assert result.avg_px == expected_details["avg_px"]
+            # For "canceled_str", only type and status_type are asserted
+
+        elif isinstance(result, HyperliquidErrorStatus):  # pyright: ignore[reportUnnecessaryIsInstance]
+            assert result.message == expected_details["message"]
+
+    @pytest.mark.parametrize(
+        "invalid_raw_status, expected_exception_message_part_template",
+        [
+            (12345, "Invalid status type for {action_desc}: <class 'int'>"),
+            ({}, "Unknown status structure for {action_desc}: {{}}"),
+            (
+                {"unknown_key": "value"},
+                "Unknown status structure for {action_desc}: {{'unknown_key': 'value'}}",
+            ),
+            (["list_item"], "Invalid status type for {action_desc}: <class 'list'>"),
+        ],
+    )
+    def test_invalid_status_structures(
+        self,
+        invalid_raw_status: RawJsonResponse,
+        expected_exception_message_part_template: str,
+    ) -> None:
+        """Test invalid or unrecognized status structures."""
+        expected_message = expected_exception_message_part_template.format(
+            action_desc=self.ACTION_DESC
+        )
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.process_first_exchange_status(
+                invalid_raw_status, action_description=self.ACTION_DESC
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert expected_message in exc_info.value.message
 
 
 # --- Parametrized Invalid Type Test ---

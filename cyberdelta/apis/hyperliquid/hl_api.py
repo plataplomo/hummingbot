@@ -658,19 +658,22 @@ class HyperliquidAPI(ExchangeAPI):
             arg_for_handler: dict[str, Any] | str
             if isinstance(first_status_obj_raw, str):
                 arg_for_handler = first_status_obj_raw
-            elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):
+            elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
+                # first_status_obj_raw is now known to be HyperliquidRawExchangeStatusObject
                 # The handler expects a raw dict for validation if it's not a string
                 arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
             else:
-                # Should not happen if validated_response is correct
-                logger.error(
-                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in L2 "
-                    f"Transfer: {type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}"
+                # This path should be theoretically unreachable due to the Union type of
+                # first_status_obj_raw: RawStatusStringHL | HyperliquidRawExchangeStatusObject
+                # and Pydantic validation of HyperliquidRawExchangeResponse.
+                # Adding this to satisfy linters about arg_for_handler potentially being unbound.
+                err_msg = (  # type: ignore[unreachable]
+                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in Transfer: "
+                    f"{type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}. Indicates flaw in "
+                    f"Pydantic validation or unexpected API response."
                 )
-                raise APIError(
-                    "Unexpected data type in L2 Transfer status.",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+                logger.critical(err_msg)
+                raise RuntimeError(err_msg)  # Should not happen
 
             processed_status = HyperliquidResponseHandler.process_first_exchange_status(
                 arg_for_handler, "L2 Transfer"
@@ -1282,18 +1285,18 @@ class HyperliquidAPI(ExchangeAPI):
             if isinstance(first_status_obj_raw, str):
                 arg_for_handler = first_status_obj_raw
             elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
+                # first_status_obj_raw is now known to be HyperliquidRawExchangeStatusObject
                 # The handler expects a raw dict for validation if it's not a string
                 arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
             else:
-                # Should not happen if validated_response is correct
-                logger.error(
-                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in L2 "
-                    f"Transfer: {type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}"
+                # This path should be theoretically unreachable.
+                err_msg = (  # type: ignore[unreachable]
+                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in Place Order: "
+                    f"{type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}. Indicates flaw in "
+                    f"Pydantic validation or unexpected API response."
                 )
-                raise APIError(
-                    "Unexpected data type in L2 Transfer status.",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+                logger.critical(err_msg)
+                raise RuntimeError(err_msg)  # Should not happen
 
             processed_status = HyperliquidResponseHandler.process_first_exchange_status(
                 arg_for_handler, "Place Order"
@@ -1344,6 +1347,7 @@ class HyperliquidAPI(ExchangeAPI):
                         f"{filled_details.avg_px}, "
                         f"sz: {filled_details.total_sz})"
                     )
+                    logger.info(f"[{self.exchange_name}] {log_message_prefix}")
                 # Add other conditions from HyperliquidRawExchangeStatusObject if necessary (e.g. success msg)
                 elif success_msg := status_object.success:
                     logger.info(
@@ -1455,17 +1459,18 @@ class HyperliquidAPI(ExchangeAPI):
             if isinstance(first_status_obj_raw, str):
                 arg_for_handler = first_status_obj_raw
             elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
+                # first_status_obj_raw is now known to be HyperliquidRawExchangeStatusObject
+                # The handler expects a raw dict for validation if it's not a string
                 arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
             else:
-                # Should not happen if validated_response is correct
-                logger.error(
-                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in L2 "
-                    f"Transfer: {type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}"
+                # This path should be theoretically unreachable.
+                err_msg = (  # type: ignore[unreachable]
+                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in Cancel Order: "
+                    f"{type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}. Indicates flaw in "
+                    f"Pydantic validation or unexpected API response."
                 )
-                raise APIError(
-                    "Unexpected data type in L2 Transfer status.",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+                logger.critical(err_msg)
+                raise RuntimeError(err_msg)  # Should not happen
 
             processed_status = HyperliquidResponseHandler.process_first_exchange_status(
                 arg_for_handler, f"Cancel Order OID:{order_id}"

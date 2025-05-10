@@ -5,7 +5,7 @@ Unit tests for the HyperliquidAPI client implementation.
 import logging
 from collections.abc import Generator
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,9 +16,19 @@ from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestCom
 from cyberdelta.apis.connectivity.http_client import HttpRequestFailedError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
+from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
+    HyperliquidApiPlaceOrderRequest,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
+    HyperliquidRawLimitOrderTypeDetails,
+    HyperliquidRawMarketOrderTypeDetails,
+    HyperliquidRawOrderType,
+    HyperliquidRawPlaceOrderAction,
+)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.market.order import Order
 
 # Constants for testing
 TEST_WALLET_ADDRESS = "0xTestWalletAddress000000000000000000000000"
@@ -210,21 +220,25 @@ async def test_place_order_calls_authenticate_and_request(
     mock_auth_for_test = MagicMock(spec=HyperliquidEip712Authenticator)
     auth_headers = {"X-HL-Signature": "sig123", "X-HL-Timestamp": "ts", "X-HL-Nonce": "1"}
     auth_params = None
-    expected_builder_payload = {  # Define here for clarity
-        "type": "order",
-        "actions": [
-            {
-                "asset": 0,
-                "isBuy": True,
-                "sz": "1.0",
-                "limitPx": "30000",
-                "orderType": {"limit": {"tif": "Gtc"}},
-                "reduceOnly": False,
-            }
-        ],
-    }
+    # Define the data that the builder is expected to produce as a Pydantic model
+    expected_action_payload = HyperliquidRawPlaceOrderAction(
+        asset=0,
+        isBuy=True,
+        sz="1.0",
+        limitPx="30000",
+        orderType=HyperliquidRawOrderType(limit=HyperliquidRawLimitOrderTypeDetails(tif="Gtc")),
+        reduceOnly=False,
+        cloid=None,
+        trigger=None,
+    )
+    expected_request_model = HyperliquidApiPlaceOrderRequest(
+        type="order", actions=[expected_action_payload]
+    )
+    # This is what _request will receive after .model_dump()
+    expected_data_for_request = expected_request_model.model_dump(by_alias=True, exclude_none=True)
+
     auth_prepared_components = AuthenticatedRequestComponents(
-        headers=auth_headers, params=auth_params, data=expected_builder_payload
+        headers=auth_headers, params=auth_params, data=expected_data_for_request
     )
     # Make prepare_request an AsyncMock *on the instance*
     mock_auth_for_test.prepare_request = AsyncMock(return_value=auth_prepared_components)
@@ -265,6 +279,7 @@ async def test_place_order_calls_authenticate_and_request(
                 actual_method_from_args = _args[0] if _args else None
                 actual_path_from_args = _args[1] if len(_args) > 1 else None
 
+                # Ensure actual_method_from_args and actual_path_from_args are strings
                 if not isinstance(actual_method_from_args, str):
                     pytest.fail(
                         f"prepare_request: method from _args[0] not str: "
@@ -276,11 +291,12 @@ async def test_place_order_calls_authenticate_and_request(
                         f"{actual_path_from_args=} ({type(actual_path_from_args)})"
                     )
 
+                # The data passed to prepare_request should be the Pydantic model's dump
                 await api.authenticator.prepare_request(
-                    method=actual_method_from_args,  # From _args[0]
-                    path=actual_path_from_args,  # From _args[1]
+                    method=actual_method_from_args,
+                    path=actual_path_from_args,
                     params=kwargs.get("params"),
-                    data=kwargs.get("data"),
+                    data=kwargs.get("data"),  # This data is already model_dumped by api.place_order
                     headers=dict(api.default_headers),
                 )
             return mock_http_response_content
@@ -308,14 +324,23 @@ async def test_place_order_calls_authenticate_and_request(
                     post_only_val: bool = False
                     stop_price_val: Decimal | None = None
 
-                    mock_build_payload.return_value = expected_builder_payload
+                    mock_build_payload.return_value = (
+                        expected_request_model  # Builder returns the Pydantic model
+                    )
 
-                    mock_final_order = MagicMock()
-                    mock_final_order.exchange_order_id = "12345"
+                    # Mock the Order object that get_order_status is expected to return
+                    # after successful parsing and mapping by the response handler.
+                    mock_mapped_order_obj = MagicMock(
+                        spec=Order
+                    )  # Order from cyberdelta.core.models
+                    mock_mapped_order_obj.exchange_order_id = "12345"
+                    mock_mapped_order_obj.symbol = symbol_val
+                    # ... add other attributes if place_order uses them
+
                     with patch.object(
                         api, "get_order_status", new_callable=AsyncMock
                     ) as mock_get_status:
-                        mock_get_status.return_value = mock_final_order
+                        mock_get_status.return_value = mock_mapped_order_obj
 
                         final_order = await api.place_order(
                             symbol=symbol_val,
@@ -352,11 +377,11 @@ async def test_place_order_calls_authenticate_and_request(
                     mock_api_request.assert_awaited_once_with(
                         method="POST",
                         endpoint="/exchange",  # _request expects endpoint, not endpoint_path
-                        data=expected_builder_payload,
+                        data=expected_data_for_request,  # Assert with the dumped dict
                         is_signed=True,
                     )
 
-                    assert final_order == mock_final_order
+                    assert final_order == mock_mapped_order_obj
 
     # --- END OF PRE-SETUP PATCH CONTEXT --- #
 
@@ -428,21 +453,26 @@ class TestHyperliquidAPIMethodErrors:
             #     "side": side_val,
             #     "order_type": order_type_val,
             # }
-            # This is the payload the builder would create for the _request method
-            expected_builder_payload = {
-                "type": "order",
-                "actions": [
-                    {
-                        "asset": 0,  # From mock_get_asset_index
-                        "isBuy": False,  # Sell
-                        "sz": "1",
-                        "limitPx": "0",  # Standard for market orders if required by API
-                        "orderType": {"ioc": None},  # IOC has no tif value in HL struct
-                        "reduceOnly": False,
-                    }
-                ],
-            }
-            mock_build_payload.return_value = expected_builder_payload
+            # This is the payload the builder would create (as a Pydantic model)
+            expected_action_payload_error_str = HyperliquidRawPlaceOrderAction(
+                asset=0,
+                isBuy=False,
+                sz="1",
+                limitPx="0",
+                orderType=HyperliquidRawOrderType(market=HyperliquidRawMarketOrderTypeDetails()),
+                reduceOnly=False,
+                cloid=None,
+                trigger=None,
+            )
+            expected_request_model_error_str = HyperliquidApiPlaceOrderRequest(
+                type="order", actions=[expected_action_payload_error_str]
+            )
+            # This is what _request will receive after .model_dump()
+            expected_data_for_request_error_str = expected_request_model_error_str.model_dump(
+                by_alias=True, exclude_none=True
+            )
+
+            mock_build_payload.return_value = expected_request_model_error_str
 
             with pytest.raises(APIError) as exc_info:
                 await api.place_order(
@@ -469,7 +499,7 @@ class TestHyperliquidAPIMethodErrors:
             )
             # Verify api._request was called with the payload from the builder
             mock_hl_request.assert_awaited_once_with(
-                "POST", "/exchange", data=expected_builder_payload, is_signed=True
+                "POST", "/exchange", data=expected_data_for_request_error_str, is_signed=True
             )
 
         # The handler should raise INVALID_RESPONSE because the string
@@ -518,21 +548,28 @@ class TestHyperliquidAPIMethodErrors:
             #     "side": side_val,
             #     "order_type": order_type_val,
             # }
-            # This is the payload the builder would create for the _request method
-            expected_builder_payload = {
-                "type": "order",
-                "actions": [
-                    {
-                        "asset": 1,  # From mock_get_asset_index
-                        "isBuy": True,
-                        "sz": "0.001",
-                        "limitPx": "1",
-                        "orderType": {"limit": {"tif": "Gtc"}},
-                        "reduceOnly": False,
-                    }
-                ],
-            }
-            mock_build_payload.return_value = expected_builder_payload
+            # This is the payload the builder would create (as a Pydantic model)
+            expected_action_payload_error_obj = HyperliquidRawPlaceOrderAction(
+                asset=1,
+                isBuy=True,
+                sz="0.001",
+                limitPx="1",
+                orderType=HyperliquidRawOrderType(
+                    limit=HyperliquidRawLimitOrderTypeDetails(tif="Gtc")
+                ),
+                reduceOnly=False,
+                cloid=None,
+                trigger=None,
+            )
+            expected_request_model_error_obj = HyperliquidApiPlaceOrderRequest(
+                type="order", actions=[expected_action_payload_error_obj]
+            )
+            # This is what _request will receive after .model_dump()
+            expected_data_for_request_error_obj = expected_request_model_error_obj.model_dump(
+                by_alias=True, exclude_none=True
+            )
+
+            mock_build_payload.return_value = expected_request_model_error_obj
 
             with pytest.raises(APIError) as exc_info:
                 await api.place_order(
@@ -559,7 +596,7 @@ class TestHyperliquidAPIMethodErrors:
             )
             # Verify api._request was called with the payload from the builder
             mock_hl_request.assert_awaited_once_with(
-                "POST", "/exchange", data=expected_builder_payload, is_signed=True
+                "POST", "/exchange", data=expected_data_for_request_error_obj, is_signed=True
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_ORDER_SIZE.value
@@ -598,15 +635,15 @@ class TestHyperliquidAPIWebSocketRouting:
         assert actual_subscription_raw is not None, "Subscription data is missing"
         assert isinstance(actual_subscription_raw, dict), "Subscription data is not a dictionary"
 
+        # Cast after assert isinstance to help Pylance with key types
+        typed_subscription_dict = cast(dict[str, Any], actual_subscription_raw)
+
         typed_actual_subscription: dict[str, str] = {}
         k: str
         v_raw_from_items: Any  # Value from dict[str, Any] can be Any
-        for k, v_raw_from_items in actual_subscription_raw.items():
+        for k, v_raw_from_items in typed_subscription_dict.items():  # Use the casted dict
             key_str: str = k
             v_raw_any: object = v_raw_from_items
-
-            # The original check for k_raw_any being str is now redundant as k is str.
-            # If there was a case where k might not be str, actual_subscription_raw would need a broader key type.
 
             value_str: str
             if isinstance(v_raw_any, str):

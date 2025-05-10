@@ -2,6 +2,10 @@
 Exports for Hyperliquid raw API models.
 """
 
+from .hl_processed_exchange_responses import (
+    HyperliquidErrorStatus,
+    HyperliquidSuccessfulOrderStatus,
+)
 from .hl_raw_user_state import (
     HyperliquidRawAssetPosition,
     HyperliquidRawClearinghouseState,
@@ -18,6 +22,9 @@ from .hl_raw_ws_events import (
 )
 
 __all__ = [
+    # Processed Exchange Responses
+    "HyperliquidSuccessfulOrderStatus",
+    "HyperliquidErrorStatus",
     # Exchange Info
     # "HyperliquidRawAssetContext",
     # "HyperliquidRawUniverse",

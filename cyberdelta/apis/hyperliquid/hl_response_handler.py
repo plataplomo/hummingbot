@@ -4,14 +4,18 @@ Response Handler for Hyperliquid API Raw Responses.
 Validates raw JSON data against Pydantic models specific to Hyperliquid\'s API endpoints.
 """
 
-from pydantic import ValidationError
+from pydantic import ValidationError  # BaseModel, Field no longer used directly here
 
+# Corrected imports for processed models
+from cyberdelta.apis.hyperliquid.models.hl_processed_exchange_responses import (
+    HyperliquidErrorStatus,
+    HyperliquidSuccessfulOrderStatus,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
-    HyperliquidRawExchangeStatusObject,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
@@ -48,6 +52,10 @@ logger = get_logger(__name__)
 RawJsonPrim = str | int | float | bool | None
 RawJson = dict[str, "RawJson"] | list["RawJson"] | RawJsonPrim
 type RawJsonResponse = RawJson
+
+
+# --- Processed Status Models (REMOVED) ---
+# Definitions were moved to cyberdelta/apis/hyperliquid/models/hl_processed_exchange_responses.py
 
 
 class HyperliquidResponseHandler:
@@ -435,54 +443,99 @@ class HyperliquidResponseHandler:
     def process_first_exchange_status(
         first_status_raw: RawJsonPrim | RawJson,
         action_description: str,
-    ) -> HyperliquidRawExchangeStatusObject | str:
+    ) -> HyperliquidSuccessfulOrderStatus | HyperliquidErrorStatus:
         """
-        Processes the first item from an /exchange endpoint's 'statuses' list.
+        Processes the first status item from an /exchange endpoint response.
 
         Args:
-            first_status_raw: The raw first item from the 'statuses' list.
-            action_description: A description of the action (e.g., "Place Order", "Withdrawal")
-                                for context in error messages.
+            first_status_raw: The raw status item (dict or string).
+            action_description: Description of the action (e.g., "place_order", "cancel_order").
 
         Returns:
-            HyperliquidRawExchangeStatusObject: If the status item is a complex object.
-            str: If the status item is a simple string.
+            A HyperliquidSuccessfulOrderStatus or HyperliquidErrorStatus model.
 
         Raises:
-            APIError: If the status item is not a string or a valid object,
-                      or if validation of the object fails.
+            APIError: If the status structure is unknown or invalid.
         """
-        context = f"first status for {action_description}"
+        if isinstance(first_status_raw, dict):
+            if "resting" in first_status_raw and isinstance(first_status_raw["resting"], dict):
+                oid_raw = first_status_raw["resting"].get("oid")
+                if not isinstance(oid_raw, int):
+                    raise APIError(
+                        message=f"Invalid or missing 'oid' (expected int) in resting status for {action_description}",
+                        code=APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"raw_status": first_status_raw},
+                    )
+                return HyperliquidSuccessfulOrderStatus(status_type="resting", oid=oid_raw)
+
+            if "filled" in first_status_raw and isinstance(first_status_raw["filled"], dict):
+                filled_details = first_status_raw["filled"]
+                oid_raw = filled_details.get("oid")
+                total_sz_raw = filled_details.get("totalSz")
+                avg_px_raw = filled_details.get("avgPx")
+
+                if not isinstance(oid_raw, int):
+                    raise APIError(
+                        message=f"Invalid or missing 'oid' (expected int) in filled status for {action_description}",
+                        code=APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"raw_status": first_status_raw},
+                    )
+                if not isinstance(total_sz_raw, str):
+                    raise APIError(
+                        message=f"Invalid or missing 'totalSz' (expected str) in filled status for {action_description}",
+                        code=APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"raw_status": first_status_raw},
+                    )
+                if not isinstance(avg_px_raw, str):
+                    raise APIError(
+                        message=f"Invalid or missing 'avgPx' (expected str) in filled status for {action_description}",
+                        code=APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"raw_status": first_status_raw},
+                    )
+
+                return HyperliquidSuccessfulOrderStatus(
+                    status_type="filled", oid=oid_raw, total_sz=total_sz_raw, avg_px=avg_px_raw
+                )
+
+            if "canceled" in first_status_raw and isinstance(first_status_raw["canceled"], dict):
+                oid_raw = first_status_raw["canceled"].get("oid")
+                if not isinstance(oid_raw, int):
+                    raise APIError(
+                        message=f"Invalid or missing 'oid' (expected int) in canceled status object for {action_description}",
+                        code=APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"raw_status": first_status_raw},
+                    )
+                return HyperliquidSuccessfulOrderStatus(status_type="canceled", oid=oid_raw)
+
+            if "error" in first_status_raw and isinstance(first_status_raw["error"], str):
+                return HyperliquidErrorStatus(message=first_status_raw["error"])
+
+            # If it's a dict but doesn't match known structures
+            raise APIError(
+                message=f"Unknown status structure for {action_description}: {first_status_raw!r}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
 
         if isinstance(first_status_raw, str):
-            return first_status_raw
+            if first_status_raw.lower() == "canceled":
+                return HyperliquidSuccessfulOrderStatus(status_type="canceled_str")
+            # Any other string is treated as an error message for now, or could be refined
+            # This path might indicate an unexpected direct string error from the API
+            # that isn't wrapped in an {"error": ...} object.
+            logger.warning(
+                f"Encountered direct string status for {action_description}: '{first_status_raw}'. "
+                f"Treating as error."
+            )
+            return HyperliquidErrorStatus(message=first_status_raw)
 
-        if isinstance(first_status_raw, dict):
-            try:
-                return HyperliquidRawExchangeStatusObject.model_validate(first_status_raw)
-            except ValidationError as e:
-                logger.error(
-                    f"[HyperliquidResponseHandler] Pydantic validation failed for {context} "
-                    f"object: {e}. Raw item: {first_status_raw!r}"
-                )
-                raise APIError(
-                    message=f"Invalid {context} object structure: {e}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    original_exception=e,
-                    metadata={"raw_status_item": first_status_raw},
-                ) from e
-        else:
-            # If it's not a string and not a dict, it's an unexpected type.
-            logger.error(
-                f"[HyperliquidResponseHandler] Unexpected type for {context}: "
-                f"{type(first_status_raw).__name__}. Raw item: {first_status_raw!r}"
-            )
-            raise APIError(
-                message=f"Unexpected data type for {context}: "
-                f"{type(first_status_raw).__name__}. Expected string or object.",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                metadata={"raw_status_item": first_status_raw},
-            )
+        # If not dict or str
+        raise APIError(
+            message=(
+                f"Invalid status type for {action_description}: {type(first_status_raw)}. "
+                f"Expected dict or str."
+            ),
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
 
     @staticmethod
     def handle_query_order_history_response(
