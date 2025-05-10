@@ -15,13 +15,13 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from cyberdelta.backtesting.engine import BacktestEngine
-from cyberdelta.backtesting.strategy_adapter import StrategyAdapter
-from cyberdelta.core.models import OrderSide, SignalType, Strategy, TradeSignal
+from cyberdelta.backtesting import BacktestEngine
+from cyberdelta.backtesting.backtesting import BacktestStrategy, StrategyAdapter
+from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.models.market import Candle
-from cyberdelta.strategies.base_strategy import BacktestStrategy
+from cyberdelta.core.strategy import Strategy
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
-from cyberdelta.utils.synthetic_data import generate_synthetic_data
+from cyberdelta.utils import synthetic_data
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -57,7 +57,7 @@ class TestBacktestingIntegration:
 
         # Generate synthetic data for testing
         cls.data_file_path = cls.test_data_dir / "test_data.csv"
-        cls.funding_data = generate_synthetic_data(days=5)
+        cls.funding_data = synthetic_data.generate_synthetic_data(days=5)
         cls.funding_data.to_csv(cls.data_file_path)
         print(f"Saved test data to {cls.data_file_path}")
 
@@ -342,7 +342,7 @@ class TestBacktestingIntegration:
             assert "sharpe_ratio" in loaded_results["metrics"]
             assert isinstance(loaded_results["metrics"]["sharpe_ratio"], int | float)
 
-    def test_basic_backtest_run(self, setup_backtesting_env: tuple[BacktestingEngine, Path]):
+    def test_basic_backtest_run(self, setup_backtesting_env: tuple[BacktestEngine, Path]):
         engine, _ = setup_backtesting_env
 
         # Run backtest

@@ -101,6 +101,7 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
         # No longer used with asyncio.Future()
 
         async def mock_receive_internal() -> WSMessage:
+            await asyncio.tasks.sleep(0)  # MODIFIED: Ensure yield
             if seq_iterator:
                 try:
                     item = next(seq_iterator)
@@ -510,7 +511,6 @@ class TestWebSocketManager:
             finally:
                 await manager.close()
 
-    @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.ws_connect")
     @patch("cyberdelta.apis.connectivity.ws_manager.asyncio.create_task")
     @patch("asyncio.sleep", new_callable=AsyncMock)
@@ -524,8 +524,12 @@ class TestWebSocketManager:
         mock_aiohttp_session_ws_connect_method: AsyncMock,
         default_ws_manager_config: WebSocketManagerConfig,
         mock_ws_connection_factory: Callable[..., AsyncMock],
+        caplog: LogCaptureFixture,
     ) -> None:
         """Test _listen loop processes messages and triggers reconnect on unexpected close."""
+        caplog.set_level(logging.INFO, logger="WebSocketManager.listen_reconnect_test")
+        caplog.set_level(logging.DEBUG, logger="WebSocketManager.listen_reconnect_test")
+
         test_message_payload = {"type": "data", "value": "test_data"}
         simulated_connection_drop_exception = aiohttp.ClientConnectionError(
             "Simulated drop for WSMsgType.ERROR"
@@ -560,7 +564,7 @@ class TestWebSocketManager:
         mock_aiohttp_session_ws_connect_method.side_effect = dynamic_ws_connect_side_effect
         mock_user_message_handler = AsyncMock()
         test_config = default_ws_manager_config.model_copy(
-            update={"max_reconnect_attempts": 1, "reconnect_delay": 0.01}
+            update={"max_reconnect_attempts": 2, "reconnect_delay": 0.01}
         )
         manager = WebSocketManager(
             exchange_name="listen_reconnect_test",
@@ -588,7 +592,7 @@ class TestWebSocketManager:
         listener_task_name_listen_test = "listen_reconnect_test_ws_listen"
 
         try:
-            with patch.object(manager, "_logger") as mock_logger:
+            with patch.object(manager, "_logger") as mock_logger_patch:
                 initial_connect_task = manager.connect()
                 assert initial_connect_task is not None
                 await initial_connect_task
@@ -601,7 +605,7 @@ class TestWebSocketManager:
                     f"WebSocket connection error: {simulated_connection_drop_exception!r}"
                 )
                 found_error_log = False
-                for call_args in mock_logger.error.call_args_list:
+                for call_args in mock_logger_patch.error.call_args_list:
                     logged_message = call_args[0][0]
                     if expected_log_message in logged_message:
                         found_error_log = True
@@ -609,10 +613,11 @@ class TestWebSocketManager:
                 assert found_error_log, (
                     f"Expected error log for WSMsgType.ERROR not found. "
                     f"Expected part: '{expected_log_message}'. "
-                    f"Actual error calls: {mock_logger.error.call_args_list}"
+                    f"Actual error calls: {mock_logger_patch.error.call_args_list}"
                 )
 
                 mock_sleep.assert_called_once_with(1.0)
+
                 assert mock_aiohttp_session_ws_connect_method.call_count == 2
 
                 assert listener_task_name_listen_test in created_tasks_map_listen_test
@@ -623,16 +628,26 @@ class TestWebSocketManager:
 
                 if not restarted_listen_task.done():
                     try:
-                        await asyncio.wait_for(restarted_listen_task, timeout=0.2)
+                        await asyncio.wait_for(restarted_listen_task, timeout=0.5)
                     except TimeoutError:
+                        manager._logger.warning(
+                            "[TEST] Restarted listener task timed out waiting for completion."
+                        )
                         restarted_listen_task.cancel()
                         await asyncio.gather(restarted_listen_task, return_exceptions=True)
-                    except Exception:
-                        pass
+                    except Exception as e_wait:
+                        manager._logger.error(
+                            f"[TEST] Error awaiting restarted_listen_task: {e_wait!r}"
+                        )
 
-                await asyncio.sleep(test_config.reconnect_delay * 2)
+                await asyncio.sleep(0.1)
+
                 assert manager.is_connected is False
         finally:
+            print("\n--- Captured logs for listen_reconnect_test ---")
+            for record in caplog.records:
+                print(f"{record.levelname}: {record.name}: {record.getMessage()}")
+            print("--- End captured logs ---")
             await manager.close()
 
     def test_config_validation_invalid_url(

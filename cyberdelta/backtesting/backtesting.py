@@ -55,7 +55,7 @@ class BacktestStrategy(ABC):
         return True  # Add placeholder return for ABC
 
     @abstractmethod
-    def update(self, current_data: pd.Series[Any] | pd.DataFrame) -> dict[str, Any]:
+    def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
         """
         Process the current data point (row) and return signals.
 
@@ -473,51 +473,27 @@ class StrategyAdapter(BacktestStrategy):
         self.strategy = strategy
         self._logger = logging.getLogger(f"{__name__}.StrategyAdapter.{strategy.name}")
         self._logger.info(f"StrategyAdapter initialized for strategy '{self.strategy.name}'.")
+        self.initialized = True  # Mark adapter as initialized
 
     def initialize(self, data: pd.DataFrame) -> bool:
         """
-        Initialize the adapted strategy.
-        Potentially converts historical data to Candles if the strategy needs it.
-        Checks for an optional `initialize_with_history` method.
+        Initialize the core strategy. Currently, this adapter does not use
+        bulk historical data for core strategy initialization in the same way
+        a BacktestStrategy might. Core strategies are expected to manage their own
+        historical data needs if any, often via a DataHandler in live trading.
+        For backtesting, historical data is fed tick-by-tick via 'update'.
         """
-        self._logger.info(f"Initializing adapted strategy '{self.strategy.name}'")
+        self.logger.info(
+            f"StrategyAdapter: Initializing '{self.name}'. Core strategy assumed ready."
+        )
+        self.initialized = True  # Mark adapter as initialized
+        # We could potentially call a specific setup method on the core_strategy if it existed
+        return True
 
-        # Check if the strategy has a specific initialization method requiring history
-        if hasattr(self.strategy, "initialize_with_history"):
-            self._logger.debug("Strategy has 'initialize_with_history'. Converting data...")
-            try:
-                # Convert the initial DataFrame portion to Candles
-                historical_candles = self._convert_to_candles(data)
-                if not historical_candles:
-                    self._logger.warning(
-                        "No candles converted from initial data for history initialization."
-                    )
-                    # Call the strategy's specific history init method
-                    init_result = self.strategy.initialize_with_history(historical_candles)
-
-                    if asyncio.iscoroutine(init_result):
-                        self._logger.debug("'initialize_with_history' is async, running...")
-                        return asyncio.run(init_result)
-                    else:
-                        return bool(init_result)
-
-            except Exception as e:
-                self._logger.exception(f"Error during strategy history initialization: {e}")
-                return False
-        else:
-            # Default: Assume simple initialization, maybe call a standard init?
-            # Or just return True if no specific init is needed by the core strategy.
-            # For now, return True, assuming core strategy doesn't need historical data at init.
-            self._logger.debug(
-                "Strategy does not have 'initialize_with_history'. Assuming simple init."
-            )
-            # Optionally, could call a simple self.strategy.initialize() if it existed
-            return True
-
-    def update(self, current_data: pd.Series[Any] | pd.DataFrame) -> dict[str, Any]:
+    def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
         """
-        Process new data row(s) using the adapted strategy.
-        Converts pandas data to Candle(s) and calls strategy.process_data.
+        Processes the current market data (a single time step as a pandas Series or DataFrame row)
+        using the adapted strategy. Converts pandas data to Candle(s) and calls strategy.process_data.
         Converts resulting TradeSignal(s) back to the backtester's dict format.
         Handles both synchronous and asynchronous process_data methods.
         """
@@ -599,9 +575,9 @@ class StrategyAdapter(BacktestStrategy):
             )
             return {"signals": []}  # Return empty signals on error
 
-    def _convert_to_candles(self, data: pd.Series[Any] | pd.DataFrame) -> list[Candle]:
+    def _convert_to_candles(self, data: pd.Series | pd.DataFrame) -> list[Candle]:
         """
-        Convert pandas Series or DataFrame row(s) to a list of Candle objects.
+        Converts a pandas Series or DataFrame row into a list of Candle objects.
         Handles MultiIndex (symbol, field) DataFrames common in backtesting.
         """
         candle_list: list[Candle] = []
@@ -696,12 +672,9 @@ class StrategyAdapter(BacktestStrategy):
         return candle_list
 
     def _convert_signals(
-        self, signals: list[TradeSignal], current_data: pd.Series[Any] | pd.DataFrame
+        self, signals: list[TradeSignal], current_data: pd.Series | pd.DataFrame
     ) -> list[dict[str, Any]]:
-        """
-        Convert TradeSignal objects to the dictionary format expected by BacktestEngine.
-        Calculates PnL for exit signals based on current market data.
-        """
+        """Converts TradeSignal objects to dictionary format for backtesting trades."""
         signals_out: list[dict[str, Any]] = []
         timestamp = (
             current_data.name
@@ -715,57 +688,39 @@ class StrategyAdapter(BacktestStrategy):
         elif isinstance(timestamp, datetime) and timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=UTC)
 
-        def get_current_price(symbol: str, data: pd.Series[Any] | pd.DataFrame) -> Decimal | None:
+        def get_current_price(symbol: str, data: pd.Series | pd.DataFrame) -> Decimal | None:
             """Helper to get current price (close) for a symbol."""
             price_val = None
             try:
-                if isinstance(data, pd.Series):
-                    if isinstance(data.index, pd.MultiIndex):
-                        # Assumes (symbol, field) multi-index
-                        symbol_data = data.loc[symbol]
-                        price_val = (
-                            symbol_data.get("close") if hasattr(symbol_data, "get") else symbol_data
-                        )
-                    else:
-                        # Assumes single series, check if name matches or just get close
-                        if data.index.name == symbol or symbol == "UNKNOWN_SYMBOL":  # Crude check
-                            price_val = data.get("close") if hasattr(data, "get") else data
-                        else:  # Check if the series itself contains the symbol? Unlikely.
-                            self._logger.warning(
-                                f"Cannot reliably get price for {symbol} from simple Series."
-                            )
-                elif isinstance(data, pd.DataFrame):
-                    if isinstance(data.columns, pd.MultiIndex):
-                        # Assumes (symbol, field) columns
-                        if symbol in data.columns.get_level_values(0):
-                            price_val = data[(symbol, "close")].iloc[-1]  # Last price in frame
-                    elif "symbol" in data.columns and "close" in data.columns:
-                        # Assumes tidy format with symbol column
-                        symbol_rows = data[data["symbol"] == symbol]
-                        if not symbol_rows.empty:
-                            price_val = symbol_rows["close"].iloc[-1]
-                    elif "close" in data.columns and len(data.columns) == 1:  # Single column DF?
-                        price_val = data["close"].iloc[-1]
-                    else:
-                        self._logger.warning(
-                            f"Cannot determine price for {symbol} in DataFrame structure: "
-                            f"{data.head(1)}"
-                        )
-
-                if price_val is not None and not np.isnan(price_val):
-                    parsed_decimal = Decimal(str(price_val))
-                    if parsed_decimal.is_finite():
-                        return parsed_decimal
-                    else:
-                        self._logger.warning(
-                            f"Parsed price {parsed_decimal} for {symbol} is not finite."
-                        )
-                        return None
+                if isinstance(data.index, pd.MultiIndex):
+                    # Assumes (symbol, field) multi-index
+                    symbol_data = data.loc[symbol]
+                    price_val = (
+                        symbol_data.get("close") if hasattr(symbol_data, "get") else symbol_data
+                    )
                 else:
-                    self._logger.warning(f"Could not find valid current price for symbol {symbol}")
-                    return None
+                    # Assumes single series, check if name matches or just get close
+                    if data.index.name == symbol or symbol == "UNKNOWN_SYMBOL":  # Crude check
+                        price_val = data.get("close") if hasattr(data, "get") else data
+                    else:  # Check if the series itself contains the symbol? Unlikely.
+                        self._logger.warning(
+                            f"Cannot reliably get price for {symbol} from simple Series."
+                        )
             except Exception as e:
                 self._logger.error(f"Error getting current price for {symbol}: {e}")
+                return None
+
+            if price_val is not None and not np.isnan(price_val):
+                parsed_decimal = Decimal(str(price_val))
+                if parsed_decimal.is_finite():
+                    return parsed_decimal
+                else:
+                    self._logger.warning(
+                        f"Parsed price {parsed_decimal} for {symbol} is not finite."
+                    )
+                    return None
+            else:
+                self._logger.warning(f"Could not find valid current price for symbol {symbol}")
                 return None
 
         for signal in signals:

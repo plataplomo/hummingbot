@@ -2,16 +2,16 @@ import asyncio
 import logging
 import uuid
 from collections import defaultdict
-from collections.abc import Callable, Coroutine, Mapping
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.base.error_mapper import ErrorMapper
+from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 
 # Added import for ValidationError
 # Import Fill type
-from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
+from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI, MessageHandler
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -33,7 +33,7 @@ from cyberdelta.utils.config import Config
 logger = logging.getLogger(__name__)
 
 # Type alias for WebSocket message handlers from base.py
-MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
+# MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
 
 
 # Define a custom exception for mock API errors
@@ -42,15 +42,35 @@ class MockAPIError(Exception):
 
 
 # Minimal placeholder ErrorMapper to resolve import issues for this mock file
-class ErrorMapper:
+class MockErrorMapper(IErrorMapper):
     def map_exchange_error(
         self,
         status_code: int,
-        error_body: str | bytes | dict[str, Any] | None,
-        error_data: Any = None,
+        error_body: str,
+        error_data: dict[str, Any] | None = None,
         request_path: str | None = None,
     ) -> APIError:
-        return APIError(str(error_body), "UNKNOWN")
+        exchange_code = getattr(self, "exchange_name", "MockExchange")
+        return APIError(
+            message=error_body,
+            code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+            exchange_code=exchange_code,
+        )
+
+    def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
+        exchange_code = getattr(self, "exchange_name", "MockExchange")
+        api_error_code_val = APIErrorCode.EXCHANGE_SPECIFIC.value  # Default
+        if http_status == 404:  # MODIFIED: Simplified condition
+            # For a 404, we might use UNKNOWN or keep EXCHANGE_SPECIFIC if no better fit
+            api_error_code_val = (
+                APIErrorCode.UNKNOWN.value
+            )  # MODIFIED: Using UNKNOWN for 404 as a general "not found"
+
+        return APIError(
+            message=error_message,
+            code=api_error_code_val,  # MODIFIED
+            exchange_code=exchange_code,
+        )
 
 
 class MockExchangeAPI(ExchangeAPI):
@@ -67,7 +87,7 @@ class MockExchangeAPI(ExchangeAPI):
         secrets: dict[str, str | None],
         config_obj: Config | None = None,
     ) -> None:
-        mock_error_mapper = ErrorMapper()  # Use the placeholder ErrorMapper
+        mock_error_mapper = MockErrorMapper()  # Use the placeholder ErrorMapper
         super().__init__(exchange_name, config, secrets, error_mapper=mock_error_mapper)
         self.full_config = config_obj  # Store the full config object if provided
         self._order_id_counter = 1
@@ -296,26 +316,34 @@ class MockExchangeAPI(ExchangeAPI):
         pass  # No actual action needed
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
-        """Mock implementation for routing WebSocket messages."""
-        logger.debug(f"MockExchange {self.exchange_name}: Routing WS message: {message}")
-        # In a real mock, you might call a registered handler based on message content/topic
-        # For now, just log.
-        topic = message.get("channel") or message.get("e")  # Example topic extraction
-        if topic and topic in self._ws_handlers:
-            try:
-                await self._ws_handlers[topic](message)
-            except Exception as e:
-                logger.error(f"Error in WS handler for topic {topic}: {e}")
-        else:
-            await self._handle_websocket_message(message)  # Fallback to generic handler
+        """Route incoming WebSocket messages to registered handlers based on topic/type."""
+        topic = message.get("topic") or message.get("channel") or message.get("type")
+        data_payload = message.get("data", {})  # Extract data payload
 
-    async def subscribe(self, topic: str, handler: MessageHandler) -> None:
-        """Mock implementation for subscribing to WebSocket topics."""
-        logger.info(f"MockExchange {self.exchange_name}: Subscribing to topic '{topic}'")
-        self._ws_handlers[topic] = handler
-        self._ws_subscriptions[topic] = handler  # Store for resubscription
-        await self._simulate_latency()
-        # Mock sending a subscription confirmation if needed by tests
+        handler_to_call: MessageHandler | None = None
+        if topic:
+            if topic in self._ws_handlers:
+                handler_to_call = self._ws_handlers[topic]
+            elif topic in self._ws_subscriptions:  # Check subscriptions dict
+                handler_to_call = self._ws_subscriptions[topic]
+
+        if handler_to_call:
+            try:
+                # Call handler with both data_payload and the full_message
+                await handler_to_call(
+                    data_payload, message
+                )  # MODIFIED: Ensure two arguments are passed
+            except Exception as e:
+                logger.error(f"Error in WS handler for topic {topic}: {e}", exc_info=True)
+        else:
+            logger.warning(f"No handler for WS message topic/type: {topic}. Message: {message}")
+
+    async def subscribe(
+        self, topic: str, handler: MessageHandler
+    ) -> None:  # Ensure handler type is correct
+        """Subscribe to a WebSocket topic."""
+        self._ws_subscriptions[topic] = handler  # Storing in _ws_subscriptions
+        logger.info(f"Mock subscribed to {topic}")
 
     async def _resubscribe(self) -> None:
         """Mock implementation for resubscribing to WebSocket topics."""
@@ -713,4 +741,9 @@ class MockExchangeAPI(ExchangeAPI):
         # 1. Identifying base and quote assets from trade.symbol.
         # 2. Adjusting balances for base and quote assets based on trade side, quantity, price, fee.
         # 3. Updating or creating a position for the symbol.
+        pass
+
+    async def _on_ws_connected(self) -> None:  # Added concrete implementation
+        # This method is not provided in the original file or the code block
+        # It's assumed to exist as it's called in the _route_ws_message method
         pass
