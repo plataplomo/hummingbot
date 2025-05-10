@@ -22,7 +22,6 @@ __all__ = [
     # "HyperliquidRawAssetContext",
     # "HyperliquidRawUniverse",
     # Market Data
-    # "HyperliquidRawCandle",
     # "HyperliquidRawTrade",
     # "HyperliquidRawL2Book",
     # Order Status

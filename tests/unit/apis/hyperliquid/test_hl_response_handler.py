@@ -11,9 +11,8 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
     RawJsonResponse,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import (
-    HyperliquidRawCandle,
-    HyperliquidRawCandleSnapshotResponse,
+from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
+    HyperliquidRawCandleSnapshot,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
@@ -747,10 +746,21 @@ class TestHandleInfoCandleSnapshotResponse:
         response = HyperliquidResponseHandler.handle_info_candle_snapshot_response(
             cast(RawJsonResponse, raw_data), symbol=symbol, interval=interval
         )
-        assert isinstance(response, HyperliquidRawCandleSnapshotResponse)
-        assert len(response.candles) == 2
-        assert isinstance(response.candles[0], HyperliquidRawCandle)
-        assert response.candles[0].t == 1678889500000
+        assert isinstance(response, HyperliquidRawCandleSnapshot)
+        assert response.s == "ok"
+        assert len(response.t) == 2
+        assert response.t[0] == 1678889500000
+        assert response.o[0] == "3000.0"
+        assert response.h[0] == "3015.0"
+        assert response.l[0] == "2995.0"
+        assert response.c[0] == "3010.0"
+        assert response.v[0] == "100.5"
+        assert response.t[1] == 1678889560000
+        assert response.o[1] == "3010.0"
+        assert response.h[1] == "3012.0"
+        assert response.l[1] == "3003.0"
+        assert response.c[1] == "3005.0"
+        assert response.v[1] == "80.2"
 
     def test_validation_error(self, symbol: str) -> None:
         """Test response missing required field 'candles'."""

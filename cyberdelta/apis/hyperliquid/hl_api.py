@@ -1281,7 +1281,7 @@ class HyperliquidAPI(ExchangeAPI):
             arg_for_handler: dict[str, Any] | str
             if isinstance(first_status_obj_raw, str):
                 arg_for_handler = first_status_obj_raw
-            elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):
+            elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
                 # The handler expects a raw dict for validation if it's not a string
                 arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
             else:
@@ -1454,15 +1454,16 @@ class HyperliquidAPI(ExchangeAPI):
             arg_for_handler: dict[str, Any] | str
             if isinstance(first_status_obj_raw, str):
                 arg_for_handler = first_status_obj_raw
-            elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):
+            elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
                 arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
             else:
+                # Should not happen if validated_response is correct
                 logger.error(
-                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in Cancel "
-                    f"Order: {type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}"
+                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in L2 "
+                    f"Transfer: {type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}"
                 )
                 raise APIError(
-                    "Unexpected data type in Cancel Order status.",
+                    "Unexpected data type in L2 Transfer status.",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
 
@@ -1496,8 +1497,8 @@ class HyperliquidAPI(ExchangeAPI):
                 else:
                     # Unrecognized string status
                     logger.warning(
-                        f"[{self.exchange_name}] Cancel order {order_id} returned unhandled string "
-                        f"status: '{processed_status}'"
+                        f"[{self.exchange_name}] Cancel order {order_id} returned unhandled "
+                        f"string status: '{processed_status}'"
                     )
                     error_to_raise_from_status = APIError(
                         f"Cancel order {order_id} status unclear: {processed_status}",
