@@ -106,8 +106,7 @@ class HyperliquidAPI(ExchangeAPI):
         if private_key and self._wallet_address:
             try:
                 self._hl_authenticator = HyperliquidEip712Authenticator(
-                    private_key_hex=private_key,
-                    wallet_address=self._wallet_address,
+                    wallet_private_key=private_key,
                     chain_id=self.CHAIN_ID,
                 )
             except ValueError as e:

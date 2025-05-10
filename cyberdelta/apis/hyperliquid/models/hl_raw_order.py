@@ -1,13 +1,12 @@
 """
-CyberDeltaEngine: Hyperliquid API Raw Models (Order Action Payloads)
--------------------------------------------------------------------
+CyberDeltaEngine: Hyperliquid API Raw Models (Order Action Payloads & Info Requests)
+---------------------------------------------------------------------------------
 
 This module defines Pydantic models for constructing parts of the raw
-Hyperliquid Exchange API request when placing orders, specifically the
-`trigger` object and the `orderType` object within an order action.
+Hyperliquid Exchange API request, including placing orders and querying information.
 """
 
-from typing import Annotated, Literal, Self, cast
+from typing import Annotated, Literal, Self
 
 from pydantic import (
     BaseModel,
@@ -18,8 +17,13 @@ from pydantic import (
 )
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+    RawFiniteDecimalStr,
+    RawNonNegativeInt,
+    RawOptionalNonEmptyString64HL,
+    RawStrictBool,
     RawTifStr,
     RawTimestampMsInt,
+    RawTpslStr,
 )
 from cyberdelta.utils.parsing import validate_str_field
 
@@ -27,29 +31,29 @@ from cyberdelta.utils.parsing import validate_str_field
 class HyperliquidRawLimitOrderTypeDetails(BaseModel):
     """
     Details for a limit order type.
+    Corresponds to ApiTifLimit inside ApiOrderTypeLimit in openapi_hl.json.
     """
 
-    tif: RawTifStr
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    tif: RawTifStr = Field(..., description="Time in Force")
 
 
 class HyperliquidRawMarketOrderTypeDetails(BaseModel):
     """
     Details for a market order type (currently empty as per Hyperliquid spec).
+    Corresponds to ApiOrderTypeMarket in openapi_hl.json.
     """
 
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
     # Hyperliquid market order type is just an empty object: {"market": {}}
-    pass
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    # No fields, represents an empty object: {}
 
 
 class HyperliquidRawOrderType(BaseModel):
     """
     Represents the 'orderType' field which can be a limit or market type.
     Uses a dictionary structure as per Hyperliquid's format, e.g., {"limit": {...}}
-    or {"market": {}}.
+    or {"market": {}}. This model is used as a field in HyperliquidRawPlaceOrderAction.
     """
 
     limit: HyperliquidRawLimitOrderTypeDetails | None = Field(default=None)
@@ -61,20 +65,52 @@ class HyperliquidRawOrderType(BaseModel):
     @classmethod
     def check_exclusive_order_type(cls, data: object) -> dict[str, object]:
         if not isinstance(data, dict):
-            raise TypeError("orderType must be a dictionary")
+            raise TypeError("orderType input must be a dictionary")
 
-        data_dict = cast(dict[str, object], data)
+        has_limit = "limit" in data and data["limit"] is not None
+        has_market = "market" in data and data["market"] is not None
 
-        has_limit = "limit" in data_dict and data_dict["limit"] is not None
-        has_market = "market" in data_dict and data_dict["market"] is not None
-        if not (has_limit ^ has_market):
-            raise ValueError("Exactly one of 'limit' or 'market' must be provided in orderType")
+        if has_limit and has_market:
+            raise ValueError("Exactly one of 'limit' or 'market' must be provided, not both.")
+        if not has_limit and not has_market:
+            raise ValueError("Exactly one of 'limit' or 'market' must be provided.")
 
-        return data_dict
+        return data
 
 
-# Placeholder for the full HyperliquidRawOrderAction if needed for other contexts,
-# for now, place_order will construct the dict directly using these components.
+class HyperliquidRawTriggerDetails(BaseModel):
+    """
+    Details for a trigger order (TP/SL).
+    Corresponds to ApiTriggerSpec in openapi_hl.json.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+    trigger_px: RawFiniteDecimalStr = Field(..., alias="triggerPx")
+    is_market: RawStrictBool = Field(..., alias="isMarket")
+    tpsl: RawTpslStr
+
+
+class HyperliquidRawPlaceOrderAction(BaseModel):
+    """
+    Pydantic model for the Hyperliquid raw 'place order' action payload.
+    Corresponds to ApiOrderSpec in openapi_hl.json.
+    Ensures strict validation of the request payload before sending to the API.
+    This model replaces the previous placeholder.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+    asset: RawNonNegativeInt = Field(..., description="Asset index (integer)")
+    is_buy: RawStrictBool = Field(..., alias="isBuy")
+    limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
+    sz: RawFiniteDecimalStr = Field(..., alias="sz")
+    reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
+    order_type: HyperliquidRawOrderType = Field(..., alias="orderType")
+    trigger: HyperliquidRawTriggerDetails | None = Field(default=None)
+    cloid: RawOptionalNonEmptyString64HL | None = Field(
+        default=None, description="Client Order ID (string, e.g., user-defined or 0x...)"
+    )
 
 
 class HyperliquidRawQueryOrderHistoryRequestPayload(BaseModel):

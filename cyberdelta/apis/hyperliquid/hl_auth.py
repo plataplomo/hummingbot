@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Mapping
 from typing import Any
 
 from eth_account import Account
@@ -51,44 +52,58 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def __init__(
         self,
-        private_key_hex: str,
-        wallet_address: str,
+        *,
+        wallet_private_key: str | None = None,
+        account_object: LocalAccount | None = None,  # Added account_object
         chain_id: int,
-        logger_override: logging.Logger | None = None,  # Added for testing/flexibility
+        logger: logging.Logger | None = None,  # Renamed and made optional
     ) -> None:
-        self.logger = logger_override or logger
-        self._wallet_address = wallet_address
-        self._chain_id = chain_id
-        self._account: LocalAccount | None = None  # Store the account object
-        try:
-            self._account = Account.from_key(private_key_hex)
-        except ValueError as e:
-            self.logger.error(
-                f"HyperliquidEip712Authenticator: Invalid private key: {e}", exc_info=True
-            )
-            raise ValueError(f"Invalid private key: {e}") from e
+        self.logger = logger or get_logger(__name__)  # Use provided or get new one
 
-        if (
-            self._account is None
-        ):  # DEFENSIVE CHECK: Ensure _account is not None before access. Mypy=[None] Ruff=[None]
-            # This case should ideally be prevented by the previous error handling,
-            # but as a safeguard:
-            self.logger.error(
-                "HyperliquidEip712Authenticator: Account object not created due to earlier error."
-            )
-            raise ValueError("Account object not created, cannot proceed.")
+        if not wallet_private_key and not account_object:
+            msg = "Either wallet_private_key or account_object must be provided."
+            self.logger.error(f"HyperliquidEip712Authenticator: {msg}")
+            raise ValueError(msg)
+        if wallet_private_key and account_object:
+            msg = "Provide either wallet_private_key or account_object, not both."
+            self.logger.error(f"HyperliquidEip712Authenticator: {msg}")
+            raise ValueError(msg)
 
-        if self._account.address.lower() != self._wallet_address.lower():
+        if wallet_private_key:
+            try:
+                # Ensure LocalAccount is used for type consistency if Account.from_key returns it
+                # or can be cast to it, or if Account.from_key actually returns LocalAccount directly.
+                # For now, assume Account.from_key provides a compatible type or is LocalAccount.
+                self._account: LocalAccount = Account.from_key(wallet_private_key)
+            except ValueError as e:
+                self.logger.error(
+                    f"HyperliquidEip712Authenticator: Invalid private key: {e}", exc_info=True
+                )
+                raise ValueError(f"Invalid private key: {e}") from e
+        elif account_object:  # account_object is guaranteed to be non-None here
+            self._account = account_object
+        else:
+            # This case should be impossible due to the initial checks
+            # but added for exhaustive handling and to satisfy linters if they get confused.
+            impos_msg = "Internal error: Account could not be assigned despite checks."
+            self.logger.critical(f"HyperliquidEip712Authenticator: {impos_msg}")
+            raise RuntimeError(impos_msg)
+
+        # DEFENSIVE CHECK for mypy, should be always true after logic above
+        if self._account is None:  # pyright: ignore[reportUnnecessaryComparison]
+            # This path should be logically unreachable if above logic is correct.
             self.logger.error(
-                f"HyperliquidEip712Authenticator: Wallet address mismatch. "
-                f"Provided: {self._wallet_address}, Derived: {self._account.address}"
+                "HyperliquidEip712Authenticator: Account object is None after initialization logic."
             )
-            raise ValueError(
-                "Provided wallet address does not match the one derived from the private key."
-            )
+            # Mypy: unreachable
+            raise ValueError("Account object could not be initialized.")
+
+        self._wallet_address: str = self._account.address  # Derive address
+        self._chain_id: int = chain_id
+
         self.logger.info(
-            f"HyperliquidEip712Authenticator initialized for address: {self._wallet_address} "
-            f"on chain_id: {self._chain_id}"
+            f"HyperliquidEip712Authenticator initialized for address: {self.wallet_address} "
+            f"on chain_id: {self.chain_id}"
         )
 
         # Nonce strategy: use millisecond timestamp, ensuring strict increment if called rapidly.
@@ -97,6 +112,16 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         self._domain_data = self._domain_template.copy()
         self._domain_data["chainId"] = chain_id
+
+    @property
+    def wallet_address(self) -> str:
+        """The Ethereum wallet address associated with this authenticator."""
+        return self._wallet_address
+
+    @property
+    def chain_id(self) -> int:
+        """The chain ID this authenticator is configured for."""
+        return self._chain_id
 
     async def _get_next_nonce_ms(self) -> int:
         """
@@ -126,63 +151,41 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         method: str,
         path: str,
         params: dict[str, Any] | None,
-        data: str
-        | dict[str, Any]
-        | None,  # For Hyperliquid /exchange, this 'data' is the action payload
+        data: dict[str, Any] | None,
         headers: dict[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
         """
         Prepares and signs a Hyperliquid API request using EIP-712 Agent signature.
         This signature is typically used for the /exchange endpoint.
+        The 'data' for Hyperliquid /exchange (when using this EIP-712 Agent signature)
+        is expected to be the dictionary payload of the specific action (e.g., order details).
 
         Args:
-            method: The HTTP method (e.g., 'POST').
-            path: The API endpoint path (e.g., '/exchange').
+            method: The HTTP method.
+            path: The API endpoint path.
             params: Optional dictionary of query parameters.
-            data: Dictionary of request body data (the 'action' payload for
-                Hyperliquid) or JSON string.
+            data: The dictionary payload for the action being signed.
+                  For Hyperliquid Agent EIP-712, this MUST be a dict and not None.
             headers: Optional dictionary of existing headers.
 
         Returns:
             An AuthenticatedRequestComponents TypedDict.
 
         Raises:
-            APIError: If data payload is missing for signing or if signing fails.
+            APIError: If signing fails or account is not properly initialized.
+            ValueError: If data is None or not a dictionary, as it's required for HL Agent sig.
         """
-        print(
-            f"[DEBUG_HL_AUTH_PREPARE_REQUEST_ENTRY] data type: {type(data)}, data value: {data!r}"
-        )  # DEBUG
+        if data is None:
+            msg = "Invalid 'data' for Hyperliquid EIP-712 Agent signature: Must be a dictionary and not None."
+            self.logger.error(f"HyperliquidEip712Authenticator: {msg} Received: {type(data)}")
+            raise ValueError(msg)
 
-        action_dict: dict[str, Any]
-        if isinstance(data, str):
-            print(f"[DEBUG_HL_AUTH] isinstance(data, str) is TRUE. data: {data!r}")  # DEBUG
-            try:
-                print("[DEBUG_HL_AUTH] Attempting json.loads(data)")  # DEBUG
-                action_dict = json.loads(data)
-                print("[DEBUG_HL_AUTH] json.loads(data) SUCCEEDED.")  # DEBUG
-            except json.JSONDecodeError as e:
-                print(f"[DEBUG_HL_AUTH] json.loads(data) FAILED with {e!r}")  # DEBUG
-                self.logger.error(f"Invalid JSON in data payload for signing: {e}", exc_info=True)
-                raise APIError(
-                    f"Action data payload is an invalid JSON string: {data!r}.",
-                    code=APIErrorCode.INVALID_PARAMS.value,
-                    http_status=400,
-                    original_exception=e,
-                ) from e
-        elif isinstance(data, dict):
-            action_dict = data
-        elif data is None:  # The /exchange endpoint actions always require a data payload
-            self.logger.error(
-                "HyperliquidEip712Authenticator: Data payload (action) is required "
-                "for signing Hyperliquid /exchange requests."
-            )
-            raise APIError(
-                "Data payload (action) required for Hyperliquid signed request.",
-                code=APIErrorCode.INVALID_PARAMS.value,
-            )
+        # At this point, 'data' is confirmed to be a dict (due to type hint and above check)
+        # and is the action_payload.
+        action_payload: Mapping[str, Any] = data
 
         current_nonce_ms = await self._get_next_nonce_ms()
-        connection_id_bytes = self._generate_connection_id(action_dict)
+        connection_id_bytes = self._generate_connection_id(dict(action_payload))
 
         # Construct the EIP-712 message for Agent signature
         # Source "a" is commonly used for agent signatures by exchanges like Hyperliquid
@@ -196,13 +199,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             "types": self._agent_typed_data_message_types,
         }
 
-        if (
-            self._account is None
-        ):  # DEFENSIVE CHECK: Ensure _account is not None before signing. Mypy=[None] Ruff=[None]
+        if self._account is None:  # DEFENSIVE CHECK: Ensure _account is not None before signing.
+            # Mypy: condition-always-false, Ruff: FBT003 (`self._account is None`)
             # This should not be reached if __init__ succeeded
-            logger.error(
+            self.logger.error(
                 "HyperliquidEip712Authenticator: Account not initialized, cannot sign message."
             )
+            # Mypy: unreachable
             raise APIError(
                 "Authenticator account not initialized.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -249,7 +252,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         return AuthenticatedRequestComponents(
             headers=final_headers,
             params=params,
-            data=action_dict,  # Return the parsed dict if original data was string
+            data=dict(action_payload),  # Return the action_payload as data
         )
 
 
