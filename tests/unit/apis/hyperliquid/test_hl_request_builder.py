@@ -74,13 +74,13 @@ def test_build_l2_usd_transfer_payload_invalid_input() -> None:
 def test_build_withdrawal_payload_eth() -> None:
     """Test build_withdrawal_payload for ETH."""
     request_model = HyperliquidRequestBuilder.build_withdrawal_payload(
-        asset="ETH", amount=Decimal("1.23"), destination_address="0xabc"
+        asset="ETH", amount=Decimal("1.23"), destination_address=VALID_ADDRESS
     )
     assert isinstance(request_model, HyperliquidApiEthWithdrawalRequest)
     assert request_model.type == "withdrawEth"
     action = request_model.action
     assert isinstance(action, HyperliquidRawEthWithdrawalActionPayload)
-    assert action.destination == "0xabc"
+    assert action.destination == VALID_ADDRESS
     assert action.amount == "1.23"
 
 
@@ -111,13 +111,13 @@ def test_build_order_history_payload() -> None:
     start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
     end_time_ms = int(datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
     request_model = HyperliquidRequestBuilder.build_order_history_payload(
-        wallet_address="0xuser",
+        wallet_address=VALID_ADDRESS,
         start_time_ms=start_time_ms,
         end_time_ms=end_time_ms,
     )
     assert isinstance(request_model, HyperliquidRawQueryOrderHistoryRequestPayload)
     assert request_model.type == "queryOrderHistory"
-    assert request_model.user == "0xuser"
+    assert request_model.user == VALID_ADDRESS
     assert request_model.start_time == start_time_ms
     assert request_model.end_time == end_time_ms
 
@@ -313,7 +313,9 @@ def test_build_place_order_invalid_params() -> None:
             post_only=False,
             reduce_only=False,
         )
-    with pytest.raises(ValueError, match="Price is required for STOP_LIMIT orders"):
+    with pytest.raises(
+        ValueError, match=r"price \(for triggered limit\) is required for STOP_LIMIT\."
+    ):
         HyperliquidRequestBuilder.build_place_order_payload(
             asset_index=3,
             side=OrderSide.BUY,
@@ -342,9 +344,9 @@ def test_build_cancel_order_payload() -> None:
 def test_build_order_status_payload() -> None:
     """Test build_order_status_payload."""
     request_model = HyperliquidRequestBuilder.build_order_status_payload(
-        wallet_address="0xuser", order_id=67890
+        wallet_address=VALID_ADDRESS, order_id=67890
     )
     assert isinstance(request_model, HyperliquidRawOrderStatusRequestPayload)
     assert request_model.type == "orderStatus"
-    assert request_model.user == "0xuser"
+    assert request_model.user == VALID_ADDRESS
     assert request_model.oid == 67890

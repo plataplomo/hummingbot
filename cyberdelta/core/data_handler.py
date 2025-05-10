@@ -178,13 +178,13 @@ class DataHandler:
             for symbol in symbols:
                 self.tickers[exchange_id][symbol] = Candle(  # Initialize with default Candle
                     symbol=symbol,
-                    interval="N/A",
-                    open_time=datetime.now(UTC),  # Use current time as placeholder
-                    open=Decimal("0.0"),
-                    high=Decimal("0.0"),
-                    low=Decimal("0.0"),
-                    close=Decimal("0.0"),
-                    volume=Decimal("0.0"),
+                    interval="N/A",  # Or a sensible default interval
+                    open_time=datetime.min.replace(tzinfo=UTC),  # Use a fixed past time
+                    open=Decimal("1.0"),  # Use 1.0 to satisfy > 0 constraint
+                    high=Decimal("1.0"),  # Use 1.0 to satisfy > 0 constraint
+                    low=Decimal("1.0"),  # Use 1.0 to satisfy > 0 constraint
+                    close=Decimal("1.0"),  # Use 1.0 to satisfy > 0 constraint
+                    volume=Decimal("0.0"),  # Volume can be 0
                 )
                 self.order_books[exchange_id][symbol] = (
                     OrderBook(  # Initialize with default OrderBook

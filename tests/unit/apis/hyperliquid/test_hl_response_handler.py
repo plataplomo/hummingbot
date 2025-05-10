@@ -261,28 +261,15 @@ def valid_raw_candle() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_candle_snapshot() -> dict[str, Any]:
-    # Assumes the handler expects a dict with 'candles' key
+    # HyperliquidRawCandleSnapshot expects parallel arrays, not a list of candle dicts
     return {
-        "candles": [
-            {
-                "t": 1678889500000,
-                "o": "3000.0",
-                "h": "3015.0",
-                "l": "2995.0",
-                "c": "3010.0",
-                "v": "100.5",
-                "n": 50,
-            },
-            {
-                "t": 1678889560000,
-                "o": "3010.0",
-                "h": "3012.0",
-                "l": "3003.0",
-                "c": "3005.0",
-                "v": "80.2",
-                "n": 45,
-            },
-        ]
+        "t": [1678889500000, 1678889560000],
+        "o": ["3000.0", "3010.0"],
+        "h": ["3015.0", "3012.0"],
+        "l": ["2995.0", "3003.0"],
+        "c": ["3010.0", "3005.0"],
+        "v": ["100.5", "80.2"],
+        "s": "ok",
     }
 
 
@@ -1229,8 +1216,8 @@ _validation_error_test_cases: list[ValidationErrorTestCaseType] = [
     (
         HyperliquidResponseHandler.handle_info_candle_snapshot_response,
         "valid_raw_candle_snapshot",
-        {"remove_field": "candles"},
-        "candles",
+        {"remove_field": "t"},  # Changed from "candles"
+        "t",  # Changed from "candles"
         {"symbol": "symbol", "interval": "1m"},
         "info (CandleSnapshot for {symbol} 1m)",
     ),
