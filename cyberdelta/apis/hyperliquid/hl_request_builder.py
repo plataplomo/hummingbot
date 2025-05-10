@@ -1,9 +1,20 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Literal
 
 # Specific model imports for type hints and construction
+from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
+    HyperliquidApiCancelOrderRequest,
+    HyperliquidApiEthWithdrawalRequest,
+    HyperliquidApiL2UsdTransferRequest,
+    HyperliquidApiPlaceOrderRequest,
+    HyperliquidApiTokenWithdrawalRequest,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
+    HyperliquidRawCandleRequestDetails,
+    HyperliquidRawCandleSnapshotRequestPayload,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
     HyperliquidRawCancelOrderAction,
     HyperliquidRawEthWithdrawalActionPayload,
@@ -14,7 +25,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawMarketOrderTypeDetails,
     HyperliquidRawOrderType,
     HyperliquidRawPlaceOrderAction,
-    HyperliquidRawTriggerDetails,  # Ensure this is imported if used separately
+    HyperliquidRawQueryOrderHistoryRequestPayload,
+    HyperliquidRawTriggerDetails,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
+    HyperliquidRawOrderStatusRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
@@ -27,39 +42,26 @@ class HyperliquidRequestBuilder:
     """
     Builds request payloads for Hyperliquid API endpoints.
 
-    This class centralizes the logic for constructing the dictionaries
-    needed for various Hyperliquid API calls, ensuring consistency and
+    This class centralizes the logic for constructing Pydantic models
+    representing requests for Hyperliquid API calls, ensuring consistency and
     separating request formatting from API call execution.
     """
 
     @staticmethod
-    def build_info_request_payload() -> dict[str, Any] | None:
+    def build_info_request_payload() -> None:
         """
         Builds the payload for general Hyperliquid INFO requests.
-
-        Many Hyperliquid INFO endpoints accept a POST request with an empty
-        body or no specific payload, returning a comprehensive state object.
-
-        Returns:
-            dict[str, Any] | None: An empty dictionary or None,
-                                    representing no specific payload.
+        Many Hyperliquid INFO endpoints accept a POST request with an empty body.
+        Returns None, representing no specific payload body.
         """
-        return None  # Or {} depending on how _request handles None data
+        return None
 
     @staticmethod
-    def build_l2_usd_transfer_payload(destination_address: str, amount: Decimal) -> dict[str, Any]:
+    def build_l2_usd_transfer_payload(
+        destination_address: str, amount: Decimal
+    ) -> HyperliquidApiL2UsdTransferRequest:
         """
-        Builds the payload for an L2 USD transfer.
-
-        Args:
-            destination_address: The recipient wallet address.
-            amount: The amount of USDC to transfer.
-
-        Returns:
-            dict[str, Any]: The request payload dictionary.
-
-        Raises:
-            ValueError: If destination_address is empty.
+        Builds the Pydantic model for an L2 USD transfer request.
         """
         if not destination_address:
             raise ValueError(
@@ -72,82 +74,62 @@ class HyperliquidRequestBuilder:
         action_details_model = HyperliquidRawL2UsdTransferActionDetails(
             chain="L2", payload=transfer_payload_model
         )
-        return {"type": "usdTransfer", "action": action_details_model.model_dump(by_alias=True)}
+        return HyperliquidApiL2UsdTransferRequest(type="usdTransfer", action=action_details_model)
 
     @staticmethod
     def build_withdrawal_payload(
         asset: str, amount: Decimal, destination_address: str
-    ) -> dict[str, Any]:
+    ) -> HyperliquidApiEthWithdrawalRequest | HyperliquidApiTokenWithdrawalRequest:
         """
-        Builds the payload for a withdrawal to L1.
-
-        Args:
-            asset: The asset to withdraw (e.g., "ETH", "USDC").
-            amount: The amount to withdraw.
-            destination_address: The L1 destination address.
-
-        Returns:
-            dict[str, Any]: The request payload dictionary.
-
-        Raises:
-            ValueError: If destination_address is empty.
+        Builds the Pydantic model for a withdrawal to L1 request.
+        Returns a specific model based on whether the asset is ETH or another token.
         """
         if not destination_address:
             raise ValueError("Destination address is required for withdrawal.")
 
-        action_type: str
-        action_payload_dict: dict[str, Any]
-
         if asset.upper() == "ETH":
-            action_type = "withdrawEth"
             eth_withdrawal_model = HyperliquidRawEthWithdrawalActionPayload(
                 amount=str(amount), destination=destination_address
             )
-            action_payload_dict = eth_withdrawal_model.model_dump(by_alias=True)
+            return HyperliquidApiEthWithdrawalRequest(
+                type="withdrawEth", action=eth_withdrawal_model
+            )
         else:
-            # Assuming other assets use the generic 'withdraw' type
             withdrawal_payload_model = HyperliquidRawWithdrawalToL1ActionPayload(
                 token=asset.upper(), amount=str(amount), destination=destination_address
             )
-            action_payload_dict = withdrawal_payload_model.model_dump(by_alias=True)
-            action_type = "withdraw"
-
-        return {"type": action_type, "action": action_payload_dict}
+            return HyperliquidApiTokenWithdrawalRequest(
+                type="withdraw", action=withdrawal_payload_model
+            )
 
     @staticmethod
     def build_order_history_payload(
         wallet_address: str, start_time_ms: int, end_time_ms: int
-    ) -> dict[str, Any]:
+    ) -> HyperliquidRawQueryOrderHistoryRequestPayload:
         """
-        Builds the payload for querying order history.
-        This is a request payload, not an exchange action, and should use its own model if needed.
-        For now, returning a dict as per existing structure, assuming it's validated by the caller.
-        Alternatively, this could return a HyperliquidRawQueryOrderHistoryRequestPayload model instance.
+        Builds the Pydantic model for querying order history.
         """
-        return {
-            "type": "queryOrderHistory",
-            "user": wallet_address,
-            "startTime": start_time_ms,
-            "endTime": end_time_ms,
-        }
+        return HyperliquidRawQueryOrderHistoryRequestPayload(
+            type="queryOrderHistory",
+            user=wallet_address,
+            startTime=start_time_ms,
+            endTime=end_time_ms,
+        )
 
     @staticmethod
     def build_candle_snapshot_payload(
         symbol: str, timeframe: str, start_time_ms: int, end_time_ms: int
-    ) -> dict[str, Any]:
+    ) -> HyperliquidRawCandleSnapshotRequestPayload:
         """
-        Builds the payload for fetching candle snapshots.
-        This is a request payload, not an exchange action.
+        Builds the Pydantic model for fetching candle snapshots.
         """
-        return {
-            "type": "candleSnapshot",
-            "req": {
-                "coin": symbol.upper(),
-                "interval": timeframe,
-                "startTime": start_time_ms,
-                "endTime": end_time_ms,
-            },
-        }
+        req_details = HyperliquidRawCandleRequestDetails(
+            coin=symbol.upper(),
+            interval=timeframe,
+            startTime=start_time_ms,
+            endTime=end_time_ms,
+        )
+        return HyperliquidRawCandleSnapshotRequestPayload(type="candleSnapshot", req=req_details)
 
     @staticmethod
     def build_place_order_payload(
@@ -161,9 +143,9 @@ class HyperliquidRequestBuilder:
         client_order_id: str | None = None,
         reduce_only: bool = False,
         post_only: bool = False,
-    ) -> dict[str, Any]:
+    ) -> HyperliquidApiPlaceOrderRequest:
         """
-        Builds the payload for placing an order using HyperliquidRawPlaceOrderAction.
+        Builds the Pydantic model for placing an order.
         """
         is_buy = side == OrderSide.BUY
         sz_str = str(quantity)
@@ -219,7 +201,6 @@ class HyperliquidRequestBuilder:
                 isMarket=True,
                 tpsl="sl" if order_type == OrderType.STOP_MARKET else "tp",
             )
-            # For pure market triggers, HL might expect underlying order type to be a basic limit/GTC.
             hl_order_type = HyperliquidRawOrderType(
                 limit=HyperliquidRawLimitOrderTypeDetails(tif="Gtc")
             )
@@ -249,55 +230,32 @@ class HyperliquidRequestBuilder:
             limitPx=limit_px_str,
             orderType=hl_order_type,
             reduceOnly=reduce_only,
-            cloid=client_order_id if client_order_id else None,  # Ensure None if empty
+            cloid=client_order_id if client_order_id else None,
             trigger=hl_trigger_details,
         )
-
-        return {"type": "order", "actions": [place_order_action.model_dump(by_alias=True)]}
+        return HyperliquidApiPlaceOrderRequest(type="order", actions=[place_order_action])
 
     @staticmethod
-    def build_cancel_order_payload(asset_index: int, order_id: int) -> dict[str, Any]:
+    def build_cancel_order_payload(
+        asset_index: int, order_id: int
+    ) -> HyperliquidApiCancelOrderRequest:
         """
-        Builds the payload for cancelling an order.
-
-        Args:
-            asset_index: The numerical index of the asset for the order.
-            order_id: The exchange-assigned ID of the order to cancel.
-
-        Returns:
-            dict[str, Any]: The request payload dictionary.
+        Builds the Pydantic model for cancelling an order.
         """
         action_model = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id)
-        return {"type": "cancel", "action": action_model.model_dump(by_alias=True)}
+        return HyperliquidApiCancelOrderRequest(type="cancel", action=action_model)
 
     @staticmethod
-    def build_order_status_payload(wallet_address: str, order_id: int) -> dict[str, Any]:
+    def build_order_status_payload(
+        wallet_address: str, order_id: int
+    ) -> HyperliquidRawOrderStatusRequestPayload:
         """
-        Builds the payload for fetching the status of a specific order.
-        This is a request payload, not an exchange action.
+        Builds the Pydantic model for fetching the status of a specific order.
         """
-        return {"type": "orderStatus", "user": wallet_address, "oid": order_id}
+        return HyperliquidRawOrderStatusRequestPayload(
+            type="orderStatus", user=wallet_address, oid=order_id
+        )
 
-    # For methods like get_balances, get_positions, get_open_orders, get_ticker,
-    # get_order_book, get_recent_trades, get_funding_rate, get_trade_history,
-    # get_funding_rates, _get_asset_index (info call part) which POST to /info
-    # without a specific request body (or an empty one), they will all use
-    # build_info_request_payload().
-    # No separate builder methods are needed if the payload is consistently None or {}.
-    # The calling methods in HyperliquidAPI will use build_info_request_payload().
-    # This simplifies the builder significantly.
-    # The differentiation happens in the response parsing and Pydantic model used.
-
-    # Note: If any /info endpoints start requiring specific "type" in their POST body,
-    # then dedicated builder methods would be needed. For now, current hl_api.py
-    # suggests these are general POSTs to /info.
-    # Example: get_order_book POSTs to /info and validates with HyperliquidRawL2Book,
-    # implying /info returns L2 book data without a specific {type: l2Book} in request.
-    # If this assumption is wrong, more builder methods for /info calls are needed.
-    # Based on current hl_api.py, the generic build_info_request_payload should cover these.
-
-    # Method for _get_asset_index's POST to /info
-    # This also seems to be a general POST to /info expecting MetaAndAssetCtxs
-    # So, build_info_request_payload() would apply.
-    # The method _get_asset_index itself is not a public API endpoint method but an internal helper.
-    # The request it makes will be refactored to use the builder.
+    # No changes needed for comments about /info endpoints and build_info_request_payload
+    # as those are already handled or determined to not need specific Pydantic models for the
+    # request body.

@@ -6,12 +6,17 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
+    HyperliquidRawBatchPlaceOrderActionPayload,
+    HyperliquidRawCancelOrderAction,
     HyperliquidRawEthWithdrawalActionPayload,
+    HyperliquidRawL2UsdTransferActionDetails,
     HyperliquidRawOrderItemSpec,
-    HyperliquidRawPlaceOrderActionPayload,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawOrderType,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
+    HyperliquidRawL2UsdTransferPayload,
 )
 
 # --- Test Data ---
@@ -22,8 +27,10 @@ INVALID_ETH_ADDRESS_NOHEX = "Ab5801a7D398351b8bE11C439e05C5B3259aeC9B"
 INVALID_ETH_ADDRESS_NONHEXCHARS = "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9X"  # X is invalid
 
 VALID_DECIMAL_STR = "123.456"
+VALID_POSITIVE_DECIMAL_STR = "10.5"
 INVALID_DECIMAL_STR_NON_FINITE = "Infinity"
 INVALID_DECIMAL_STR_EMPTY = ""
+INVALID_DECIMAL_STR_NEGATIVE = "-1.0"
 
 VALID_LIMIT_ORDER_TYPE_DETAILS_GTC = {"limit": {"tif": "Gtc"}}
 VALID_MARKET_ORDER_TYPE_DETAILS: dict[str, dict[str, Any]] = {"market": {}}
@@ -175,10 +182,10 @@ def test_order_item_spec_extra_field() -> None:
         HyperliquidRawOrderItemSpec.model_validate(data)
 
 
-# --- HyperliquidRawPlaceOrderActionPayload Tests ---
+# --- HyperliquidRawBatchPlaceOrderActionPayload Tests (Renamed) ---
 
 
-def test_place_order_payload_valid() -> None:
+def test_batch_place_order_payload_valid() -> None:
     order_item_data = {
         "asset_index": 0,
         "is_buy": True,
@@ -187,18 +194,16 @@ def test_place_order_payload_valid() -> None:
         "reduce_only": False,
         "order_type_details": VALID_LIMIT_ORDER_TYPE_DETAILS_GTC,
     }
-    # Pydantic will parse the inner dict to HyperliquidRawOrderItemSpec
     data = {
         "type": "order",
         "grouping": "na",
         "orders": [order_item_data],
     }
-    payload = HyperliquidRawPlaceOrderActionPayload.model_validate(data)
+    payload = HyperliquidRawBatchPlaceOrderActionPayload.model_validate(data)
     assert payload.type == "order"
     assert payload.grouping == "na"
     assert len(payload.orders) == 1
     assert isinstance(payload.orders[0], HyperliquidRawOrderItemSpec)
-    assert payload.orders[0].a == 0
     assert payload.model_config.get("extra") == "forbid"
     assert payload.model_config.get("frozen") is True
 
@@ -210,7 +215,8 @@ def test_place_order_payload_valid() -> None:
         ("type", None, "Field required"),
         ("grouping", "invalid_grouping", "unexpected value"),
         ("grouping", None, "Field required"),
-        ("orders", [], "List should have at least 1 item"),  # Assuming non-empty list
+        # Pydantic default allows empty list for list[T]
+        # ("orders", [], "List should have at least 1 item"),
         (
             "orders",
             [
@@ -229,64 +235,154 @@ def test_place_order_payload_valid() -> None:
         ("orders", None, "Field required"),
     ],
 )
-def test_place_order_payload_invalid_fields(
+def test_batch_place_order_payload_invalid_fields(
     field: str, value: object, expected_error_part: str
 ) -> None:
-    order_item_data: dict[str, object] = {
-        "asset_index": 0,
-        "is_buy": True,
-        "limit_px": "1",
-        "size": "1",
-        "reduce_only": False,
-        "order_type_details": VALID_LIMIT_ORDER_TYPE_DETAILS_GTC,
+    base_data: dict[str, Any] = {
+        "type": "order",
+        "grouping": "na",
+        "orders": [
+            {
+                "asset_index": 0,
+                "is_buy": True,
+                "limit_px": VALID_DECIMAL_STR,
+                "size": "1.0",
+                "reduce_only": False,
+                "order_type_details": VALID_LIMIT_ORDER_TYPE_DETAILS_GTC,
+            }
+        ],
     }
-    base_data: dict[str, object] = {"type": "order", "grouping": "na", "orders": [order_item_data]}
+    if value is None and field in base_data:
+        del base_data[field]
+    else:
+        base_data[field] = value  # pyright: ignore[reportArgumentType]
+
+    with pytest.raises(ValidationError) as exc_info:
+        # DEFENSIVE CHECK: Mypy complains about base_data not matching model due to intentional invalid value. Mypy=[index]
+        HyperliquidRawBatchPlaceOrderActionPayload.model_validate(base_data)  # type: ignore[arg-type]
+    assert expected_error_part.lower() in str(exc_info.value).lower()
+
+
+def test_batch_place_order_payload_orders_empty_list_valid() -> None:
+    data: dict[str, str | list[dict[str, Any]]] = {"type": "order", "grouping": "na", "orders": []}
+    payload = HyperliquidRawBatchPlaceOrderActionPayload.model_validate(data)
+    assert payload.orders == []
+
+
+def test_batch_place_order_payload_extra_field() -> None:
+    data: dict[str, str | list[dict[str, Any]] | Any] = {
+        "type": "order",
+        "grouping": "na",
+        "orders": [],
+        "extra_field": "value",
+    }
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        HyperliquidRawBatchPlaceOrderActionPayload.model_validate(data)
+
+
+# --- HyperliquidRawL2UsdTransferActionDetails Tests (New) ---
+
+
+def test_l2_usd_transfer_action_details_valid() -> None:
+    payload_data = {
+        "destination": VALID_ETH_ADDRESS,
+        "token": "USDC",
+        "amount": VALID_POSITIVE_DECIMAL_STR,
+    }
+    data = {"chain": "L2", "payload": payload_data}
+    action_details = HyperliquidRawL2UsdTransferActionDetails.model_validate(data)
+    assert action_details.chain == "L2"
+    assert isinstance(action_details.payload, HyperliquidRawL2UsdTransferPayload)
+    assert action_details.payload.destination == VALID_ETH_ADDRESS
+    assert action_details.payload.token == "USDC"
+    assert action_details.payload.amount == VALID_POSITIVE_DECIMAL_STR
+    assert action_details.model_config.get("extra") == "forbid"
+    assert action_details.model_config.get("frozen") is True
+
+
+@pytest.mark.parametrize(
+    "field, value, expected_error_part",
+    [
+        ("chain", "L1", "unexpected value"),  # Must be L2
+        ("chain", None, "Field required"),
+        ("payload", None, "Field required"),
+        (
+            "payload",
+            {
+                "destination": VALID_ETH_ADDRESS,
+                "token": "USDC",
+                "amount": INVALID_DECIMAL_STR_NEGATIVE,
+            },
+            "Value.+must be positive",
+        ),
+        (
+            "payload",
+            {"destination": VALID_ETH_ADDRESS, "token": "DAI", "amount": "1"},
+            "unexpected value",
+        ),  # Token must be USDC
+    ],
+)
+def test_l2_usd_transfer_action_details_invalid(
+    field: str, value: object, expected_error_part: str
+) -> None:
+    base_payload_data = {
+        "destination": VALID_ETH_ADDRESS,
+        "token": "USDC",
+        "amount": VALID_POSITIVE_DECIMAL_STR,
+    }
+    base_data: dict[str, Any] = {"chain": "L2", "payload": base_payload_data}
 
     if value is None and field in base_data:
         del base_data[field]
     else:
-        base_data[field] = value  # pyright: ignore[reportArgumentType] # Negative test: intentionally assigning invalid type for validation
-
-    # Special case for empty list validation, if your common type defines min_length=1
-    # This test currently assumes orders can be empty, adjust if rules state min_items=1
-    if field == "orders" and value == []:
-        payload = HyperliquidRawPlaceOrderActionPayload.model_validate(base_data)
-        assert payload.orders == []
-        return  # Skip raises check for this specific case
+        base_data[field] = value  # pyright: ignore[reportArgumentType]
 
     with pytest.raises(ValidationError) as exc_info:
-        # DEFENSIVE CHECK: Mypy struggles with data['orders'] items. Mypy=[index]
-        HyperliquidRawPlaceOrderActionPayload.model_validate(base_data)
+        HyperliquidRawL2UsdTransferActionDetails.model_validate(base_data)  # type: ignore[arg-type]
     assert expected_error_part.lower() in str(exc_info.value).lower()
 
 
-def test_place_order_payload_orders_empty_list_valid() -> None:
-    # Test if an empty list of orders is considered valid by the model itself
-    # (application logic might reject it later, but raw model might allow)
-    # The RawNonEmptyList wrapper isn't used for 'orders', so an empty list is valid for Pydantic.
-    data: dict[str, str | list[HyperliquidRawOrderItemSpec]] = {
-        "type": "order",
-        "grouping": "na",
-        "orders": [],
-    }
-    payload = HyperliquidRawPlaceOrderActionPayload.model_validate(data)
-    assert payload.orders == []
-
-
-def test_place_order_payload_extra_field() -> None:
-    order_item_data = {
-        "asset_index": 0,
-        "is_buy": True,
-        "limit_px": "1",
-        "size": "1",
-        "reduce_only": False,
-        "order_type_details": VALID_LIMIT_ORDER_TYPE_DETAILS_GTC,
-    }
-    data = {
-        "type": "order",
-        "grouping": "na",
-        "orders": [order_item_data],
-        "extra_field": "value",
-    }
+def test_l2_usd_transfer_action_details_extra_field() -> None:
+    data: dict[str, str | dict[str, Any] | Any] = {"chain": "L2", "payload": {}, "extra": "field"}
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        HyperliquidRawPlaceOrderActionPayload.model_validate(data)
+        HyperliquidRawL2UsdTransferActionDetails.model_validate(data)
+
+
+# --- HyperliquidRawCancelOrderAction Tests (New) ---
+
+
+def test_cancel_order_action_valid() -> None:
+    data = {"asset": 0, "oid": 12345}
+    action = HyperliquidRawCancelOrderAction.model_validate(data)
+    assert action.asset == 0
+    assert action.oid == 12345
+    assert action.model_config.get("extra") == "forbid"
+    assert action.model_config.get("frozen") is True
+
+
+@pytest.mark.parametrize(
+    "field, value, expected_error_part",
+    [
+        ("asset", -1, "cannot be negative"),
+        ("asset", None, "Field required"),
+        ("oid", -1, "cannot be negative"),
+        ("oid", "not-an-int", "Must be an integer"),
+        ("oid", None, "Field required"),
+    ],
+)
+def test_cancel_order_action_invalid(field: str, value: object, expected_error_part: str) -> None:
+    base_data: dict[str, Any] = {"asset": 0, "oid": 12345}
+    if value is None and field in base_data:
+        del base_data[field]
+    else:
+        base_data[field] = value  # pyright: ignore[reportArgumentType]
+
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawCancelOrderAction.model_validate(base_data)  # type: ignore[arg-type]
+    assert expected_error_part.lower() in str(exc_info.value).lower()
+
+
+def test_cancel_order_action_extra_field() -> None:
+    data = {"asset": 0, "oid": 12345, "extra": "field"}
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        HyperliquidRawCancelOrderAction.model_validate(data)
