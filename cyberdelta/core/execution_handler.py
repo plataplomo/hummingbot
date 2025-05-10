@@ -394,6 +394,10 @@ class ExecutionHandler:
             execution.status = ExecutionStatus.COMPLETED
             logger.info(f"Execution {execution.id} completed successfully.")
             await self._update_pnl(execution)
+            # Record success with circuit breaker system
+            if self.circuit_breaker_system:
+                self.circuit_breaker_system.record_success(opportunity.opportunity.long_exchange)
+                self.circuit_breaker_system.record_success(opportunity.opportunity.short_exchange)
         else:
             execution.status = ExecutionStatus.FAILED  # Or PARTIALLY_COMPLETED
             op_error_msg = f"Execution {execution.id} failed: Orders not fully filled."
@@ -675,13 +679,62 @@ class ExecutionHandler:
             f"Execution {execution.id}: Attempting compensation: {side.name} {quantity:.8f} "
             f"{symbol} on {exchange_id}"
         )
+        use_limit_orders_config = self.config.get("execution.compensation.use_limit_orders", True)
+        limit_price_offset_pct_str = self.config.get(
+            "execution.compensation.limit_price_offset_pct",
+            "0.001",  # 0.1%
+        )
+
+        # Log the config values being used AFTER they are defined
+        logger.info(
+            f"_compensate_position: use_limit_orders_config = {use_limit_orders_config} (type: {type(use_limit_orders_config)})"
+        )
+        logger.info(
+            f"_compensate_position: limit_price_offset_pct_str = {limit_price_offset_pct_str} (type: {type(limit_price_offset_pct_str)})"
+        )
+
+        reduce_only = True  # Compensation orders should always be reduce_only
+        order_type = OrderType.MARKET
+        price = None
+
+        if use_limit_orders_config and isinstance(limit_price_offset_pct_str, str):
+            # This block determines if a LIMIT order should be used for compensation
+            try:
+                limit_price_offset_pct = Decimal(limit_price_offset_pct_str)
+                # Get ticker to calculate limit price
+                ticker = await self.api_clients[exchange_id].get_ticker(symbol)
+                if ticker:
+                    if side == OrderSide.BUY and ticker.bid:
+                        price = ticker.bid * (Decimal(1) + limit_price_offset_pct)
+                        order_type = OrderType.LIMIT
+                    elif side == OrderSide.SELL and ticker.ask:
+                        price = ticker.ask * (Decimal(1) - limit_price_offset_pct)
+                        order_type = OrderType.LIMIT
+                    else:
+                        logger.warning(
+                            f"Execution {execution.id}: Could not determine limit price for compensation on {exchange_id} for {symbol}. Missing bid/ask."
+                        )
+                else:
+                    logger.warning(
+                        f"Execution {execution.id}: Could not get ticker for {exchange_id} {symbol} to calculate compensation limit price."
+                    )
+            except (InvalidOperation, APIError, ValueError) as e:
+                logger.warning(
+                    f"Execution {execution.id}: Error processing limit price for compensation on {exchange_id} for {symbol}: {e}. Defaulting to MARKET."
+                )
+                order_type = OrderType.MARKET  # Fallback to MARKET on error
+                price = None
+        # If not using limit orders or if there was an issue, it remains MARKET with price=None
+
         compensation_order = await self._place_order_with_retry(
             execution,
             exchange_id,
             symbol,
             side,
             quantity,
-            OrderType.MARKET,
+            order_type,
+            price,
+            time_in_force=TimeInForce.GTC,
             is_compensation=True,
         )
 

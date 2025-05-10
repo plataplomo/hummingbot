@@ -222,11 +222,7 @@ class DataHandler:
         for exchange_id in exchanges_dict.keys():
             if self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 client = self.api_clients.get(exchange_id)
-                if (
-                    client
-                    and hasattr(client, "connect_ws")
-                    and hasattr(client, "subscribe_to_ticker")
-                ):
+                if client and hasattr(client, "connect_websocket") and hasattr(client, "subscribe"):
                     connect_tasks.append(self._connect_and_subscribe(exchange_id, client))
                 elif not client:
                     logger.error(
@@ -235,7 +231,7 @@ class DataHandler:
                 else:
                     logger.error(
                         f"Cannot start connection for {exchange_id}: Client missing "
-                        f"connect_ws/subscribe methods."
+                        f"connect_websocket/subscribe methods."
                     )
 
         if connect_tasks:

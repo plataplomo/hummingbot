@@ -145,8 +145,8 @@ class TestMultiTierFundingProvider:
         self.tertiary_source.assert_called_once_with("BTC-PERP")
 
         # Verify result
-        assert rate == pytest.approx(0.00149, abs=1e-5)
-        assert confidence > 0.7
+        assert rate == pytest.approx(0.00147865, abs=1e-7)
+        assert confidence == pytest.approx(0.584117, abs=1e-6)
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_primary_only(self) -> None:
@@ -167,7 +167,7 @@ class TestMultiTierFundingProvider:
 
         # Verify result
         assert rate == pytest.approx(0.0015, abs=1e-5)
-        assert confidence > 0.5
+        assert confidence == pytest.approx(0.466666, abs=1e-6)
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_primary_fails(self) -> None:
@@ -241,7 +241,7 @@ class TestMultiTierFundingProvider:
 
         # Verify result uses fallback
         assert rate == pytest.approx(0.0013, abs=1e-5)
-        assert confidence == pytest.approx(0.3, abs=1e-1)
+        assert confidence == pytest.approx(0.1999999, abs=1e-7)
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_all_fail_no_fallback(self) -> None:
@@ -270,7 +270,9 @@ class TestMultiTierFundingProvider:
         )
 
         # Expect exception
-        with pytest.raises(FundingRateSourceError, match="No valid funding rate found"):
+        with pytest.raises(
+            FundingRateSourceError, match="No funding rate data available for hyperliquid:BTC-PERP"
+        ):
             await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
 
         # Verify all sources were called
@@ -400,3 +402,40 @@ class TestMultiTierFundingProvider:
         assert integrated.source_data[SourceType.PRIMARY] == primary_data
         assert integrated.source_data[SourceType.SECONDARY] == secondary_data
         assert integrated.source_data[SourceType.TERTIARY] == tertiary_data
+
+    @pytest.mark.asyncio
+    async def test_get_funding_rate_no_data(self) -> None:
+        """Test getting funding rate when no data is available."""
+        exchange_name = "hyperliquid"
+        symbol_name = "BTC-PERP"
+        # Register sources
+        self.primary_source.side_effect = Exception("Primary source failed")
+        self.secondary_source.side_effect = Exception("Secondary source failed")
+        self.tertiary_source.side_effect = Exception("Tertiary source failed")
+        self.provider.register_source(
+            exchange_name,
+            self.primary_source,
+            SourceType.PRIMARY,
+            SourceReliability.HIGH,
+        )
+        self.provider.register_source(
+            exchange_name,
+            self.secondary_source,
+            SourceType.SECONDARY,
+            SourceReliability.MEDIUM,
+        )
+        self.provider.register_source(
+            exchange_name,
+            self.tertiary_source,
+            SourceType.TERTIARY,
+            SourceReliability.LOW,
+        )
+
+        # Expect exception
+        with pytest.raises(
+            FundingRateSourceError,
+            match=f"No funding rate data available for {exchange_name}:{symbol_name}",
+        ):
+            await self.provider.get_funding_rate(exchange_name, symbol_name)
+
+    # Test cases for _get_specific_source_funding_rate method

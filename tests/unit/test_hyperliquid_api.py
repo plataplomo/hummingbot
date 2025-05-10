@@ -275,7 +275,7 @@ class TestHyperliquidAPI:
                 symbol="BTC",
                 timestamp=now,
                 side=OrderSide.SELL,
-                size=Decimal("0.1"),
+                size=Decimal("-0.1"),
                 entry_price=Decimal("50000.0"),
                 mark_price=Decimal("49500.0"),
             ),
