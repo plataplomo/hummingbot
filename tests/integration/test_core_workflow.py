@@ -1020,7 +1020,7 @@ async def test_partial_fill(
             # time_dt = datetime.fromtimestamp(time_int / 1000, UTC)
             #   if isinstance(time_int, int) else time_int
             time_dt = time_int  # Assume it's already datetime
-            # Ensure timestamp is not None, use start_time if next_funding_time is None
+            # Ensure timestamp is not None, use now if next_funding_time is None
             funding_timestamp = time_dt if time_dt is not None else now
             funding_rate_obj = FundingRate(
                 symbol=sym,
@@ -1514,18 +1514,29 @@ async def test_failed_execution(
     )
     # await data_handler.update_all() # Method seems removed
     # signals = await signal_generator.generate_signals() # Method seems removed
-    # Create a dummy signal for sizing
-    signals = [
-        TradeSignal(
-            symbol=symbol_key,
-            signal_type=SignalType.ENTRY,  # Use Enum
-            side=OrderSide.BUY,  # Example BUY on HL (will fail), SELL on BP
-            price=Decimal("2000.0"),  # Example price
-            exchange=["mock_hl", "mock_bp"],  # Target exchanges
-            source_strategy="test_strategy_failed",  # Example
-            quantity=target_qty,  # Provide quantity for sizing
-        )
-    ]
+
+    # Restore a simpler TradeSignal for this test's purpose
+    # This signal is designed to attempt an ETH trade that will partially fail on HL.
+    trade_signal_eth = TradeSignal(
+        symbol_pair=(hl_symbol, bp_symbol),  # ETH symbols
+        signal_type=SignalType.ENTRY,
+        strength=Decimal("1.0"),
+        price_leg1=mock_hl_ticker.price if mock_hl_ticker else Decimal("2000.0"),  # Price for HL
+        price_leg2=mock_bp_ticker.price if mock_bp_ticker else Decimal("1998.0"),  # Price for BP
+        timestamp=now,
+        details={"comment": "Test signal for ETH with potential HL failure"},
+        target_spread=abs(
+            (mock_hl_ticker.price if mock_hl_ticker else Decimal("2000.0"))
+            - (mock_bp_ticker.price if mock_bp_ticker else Decimal("1998.0"))
+        ),
+        exchange_leg1="mock_hl",  # Leg that will fail
+        exchange_leg2="mock_bp",  # Leg that might succeed or be compensated
+        internal_symbol=symbol_key,  # "ETH"
+        # Provide a quantity directly, as this test isn't about sizing via RM from scratch,
+        # but about execution failure. RiskManager's size_opportunity will use this.
+        quantity=target_qty,
+    )
+    signals = [trade_signal_eth]
     assert len(signals) > 0, "No signals generated despite favourable mock data"
 
     # --- Size and Validate ---

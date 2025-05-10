@@ -36,9 +36,18 @@ class TestRiskManagerSizingStandard:
             return size * Decimal("0.9")
 
         def portfolio_level_controls_side_effect(
-            size: Decimal, opp: ArbitrageOpportunity
-        ) -> Decimal:
-            return size * Decimal("0.95")
+            sized_opp: SizedOpportunity,
+        ) -> SizedOpportunity | None:
+            adjustment_factor = Decimal("0.95")
+            return SizedOpportunity(
+                opportunity=sized_opp.opportunity,
+                long_size=sized_opp.long_size * adjustment_factor,
+                short_size=sized_opp.short_size * adjustment_factor,
+                allocation_percentage=sized_opp.allocation_percentage,
+                expected_profit=sized_opp.expected_profit * adjustment_factor,
+                expected_return=sized_opp.expected_return,
+                risk_adjusted_return=sized_opp.risk_adjusted_return,
+            )
 
         with (
             patch.object(
@@ -55,7 +64,7 @@ class TestRiskManagerSizingStandard:
                 side_effect=portfolio_level_controls_side_effect,
             ) as mock_portfolio,
             patch.object(
-                risk_manager, "_check_portfolio_constraints", return_value=True
+                risk_manager, "_check_portfolio_constraints", return_value=(True, None)
             ) as mock_constraints,
         ):
             # --- Act ---

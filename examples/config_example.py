@@ -234,11 +234,11 @@ def main() -> None:
     print("\n=== Risk Management Configuration ===")
     risk_config = config_loader.get("risk", default={})
     if isinstance(risk_config, dict) and risk_config:
-        print_recursive_dict(risk_config, indent=2)
+        _print_dict(risk_config, indent=2)
 
     # Display circuit breakers
     print("\n=== Circuit Breakers ===")
-    circuit_breakers = config_loader.get("circuit_breakers", default_value={})
+    circuit_breakers = config_loader.get("circuit_breakers", default={})
     if isinstance(circuit_breakers, dict):
         print(f"  Enabled: {circuit_breakers.get('enabled')}")
     else:
@@ -249,7 +249,7 @@ def main() -> None:
     if isinstance(exchanges, dict):
         for exchange_name in exchanges.keys():
             print(f"  - {exchange_name}")
-            api_key = secrets_manager.get_secret(f"exchanges.{exchange_name}.api_key")
+            api_key = secrets_manager.get(f"exchanges.{exchange_name}.api_key")
             # Example: Check if a sub-key like 'public' exists for some exchanges' API keys
             # This is highly dependent on the actual structure of your secrets
             if isinstance(api_key, dict) and api_key.get("public"):
@@ -271,7 +271,7 @@ def main() -> None:
 
     print("\n=== Individual Secret Retrieval Example ===")
     # Example of retrieving a specific secret
-    hyperliquid_api_key = secrets_manager.get_secret("exchanges.hyperliquid.api_key")
+    hyperliquid_api_key = secrets_manager.get("exchanges.hyperliquid.api_key")
     if hyperliquid_api_key:
         # IMPORTANT: Do not print the actual key in real applications!
         # This is just to show it's loaded. For dict-type keys, access sub-keys.
@@ -285,7 +285,7 @@ def main() -> None:
         print("Hyperliquid API Key: Not found")
 
     # Example of retrieving a nested secret
-    some_param = secrets_manager.get_secret("some_arbitrary_group.service_x.password")
+    some_param = secrets_manager.get("some_arbitrary_group.service_x.password")
     if some_param:
         print(f"Some Arbitrary Service X Password: Loaded (Value type: {type(some_param)})")
     else:

@@ -76,6 +76,32 @@ class SizedOpportunity:
             f"RiskAdjReturn: {self.risk_adjusted_return:.4f}"
         )
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SizedOpportunity):
+            return NotImplemented
+        return (
+            self.opportunity == other.opportunity
+            and self.long_size == other.long_size
+            and self.short_size == other.short_size
+            and self.allocation_percentage == other.allocation_percentage
+            and self.expected_profit == other.expected_profit
+            and self.expected_return == other.expected_return
+            and self.risk_adjusted_return == other.risk_adjusted_return
+        )
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.opportunity,  # Relies on ArbitrageOpportunity implementing __hash__
+                self.long_size,
+                self.short_size,
+                self.allocation_percentage,
+                self.expected_profit,
+                self.expected_return,
+                self.risk_adjusted_return,
+            )
+        )
+
 
 # --- Custom Exception Hierarchy ---
 class RiskManagerError(Exception):
@@ -411,45 +437,65 @@ class RiskManager:
 
     def _check_exchange_balances(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check that both exchanges have sufficient available balance."""
+        long_collateral_asset = str(
+            self.config.get(f"exchanges.{opportunity.long_exchange}.collateral_asset", "USD")
+        )
+        short_collateral_asset = str(
+            self.config.get(f"exchanges.{opportunity.short_exchange}.collateral_asset", "USD")
+        )
+
         long_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
             opportunity.long_exchange,
-            "USD",  # Assuming check against USD balance
+            long_collateral_asset,
         )
         short_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
-            opportunity.short_exchange, "USD"
+            opportunity.short_exchange,
+            short_collateral_asset,
         )
         try:
-            long_balance_dec = (
-                Decimal(str(long_exchange_balance_obj.get("available")))
+            long_balance_available_raw = (
+                long_exchange_balance_obj.get("available")  # Use .get() for TypedDict(total=False)
                 if long_exchange_balance_obj
-                and long_exchange_balance_obj.get("available") is not None
+                else None
+            )
+            long_balance_dec = (
+                Decimal(str(long_balance_available_raw))
+                if long_balance_available_raw is not None
                 else ZERO
+            )
+
+            short_balance_available_raw = (
+                short_exchange_balance_obj.get("available")  # Use .get() for TypedDict(total=False)
+                if short_exchange_balance_obj
+                else None
             )
             short_balance_dec = (
-                Decimal(str(short_exchange_balance_obj.get("available")))
-                if short_exchange_balance_obj
-                and short_exchange_balance_obj.get("available") is not None
+                Decimal(str(short_balance_available_raw))
+                if short_balance_available_raw is not None
                 else ZERO
             )
-            min_balance_dec = self.min_exchange_balance
-            if long_balance_dec < min_balance_dec:
-                self.logger.warning(
-                    f"Insufficient balance on {opportunity.long_exchange} "
-                    f"(${long_balance_dec:.2f}) for opportunity {opportunity.symbol}. "
-                    f"Min required: ${min_balance_dec:.2f}",
-                )
-                return False
-            if short_balance_dec < min_balance_dec:
-                self.logger.warning(
-                    f"Insufficient available balance on {opportunity.short_exchange} "
-                    f"(${short_balance_dec:.2f}) for opportunity {opportunity.symbol}. "
-                    f"Min required: ${min_balance_dec:.2f}",
-                )
-                return False
-        except (InvalidOperation, TypeError, KeyError) as e:
-            self.logger.error(f"Error converting balances for {opportunity.symbol}: {e}")
+
+        except (TypeError, InvalidOperation) as e:  # Removed KeyError as .get() handles it
+            self.logger.error(
+                f"Error accessing or converting balance for {opportunity.symbol}: {e}. "
+                f"Balances: L={long_exchange_balance_obj}, S={short_exchange_balance_obj}"
+            )
             return False
-        return True
+
+        min_bal = self.min_exchange_balance
+        long_exchange_ok = long_balance_dec >= min_bal
+        short_exchange_ok = short_balance_dec >= min_bal
+
+        if not long_exchange_ok:
+            self.logger.warning(
+                f"Insufficient balance on {opportunity.long_exchange} (${long_balance_dec:.2f}) for opportunity {opportunity.symbol}. Min required: ${min_bal:.2f}"
+            )
+        if not short_exchange_ok:
+            self.logger.warning(
+                f"Insufficient balance on {opportunity.short_exchange} (${short_balance_dec:.2f}) for opportunity {opportunity.symbol}. Min required: ${min_bal:.2f}"
+            )
+
+        return long_exchange_ok and short_exchange_ok
 
     def _check_leverage(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check that portfolio leverage is within allowed limits."""

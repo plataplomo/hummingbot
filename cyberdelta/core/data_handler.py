@@ -279,9 +279,11 @@ class DataHandler:
     async def _connect_and_subscribe(
         self, exchange_id: str, client: ExchangeAPI, symbols: list[str]
     ) -> None:
-        """Connect to an exchange and subscribe to initial topics.
-        This method now also includes the message handling loop initiation.
-        """
+        """Connect to WebSocket and subscribe to data feeds."""
+        if not self._running:
+            logger.warning("DataHandler is stopping. Cannot connect to WebSocket.")
+            return
+
         try:
             logger.info(f"[{exchange_id}] Attempting to connect and subscribe...")
             await client.connect_websocket()

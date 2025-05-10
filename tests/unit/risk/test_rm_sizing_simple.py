@@ -294,12 +294,8 @@ class TestRiskManagerSizingSimple:
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         mock_portfolio_tracker.get_all_positions.return_value = []
 
-        class MockBalance:
-            def __init__(self, available: Decimal) -> None:
-                self.available = available
-
-        def get_exchange_balance(*args: object) -> MockBalance:
-            return MockBalance(Decimal("10000.0"))
+        def get_exchange_balance(*args: object) -> dict[str, Decimal]:
+            return {"available": Decimal("10000.0")}
 
         mock_portfolio_tracker.get_exchange_balance.side_effect = get_exchange_balance
 

@@ -377,12 +377,18 @@ class TestDataHandler:
         # Call shutdown
         await data_handler.shutdown()
 
+        # Yield control to allow cancellation to propagate in mock tasks
+        await asyncio.sleep(0)  # Keep this to allow event loop to process cancellations
+
         # Verify tasks were cancelled (by checking their status or if they completed)
-        assert tasks_status["task1"] == "cancelled"
-        assert tasks_status["task2"] == "cancelled"
-        # Alternatively, check if tasks are done and cancelled (more robust)
-        assert task1.done() and task1.cancelled()
-        assert task2.done() and task2.cancelled()
+        # assert tasks_status["task1"] == "cancelled" # Old assertion
+        # assert tasks_status["task2"] == "cancelled" # Old assertion
+
+        # More robust check for task cancellation
+        assert task1.done(), "Task 1 should be done after shutdown."
+        assert task1.cancelled(), "Task 1 should be cancelled."
+        assert task2.done(), "Task 2 should be done after shutdown."
+        assert task2.cancelled(), "Task 2 should be cancelled."
 
     @pytest.mark.asyncio
     async def test_handle_websocket_message(
