@@ -193,6 +193,7 @@ class TestRiskManagerSizingSimple:
         # --- Assert ---
         assert sized_opp is None
 
+    @pytest.mark.asyncio
     async def test_size_opportunity_total_exposure_limit(
         self,
         mock_config: MagicMock,
@@ -229,6 +230,7 @@ class TestRiskManagerSizingSimple:
         # --- Assert ---
         assert sized_opp is None, "Trade should be rejected if it breaches total exposure limit."
 
+    @pytest.mark.asyncio
     async def test_size_opportunity_insufficient_capital(
         self,
         mock_config: MagicMock,
@@ -266,6 +268,7 @@ class TestRiskManagerSizingSimple:
         else:
             assert sized_opp is None
 
+    @pytest.mark.asyncio
     async def test_size_opportunity_config_change_enforcement(
         self,
         mock_config: MagicMock,
@@ -325,6 +328,7 @@ class TestRiskManagerSizingSimple:
         assert sized_opp2 is not None
         assert sized_opp2.long_size == Decimal("100.0")
 
+    @pytest.mark.asyncio
     async def test_size_opportunity_validation_factor_happy_path(
         self,
         mock_config: MagicMock,
@@ -362,6 +366,7 @@ class TestRiskManagerSizingSimple:
         assert sized_opp.long_size == Decimal("5000.0")
         assert sized_opp.short_size == Decimal("5000.0")
 
+    @pytest.mark.asyncio
     async def test_size_opportunity_validation_factor_safety_path(
         self,
         mock_config: MagicMock,
@@ -399,12 +404,7 @@ class TestRiskManagerSizingSimple:
         assert sized_opp.long_size == Decimal("1000.0")
         assert sized_opp.short_size == Decimal("1000.0")
 
-    async def test_sizing_with_available(self, available: Decimal) -> None:
-        # This method is not provided in the original file or the new code block
-        # It's assumed to exist as it's called in the
-        #               test_size_opportunity_config_change_enforcement method
-        pass
-
+    @pytest.mark.asyncio
     async def test_sizing_with_args_kwargs(self, *args: Decimal, **kwargs: Decimal) -> None:
         # This method is not provided in the original file or the new code block
         # It's assumed to exist as it's called in the

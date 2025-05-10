@@ -1162,3 +1162,82 @@ class CircuitBreakerSystem:
             # For now, assume direct check on the registered instance.
             logger.debug(f"Checking breaker: {breaker_key}")
             breaker_instance.check()
+
+    def _create_breaker_from_config(
+        self,
+        breaker_name_or_key: str,
+        breaker_specific_config: dict[str, Any],
+        exchange_name_context: str,
+        breaker_class: type[CircuitBreaker],
+        symbol: str | None = None,
+    ) -> CircuitBreaker | None:
+        try:
+            name = (
+                breaker_name_or_key
+                if "/" in breaker_name_or_key
+                else f"{exchange_name_context}/{breaker_name_or_key}"
+            )
+
+            default_cooldown_key = (
+                f"exchanges.{exchange_name_context}.circuit_breakers.defaults.cooldown_seconds"
+            )
+
+            cooldown_from_spec = breaker_specific_config.get("cooldown_seconds")
+            if cooldown_from_spec is not None:
+                cooldown_raw = cooldown_from_spec
+            else:
+                cooldown_raw = self.config.get(default_cooldown_key, 300)
+
+            # Ensure cooldown_raw is a number or string convertible to int
+            if not isinstance(cooldown_raw, (int, float, str)):
+                logger.error(
+                    f"Cooldown value for {name} is not a number or string: {cooldown_raw} (type: {type(cooldown_raw)}). Using default 300."
+                )
+                cooldown_raw = 300  # Fallback if type is unexpected
+            cooldown = int(float(cooldown_raw))  # Using float() for intermediate to handle "300.0"
+
+            if breaker_class == APIErrorBreaker:
+                error_threshold = int(breaker_specific_config.get("error_threshold", 5))
+                window_seconds = int(
+                    breaker_specific_config.get(
+                        "time_window_seconds", breaker_specific_config.get("window_seconds", 60)
+                    )
+                )
+                return APIErrorBreaker(name, error_threshold, window_seconds, cooldown)
+
+            elif breaker_class == VolatilityBreaker:
+                lookback_periods = int(breaker_specific_config.get("lookback_periods", 12))
+                volatility_threshold = float(
+                    breaker_specific_config.get("volatility_threshold", 0.05)
+                )
+                return VolatilityBreaker(name, lookback_periods, volatility_threshold, cooldown)
+
+            elif breaker_class == DrawdownBreaker:
+                drawdown_threshold = float(
+                    breaker_specific_config.get("max_drawdown_percentage", 0.10)
+                )
+                return DrawdownBreaker(name, drawdown_threshold, cooldown)
+
+            elif breaker_class == LiquidityBreaker:
+                min_liquidity = float(breaker_specific_config.get("min_liquidity_usd", 1000.0))
+                return LiquidityBreaker(name, min_liquidity, cooldown)
+
+            else:
+                logger.error(f"Unknown or unhandled breaker class: {breaker_class} for {name}")
+                return None
+
+        except KeyError as e:
+            logger.error(
+                f"Configuration key error for {name} (expected key: {e}). Details: {breaker_specific_config}"
+            )
+            return None
+        except ValueError as e:
+            logger.error(
+                f"Configuration value error for {name} (e.g., type conversion failed: {e}). Details: {breaker_specific_config}"
+            )
+            return None
+        except Exception as e:
+            logger.error(
+                f"Generic error creating breaker {name} of type {breaker_class.__name__}: {e} (Config: {breaker_specific_config})"
+            )
+            return None

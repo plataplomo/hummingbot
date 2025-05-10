@@ -1,9 +1,11 @@
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import cast
 from unittest.mock import create_autospec
 
 import pytest
+import pytest_asyncio
 
 from cyberdelta.core.data_handler import DataHandler, Ticker
 from cyberdelta.core.execution_handler import ExecutionHandler
@@ -82,8 +84,10 @@ def mock_secrets() -> dict[str, dict[str, str]]:
     }
 
 
-@pytest.fixture
-def mock_hl_api(mock_config: Config, mock_secrets: dict[str, dict[str, str]]) -> MockExchangeAPI:
+@pytest_asyncio.fixture
+async def mock_hl_api(
+    mock_config: Config, mock_secrets: dict[str, dict[str, str]]
+) -> AsyncGenerator[MockExchangeAPI]:
     """Mock API for Hyperliquid, passes full config."""
     # Ensure necessary keys exist, *especially* collateral_asset
     if "mock_hl" not in mock_config.config_data["exchanges"]:
@@ -97,16 +101,22 @@ def mock_hl_api(mock_config: Config, mock_secrets: dict[str, dict[str, str]]) ->
 
     # Convert secrets to dict[str, Optional[str]] for compatibility
     secrets_hl: dict[str, str | None] = {k: v for k, v in mock_secrets["mock_hl"].items()}
-    return MockExchangeAPI(
+    api = MockExchangeAPI(
         "mock_hl",
         mock_config.config_data["exchanges"]["mock_hl"],
         secrets_hl,
         config_obj=mock_config,
     )
+    try:
+        yield api
+    finally:
+        await api.close()
 
 
-@pytest.fixture
-def mock_bp_api(mock_config: Config, mock_secrets: dict[str, dict[str, str]]) -> MockExchangeAPI:
+@pytest_asyncio.fixture
+async def mock_bp_api(
+    mock_config: Config, mock_secrets: dict[str, dict[str, str]]
+) -> AsyncGenerator[MockExchangeAPI]:
     """Mock API for Backpack, passes full config."""
     # Ensure necessary keys exist, *especially* collateral_asset
     if "mock_bp" not in mock_config.config_data["exchanges"]:
@@ -120,12 +130,16 @@ def mock_bp_api(mock_config: Config, mock_secrets: dict[str, dict[str, str]]) ->
 
     # Convert secrets to dict[str, Optional[str]] for compatibility
     secrets_bp: dict[str, str | None] = {k: v for k, v in mock_secrets["mock_bp"].items()}
-    return MockExchangeAPI(
+    api = MockExchangeAPI(
         "mock_bp",
         mock_config.config_data["exchanges"]["mock_bp"],
         secrets_bp,
         config_obj=mock_config,
     )
+    try:
+        yield api
+    finally:
+        await api.close()
 
 
 # --- Core Component Fixtures ---
@@ -133,10 +147,13 @@ def mock_bp_api(mock_config: Config, mock_secrets: dict[str, dict[str, str]]) ->
 
 @pytest.fixture
 def data_handler(
-    mock_config: Config, mock_hl_api: MockExchangeAPI, mock_bp_api: MockExchangeAPI
+    mock_config: Config,
+    mock_hl_api: MockExchangeAPI,
+    mock_bp_api: MockExchangeAPI,
+    symbol_mapper: SymbolMapper,
 ) -> DataHandler:
     """Data Handler instance with mock APIs registered."""
-    dh = DataHandler(mock_config)
+    dh = DataHandler(mock_config, symbol_mapper)
     dh.register_api_client("mock_hl", mock_hl_api)
     dh.register_api_client("mock_bp", mock_bp_api)
     return dh

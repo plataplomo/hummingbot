@@ -5,8 +5,12 @@ import unittest
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.figure import Figure
 
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.monitoring.simplified_performance_tracker import (
@@ -108,7 +112,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         fig = self.visualizer.plot_cumulative_pnl(save=True, show=False)
 
         # Check that figure was created
-        self.assertIsInstance(fig, plt.Figure)
+        self.assertIsInstance(fig, Figure)
 
         # Check that file was saved
         file_path = os.path.join(self.test_dir, "TestStrategy_cumulative_pnl.png")
@@ -122,7 +126,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         fig = self.visualizer.plot_drawdown(save=True, show=False)
 
         # Check that figure was created
-        self.assertIsInstance(fig, plt.Figure)
+        self.assertIsInstance(fig, Figure)
 
         # Check that file was saved
         file_path = os.path.join(self.test_dir, "TestStrategy_drawdown.png")
@@ -136,7 +140,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         fig = self.visualizer.plot_trade_distribution(save=True, show=False)
 
         # Check that figure was created
-        self.assertIsInstance(fig, plt.Figure)
+        self.assertIsInstance(fig, Figure)
 
         # Check that file was saved
         file_path = os.path.join(self.test_dir, "TestStrategy_trade_distribution.png")
@@ -150,7 +154,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         fig = self.visualizer.plot_winning_vs_losing_trades(save=True, show=False)
 
         # Check that figure was created
-        self.assertIsInstance(fig, plt.Figure)
+        self.assertIsInstance(fig, Figure)
 
         # Check that file was saved
         file_path = os.path.join(self.test_dir, "TestStrategy_win_loss_ratio.png")
@@ -164,7 +168,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         fig = self.visualizer.plot_monthly_performance(save=True, show=False)
 
         # Check that figure was created
-        self.assertIsInstance(fig, plt.Figure)
+        self.assertIsInstance(fig, Figure)
 
         # Check that file was saved
         file_path = os.path.join(self.test_dir, "TestStrategy_monthly_performance.png")
@@ -178,7 +182,7 @@ class TestSimpleVisualizer(unittest.TestCase):
         fig = self.visualizer.plot_performance_metrics(save=True, show=False)
 
         # Check that figure was created
-        self.assertIsInstance(fig, plt.Figure)
+        self.assertIsInstance(fig, Figure)
 
         # Check that file was saved
         file_path = os.path.join(self.test_dir, "TestStrategy_performance_metrics.png")
@@ -221,12 +225,12 @@ class TestSimpleVisualizer(unittest.TestCase):
         fig6 = empty_visualizer.plot_performance_metrics(save=True, show=False)
 
         # Check that figures were still created despite empty data
-        self.assertIsInstance(fig1, plt.Figure)
-        self.assertIsInstance(fig2, plt.Figure)
-        self.assertIsInstance(fig3, plt.Figure)
-        self.assertIsInstance(fig4, plt.Figure)
-        self.assertIsInstance(fig5, plt.Figure)
-        self.assertIsInstance(fig6, plt.Figure)
+        self.assertIsInstance(fig1, Figure)
+        self.assertIsInstance(fig2, Figure)
+        self.assertIsInstance(fig3, Figure)
+        self.assertIsInstance(fig4, Figure)
+        self.assertIsInstance(fig5, Figure)
+        self.assertIsInstance(fig6, Figure)
 
 
 if __name__ == "__main__":

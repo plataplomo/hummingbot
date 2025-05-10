@@ -195,8 +195,8 @@ def mock_config_dict() -> dict[str, Any]:
                 "enabled": True,
                 "api_key": "mock_hl_key",
                 "api_secret": "mock_hl_secret",
-                "api_base_url": "http://mock.exchange",
-                "ws_url": "mock",
+                "api_base_url": "http://mock.hl.exchange",
+                "ws_url": "ws://mock.hl.exchange/ws",
                 "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
                 "collateral_asset": "USD",
                 "fee_asset": "USD",  # Added for consistency
@@ -208,8 +208,8 @@ def mock_config_dict() -> dict[str, Any]:
                 "enabled": True,
                 "api_key": "mock_bp_key",
                 "api_secret": "mock_bp_secret",
-                "api_base_url": "http://mock.exchange",
-                "ws_url": "mock",
+                "api_base_url": "http://mock.bp.exchange",
+                "ws_url": "ws://mock.bp.exchange/ws",
                 "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
                 "collateral_asset": "USDC",
                 "fee_asset": "USDC",  # Added for consistency

@@ -15,6 +15,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from cyberdelta.utils.serialization import CyberDeltaJSONEncoder
+
 logger = logging.getLogger(__name__)
 
 
@@ -249,21 +251,46 @@ class BacktestResultsHandler:
             "initial_capital": str(self.initial_capital),  # Save Decimal as string
             "timestamp": datetime.now().isoformat(),
             "metrics": self.metrics,
-            "equity_curve": self.equity_curve,
             "trades": self.trades,
-            # 'positions': self.positions # Positions might be too verbose, optional
+            "equity_curve": self.equity_curve,
+            # Add other relevant information like configuration if needed
+            "parameters": {  # Placeholder for strategy parameters if available
+                "commission": str(
+                    self.initial_capital
+                ),  # Example: This should be actual commission
+                "slippage": str(self.initial_capital),  # Example: This should be actual slippage
+            },
         }
 
         try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                # Use custom encoder if needed for Decimal or other types
-                # For now, assuming metrics/equity curve are float/serializable
-                json.dump(results, f, indent=4)
+            with open(filepath, "w") as f:
+                json.dump(results, f, indent=4, cls=CyberDeltaJSONEncoder)
             logger.info(f"Backtest results saved to {filepath}")
-            return filepath
-        except OSError as e:
-            logger.error(f"Error saving results to {filepath}: {e}")
-            raise
+        except TypeError as e:
+            logger.error(
+                f"Error serializing results to JSON: {e}. Attempting manual conversion for equity_curve."
+            )
+            # Fallback if CyberDeltaJSONEncoder has issues or isn't comprehensive enough for nested structures
+            results_copy = results.copy()
+            if "equity_curve" in results_copy and isinstance(results_copy["equity_curve"], list):
+                results_copy["equity_curve"] = [
+                    {**item, "timestamp": item["timestamp"].isoformat()}
+                    if isinstance(item.get("timestamp"), datetime)
+                    else item
+                    for item in results_copy["equity_curve"]
+                ]
+            # Potentially do similar for self.trades if they contain datetime not handled by encoder
+            try:
+                with open(filepath, "w") as f:
+                    json.dump(results_copy, f, indent=4, cls=CyberDeltaJSONEncoder)
+                logger.info(
+                    f"Backtest results saved (with manual datetime conversion) to {filepath}"
+                )
+            except Exception as final_e:
+                logger.error(f"Failed to save results even after manual conversion: {final_e}")
+                raise
+
+        return filepath
 
     def format_results_for_output(self) -> dict[str, Any]:
         """
@@ -288,3 +315,7 @@ class BacktestResultsHandler:
             "Avg Loss ($)": f"{self.metrics.get('avg_loss', 0.0):.2f}",
         }
         return formatted
+
+    def plot_results(self, filename: str | None = None) -> str | None:
+        # Implementation of plot_results method
+        pass

@@ -111,7 +111,10 @@ class ExchangeAPI(ABC):
 
         # Construct HttpClientConfig parameters carefully
         http_config_data = {}
-        rest_ep_val = self._config.get("rest_endpoint", self._config.get("base_url"))
+        # Prioritize 'api_base_url' as it's commonly used in per-exchange configs.
+        rest_ep_val = self._config.get(
+            "api_base_url", self._config.get("rest_endpoint", self._config.get("base_url"))
+        )
         if rest_ep_val is not None:  # HttpUrl field is not Optional
             http_config_data["rest_endpoint"] = rest_ep_val
 

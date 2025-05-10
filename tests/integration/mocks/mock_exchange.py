@@ -176,6 +176,60 @@ class MockExchangeAPI(ExchangeAPI):
             f"Taker Fee: {self.taker_fee}, Fee Asset: {self.fee_asset})"
         )
 
+    # --- Test Control Methods ADDED ---
+    def reset(self) -> None:
+        """Resets the mock exchange to a clean state for a new test."""
+        self._order_id_counter = 1
+        self._orders.clear()
+        self._positions.clear()
+        self._balances.clear()
+        self._mock_tickers.clear()
+        self._mock_funding_rates.clear()
+        self._trades.clear()
+        self.open_orders.clear()
+        self.trade_history.clear()
+        self.api_errors.clear()
+        self._error_config.clear()
+        self._call_counts.clear()
+        self._open_orders_behavior = "keep_open"
+        logger.debug(f"MockExchangeAPI for {self.exchange_name} has been reset.")
+
+    def set_mock_balance(self, balance: SpotBalance) -> None:
+        """Sets a mock balance for a specific asset."""
+        if balance.exchange != self.exchange_name:
+            logger.warning(
+                f"Attempted to set balance for {balance.exchange} on {self.exchange_name} mock. Ignoring."
+            )
+            return
+        self._balances[balance.asset] = balance
+        logger.debug(f"Mock balance set for {self.exchange_name} - {balance.asset}: {balance}")
+
+    def set_mock_ticker(self, ticker: Ticker) -> None:
+        """Sets a mock ticker for a specific symbol."""
+        self._mock_tickers[ticker.symbol] = ticker
+        logger.debug(f"Mock ticker set for {self.exchange_name} - {ticker.symbol}: {ticker}")
+
+    def set_mock_funding_rate(self, funding_rate: FundingRate) -> None:
+        """Sets a mock funding rate for a specific symbol."""
+        self._mock_funding_rates[funding_rate.symbol] = funding_rate
+        logger.debug(
+            f"Mock funding rate set for {self.exchange_name} - {funding_rate.symbol}: {funding_rate}"
+        )
+
+    def set_mock_position(self, position: DerivativePosition) -> None:
+        """Sets a mock derivative position for a specific symbol."""
+        if position.exchange != self.exchange_name:
+            logger.warning(
+                f"Attempted to set position for {position.exchange} on {self.exchange_name} mock. Ignoring."
+            )
+            return
+        self._positions[position.symbol] = (
+            position  # Store in the _positions dict used by get_positions
+        )
+        logger.debug(f"Mock position set for {self.exchange_name} - {position.symbol}: {position}")
+
+    # --- END Test Control Methods ---
+
     # --- Internal Helper: Create Mock Order ---
     def _create_internal_mock_order(
         self,

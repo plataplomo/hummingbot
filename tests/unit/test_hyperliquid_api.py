@@ -1,11 +1,12 @@
 import time
-from collections.abc import Mapping
+from collections.abc import AsyncGenerator, Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import pytest_asyncio
 
 from cyberdelta.apis.base.exchange_api import MessageHandler
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
@@ -29,10 +30,10 @@ from cyberdelta.utils.config import Config
 class TestHyperliquidAPI:
     """Test suite for HyperliquidAPI client."""
 
-    @pytest.fixture
-    def api_client(
+    @pytest_asyncio.fixture
+    async def api_client(
         self, hyperliquid_config: dict[str, Any], hyperliquid_secrets: dict[str, str]
-    ) -> HyperliquidAPI:
+    ) -> AsyncGenerator[HyperliquidAPI]:
         """Create a HyperliquidAPI client instance for testing."""
 
         # Cannot instantiate abstract class directly, create a concrete subclass for testing
@@ -213,7 +214,11 @@ class TestHyperliquidAPI:
         client._wallet_address = hyperliquid_secrets.get(  # pyright: ignore [reportPrivateUsage]
             "HYPERLIQUID_WALLET_ADDRESS", "0xMockAddress"
         )  # Added pyright: ignore here
-        return client
+
+        try:
+            yield client
+        finally:
+            await client.close()
 
     @pytest.mark.asyncio
     async def test_get_balances(self, api_client: HyperliquidAPI, mocker: MagicMock) -> None:

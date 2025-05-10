@@ -4,7 +4,7 @@ Tests for the CircuitBreaker system.
 
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -510,63 +510,85 @@ def mock_config() -> Config:
 # Define a more specific config fixture for tests needing exchange structure
 @pytest.fixture
 def mock_config_with_exchanges() -> Config:
-    cfg = MagicMock(spec=Config)
+    """Mock Config object with predefined exchange configurations for CB testing."""
+    mock = MagicMock(spec=Config)
 
-    test_config = {
+    full_config_data = {
         "exchanges": {
             "test_exchange": {
-                "enabled": True,
-                "validation": {
-                    "circuit_breaker": {
-                        "api_errors": {
-                            "enabled": True,
-                            "error_threshold": 5,
-                            "window_seconds": 120,
-                            "cooldown_seconds": 600,
-                        },
-                        "volatility": {
-                            "enabled": False  # Example: disabled
-                        },
-                        "drawdown": {
-                            "enabled": True,
-                            "drawdown_threshold": 0.15,
-                            "cooldown_seconds": 900,
-                        },
-                    }
-                },
+                "circuit_breakers": {
+                    "global": {"enabled": True, "cooldown_seconds": 300},
+                    "api_error": {
+                        "enabled": True,
+                        "error_threshold": 5,
+                        "time_window_seconds": 60,
+                        # "cooldown_seconds": 120 # Example: specific cooldown for api_error
+                    },
+                    "volatility": {
+                        "enabled": True,
+                        "lookback_periods": 10,
+                        "volatility_threshold": 0.05,
+                        "symbols": ["BTC-PERP", "ETH-PERP"],
+                    },
+                    "drawdown": {
+                        "enabled": True,
+                        "max_drawdown_percentage": 0.10,
+                        "peak_lookback_periods": 100,  # Note: peak_lookback_periods is not used by current DrawdownBreaker constructor
+                    },
+                    "liquidity": {
+                        "enabled": True,
+                        "min_liquidity_usd": 10000,
+                        "symbols": ["BTC-PERP", "ETH-PERP"],
+                    },
+                    "defaults": {  # Add default cooldown here
+                        "cooldown_seconds": 300
+                    },
+                }
             },
             "another_exchange": {
-                "enabled": True,
-                "validation": {
-                    "circuit_breaker": {
-                        "api_errors": {"enabled": False}  # Example: disabled
-                    }
-                },
+                "circuit_breakers": {
+                    "global": {"enabled": False},
+                    "api_error": {"enabled": True, "error_threshold": 3},
+                    "defaults": {"cooldown_seconds": 300},
+                }
             },
         },
-        "validation.circuit_breaker.global.api_errors": {  # Also include global
-            "enabled": True,
-            "error_threshold": 3,
-            "window_seconds": 60,
-            "cooldown_seconds": 300,
-        },
+        "portfolio": {"reconciliation_interval": 300},
+        "logging": {"level": "INFO"},
+        "other_settings": {"some_value": True},
     }
 
-    def specific_side_effect(key: str, default: Any | None = None) -> Any:
-        parts = key.split(".")
-        value = test_config
-        for part in parts:
-            if isinstance(value, dict):
-                value = value.get(part, default)
-            else:
-                value = default
-                break
-        # Cast to Any to allow assignment in mock, acknowledging potential type mismatch
-        mock_specific_config: dict[str, object] = cast(Any, value)
-        return mock_specific_config
+    def get_side_effect(key: str, default: Any | None = None) -> Any:
+        # Handle the primary key used by CircuitBreakerSystem constructor
+        if key == "exchanges":
+            return full_config_data.get("exchanges", default if default is not None else {})
 
-    cfg.get.side_effect = specific_side_effect
-    return cfg
+        # Handle specific default cooldown key format if directly requested
+        # e.g., "exchanges.test_exchange.circuit_breakers.defaults.cooldown_seconds"
+        parts = key.split(".")
+        if (
+            len(parts) > 1
+            and parts[0] == "exchanges"
+            and parts[-1] == "cooldown_seconds"
+            and parts[-2] == "defaults"
+        ):
+            try:
+                # Attempt to navigate: full_config_data["exchanges"][exchange_name]["circuit_breakers"]["defaults"]["cooldown_seconds"]
+                exchange_name_from_key = parts[1]
+                val = full_config_data["exchanges"][exchange_name_from_key]["circuit_breakers"][
+                    "defaults"
+                ]["cooldown_seconds"]
+                return val
+            except KeyError:
+                pass  # Fall through to general default
+
+        # For any other key, try a direct lookup on the top level of full_config_data or return default
+        # This is a simplification; real Config might have deeper structure via get
+        return full_config_data.get(key, default)
+
+    mock.get.side_effect = get_side_effect
+    mock.config_data = full_config_data  # For direct access if needed
+    return mock
 
 
 class TestCircuitBreakerSystem:

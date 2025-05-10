@@ -1104,4 +1104,5 @@ class SynchronizedOrderSubmissionService:
             Unique execution ID
         """
         timestamp = int(time.time() * 1000)
-        return f"exec_{timestamp}_{hash(opportunity) % 10000:04d}"
+        # Use opportunity.id as it's a stable UUID and hashable
+        return f"exec_{timestamp}_{hash(opportunity.id) % 10000:04d}"

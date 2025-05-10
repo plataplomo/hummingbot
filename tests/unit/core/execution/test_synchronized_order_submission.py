@@ -21,7 +21,7 @@ from cyberdelta.core.execution.synchronized_order_submission import (
     OrderVerifier,
     SynchronizedOrderSubmissionService,
 )
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType
+from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
@@ -71,60 +71,62 @@ class TestOrderVerifier:
         """Create a mock portfolio tracker."""
         mock_tracker = MagicMock()
         # Define a sample filled order for mocking
-        # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         sample_filled_order = Order(
             client_order_id="test-order-1",
-            order_type=OrderType.LIMIT,
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             price=Decimal("50000.0"),
             quantity_requested=Decimal("1.0"),
             status=OrderStatus.FILLED,
             quantity_filled=Decimal("1.0"),
+            average_fill_price=Decimal("50000.0"),
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
-        # Set attributes after creation that are not in __init__
-        # Mypy fix: Order does not have avg_fill_price directly
-        # sample_filled_order.avg_fill_price = Decimal("50000.0") # Remove if needed
         mock_tracker.get_order.return_value = sample_filled_order
 
-        # Mock API client for exchange
-        mock_api_client = AsyncMock(spec=ExchangeAPI)
-        # Mock the return value of the API client's get_order_status
-        # (Assuming get_order_status returns an Order object)
-        # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         mock_api_order = Order(
             client_order_id="exchange-order-id-1",
-            order_type=OrderType.LIMIT,
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             quantity_requested=Decimal("1.0"),
             price=Decimal("50000"),
             status=OrderStatus.FILLED,
             quantity_filled=Decimal("1.0"),
+            average_fill_price=Decimal("50000"),
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
-        # Mypy fix: Order does not have exchange_order_id directly
-        # mock_api_order.exchange_order_id="exchange-order-id-1" # Remove, order_id holds this
-        # Mypy fix: Order does not have avg_fill_price directly
-        # mock_api_order.avg_fill_price = Decimal("50000") # Remove or handle differently if needed
 
-        # Mock the correct method based on usage in OrderVerifier
-        mock_api_client.get_order_status = AsyncMock(
-            return_value=mock_api_order
-        )  # Fix: Assign to method, not mock directly
-        # Mypy fix: get_recent_fills should return a list of Trade objects, not MagicMock
-        # Adjust mock return value for get_recent_fills if necessary based on Trade definition
-        # Assuming Trade has these attributes for now
-        mock_api_client.get_recent_fills = AsyncMock(
-            return_value=[  # Fix: Assign to method
-                MagicMock(  # Placeholder - Replace with actual Trade mock if structure is critical
-                    order_id="exchange-order-id-1",
-                    symbol="BTC-PERP",
-                    side=OrderSide.BUY,
-                    price=Decimal("50000.0"),
-                    quantity=Decimal("1.0"),
-                    timestamp=int(datetime.now(UTC).timestamp() * 1000),
-                )
-            ]
+        # Mock API client for exchange
+        mock_api_client = AsyncMock(
+            spec=ExchangeAPI,
+            get_order=AsyncMock(return_value=mock_api_order),  # Added and configured
+            get_order_status=AsyncMock(return_value=mock_api_order),
+            get_recent_fills=AsyncMock(
+                return_value=[
+                    MagicMock(
+                        order_id="exchange-order-id-1",
+                        symbol="BTC-PERP",
+                        side=OrderSide.BUY,
+                        price=Decimal("50000.0"),
+                        quantity=Decimal("1.0"),
+                        timestamp=int(datetime.now(UTC).timestamp() * 1000),
+                    )
+                ]
+            ),
         )
 
         mock_tracker.get_api_client.return_value = mock_api_client
@@ -145,16 +147,21 @@ class TestOrderVerifier:
         }
 
         # Ensure the mock returns the Order object defined in fixture
-        # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         mock_local_order = Order(
             client_order_id="test-order-1",
-            order_type=OrderType.LIMIT,
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             status=OrderStatus.OPEN,
             price=Decimal("50000.0"),
             quantity_requested=Decimal("1.0"),
             created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
         # Directly populate the internal dict instead of mocking get_order
         exchange_id = "hyperliquid"
@@ -191,13 +198,21 @@ class TestOrderVerifier:
         # Corrected based on mypy error: Add 'type', use 'id', remove timestamp/order_type kwarg
         local_order_mock = Order(
             client_order_id="exchange-order-id-1",
-            order_type=OrderType.LIMIT,
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             status=OrderStatus.FILLED,
             price=Decimal("50000.0"),
             quantity_requested=Decimal("1.0"),
             quantity_filled=Decimal("1.0"),
+            average_fill_price=Decimal("50000.0"),  # Added for validation
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
         portfolio_tracker.get_order.return_value = local_order_mock
 
@@ -205,13 +220,21 @@ class TestOrderVerifier:
         mock_api = portfolio_tracker.get_api_client()
         api_order_response = Order(
             client_order_id="exchange-order-id-1",
-            order_type=OrderType.LIMIT,
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             quantity_requested=Decimal("1.0"),
             price=Decimal("50000"),
             status=OrderStatus.FILLED,
             quantity_filled=Decimal("1.0"),
+            average_fill_price=Decimal("50000"),  # Added for validation
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
         # Mypy fix: avg_fill_price is not a direct attribute
         # api_order_response.avg_fill_price=Decimal("50000")
@@ -237,13 +260,20 @@ class TestOrderVerifier:
         # Test failed verification (e.g., order not filled on exchange)
         api_order_response_open = Order(
             client_order_id="exchange-order-id-1",
-            order_type=OrderType.LIMIT,
+            exchange="mock_exchange",
             symbol="BTC-PERP",
             side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             quantity_requested=Decimal("1.0"),
             price=Decimal("50000"),
             status=OrderStatus.OPEN,
-            quantity_filled=Decimal("0"),
+            # quantity_filled=Decimal("0"), # Not needed, defaults to 0 for OPEN
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
         mock_api.get_order_status.return_value = api_order_response_open  # Update return value
         result_fail = await verifier.verify_order_execution("hyperliquid", "exchange-order-id-1")

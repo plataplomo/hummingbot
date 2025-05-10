@@ -16,8 +16,6 @@ from cyberdelta.core.models import (
     DerivativePosition,
     OrderSide,
     SpotBalance,  # Updated from Balance
-    # RiskParameters, # Removed - Not defined in models.py
-    # SignalStatus, # Removed - Not defined in models.py
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker  # Added PortfolioTracker
 from cyberdelta.core.risk_manager import (
@@ -72,25 +70,37 @@ async def test_circuit_breaker_global_halts_execution(
 
     mock_bp_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_bp", asset="USDC", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_bp",
+            asset="USDC",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     mock_bp_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_bp", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_bp",
+            asset="USD",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     mock_hl_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_hl", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_hl",
+            asset="USD",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     await real_portfolio_tracker.initialize()
-    ts = datetime.now(UTC)
+    ts_dt = datetime.now(UTC)
     # Ensure timestamp is int (milliseconds since epoch)
-    ts = int(ts.timestamp() * 1000)
-    mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts))
-    mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts))
+    ts_int = int(ts_dt.timestamp() * 1000)
+    mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts_dt))
+    mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts_dt))
 
     # 2. Trigger Global Circuit Breaker Directly
     global_breaker_name = "global_api_error"  # Name used in reset
@@ -168,25 +178,37 @@ async def test_circuit_breaker_exchange_halts_execution(
 
     mock_bp_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_bp", asset="USDC", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_bp",
+            asset="USDC",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     mock_bp_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_bp", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_bp",
+            asset="USD",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     mock_hl_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_hl", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_hl",
+            asset="USD",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     await real_portfolio_tracker.initialize()
-    ts = datetime.now(UTC)
+    ts_dt = datetime.now(UTC)
     # Ensure timestamp is int (milliseconds since epoch)
-    ts = int(ts.timestamp() * 1000)
-    mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts))
-    mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts))
+    ts_int = int(ts_dt.timestamp() * 1000)
+    mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts_dt))
+    mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts_dt))
 
     # 2. Trigger Exchange Circuit Breaker Directly (for long exchange)
     target_exchange = basic_opportunity.long_exchange  # e.g., "mock_bp"
@@ -271,17 +293,29 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
     # Set balances
     mock_bp_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_bp", asset="USDC", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_bp",
+            asset="USDC",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     mock_bp_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_bp", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_bp",
+            asset="USD",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     mock_hl_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_hl", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_hl",
+            asset="USD",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     await real_portfolio_tracker.initialize()
@@ -328,17 +362,29 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
     # Set balances
     mock_bp_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_bp", asset="USDC", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_bp",
+            asset="USDC",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     mock_bp_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_bp", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_bp",
+            asset="USD",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     mock_hl_api.set_mock_balance(
         SpotBalance(
-            exchange="mock_hl", asset="USD", total=Decimal("10000"), available=Decimal("10000")
+            exchange="mock_hl",
+            asset="USD",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=datetime.now(UTC),
         )
     )
     await real_portfolio_tracker.initialize()
@@ -739,10 +785,22 @@ async def test_kelly_insufficient_balance(
     opp.expected_return = Decimal("0.01")
     # Set balances to $500 (less than Kelly size)
     mock_bp_api.set_mock_balance(
-        SpotBalance(exchange="mock_bp", asset="USD", total=Decimal("500"), available=Decimal("500"))
+        SpotBalance(
+            exchange="mock_bp",
+            asset="USD",
+            total_quantity=Decimal("500"),
+            available_quantity=Decimal("500"),
+            timestamp=datetime.now(UTC),
+        )
     )
     mock_hl_api.set_mock_balance(
-        SpotBalance(exchange="mock_hl", asset="USD", total=Decimal("500"), available=Decimal("500"))
+        SpotBalance(
+            exchange="mock_hl",
+            asset="USD",
+            total_quantity=Decimal("500"),
+            available_quantity=Decimal("500"),
+            timestamp=datetime.now(UTC),
+        )
     )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.initialize()
@@ -763,10 +821,22 @@ async def test_kelly_zero_total_capital(
 ) -> None:
     # Set all balances to zero
     mock_bp_api.set_mock_balance(
-        SpotBalance(exchange="mock_bp", asset="USD", total=Decimal("0"), available=Decimal("0"))
+        SpotBalance(
+            exchange="mock_bp",
+            asset="USD",
+            total_quantity=Decimal("0"),
+            available_quantity=Decimal("0"),
+            timestamp=datetime.now(UTC),
+        )
     )
     mock_hl_api.set_mock_balance(
-        SpotBalance(exchange="mock_hl", asset="USD", total=Decimal("0"), available=Decimal("0"))
+        SpotBalance(
+            exchange="mock_hl",
+            asset="USD",
+            total_quantity=Decimal("0"),
+            available_quantity=Decimal("0"),
+            timestamp=datetime.now(UTC),
+        )
     )
     await real_portfolio_tracker.initialize()
     await real_portfolio_tracker.initialize()
