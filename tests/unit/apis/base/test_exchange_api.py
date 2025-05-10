@@ -455,7 +455,8 @@ async def test_request_handles_timeout_error_from_http_client(
     "cyberdelta.apis.base.exchange_api.WebSocketManager"
 )  # Patch the class for all tests in this class
 class TestExchangeAPIWebSocketIntegration:
-    def test_initialization_with_ws_endpoint(
+    @pytest.mark.asyncio
+    async def test_initialization_with_ws_endpoint(
         self,
         MockWebSocketManagerClass: MagicMock,  # Injected by class-level patch
         mock_error_mapper: MagicMock,
@@ -463,38 +464,39 @@ class TestExchangeAPIWebSocketIntegration:
     ) -> None:
         """Test that WebSocketManager is initialized if ws_endpoint is present."""
         current_config = default_config
+        api = None
+        try:
+            # Configure the instance that will be returned when ExchangeAPI calls WebSocketManager()
+            mock_ws_instance = MockWebSocketManagerClass.return_value
+            mock_ws_instance.close = AsyncMock()  # ADDED: Ensure close is awaitable
 
-        # Configure the instance that will be returned when ExchangeAPI calls WebSocketManager()
-        mock_ws_instance = MockWebSocketManagerClass.return_value
-        # Although ExchangeAPI uses this instance, this specific test only checks
-        # __init__ was called.
-        # No need to configure methods like connect/close on mock_ws_instance here.
+            api = ConcreteTestExchangeAPI("test_ws", current_config, {}, mock_error_mapper)
 
-        api = ConcreteTestExchangeAPI("test_ws", current_config, {}, mock_error_mapper)
+            assert api._ws_manager == mock_ws_instance
+            ws_config_params_from_current = {
+                "ws_url": current_config["ws_endpoint"],
+                "ping_interval": current_config.get("ws_ping_interval"),
+                "reconnect_delay": current_config.get("ws_reconnect_delay"),
+                "max_reconnect_attempts": current_config.get("ws_max_reconnect_attempts"),
+                "connection_timeout": current_config.get("ws_connection_timeout"),
+            }
+            filtered_ws_config_params = {
+                k: v for k, v in ws_config_params_from_current.items() if v is not None
+            }
+            expected_ws_config = WebSocketManagerConfig(**filtered_ws_config_params)
 
-        assert api._ws_manager == mock_ws_instance
-        # ExchangeAPI now passes a WebSocketManagerConfig object
-        # Replicate ExchangeAPI's logic of filtering None values
-        ws_config_params_from_current = {
-            "ws_url": current_config["ws_endpoint"],
-            "ping_interval": current_config.get("ws_ping_interval"),
-            "reconnect_delay": current_config.get("ws_reconnect_delay"),
-            "max_reconnect_attempts": current_config.get("ws_max_reconnect_attempts"),
-            "connection_timeout": current_config.get("ws_connection_timeout"),
-        }
-        filtered_ws_config_params = {
-            k: v for k, v in ws_config_params_from_current.items() if v is not None
-        }
-        expected_ws_config = WebSocketManagerConfig(**filtered_ws_config_params)
+            MockWebSocketManagerClass.assert_called_once_with(
+                exchange_name="test_ws",
+                config=expected_ws_config,  # Expect WebSocketManagerConfig instance
+                message_handler=api._handle_websocket_message,
+                on_connected_callback=api._on_ws_connected,
+            )
+        finally:
+            if api:
+                await api.close()
 
-        MockWebSocketManagerClass.assert_called_once_with(
-            exchange_name="test_ws",
-            config=expected_ws_config,  # Expect WebSocketManagerConfig instance
-            message_handler=api._handle_websocket_message,
-            on_connected_callback=api._on_ws_connected,
-        )
-
-    def test_initialization_without_ws_endpoint(
+    @pytest.mark.asyncio
+    async def test_initialization_without_ws_endpoint(
         self,
         MockWebSocketManagerClass: MagicMock,  # Injected by class-level patch
         mock_error_mapper: MagicMock,
@@ -502,9 +504,14 @@ class TestExchangeAPIWebSocketIntegration:
     ) -> None:
         config_no_ws = default_config.copy()
         del config_no_ws["ws_endpoint"]
-        api = ConcreteTestExchangeAPI("test_no_ws", config_no_ws, {}, mock_error_mapper)
-        assert api._ws_manager is None
-        MockWebSocketManagerClass.assert_not_called()  # Ensure WS Manager wasn't called
+        api = None
+        try:
+            api = ConcreteTestExchangeAPI("test_no_ws", config_no_ws, {}, mock_error_mapper)
+            assert api._ws_manager is None
+            MockWebSocketManagerClass.assert_not_called()  # Ensure WS Manager wasn't called
+        finally:
+            if api:
+                await api.close()
 
     @pytest.mark.asyncio
     async def test_connect_websocket_delegates_to_ws_manager(
@@ -525,26 +532,32 @@ class TestExchangeAPIWebSocketIntegration:
         await api.connect_websocket()
         mock_ws_instance.connect.assert_called_once()
 
-    def test_is_connected_property_delegates_to_ws_manager(
+    @pytest.mark.asyncio
+    async def test_is_connected_property_delegates_to_ws_manager(
         self,
         MockWebSocketManagerClass: MagicMock,  # Injected by class-level patch
         mock_error_mapper: MagicMock,
         default_config: dict[str, Any],
     ) -> None:
-        api = ConcreteTestExchangeAPI("test_exchange", default_config, {}, mock_error_mapper)
-        mock_ws_instance = MockWebSocketManagerClass.return_value
-        assert isinstance(mock_ws_instance, MagicMock)
-        # Mock the is_connected property on the mock manager instance
-        prop_mock = PropertyMock(return_value=True)
-        type(mock_ws_instance).is_connected = prop_mock
-        assert api.is_connected is True
+        api = None
+        try:
+            mock_ws_instance = MockWebSocketManagerClass.return_value
+            mock_ws_instance.close = AsyncMock()  # ADDED: Ensure close is awaitable
 
-        # Change the property mock's return value
-        prop_mock = PropertyMock(return_value=False)
-        type(mock_ws_instance).is_connected = prop_mock
-        assert api.is_connected is False
-        # Verify the property was accessed (the previous assertion implicitly does this for False)
-        # The call_count check for the True case is implicitly covered by the first assertion.
+            api = ConcreteTestExchangeAPI("test_exchange", default_config, {}, mock_error_mapper)
+            assert isinstance(mock_ws_instance, MagicMock)
+            # Mock the is_connected property on the mock manager instance
+            prop_mock = PropertyMock(return_value=True)
+            type(mock_ws_instance).is_connected = prop_mock
+            assert api.is_connected is True
+
+            # Change the property mock's return value
+            prop_mock = PropertyMock(return_value=False)
+            type(mock_ws_instance).is_connected = prop_mock
+            assert api.is_connected is False
+        finally:
+            if api:
+                await api.close()
 
     @pytest.mark.asyncio
     async def test_close_delegates_to_ws_manager(
