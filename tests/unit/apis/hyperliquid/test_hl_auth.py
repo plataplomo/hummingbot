@@ -68,8 +68,8 @@ def test_hl_auth_init_success_with_private_key(
     mock_from_key.assert_called_once_with(VALID_PRIVATE_KEY_HEX)
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
     assert auth.chain_id == VALID_CHAIN_ID
-    assert auth._account is mock_account  # noqa: SLF001
-    assert auth._account.address.lower() == VALID_WALLET_ADDRESS.lower()  # noqa: SLF001
+    assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
+    assert auth._account.address.lower() == VALID_WALLET_ADDRESS.lower()  # pyright: ignore [reportPrivateUsage]
 
 
 def test_hl_auth_init_success_with_account_object(mock_account: MagicMock) -> None:
@@ -81,7 +81,7 @@ def test_hl_auth_init_success_with_account_object(mock_account: MagicMock) -> No
     )
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
     assert auth.chain_id == VALID_CHAIN_ID
-    assert auth._account is mock_account  # noqa: SLF001
+    assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
 
 
 @patch("eth_account.Account.from_key")
@@ -100,7 +100,7 @@ def test_hl_auth_init_success_no_0x_private_key(
         chain_id=VALID_CHAIN_ID,
     )
     mock_from_key.assert_called_once_with(key_no_prefix)
-    assert auth._account is mock_account  # noqa: SLF001
+    assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
 
 
@@ -397,7 +397,7 @@ class TestHyperliquidEip712Authenticator:
         )
         assert auth.wallet_address == self.MOCKED_ACCOUNT_WALLET_ADDRESS
         assert auth.chain_id == self.CHAIN_ID
-        assert auth._account is mock_account  # noqa: SLF001
+        assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
         mock_logger.info.assert_any_call(
             f"HyperliquidEip712Authenticator initialized for address: {self.MOCKED_ACCOUNT_WALLET_ADDRESS} "
             f"on chain_id: {self.CHAIN_ID}"
@@ -410,7 +410,7 @@ class TestHyperliquidEip712Authenticator:
         auth = auth_with_mock_from_key
         assert auth.wallet_address.lower() == self.EXPECTED_WALLET_ADDRESS_CLASS_SCOPE.lower()
         assert auth.chain_id == self.CHAIN_ID
-        assert auth._account is mock_account  # noqa: SLF001
+        assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
 
     def test_instantiation_private_key_no_prefix(
         self, mock_account: MagicMock, mock_logger: MagicMock
@@ -427,7 +427,7 @@ class TestHyperliquidEip712Authenticator:
             )
         mk_from_key.assert_called_once_with(key_no_prefix)
         assert auth.wallet_address.lower() == self.EXPECTED_WALLET_ADDRESS_CLASS_SCOPE.lower()
-        assert auth._account is mock_account  # noqa: SLF001
+        assert auth._account is mock_account  # pyright: ignore [reportPrivateUsage]
 
     def test_instantiation_no_key_or_account_object(self, mock_logger: MagicMock) -> None:
         """Test ValueError if neither private key nor account object is provided."""
@@ -480,9 +480,8 @@ class TestHyperliquidEip712Authenticator:
 
         assert "X-HL-Signature" in result["headers"]
         # mock_account.sign_message.return_value.signature is HexBytes("0x" + "b" * 130)
-        assert (
-            result["headers"]["X-HL-Signature"]
-            == "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        assert result["headers"]["X-HL-Signature"] == (
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         )
         expected_ts_ms = str(int(fixed_time_sec * 1000))
         assert result["headers"]["X-HL-Timestamp"] == expected_ts_ms
@@ -557,8 +556,7 @@ class TestHyperliquidEip712Authenticator:
 
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
         assert "Failed to sign EIP-712 message" in str(excinfo.value.message)
-        # Ensure auth.logger.error is a mock and assert_called_with is called on it
-        auth.logger.error.assert_called_with(
+        auth.logger.error.assert_called_with(  # type: ignore[attr-defined]
             "HyperliquidEip712Authenticator: Failed to sign EIP-712 message: Crypto error",
             exc_info=True,
         )
@@ -578,8 +576,6 @@ class TestHyperliquidEip712Authenticator:
 
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
         assert "Account object is None, cannot sign message." in str(excinfo.value.message)
-        # Ensure mock_logger.error is a mock and assert_called_with is called on it
-        # (auth.logger was set to mock_logger in the fixture for auth_with_mock_account)
         mock_logger.error.assert_called_with(
             "HyperliquidEip712Authenticator: Account object is None, cannot sign message.",
             exc_info=True,
@@ -603,7 +599,7 @@ class TestHyperliquidEip712Authenticator:
                 ["not", "a", "dict"],  # type: ignore[arg-type]
                 None,
             )
-        auth.logger.error.assert_called_with(
+        auth.logger.error.assert_called_with(  # type: ignore[attr-defined]
             "HyperliquidEip712Authenticator: Invalid 'data' for Hyperliquid EIP-712 "
             "Agent signature: Must be a dictionary and not None. "
             "Received: <class 'list'>",
@@ -621,7 +617,7 @@ class TestHyperliquidEip712Authenticator:
                 "not a dict",  # type: ignore[arg-type]
                 None,
             )
-        auth.logger.error.assert_called_with(
+        auth.logger.error.assert_called_with(  # type: ignore[attr-defined]
             "HyperliquidEip712Authenticator: Invalid 'data' for Hyperliquid EIP-712 "
             "Agent signature: Must be a dictionary and not None. "
             "Received: <class 'str'>",
@@ -653,12 +649,12 @@ def test_internal_generate_connection_id_deterministic(
     payload1 = {"coin": "BTC", "size": "1.0", "is_buy": True, "limit_px": "50000.0"}
     payload2 = {"coin": "BTC", "size": "1.0", "is_buy": True, "limit_px": "50000.0"}
 
-    conn_id1 = auth._generate_connection_id(payload1)  # noqa: SLF001
-    conn_id2 = auth._generate_connection_id(payload2)  # noqa: SLF001
+    conn_id1 = auth._generate_connection_id(payload1)  # pyright: ignore [reportPrivateUsage]
+    conn_id2 = auth._generate_connection_id(payload2)  # pyright: ignore [reportPrivateUsage]
     assert conn_id1 == conn_id2
 
     payload_shuffled = {"limit_px": "50000.0", "is_buy": True, "size": "1.0", "coin": "BTC"}
-    conn_id_shuffled = auth._generate_connection_id(payload_shuffled)  # noqa: SLF001
+    conn_id_shuffled = auth._generate_connection_id(payload_shuffled)  # pyright: ignore [reportPrivateUsage]
     assert conn_id1 == conn_id_shuffled
 
 
@@ -677,9 +673,9 @@ def test_internal_generate_connection_id_content_change(
     payload2 = {"coin": "ETH", "size": "1.0"}  # Different coin
     payload3 = {"coin": "BTC", "size": "2.0"}  # Different size
 
-    conn_id1 = auth._generate_connection_id(payload1)  # noqa: SLF001
-    conn_id2 = auth._generate_connection_id(payload2)  # noqa: SLF001
-    conn_id3 = auth._generate_connection_id(payload3)  # noqa: SLF001
+    conn_id1 = auth._generate_connection_id(payload1)  # pyright: ignore [reportPrivateUsage]
+    conn_id2 = auth._generate_connection_id(payload2)  # pyright: ignore [reportPrivateUsage]
+    conn_id3 = auth._generate_connection_id(payload3)  # pyright: ignore [reportPrivateUsage]
 
     assert conn_id1 != conn_id2
     assert conn_id1 != conn_id3

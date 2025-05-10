@@ -80,7 +80,7 @@ def test_hl_api_init_with_key(
         chain_id=HyperliquidAPI.CHAIN_ID,
     )
     assert api.authenticator is mock_instance
-    assert api._hl_authenticator is mock_instance  # noqa: SLF001
+    assert api._hl_authenticator is mock_instance  # pyright: ignore [reportPrivateUsage]
 
 
 def test_hl_api_init_without_key(
@@ -92,7 +92,7 @@ def test_hl_api_init_without_key(
 
     mock_auth_class.assert_not_called()
     assert api.authenticator is None
-    assert api._hl_authenticator is None  # noqa: SLF001
+    assert api._hl_authenticator is None  # pyright: ignore [reportPrivateUsage]
 
 
 def test_hl_api_init_auth_init_fails(
@@ -106,7 +106,7 @@ def test_hl_api_init_auth_init_fails(
 
     mock_auth_class.assert_called_once()  # Still attempted
     assert api.authenticator is None
-    assert api._hl_authenticator is None  # noqa: SLF001
+    assert api._hl_authenticator is None  # pyright: ignore [reportPrivateUsage]
     assert "Failed to init HL authenticator: Bad key format" in caplog.text
 
 
@@ -119,7 +119,7 @@ def test_hl_api_init_no_address(
 
     mock_auth_class.assert_not_called()  # Authenticator shouldn't be called without address
     assert api.authenticator is None
-    assert api._hl_authenticator is None  # noqa: SLF001
+    assert api._hl_authenticator is None  # pyright: ignore [reportPrivateUsage]
     assert "HLAPI: Wallet address required" in caplog.text
 
 
@@ -245,7 +245,7 @@ async def test_place_order_calls_authenticate_and_request(
             chain_id=HyperliquidAPI.CHAIN_ID,
         )
         assert api.authenticator is mock_auth_for_test
-        assert api._hl_authenticator is mock_auth_for_test  # noqa: SLF001
+        assert api._hl_authenticator is mock_auth_for_test  # pyright: ignore [reportPrivateUsage]
 
         # Define a side effect for the mocked _request
         async def mock_request_side_effect(
