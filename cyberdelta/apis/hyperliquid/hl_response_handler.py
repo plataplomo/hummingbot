@@ -11,6 +11,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
+    HyperliquidRawExchangeStatusObject,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
@@ -428,6 +429,59 @@ class HyperliquidResponseHandler:
             raise HyperliquidResponseHandler._handle_validation_error(
                 e, context, raw_response_content
             ) from e
+
+    @staticmethod
+    def process_first_exchange_status(
+        first_status_raw: RawJsonPrim | RawJson,
+        action_description: str,
+    ) -> HyperliquidRawExchangeStatusObject | str:
+        """
+        Processes the first item from an /exchange endpoint's 'statuses' list.
+
+        Args:
+            first_status_raw: The raw first item from the 'statuses' list.
+            action_description: A description of the action (e.g., "Place Order", "Withdrawal")
+                                for context in error messages.
+
+        Returns:
+            HyperliquidRawExchangeStatusObject: If the status item is a complex object.
+            str: If the status item is a simple string.
+
+        Raises:
+            APIError: If the status item is not a string or a valid object,
+                      or if validation of the object fails.
+        """
+        context = f"first status for {action_description}"
+
+        if isinstance(first_status_raw, str):
+            return first_status_raw
+
+        if isinstance(first_status_raw, dict):
+            try:
+                return HyperliquidRawExchangeStatusObject.model_validate(first_status_raw)
+            except ValidationError as e:
+                logger.error(
+                    f"[HyperliquidResponseHandler] Pydantic validation failed for {context} "
+                    f"object: {e}. Raw item: {first_status_raw!r}"
+                )
+                raise APIError(
+                    message=f"Invalid {context} object structure: {e}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    original_exception=e,
+                    metadata={"raw_status_item": first_status_raw},
+                ) from e
+        else:
+            # If it's not a string and not a dict, it's an unexpected type.
+            logger.error(
+                f"[HyperliquidResponseHandler] Unexpected type for {context}: "
+                f"{type(first_status_raw).__name__}. Raw item: {first_status_raw!r}"
+            )
+            raise APIError(
+                message=f"Unexpected data type for {context}: "
+                f"{type(first_status_raw).__name__}. Expected string or object.",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                metadata={"raw_status_item": first_status_raw},
+            )
 
     @staticmethod
     def handle_query_order_history_response(

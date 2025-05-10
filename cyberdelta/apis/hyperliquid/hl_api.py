@@ -1237,78 +1237,83 @@ class HyperliquidAPI(ExchangeAPI):
             # Now statuses is known to be a list from validation
             first_status_obj_raw = validated_response.data.statuses[0]
             error_to_raise_from_status: APIError | None = None
-            first_status_obj: HyperliquidRawExchangeStatusObject | None = None
+
+            # Prepare argument for the handler based on its type
+            arg_for_handler: dict[str, Any] | str
+            if isinstance(first_status_obj_raw, str):
+                arg_for_handler = first_status_obj_raw
+            else:  # It's HyperliquidRawExchangeStatusObject
+                # The handler expects a raw dict for validation if it's not a string
+                arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
+
+            # Process the first status using the new handler method
+            processed_status = HyperliquidResponseHandler.process_first_exchange_status(
+                arg_for_handler, "Place Order"
+            )
+
             order_id_to_fetch: int | None = None
             log_message_prefix = "Order placement status unclear"
 
-            if isinstance(first_status_obj_raw, str):
+            if isinstance(processed_status, str):
+                # It's a string status (e.g., "canceled", or an error string)
                 benign_string_statuses = {"canceled", "modified", "success"}
-                if first_status_obj_raw.lower() in benign_string_statuses:
+                if processed_status.lower() in benign_string_statuses:
                     logger.info(
                         f"[{self.exchange_name}] Order placement status (string): "
-                        f"{first_status_obj_raw}"
+                        f"{processed_status}"
                     )
-                    # No specific error to raise yet for benign strings.
+                    # This might still be an unclear outcome for a *new* order if it says "canceled"
+                    # For now, if it's benign, we don't raise an error from it directly.
+                    # The logic to fetch order status later will determine the final state.
+                    # If no OID is found later, it will raise an error.
                 else:
                     logger.warning(
                         f"[{self.exchange_name}] Order placement returned unhandled/error "
-                        f"string status: "
-                        f"{first_status_obj_raw}"
+                        f"string status: {processed_status}"
                     )
                     error_to_raise_from_status = self.error_mapper.map_string_error(
-                        first_status_obj_raw,
-                        http_status=200,
+                        processed_status,
+                        http_status=200,  # Assuming 200 if we got this far
                     )
-            else:
-                # Attempt to cast to give type checker more info, or handle
-                # potential TypeError if assumption is wrong.
-                try:
-                    first_status_obj = HyperliquidRawExchangeStatusObject.model_validate(
-                        first_status_obj_raw
+            elif isinstance(processed_status, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
+                # It's a complex status object
+                status_object = processed_status
+                if error_msg := status_object.error:
+                    logger.warning(
+                        f"[{self.exchange_name}] Order placement object has error: {error_msg}"
                     )
-                except ValidationError as e_status_val:
-                    logger.error(
-                        f"[{self.exchange_name}] Failed to validate status object item: "
-                        f"{first_status_obj_raw!r}. Error: {e_status_val}"
+                    error_to_raise_from_status = self.error_mapper.map_string_error(
+                        error_msg,
+                        http_status=200,  # Assuming 200
                     )
-                    error_to_raise_from_status = APIError(
-                        f"Internal error: Unexpected item type or invalid structure "
-                        f"{type(first_status_obj_raw).__name__} in statuses list.",
-                        code=APIErrorCode.UNKNOWN.value,
-                        original_exception=e_status_val,
+                elif resting_details := status_object.resting:
+                    order_id_to_fetch = resting_details.oid
+                    log_message_prefix = f"Order OID:{resting_details.oid} resting"
+                elif filled_details := status_object.filled:
+                    order_id_to_fetch = filled_details.oid
+                    log_message_prefix = (
+                        f"Order OID:{filled_details.oid} filled (avgPx: "
+                        f"{filled_details.avg_px}, "
+                        f"sz: {filled_details.total_sz})"
                     )
-                    first_status_obj = None  # Ensure it's None if validation fails
+                # Add other conditions from HyperliquidRawExchangeStatusObject if necessary (e.g. success msg)
+                elif success_msg := status_object.success:
+                    logger.info(
+                        f"[{self.exchange_name}] Order placement success message: {success_msg}"
+                    )
+                    # This is a success message but might not provide an OID directly.
+                    # We will rely on the subsequent get_order_status call if no OID found.
+                    pass  # No OID from this branch, but not an error yet.
 
-                if first_status_obj:  # Proceed only if validation was successful
-                    if error_msg := first_status_obj.error:
-                        logger.warning(
-                            f"[{self.exchange_name}] Order placement object has error: {error_msg}"
-                        )
-                        error_to_raise_from_status = self.error_mapper.map_string_error(
-                            error_msg,
-                            http_status=200,
-                        )
-                    elif resting_details := first_status_obj.resting:
-                        order_id_to_fetch = resting_details.oid
-                        log_message_prefix = f"Order OID:{resting_details.oid} resting"
-                    elif filled_details := first_status_obj.filled:
-                        order_id_to_fetch = filled_details.oid
-                        log_message_prefix = (
-                            f"Order OID:{filled_details.oid} filled (avgPx: "
-                            f"{filled_details.avg_px}, "
-                            f"sz: {filled_details.total_sz})"
-                        )
-
+            # After processing with the new handler:
             if error_to_raise_from_status:
                 raise error_to_raise_from_status
 
-            # If we reached here, no explicit error was raised from the status object/string itself.
-            # Now, check if we have an order_id_to_fetch to get canonical status.
             if order_id_to_fetch is not None:
                 logger.info(
                     f"[{self.exchange_name}] {log_message_prefix}. Fetching canonical status."
                 )
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.2)  # Consider making delay configurable or removing
                 try:
                     return await self.get_order_status(
                         order_id=str(order_id_to_fetch), symbol=symbol
@@ -1325,11 +1330,17 @@ class HyperliquidAPI(ExchangeAPI):
                         original_exception=e_fetch,
                     ) from e_fetch
             else:
-                # This case means the status object was valid but didn't contain a known success
-                # indicator (resting/filled) or an error message.
+                # This case means the status was a benign string without an OID, or
+                # a complex object without error/resting/filled that yielded an OID.
+                # Or a success message that didn't give an OID.
+                # This is an unclear outcome if an order was intended to be placed.
+                logger.warning(
+                    f"[{self.exchange_name}] Order placement status unclear. Processed status: "
+                    f"{processed_status!r}. No OID found to fetch canonical status."
+                )
                 raise APIError(
-                    f"Order placement status unclear, unexpected object structure: "
-                    f"{first_status_obj.model_dump() if first_status_obj else 'N/A'}",
+                    f"Order placement status unclear, no OID to confirm: "
+                    f"{str(processed_status)[:100]}...",  # Truncate for brevity
                     code=APIErrorCode.UNKNOWN.value,
                 )
         except ValidationError as e_val_outer:
