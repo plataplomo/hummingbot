@@ -576,21 +576,44 @@ class TestDataHandler:
     @pytest.mark.asyncio
     async def test_websocket_reconnect(self, mock_config: MagicMock, mock_symbol_mapper: MagicMock):
         """Test WebSocket reconnection logic."""
+
         # Mock config to enable one exchange
-        mock_config.get = MagicMock(
-            side_effect=lambda key, default=None: {
-                "exchanges.test_exchange.enabled": True,
-                "exchanges.test_exchange.symbols": ["BTC/USD"],
-                "exchanges.test_exchange.websocket.reconnect_delay": 0.01,
-                "exchanges.test_exchange.websocket.max_reconnect_delay": 0.05,
-                "exchanges.test_exchange.websocket.max_reconnect_attempts": 3,
-            }.get(key, default)
-        )
+        def mock_config_side_effect(key: str, default: Any = None) -> Any:
+            if key == "exchanges":
+                return {
+                    "test_exchange": {
+                        "enabled": True,
+                        "symbols": ["BTC/USD"],
+                        "websocket": {
+                            "reconnect_delay": 0.01,
+                            "max_reconnect_delay": 0.05,
+                            "max_reconnect_attempts": 3,
+                        },
+                    }
+                }
+            elif key == "exchanges.test_exchange.enabled":
+                return True
+            elif key == "exchanges.test_exchange.symbols":
+                return ["BTC/USD"]
+            elif key == "exchanges.test_exchange.websocket.reconnect_delay":
+                return 0.01
+            elif key == "exchanges.test_exchange.websocket.max_reconnect_delay":
+                return 0.05
+            elif key == "exchanges.test_exchange.websocket.max_reconnect_attempts":
+                return 3
+            return default
+
+        mock_config.get = MagicMock(side_effect=mock_config_side_effect)
 
         handler = DataHandler(config=mock_config, symbol_mapper=mock_symbol_mapper)
         mock_api_client = AsyncMock(spec=ExchangeAPI)
         # Ensure _ws_manager exists and is an AsyncMock for the test
         mock_api_client._ws_manager = AsyncMock()
+        # Add connect_websocket and subscribe methods to the mock
+        mock_api_client.connect_websocket = AsyncMock()
+        mock_api_client.subscribe = (
+            AsyncMock()
+        )  # Corresponds to the 'subscribe' check in DataHandler
         handler.register_api_client("test_exchange", mock_api_client)
 
         # Simulate initial connection failure, then success

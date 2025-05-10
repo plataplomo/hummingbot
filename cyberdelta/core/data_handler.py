@@ -222,8 +222,21 @@ class DataHandler:
         for exchange_id in exchanges_dict.keys():
             if self.config.get(f"exchanges.{exchange_id}.enabled", False):
                 client = self.api_clients.get(exchange_id)
-                if client and hasattr(client, "connect_websocket") and hasattr(client, "subscribe"):
-                    connect_tasks.append(self._connect_and_subscribe(exchange_id, client))
+                # Ensure symbols are fetched for this specific exchange_id
+                symbols_conf = self.config.get(f"exchanges.{exchange_id}.symbols", [])
+                symbols_for_exchange = cast(
+                    list[str], symbols_conf if isinstance(symbols_conf, list) else []
+                )
+
+                if client and hasattr(
+                    client, "connect_websocket"
+                ):  # Checking connect_websocket is enough for basic WS capability
+                    # Schedule _maintain_websocket_connection, not _connect_and_subscribe directly
+                    connect_tasks.append(
+                        self._maintain_websocket_connection(
+                            exchange_id, client, symbols_for_exchange
+                        )
+                    )
                 elif not client:
                     logger.error(
                         f"Cannot start connection for {exchange_id}: API client not registered."
@@ -246,57 +259,95 @@ class DataHandler:
         else:
             logger.warning("No WebSocket connections configured or enabled.")
 
-    async def _connect_and_subscribe(self, exchange_id: str, client: ExchangeAPI) -> None:
-        """Connect to an exchange and subscribe to initial topics."""
+    async def _connect_and_subscribe(
+        self, exchange_id: str, client: ExchangeAPI, symbols: list[str]
+    ) -> None:
+        """Connect to an exchange and subscribe to initial topics.
+        This method now also includes the message handling loop initiation.
+        """
         try:
-            logger.info(f"Connecting to {exchange_id} and subscribing to topics...")
+            logger.info(f"[{exchange_id}] Attempting to connect and subscribe...")
             await client.connect_websocket()
-
-            # Standardize symbol format for internal use
-            configured_symbols_raw = self.config.get(f"exchanges.{exchange_id}.symbols", [])
-            symbols = cast(
-                list[str],
-                configured_symbols_raw if isinstance(configured_symbols_raw, list) else [],
-            )
+            logger.info(f"[{exchange_id}] WebSocket connected.")
 
             if not symbols:
-                logger.warning(f"No symbols configured for {exchange_id}. Skipping subscriptions.")
-                return
-
-            logger.info(f"Subscribing to channels for {exchange_id}: {symbols}")
-
-            # Subscribe to channels
-            subscribe_tasks = []
-            for symbol in symbols:
-                if hasattr(client, "subscribe_to_ticker"):
-                    subscribe_tasks.append(client.subscribe_to_ticker(symbol))
-                if hasattr(client, "subscribe_to_order_book"):
-                    subscribe_tasks.append(client.subscribe_to_order_book(symbol))
-                if hasattr(client, "subscribe_to_trades"):
-                    subscribe_tasks.append(client.subscribe_to_trades(symbol))
-                if hasattr(client, "subscribe_to_funding_rates"):
-                    subscribe_tasks.append(client.subscribe_to_funding_rates(symbol))
-
-            # Exchange-specific subscriptions (Example)
-            if exchange_id == "hyperliquid" and hasattr(client, "subscribe_to_user_events"):
-                subscribe_tasks.append(client.subscribe_to_user_events())
-            # Add other exchange-specific logic here
-
-            if subscribe_tasks:
-                await asyncio.gather(*subscribe_tasks, return_exceptions=True)
-                logger.info(f"Subscriptions completed for {exchange_id}.")
+                logger.warning(f"[{exchange_id}] No symbols configured. Skipping subscriptions.")
             else:
-                logger.warning(f"No relevant subscribe methods found for {exchange_id} client.")
+                logger.info(f"[{exchange_id}] Subscribing to channels for symbols: {symbols}")
+                # Consolidate subscription logic if possible, or handle per exchange needs
+                # Example: await client.subscribe(symbols, ["ticker", "orderbook", "funding_rate"])
+                # For now, keeping separate calls if API requires it:
+                subscribe_tasks = []
+                if hasattr(client, "subscribe_to_ticker"):
+                    for symbol in symbols:  # Assuming subscribe_to_ticker is per symbol
+                        subscribe_tasks.append(client.subscribe_to_ticker(symbol))  # type: ignore
+                if hasattr(client, "subscribe_to_order_book"):
+                    for symbol in symbols:
+                        subscribe_tasks.append(client.subscribe_to_order_book(symbol))  # type: ignore
+                if hasattr(client, "subscribe_to_funding_rates"):
+                    for symbol in symbols:
+                        subscribe_tasks.append(client.subscribe_to_funding_rates(symbol))  # type: ignore
+                # Add other general subscriptions here
 
-            # Start the message handling loop
+                # Exchange-specific subscriptions
+                if exchange_id == "hyperliquid" and hasattr(client, "subscribe_to_user_events"):
+                    subscribe_tasks.append(client.subscribe_to_user_events())  # type: ignore
+
+                if subscribe_tasks:
+                    await asyncio.gather(*subscribe_tasks, return_exceptions=True)
+                    logger.info(f"[{exchange_id}] Subscriptions completed.")
+                else:
+                    logger.warning(
+                        f"[{exchange_id}] No relevant subscribe methods found or symbols list empty after check."
+                    )
+
+            # Start the message handling loop. This task will run until
+            # it's cancelled or client.is_connected becomes false.
+            if exchange_id in self.ws_tasks and not self.ws_tasks[exchange_id].done():
+                logger.warning(
+                    f"[{exchange_id}] Previous message handling task still exists and is not done. Cancelling it."
+                )
+                self.ws_tasks[exchange_id].cancel()
+                try:
+                    await self.ws_tasks[exchange_id]
+                except asyncio.CancelledError:
+                    logger.info(
+                        f"[{exchange_id}] Successfully cancelled old message handling task."
+                    )
+
             self.ws_tasks[exchange_id] = asyncio.create_task(
-                self._handle_messages(exchange_id, client)
+                self._handle_messages(exchange_id, client), name=f"handle_messages_{exchange_id}"
             )
-            logger.info(f"Message handler started for {exchange_id}.")
+            logger.info(
+                f"[{exchange_id}] Message handler task created: {self.ws_tasks[exchange_id].get_name()}"
+            )
+            await self.ws_tasks[
+                exchange_id
+            ]  # Wait for _handle_messages to complete or be cancelled.
 
+        except ConnectionError as e:
+            logger.error(f"[{exchange_id}] ConnectionError during connect/subscribe: {e}")
+            raise  # Re-raise ConnectionError for _maintain_websocket_connection to handle explicitly
+        except asyncio.CancelledError:
+            logger.info(f"[{exchange_id}] _connect_and_subscribe task was cancelled.")
+            if hasattr(client, "is_connected") and client.is_connected:  # type: ignore
+                logger.info(
+                    f"[{exchange_id}] Closing WebSocket due to cancellation of _connect_and_subscribe."
+                )
+                if hasattr(client, "close_websocket"):  # type: ignore
+                    await client.close_websocket()  # type: ignore
+            raise  # Re-raise CancelledError
         except Exception as e:
-            logger.exception(f"Failed to connect or subscribe for {exchange_id}: {e}")
-            # Optionally attempt reconnection here or handle in a separate manager
+            logger.error(f"[{exchange_id}] Failed to connect or subscribe: {e}")
+            # Do not re-raise generic exceptions, let _maintain_websocket_connection handle retry.
+            # However, ensure WebSocket is closed if connection was partially made.
+            if hasattr(client, "is_connected") and client.is_connected:  # type: ignore
+                logger.info(
+                    f"[{exchange_id}] Closing WebSocket due to error in _connect_and_subscribe: {e}"
+                )
+                if hasattr(client, "close_websocket"):  # type: ignore
+                    await client.close_websocket()  # type: ignore
+            # Not re-raising, so _maintain_websocket_connection will log this and retry.
 
     async def _handle_messages(self, exchange_id: str, client: ExchangeAPI) -> None:
         """Handle incoming messages from a WebSocket connection."""
@@ -703,3 +754,76 @@ class DataHandler:
                 f"Threshold: {threshold}"
             )
         return is_stale
+
+    async def _maintain_websocket_connection(
+        self, exchange_id: str, client: ExchangeAPI, symbols: list[str]
+    ) -> None:
+        reconnect_delay = self.config.get(f"exchanges.{exchange_id}.websocket.reconnect_delay", 5)
+        max_reconnect_delay = self.config.get(
+            f"exchanges.{exchange_id}.websocket.max_reconnect_delay", 60
+        )
+        # Max attempts for retrying a failed connection before giving up. 0 for indefinite.
+        max_attempts = self.config.get(
+            f"exchanges.{exchange_id}.websocket.max_reconnect_attempts", 0
+        )
+
+        attempt = 0
+        current_delay = float(reconnect_delay)  # Ensure float for calculations
+
+        logger.info(f"[{exchange_id}] Starting WebSocket maintenance loop.")
+        while True:
+            logger.info(f"[{exchange_id}] Top of maintenance loop, attempt {attempt}.")
+            try:
+                # This call will internally handle subscriptions and then start message handling.
+                # It will return if _handle_messages exits (e.g., due to CancelledError or client disconnect).
+                await self._connect_and_subscribe(exchange_id, client, symbols)
+
+                # If _connect_and_subscribe completes without raising an exception,
+                # it means the connection was established, and then _handle_messages either
+                # completed or was cancelled.
+                logger.info(
+                    f"[{exchange_id}] _connect_and_subscribe completed its current run (stream might have ended or been cancelled)."
+                )
+
+                # Reset attempts if connection was successful at some point before _handle_messages ended.
+                # This is debatable: if _handle_messages is cancelled, is it a "successful" cycle?
+                # For now, let's assume any return from _connect_and_subscribe means we should just retry
+                # as per the loop's own logic, unless an explicit "shutdown" is signaled.
+                # If we wanted to break on clean exit of _handle_messages, logic would go here.
+
+            except ConnectionError as e:
+                logger.warning(
+                    f"[{exchange_id}] ConnectionError in maintenance loop: {e}. Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}."
+                )
+                # This specific error type is usually retryable.
+            except asyncio.CancelledError:
+                logger.info(
+                    f"[{exchange_id}] WebSocket maintenance task was cancelled. Exiting loop."
+                )
+                break  # Exit the while True loop if the task itself is cancelled.
+            except Exception as e:
+                # Catch any other unexpected exceptions from _connect_and_subscribe
+                logger.error(
+                    f"[{exchange_id}] Unexpected error in WebSocket maintenance: {e}. Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}."
+                )
+
+            # Check if the DataHandler is still supposed to be running
+            if not getattr(self, "_running", True):  # Check _running flag if it exists
+                logger.info(f"[{exchange_id}] DataHandler is stopping. Exiting maintenance loop.")
+                break
+
+            attempt += 1
+            if max_attempts > 0 and attempt >= max_attempts:
+                logger.error(
+                    f"[{exchange_id}] Max reconnect attempts ({max_attempts}) reached for initial connection. Stopping WebSocket maintenance for this exchange."
+                )
+                break  # Exit while True loop
+
+            # Exponential backoff for retries
+            current_delay = min(current_delay * 2, float(max_reconnect_delay))
+            logger.info(
+                f"[{exchange_id}] Retrying WebSocket connection in {current_delay:.2f}s... (Attempt {attempt + 1})"
+            )  # attempt is 0-indexed
+            await asyncio.sleep(current_delay)
+
+        logger.info(f"[{exchange_id}] Exited WebSocket maintenance loop.")
