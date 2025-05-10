@@ -13,10 +13,6 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidSuccessfulOrderStatus,
     RawJsonResponse,
 )
-from cyberdelta.apis.hyperliquid.models.hl_processed_exchange_responses import (
-    HyperliquidErrorStatus,
-    HyperliquidSuccessfulOrderStatus,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
 )

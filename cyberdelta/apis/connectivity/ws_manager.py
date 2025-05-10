@@ -244,7 +244,8 @@ class WebSocketManager:
         self._logger.info(f"[{self._exchange_name} _listen] Task started.")
         if not self._ws_connection:
             self._logger.error(
-                f"[{self._exchange_name} _listen] Listener started without a valid WebSocket connection."
+                f"[{self._exchange_name} _listen] Listener started without a valid "
+                f"WebSocket connection."
             )
             return
 

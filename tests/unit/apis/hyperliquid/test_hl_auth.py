@@ -22,7 +22,7 @@ VALID_CHAIN_ID = 1337
 
 # Sample invalid credentials
 INVALID_PRIVATE_KEY_HEX = "0xinvalidkey"
-# MISMATCHED_WALLET_ADDRESS = "0xDeadBeefDeadBeefDeadBeefDeadBeefDeadBeef" # Removed as wallet_address is not a direct input with private key
+# MISMATCHED_WALLET_ADDRESS = "0xDeadBeefDeadBeefDeadBeefDeadBeefDeadBeef"
 
 
 @pytest.fixture
@@ -193,7 +193,8 @@ async def test_prepare_request_success(mock_from_key: MagicMock, mock_account: M
     assert "connectionId" in call_args["message"]
 
     # Verify connectionId generation
-    # This requires importing Web3 locally or making _generate_connection_id public (not ideal for unit test)
+    # This requires importing Web3 locally or making _generate_connection_id public
+    # (not ideal for unit test)
     # For now, we trust the internal generation if the overall signature process works.
     # Or, we can replicate the logic here for a more thorough check if needed.
     from web3 import Web3  # Local import for test

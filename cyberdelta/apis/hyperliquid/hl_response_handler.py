@@ -260,8 +260,10 @@ class HyperliquidResponseHandler:
         if isinstance(raw_response_content, str) and "Order not found" in raw_response_content:
             logger.debug(f"{context}: Received direct string '{raw_response_content}'.")
             raise APIError(
-                message=f"Order {order_id} for user {user_address} not found (direct string:"
-                f" '{raw_response_content}')",
+                message=(
+                    f"Order {order_id} for user {user_address} not found "
+                    f"(direct string: '{raw_response_content}')"
+                ),
                 code=APIErrorCode.ORDER_NOT_FOUND.value,
                 metadata={"original_response": raw_response_content},
             )
@@ -296,7 +298,7 @@ class HyperliquidResponseHandler:
             if not raw_response_content:  # Empty list implies order not found
                 logger.debug(f"{context}: Received empty list, interpreting as order not found.")
                 raise APIError(
-                    message=f"Order {order_id} for {user_address} not found (empty list).",
+                    message=(f"Order {order_id} for {user_address} not found (empty list)."),
                     code=APIErrorCode.ORDER_NOT_FOUND.value,
                     metadata={"original_response": []},
                 )
@@ -326,8 +328,10 @@ class HyperliquidResponseHandler:
             if not isinstance(status_item, dict):
                 logger.warning(f"{context}: Unexpected item type in list: {type(status_item)}.")
                 raise APIError(
-                    message=f"Unexpected item type in {context} response list: expected dict, "
-                    f"got {type(status_item).__name__}",
+                    message=(
+                        f"Unexpected item type in {context} response list: "
+                        f"expected dict, got {type(status_item).__name__}"
+                    ),
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     metadata={"original_response_item": status_item},
                 )
@@ -462,7 +466,10 @@ class HyperliquidResponseHandler:
                 oid_raw = first_status_raw["resting"].get("oid")
                 if not isinstance(oid_raw, int):
                     raise APIError(
-                        message=f"Invalid or missing 'oid' (expected int) in resting status for {action_description}",
+                        message=(
+                            f"Invalid or missing 'oid' (expected int) in resting status "
+                            f"for {action_description}"
+                        ),
                         code=APIErrorCode.INVALID_RESPONSE.value,
                         metadata={"raw_status": first_status_raw},
                     )
@@ -476,7 +483,10 @@ class HyperliquidResponseHandler:
 
                 if not isinstance(oid_raw, int):
                     raise APIError(
-                        message=f"Invalid or missing 'oid' (expected int) in filled status for {action_description}",
+                        message=(
+                            f"Invalid or missing 'oid' (expected int) in filled status "
+                            f"for {action_description}"
+                        ),
                         code=APIErrorCode.INVALID_RESPONSE.value,
                         metadata={"raw_status": first_status_raw},
                     )
@@ -488,7 +498,10 @@ class HyperliquidResponseHandler:
                     )
                 if not isinstance(avg_px_raw, str):
                     raise APIError(
-                        message=f"Invalid or missing 'avgPx' (expected str) in filled status for {action_description}",
+                        message=(
+                            f"Invalid or missing 'avgPx' (expected str) in filled "
+                            f"status for {action_description}"
+                        ),
                         code=APIErrorCode.INVALID_RESPONSE.value,
                         metadata={"raw_status": first_status_raw},
                     )
@@ -501,7 +514,10 @@ class HyperliquidResponseHandler:
                 oid_raw = first_status_raw["canceled"].get("oid")
                 if not isinstance(oid_raw, int):
                     raise APIError(
-                        message=f"Invalid or missing 'oid' (expected int) in canceled status object for {action_description}",
+                        message=(
+                            f"Invalid or missing 'oid' (expected int) in canceled status object "
+                            f"for {action_description}"
+                        ),
                         code=APIErrorCode.INVALID_RESPONSE.value,
                         metadata={"raw_status": first_status_raw},
                     )
@@ -561,6 +577,8 @@ class HyperliquidResponseHandler:
                 validated_orders.append(HyperliquidRawHistoricalOrderResponse.model_validate(item))
             except ValidationError as e:
                 raise HyperliquidResponseHandler._handle_validation_error(
-                    e, f"single order history item (index {item_index}) in {context}", item
+                    e,
+                    (f"single order history item (index {item_index}) in {context}"),
+                    item,
                 ) from e
         return validated_orders
