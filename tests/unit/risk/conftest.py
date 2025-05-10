@@ -28,8 +28,8 @@ def mock_config_values() -> dict[str, Any]:
         # "risk.max_exchange_concentration": "0.6", # Key likely not used
         "risk.kelly_fraction": "0.5",
         "exchanges": {
-            "hyperliquid": {"enabled": True},
-            "backpack": {"enabled": True},
+            "hyperliquid": {"enabled": True, "assets": {"BTC": {"quote_asset": "USDC"}}},
+            "backpack": {"enabled": True, "assets": {"BTC": {"quote_asset": "USDC"}}},
         },  # Provide structure
         "risk.min_liquidation_buffer": "0.2",
         "risk_manager.min_exchange_balance": "10.0",  # Corrected key prefix
@@ -71,9 +71,18 @@ def mock_portfolio_tracker() -> MagicMock:
     tracker = MagicMock()
     # --- Set DEFAULT return values ---
     tracker.get_total_capital.return_value = Decimal("100000.0")
-    mock_balance = MagicMock()
-    mock_balance.available = Decimal("1000.0")
-    tracker.get_exchange_balance.return_value = mock_balance
+
+    # Correctly mock get_exchange_balance to return a dict
+    def mock_get_exchange_balance_side_effect(
+        exchange: str, asset: str
+    ) -> dict[str, Decimal] | None:
+        # Default to USDC as the quote asset for BTC, consistent with mock_config_values
+        if asset == "USDC":
+            return {"available": Decimal("50000.0")}  # Sufficient balance as Decimal
+        # Return a default for other assets if necessary for other tests, or None
+        return {"available": Decimal("1000.0")}  # Generic fallback for other assets
+
+    tracker.get_exchange_balance.side_effect = mock_get_exchange_balance_side_effect
 
     def collateral_balance_side_effect(*args: object) -> Decimal:
         return Decimal("1000.0")
@@ -220,8 +229,8 @@ def mock_get_config(key: str, default: Any = None) -> object | None:
         "risk.max_exposure_per_exchange": "0.5",
         "risk.kelly_fraction": "0.5",
         "exchanges": {
-            "hyperliquid": {"enabled": True},
-            "backpack": {"enabled": True},
+            "hyperliquid": {"enabled": True, "assets": {"BTC": {"quote_asset": "USDC"}}},
+            "backpack": {"enabled": True, "assets": {"BTC": {"quote_asset": "USDC"}}},
         },
         "risk.min_liquidation_buffer": "0.2",
         "risk_manager.min_exchange_balance": "10.0",

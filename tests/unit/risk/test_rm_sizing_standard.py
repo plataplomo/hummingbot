@@ -4,6 +4,8 @@
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -15,7 +17,8 @@ class TestRiskManagerSizingStandard:
     """Test suite for RiskManager standard sizing path (_calculate_kelly_size)."""
 
     # This test assumes simple path is OFF by default in mock_config_values
-    def test_size_opportunity_standard_path(
+    @pytest.mark.asyncio
+    async def test_size_opportunity_standard_path(
         self,
         risk_manager: RiskManager,
         mock_config: MagicMock,
@@ -56,7 +59,7 @@ class TestRiskManagerSizingStandard:
             ) as mock_constraints,
         ):
             # --- Act ---
-            sized_opp = risk_manager.size_opportunity(sample_opportunity)
+            sized_opp = await risk_manager.size_opportunity(sample_opportunity)
 
             # --- Assert ---
             assert isinstance(sized_opp, SizedOpportunity)

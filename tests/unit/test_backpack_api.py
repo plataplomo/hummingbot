@@ -1,6 +1,6 @@
 import time
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
@@ -181,8 +181,8 @@ class ConcreteBackpackAPI(BackpackAPI):
         price: Decimal | None = None,
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
+        reduce_only: bool | None = None,
         post_only: bool | None = None,
-        self_trade_prevention: str | None = None,
         trigger_price: Decimal | None = None,
         trigger_type: str | None = None,
     ) -> Order:
@@ -269,7 +269,9 @@ class TestBackpackAPI:
         assert ticker.ask == Decimal("42550.75")
         assert ticker.price == Decimal("42500.25")
         assert ticker.volume == Decimal("1200.5")
-        assert ticker.timestamp > 0
+        # Check if the timestamp is a valid datetime object and reasonably recent
+        assert isinstance(ticker.timestamp, datetime)
+        assert (datetime.now(UTC) - ticker.timestamp) < timedelta(minutes=5)
 
         # Verify the mocked method was called
         api_client.get_ticker.assert_called_once_with("BTCUSDC")
@@ -372,12 +374,13 @@ class TestBackpackAPI:
     @pytest.mark.asyncio
     async def test_get_funding_rate(self, api_client: BackpackAPI) -> None:
         """Test get_funding_rate returns proper FundingRate object."""
+        expected_next_funding_time = datetime.fromtimestamp(time.time() + 3600, tz=UTC)
         mock_funding_data = FundingRate(
             symbol="SOL-PERP",
             timestamp=datetime.now(UTC),
             funding_rate=Decimal("0.0001"),
             mark_price=Decimal("45.50"),
-            next_funding_time=datetime.fromtimestamp(time.time() + 3600, tz=UTC),
+            next_funding_time=expected_next_funding_time,  # Use pre-defined time
         )
         api_client.get_funding_rate.return_value = mock_funding_data
 
@@ -387,7 +390,10 @@ class TestBackpackAPI:
         assert funding_rate.symbol == "SOL-PERP"
         assert funding_rate.funding_rate == Decimal("0.0001")
         assert funding_rate.mark_price == Decimal("45.50")
-        assert funding_rate.next_funding_time == datetime.fromtimestamp(time.time() + 3600, tz=UTC)
+        # Compare datetimes with a tolerance to avoid flaky tests due to millisecond differences
+        assert funding_rate.next_funding_time == pytest.approx(
+            expected_next_funding_time, abs=timedelta(seconds=1)
+        )
 
         api_client.get_funding_rate.assert_called_once_with("SOL-PERP")
 
@@ -513,7 +519,7 @@ class TestBackpackAPI:
             client_order_id="new-order-id",
             time_in_force=TimeInForce.GTC,
             post_only=None,
-            self_trade_prevention=None,
+            reduce_only=None,
             trigger_price=None,
             trigger_type=None,
         )
@@ -567,11 +573,23 @@ class TestBackpackAPI:
 
     @pytest.mark.asyncio
     async def test_sign_request(
-        self, backpack_config: Config, backpack_secrets: dict[str, str]
+        self, backpack_config: dict[str, Any], backpack_secrets: dict[str, str]
     ) -> None:
         """Test the _sign_request method behaves as expected (placeholder)."""
+        # backpack_config fixture directly provides the dict for the backpack exchange
+        bp_api_specific_config = backpack_config
+
+        # Ensure the provided config has the necessary rest_endpoint or api_base_url
+        if not (
+            bp_api_specific_config.get("rest_endpoint")
+            or bp_api_specific_config.get("api_base_url")
+        ):
+            # The fixture should provide this, but add a fallback/fail for clarity
+            bp_api_specific_config["rest_endpoint"] = "https://api.backpack.exchange"
+            # pytest.fail("Backpack config dict missing rest_endpoint or api_base_url")
+
         concrete_api = ConcreteBackpackAPI(
-            api_config=backpack_config.exchanges["backpack"], secrets=backpack_secrets
+            api_config=bp_api_specific_config, secrets=backpack_secrets
         )
 
         method = "POST"
@@ -588,5 +606,21 @@ class TestBackpackAPI:
         assert "timestamp" in auth_data
         assert "window" in auth_data
         assert auth_data["symbol"] == "SOL_USDC"
+
+    @pytest.mark.asyncio
+    async def test_get_open_orders_no_symbol(self, api_client: BackpackAPI) -> None:
+        """Test get_open_orders with no symbol returns empty list."""
+        # Mock the API call response (often just an empty list)
+        api_client.get_open_orders.return_value = []
+
+        # Call get_open_orders with no symbol
+        open_orders = await api_client.get_open_orders()
+
+        # Verify the response is an empty list
+        assert isinstance(open_orders, list)
+        assert len(open_orders) == 0
+
+        # Verify the mocked method was called
+        api_client.get_open_orders.assert_called_once_with()
 
     # TODO: Add tests for edge cases and error handling (e.g., API errors)

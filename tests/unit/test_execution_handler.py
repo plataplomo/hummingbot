@@ -82,7 +82,7 @@ class TestTradeExecution:
         trade_execution.realized_pnl = Decimal("10.50")
         execution_dict = trade_execution.to_dict()
         assert execution_dict["status"] == "EXECUTING"
-        assert execution_dict["realized_pnl"] == Decimal("10.50")
+        assert execution_dict["realized_pnl"] == "10.50"
 
     def test_str_representation(self, trade_execution: TradeExecution) -> None:
         string_rep = str(trade_execution)

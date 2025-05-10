@@ -35,8 +35,8 @@ class TestRiskManagerSizingSimple:
         }
         combined_config = {**mock_config.default_values, **test_overrides}
 
-        def config_get1(key: str) -> object:
-            return combined_config.get(key, None)
+        def config_get1(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get1
 
@@ -73,8 +73,8 @@ class TestRiskManagerSizingSimple:
         }
         combined_config = {**mock_config.default_values, **test_overrides}
 
-        def config_get2(key: str) -> object:
-            return combined_config.get(key, None)
+        def config_get2(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get2
 
@@ -111,8 +111,8 @@ class TestRiskManagerSizingSimple:
         }
         combined_config = {**mock_config.default_values, **test_overrides}
 
-        def config_get3(key: str) -> object:
-            return combined_config.get(key, None)
+        def config_get3(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get3
 
@@ -150,8 +150,8 @@ class TestRiskManagerSizingSimple:
         }
         combined_config = {**mock_config.default_values, **test_overrides}
 
-        def config_get4(key: str) -> object:
-            return combined_config.get(key, None)
+        def config_get4(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get4
 
@@ -213,8 +213,8 @@ class TestRiskManagerSizingSimple:
         }
         combined_config = {**mock_config.default_values, **test_overrides}
 
-        def config_get5(key: str) -> object:
-            return combined_config.get(key, None)
+        def config_get5(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get5
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")
@@ -249,8 +249,8 @@ class TestRiskManagerSizingSimple:
         }
         combined_config = {**mock_config.default_values, **test_overrides}
 
-        def config_get6(key: str) -> object:
-            return combined_config.get(key, None)
+        def config_get6(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get6
         # Only $100 available
@@ -287,11 +287,11 @@ class TestRiskManagerSizingSimple:
         }
         combined_config = {**mock_config.default_values, **test_overrides}
 
-        def config_get7(key: str) -> object:
-            return combined_config.get(key, None)
+        def config_get7(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get7
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")
+        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         mock_portfolio_tracker.get_all_positions.return_value = []
 
         class MockBalance:
@@ -317,8 +317,8 @@ class TestRiskManagerSizingSimple:
         # Now change config to lower the max position size
         combined_config["risk.global.max_position_usd"] = "100.0"
 
-        def config_get8(key: str) -> object:
-            return combined_config.get(key, None)
+        def config_get8(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get8
         risk_manager = RiskManager(
@@ -346,8 +346,8 @@ class TestRiskManagerSizingSimple:
         }
         combined_config = {**mock_config.default_values, **test_overrides}
 
-        def config_get9(key: str) -> object:
-            return combined_config.get(key, None)
+        def config_get9(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get9
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
@@ -381,22 +381,28 @@ class TestRiskManagerSizingSimple:
             "risk.simple_sizing_method": "fixed_fraction",
             "risk.simple_fixed_fraction": "0.05",
             "risk.global.max_position_usd": "10000.0",
+            "risk.min_validation_factor": "0.2",
+            "exchanges.hyperliquid.assets.BTC.quote_asset": "USDC",
+            "exchanges.backpack.assets.BTC.quote_asset": "USDC",
         }
         combined_config = {**mock_config.default_values, **test_overrides}
 
-        def config_get10(key: str) -> object:
-            return combined_config.get(key, None)
+        def config_get10(key: str, default: object | None = None) -> object | None:
+            return combined_config.get(key, default)
 
         mock_config.get.side_effect = config_get10
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+
+        def mock_get_balance(exchange: str, asset: str) -> dict[str, str] | None:
+            if asset == "USDC":
+                return {"available": "50000.0"}
+            return None
+
+        mock_portfolio_tracker.get_exchange_balance.side_effect = mock_get_balance
+
         risk_manager = RiskManager(
             mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
         )
-
-        def get_symbol_metrics(exchange: str, symbol: str) -> dict[str, float]:
-            return {"rmse": 999.0, "bias": 999.0}
-
-        mock_funding_validator.get_symbol_metrics.side_effect = get_symbol_metrics
         # --- Act ---
         sized_opp = await risk_manager.size_opportunity(sample_opportunity)
         # --- Assert ---

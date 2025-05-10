@@ -31,11 +31,12 @@ import time
 from pathlib import Path
 from typing import Any
 
+from cyberdelta.config.secrets_manager import SecretsManager
+
 # Assuming the script is run from the project root, no need to modify sys.path
 # If run from examples/, the relative import might work, but absolute is safer
 # Correct imports based on project structure
 from cyberdelta.utils.config import Config
-from cyberdelta.utils.secrets import SecretsManager
 
 # Get project root assuming the script is run from the project root
 # or adjust relative path accordingly.
@@ -159,21 +160,27 @@ def main() -> None:
     print(f"Loading configuration from: {config_path}")
     # Config expects the path to the *primary* config file (e.g., config_cyberdelta.yaml)
     # It will then load config_base.yaml from the expected relative location.
-    config_loader = Config(config_file_path=config_path)
-    loaded_config = config_loader.get_config()
+    config_loader = Config(config_path_or_data=str(config_path))  # Pass string path
+    loaded_config = config_loader.as_dict()
 
     if not loaded_config:  # Assuming get_config() returns None or empty on failure
         print("Failed to load configuration.")
         sys.exit(1)
 
-    print(f"Loading secrets from: {secrets_path}")
-    secrets_manager = SecretsManager(secrets_file_path=secrets_path)
-    loaded_secrets = secrets_manager.get_secrets()
+    print(
+        f"Loading secrets from: {secrets_path}"
+    )  # secrets_path is for info, SecretsManager finds its own path
+    secrets_manager = SecretsManager()
+    # Attempt to load secrets; load_secrets() returns bool, errors logged internally
+    if not secrets_manager.load_secrets():
+        print(
+            f"Warning: Secrets could not be loaded. Path used by SecretsManager might be missing or invalid (e.g., {secrets_manager._get_secrets_path()})"
+        )
+        # loaded_secrets will be an empty dict if loading failed and was attempted
+    loaded_secrets = secrets_manager.secrets  # Access the internal dict
 
     if not loaded_secrets:
-        print("Failed to load secrets.")
-        # Decide if this is a fatal error for the example
-        # sys.exit(1)
+        print("Failed to load secrets or no secrets found.")
 
     # Display configuration information
     print("\n=== Configuration Information (from Config object) ===")
@@ -183,70 +190,51 @@ def main() -> None:
     print("\n=== Full Loaded Configuration (for demonstration) ===")
     # _print_dict(loaded_config) # Printing the whole dict can be verbose
 
+    # --- Display Exchange Information ---
     print("\n=== Exchange Information ===")
-    exchanges = config_loader.get("exchanges", default_value={})
-    if isinstance(exchanges, dict):
-        for exchange_name, exchange_config in exchanges.items():
-            if isinstance(exchange_config, dict):
-                status = "Enabled" if exchange_config.get("enabled") else "Disabled"
-                print(f"  - {exchange_name}: {status}")
-                print(f"    API Base URL: {exchange_config.get('api_base_url')}")
-                print(f"    WebSocket URL: {exchange_config.get('ws_url')}")
-                rate_limit = exchange_config.get("rate_limit_per_minute")
+    exchanges = config_loader.get("exchanges", default={})
+    if isinstance(exchanges, dict) and exchanges:
+        for name, details in exchanges.items():
+            if isinstance(details, dict):
+                status = "Enabled" if details.get("enabled") else "Disabled"
+                print(f"  - {name}: {status}")
+                print(f"    API Base URL: {details.get('api_base_url')}")
+                print(f"    WebSocket URL: {details.get('ws_url')}")
+                rate_limit = details.get("rate_limit_per_minute")
                 print(f"    Rate Limit: {rate_limit} per minute")
             else:
-                print(
-                    f"  - {exchange_name}: Invalid config format"
-                )  # Should not happen with Pydantic
+                print(f"  - {name}: Invalid config format")  # Should not happen with Pydantic
     else:
         print("No exchange configurations found or invalid format.")
 
-    # Display strategies information
-    strategies = config_loader.get("strategies", default_value={})
-    print(
-        f"\n=== Strategies Information ({len(strategies) if isinstance(strategies, dict) else 0}) ==="
-    )
-    if isinstance(strategies, dict):
-        for strategy_name, strategy_config in strategies.items():
-            if isinstance(strategy_config, dict):
-                status = "Enabled" if strategy_config.get("enabled") else "Disabled"
-                print(f"  - {strategy_name}: {status}")
-                symbols = strategy_config.get("symbols", {})
+    # --- Display Strategy Configuration ---
+    print("\n=== Strategy Configuration ===")
+    strategies = config_loader.get("strategies", default={})
+    if isinstance(strategies, dict) and strategies:
+        for name, details in strategies.items():
+            if isinstance(details, dict):
+                status = "Enabled" if details.get("enabled") else "Disabled"
+                print(f"  - {name}: {status}")
+                symbols = details.get("symbols", {})
                 if isinstance(symbols, dict) and symbols:
                     print("    Symbols:")
                     for symbol_name, symbol_value in symbols.items():
                         print(f"      {symbol_name}: {symbol_value}")
-                params = strategy_config.get("params", {})
+                params = details.get("params", {})
                 if isinstance(params, dict) and params:
                     print("    Parameters:")
                     for param_name, param_value in params.items():
                         print(f"      {param_name}: {param_value}")
             else:
-                print(f"  - {strategy_name}: Invalid config format")
+                print(f"  - {name}: Invalid config format")
     else:
         print("No strategy configurations found or invalid format.")
 
-    # Display risk management information
-    print("\n=== Risk Management Information ===")
-    risk = config_loader.get("risk", default_value={})
-    if isinstance(risk, dict):
-        global_risk = risk.get("global", {})
-        if isinstance(global_risk, dict):
-            print("  Global Risk Settings:")
-            print(f"    Max Position Size: ${global_risk.get('max_position_usd')}")
-            print(f"    Max Total Exposure: ${global_risk.get('max_total_exposure_usd')}")
-            print(f"    Max Portfolio Leverage: {global_risk.get('max_portfolio_leverage')}x")
-
-        strategy_risk_settings = risk.get("strategies", {})
-        if isinstance(strategy_risk_settings, dict):
-            print("  Strategy-Specific Risk Settings:")
-            for strategy_name, risk_config in strategy_risk_settings.items():
-                if isinstance(risk_config, dict):
-                    print(f"    - {strategy_name}:")
-                    print(f"      Max Position Size: ${risk_config.get('max_position_usd')}")
-                    print(f"      Max Leverage: {risk_config.get('max_leverage')}x")
-    else:
-        print("No risk configurations found or invalid format.")
+    # --- Display Risk Management Configuration ---
+    print("\n=== Risk Management Configuration ===")
+    risk_config = config_loader.get("risk", default={})
+    if isinstance(risk_config, dict) and risk_config:
+        print_recursive_dict(risk_config, indent=2)
 
     # Display circuit breakers
     print("\n=== Circuit Breakers ===")
@@ -305,38 +293,28 @@ def main() -> None:
 
 
 def run_benchmark(config_main_path: Path, secrets_main_path: Path) -> None:
-    """Runs a benchmark of the configuration loading system."""
+    """Runs a benchmark of the configuration system."""
     print("\n=== Benchmarking Configuration Loading ===")
     print(f"Using config: {config_main_path}")
     print(f"Using secrets: {secrets_main_path}")
 
-    iterations = 1000
-    total_config_time = 0
-    total_secrets_time = 0
-
-    # Benchmark Config loading
+    num_iterations = 100
     start_time = time.perf_counter()
-    for _ in range(iterations):
-        cfg = Config(config_file_path=config_main_path)
-        # cfg.load() # In the current Config, load is implicit in get_config or direct access
-        _ = cfg.get_config()  # This triggers the actual loading and parsing logic
-    end_time = time.perf_counter()
-    total_config_time = end_time - start_time
-    avg_config_time_ms = (total_config_time / iterations) * 1000
-    print(f"Config loading: {avg_config_time_ms:.4f} ms per iteration ({iterations} iterations)")
 
-    # Benchmark Secrets loading
-    # Ensure CYBERDELTA_SECRETS_PATH is set for SecretsManager if it relies on it
-    # For direct path usage, this is fine.
-    start_time = time.perf_counter()
-    for _ in range(iterations):
-        sec = SecretsManager(secrets_file_path=secrets_main_path)
-        # sec.load_secrets() # In current SecretsManager, load is implicit in get_secrets
-        _ = sec.get_secrets()  # This triggers the actual loading
+    for _ in range(num_iterations):
+        # Pass the string path directly to Config constructor
+        cfg = Config(config_path_or_data=str(config_main_path))
+        # SecretsManager finds its own path based on environment or defaults
+        secrets_mgr = SecretsManager()
+        if not secrets_mgr.secrets_loaded:  # Ensure they are loaded for benchmark
+            secrets_mgr.load_secrets()
+        _ = cfg.as_dict()  # Access some data
+        _ = secrets_mgr.get("exchanges.hyperliquid.api_key")
+
     end_time = time.perf_counter()
-    total_secrets_time = end_time - start_time
-    avg_secrets_time_ms = (total_secrets_time / iterations) * 1000
-    print(f"Secrets loading: {avg_secrets_time_ms:.4f} ms per iteration ({iterations} iterations)")
+    total_time = end_time - start_time
+    avg_time_ms = (total_time / num_iterations) * 1000
+    print(f"Average time per iteration: {avg_time_ms:.4f} ms ({num_iterations} iterations)")
 
     print("\nBenchmark Notes:")
     print("- Times include object instantiation and file I/O.")

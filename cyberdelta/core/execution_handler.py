@@ -477,6 +477,8 @@ class ExecutionHandler:
         context = "placing compensation order" if is_compensation else "placing order"
         client_order_id = f"cde_{execution.id[:8]}_{exchange_id[:3]}_{str(uuid.uuid4())[:8]}"
 
+        last_api_error_for_reraise: APIError | None = None
+
         for attempt in range(self.max_retries):
             try:
                 logger.info(
@@ -499,13 +501,14 @@ class ExecutionHandler:
                 )
                 return order_result
             except APIError as e:
+                last_api_error_for_reraise = e  # Store the API error
                 should_retry = await self._handle_api_error(e, exchange_id, context)
                 if not should_retry:
                     execution.error_message = (
                         f"Non-retryable API error during {context} on {exchange_id}: {e.message}"
                     )
                     logger.error(f"Execution {execution.id}: {execution.error_message}")
-                    return None
+                    raise  # Re-raise current exception (e)
                 # Exponential backoff
                 delay = self.retry_delay_base * (2**attempt) * (1 + random.uniform(-0.2, 0.2))
                 logger.info(f"Execution {execution.id}: Retrying {context} in {delay:.2f}s...")
@@ -519,11 +522,27 @@ class ExecutionHandler:
                 # Decide if unexpected errors are retryable (maybe not)
                 return None
 
-        execution.error_message = (
-            f"Failed to place order on {exchange_id} after {self.max_retries} retries."
-        )
-        logger.error(f"Execution {execution.id}: {execution.error_message}")
-        return None
+        # If loop finishes, it means all retries were exhausted for an APIError, or another exception occurred.
+        # The error_message should already be set by the last attempt or the unexpected exception block.
+        # If the reason for exhausting retries was specifically an APIError, re-raise it as per test expectation.
+        if last_api_error_for_reraise:
+            # Ensure error_message reflects this final attempt if not already set by non-retryable path
+            if not execution.error_message or "Non-retryable" not in execution.error_message:
+                execution.error_message = f"Failed to place order on {exchange_id} after {self.max_retries} retries due to: {last_api_error_for_reraise.message}"
+            logger.error(
+                f"Execution {execution.id}: Exhausted retries. Last API error: {last_api_error_for_reraise}"
+            )
+            raise last_api_error_for_reraise
+        else:
+            # This path should ideally not be hit if an APIError occurred and was stored.
+            # If it's another exception, it would have been raised or returned None from the loop.
+            # If it's just max_retries without a specific APIError stored (e.g. unexpected error returned None),
+            # set a generic message if not already set.
+            if not execution.error_message:
+                execution.error_message = f"Failed to place order on {exchange_id} after {self.max_retries} retries (unknown reason)."
+            logger.error(f"Execution {execution.id}: {execution.error_message}")
+
+        return None  # Fallback, though raising last_api_error_for_reraise is preferred if it exists
 
     async def _get_order_status(
         self,
