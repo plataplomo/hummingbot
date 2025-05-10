@@ -206,10 +206,12 @@ class HyperliquidAPI(ExchangeAPI):
         logger.debug(
             f"[{self.exchange_name}] Asset index for {symbol} not cached, fetching meta..."
         )
+        # build_info_request_payload returns None, which is fine for _request
+        request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
         response_raw: object = await self._request(
             "POST",
             f"{self.INFO_URL.rstrip('/')}/info",
-            data=HyperliquidRequestBuilder.build_info_request_payload(),
+            data=request_payload_data,  # This is already None or dict, remains as is
         )
 
         try:
@@ -361,10 +363,11 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
         try:
+            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=HyperliquidRequestBuilder.build_info_request_payload(),
+                data=request_payload_data,  # This is already None or dict
             )
             validated_state: HyperliquidRawClearinghouseState = (
                 HyperliquidResponseHandler.handle_info_user_state_response(
@@ -401,10 +404,11 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
         try:
+            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=HyperliquidRequestBuilder.build_info_request_payload(),
+                data=request_payload_data,  # This is already None or dict
             )
             validated_state: HyperliquidRawClearinghouseState = (
                 HyperliquidResponseHandler.handle_info_user_state_response(
@@ -447,10 +451,11 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
         try:
+            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=HyperliquidRequestBuilder.build_info_request_payload(),
+                data=request_payload_data,  # This is already None or dict
             )
             validated_response_wrapper: HyperliquidRawOpenOrdersResponse = (
                 HyperliquidResponseHandler.handle_info_open_orders_response(
@@ -486,10 +491,11 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_ticker(self, symbol: str) -> Ticker:
         """Get current ticker information for a symbol."""
         try:
+            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=HyperliquidRequestBuilder.build_info_request_payload(),
+                data=request_payload_data,  # This is already None or dict
             )
             validated_meta_ctxs: HyperliquidRawMetaAndAssetCtxsResponse = (
                 HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
@@ -524,10 +530,11 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
         """Get order book for a symbol."""
         try:
+            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=HyperliquidRequestBuilder.build_info_request_payload(),
+                data=request_payload_data,  # This is already None or dict
             )
             validated: HyperliquidRawL2Book = (
                 HyperliquidResponseHandler.handle_info_l2_book_response(
@@ -550,10 +557,11 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
         """Get recent trades for a symbol."""
         try:
+            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=HyperliquidRequestBuilder.build_info_request_payload(),
+                data=request_payload_data,  # This is already None or dict
             )
             validated_trades_list: list[HyperliquidRawPublicTrade] = (
                 HyperliquidResponseHandler.handle_info_recent_trades_response(
@@ -577,10 +585,11 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_funding_rate(self, symbol: str) -> FundingRate | None:
         """Get funding rate for a symbol."""
         try:
+            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
             response: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=HyperliquidRequestBuilder.build_info_request_payload(),
+                data=request_payload_data,  # This is already None or dict
             )
             validated_meta_ctxs: HyperliquidRawMetaAndAssetCtxsResponse = (
                 HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
@@ -618,14 +627,15 @@ class HyperliquidAPI(ExchangeAPI):
                 "Destination address (to_account) is required for Hyperliquid L2 transfer."
             )
 
-        request_data = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
+        request_model = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
             destination_address=to_account, amount=amount
         )
+        request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
 
         response_raw: object = None
         try:
             response_raw = await self._request(
-                "POST", "/exchange", data=request_data, is_signed=True
+                "POST", "/exchange", data=request_data_dict, is_signed=True
             )
             validated_response: HyperliquidRawExchangeResponse = (
                 HyperliquidResponseHandler.handle_exchange_response(response_raw, "L2 Transfer")
@@ -722,14 +732,15 @@ class HyperliquidAPI(ExchangeAPI):
         if not address:
             raise ValueError("Destination address is required for withdrawal.")
 
-        request_data = HyperliquidRequestBuilder.build_withdrawal_payload(
+        request_model = HyperliquidRequestBuilder.build_withdrawal_payload(
             asset=asset, amount=amount, destination_address=address
         )
+        request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
 
         response_raw: object = None
         try:
             response_raw = await self._request(
-                "POST", "/exchange", data=request_data, is_signed=True
+                "POST", "/exchange", data=request_data_dict, is_signed=True
             )
             validated_response: HyperliquidRawExchangeResponse = (
                 HyperliquidResponseHandler.handle_exchange_response(response_raw, "Withdrawal")
@@ -931,11 +942,12 @@ class HyperliquidAPI(ExchangeAPI):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
-        request_body_payload = HyperliquidRequestBuilder.build_order_history_payload(
+        request_model = HyperliquidRequestBuilder.build_order_history_payload(
             wallet_address=self._wallet_address,
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
         )
+        request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
 
         response_raw: object = None
         orders_list: list[Order] = []
@@ -943,7 +955,7 @@ class HyperliquidAPI(ExchangeAPI):
             response_raw = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=request_body_payload,
+                data=request_data_dict,
             )
             if not isinstance(response_raw, list):
                 raise APIError(
@@ -1015,10 +1027,11 @@ class HyperliquidAPI(ExchangeAPI):
             )
         response_raw: object = None
         try:
+            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
             response_raw = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=HyperliquidRequestBuilder.build_info_request_payload(),
+                data=request_payload_data,  # This is already None or dict
             )
             if not isinstance(response_raw, list):
                 logger.warning(
@@ -1065,10 +1078,11 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
         """Get current funding rates."""
         try:
+            request_payload_data = HyperliquidRequestBuilder.build_info_request_payload()
             response_raw: object = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=HyperliquidRequestBuilder.build_info_request_payload(),
+                data=request_payload_data,  # This is already None or dict
             )
 
             # Use the consistent response handler for MetaAndAssetCtxs
@@ -1116,14 +1130,15 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
         """Fetches historical market data (candlesticks)."""
-        request_body_payload = HyperliquidRequestBuilder.build_candle_snapshot_payload(
+        request_model = HyperliquidRequestBuilder.build_candle_snapshot_payload(
             symbol=symbol, timeframe=timeframe, start_time_ms=0, end_time_ms=int(time.time() * 1000)
         )
+        request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
         try:
             raw_response = await self._request(
                 method="POST",
                 endpoint=f"{self.INFO_URL.rstrip('/')}/info",
-                data=request_body_payload,
+                data=request_data_dict,
             )
             if raw_response is None:
                 raise APIError(
@@ -1180,7 +1195,7 @@ class HyperliquidAPI(ExchangeAPI):
         asset_index = await self._get_asset_index(symbol)
 
         # Delegate payload construction to the request builder
-        request_data = HyperliquidRequestBuilder.build_place_order_payload(
+        request_model = HyperliquidRequestBuilder.build_place_order_payload(
             asset_index=asset_index,
             side=side,
             order_type=order_type,
@@ -1192,11 +1207,12 @@ class HyperliquidAPI(ExchangeAPI):
             reduce_only=reduce_only,
             post_only=post_only,
         )
+        request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
 
         response_raw: object = None
         try:
             response_raw = await self._request(
-                "POST", "/exchange", data=request_data, is_signed=True
+                "POST", "/exchange", data=request_data_dict, is_signed=True
             )
 
             validated_response: HyperliquidRawExchangeResponse = (
@@ -1347,12 +1363,13 @@ class HyperliquidAPI(ExchangeAPI):
         asset_index = await self._get_asset_index(symbol)
         response_raw: object = None
         try:
-            request_data = HyperliquidRequestBuilder.build_cancel_order_payload(
+            request_model = HyperliquidRequestBuilder.build_cancel_order_payload(
                 asset_index=asset_index, order_id=int(order_id)
             )
+            request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
 
             response_raw = await self._request(
-                "POST", "/exchange", data=request_data, is_signed=True
+                "POST", "/exchange", data=request_data_dict, is_signed=True
             )
             validated_response: HyperliquidRawExchangeResponse = (
                 HyperliquidResponseHandler.handle_exchange_response(response_raw, "Cancel Order")
@@ -1454,14 +1471,15 @@ class HyperliquidAPI(ExchangeAPI):
                 "Wallet address required for fetching order status",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
-        payload = HyperliquidRequestBuilder.build_order_status_payload(
+        request_model = HyperliquidRequestBuilder.build_order_status_payload(
             wallet_address=self._wallet_address, order_id=int(order_id)
         )
+        request_data_dict = request_model.model_dump(by_alias=True, exclude_none=True)
         try:
             response_data_raw = await self._request(
                 "POST",
                 f"{self.INFO_URL.rstrip('/')}/info",
-                data=payload,
+                data=request_data_dict,
             )
             response_data: Any = response_data_raw
 
@@ -1486,7 +1504,7 @@ class HyperliquidAPI(ExchangeAPI):
         except ValidationError as e_val:
             logger.error(
                 f"[{self.exchange_name}] Validation error in get_order_status: {e_val}. "
-                f"Payload: {payload!r}"
+                f"Payload: {request_data_dict!r}"
             )
             raise APIError(
                 "Pydantic validation error processing order status.",
