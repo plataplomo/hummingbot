@@ -24,8 +24,8 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
     RawJsonResponse,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import (
-    HyperliquidRawCandleSnapshotResponse,
+from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
+    HyperliquidRawCandleSnapshot,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
@@ -652,59 +652,98 @@ class HyperliquidAPI(ExchangeAPI):
                 )
 
             first_status_obj_raw = validated_response.data.statuses[0]
+            error_to_raise_from_status: APIError | None = None
+
+            # Prepare argument for the handler
+            arg_for_handler: dict[str, Any] | str
             if isinstance(first_status_obj_raw, str):
-                if "error" in first_status_obj_raw.lower():
-                    logger.warning(
-                        f"[{self.exchange_name}] L2 Transfer failed with status: "
-                        f"{first_status_obj_raw}"
-                    )
-                    raise APIError(
-                        first_status_obj_raw,
-                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-                        exchange_message=first_status_obj_raw,
-                    )
-                logger.info(f"[{self.exchange_name}] L2 Transfer status: {first_status_obj_raw}")
-                return {"status": "success_with_info", "data": first_status_obj_raw}
+                arg_for_handler = first_status_obj_raw
+            elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):
+                # The handler expects a raw dict for validation if it's not a string
+                arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
             else:
-                # This assumes the item in statuses is a dict that can be validated
-                # If it can be other types, more robust checking is needed.
-                status_object = HyperliquidRawExchangeStatusObject.model_validate(
-                    first_status_obj_raw
+                # Should not happen if validated_response is correct
+                logger.error(
+                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in L2 "
+                    f"Transfer: {type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}"
                 )
+                raise APIError(
+                    "Unexpected data type in L2 Transfer status.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+            processed_status = HyperliquidResponseHandler.process_first_exchange_status(
+                arg_for_handler, "L2 Transfer"
+            )
+
+            if isinstance(processed_status, str):
+                # It's a string status (e.g., "User already has an agent", or an error string)
+                if (
+                    "error" in processed_status.lower()
+                    or "already has an agent" in processed_status.lower()
+                ):
+                    logger.warning(
+                        f"[{self.exchange_name}] L2 Transfer string status indicates issue: "
+                        f"'{processed_status}'"
+                    )
+                    if "User already has an agent" in processed_status:
+                        error_to_raise_from_status = APIError(
+                            f"L2 Transfer issue: {processed_status}",  # Clarified message
+                            code=APIErrorCode.EXCHANGE_SPECIFIC.value,  # Changed to existing code
+                            exchange_message=processed_status,
+                        )
+                    else:
+                        error_to_raise_from_status = self.error_mapper.map_string_error(
+                            processed_status, http_status=200
+                        )
+                else:  # Benign string
+                    logger.info(
+                        f"[{self.exchange_name}] L2 Transfer status (string): {processed_status}"
+                    )
+                    return {"status": "success_with_info", "data": processed_status}
+
+            elif isinstance(processed_status, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
+                status_object = processed_status
                 if status_object.error:
                     logger.warning(
-                        f"[{self.exchange_name}] L2 Transfer failed: {status_object.error}"
+                        f"[{self.exchange_name}] L2 Transfer object status has error: "
+                        f"'{status_object.error}'"
                     )
-                    raise APIError(
-                        status_object.error,
-                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-                        exchange_message=status_object.error,
+                    error_to_raise_from_status = self.error_mapper.map_string_error(
+                        status_object.error, http_status=200
                     )
-                elif status_object.filled:
+                elif status_object.success:  # Check for general success message
                     logger.info(
-                        f"[{self.exchange_name}] L2 Transfer resulted in fill-like status: "
-                        f"{status_object.filled.model_dump()}"
+                        f"[{self.exchange_name}] L2 Transfer success message: "
+                        f"'{status_object.success}'"
                     )
-                    return {"status": "success", "data": status_object.filled.model_dump()}
-                elif status_object.resting:
-                    logger.info(
-                        f"[{self.exchange_name}] L2 Transfer resulted in resting-like status: "
-                        f"{status_object.resting.model_dump()}"
-                    )
-                    return {"status": "success", "data": status_object.resting.model_dump()}
+                    return {"status": "success", "data": {"message": status_object.success}}
+                # Hyperliquid L2 transfers don't typically return 'filled' or 'resting'
+                # but if they did, that logic would go here.
+                # For now, a success message or lack of error is considered success.
+                # If no error and no explicit success message, but also no clear failure,
+                # this might be an ambiguous case.
                 else:
-                    # If we reach here, the status object was valid but didn't match
-                    # expected transfer success/error patterns (e.g., filled, resting, error).
-                    # This indicates an unexpected but validated response structure for a transfer.
-                    logger.warning(
-                        f"[{self.exchange_name}] L2 Transfer status obj has unexpected structure: "
-                        f"{status_object.model_dump()}"
+                    logger.info(
+                        f"[{self.exchange_name}] L2 Transfer successful (no error in status obj). "
+                        f"Status obj: {status_object.model_dump_json()!r}"
                     )
-                    # Raise an error instead of returning potentially misleading success
-                    raise APIError(
-                        "L2 Transfer response object had unexpected structure.",
-                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
-                    )
+                    return {"status": "success", "data": status_object.model_dump()}
+
+            # If error_to_raise_from_status was set
+            if error_to_raise_from_status:
+                raise error_to_raise_from_status
+
+            # Fallback if status was not definitively error, success, or info string
+            logger.warning(
+                f"[{self.exchange_name}] L2 Transfer status unclear after processing. "
+                f"Processed: {processed_status!r}. Raw response: {response_raw!r}"
+            )
+            raise APIError(
+                "L2 Transfer status unclear after processing.",
+                code=APIErrorCode.UNKNOWN.value,
+            )
+
         except ValidationError as e:
             logger.error(
                 f"[{self.exchange_name}] Failed to validate L2 transfer response: {e}. "
@@ -1151,12 +1190,12 @@ class HyperliquidAPI(ExchangeAPI):
                     code=APIErrorCode.EXCHANGE_SPECIFIC.value,
                 )
 
-            raw_snapshot: HyperliquidRawCandleSnapshotResponse = (
+            raw_snapshot: HyperliquidRawCandleSnapshot = (
                 HyperliquidResponseHandler.handle_info_candle_snapshot_response(
                     cast(RawJsonResponse, raw_response), symbol, timeframe
                 )
             )
-            # The mapper now expects the full response object
+            # The mapper now expects the full response object (HyperliquidRawCandleSnapshot)
             internal_candles = HyperliquidCandleMapper.map(raw_snapshot, symbol, timeframe)
             if limit > 0 and len(internal_candles) > limit:
                 internal_candles = internal_candles[-limit:]
@@ -1242,11 +1281,20 @@ class HyperliquidAPI(ExchangeAPI):
             arg_for_handler: dict[str, Any] | str
             if isinstance(first_status_obj_raw, str):
                 arg_for_handler = first_status_obj_raw
-            else:  # It's HyperliquidRawExchangeStatusObject
+            elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):
                 # The handler expects a raw dict for validation if it's not a string
                 arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
+            else:
+                # Should not happen if validated_response is correct
+                logger.error(
+                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in L2 "
+                    f"Transfer: {type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}"
+                )
+                raise APIError(
+                    "Unexpected data type in L2 Transfer status.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
 
-            # Process the first status using the new handler method
             processed_status = HyperliquidResponseHandler.process_first_exchange_status(
                 arg_for_handler, "Place Order"
             )
@@ -1332,7 +1380,6 @@ class HyperliquidAPI(ExchangeAPI):
             else:
                 # This case means the status was a benign string without an OID, or
                 # a complex object without error/resting/filled that yielded an OID.
-                # Or a success message that didn't give an OID.
                 # This is an unclear outcome if an order was intended to be placed.
                 logger.warning(
                     f"[{self.exchange_name}] Order placement status unclear. Processed status: "
@@ -1391,29 +1438,116 @@ class HyperliquidAPI(ExchangeAPI):
                 or not validated_response.data
                 or not validated_response.data.statuses
             ):
+                # Use error_mapper for consistent error raising
+                mapped_error = self.error_mapper.map_exchange_error(
+                    status_code=200,  # Assuming 200 if we got this far
+                    error_body=str(response_raw),
+                    error_data=validated_response.model_dump() if validated_response else None,
+                    request_path="/exchange",
+                )
+                raise mapped_error
+
+            first_status_obj_raw = validated_response.data.statuses[0]
+            error_to_raise_from_status: APIError | None = None
+
+            # Prepare argument for the handler
+            arg_for_handler: dict[str, Any] | str
+            if isinstance(first_status_obj_raw, str):
+                arg_for_handler = first_status_obj_raw
+            elif isinstance(first_status_obj_raw, HyperliquidRawExchangeStatusObject):
+                arg_for_handler = first_status_obj_raw.model_dump(by_alias=True, exclude_none=True)
+            else:
+                logger.error(
+                    f"[{self.exchange_name}] Unexpected type for first_status_obj_raw in Cancel "
+                    f"Order: {type(first_status_obj_raw)}. Raw: {first_status_obj_raw!r}"
+                )
                 raise APIError(
-                    f"Order cancel failed on exchange: "
-                    f"{validated_response.model_dump() if validated_response else 'Invalid resp'}",
-                    code=APIErrorCode.ORDER_REJECTED.value,
+                    "Unexpected data type in Cancel Order status.",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
                 )
 
-            if validated_response.data.statuses[0] == "canceled":
-                logger.info(f"Successfully cancelled order {order_id} for asset {asset_index}")
-                return True
-            else:
-                error_message = (
-                    f"Cancellation status unclear or failed: {validated_response.data.statuses[0]}"
-                )
-                if (
-                    isinstance(
-                        validated_response.data.statuses[0], HyperliquidRawExchangeStatusObject
+            processed_status = HyperliquidResponseHandler.process_first_exchange_status(
+                arg_for_handler, f"Cancel Order OID:{order_id}"
+            )
+
+            if isinstance(processed_status, str):
+                if processed_status.lower() == "canceled":
+                    logger.info(
+                        f"[{self.exchange_name}] Successfully cancelled order {order_id} for "
+                        f"asset {asset_index} (string status: '{processed_status}')"
                     )
-                    and validated_response.data.statuses[0].error
-                ):
-                    error_message = f"Cancel failed: {validated_response.data.statuses[0].error}"
-                    raise APIError(error_message, code=APIErrorCode.ORDER_REJECTED.value)
-                logger.warning(error_message)
-                return True
+                    return True
+                elif "error" in processed_status.lower() or "Order not found" in processed_status:
+                    logger.warning(
+                        f"[{self.exchange_name}] Cancel order {order_id} failed or not found "
+                        f"(string status: '{processed_status}')"
+                    )
+                    # Map specific known error strings if necessary
+                    if "Order not found" in processed_status:
+                        error_to_raise_from_status = APIError(
+                            f"Cancel failed: Order {order_id} not found.",
+                            code=APIErrorCode.ORDER_NOT_FOUND.value,
+                            exchange_message=processed_status,
+                        )
+                    else:
+                        error_to_raise_from_status = self.error_mapper.map_string_error(
+                            processed_status, http_status=200
+                        )
+                else:
+                    # Unrecognized string status
+                    logger.warning(
+                        f"[{self.exchange_name}] Cancel order {order_id} returned unhandled string "
+                        f"status: '{processed_status}'"
+                    )
+                    error_to_raise_from_status = APIError(
+                        f"Cancel order {order_id} status unclear: {processed_status}",
+                        code=APIErrorCode.EXCHANGE_SPECIFIC.value,
+                        exchange_message=processed_status,
+                    )
+            elif isinstance(processed_status, HyperliquidRawExchangeStatusObject):  # pyright: ignore[reportUnnecessaryIsInstance]
+                status_object = processed_status
+                if status_object.error:
+                    logger.warning(
+                        f"[{self.exchange_name}] Cancel order {order_id} failed with error: "
+                        f"'{status_object.error}'"
+                    )
+                    error_to_raise_from_status = self.error_mapper.map_string_error(
+                        status_object.error, http_status=200
+                    )
+                elif status_object.success:  # Explicit success message
+                    logger.info(
+                        f"[{self.exchange_name}] Cancel order {order_id} successful (success msg: "
+                        f"'{status_object.success}'). Assuming cancelled."
+                    )
+                    return True
+                # Check for other fields like 'resting' or 'filled' being empty if that implies cancellation
+                # For now, lack of error and explicit success is treated as success.
+                # If Hyperliquid guarantees a specific field for confirmed cancel in the object,
+                # that should be checked here.
+                else:
+                    logger.info(
+                        f"[{self.exchange_name}] Cancel order {order_id} status object received without error. "
+                        f"Assuming success. Obj: {status_object.model_dump_json()!r}"
+                    )
+                    return True  # Assuming non-error object means success for cancel
+
+            if error_to_raise_from_status:
+                raise error_to_raise_from_status
+
+            # Fallback if status was not definitively error or success
+            logger.warning(
+                f"[{self.exchange_name}] Cancel order {order_id} status unclear after processing. "
+                f"Processed: {processed_status!r}. Raw response: {response_raw!r}"
+            )
+            # Consider returning False or raising a more specific error if an OID was expected
+            # but not found or if the state is truly ambiguous for a cancel operation.
+            # For now, if no error was raised, and it wasn't an explicit string "canceled",
+            # this path implies ambiguity.
+            raise APIError(
+                f"Cancel order {order_id} status unclear after processing.",
+                code=APIErrorCode.UNKNOWN.value,
+            )
+
         except (ValidationError, ValueError) as e_val_cancel:
             logger.error(
                 f"[{self.exchange_name}] Failed to validate cancel response or invalid OID: "

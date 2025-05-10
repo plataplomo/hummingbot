@@ -31,8 +31,8 @@ from pydantic import ValidationError
 from cyberdelta.apis.exchange_names import ExchangeName
 
 # Import the Response model containing list[HyperliquidRawCandle]
-from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import (
-    HyperliquidRawCandleSnapshotResponse,
+from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
+    HyperliquidRawCandleSnapshot,
 )
 
 # Import the historical order model needed for the new mapper method
@@ -972,32 +972,51 @@ class HyperliquidPositionMapper:
 
 class HyperliquidCandleMapper:
     """
-    Maps a validated HyperliquidRawCandleSnapshotResponse to a list of internal Candle models.
+    Maps a validated HyperliquidRawCandleSnapshot (parallel array format) to a list of internal Candle models.
     """
 
     @staticmethod
-    # Change input type hint to the Response object containing the list
-    def map(
-        raw_response: HyperliquidRawCandleSnapshotResponse, symbol: str, interval: str
-    ) -> list[Candle]:
+    def map(raw_snapshot: HyperliquidRawCandleSnapshot, symbol: str, interval: str) -> list[Candle]:
         candles: list[Candle] = []
-        # Iterate through the list of individual candle objects within the response
-        for raw_candle in raw_response.candles:
+        if raw_snapshot.s != "ok":
+            logger.warning(
+                f"Candle snapshot status is not 'ok': {raw_snapshot.s}. Symbol: {symbol}, Interval: {interval}"
+            )
+            return candles  # Return empty list if status is not ok
+
+        # The model validator in HyperliquidRawCandleSnapshot ensures all lists are of the same length.
+        # We can iterate based on the length of the timestamp list (self.t).
+        num_candles = len(raw_snapshot.t)
+
+        for i in range(num_candles):
             try:
-                # Access fields directly from the raw_candle object
-                open_time_dt = parse_datetime_utc(raw_candle.t, field_name="open_time")
-                open_ = parse_decimal_value(raw_candle.o, allow_none=False, field_name="open")
-                high = parse_decimal_value(raw_candle.h, allow_none=False, field_name="high")
-                # Use the correct alias 'low_price' for the field 'l'
-                low = parse_decimal_value(raw_candle.low_price, allow_none=False, field_name="low")
-                close = parse_decimal_value(raw_candle.c, allow_none=False, field_name="close")
-                volume = parse_decimal_value(raw_candle.v, allow_none=False, field_name="volume")
+                open_time_dt = parse_datetime_utc(
+                    raw_snapshot.t[i], field_name=f"open_time_idx_{i}"
+                )
+                open_ = parse_decimal_value(
+                    raw_snapshot.o[i], allow_none=False, field_name=f"open_idx_{i}"
+                )
+                high = parse_decimal_value(
+                    raw_snapshot.h[i], allow_none=False, field_name=f"high_idx_{i}"
+                )
+                low = parse_decimal_value(
+                    raw_snapshot.l[i], allow_none=False, field_name=f"low_idx_{i}"
+                )
+                close = parse_decimal_value(
+                    raw_snapshot.c[i], allow_none=False, field_name=f"close_idx_{i}"
+                )
+                volume = parse_decimal_value(
+                    raw_snapshot.v[i], allow_none=False, field_name=f"volume_idx_{i}"
+                )
 
                 if None in (open_time_dt, open_, high, low, close, volume):
-                    logger.warning(f"Skipping candle at time {raw_candle.t} due to None value(s)")
+                    logger.warning(
+                        f"Skipping candle at index {i} for symbol {symbol}, interval {interval} "
+                        f"due to None value after parsing. Timestamp: {raw_snapshot.t[i]}"
+                    )
                     continue
 
-                # Ensure Non-None after check for MyPy
+                # Ensure Non-None after check for MyPy (already guaranteed by allow_none=False for decimals)
                 assert open_time_dt is not None
                 assert open_ is not None
                 assert high is not None
@@ -1005,7 +1024,6 @@ class HyperliquidCandleMapper:
                 assert close is not None
                 assert volume is not None
 
-                # Correct argument name: use open_time
                 candle = Candle(
                     symbol=symbol,
                     interval=interval,
@@ -1017,9 +1035,10 @@ class HyperliquidCandleMapper:
                     volume=volume,
                 )
                 candles.append(candle)
-            except (ValidationError, ValueError, TypeError) as e:
+            except (ValidationError, ValueError, TypeError, IndexError) as e:
                 logger.warning(
-                    f"Error processing or validating candle data at time {raw_candle.t}: {e}"
+                    f"Error processing or validating candle data at index {i} for symbol {symbol}, "
+                    f"interval {interval}. Timestamp: {raw_snapshot.t[i]}. Error: {e}"
                 )
                 continue
         return candles

@@ -6,8 +6,8 @@ Validates raw JSON data against Pydantic models specific to Hyperliquid\'s API e
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.hyperliquid.models.hl_raw_candle_snapshot import (
-    HyperliquidRawCandleSnapshotResponse,
+from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
+    HyperliquidRawCandleSnapshot,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
@@ -224,8 +224,8 @@ class HyperliquidResponseHandler:
     @staticmethod
     def handle_info_candle_snapshot_response(
         raw_response_content: RawJsonResponse, symbol: str, interval: str
-    ) -> HyperliquidRawCandleSnapshotResponse:
-        """Validates the /info response for candle_snapshot."""
+    ) -> HyperliquidRawCandleSnapshot:
+        """Validates the /info response for candle_snapshot (parallel array format)."""
         context = f"info (CandleSnapshot for {symbol} {interval})"
         if not isinstance(raw_response_content, dict):
             raise APIError(
@@ -234,7 +234,8 @@ class HyperliquidResponseHandler:
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         try:
-            return HyperliquidRawCandleSnapshotResponse.model_validate(raw_response_content)
+            # Validate against the parallel array model
+            return HyperliquidRawCandleSnapshot.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
                 e, context, raw_response_content
