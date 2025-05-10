@@ -25,6 +25,7 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
+from cyberdelta.core.models.market import Candle
 
 # Correct the import to use the new typing module
 # REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
@@ -87,8 +88,29 @@ class MockExchangeAPI(ExchangeAPI):
         secrets: dict[str, str | None],
         config_obj: Config | None = None,
     ) -> None:
+        # Ensure api_base_url is valid for HttpClientConfig, regardless of what's in config dict
+        config_copy = config.copy()  # Modify a copy
+        # Check if api_base_url is missing, not a string, or not a plausible URL format
+        current_api_base_url = config_copy.get("api_base_url")
+        is_valid_url = False
+        if isinstance(current_api_base_url, str):
+            # Simple check for protocol, can be enhanced if needed
+            if current_api_base_url.startswith("http://") or current_api_base_url.startswith(
+                "https://"
+            ):
+                is_valid_url = True
+
+        if not is_valid_url:
+            logger.warning(
+                f"[{exchange_name}] MockExchangeAPI overriding api_base_url '{current_api_base_url}' "
+                f"with 'http://fixedmock.exchange' for HttpClientConfig stability."
+            )
+            config_copy["api_base_url"] = "http://fixedmock.exchange"  # Force a valid one
+
         mock_error_mapper = MockErrorMapper()  # Use the placeholder ErrorMapper
-        super().__init__(exchange_name, config, secrets, error_mapper=mock_error_mapper)
+        super().__init__(
+            exchange_name, config_copy, secrets, error_mapper=mock_error_mapper
+        )  # Pass the modified copy
         self.full_config = config_obj  # Store the full config object if provided
         self._order_id_counter = 1
         self._orders: dict[str, Order] = {}  # Store orders by ID
@@ -747,3 +769,103 @@ class MockExchangeAPI(ExchangeAPI):
         # This method is not provided in the original file or the code block
         # It's assumed to exist as it's called in the _route_ws_message method
         pass
+
+    # --- ADDED PLACEHOLDERS FOR MISSING ExchangeAPI ABSTRACT METHODS ---
+
+    def _construct_subscription_payload(self, topic: str) -> dict[str, Any] | None:
+        """Mock implementation for constructing subscription payload."""
+        logger.debug(f"MockExchange {self.exchange_name}: Constructing payload for {topic}")
+        # Return a generic payload or None, depending on what the base class expects
+        # or what tests might require.
+        if "orderbook" in topic.lower():
+            return {"op": "subscribe", "args": [topic]}
+        if "trades" in topic.lower():
+            return {"op": "subscribe", "args": [topic]}
+        return None
+
+    async def get_funding_rates(self, symbols: list[str] | None = None) -> list[FundingRate]:
+        """Return mock funding rates for multiple symbols."""
+        self._check_error("get_funding_rates")
+        await self._simulate_latency()
+        rates: list[FundingRate] = []
+        if symbols:
+            for symbol in symbols:
+                rate = self._mock_funding_rates.get(symbol)
+                if rate:
+                    rates.append(rate)
+        else:  # Return all mock rates if no specific symbols requested
+            rates.extend(list(self._mock_funding_rates.values()))
+        return rates
+
+    async def get_market_data(self, symbol: str, timeframe: str, limit: int = 100) -> list[Candle]:
+        """Return mock market data (candles)."""
+        self._check_error("get_market_data")
+        await self._simulate_latency()
+        # Return empty list for simplicity, or a predefined set of candles
+        logger.debug(
+            f"MockExchange {self.exchange_name}: get_market_data for {symbol}, {timeframe}, {limit}"
+        )
+        return []
+
+    async def cancel_all_orders(self, symbol: str | None = None) -> None:
+        """Mock implementation for cancelling all orders."""
+        self._check_error("cancel_all_orders")
+        await self._simulate_latency()
+        orders_to_cancel_ids: list[str] = []
+        for order_id, order in self._orders.items():
+            if order.status in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]:
+                if symbol is None or order.symbol == symbol:
+                    orders_to_cancel_ids.append(order_id)
+
+        for order_id in orders_to_cancel_ids:
+            self._orders[order_id].status = OrderStatus.CANCELED
+            self._orders[order_id].updated_at = datetime.now(UTC)
+            if order_id in self.open_orders:
+                del self.open_orders[order_id]
+        logger.info(
+            f"MockExchange {self.exchange_name}: Cancelled all orders ({len(orders_to_cancel_ids)})"
+            f"{' for symbol ' + symbol if symbol else ''}."
+        )
+        pass
+
+    async def get_order_history(
+        self,
+        symbol: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
+        order_id: str | None = None,  # Added missing param from base
+        client_order_id: str | None = None,  # Added missing param from base
+    ) -> list[Order]:
+        """Return mock order history."""
+        self._check_error("get_order_history")
+        await self._simulate_latency()
+        # Basic filtering, can be enhanced
+        results = list(self._orders.values())
+        if symbol:
+            results = [o for o in results if o.symbol == symbol]
+        if start_time:
+            results = [o for o in results if o.created_at >= start_time]
+        if end_time:
+            results = [o for o in results if o.created_at <= end_time]
+        if order_id:  # Filter by exchange order id
+            results = [o for o in results if o.exchange_order_id == order_id]
+        if client_order_id:  # Filter by client order id
+            results = [o for o in results if o.client_order_id == client_order_id]
+
+        if limit:
+            results = results[:limit]
+        return results
+
+    async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> list[Trade]:
+        """Return mock trade history."""
+        self._check_error("get_trade_history")
+        await self._simulate_latency()
+        results = self._trades  # Use the internal _trades list
+        if symbol:
+            results = [t for t in results if t.symbol == symbol]
+        if limit:
+            results = results[:limit]
+        return results
+
+    # --- END OF ADDED PLACEHOLDERS ---

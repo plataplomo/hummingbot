@@ -15,7 +15,7 @@ def generate_synthetic_data(
     days: int = 60,
     symbols: list[str] | None = None,
     data_type: str = "funding_rate",
-    freq: str = "1H",
+    freq: str = "1h",
     seed: int | None = None,
 ) -> pd.DataFrame:
     """

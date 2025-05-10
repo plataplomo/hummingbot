@@ -553,46 +553,42 @@ class SimpleVisualizer:
             return None
 
         # --- Plotting ---
-        fig, ax = self._setup_plot("Monthly PnL", "Month", "PnL ($)")
+        fig, ax = self._setup_plot("Monthly Performance", "Month", "Total PnL ($)")
 
-        # Create bar chart
+        # Plotting
         colors = ["green" if pnl >= 0 else "red" for pnl in monthly_pnl.values]
-        # Convert pandas values to native Python list for compatibility
-        monthly_values = monthly_pnl.values.tolist()
-        monthly_bars = ax.bar(
-            [idx.strftime("%b-%Y") for idx in monthly_pnl.index],
-            monthly_values,
-            color=colors,
-            alpha=0.8,
-        )
+        # Prepare x-axis ticks and labels
+        x_labels: list[str]
+        if isinstance(monthly_pnl.index, pd.PeriodIndex):
+            x_labels = monthly_pnl.index.strftime("%b %Y").to_list()
+        elif isinstance(monthly_pnl.index, pd.DatetimeIndex):
+            x_labels = monthly_pnl.index.strftime("%b %Y").to_list()
+        else:
+            x_labels = monthly_pnl.index.astype(str).to_list()
 
-        # Format x-axis labels (Month Abbreviation - Year)
-        ax.set_xticklabels(
-            [idx.strftime("%b-%Y") for idx in monthly_pnl.index], rotation=45, ha="right"
-        )
+        x_ticks = np.arange(len(x_labels))
+        bars = ax.bar(x_ticks, monthly_pnl.values, color=colors)  # Use x_ticks for bar positions
+        ax.axhline(0, color="grey", linewidth=0.8)  # Zero line
 
-        # Add PnL values on bars
-        for bar in monthly_bars:
-            height = bar.get_height()
-            ax.annotate(
-                f"${height:.2f}",
-                xy=(bar.get_x() + bar.get_width() / 2.0, float(height)),
-                xytext=(0, 3 if height > 0 else -3),
-                textcoords="offset points",
+        # Add PnL values on top of bars
+        for bar in bars:
+            yval = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                yval + (20 if yval >= 0 else -60),  # Offset text based on bar height
+                f"${yval:,.2f}",
                 ha="center",
-                va="bottom" if height > 0 else "top",
+                va="bottom" if yval >= 0 else "top",
+                fontsize=9,
             )
 
-        # Add horizontal line at zero
-        ax.axhline(y=0, color="gray", linestyle="--", alpha=0.7)
-
-        # Adjust y-axis limits for better visualization of labels
-        min_ylim, max_ylim = ax.get_ylim()
-        ax.set_ylim(min_ylim - abs(min_ylim) * 0.1, max_ylim + abs(max_ylim) * 0.1)
+        # Formatting x-axis to show month names
+        ax.set_xticks(x_ticks)  # Set tick positions first
+        ax.set_xticklabels(x_labels)  # Then set labels
+        plt.xticks(rotation=45, ha="right")
 
         # Finalize plot
         self._finalize_plot(fig, ax, "monthly_performance", save, show)
-
         return fig
 
     def generate_performance_summary(self) -> str:

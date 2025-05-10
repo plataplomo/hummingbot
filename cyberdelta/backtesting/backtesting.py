@@ -103,6 +103,7 @@ class BacktestEngine:
             slippage: Slippage per trade (Decimal)
             results_dir: Directory to save results
         """
+        self.logger = logger
         self.strategy = strategy
         if isinstance(data, str):
             try:
@@ -203,9 +204,6 @@ class BacktestEngine:
 
         # Create results directory if it doesn't exist
         pathlib.Path(results_dir).mkdir(parents=True, exist_ok=True)
-
-        # Explicitly add instance logger, referencing the module logger
-        self.logger = logger  # Add this line
 
         self.results_handler: BacktestResultsHandler | None = None  # Initialize as None
 
@@ -483,7 +481,7 @@ class StrategyAdapter(BacktestStrategy):
         historical data needs if any, often via a DataHandler in live trading.
         For backtesting, historical data is fed tick-by-tick via 'update'.
         """
-        self.logger.info(
+        self._logger.info(
             f"StrategyAdapter: Initializing '{self.name}'. Core strategy assumed ready."
         )
         self.initialized = True  # Mark adapter as initialized
@@ -691,23 +689,47 @@ class StrategyAdapter(BacktestStrategy):
         def get_current_price(symbol: str, data: pd.Series | pd.DataFrame) -> Decimal | None:
             """Helper to get current price (close) for a symbol."""
             price_val = None
+            self._logger.debug(
+                f"[get_current_price] Attempting to get price for symbol: '{symbol}'"
+            )
+            self._logger.debug(
+                f"[get_current_price] Data index type: {type(data.index)}, index: {data.index}"
+            )
+
             try:
                 if isinstance(data.index, pd.MultiIndex):
-                    # Assumes (symbol, field) multi-index
+                    self._logger.debug(
+                        f"[get_current_price] Data has MultiIndex. Accessing data.loc['{symbol}']"
+                    )
                     symbol_data = data.loc[symbol]
+                    self._logger.debug(
+                        f"[get_current_price] symbol_data type: {type(symbol_data)}, content: {symbol_data}"
+                    )
                     price_val = (
                         symbol_data.get("close") if hasattr(symbol_data, "get") else symbol_data
                     )
                 else:
+                    self._logger.debug(
+                        "[get_current_price] Data has non-MultiIndex. Accessing data directly for 'close'."
+                    )
                     # Assumes single series, check if name matches or just get close
                     if data.index.name == symbol or symbol == "UNKNOWN_SYMBOL":  # Crude check
                         price_val = data.get("close") if hasattr(data, "get") else data
                     else:  # Check if the series itself contains the symbol? Unlikely.
                         self._logger.warning(
-                            f"Cannot reliably get price for {symbol} from simple Series."
+                            f"[get_current_price] Cannot reliably get price for {symbol} from simple Series."
                         )
+            except KeyError as ke:
+                self._logger.error(
+                    f"[get_current_price] KeyError getting current price for symbol '{symbol}': {ke}. Data shape: {data.shape}, Data index: {data.index}",
+                    exc_info=True,
+                )
+                return None
             except Exception as e:
-                self._logger.error(f"Error getting current price for {symbol}: {e}")
+                self._logger.error(
+                    f"[get_current_price] Error getting current price for {symbol}: {e}",
+                    exc_info=True,
+                )
                 return None
 
             if price_val is not None and not np.isnan(price_val):

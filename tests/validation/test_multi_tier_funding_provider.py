@@ -2,7 +2,6 @@
 Tests for the multi-tier funding rate provider.
 """
 
-import unittest
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
@@ -21,11 +20,12 @@ from cyberdelta.validation.multi_tier_funding_provider import (
 )
 
 
-class TestMultiTierFundingProvider(unittest.TestCase):
+class TestMultiTierFundingProvider:
     """Tests for the MultiTierFundingProvider class."""
 
-    def setUp(self) -> None:
-        """Set up test environment."""
+    @pytest.fixture(autouse=True)
+    def setup_method(self) -> None:
+        """Set up test environment for each test method."""
         # Create a basic config
         self.config = {
             "primary_source_weight": 0.6,
@@ -59,24 +59,24 @@ class TestMultiTierFundingProvider(unittest.TestCase):
 
         # Create mock source functions
         self.primary_source = AsyncMock()
-        self.primary_source.return_value = {"rate": 0.0015, "timestamp": datetime.now()}
+        self.primary_source.return_value = {"rate": 0.0015, "timestamp": datetime.now(UTC)}
 
         self.secondary_source = AsyncMock()
         self.secondary_source.return_value = {
             "rate": 0.0014,
-            "timestamp": datetime.now(),
+            "timestamp": datetime.now(UTC),
         }
 
         self.tertiary_source = AsyncMock()
         self.tertiary_source.return_value = {
             "rate": 0.0016,
-            "timestamp": datetime.now(),
+            "timestamp": datetime.now(UTC),
         }
 
         self.fallback_source = AsyncMock()
         self.fallback_source.return_value = {
             "rate": 0.0013,
-            "timestamp": datetime.now(),
+            "timestamp": datetime.now(UTC),
         }
 
     def test_register_source(self) -> None:
@@ -108,10 +108,10 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         )
 
         # Verify sources were registered
-        self.assertEqual(self.provider.primary_sources["hyperliquid"], self.primary_source)
-        self.assertEqual(self.provider.secondary_sources["hyperliquid"], self.secondary_source)
-        self.assertEqual(self.provider.tertiary_sources["hyperliquid"], self.tertiary_source)
-        self.assertEqual(self.provider.fallback_sources["hyperliquid"], self.fallback_source)
+        assert self.provider.primary_sources["hyperliquid"] == self.primary_source
+        assert self.provider.secondary_sources["hyperliquid"] == self.secondary_source
+        assert self.provider.tertiary_sources["hyperliquid"] == self.tertiary_source
+        assert self.provider.fallback_sources["hyperliquid"] == self.fallback_source
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_all_sources(self) -> None:
@@ -145,8 +145,8 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.tertiary_source.assert_called_once_with("BTC-PERP")
 
         # Verify result
-        self.assertAlmostEqual(rate, 0.00149, places=5)  # Weighted average
-        self.assertGreater(confidence, 0.7)  # Should be high with all sources
+        assert rate == pytest.approx(0.00149, abs=1e-5)
+        assert confidence > 0.7
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_primary_only(self) -> None:
@@ -166,8 +166,8 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.primary_source.assert_called_once_with("BTC-PERP")
 
         # Verify result
-        self.assertAlmostEqual(rate, 0.0015, places=5)
-        self.assertGreater(confidence, 0.5)  # Should be moderate with only primary
+        assert rate == pytest.approx(0.0015, abs=1e-5)
+        assert confidence > 0.5
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_primary_fails(self) -> None:
@@ -195,8 +195,8 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.secondary_source.assert_called_once_with("BTC-PERP")
 
         # Verify result uses secondary
-        self.assertAlmostEqual(rate, 0.0014, places=5)
-        self.assertLess(confidence, 0.7)  # Should be lower without primary
+        assert rate == pytest.approx(0.0014, abs=1e-5)
+        assert confidence < 0.7
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_all_fail(self) -> None:
@@ -240,8 +240,8 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.fallback_source.assert_called_once_with("BTC-PERP")
 
         # Verify result uses fallback
-        self.assertAlmostEqual(rate, 0.0013, places=5)
-        self.assertAlmostEqual(confidence, 0.3, places=1)  # Low confidence for fallback
+        assert rate == pytest.approx(0.0013, abs=1e-5)
+        assert confidence == pytest.approx(0.3, abs=1e-1)
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_all_fail_no_fallback(self) -> None:
@@ -270,8 +270,13 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         )
 
         # Expect exception
-        with self.assertRaises(FundingRateSourceError):
+        with pytest.raises(FundingRateSourceError, match="No valid funding rate found"):
             await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
+
+        # Verify all sources were called
+        self.primary_source.assert_called_once_with("BTC-PERP")
+        self.secondary_source.assert_called_once_with("BTC-PERP")
+        self.tertiary_source.assert_called_once_with("BTC-PERP")
 
     def test_clear_cache(self) -> None:
         """Test clearing the funding rate cache."""
@@ -290,13 +295,13 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         )
 
         # Verify cache has data
-        self.assertEqual(len(self.provider.funding_cache), 1)
+        assert len(self.provider.funding_cache) == 1
 
         # Clear cache
         self.provider.clear_cache()
 
         # Verify cache is empty
-        self.assertEqual(len(self.provider.funding_cache), 0)
+        assert len(self.provider.funding_cache) == 0
 
     def test_clear_stale_cache_entries(self) -> None:
         """Test clearing stale entries from funding rate cache."""
@@ -332,16 +337,16 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         self.provider.funding_cache[("hyperliquid", "ETH-PERP")] = stale_entry
 
         # Verify cache has data
-        self.assertEqual(len(self.provider.funding_cache), 2)
+        assert len(self.provider.funding_cache) == 2
 
         # Clear stale entries
         cleared = self.provider.clear_stale_cache_entries(300.0)  # 5 minutes max age
 
         # Verify stale entry was cleared
-        self.assertEqual(cleared, 1)
-        self.assertEqual(len(self.provider.funding_cache), 1)
-        self.assertIn(("hyperliquid", "BTC-PERP"), self.provider.funding_cache)
-        self.assertNotIn(("hyperliquid", "ETH-PERP"), self.provider.funding_cache)
+        assert cleared == 1
+        assert len(self.provider.funding_cache) == 1
+        assert ("hyperliquid", "BTC-PERP") in self.provider.funding_cache
+        assert ("hyperliquid", "ETH-PERP") not in self.provider.funding_cache
 
     def test_integrate_funding_data(self) -> None:
         """Test integrating funding data from multiple sources."""
@@ -380,18 +385,18 @@ class TestMultiTierFundingProvider(unittest.TestCase):
         )
 
         # Verify result
-        self.assertEqual(integrated.exchange, "hyperliquid")
-        self.assertEqual(integrated.symbol, "BTC-PERP")
+        assert integrated.exchange == "hyperliquid"
+        assert integrated.symbol == "BTC-PERP"
         # Adjust expected value based on reliability-weighted calculation
         # (0.0015*0.6*1.0 + 0.0014*0.3*0.8 + 0.0016*0.1*0.5) / (0.6*1.0 + 0.3*0.8 + 0.1*0.5)
         # = (0.0009 + 0.000336 + 0.00008) / (0.6 + 0.24 + 0.05)
         # = 0.001316 / 0.89 = 0.0014786516...
-        self.assertAlmostEqual(integrated.rate, 0.00147865, places=7)
+        assert integrated.rate == pytest.approx(0.00147865, abs=1e-7)
         # Confidence score assertion needs separate verification if needed
-        # self.assertGreater(integrated.confidence_score, 0.7)
+        # assert integrated.confidence_score > 0.7
 
         # Check source data
-        self.assertEqual(len(integrated.source_data), 3)
-        self.assertEqual(integrated.source_data[SourceType.PRIMARY], primary_data)
-        self.assertEqual(integrated.source_data[SourceType.SECONDARY], secondary_data)
-        self.assertEqual(integrated.source_data[SourceType.TERTIARY], tertiary_data)
+        assert len(integrated.source_data) == 3
+        assert integrated.source_data[SourceType.PRIMARY] == primary_data
+        assert integrated.source_data[SourceType.SECONDARY] == secondary_data
+        assert integrated.source_data[SourceType.TERTIARY] == tertiary_data

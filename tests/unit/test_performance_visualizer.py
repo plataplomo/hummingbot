@@ -1,9 +1,9 @@
-import unittest
 from typing import Any
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go  # type: ignore
+import pytest
 
 from cyberdelta.visualization.performance_visualizer import (
     PerformanceMetricsCalculator,
@@ -12,18 +12,18 @@ from cyberdelta.visualization.performance_visualizer import (
 )
 
 
-class TestVisualizationConfig(unittest.TestCase):
+class TestVisualizationConfig:
     """Tests for the VisualizationConfig class"""
 
     def test_default_initialization(self) -> None:
         """Test that default configuration initializes correctly"""
         config = VisualizationConfig()
-        self.assertEqual(config.theme, "light")
-        self.assertEqual(config.default_height, 600)
-        self.assertEqual(config.default_width, 800)
-        self.assertEqual(config.template, "plotly_white")
-        self.assertTrue(config.show_legend)
-        self.assertIsNotNone(config.color_palette)
+        assert config.theme == "light"
+        assert config.default_height == 600
+        assert config.default_width == 800
+        assert config.template == "plotly_white"
+        assert config.show_legend
+        assert config.color_palette is not None
 
     def test_custom_initialization(self) -> None:
         """Test that custom configuration parameters are applied correctly"""
@@ -34,18 +34,19 @@ class TestVisualizationConfig(unittest.TestCase):
             color_palette=["red", "blue", "green"],
             show_legend=False,
         )
-        self.assertEqual(config.theme, "dark")
-        self.assertEqual(config.default_height, 800)
-        self.assertEqual(config.default_width, 1000)
-        self.assertEqual(config.template, "plotly_dark")  # Should be set based on theme
-        self.assertEqual(config.color_palette, ["red", "blue", "green"])
-        self.assertFalse(config.show_legend)
+        assert config.theme == "dark"
+        assert config.default_height == 800
+        assert config.default_width == 1000
+        assert config.template == "plotly_dark"
+        assert config.color_palette == ["red", "blue", "green"]
+        assert not config.show_legend
 
 
-class TestPerformanceVisualizer(unittest.TestCase):
+class TestPerformanceVisualizer:
     """Tests for the PerformanceVisualizer class"""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def setup_method(self) -> None:
         """Set up test environment with sample data"""
         self.config = VisualizationConfig()
         self.visualizer = PerformanceVisualizer(config=self.config)
@@ -90,15 +91,15 @@ class TestPerformanceVisualizer(unittest.TestCase):
 
     def test_initialization(self) -> None:
         """Test that visualizer initializes correctly"""
-        self.assertEqual(self.visualizer.config, self.config)
+        assert self.visualizer.config == self.config
 
     def test_create_returns_chart(self) -> None:
         """Test returns chart generation"""
         fig: go.Figure = self.visualizer.create_returns_chart(self.returns_data)
-        self.assertIsInstance(fig, go.Figure)
+        assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
-            self.assertEqual(len(data), 3)  # Should have 3 traces for 3 strategies
+            assert len(data) == 3
         else:
             raise TypeError("fig.data is not a tuple as expected")
 
@@ -106,41 +107,41 @@ class TestPerformanceVisualizer(unittest.TestCase):
         fig = self.visualizer.create_returns_chart(
             self.returns_data, strategy_names=["Strategy1", "Strategy2"]
         )
-        self.assertIsInstance(fig, go.Figure)
+        assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):
             data = fig.data
-            self.assertEqual(len(data), 2)  # Should have 2 traces
+            assert len(data) == 2
         else:
             raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_drawdown_chart(self) -> None:
         """Test drawdown chart generation"""
         fig: go.Figure = self.visualizer.create_drawdown_chart(self.returns_data)
-        self.assertIsInstance(fig, go.Figure)
+        assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
-            self.assertEqual(len(data), 3)  # Should have 3 traces for 3 strategies
+            assert len(data) == 3
         else:
             raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_trade_analysis_chart(self) -> None:
         """Test trade analysis chart generation"""
         fig: go.Figure = self.visualizer.create_trade_analysis_chart(self.trade_data)
-        self.assertIsInstance(fig, go.Figure)
+        assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
             # Should have 2 traces: profitable and losing trades
-            self.assertTrue(1 <= len(data) <= 2)  # Could be 1 if all trades are profitable/losing
+            assert 1 <= len(data) <= 2
         else:
             raise TypeError("fig.data is not a tuple as expected")
 
     def test_create_funding_rate_heatmap(self) -> None:
         """Test funding rate heatmap generation"""
         fig: go.Figure = self.visualizer.create_funding_rate_heatmap(self.funding_data)
-        self.assertIsInstance(fig, go.Figure)
+        assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
-            self.assertEqual(len(data), 1)  # Should have 1 heatmap trace
+            assert len(data) == 1
         else:
             raise TypeError("fig.data is not a tuple as expected")
 
@@ -151,19 +152,20 @@ class TestPerformanceVisualizer(unittest.TestCase):
             trade_data=self.trade_data,
             funding_data=self.funding_data,
         )
-        self.assertIsInstance(fig, go.Figure)
+        assert isinstance(fig, go.Figure)
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
             # Dashboard should have at least 4 subplots with multiple traces
-            self.assertTrue(len(data) >= 4)
+            assert len(data) >= 4
         else:
             raise TypeError("fig.data is not a tuple as expected")
 
 
-class TestPerformanceMetricsCalculator(unittest.TestCase):
+class TestPerformanceMetricsCalculator:
     """Tests for the PerformanceMetricsCalculator class"""
 
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def setup_method(self) -> None:
         """Set up test environment with sample data"""
         self.calculator = PerformanceMetricsCalculator()
 
@@ -177,40 +179,40 @@ class TestPerformanceMetricsCalculator(unittest.TestCase):
     def test_calculate_sharpe_ratio(self) -> None:
         """Test Sharpe ratio calculation"""
         sharpe = self.calculator.calculate_sharpe_ratio(self.returns)
-        self.assertIsInstance(sharpe, float)
+        assert isinstance(sharpe, float)
 
     def test_calculate_sortino_ratio(self) -> None:
         """Test Sortino ratio calculation"""
         sortino = self.calculator.calculate_sortino_ratio(self.returns)
-        self.assertIsInstance(sortino, float)
+        assert isinstance(sortino, float)
 
     def test_calculate_max_drawdown(self) -> None:
         """Test maximum drawdown calculation"""
         max_dd = self.calculator.calculate_max_drawdown(self.returns)
-        self.assertIsInstance(max_dd, float)
-        self.assertTrue(0 <= max_dd <= 100)  # Drawdown should be a percentage between 0-100
+        assert isinstance(max_dd, float)
+        assert 0 <= max_dd <= 100
 
     def test_calculate_calmar_ratio(self) -> None:
         """Test Calmar ratio calculation"""
         calmar = self.calculator.calculate_calmar_ratio(self.returns)
-        self.assertIsInstance(calmar, float)
+        assert isinstance(calmar, float)
 
     def test_calculate_win_rate(self) -> None:
         """Test win rate calculation"""
         win_rate = self.calculator.calculate_win_rate(self.trades)
-        self.assertIsInstance(win_rate, float)
-        self.assertTrue(0 <= win_rate <= 100)  # Win rate should be a percentage between 0-100
+        assert isinstance(win_rate, float)
+        assert 0 <= win_rate <= 100
 
     def test_calculate_profit_factor(self) -> None:
         """Test profit factor calculation"""
         profit_factor = self.calculator.calculate_profit_factor(self.trades)
-        self.assertIsInstance(profit_factor, float)
-        self.assertTrue(profit_factor >= 0)  # Profit factor should be non-negative
+        assert isinstance(profit_factor, float)
+        assert profit_factor >= 0
 
     def test_calculate_all_metrics(self) -> None:
         """Test calculation of all metrics"""
         metrics = self.calculator.calculate_all_metrics(self.returns, self.trades)
-        self.assertIsInstance(metrics, dict)
+        assert isinstance(metrics, dict)
 
         # Check that all expected metrics are present
         expected_metrics = [
@@ -230,8 +232,4 @@ class TestPerformanceMetricsCalculator(unittest.TestCase):
         ]
 
         for metric in expected_metrics:
-            self.assertIn(metric, metrics)
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert metric in metrics
