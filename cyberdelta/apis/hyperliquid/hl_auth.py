@@ -89,13 +89,12 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             self.logger.critical(f"HyperliquidEip712Authenticator: {impos_msg}")
             raise RuntimeError(impos_msg)
 
-        # DEFENSIVE CHECK for mypy, should be always true after logic above
-        if self._account is None:  # pyright: ignore[reportUnnecessaryComparison]
+        # DEFENSIVE CHECK: _account not None post-init. Mypy=[unreachable] Ruff=[None]
+        if self._account is None:
             # This path should be logically unreachable if above logic is correct.
             self.logger.error(
                 "HyperliquidEip712Authenticator: Account object is None after initialization logic."
             )
-            # Mypy: unreachable
             raise ValueError("Account object could not be initialized.")
 
         self._wallet_address: str = self._account.address  # Derive address
@@ -176,7 +175,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             ValueError: If data is None or not a dictionary, as it's required for HL Agent sig.
         """
         if data is None:
-            msg = "Invalid 'data' for Hyperliquid EIP-712 Agent signature: Must be a dictionary and not None."
+            msg = (
+                "Invalid 'data' for Hyperliquid EIP-712 Agent signature: "
+                "Must be a dictionary and not None."
+            )
             self.logger.error(f"HyperliquidEip712Authenticator: {msg} Received: {type(data)}")
             raise ValueError(msg)
 
@@ -199,13 +201,12 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             "types": self._agent_typed_data_message_types,
         }
 
-        if self._account is None:  # DEFENSIVE CHECK: Ensure _account is not None before signing.
-            # Mypy: condition-always-false, Ruff: FBT003 (`self._account is None`)
+        # DEFENSIVE CHECK: _account not None for signing. Mypy=[unreachable] Ruff=[None]
+        if self._account is None:
             # This should not be reached if __init__ succeeded
             self.logger.error(
                 "HyperliquidEip712Authenticator: Account not initialized, cannot sign message."
             )
-            # Mypy: unreachable
             raise APIError(
                 "Authenticator account not initialized.",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
