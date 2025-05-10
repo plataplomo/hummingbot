@@ -21,7 +21,7 @@ from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
-from cyberdelta.utils import synthetic_data
+from cyberdelta.testing import data_generation as synthetic_data
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
