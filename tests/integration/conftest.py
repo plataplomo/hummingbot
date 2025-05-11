@@ -9,8 +9,12 @@ import pytest_asyncio
 
 from cyberdelta.core.data_handler import DataHandler, Ticker
 from cyberdelta.core.execution_handler import ExecutionHandler
+from cyberdelta.core.models import SpotBalance
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.risk_manager import FundingRateValidatorProtocol, PortfolioTrackerProtocol
+from cyberdelta.core.risk_manager import (
+    FundingRateValidatorProtocol,
+    PortfolioTrackerProtocol,
+)
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config  # Assuming Config class is used
@@ -188,8 +192,17 @@ def risk_manager(
     # Create a protocol-compliant mock for PortfolioTrackerProtocol
     mock_portfolio_tracker = create_autospec(PortfolioTrackerProtocol, instance=True)
     mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-    mock_balance = type("ExchangeBalance", (), {"available": Decimal("1000.0")})()
-    mock_portfolio_tracker.get_exchange_balance.return_value = mock_balance
+    # mock_balance = type("ExchangeBalance", (), {"available": Decimal("1000.0")})() # OLD
+    # mock_portfolio_tracker.get_exchange_balance.return_value = mock_balance # OLD
+    # NEW: Use SpotBalance
+    mock_spot_balance = SpotBalance(
+        exchange="mock_generic",  # Generic mock exchange name
+        asset="USDC",  # Common asset
+        total_quantity=Decimal("1000.0"),
+        available_quantity=Decimal("1000.0"),
+        timestamp=datetime.now(UTC),  # Add required timestamp
+    )
+    mock_portfolio_tracker.get_exchange_balance.return_value = mock_spot_balance
     # Create a protocol-compliant mock for FundingRateValidatorProtocol
     mock_funding_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
     mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}

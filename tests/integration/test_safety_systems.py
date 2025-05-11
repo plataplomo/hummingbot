@@ -64,7 +64,7 @@ async def test_circuit_breaker_global_halts_execution(
     mock_hl_api.reset()
     # real_portfolio_tracker.reset() # Method does not exist, rely on fixture for fresh state
     # Explicitly reset breakers associated with the system
-    circuit_breaker_system.reset_breaker("global_api_error")  # Reset global
+    circuit_breaker_system.reset_breaker("api_errors")  # Reset global, using config key name
     circuit_breaker_system.reset_exchange_breakers("mock_bp")  # Reset exchange specific
     circuit_breaker_system.reset_exchange_breakers("mock_hl")
 
@@ -103,7 +103,7 @@ async def test_circuit_breaker_global_halts_execution(
     mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts_dt))
 
     # 2. Trigger Global Circuit Breaker Directly
-    global_breaker_name = "global_api_error"  # Name used in reset
+    global_breaker_name = "api_errors"  # Name used in config and reset
     trip_reason = "Test global trip"
     global_breaker = circuit_breaker_system.get_breaker(global_breaker_name)
     assert global_breaker is not None, f"Global breaker '{global_breaker_name}' not found."
@@ -172,7 +172,7 @@ async def test_circuit_breaker_exchange_halts_execution(
     mock_hl_api.reset()
     # real_portfolio_tracker.reset() # Method does not exist
     # Explicitly reset breakers associated with the system
-    circuit_breaker_system.reset_breaker("global_api_error")  # Reset global
+    circuit_breaker_system.reset_breaker("api_errors")  # Reset global, using config key name
     circuit_breaker_system.reset_exchange_breakers("mock_bp")  # Reset exchange specific
     circuit_breaker_system.reset_exchange_breakers("mock_hl")
 

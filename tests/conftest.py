@@ -261,6 +261,7 @@ def mock_config() -> MagicMock:
                         "enabled": True,
                         "api_errors": {
                             "enabled": True,
+                            "type": "api_error",
                             "threshold": 3,
                             "window_seconds": 60,
                             "cooldown_seconds": 300,
@@ -273,6 +274,7 @@ def mock_config() -> MagicMock:
                         "enabled": True,
                         "api_errors": {
                             "enabled": True,
+                            "type": "api_error",
                             "threshold": 3,
                             "window_seconds": 60,
                             "cooldown_seconds": 300,
@@ -557,6 +559,7 @@ def mock_get_config() -> dict[str, Any]:  # noqa: ANN401 - Test fixture returns 
                         "enabled": True,
                         "api_errors": {
                             "enabled": True,
+                            "type": "api_error",
                             "threshold": 3,
                             "window_seconds": 60,
                             "cooldown_seconds": 300,
@@ -569,6 +572,7 @@ def mock_get_config() -> dict[str, Any]:  # noqa: ANN401 - Test fixture returns 
                         "enabled": True,
                         "api_errors": {
                             "enabled": True,
+                            "type": "api_error",
                             "threshold": 3,
                             "window_seconds": 60,
                             "cooldown_seconds": 300,
