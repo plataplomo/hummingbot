@@ -264,16 +264,19 @@ def create_mock_ticker(**kwargs: Any) -> Ticker:
     )
 
 
+default_funding_rate_kwargs = {
+    "symbol": "BTC-PERP",
+    "funding_rate": Decimal("0.1"),
+    "predicted_rate": Decimal("0.1"),
+    "next_funding_time": datetime.now(UTC) + timedelta(hours=1),
+    "mark_price": Decimal("30000.0"),
+    "index_price": Decimal("29990.0"),
+    "timestamp": datetime.now(UTC),
+}
+
+
 def create_mock_funding_rate(**kwargs: Any) -> FundingRate:
-    return FundingRate(
-        symbol=kwargs.get("symbol", "BTC-PERP"),
-        funding_rate=kwargs.get("funding_rate", Decimal("0.1")),
-        predicted_rate=kwargs.get("predicted_rate", Decimal("0.1")),
-        next_funding_time=kwargs.get("next_funding_time", datetime.now(UTC) + timedelta(hours=1)),
-        mark_price=kwargs.get("mark_price", Decimal("30000.0")),
-        index_price=kwargs.get("index_price", Decimal("29990.0")),
-        timestamp=kwargs.get("timestamp", datetime.now(UTC)),
-    )
+    return FundingRate(**default_funding_rate_kwargs | kwargs)
 
 
 @pytest.mark.asyncio

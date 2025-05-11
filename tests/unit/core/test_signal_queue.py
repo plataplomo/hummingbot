@@ -265,14 +265,10 @@ def test_clear(mock_config: Config, sample_signal: TradeSignal) -> None:
 
 
 @patch(
-    "cyberdelta.core.models.datetime", new=datetime
-)  # mock_models_dt_module IS the actual datetime module - NOW OUTER
-@patch(
     "cyberdelta.core.signal_queue.datetime"
 )  # mock_queue_dt, for queue's internal datetime.now calls - NOW INNER
 def test_clean_expired_signals(
     patched_signal_queue_datetime: MagicMock,  # Corresponds to inner patch
-    patched_core_models_datetime: MagicMock,  # Corresponds to outer patch
     mock_config: Config,
 ) -> None:
     """Test cleaning up expired signals."""
@@ -283,7 +279,7 @@ def test_clean_expired_signals(
     patched_signal_queue_datetime.now.return_value = now_fixed  # This is from the inner patch now
 
     # Since patched_core_models_datetime is the actual datetime module (from outer patch)
-    with patch.object(patched_core_models_datetime, "now", return_value=now_fixed):
+    with patch.object(datetime, "now", return_value=now_fixed):
         # Add signals with different expiration times
         valid_signal = TradeSignal(
             timestamp=now_fixed - timedelta(seconds=10),
