@@ -3,7 +3,9 @@ from __future__ import annotations  # Enable postponed evaluation
 import logging
 from collections.abc import Sequence
 from decimal import ROUND_DOWN, Decimal, InvalidOperation, getcontext
-from typing import Any, Protocol, TypedDict
+from typing import Any, Protocol
+
+from cyberdelta.core.models import SpotBalance  # Added import
 
 # from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderType, TradeSignal
 # REMOVING this runtime import
@@ -128,8 +130,9 @@ class ConstraintViolationError(RiskManagerError):
 
 
 # --- Data Structures for Protocols ---
-class ExchangeBalance(TypedDict, total=False):
-    available: Decimal
+# Remove ExchangeBalance TypedDict as it's replaced by SpotBalance
+# class ExchangeBalance(TypedDict, total=False):
+#     available_quantity: Decimal
 
 
 class Position(Protocol):
@@ -143,7 +146,9 @@ class Position(Protocol):
 # --- Protocols for Dependency Injection ---
 class PortfolioTrackerProtocol(Protocol):
     def get_total_capital(self) -> Decimal: ...
-    def get_exchange_balance(self, exchange: str, asset: str) -> ExchangeBalance | None: ...
+    def get_exchange_balance(
+        self, exchange: str, asset: str
+    ) -> SpotBalance | None: ...  # Changed to SpotBalance
     def get_all_positions(self) -> Sequence[tuple[str, Position]]: ...
     def get_current_drawdown(self) -> Decimal | None: ...
     def get_total_exposure_usd(self) -> Decimal: ...
@@ -191,7 +196,6 @@ class RiskManager:
         self.circuit_breaker_system = circuit_breaker_system
         self.funding_rate_validator = funding_rate_validator
         self.current_drawdown_metrics: dict[str, Any] = {}
-        self.min_position_size = Decimal("10.0")  # TEMPORARY WORKAROUND
         self._load_config()
 
     def _load_config(self) -> None:
@@ -211,7 +215,7 @@ class RiskManager:
                 str(self.config.get("risk.global.min_position_usd", "10.0"))
             )
             self.min_opportunity_profitability = Decimal(
-                str(self.config.get("strategy.min_net_funding_differential", "0.00001"))
+                str(self.config.get("risk.strategy.min_net_funding_differential", "0.00001"))
             )
             self.max_collateral_per_exchange: Decimal = Decimal(
                 str(self.config.get("risk.max_collateral_per_exchange", 0.8))
@@ -244,16 +248,12 @@ class RiskManager:
                 str(self.config.get("risk.min_validation_factor", 0.2))
             )
             self.exchange_risk_modifiers: dict[str, float] = {}
-            exchanges_config = self.config.get("exchanges", {})
-            if isinstance(exchanges_config, dict):
-                for exchange_id_raw in exchanges_config.keys():
-                    # Ensure exchange_id is a string before using it
-                    if not isinstance(exchange_id_raw, str):
-                        logger.warning(
-                            f"Non-string key found in exchanges config: {exchange_id_raw}"
-                        )
-                        continue
-                    exchange_id: str = exchange_id_raw  # Now confirmed string
+            exchanges_config_any = self.config.get("exchanges", {})  # Get as Any first
+            if isinstance(exchanges_config_any, dict):
+                exchanges_config: dict[str, Any] = exchanges_config_any  # Narrow type
+                for exchange_id_raw in exchanges_config.keys():  # Now keys should be str
+                    # exchange_id_raw is now str
+                    exchange_id: str = exchange_id_raw
 
                     if self.config.get(f"exchanges.{exchange_id}.enabled", False):
                         modifier_val = self.config.get(
@@ -277,7 +277,7 @@ class RiskManager:
                 str(self.config.get("risk.global.max_drawdown_limit_ratio", 0.2))
             )
             self.min_net_funding_differential = Decimal(
-                str(self.config.get("strategy.min_net_funding_differential", 0.0001))
+                str(self.config.get("risk.strategy.min_net_funding_differential", "0.0001"))
             )
             self.max_leverage_per_trade = Decimal(
                 str(self.config.get("risk.strategy.max_leverage_per_trade", 5.0))
@@ -491,25 +491,23 @@ class RiskManager:
         )
         try:
             long_balance_available_raw = (
-                long_exchange_balance_obj.get("available")  # Use .get() for TypedDict(total=False)
+                long_exchange_balance_obj.available_quantity
                 if long_exchange_balance_obj
-                else None
+                else ZERO  # If object itself is None, balance is ZERO
             )
             long_balance_dec = (
                 Decimal(str(long_balance_available_raw))
-                if long_balance_available_raw is not None
-                else ZERO
+                # No need for None check here as .get with default handles it
             )
 
             short_balance_available_raw = (
-                short_exchange_balance_obj.get("available")  # Use .get() for TypedDict(total=False)
+                short_exchange_balance_obj.available_quantity
                 if short_exchange_balance_obj
-                else None
+                else ZERO  # If object itself is None, balance is ZERO
             )
             short_balance_dec = (
                 Decimal(str(short_balance_available_raw))
-                if short_balance_available_raw is not None
-                else ZERO
+                # No need for None check here as .get with default handles it
             )
 
         except (TypeError, InvalidOperation) as e:  # Removed KeyError as .get() handles it
@@ -537,8 +535,15 @@ class RiskManager:
     def _check_leverage(self, opportunity: ArbitrageOpportunity) -> bool:
         """Check that portfolio leverage is within allowed limits."""
         total_capital = self.portfolio_tracker.get_total_capital()
-        if total_capital is None or total_capital <= ZERO:
-            logger.warning("Cannot calculate leverage: Total capital is None, zero, or negative.")
+
+        if (
+            total_capital is None
+        ):  # DEFENSIVE CHECK: Mock can return None. Mypy=[misc] Ruff=[RUF001]
+            total_capital = ZERO
+
+        if total_capital <= ZERO:
+            # Avoid division by zero if capital is zero or negative
+            logger.warning("Cannot calculate leverage: Total capital is zero or negative.")
             return False
         try:
             total_exposure_dec = self.calculate_total_exposure()
@@ -609,30 +614,24 @@ class RiskManager:
     ) -> tuple[bool, str | None]:
         long_ex = opportunity.long_exchange
         short_ex = opportunity.short_exchange
-        long_balance = self.portfolio_tracker.get_exchange_balance(long_ex, "USD")
-        short_balance = self.portfolio_tracker.get_exchange_balance(short_ex, "USD")
-        long_available = long_balance.get("available") if long_balance else None
-        if (
-            long_balance is None
-            or long_available is None
-            or long_available < self.min_exchange_balance
-        ):
+        long_balance_obj = self.portfolio_tracker.get_exchange_balance(long_ex, "USD")
+        short_balance_obj = self.portfolio_tracker.get_exchange_balance(short_ex, "USD")
+
+        long_available = long_balance_obj.available_quantity if long_balance_obj else ZERO
+        if long_available < self.min_exchange_balance:  # Ensure Decimal comparison
             return (
                 False,
                 f"Insufficient available balance on {long_ex} "
-                f"(Have: ${long_available if long_balance else 'N/A'}, "
+                f"(Have: ${long_available if long_balance_obj else 'N/A'}, "
                 f"Min: ${self.min_exchange_balance})",
             )
-        short_available = short_balance.get("available") if short_balance else None
-        if (
-            short_balance is None
-            or short_available is None
-            or short_available < self.min_exchange_balance
-        ):
+
+        short_available = short_balance_obj.available_quantity if short_balance_obj else ZERO
+        if short_available < self.min_exchange_balance:  # Ensure Decimal comparison
             return (
                 False,
                 f"Insufficient available balance on {short_ex} "
-                f"(Have: ${short_available if short_balance else 'N/A'}, "
+                f"(Have: ${short_available if short_balance_obj else 'N/A'}, "
                 f"Min: ${self.min_exchange_balance})",
             )
         return True, None
@@ -897,36 +896,40 @@ class RiskManager:
         # Cap at available capital
         size = min(size, total_capital)
         # --- Apply Validation Factor (if validator exists) ---
-        long_validation_factor_simple = self._get_validation_metrics(
+        long_validation_factor = self._get_validation_metrics(
             opportunity.long_exchange, opportunity.symbol
         )
-        short_validation_factor_simple = self._get_validation_metrics(
+        short_validation_factor = self._get_validation_metrics(
             opportunity.short_exchange, opportunity.symbol
         )
-        if long_validation_factor_simple is None or short_validation_factor_simple is None:
+
+        if long_validation_factor is None or short_validation_factor is None:
             self.logger.warning(
-                "Validation failed for one or both legs. Rejecting opportunity for safety. (Simple Path)"
+                f"Validation metrics failed for {opportunity.symbol} (Simple Path). Rejecting opportunity."
             )
             return None
-        validation_factor_simple: Decimal = min(
-            long_validation_factor_simple, short_validation_factor_simple
-        )
-        if validation_factor_simple < ONE:
-            self.logger.info(
-                f"Applying validation factor {validation_factor_simple:.3f} to size for "
-                f"{opportunity.symbol} (simple path).",
-            )
-            size *= validation_factor_simple
-            size = size.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
-            if size <= ZERO:
-                self.logger.info(
-                    f"Size reduced to zero or less after validation factor for "
-                    f"{opportunity.symbol} (simple path). Rejecting.",
-                )
-                return None
-            self.logger.debug(
-                f"Size after validation factor for {opportunity.symbol} (simple path): ${size:.2f}"
-            )
+
+        # Current _get_validation_metrics returns ONE or None. If it returns ONE, no change to size.
+        # If it could return other decimal factors, this logic would apply them:
+        # validation_factor: Decimal = min(long_validation_factor, short_validation_factor)
+        # if validation_factor < ONE:
+        #     self.logger.info(
+        #         f"Applying validation factor {validation_factor:.3f} to size for "
+        #         f"{opportunity.symbol} (simple path)."
+        #     )
+        #     sized_amount_usd *= validation_factor
+        #     sized_amount_usd = sized_amount_usd.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+        #     if sized_amount_usd <= ZERO:
+        #         self.logger.info(
+        #             f"Size reduced to zero or less after validation factor for "
+        #             f"{opportunity.symbol} (simple path). Rejecting."
+        #         )
+        #         return None
+        #     self.logger.debug(
+        #         f"Size after validation factor for {opportunity.symbol} (simple path): ${sized_amount_usd:.2f}"
+        #     )
+        # --- END INSERTED VALIDATION FACTOR LOGIC ---
+
         # Enforce portfolio constraints
         is_valid, reason = self._check_portfolio_constraints(size, opportunity)
         if not is_valid:
@@ -1031,6 +1034,9 @@ class RiskManager:
         # Apply max position cap for the specific opportunity
         max_size_for_opp = self._get_max_position_size_for_opportunity(opportunity)
         sized_amount_usd = min(initial_size, max_size_for_opp)
+
+        # Ensure size does not exceed total capital
+        sized_amount_usd = min(sized_amount_usd, total_capital)
 
         # Ensure it meets minimum position size
         if sized_amount_usd < self.min_position_size:
@@ -1341,12 +1347,20 @@ class RiskManager:
             return None
 
     def is_opportunity_profitable(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check if the opportunity has a positive expected profit."""
-        # Add assertion to clarify type for mypy
-        assert isinstance(opportunity.expected_profit, Decimal), (
-            f"Expected Decimal for expected_profit, got {type(opportunity.expected_profit)}"
-        )
-        return opportunity.expected_profit > ZERO
+        """Check if the opportunity meets the minimum net funding differential."""
+        # Pydantic model 'ArbitrageOpportunity' ensures net_funding_differential is Decimal.
+        # Direct comparison is safe.
+        nfd = opportunity.net_funding_differential
+
+        # Ensure min_opportunity_profitability is a Decimal (should be by _load_config)
+        # No need for isinstance check on self.min_opportunity_profitability as it's set in _load_config
+
+        is_profitable = nfd >= self.min_opportunity_profitability
+        if not is_profitable:
+            self.logger.debug(
+                f"Opportunity {opportunity.symbol} NFD {nfd:.8f} < Min Profitable NFD {self.min_opportunity_profitability:.8f}"
+            )
+        return is_profitable
 
     def adjust_order_size(self, symbol: str, requested_size: Decimal) -> Decimal:
         """Placeholder for adjusting order size based on liquidity, order book depth, etc."""

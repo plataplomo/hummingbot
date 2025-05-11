@@ -2,7 +2,8 @@
 """Tests for RiskManager portfolio level controls logic."""
 
 from decimal import Decimal
-from unittest.mock import MagicMock
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.validation.circuit_breaker import BreakerState
@@ -20,6 +21,7 @@ class TestRiskManagerControls:
         self,
         risk_manager: RiskManager,
         mock_config: MagicMock,
+        mock_config_dict: dict[str, Any],
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -36,12 +38,12 @@ class TestRiskManagerControls:
             "risk.max_acceptable_rmse": 0.05,
             "risk.max_acceptable_bias": 0.02,
         }
-        combined_config: dict[str, object] = {**mock_config.default_values, **test_overrides}
+        combined_config: dict[str, object] = {**mock_config_dict, **test_overrides}
 
-        def config_get_side_effect(key: str, default: object | None = None) -> object | None:
+        def config_get_side_effect_for_test(
+            key: str, default: object | None = None
+        ) -> object | None:
             return combined_config.get(key, default)
-
-        mock_config.get.side_effect = config_get_side_effect
 
         initial_size = Decimal("10000.0")
 
@@ -86,9 +88,14 @@ class TestRiskManagerControls:
             expected_return=Decimal("0.0"),
             risk_adjusted_return=Decimal("0.0"),
         )
-        # Direct access to protected method is justified here for white-box testing;
-        # no public interface exposes this logic.
-        adjusted_sized_opp = risk_manager._apply_portfolio_level_controls(sized_opp)
+
+        # Use patch.object to mock the 'get' method of the mock_config instance
+        with patch.object(
+            mock_config, "get", side_effect=config_get_side_effect_for_test
+        ) as _mock_get_method:  # Renamed to indicate it's not used
+            # Direct access to protected method is justified here for white-box testing;
+            # no public interface exposes this logic.
+            adjusted_sized_opp = risk_manager._apply_portfolio_level_controls(sized_opp)
 
         # --- Assert ---
         mock_circuit_breaker.can_execute.assert_not_called()

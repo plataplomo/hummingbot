@@ -1,145 +1,104 @@
 # Fixtures for RiskManager tests
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock
 
 from pytest import fixture
 
-from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.core.models import SpotBalance
+from cyberdelta.core.risk_manager import (
+    CircuitBreakerSystemProtocol,
+    FundingRateValidatorProtocol,
+    PortfolioTrackerProtocol,
+    RiskManager,
+)
 from cyberdelta.utils.config import Config
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 @fixture
-def mock_config_values() -> dict[str, Any]:
-    """Return the dictionary of default mock config values."""
-    # Centralize the default mock values
+def mock_config_dict() -> dict[str, Any]:
     return {
-        "risk.global.max_position_usd": "1000.0",  # Use the correct key RiskManager expects
-        "risk.global.max_total_exposure_usd": "20000.0",  # Use the correct key RiskManager expects
-        "risk.global.max_portfolio_leverage": "3.0",  # Use the correct key RiskManager expects
-        "risk.max_collateral_per_exchange": "0.8",
-        "risk.max_exposure_per_asset": "0.2",
-        "risk.max_exposure_per_exchange": "0.5",
-        # "risk.target_leverage": "2.0", # Key likely not used directly in current tests/code
-        # "risk.max_exposure_per_strategy": "0.4", # Key likely not used
-        # "risk.max_exchange_concentration": "0.6", # Key likely not used
-        "risk.kelly_fraction": "0.5",
+        "risk": {
+            "global": {
+                "max_position_usd": "5000.0",
+                "max_total_exposure_usd": "10000.0",
+                "min_position_usd": "10.0",
+                "max_portfolio_leverage": "5.0",
+                "max_drawdown_limit_ratio": "0.2",
+            },
+            "strategy": {
+                "max_single_position_exposure_ratio": "0.25",
+                "max_leverage_per_trade": "5.0",
+                "min_net_funding_differential": "0.0001",
+            },
+            "kelly": {
+                "fraction": "0.5",
+                "min_acceptable_fraction": "0.01",
+                "max_acceptable_fraction": "0.25",
+                "min_volatility": "0.0001",
+            },
+            "simple_sizing_method": "fixed_fraction",
+            "simple_fixed_fraction": "0.01",  # 1% of capital
+            "simple_fixed_usd_size": "100.0",
+            "max_acceptable_rmse": "0.05",  # 5% RMSE
+            "max_acceptable_bias": "0.02",  # 2% bias
+            "min_validation_factor": "0.2",  # Minimum factor to apply if validation fails
+            "min_liquidation_buffer": "0.15",  # 15%
+        },
         "exchanges": {
-            "hyperliquid": {"enabled": True, "assets": {"BTC": {"quote_asset": "USDC"}}},
-            "backpack": {"enabled": True, "assets": {"BTC": {"quote_asset": "USDC"}}},
-        },  # Provide structure
-        "risk.min_liquidation_buffer": "0.2",
-        "risk_manager.min_exchange_balance": "10.0",  # Corrected key prefix
-        "risk.strategy.max_single_position_exposure_ratio": "0.1",  # Use the correct key
-        "risk.global.max_drawdown_limit_ratio": "0.2",  # Use the correct key
-        "strategy.min_net_funding_differential": "0.0001",  # Use the correct key
-        "risk.strategy.max_leverage_per_trade": "5.0",  # Use the correct key
-        "risk.max_acceptable_rmse": "0.05",
-        "risk.max_acceptable_bias": "0.02",
-        "risk.min_validation_factor": "0.2",
-        "strategy.volatility_period_days": 14,  # Use the correct key
-        "risk.circuit_breaker_recovery_factor": "0.3",  # Add default
-        # --- Default values for simple path (can be overridden in tests) ---
-        "risk.use_simple_sizing_path": False,
-        "risk.simple_sizing_method": "fixed_fraction",
-        "risk.simple_fixed_fraction": "0.01",
-        "risk.simple_fixed_usd_size": "100",
+            "exchange_a": {
+                "enabled": True,
+                "collateral_asset": "USD",
+                "risk_modifier": 1.0,
+            },
+            "exchange_b": {
+                "enabled": True,
+                "collateral_asset": "USD",
+                "risk_modifier": 1.0,
+            },
+        },
+        "balance": {"min_exchange_balance": "50.0"},  # Added for RiskManager's _load_config
+        "risk_manager": {"min_exchange_balance": "10.0"},  # Used by RiskManager
     }
 
 
 @fixture
-def mock_config(mock_config_values: dict[str, Any]) -> MagicMock:
-    """Create a mock config using the default values."""
-    cfg = MagicMock(spec=Config)
-    # Store the default values dictionary for reference in tests
-    cfg.default_values = mock_config_values
-
-    # The side_effect function now just looks up from the stored defaults
-    def config_get_side_effect(key: str, default: object | None = None) -> object | None:
-        return cfg.default_values.get(key, default)
-
-    cfg.get.side_effect = config_get_side_effect
-    return cfg
+def mock_config(mock_config_dict: dict[str, Any]) -> Config:
+    return Config(mock_config_dict)
 
 
 @fixture
 def mock_portfolio_tracker() -> MagicMock:
-    """Create a mock portfolio tracker for testing."""
-    tracker = MagicMock()
-    # --- Set DEFAULT return values ---
-    tracker.get_total_capital.return_value = Decimal("100000.0")
-
-    # Correctly mock get_exchange_balance to return a dict
-    def mock_get_exchange_balance_side_effect(
-        exchange: str, asset: str
-    ) -> dict[str, Decimal] | None:
-        # Default to USDC as the quote asset for BTC, consistent with mock_config_values
-        if asset == "USDC":
-            return {"available": Decimal("50000.0")}  # Sufficient balance as Decimal
-        # Return a default for other assets if necessary for other tests, or None
-        return {"available": Decimal("1000.0")}  # Generic fallback for other assets
-
-    tracker.get_exchange_balance.side_effect = mock_get_exchange_balance_side_effect
-
-    def collateral_balance_side_effect(*args: object) -> Decimal:
-        return Decimal("1000.0")
-
-    tracker.get_exchange_collateral_balance.side_effect = collateral_balance_side_effect
-    tracker.get_total_exposure.return_value = Decimal("1000.0")
-    tracker.get_exchange_exposure.return_value = Decimal("0.0")  # Method name correction
-    tracker.get_symbol_exposure.return_value = Decimal(
-        "0.0"
-    )  # Method likely not used directly, keep for now
-    tracker.get_portfolio_drawdown.return_value = Decimal("0.0")  # Method name correction
-    tracker.get_exchange_drawdown.return_value = Decimal("0.0")
-    tracker.get_current_drawdown.return_value = Decimal("0.0")
-
-    # Patch get_all_positions to return a valid tuple for exposure calculations
-    mock_position = MagicMock()
-    mock_position.symbol = "BTC"
-    mock_position.size = Decimal("0.1")
-    mock_position.entry_price = Decimal("50000.0")
-    mock_position.is_active.return_value = True
-    mock_position.mark_price = Decimal("50000.0")
-    mock_position.liquidation_price = Decimal("40000.0")
-    tracker.get_all_positions.return_value = [("hyperliquid", mock_position)]
-
-    tracker.get_active_exchanges.return_value = [
-        "hyperliquid",
-        "backpack",
-    ]  # Default active exchanges
-
-    # Mocks for methods used in complex adjustments (defaults)
-    tracker.get_asset_volatility.return_value = Decimal("0.02")
-    tracker.get_historical_volatility.return_value = Decimal("0.015")
-    tracker.get_asset_correlation.return_value = 0.5  # Correlation likely float
-
-    # Add mocks for get_position used by calculate_position_exposure
-    mock_position_active = MagicMock()
-    mock_position_active.is_active.return_value = True
-    mock_position_active.symbol = "BTC"
-    mock_position_active.mark_price = Decimal("50000.0")
-    mock_position_active.size = Decimal("0.1")
-    mock_position_active.liquidation_price = Decimal("40000.0")
-
-    mock_position_inactive = MagicMock()
-    mock_position_inactive.is_active.return_value = False
-    mock_position_inactive.symbol = "ETH"
-
-    def mock_get_position(exchange_id: str, symbol: str) -> MagicMock:
-        if symbol == "BTC":
-            return mock_position_active
-        else:
-            return mock_position_inactive  # Or None if preferred
-
-    tracker.get_position.side_effect = mock_get_position
-    # Mock get_all_positions to return the active one for correlation/exposure tests if needed
-    tracker.get_all_positions.return_value = [("hyperliquid", mock_position_active)]
-
+    tracker = MagicMock(spec=PortfolioTrackerProtocol)
+    tracker.get_total_capital.return_value = Decimal("10000")
+    # Update to return SpotBalance
+    tracker.get_exchange_balance.return_value = SpotBalance(
+        exchange="mock_exchange",
+        asset="USD",
+        timestamp=datetime.now(UTC),
+        total_quantity=Decimal("1000"),
+        available_quantity=Decimal("1000"),
+    )
+    tracker.get_all_positions.return_value = []  # Default to no positions
+    tracker.get_current_drawdown.return_value = Decimal("0.05")  # 5% drawdown
+    tracker.get_total_exposure_usd = MagicMock(
+        return_value=Decimal("0.0")
+    )  # Explicitly make it a mock
     return tracker
+
+
+@fixture
+def mock_circuit_breaker_system() -> MagicMock:
+    system = MagicMock(spec=CircuitBreakerSystemProtocol)
+    system.can_execute.return_value = (True, None)  # Default to can execute
+    # Mock get_exchange_breaker to return a MagicMock with a state attribute
+    mock_breaker = MagicMock()
+    mock_breaker.state = BreakerState.CLOSED  # Default to closed
+    system.get_exchange_breaker.return_value = mock_breaker
+    return system
 
 
 @fixture
@@ -184,37 +143,46 @@ def mock_data_handler() -> MagicMock:
 
 @fixture
 def risk_manager(
-    mock_config: MagicMock,
-    mock_portfolio_tracker: MagicMock,
-    mock_circuit_breaker: MagicMock,
-    mock_funding_validator: MagicMock,
+    mock_config: Config,
+    mock_portfolio_tracker: PortfolioTrackerProtocol,
+    mock_circuit_breaker_system: CircuitBreakerSystemProtocol,
+    mock_funding_validator: FundingRateValidatorProtocol,
 ) -> RiskManager:
     """Create a RiskManager instance with mocked dependencies."""
     rm = RiskManager(
-        mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
+        config=mock_config,
+        portfolio_tracker=mock_portfolio_tracker,
+        circuit_breaker_system=mock_circuit_breaker_system,
+        funding_rate_validator=mock_funding_validator,
     )
     return rm
 
 
 @fixture
-def sample_opportunity() -> ArbitrageOpportunity:
-    """Create a sample arbitrage opportunity using the correct signature."""
-    # Match the signature from signal_generator.py
-    opp = ArbitrageOpportunity(
-        symbol="BTC",
-        long_exchange="hyperliquid",
-        short_exchange="backpack",
-        long_price=Decimal("50001.0"),
-        short_price=Decimal("50004.0"),
-        long_funding_rate=Decimal("0.0002"),
-        short_funding_rate=Decimal("-0.0003"),
-        net_funding_differential=Decimal("0.0005"),
-        timestamp=datetime.now(),
-        expected_profit=Decimal("10.0"),  # Ensure Decimal
-        utility_score=0.8,  # float is ok here
-        basis_volatility=0.002,  # float ok for Kelly input
-    )
-    return opp
+def sample_opportunity_dict() -> dict[str, Any]:
+    now = datetime.now(UTC)
+    return {
+        "symbol": "BTC-PERP",
+        "long_exchange": "exchange_a",
+        "short_exchange": "exchange_b",
+        "long_price": Decimal("30000"),
+        "short_price": Decimal("29900"),
+        "long_funding_rate": Decimal("0.0001"),
+        "short_funding_rate": Decimal("-0.00005"),
+        "net_funding_differential": Decimal("0.00015"),  # (0.0001 - (-0.00005))
+        "timestamp": now,
+        "utility_score": Decimal("0.8"),
+        "expected_profit": Decimal(
+            "0.00015"
+        ),  # Changed from expected_return, using NFD value for simplicity
+        "basis_volatility": Decimal("0.005"),  # Example 0.5% volatility
+        "confidence_score": Decimal("0.9"),
+    }
+
+
+@fixture
+def sample_opportunity(sample_opportunity_dict: dict[str, Any]) -> ArbitrageOpportunity:
+    return ArbitrageOpportunity(**sample_opportunity_dict)
 
 
 def mock_get_config(key: str, default: Any = None) -> object | None:

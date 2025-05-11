@@ -20,7 +20,7 @@ class TestRiskManagerConstraints:
     ) -> None:
         """Test portfolio constraint checking logic (passing case)."""
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        mock_portfolio_tracker.get_total_exposure.return_value = Decimal("10000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("10000.0")
         # Create a minimal valid ArbitrageOpportunity
         opportunity = ArbitrageOpportunity(
             symbol="BTC-PERP",
@@ -43,7 +43,7 @@ class TestRiskManagerConstraints:
     ) -> None:
         """Test failure due to exceeding total exposure."""
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("20000.0")
-        mock_portfolio_tracker.get_total_exposure.return_value = Decimal("19500.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("19500.0")
         opportunity = ArbitrageOpportunity(
             symbol="BTC-PERP",
             long_exchange="hyperliquid",
@@ -65,7 +65,7 @@ class TestRiskManagerConstraints:
     ) -> None:
         """Test failure due to exceeding leverage."""
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")
-        mock_portfolio_tracker.get_total_exposure.return_value = Decimal("10000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("10000.0")
         opportunity = ArbitrageOpportunity(
             symbol="BTC-PERP",
             long_exchange="hyperliquid",

@@ -6,10 +6,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, cast
 
+from cyberdelta.core.models import SpotBalance  # Changed import
 from cyberdelta.core.portfolio_tracker import (
     PortfolioTracker,  # Updated from Balance
 )
-from cyberdelta.core.risk_manager import ExchangeBalance  # Import the correct type
 from cyberdelta.utils.config import Config
 
 logger = logging.getLogger(__name__)
@@ -169,13 +169,13 @@ class BalanceMonitor:
 
         for exchange_id, min_balances in self.exchange_min_balances.items():
             for asset, min_balance in min_balances.items():
-                # Use the correct type hint: ExchangeBalance
-                current_balance: ExchangeBalance | None = (
-                    self.portfolio_tracker.get_exchange_balance(exchange_id, asset)
+                # Use the correct type hint: SpotBalance
+                current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
+                    exchange_id, asset
                 )
                 available_balance = (
-                    current_balance.get("available", Decimal("0.0"))  # Default if key missing
-                    if current_balance is not None  # Check if balance exists before .get()
+                    current_balance.available_quantity  # Direct attribute access
+                    if current_balance is not None  # Check if balance exists
                     else Decimal("0.0")  # Default if balance is None
                 )
 
@@ -234,13 +234,13 @@ class BalanceMonitor:
         Returns:
             BalanceAlert if insufficient, None otherwise
         """
-        # Use the correct type hint: ExchangeBalance
-        current_balance: ExchangeBalance | None = self.portfolio_tracker.get_exchange_balance(
+        # Use the correct type hint: SpotBalance
+        current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
             exchange, asset
         )
         available_balance = (
-            current_balance.get("available", Decimal("0.0"))  # Default if key missing
-            if current_balance is not None  # Check if balance exists before .get()
+            current_balance.available_quantity  # Direct attribute access
+            if current_balance is not None  # Check if balance exists
             else Decimal("0.0")  # Default if balance is None
         )
 
@@ -293,13 +293,13 @@ class BalanceMonitor:
         for exchange_id, min_balances in self.exchange_min_balances.items():
             exchange_balances: dict[str, dict[str, str]] = {}  # Type hint for inner dict
             for asset in min_balances:
-                # Use the correct type hint: ExchangeBalance
-                current_balance: ExchangeBalance | None = (
-                    self.portfolio_tracker.get_exchange_balance(exchange_id, asset)
+                # Use the correct type hint: SpotBalance
+                current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
+                    exchange_id, asset
                 )
                 available_balance = (
-                    current_balance.get("available", Decimal("0.0"))  # Default if key missing
-                    if current_balance is not None  # Check if balance exists before .get()
+                    current_balance.available_quantity  # Direct attribute access
+                    if current_balance is not None  # Check if balance exists
                     else Decimal("0.0")  # Default if balance is None
                 )
 

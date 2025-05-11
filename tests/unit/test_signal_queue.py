@@ -27,6 +27,8 @@ def sample_signal() -> TradeSignal:
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000"),
+        quantity=Decimal("1"),
+        exchange="mock_exchange",
         source_strategy="test_strategy",
         metadata={"utility_score": 0.8},
     )

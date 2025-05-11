@@ -1215,3 +1215,7 @@ class PortfolioTracker:
             f"{base_currency}. Returning None."
         )
         return None
+
+    def get_exchange_balance(self, exchange_id: str, asset: str) -> SpotBalance | None:
+        """Retrieve the SpotBalance for a specific asset on a specific exchange."""
+        return self._balances.get(exchange_id, {}).get(asset)
