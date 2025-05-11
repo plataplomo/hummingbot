@@ -273,6 +273,11 @@ def test_clean_expired_signals(
     mock_queue_dt.now.return_value = now
     mock_models_dt.now.return_value = now
 
+    # Provide common datetime attributes to the mock for cyberdelta.core.models.datetime
+    mock_models_dt.timedelta = timedelta
+    mock_models_dt.UTC = UTC
+    mock_models_dt.timezone = datetime.timezone
+
     # Add signals with different expiration times
     valid_signal = TradeSignal(
         timestamp=now - timedelta(seconds=10),
@@ -431,6 +436,7 @@ def test_calculate_expiration(mock_config: Config, sample_signal: TradeSignal) -
         price=Decimal("50000"),
         quantity=Decimal("1"),
         expiration=None,  # No expiration set
+        exchange=["mock_exchange"],
     )
 
     # Calculate expiration
@@ -455,11 +461,12 @@ def test_calculate_expiration(mock_config: Config, sample_signal: TradeSignal) -
         price=Decimal("3000"),
         quantity=Decimal("1"),
         expiration=preset_expiration_time,
+        exchange=["mock_exchange_2"],
     )
+    signal_with_preset_expiration = queue._calculate_expiration(with_expiration)
 
-    result = queue._calculate_expiration(with_expiration)
-    assert result.expiration is not None
-    assert result.expiration == preset_expiration_time
+    assert signal_with_preset_expiration.expiration is not None
+    assert signal_with_preset_expiration.expiration == preset_expiration_time
 
 
 def test_check_circuit_breakers(mock_config: Config, mock_circuit_breaker: MagicMock) -> None:
@@ -615,3 +622,24 @@ def test_clean_expired_signals_with_helper(mock_config: Config) -> None:
     assert retrieved_mid is not None and retrieved_mid.symbol == "MID/USDT"
     assert retrieved_low is not None and retrieved_low.symbol == "LOW_PRIORITY"
     assert queue.is_empty()
+
+
+def test_signal_creation(sample_signal: TradeSignal) -> None:
+    """Test basic signal creation and attributes."""
+    # Test with the sample_signal fixture
+    assert sample_signal.symbol == "BTC/USDT"
+    assert sample_signal.signal_type == SignalType.ENTER_LONG
+    assert sample_signal.price > Decimal("0")
+    assert sample_signal.quantity > Decimal("0")
+    assert isinstance(sample_signal.timestamp, datetime)
+    assert sample_signal.metadata["utility_score"] == 0.8
+    # Add exchange to this direct instantiation as well
+    signal = TradeSignal(
+        symbol="ETH/USDT",
+        signal_type=SignalType.EXIT_LONG,
+        side=OrderSide.SELL,
+        price=Decimal("3000"),
+        quantity=Decimal("0.5"),
+        exchange=["test_exchange"],
+    )
+    assert signal.symbol == "ETH/USDT"

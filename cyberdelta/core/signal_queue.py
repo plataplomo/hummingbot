@@ -225,10 +225,27 @@ class PrioritySignalQueue:
         }
 
         # Ensure price and quantity are always Decimal, never None
-        price_val = getattr(opportunity, "price", None)
-        price = Decimal(str(price_val)) if price_val is not None else Decimal("0")
-        quantity_val = getattr(opportunity, "quantity", None)
-        quantity = Decimal(str(quantity_val)) if quantity_val is not None else Decimal("0")
+        # ArbitrageOpportunity.long_price is Decimal = Field(gt=0)
+        price = opportunity.long_price  # Use long_price for ENTER_LONG
+
+        quantity: Decimal
+        if (
+            opportunity.optimal_size is not None
+            and opportunity.optimal_size > Decimal("0")
+            and price > Decimal("0")
+        ):
+            quantity = opportunity.optimal_size / price
+            if quantity <= Decimal("0"):  # If calculated quantity is not positive
+                quantity = Decimal("0.000001")  # Placeholder for gt=0 constraint
+        else:
+            # Fallback if optimal_size is None or price is not suitable for division
+            # This case should ideally be refined based on strategy requirements.
+            # For now, use a placeholder to satisfy TradeSignal's gt=0 constraint.
+            logger.warning(
+                f"Could not determine quantity for signal {opportunity.symbol} from optimal_size. "
+                f"Using placeholder."
+            )
+            quantity = Decimal("0.000001")  # Placeholder
 
         # Create signal
         signal = TradeSignal(

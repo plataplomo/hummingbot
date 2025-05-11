@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest.mock import MagicMock
 
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.validation.circuit_breaker import BreakerState
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 # Note: Fixtures risk_manager, mock_config, mock_circuit_breaker,
@@ -44,20 +45,33 @@ class TestRiskManagerControls:
 
         initial_size = Decimal("10000.0")
 
-        # Mock the complex methods to assert they aren't called
-        # def passthrough(s: Decimal, *args: object) -> Decimal:
-        #     return s
+        # Mock one of the exchange breakers to be in HALF_OPEN state
+        # to trigger the recovery factor.
+        mock_long_breaker = MagicMock()
+        mock_long_breaker.state = BreakerState.HALF_OPEN
+        mock_short_breaker = MagicMock()
+        mock_short_breaker.state = BreakerState.OPEN  # Any state other than HALF_OPEN
 
-        risk_manager.min_validation_factor = (
-            min_factor_test_val  # Ensure instance uses correct value
-        )
+        def get_breaker_side_effect(exchange_name_param: str, breaker_type_param: str) -> MagicMock:
+            if (
+                exchange_name_param == sample_opportunity.long_exchange
+                and breaker_type_param == "APIErrorBreaker"
+            ):
+                return mock_long_breaker
+            if (
+                exchange_name_param == sample_opportunity.short_exchange
+                and breaker_type_param == "APIErrorBreaker"
+            ):
+                return mock_short_breaker
+            return MagicMock()  # Default mock for any other unexpected calls
 
-        # Mock safety systems: CB tripped globally, low validation factor
-        mock_circuit_breaker.can_execute.return_value = (False, "Global CB Tripped Test")
+        mock_circuit_breaker.get_exchange_breaker.side_effect = get_breaker_side_effect
+
+        # Mock safety systems: Low validation factor (get_symbol_metrics part)
         mock_funding_validator.get_symbol_metrics.return_value = {
-            "rmse": 1.0,
+            "rmse": 1.0,  # Values don't matter as FV is not directly used by _apply_portfolio_level_controls
             "bias": 1.0,
-        }  # High error
+        }
 
         risk_manager.circuit_breaker_system = mock_circuit_breaker
         risk_manager.funding_rate_validator = mock_funding_validator
@@ -77,13 +91,20 @@ class TestRiskManagerControls:
         adjusted_sized_opp = risk_manager._apply_portfolio_level_controls(sized_opp)
 
         # --- Assert ---
-        mock_circuit_breaker.can_execute.assert_any_call("global")
-        mock_funding_validator.get_symbol_metrics.assert_called()
-        assert mock_funding_validator.get_symbol_metrics.call_count == 2
+        mock_circuit_breaker.can_execute.assert_not_called()
+        mock_circuit_breaker.get_exchange_breaker.assert_any_call(
+            sample_opportunity.long_exchange, "APIErrorBreaker"
+        )
+        mock_circuit_breaker.get_exchange_breaker.assert_any_call(
+            sample_opportunity.short_exchange, "APIErrorBreaker"
+        )
+        assert mock_circuit_breaker.get_exchange_breaker.call_count == 2
 
-        # Expected CB factor = 0.3
-        # Expected FV factor = min_validation_factor (0.2)
-        expected_size = initial_size * Decimal("0.3") * min_factor_test_val
+        mock_funding_validator.get_symbol_metrics.assert_not_called()
+
+        # Expected CB recovery factor = 0.3 (from test_overrides)
+        # Validation factor (min_factor_test_val) is NOT applied by _apply_portfolio_level_controls
+        expected_size = initial_size * Decimal("0.3")
         assert adjusted_sized_opp is not None
         assert adjusted_sized_opp.long_size == expected_size, (
             f"Expected {expected_size}, got {adjusted_sized_opp.long_size}"

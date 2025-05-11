@@ -244,7 +244,7 @@ class ArbitrageOpportunity(BaseModel):
     expiration_timestamp: float | None = None
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, coerce_numbers_to_str=True)
 
     @field_validator(
         "long_price",

@@ -20,10 +20,11 @@ class TestRiskManagerInit:
         # Verify risk parameters were loaded and converted to Decimal
         # Using known values from mock_config_values fixture
         assert risk_manager.max_position_size == Decimal("1000.0")
-        assert risk_manager.max_total_exposure == Decimal("20000.0")
+        assert risk_manager.max_total_exposure_usd == Decimal("20000.0")
         assert risk_manager.max_leverage == Decimal("3.0")
         assert risk_manager.min_exchange_balance == Decimal("10.0")
         assert risk_manager.min_net_funding_differential == Decimal("0.0001")
+        assert risk_manager.min_opportunity_profitability == Decimal("0.0001")
         # Verify references to dependencies
         assert risk_manager.config == mock_config
         assert risk_manager.portfolio_tracker == mock_portfolio_tracker

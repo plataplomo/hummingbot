@@ -61,6 +61,9 @@ class SymbolMapper:
         exchanges_config = config["exchanges"]
         exchanges_config_dict: dict[str, Any] = cast(dict[str, Any], exchanges_config)
 
+        if not isinstance(exchanges_config_dict, dict):
+            raise SymbolMappingError("'exchanges' must be a dictionary in the configuration.")
+
         for exchange_id, exchange_data in exchanges_config_dict.items():
             if not isinstance(exchange_data, dict) or "symbols" not in exchange_data:
                 logger.warning(

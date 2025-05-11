@@ -251,6 +251,7 @@ class TestRiskManagerDependencyFailures:
         mock_config: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
+        mock_portfolio_tracker: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size rejection due to low funding validation factor (fail-safe)."""
@@ -270,6 +271,9 @@ class TestRiskManagerDependencyFailures:
 
         mock_config.get.side_effect = get_side_effect
         risk_manager.max_position_size = Decimal("20000.0")
+        risk_manager.portfolio_tracker = mock_portfolio_tracker
+        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         with patch.object(
             risk_manager,
             "_apply_portfolio_exposure_management",
@@ -295,6 +299,7 @@ class TestRiskManagerDependencyFailures:
         mock_config: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
+        mock_portfolio_tracker: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
         bad_metrics_return: object,
     ) -> None:
@@ -315,6 +320,9 @@ class TestRiskManagerDependencyFailures:
 
         mock_config.get.side_effect = get_side_effect
         risk_manager.max_position_size = Decimal("20000.0")
+        risk_manager.portfolio_tracker = mock_portfolio_tracker
+        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         with patch.object(
             risk_manager,
             "_apply_portfolio_exposure_management",
