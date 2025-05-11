@@ -1139,75 +1139,56 @@ class PortfolioTracker:
             )
             return None
 
-        pair_to_try: str | None = None
-        is_inverse = False
+        # Try direct pair: ASSET-BASE (e.g., BTC-USDC)
+        symbol_direct = f"{asset}-{base_currency}"
+        logger.debug(
+            f"[{exchange_id}] _get_asset_price_in_base: Attempting direct lookup for {symbol_direct}"
+        )
+        ticker_direct = await client.get_ticker(symbol_direct)
+        logger.debug(
+            f"[{exchange_id}] _get_asset_price_in_base: Received ticker_direct for {symbol_direct}: {ticker_direct} (Type: {type(ticker_direct)})"
+        )
+        if ticker_direct:
+            logger.debug(
+                f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price for {symbol_direct}: {getattr(ticker_direct, 'price', 'N/A')}"
+            )
+            logger.debug(
+                f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price > 0 for {symbol_direct}: {ticker_direct.price > Decimal('0') if getattr(ticker_direct, 'price', None) is not None else 'N/A'}"
+            )
 
-        # Check if the input asset IS the direct pair XXX-BASE
-        if asset.endswith(f"-{base_currency}"):
-            pair_to_try = asset
-            logger.debug(f"[{exchange_id}] Input asset '{asset}' is the direct pair.")
-        # Check if the input asset IS the inverse pair BASE-XXX
-        elif asset.startswith(f"{base_currency}-"):
-            pair_to_try = asset
-            is_inverse = True
-            logger.debug(f"[{exchange_id}] Input asset '{asset}' is the inverse pair.")
-        else:
-            # Assume input asset is just the base, construct pairs
-            # Standard pair format: BASE-QUOTE (e.g., BTC-USDC)
-            direct_pair = f"{asset}-{base_currency}"
-            logger.debug(f"[{exchange_id}] Attempting constructed direct pair: {direct_pair}")
-            try:
-                ticker = await client.get_ticker(direct_pair)
-                price_to_use = ticker.mid_price if ticker else None
-                if price_to_use is not None and price_to_use.is_finite():
-                    logger.debug(
-                        f"[{exchange_id}] Found price via constructed "
-                        f"direct pair {direct_pair}: {price_to_use}"
-                    )
-                    return price_to_use  # Return directly if found
-            except Exception as e:
-                logger.warning(
-                    f"[{exchange_id}] Failed to get ticker for constructed "
-                    f"direct pair {direct_pair}: {e}",
-                    exc_info=False,
-                )
+        if ticker_direct and ticker_direct.price is not None and ticker_direct.price > Decimal("0"):
+            logger.debug(
+                f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price for {symbol_direct}: {ticker_direct.price}"
+            )
+            return ticker_direct.price
 
-            # Attempt constructed inverse pair (e.g., USDC-BTC)
-            inverse_pair = f"{base_currency}-{asset}"
-            logger.debug(f"[{exchange_id}] Attempting constructed inverse pair: {inverse_pair}")
-            pair_to_try = inverse_pair  # Will try this pair below
-            is_inverse = True
+        # Try inverse pair: BASE-ASSET (e.g., USDC-BTC)
+        symbol_inverse = f"{base_currency}-{asset}"
+        logger.debug(
+            f"[{exchange_id}] _get_asset_price_in_base: Attempting inverse lookup for {symbol_inverse}"
+        )
+        ticker_inverse = await client.get_ticker(symbol_inverse)
+        logger.debug(
+            f"[{exchange_id}] _get_asset_price_in_base: Received ticker_inverse for {symbol_inverse}: {ticker_inverse} (Type: {type(ticker_inverse)})"
+        )
+        if ticker_inverse:
+            logger.debug(
+                f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price for {symbol_inverse}: {getattr(ticker_inverse, 'price', 'N/A')}"
+            )
+            logger.debug(
+                f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price > 0 for {symbol_inverse}: {ticker_inverse.price > Decimal('0') if getattr(ticker_inverse, 'price', None) is not None else 'N/A'}"
+            )
 
-        # If we determined a pair to try (either from input or constructed inverse)
-        if pair_to_try:
-            logger.debug(f"[{exchange_id}] Trying ticker for determined pair: {pair_to_try}")
-            try:
-                ticker = await client.get_ticker(pair_to_try)
-                price_to_use = ticker.mid_price if ticker else None
-                if price_to_use is not None and price_to_use.is_finite():
-                    if is_inverse:
-                        if price_to_use != Decimal("0"):
-                            price = Decimal("1.0") / price_to_use
-                            logger.debug(
-                                f"[{exchange_id}] Found price via inverse pair "
-                                f"{pair_to_try} ({price_to_use}), calculated: {price}"
-                            )
-                            return price
-                        else:
-                            logger.warning(
-                                f"[{exchange_id}] Inverse pair {pair_to_try} has zero mid_price."
-                            )
-                    else:  # Direct pair from input
-                        logger.debug(
-                            f"[{exchange_id}] Found price via direct pair "
-                            f"{pair_to_try}: {price_to_use}"
-                        )
-                        return price_to_use
-            except Exception as e:
-                logger.warning(
-                    f"[{exchange_id}] Failed to get ticker for determined pair {pair_to_try}: {e}",
-                    exc_info=False,
-                )
+        if (
+            ticker_inverse
+            and ticker_inverse.price is not None
+            and ticker_inverse.price > Decimal("0")
+        ):
+            price = Decimal("1.0") / ticker_inverse.price
+            logger.debug(
+                f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price for {symbol_inverse}: {ticker_inverse.price}, calculated: {price}"
+            )
+            return price
 
         # TODO: Implement simple triangulation if needed
         logger.warning(
