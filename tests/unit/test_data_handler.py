@@ -149,6 +149,7 @@ class TestDataHandler:
                 mock_collect_funding.assert_any_call("hyperliquid", ["BTC", "ETH"])
                 mock_collect_tickers.assert_any_call("backpack", ["BTCUSDC", "ETHUSDC"])
                 mock_collect_funding.assert_any_call("backpack", ["BTCUSDC", "ETHUSDC"])
+                assert "BTC" in data_handler.last_update_time["hyperliquid"]
                 assert isinstance(data_handler.last_update_time["hyperliquid"]["BTC"], datetime)
                 assert data_handler.last_update_time["hyperliquid"]["BTC"].tzinfo is not None
 
@@ -215,7 +216,7 @@ class TestDataHandler:
     )
     @pytest.mark.asyncio
     async def test_update_all_data(self, data_handler: DataHandler) -> None:
-        """Test updating all data from exchanges."""
+        """Test updating all data for enabled exchanges."""
 
         # Patch config get method to enable exchanges and provide symbols
         def mock_config_get(key: str, default: object | None = None) -> bool | list[str] | None:
