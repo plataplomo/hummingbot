@@ -284,38 +284,31 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
-    """Test that a conservatively sized opportunity is accepted and sized."""
-    # Register APIs
-    if "mock_hl" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
-    if "mock_bp" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
-    # Set balances
-    mock_bp_api.set_mock_balance(
-        SpotBalance(
-            exchange="mock_bp",
-            asset="USDC",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
-            timestamp=datetime.now(UTC),
-        )
-    )
-    mock_bp_api.set_mock_balance(
-        SpotBalance(
-            exchange="mock_bp",
-            asset="USD",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
-            timestamp=datetime.now(UTC),
-        )
-    )
+    """Test that the funding rate validator allows safe opportunities."""
+    now = datetime.now(UTC)
+    mock_hl_api.reset()
+    mock_bp_api.reset()
+    # Add necessary conversion tickers
+    mock_hl_api.set_mock_ticker(create_mock_ticker("USD-USDC", "1.0", "1.0", "1.0", now))
+    mock_bp_api.set_mock_ticker(create_mock_ticker("USDC-USD", "1.0", "1.0", "1.0", now))
+
+    # Initialize portfolio with some capital
     mock_hl_api.set_mock_balance(
         SpotBalance(
             exchange="mock_hl",
             asset="USD",
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
-            timestamp=datetime.now(UTC),
+            timestamp=now,
+        )
+    )
+    mock_bp_api.set_mock_balance(
+        SpotBalance(
+            exchange="mock_bp",
+            asset="USDC",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=now,
         )
     )
     await real_portfolio_tracker.initialize()
@@ -330,7 +323,7 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
-        timestamp=datetime.now(UTC),
+        timestamp=now,
         basis_volatility=0.1,  # Very high volatility for safe sizing
         utility_score=None,
     )
@@ -353,38 +346,31 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
-    """Test that an oversized opportunity is rejected by risk controls."""
-    # Register APIs
-    if "mock_hl" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
-    if "mock_bp" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
-    # Set balances
-    mock_bp_api.set_mock_balance(
-        SpotBalance(
-            exchange="mock_bp",
-            asset="USDC",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
-            timestamp=datetime.now(UTC),
-        )
-    )
-    mock_bp_api.set_mock_balance(
-        SpotBalance(
-            exchange="mock_bp",
-            asset="USD",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
-            timestamp=datetime.now(UTC),
-        )
-    )
+    """Test that the funding rate validator rejects oversized opportunities."""
+    now = datetime.now(UTC)
+    mock_hl_api.reset()
+    mock_bp_api.reset()
+    # Add necessary conversion tickers
+    mock_hl_api.set_mock_ticker(create_mock_ticker("USD-USDC", "1.0", "1.0", "1.0", now))
+    mock_bp_api.set_mock_ticker(create_mock_ticker("USDC-USD", "1.0", "1.0", "1.0", now))
+
+    # Initialize portfolio with some capital
     mock_hl_api.set_mock_balance(
         SpotBalance(
             exchange="mock_hl",
             asset="USD",
             total_quantity=Decimal("10000"),
             available_quantity=Decimal("10000"),
-            timestamp=datetime.now(UTC),
+            timestamp=now,
+        )
+    )
+    mock_bp_api.set_mock_balance(
+        SpotBalance(
+            exchange="mock_bp",
+            asset="USDC",
+            total_quantity=Decimal("10000"),
+            available_quantity=Decimal("10000"),
+            timestamp=now,
         )
     )
     await real_portfolio_tracker.initialize()
@@ -399,7 +385,7 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
-        timestamp=datetime.now(UTC),
+        timestamp=now,
         basis_volatility=0.001,  # Low volatility
         utility_score=None,
     )

@@ -12,6 +12,8 @@ from pytest_mock import MockerFixture  # Added MockerFixture
 
 from cyberdelta.apis.models.api_error import (  # Import APIError for test_failed_execution
     APIError,
+)
+from cyberdelta.apis.models.api_error_codes import (  # Corrected import
     APIErrorCode,
 )
 
@@ -53,13 +55,18 @@ from tests.integration.mocks.mock_exchange import MockAPIError, MockExchangeAPI
 # Helper Functions
 
 
-def create_mock_funding_rate(symbol: str, rate: str | Decimal, next_time: datetime) -> FundingRate:
+def create_mock_funding_rate(
+    symbol: str, rate: str | Decimal | None, next_time: datetime
+) -> FundingRate:
     # Convert rate to Decimal, ensuring string conversion for floats/others
     # Convert next_time to integer timestamp (milliseconds)
     # next_funding_timestamp = int(next_time.timestamp() * 1000) # FundingRate expects datetime
+    processed_rate = (
+        Decimal(str(rate)) if rate is not None else Decimal("0")
+    )  # Handle None for rate
     return FundingRate(
         symbol=symbol,
-        funding_rate=Decimal(str(rate)),
+        funding_rate=processed_rate,
         # Pass datetime object directly
         next_funding_time=next_time,
         timestamp=next_time,  # Add required timestamp
@@ -69,16 +76,19 @@ def create_mock_funding_rate(symbol: str, rate: str | Decimal, next_time: dateti
 # Helper function for creating mock tickers
 def create_mock_ticker(
     symbol: str,
-    bid: str | float | Decimal,
-    ask: str | float | Decimal,
-    price: str | float | Decimal,
+    bid: str | float | Decimal | None,  # Allow None for robustness
+    ask: str | float | Decimal | None,
+    price: str | float | Decimal | None,
     timestamp: datetime,
 ) -> Ticker:
+    processed_bid = Decimal(str(bid)) if bid is not None else Decimal("0")
+    processed_ask = Decimal(str(ask)) if ask is not None else Decimal("0")
+    processed_price = Decimal(str(price)) if price is not None else Decimal("0")
     return Ticker(
         symbol=symbol,
-        bid=Decimal(str(bid)),
-        ask=Decimal(str(ask)),
-        price=Decimal(str(price)),
+        bid=processed_bid,
+        ask=processed_ask,
+        price=processed_price,
         # Pass datetime object directly
         # timestamp=int(timestamp.timestamp() * 1000),
         timestamp=timestamp,
@@ -88,14 +98,28 @@ def create_mock_ticker(
 # Helper function for creating mock order books
 def create_mock_orderbook(
     symbol: str,
-    bids: list[tuple[str | float | Decimal, str | float | Decimal]],
-    asks: list[tuple[str | float | Decimal, str | float | Decimal]],
+    bids: list[tuple[str | float | Decimal | None, str | float | Decimal | None]],  # Allow None
+    asks: list[tuple[str | float | Decimal | None, str | float | Decimal | None]],  # Allow None
     timestamp: datetime,
 ) -> OrderBook:
+    processed_bids = [
+        (
+            Decimal(str(p)) if p is not None else Decimal("0"),
+            Decimal(str(q)) if q is not None else Decimal("0"),
+        )
+        for p, q in bids
+    ]
+    processed_asks = [
+        (
+            Decimal(str(p)) if p is not None else Decimal("0"),
+            Decimal(str(q)) if q is not None else Decimal("0"),
+        )
+        for p, q in asks
+    ]
     return OrderBook(
         symbol=symbol,
-        bids=[(Decimal(str(p)), Decimal(str(q))) for p, q in bids],
-        asks=[(Decimal(str(p)), Decimal(str(q))) for p, q in asks],
+        bids=processed_bids,
+        asks=processed_asks,
         # Pass datetime object directly
         # timestamp=int(timestamp.timestamp() * 1000),
         timestamp=timestamp,
@@ -292,15 +316,18 @@ def _deep_get(d: dict[str, Any], keys: str, default: object | None = None) -> ob
     try:
         for key_part in key_parts:
             if isinstance(val, dict):
-                val = val.get(key_part)  # Use .get() for safer access, returns None if key missing
-                if (
-                    val is None and key_part != key_parts[-1]
-                ):  # If key missing mid-path, return default
-                    return default
+                # Check if key_part exists before trying to get it
+                if key_part not in val:
+                    return default  # Key part missing, return default immediately
+                val = val[key_part]  # Access directly since we know it exists
             else:
-                return default  # Not a dict, cannot go deeper
+                # val is not a dictionary, so we can't go deeper
+                return default
+        # If the loop completes, val holds the final value.
+        # If val is None at this point, it means the last key_part resolved to None in the dict,
+        # which is different from the key path not existing. In this case, None is the actual value.
         return val
-    except (TypeError, IndexError):  # KeyError is handled by .get()
+    except (TypeError, IndexError):  # Should be less likely with current checks
         return default
 
 
@@ -775,6 +802,7 @@ async def test_partial_fill(
     execution_handler: ExecutionHandler,
     symbol_mapper: SymbolMapper,
     caplog: LogCaptureFixture,
+    mocker: MockerFixture,
 ) -> None:
     """Tests the scenario where one leg fills partially and the other fully."""
     caplog.set_level(logging.DEBUG)
@@ -824,8 +852,8 @@ async def test_partial_fill(
     # Re-checking MockExchangeAPI: get_order_book is a normal async def.
     # So, it MUST be patched if its return value is to be controlled.
     # This test is missing mocker fixture in its signature. Adding it.
-    # mocker.patch.object(mock_hl_api, 'get_order_book', return_value=mock_hl_ob)
-    # mocker.patch.object(mock_bp_api, 'get_order_book', return_value=mock_bp_ob)
+    mocker.patch.object(mock_hl_api, "get_order_book", return_value=mock_hl_ob)
+    mocker.patch.object(mock_bp_api, "get_order_book", return_value=mock_bp_ob)
     # The lines above were commented out, but `mock_hl_api.get_order_book.return_value` was present.
     # This indicates the methods on MockExchangeAPI might have been intended to be AsyncMocks.
     # Let's stick to mocker.patch.object for clarity and robustness.
@@ -893,7 +921,8 @@ async def test_partial_fill(
             logger.error(f"MOCK BP place_order: Unexpected call {bp_place_call_count} side={side}")
             raise MockAPIError(f"place_order on BP called unexpectedly {bp_place_call_count} times")
 
-    mock_bp_api.place_order.side_effect = place_order_side_effect_bp
+    # mock_bp_api.place_order.side_effect = place_order_side_effect_bp # Replaced by mocker.patch
+    mocker.patch.object(mock_bp_api, "place_order", side_effect=place_order_side_effect_bp)
 
     bp_status_call_count = 0
 
@@ -915,7 +944,10 @@ async def test_partial_fill(
             logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
             return None
 
-    mock_bp_api.get_order_status.side_effect = get_order_status_side_effect_bp
+    # mock_bp_api.get_order_status.side_effect = get_order_status_side_effect_bp # Replaced by mocker.patch
+    mocker.patch.object(
+        mock_bp_api, "get_order_status", side_effect=get_order_status_side_effect_bp
+    )
 
     # HL (Short) - Fills completely initially, then needs compensation
     hl_place_call_count = 0
@@ -970,7 +1002,8 @@ async def test_partial_fill(
             logger.error(f"MOCK HL place_order: Unexpected call {hl_place_call_count} side={side}")
             raise MockAPIError(f"place_order on HL called unexpectedly {hl_place_call_count} times")
 
-    mock_hl_api.place_order.side_effect = place_order_side_effect_hl
+    # mock_hl_api.place_order.side_effect = place_order_side_effect_hl # Replaced by mocker.patch
+    mocker.patch.object(mock_hl_api, "place_order", side_effect=place_order_side_effect_hl)
 
     async def get_order_status_side_effect_hl(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
@@ -987,7 +1020,10 @@ async def test_partial_fill(
             logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
             return None
 
-    mock_hl_api.get_order_status.side_effect = get_order_status_side_effect_hl
+    # mock_hl_api.get_order_status.side_effect = get_order_status_side_effect_hl # Replaced by mocker.patch
+    mocker.patch.object(
+        mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect_hl
+    )
 
     # --- Execute Test ---
     # 1. Generate Signal
@@ -1136,8 +1172,19 @@ async def test_execution_failure_compensation(
     # Tickers
     mock_hl_ticker = create_mock_ticker(hl_symbol, 2000.0, 2000.5, 2000.25, now)
     mock_bp_ticker = create_mock_ticker(bp_symbol, 2001.0, 2001.5, 2001.25, now)
+    mock_usd_usdc_hl_ticker = create_mock_ticker(
+        "USD-USDC", "0.999", "1.001", "1.0", now
+    )  # For HL USD to USDC
+    mock_usdc_usd_bp_ticker = create_mock_ticker(
+        "USDC-USD", "0.999", "1.001", "1.0", now
+    )  # For BP USDC to USD
+
     mock_hl_api.set_mock_ticker(mock_hl_ticker)
+    mock_hl_api.set_mock_ticker(mock_usd_usdc_hl_ticker)  # Add to Hyperliquid mock API
+
     mock_bp_api.set_mock_ticker(mock_bp_ticker)
+    # mock_bp_api.set_mock_ticker(mock_usdc_usd_ticker) # Old name, renamed to mock_usdc_usd_bp_ticker
+    mock_bp_api.set_mock_ticker(mock_usdc_usd_bp_ticker)  # Add to Backpack mock API
 
     # Funding Rates (Flipped to make BP long)
     next_funding_dt = now + timedelta(hours=1)

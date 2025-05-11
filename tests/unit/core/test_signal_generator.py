@@ -21,7 +21,6 @@ from cyberdelta.core.models import (
     Ticker,
     # Position, # Removed unused Position import
 )
-from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config
@@ -83,99 +82,83 @@ class TestSignalGenerator:
     def data_handler(self) -> MagicMock:
         """Fixture for mock DataHandler."""
         handler = MagicMock(spec=DataHandler)
+        now = datetime.now(UTC)
 
         # Use exchange-specific symbols
         funding_rates: dict[str, dict[str, FundingRate]] = {
             "hyperliquid": {
                 "BTC-PERP": FundingRate(
-                    symbol="BTC-PERP", funding_rate=Decimal("-0.001"), mark_price=Decimal("30000")
+                    symbol="BTC-PERP",
+                    funding_rate=Decimal("-0.001"),
+                    mark_price=Decimal("30000"),
+                    timestamp=now,
                 ),
                 "ETH-PERP": FundingRate(
-                    symbol="ETH-PERP", funding_rate=Decimal("0.005"), mark_price=Decimal("2000")
+                    symbol="ETH-PERP",
+                    funding_rate=Decimal("0.005"),
+                    mark_price=Decimal("2000"),
+                    timestamp=now,
                 ),
             },
             "backpack": {
                 "BTC_USDC": FundingRate(
-                    symbol="BTC_USDC", funding_rate=Decimal("0.002"), mark_price=Decimal("30010")
+                    symbol="BTC_USDC",
+                    funding_rate=Decimal("0.002"),
+                    mark_price=Decimal("30010"),
+                    timestamp=now,
                 ),
                 "ETH_USDC": FundingRate(
-                    symbol="ETH_USDC", funding_rate=Decimal("-0.01"), mark_price=Decimal("2005")
+                    symbol="ETH_USDC",
+                    funding_rate=Decimal("-0.01"),
+                    mark_price=Decimal("2005"),
+                    timestamp=now,
                 ),
             },
         }
-        # Use MarketData mocks instead of Ticker for get_ticker side effect
-        from cyberdelta.core.models import MarketData  # Add import
 
-        now_dt = datetime.now(UTC)
-        # Ensure all required fields for MarketData are provided
-        market_data_mocks: dict[str, dict[str, Candle]] = {
+        # Mock Ticker data for data_handler.tickers
+        mock_hl_btc_ticker = Ticker(symbol="BTC-PERP", price=Decimal("30000"), timestamp=now)
+        mock_bp_btc_ticker = Ticker(symbol="BTC_USDC", price=Decimal("30010"), timestamp=now)
+        mock_hl_eth_ticker = Ticker(symbol="ETH-PERP", price=Decimal("2000"), timestamp=now)
+        mock_bp_eth_ticker = Ticker(symbol="ETH_USDC", price=Decimal("2005"), timestamp=now)
+
+        handler.tickers = {
             "hyperliquid": {
-                "BTC-PERP": Candle(
-                    symbol="BTC-PERP",
-                    interval="1m",
-                    open_time=now_dt,
-                    open=Decimal("29950"),
-                    high=Decimal("30050"),
-                    low=Decimal("29900"),
-                    close=Decimal("30000"),
-                    volume=Decimal("100"),
-                ),
-                "ETH-PERP": Candle(
-                    symbol="ETH-PERP",
-                    interval="1m",
-                    open_time=now_dt,
-                    open=Decimal("1995"),
-                    high=Decimal("2005"),
-                    low=Decimal("1990"),
-                    close=Decimal("2000"),
-                    volume=Decimal("500"),
-                ),
+                "BTC-PERP": mock_hl_btc_ticker,
+                "ETH-PERP": mock_hl_eth_ticker,
             },
             "backpack": {
-                "BTC_USDC": Candle(
-                    symbol="BTC_USDC",
-                    interval="1m",
-                    open_time=now_dt,
-                    open=Decimal("30005"),
-                    high=Decimal("30015"),
-                    low=Decimal("30000"),
-                    close=Decimal("30010"),
-                    volume=Decimal("120"),
-                ),
-                "ETH_USDC": Candle(
-                    symbol="ETH_USDC",
-                    interval="1m",
-                    open_time=now_dt,
-                    open=Decimal("2003"),
-                    high=Decimal("2007"),
-                    low=Decimal("2002"),
-                    close=Decimal("2005"),
-                    volume=Decimal("600"),
-                ),
+                "BTC_USDC": mock_bp_btc_ticker,
+                "ETH_USDC": mock_bp_eth_ticker,
             },
         }
+
         mock_orderbook = MagicMock(spec=OrderBook)
         mock_orderbook.bids = [(Decimal("29999"), Decimal("2.5"))]
         mock_orderbook.asks = [(Decimal("30001"), Decimal("1.5"))]
+        # This orderbooks mock might not be strictly necessary if get_orderbook is not called by the tested logic
+        # or if estimate_slippage is mocked directly if it uses get_orderbook.
+        # For now, keeping it as it was.
         orderbooks: dict[str, dict[str, MagicMock]] = {
             "hyperliquid": {"BTC-PERP": mock_orderbook, "ETH-PERP": mock_orderbook},
             "backpack": {"BTC_USDC": mock_orderbook, "ETH_USDC": mock_orderbook},
         }
 
-        # Define side effects using nested functions with type hints
         def get_funding_rate_side_effect(exchange: str, symbol: str) -> FundingRate | None:
             return funding_rates.get(exchange, {}).get(symbol)
 
-        # Updated side effect to return MarketData
-        def get_ticker_side_effect(exchange: str, symbol: str) -> MarketData | None:
-            return market_data_mocks.get(exchange, {}).get(symbol)
+        # get_ticker side effect is no longer directly used by SignalGenerator for opportunities,
+        # as it uses handler.tickers. However, other parts of tests might still use it.
+        # For safety, ensure it returns Ticker if something still calls it.
+        def get_ticker_side_effect(exchange: str, symbol: str) -> Ticker | None:
+            return handler.tickers.get(exchange, {}).get(symbol)
 
         def get_orderbook_side_effect(exchange: str, symbol: str) -> OrderBook | None:
             return orderbooks.get(exchange, {}).get(symbol)
 
-        handler.get_funding_rate.side_effect = get_funding_rate_side_effect
-        handler.get_ticker.side_effect = get_ticker_side_effect  # Assign new side effect
-        handler.get_orderbook.side_effect = get_orderbook_side_effect
+        handler.get_latest_funding_rate.side_effect = get_funding_rate_side_effect
+        handler.get_latest_ticker.side_effect = get_ticker_side_effect
+        handler.get_latest_order_book.side_effect = get_orderbook_side_effect
 
         return handler
 
@@ -234,8 +217,8 @@ class TestSignalGenerator:
         btc_basis = Decimal("30000") - Decimal("30010")
         assert signal_generator.historical_basis["BTC"][0] == (fixed_now, btc_basis)
 
-        data_handler.get_funding_rate.assert_called()
-        data_handler.get_ticker.assert_called()
+        data_handler.get_latest_funding_rate.assert_called()
+        data_handler.get_latest_ticker.assert_called()
 
         # Test data trimming
         sample_period_seconds = signal_generator.funding_sample_period
@@ -246,13 +229,15 @@ class TestSignalGenerator:
             exchange: str, symbol: str, rate_chg: Decimal = Decimal(0)
         ) -> FundingRate | None:
             base_rate = Decimal("-0.001") if exchange == "hyperliquid" else Decimal("0.002")
-            return FundingRate(symbol=symbol, funding_rate=base_rate + rate_chg)
+            return FundingRate(
+                symbol=symbol, funding_rate=base_rate + rate_chg, timestamp=datetime.now(UTC)
+            )
 
         def get_ticker_iter(
             exchange: str, symbol: str, price_chg: Decimal = Decimal(0)
         ) -> Ticker | None:
             base_price = Decimal("30000") if exchange == "hyperliquid" else Decimal("30010")
-            return Ticker(symbol=symbol, price=base_price + price_chg)
+            return Ticker(symbol=symbol, price=base_price + price_chg, timestamp=datetime.now(UTC))
 
         for i in range(sample_count + 5):
             mock_time = fixed_now - timedelta(seconds=i * sample_period_seconds // 2)
@@ -260,16 +245,20 @@ class TestSignalGenerator:
             rate_change = Decimal(str(i * 0.00001))
             price_change = Decimal(str(i * 5))
 
-            def funding_rate_side_effect(
+            # Ensure the side effect for get_latest_funding_rate is updated in the loop
+            def funding_rate_side_effect_loop(
                 ex: str, sym: str, r: Decimal = rate_change
             ) -> FundingRate | None:
                 return get_funding_iter(ex, sym, r)
 
-            def ticker_side_effect(ex: str, sym: str, p: Decimal = price_change) -> Ticker | None:
+            # Ensure the side effect for get_latest_ticker is updated in the loop
+            def ticker_side_effect_loop(
+                ex: str, sym: str, p: Decimal = price_change
+            ) -> Ticker | None:
                 return get_ticker_iter(ex, sym, p)
 
-            data_handler.get_funding_rate.side_effect = funding_rate_side_effect
-            data_handler.get_ticker.side_effect = ticker_side_effect
+            data_handler.get_latest_funding_rate.side_effect = funding_rate_side_effect_loop
+            data_handler.get_latest_ticker.side_effect = ticker_side_effect_loop
             signal_generator.update_historical_data()
 
         assert len(signal_generator.historical_funding_rates["hyperliquid"]["BTC"]) <= sample_count
@@ -349,9 +338,17 @@ class TestSignalGenerator:
         mock_orderbook = MagicMock(spec=OrderBook)
         mock_orderbook.bids = [(Decimal("29999"), Decimal("2.5"))]
         mock_orderbook.asks = [(Decimal("30001"), Decimal("1.5"))]
-        data_handler.get_orderbook.return_value = mock_orderbook
+        data_handler.get_latest_order_book.return_value = mock_orderbook
         # Use an exchange defined in the mock config for the test
         exchange_id_for_test = "hyperliquid"
+        # The estimate_slippage method in SignalGenerator uses data_handler.get_latest_order_book,
+        # which is already mocked. We also need to ensure that the Ticker data is available
+        # if it's used internally by estimate_slippage or its callees.
+        # For now, assuming Ticker is not directly used by estimate_slippage based on its current simple mock.
+        # The estimate_slippage method itself might need get_latest_ticker if it uses price data.
+        # For this test, we mock get_latest_order_book. If it also needs get_latest_ticker, that should be mocked too.
+        data_handler.get_latest_order_book.return_value = mock_orderbook
+
         estimated_slippage = signal_generator.estimate_slippage(exchange_id_for_test, "TEST")
         # Assert the estimated slippage matches the expected fallback value from config
         expected_fallback_slippage = (
@@ -363,37 +360,25 @@ class TestSignalGenerator:
         self, signal_generator: SignalGenerator, data_handler: MagicMock, config: MagicMock
     ) -> None:
         """Test generating arbitrage opportunities."""
+        # now = datetime.now(UTC) # Unused variable
         # Prepare mock data arguments based on the method's needs
         # Mock funding_data structure: symbol -> exchange -> FundingRate | None
         mock_funding_data = {
             "BTC": {
-                "hyperliquid": data_handler.get_funding_rate("hyperliquid", "BTC-PERP"),
-                "backpack": data_handler.get_funding_rate("backpack", "BTC_USDC"),
+                "hyperliquid": data_handler.get_latest_funding_rate("hyperliquid", "BTC-PERP"),
+                "backpack": data_handler.get_latest_funding_rate("backpack", "BTC_USDC"),
             },
             "ETH": {
-                "hyperliquid": data_handler.get_funding_rate("hyperliquid", "ETH-PERP"),
-                "backpack": data_handler.get_funding_rate("backpack", "ETH_USDC"),
+                "hyperliquid": data_handler.get_latest_funding_rate("hyperliquid", "ETH-PERP"),
+                "backpack": data_handler.get_latest_funding_rate("backpack", "ETH_USDC"),
             },
         }
-        # Mock market_data structure: Needs ticker_data: symbol -> exchange -> Ticker | None
-        # Use the mocks already set up in the data_handler fixture
-        mock_ticker_data = {
-            "BTC": {
-                "hyperliquid": data_handler.get_ticker("hyperliquid", "BTC-PERP"),
-                "backpack": data_handler.get_ticker("backpack", "BTC_USDC"),
-            },
-            "ETH": {
-                "hyperliquid": data_handler.get_ticker("hyperliquid", "ETH-PERP"),
-                "backpack": data_handler.get_ticker("backpack", "ETH_USDC"),
-            },
-        }
-        # Create a mock MarketData object or a simple object with ticker_data
-        mock_market_data = MagicMock()
-        mock_market_data.ticker_data = mock_ticker_data
+        # SignalGenerator now uses self.data_handler.tickers internally.
+        # Ensure data_handler.tickers is populated correctly in the fixture or test setup.
+        # The data_handler fixture already populates data_handler.tickers.
 
-        # Call the method with required arguments
         opportunities = signal_generator.generate_arbitrage_opportunities(
-            funding_data=mock_funding_data, market_data=mock_market_data
+            funding_data=mock_funding_data
         )
         assert len(opportunities) > 0, "Expected opportunities based on mocked data and thresholds"
         assert isinstance(opportunities[0], ArbitrageOpportunity)
@@ -412,12 +397,10 @@ class TestSignalGenerator:
         self, signal_generator: SignalGenerator, data_handler: MagicMock, config: MagicMock
     ) -> None:
         """Test when no opportunities meet the eligibility criteria."""
+        now = datetime.now(UTC)  # This 'now' is used for mock_low_funding timestamps
 
         # Define side effect with type hints, adding mark_price and timestamp
         def mock_low_funding(exchange: str, symbol: str) -> FundingRate | None:
-            now = datetime.now(UTC)
-            # Use exchange symbols from mapper if needed
-            # (This logic looks suspect, might need review if still failing)
             hl_sym = (
                 signal_generator.symbol_mapper.get_exchange_symbol("BTC", "hyperliquid")
                 or "BTC-PERP"
@@ -431,7 +414,7 @@ class TestSignalGenerator:
                         symbol=hl_sym,
                         funding_rate=Decimal("0.00001"),
                         mark_price=Decimal("30000"),
-                        timestamp=int(now.timestamp() * 1000),
+                        timestamp=now,
                     )
                 },
                 "backpack": {
@@ -439,36 +422,30 @@ class TestSignalGenerator:
                         symbol=bp_sym,
                         funding_rate=Decimal("0.00002"),
                         mark_price=Decimal("30010"),
-                        timestamp=int(now.timestamp() * 1000),
+                        timestamp=now,
                     )
                 },
             }
-            # Return based on the *exchange symbol* passed in the call
             return rates.get(exchange, {}).get(symbol)
 
-        data_handler.get_funding_rate.side_effect = mock_low_funding
+        data_handler.get_latest_funding_rate.side_effect = mock_low_funding
 
-        # Prepare other required args (MarketData)
-        mock_ticker_data = {
-            "BTC": {  # Use internal symbol 'BTC'
-                "hyperliquid": data_handler.get_ticker("hyperliquid", "BTC-PERP"),
-                "backpack": data_handler.get_ticker("backpack", "BTC_USDC"),
-            }
-        }
-        mock_market_data = MagicMock()
-        mock_market_data.ticker_data = mock_ticker_data
+        # SignalGenerator uses self.data_handler.tickers. Ensure it's set.
+        # For this test, we assume the prices are such that the low funding diff doesn't create an opp.
+        # The data_handler fixture populates tickers, which should be sufficient.
+        # If specific ticker values are needed for this test, mock data_handler.tickers here.
+        # Example:
+        # data_handler.tickers = { ... specific Ticker objects ... }
 
-        # Prepare funding data structure for the call
         mock_funding_data = {
-            "BTC": {  # Use internal symbol 'BTC'
+            "BTC": {
                 "hyperliquid": mock_low_funding("hyperliquid", "BTC-PERP"),
                 "backpack": mock_low_funding("backpack", "BTC_USDC"),
             }
         }
 
-        # Call method with arguments
         opportunities = signal_generator.generate_arbitrage_opportunities(
-            funding_data=mock_funding_data, market_data=mock_market_data
+            funding_data=mock_funding_data
         )
         assert len(opportunities) == 0
 
@@ -477,12 +454,12 @@ class TestSignalGenerator:
     ) -> None:
         """Test scenario with only one exchange configured."""
 
+        # now = datetime.now(UTC) # Unused variable
         # Define side effect with type hints
         def single_exchange_config_get(key: str, default: object | None = None) -> object | None:
             mock_single_config_dict: dict[str, Any] = {
                 "exchanges": {"hyperliquid": {"enabled": True, "symbols": {"BTC": "BTC-PERP"}}},
                 "strategy.funding_rate.min_funding_differential": "0.0002",
-                # Add other required keys with default values
                 "strategy.funding_rate.min_profit_threshold": "3.0",
                 "strategy.funding_rate.funding_sample_period": 3600,
                 "strategy.funding_rate.funding_sample_count": 24,
@@ -492,64 +469,55 @@ class TestSignalGenerator:
                 "strategy.funding_rate.liquidity_threshold_usd": "10000",
                 "strategy.funding_rate.max_slippage_percent": "0.01",
             }
-            # Simplified logic for mock config get
             if key.startswith("exchanges.hyperliquid."):
                 prop = key.split(".")[-1]
                 ex_data = mock_single_config_dict.get("exchanges", {}).get("hyperliquid", {})
                 return ex_data.get(prop, default)
-            # Handle enabled check for other exchanges (should be False)
             elif key.startswith("exchanges.") and key.endswith(".enabled"):
-                return False  # Assume other exchanges are disabled
+                # For single exchange test, only hyperliquid should be enabled
+                return key == "exchanges.hyperliquid.enabled"
             return mock_single_config_dict.get(key, default)
 
         config.get.side_effect = single_exchange_config_get
-        # Accessing protected member for test setup;
-        # no public API is available and this is required
-        # for correct test initialization.
-        signal_generator._initialize_data_structures()
+        signal_generator._initialize_data_structures()  # Re-initialize with new config
 
-        # Prepare mock data arguments
         mock_funding_data = {
             "BTC": {
-                "hyperliquid": data_handler.get_funding_rate("hyperliquid", "BTC-PERP"),
-                # No backpack data due to config mock
+                "hyperliquid": data_handler.get_latest_funding_rate("hyperliquid", "BTC-PERP"),
             }
         }
-        mock_ticker_data = {
-            "BTC": {
-                "hyperliquid": data_handler.get_ticker("hyperliquid", "BTC-PERP"),
-                # No backpack data
-            }
-        }
-        mock_market_data = MagicMock()
-        mock_market_data.ticker_data = mock_ticker_data
 
-        # Call the method with required arguments
+        # Ensure data_handler.tickers is appropriately set for the single exchange scenario
+        # The main data_handler fixture sets up tickers for both. For this specific test,
+        # it might be cleaner to re-mock data_handler.tickers if precise control is needed,
+        # but SignalGenerator should correctly filter based on enabled exchanges from config.
+        # The existing fixture setup for data_handler.tickers should be fine as SignalGenerator
+        # will only look for 'hyperliquid' tickers due to the mocked config.
+
         opportunities = signal_generator.generate_arbitrage_opportunities(
-            funding_data=mock_funding_data, market_data=mock_market_data
+            funding_data=mock_funding_data
         )
         assert len(opportunities) == 0
 
     def test_arbitrage_opportunity_creation(self, signal_generator: SignalGenerator) -> None:
         """Test the internal creation logic for ArbitrageOpportunity."""
         now = datetime.now(UTC)
-        # Correct structure: dict[exchange_id, FundingRate]
         funding_data = {
             "hyperliquid": FundingRate(
                 symbol="BTC-PERP",
                 funding_rate=Decimal("-0.001"),
-                timestamp=int(now.timestamp() * 1000),
+                timestamp=now,
             ),
             "backpack": FundingRate(
                 symbol="BTC_USDC",
                 funding_rate=Decimal("0.002"),
-                timestamp=int(now.timestamp() * 1000),
+                timestamp=now,
             ),
         }
-        # Correct structure: dict[exchange_id, Ticker]
-        ticker_data = {
-            "hyperliquid": Ticker(symbol="BTC-PERP", price=Decimal("41000")),
-            "backpack": Ticker(symbol="BTC_USDC", price=Decimal("41100")),
+        # Ensure ticker_data matches the expected type dict[str, Ticker | None]
+        ticker_data: dict[str, Ticker | None] = {
+            "hyperliquid": Ticker(symbol="BTC-PERP", price=Decimal("41000"), timestamp=now),
+            "backpack": Ticker(symbol="BTC_USDC", price=Decimal("41100"), timestamp=now),
         }
 
         # Accessing protected method for targeted unit test;

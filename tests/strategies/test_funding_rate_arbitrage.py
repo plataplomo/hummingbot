@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -193,9 +193,10 @@ async def test_check_opportunity(
         symbol="BTC-PERP",
         funding_rate=Decimal("0.1"),
         predicted_rate=Decimal("0.1"),
-        next_funding_time=int(datetime.now(UTC).timestamp() * 1000) + 3600000,
+        next_funding_time=datetime.now(UTC) + timedelta(hours=1),
         mark_price=Decimal("30000.0"),
         index_price=Decimal("29990.0"),
+        timestamp=datetime.now(UTC),
     )
     # Patch async/protected and other methods for test
     with patch.object(
@@ -239,7 +240,7 @@ async def test_calculate_basis_volatility(
 # Helper functions
 
 
-def create_mock_candle(**kwargs: object) -> Candle:
+def create_mock_candle(**kwargs: Any) -> Candle:
     return Candle(
         symbol=kwargs.get("symbol", "BTC-PERP"),
         interval=kwargs.get("interval", "1m"),
@@ -252,27 +253,26 @@ def create_mock_candle(**kwargs: object) -> Candle:
     )
 
 
-def create_mock_ticker(**kwargs: object) -> Ticker:
+def create_mock_ticker(**kwargs: Any) -> Ticker:
     return Ticker(
         symbol=kwargs.get("symbol", "BTC-PERP"),
         price=kwargs.get("price", Decimal("30000.0")),
         bid=kwargs.get("bid", Decimal("29995.0")),
         ask=kwargs.get("ask", Decimal("30005.0")),
         volume=kwargs.get("volume", Decimal("100.0")),
-        timestamp=kwargs.get("timestamp", int(datetime.now(UTC).timestamp() * 1000)),
+        timestamp=kwargs.get("timestamp", datetime.now(UTC)),
     )
 
 
-def create_mock_funding_rate(**kwargs: object) -> FundingRate:
+def create_mock_funding_rate(**kwargs: Any) -> FundingRate:
     return FundingRate(
         symbol=kwargs.get("symbol", "BTC-PERP"),
         funding_rate=kwargs.get("funding_rate", Decimal("0.1")),
         predicted_rate=kwargs.get("predicted_rate", Decimal("0.1")),
-        next_funding_time=kwargs.get(
-            "next_funding_time", int(datetime.now(UTC).timestamp() * 1000) + 3600000
-        ),
+        next_funding_time=kwargs.get("next_funding_time", datetime.now(UTC) + timedelta(hours=1)),
         mark_price=kwargs.get("mark_price", Decimal("30000.0")),
         index_price=kwargs.get("index_price", Decimal("29990.0")),
+        timestamp=kwargs.get("timestamp", datetime.now(UTC)),
     )
 
 

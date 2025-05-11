@@ -6,7 +6,9 @@ from decimal import ROUND_DOWN, Decimal, InvalidOperation, getcontext
 from typing import Any, Protocol
 
 from cyberdelta.core.models import SpotBalance  # Added import
+from cyberdelta.core.models.spot_balance import SpotBalance
 
+# from cyberdelta.core.portfolio_tracker import PortfolioTrackerProtocol # This line should be commented out or removed
 # from cyberdelta.core.models import ArbitrageOpportunity, Order, OrderSide, OrderType, TradeSignal
 # REMOVING this runtime import
 from cyberdelta.utils.config import Config
@@ -536,14 +538,8 @@ class RiskManager:
         """Check that portfolio leverage is within allowed limits."""
         total_capital = self.portfolio_tracker.get_total_capital()
 
-        if (
-            total_capital is None
-        ):  # DEFENSIVE CHECK: Mock can return None. Mypy=[misc] Ruff=[RUF001]
-            total_capital = ZERO
-
         if total_capital <= ZERO:
-            # Avoid division by zero if capital is zero or negative
-            logger.warning("Cannot calculate leverage: Total capital is zero or negative.")
+            logger.warning("Total capital is zero or negative. Cannot calculate leverage.")
             return False
         try:
             total_exposure_dec = self.calculate_total_exposure()
