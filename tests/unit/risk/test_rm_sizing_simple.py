@@ -41,6 +41,7 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = config_get1
 
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         risk_manager = RiskManager(
             mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
         )
@@ -79,6 +80,7 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = config_get2
 
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         risk_manager = RiskManager(
             mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
         )
@@ -117,6 +119,7 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = config_get3
 
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         risk_manager = RiskManager(
             mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
         )
@@ -156,6 +159,7 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = config_get4
 
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         risk_manager = RiskManager(
             mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
         )
@@ -218,6 +222,7 @@ class TestRiskManagerSizingSimple:
 
         mock_config.get.side_effect = config_get5
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         risk_manager = RiskManager(
             mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
         )
@@ -255,6 +260,7 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = config_get6
         # Only $100 available
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         risk_manager = RiskManager(
             mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
         )
@@ -293,6 +299,7 @@ class TestRiskManagerSizingSimple:
         mock_config.get.side_effect = config_get7
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         mock_portfolio_tracker.get_all_positions.return_value = []
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
 
         def get_exchange_balance(*args: object) -> dict[str, Decimal]:
             return {"available": Decimal("10000.0")}
@@ -347,6 +354,7 @@ class TestRiskManagerSizingSimple:
 
         mock_config.get.side_effect = config_get9
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         risk_manager = RiskManager(
             mock_config, mock_portfolio_tracker, mock_circuit_breaker, mock_funding_validator
         )
@@ -388,6 +396,7 @@ class TestRiskManagerSizingSimple:
 
         mock_config.get.side_effect = config_get10
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
 
         def mock_get_balance(exchange: str, asset: str) -> dict[str, str] | None:
             if asset == "USDC":

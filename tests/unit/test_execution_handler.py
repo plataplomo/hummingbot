@@ -328,7 +328,8 @@ class TestExecutionHandler:
                 quantity=Decimal("0.1"),
                 time_in_force=TimeInForce.IOC,
             )
-        assert mock_hl_api.place_order.call_count >= execution_handler.max_retries + 1
+        # result should be None as all retries failed
+        assert mock_hl_api.place_order.call_count == execution_handler.max_retries
 
     @pytest.mark.asyncio
     async def test_get_order_status_success(

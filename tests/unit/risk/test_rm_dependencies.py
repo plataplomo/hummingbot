@@ -62,8 +62,10 @@ class TestRiskManagerDependencyFailures:
         mock_config.get.side_effect = get_side_effect
         if bad_capital == "invalid_decimal":
             with pytest.raises((TypeError, Exception)):
+                mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
                 await risk_manager.size_opportunity(sample_opportunity)
         else:
+            mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
             sized_opp = await risk_manager.size_opportunity(sample_opportunity)
             assert sized_opp is None
 
@@ -85,6 +87,7 @@ class TestRiskManagerDependencyFailures:
 
         mock_config.get.side_effect = get_side_effect
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         risk_manager.max_position_size = Decimal("5000.0")
         with patch.object(
             risk_manager,
@@ -117,6 +120,7 @@ class TestRiskManagerDependencyFailures:
 
         mock_config.get.side_effect = get_side_effect
         mock_portfolio_tracker.get_total_capital.side_effect = Exception("Simulated PT Error")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         with patch.object(risk_manager, "_apply_portfolio_exposure_management", return_value=None):
             with pytest.raises(Exception) as excinfo:
                 await risk_manager.size_opportunity(sample_opportunity)
@@ -132,6 +136,7 @@ class TestRiskManagerDependencyFailures:
         mock_config: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,  # Now using this!
+        mock_portfolio_tracker: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
         scope_to_trip: str,
     ) -> None:
@@ -152,6 +157,11 @@ class TestRiskManagerDependencyFailures:
 
         mock_config.get.side_effect = get_side_effect
         risk_manager.max_position_size = Decimal("20000.0")
+        risk_manager.portfolio_tracker = (
+            mock_portfolio_tracker  # Ensure risk_manager uses the test's mock
+        )
+        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
         with patch.object(
             risk_manager,
             "_apply_portfolio_exposure_management",
@@ -210,8 +220,13 @@ class TestRiskManagerDependencyFailures:
             return combined_config.get(key, default)
 
         mock_config.get.side_effect = get_side_effect
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         risk_manager.max_position_size = Decimal("20000.0")
+        risk_manager.portfolio_tracker = (
+            mock_portfolio_tracker  # Ensure risk_manager uses the test's mock
+        )
+        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+
         with patch.object(
             risk_manager,
             "_apply_portfolio_exposure_management",

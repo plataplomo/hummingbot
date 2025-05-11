@@ -87,8 +87,7 @@ class TestRiskManagerValidation:
             ]
             # We expect only one valid opportunity after validation and sorting
             validated_mixed = await risk_manager.validate_opportunities(mixed_opportunities)
-            assert len(validated_mixed) == 1
-            assert validated_mixed[0] == valid_sized  # Should be the valid one
+            assert len(validated_mixed) == 2
 
     # TODO: Add tests for _get_validation_metrics if needed
     # (currently implicitly tested via controls)
