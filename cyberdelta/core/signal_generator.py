@@ -12,7 +12,6 @@ from cyberdelta.core.models import (  # Import MarketData, OrderBook
     FundingRate,
     Ticker,
 )
-from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config
 from cyberdelta.utils.logging_config import get_logger  # <--- Use get_logger
@@ -218,7 +217,9 @@ class SignalGenerator:
                     continue
 
                 # Fetch data using the exchange-specific symbol
-                funding_data = self.data_handler.get_funding_rate(exchange_id, exchange_symbol)
+                funding_data = self.data_handler.get_latest_funding_rate(
+                    exchange_id, exchange_symbol
+                )
                 if not isinstance(funding_data, FundingRate):
                     continue
                 rate = funding_data.funding_rate
@@ -258,27 +259,42 @@ class SignalGenerator:
                 )
 
                 if exchange_symbol:  # Check if mapping exists
-                    market_data: Candle | None = self.data_handler.get_ticker(
-                        exchange_id, exchange_symbol
+                    # market_data: Candle | None = self.data_handler.get_ticker( # Old call
+                    #     exchange_id, exchange_symbol
+                    # )
+                    # DataHandler now stores Ticker objects in self.tickers
+                    # and get_latest_ticker returns Ticker | None
+                    ticker_data: Ticker | None = (
+                        self.data_handler.get_latest_ticker(  # Changed method name
+                            exchange_id, exchange_symbol
+                        )
                     )
+
                     # Ensure market data and price are valid
-                    if market_data is not None and hasattr(market_data, "close"):
+                    # if market_data is not None and hasattr(market_data, "close"): # Old check for Candle
+                    if (
+                        ticker_data is not None and ticker_data.price is not None
+                    ):  # New check for Ticker
                         # Attempt to convert price to Decimal immediately for validation
                         try:
-                            price_decimal = (
-                                market_data.close
-                            )  # Already Decimal from MarketData.__post_init__
+                            # price_decimal = ( # Old logic for Candle
+                            #     market_data.close
+                            # )
+                            # price_decimal = ticker_data.price # Ticker.price is already Decimal | None, checked above - REMOVED UNUSED VARIABLE
+
                             valid_exchanges_for_symbol.append(exchange_id)
                             # Create a Ticker object from MarketData for consistency
-                            ticker = Ticker(
-                                symbol=market_data.symbol,
-                                price=price_decimal,
-                                timestamp=market_data.open_time,
-                                # Add volume from Candle
-                                volume=market_data.volume or Decimal("0.0"),
-                            )
+                            # ticker = Ticker( # Old logic for Candle
+                            #     symbol=market_data.symbol,
+                            #     price=price_decimal,
+                            #     timestamp=market_data.open_time,
+                            #     # Add volume from Candle
+                            #     volume=market_data.volume or Decimal("0.0"),
+                            # )
                             # Store the ticker
-                            exchange_tickers[exchange_id] = ticker
+                            exchange_tickers[exchange_id] = (
+                                ticker_data  # Store the Ticker object directly
+                            )
                         except (InvalidOperation, TypeError, AttributeError) as conversion_error:
                             logger.warning(
                                 f"Could not process market data for "
@@ -474,78 +490,67 @@ class SignalGenerator:
         return base_slippage * sensitivity
 
     def generate_arbitrage_opportunities(
-        self, funding_data: dict[str, dict[str, FundingRate | None]], market_data: Candle
+        self, funding_data: dict[str, dict[str, FundingRate | None]]
     ) -> list[ArbitrageOpportunity]:
         """
-        Generate arbitrage opportunities based on funding rate differentials and
-        market data (Candle).
-
-        Args:
-            funding_data: Dict mapping internal symbols to dicts mapping exchange names
-                          to FundingRate objects or None.
-            market_data: Candle object representing the latest market state (used for prices).
-
-        Returns:
-            List of potential ArbitrageOpportunity objects.
+        Generates arbitrage opportunities based on current funding and market data.
+        Iterates through tracked symbols and enabled exchanges.
         """
-        # The input market_data (Candle) provides the *context* for fetching current tickers.
-
-        # The input market_data cannot be None based on type hint Candle
-        # if market_data is None: <-- Remove redundant check
-        #     logger.warning(
-        #         "Market data is None - cannot generate arbitrage opportunities"
-        #     )
-        #     return []
-
         opportunities: list[ArbitrageOpportunity] = []
+        all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
 
-        for symbol in self.tracked_symbols:
-            # Ensure we have funding data for this symbol
-            if symbol not in funding_data:
-                continue
+        for internal_symbol in all_internal_symbols:
+            # Prepare tickers for this specific internal_symbol across all exchanges
+            tickers_for_symbol_check: dict[str, Ticker | None] = {}
+            exchanges_conf = self.config.get("exchanges", {})
+            exchanges_dict = (
+                cast(dict[str, Any], exchanges_conf) if isinstance(exchanges_conf, dict) else {}
+            )
+            configured_exchanges: list[str] = list(exchanges_dict.keys())
+            enabled_exchanges = [
+                ex_id
+                for ex_id in configured_exchanges
+                if self.config.get(f"exchanges.{ex_id}.enabled", False)
+            ]
 
-            exchanges_with_data = {
-                exchange: data
-                for exchange, data in funding_data[symbol].items()
-                if data is not None
+            for exchange_id in enabled_exchanges:
+                exchange_specific_symbol = self.symbol_mapper.get_exchange_symbol(
+                    internal_symbol, exchange_id
+                )
+                if exchange_specific_symbol:
+                    # DataHandler now stores Ticker objects in self.tickers
+                    ticker_obj = self.data_handler.tickers.get(exchange_id, {}).get(
+                        exchange_specific_symbol
+                    )
+                    tickers_for_symbol_check[exchange_id] = ticker_obj
+                else:
+                    tickers_for_symbol_check[exchange_id] = None
+
+            # Get funding rates for the current internal_symbol
+            current_symbol_funding_data = funding_data.get(internal_symbol, {})
+
+            # Check opportunities for the current internal_symbol
+            # Ensure current_symbol_funding_data contains actual FundingRate objects, not None where expected
+            valid_funding_for_symbol: dict[str, FundingRate] = {
+                ex: fr
+                for ex, fr in current_symbol_funding_data.items()
+                if isinstance(fr, FundingRate)
             }
 
-            # We need at least two exchanges with data to create an arbitrage opportunity
-            if len(exchanges_with_data) < 2:
+            if not valid_funding_for_symbol:
+                # logger.debug(f"No valid funding rate data for {internal_symbol}, skipping.")
                 continue
 
-            # Get ticker data for all exchanges for this symbol - REWORKED
-            # We need prices for exchanges. Fetch tickers from DataHandler.
-            tickers: dict[str, Ticker | None] = {}
-            for ex_id in exchanges_with_data:
-                exchange_symbol = self.symbol_mapper.get_exchange_symbol(symbol, ex_id)
-                if exchange_symbol:
-                    # Attempt to get the latest *ticker* data, not Candle
-                    ticker_candle = self.data_handler.get_ticker(ex_id, exchange_symbol)
-                    if ticker_candle:
-                        # Create a Ticker object from the Candle for consistency
-                        tickers[ex_id] = Ticker(
-                            symbol=ticker_candle.symbol,
-                            price=ticker_candle.close,  # Use close price from Candle
-                            timestamp=ticker_candle.open_time,  # Pass datetime directly
-                            volume=ticker_candle.volume,
-                        )
-                    else:
-                        tickers[ex_id] = None  # Mark as unavailable if no ticker data
-                else:
-                    tickers[ex_id] = None  # Mark as unavailable if no symbol mapping
-
-            # Check for funding rate opportunities
-            funding_opportunities = self._check_funding_rate_opportunities(
-                symbol, exchanges_with_data, tickers
+            symbol_opportunities = self._check_funding_rate_opportunities(
+                internal_symbol, valid_funding_for_symbol, tickers_for_symbol_check
             )
+            opportunities.extend(symbol_opportunities)
 
-            # Add valid opportunities to the list
-            opportunities.extend(funding_opportunities)
-
-        # Sort opportunities by net funding differential in descending order
+        # Sort opportunities (e.g., by expected profit)
         opportunities.sort(
-            key=lambda x: float(x.net_funding_differential),
+            key=lambda x: float(
+                x.expected_profit if x.expected_profit is not None else Decimal("0.0")
+            ),  # Handle None for float conversion
             reverse=True,
         )
 

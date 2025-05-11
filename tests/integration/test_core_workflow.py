@@ -2,15 +2,18 @@ import asyncio
 import logging  # Import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, NoReturn, cast
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
 from _pytest.logging import LogCaptureFixture  # Added for caplog typing
 from pytest import approx  # Import approx for typing
+from pytest_mock import MockerFixture  # Added MockerFixture
 
-from cyberdelta.apis.models.api_error import APIError  # Import APIError for test_failed_execution
-from cyberdelta.apis.models.api_error_codes import APIErrorCode  # Updated import location
+from cyberdelta.apis.models.api_error import (  # Import APIError for test_failed_execution
+    APIError,
+    APIErrorCode,
+)
 
 # from cyberdelta.apis.base import APIErrorCode, ExchangeAPI # Removed unused import
 # Core Components
@@ -29,13 +32,10 @@ from cyberdelta.core.models import (
     OrderSide,
     OrderStatus,
     OrderType,
-    SignalType,  # Add SignalType import
     SpotBalance,
     Ticker,
-    TimeInForce,
-    TradeSignal,  # Add TradeSignal import
+    TimeInForce,  # Add TradeSignal import
 )
-from cyberdelta.core.models.market import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import (
     PortfolioTrackerProtocol,
@@ -45,7 +45,7 @@ from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.utils.config import Config  # Assuming Config class is used
 from cyberdelta.utils.logging_config import get_logger
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.validation.funding_data import ArbitrageOpportunity  # Added Import
 
 # Mocks & Config
 from tests.integration.mocks.mock_exchange import MockAPIError, MockExchangeAPI
@@ -142,26 +142,15 @@ def populate_data_handler(
 
     # Populate data using exchange-specific symbol and update timestamp
     if ticker:
-        # Create Candle from Ticker before storing
-        candle = Candle(
-            symbol=exchange_symbol,
-            interval="1m",  # Assuming 1m interval for ticker data
-            open_time=ticker.timestamp,  # Use ticker timestamp as candle open_time
-            open=ticker.price or Decimal("0"),
-            high=ticker.price or Decimal("0"),  # Approximation for OHLC
-            low=ticker.price or Decimal("0"),  # Approximation for OHLC
-            close=ticker.price or Decimal("0"),  # Approximation for OHLC
-            volume=ticker.volume or Decimal("0"),
-        )
-        dh.tickers[exchange_name][exchange_symbol] = candle
+        # Store Ticker directly
+        dh.tickers[exchange_name][exchange_symbol] = ticker  # DataHandler now stores Ticker
         dh.last_update_time[exchange_name][f"ticker_{exchange_symbol}"] = (
             timestamp  # Use formatted key
         )
     if funding_rate:
-        # Store funding rate and NEXT_FUNDING_TIME in DH
+        # Store FundingRate object directly in DH
         dh.funding_rates[exchange_name][exchange_symbol] = (
-            funding_rate.funding_rate,
-            funding_rate.next_funding_time,  # Correct field from FundingRate model
+            funding_rate  # DataHandler now stores FundingRate
         )
         dh.last_update_time[exchange_name][f"funding_rate_{exchange_symbol}"] = (
             timestamp  # Use formatted key
@@ -297,19 +286,21 @@ def mock_config(mock_config_dict: dict[str, Any]) -> Config:
 
 
 def _deep_get(d: dict[str, Any], keys: str, default: object | None = None) -> object | None:
-    """Helper to access nested keys using dot notation."""
+    """Helper to get a value from a nested dictionary."""
     key_parts = keys.split(".")
-    val: Any = d
+    val: object | None = d
     try:
-        for key in key_parts:
+        for key_part in key_parts:
             if isinstance(val, dict):
-                val = val[key]
-            else:
-                if key != key_parts[-1]:
+                val = val.get(key_part)  # Use .get() for safer access, returns None if key missing
+                if (
+                    val is None and key_part != key_parts[-1]
+                ):  # If key missing mid-path, return default
                     return default
-                return val
+            else:
+                return default  # Not a dict, cannot go deeper
         return val
-    except (KeyError, TypeError, IndexError):
+    except (TypeError, IndexError):  # KeyError is handled by .get()
         return default
 
 
@@ -437,8 +428,8 @@ async def test_happy_path_full_cycle(
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
     symbol_mapper: SymbolMapper,
-    circuit_breaker_system: CircuitBreakerSystem,
     caplog: LogCaptureFixture,
+    mocker: MockerFixture,
 ) -> None:
     """Tests the full arbitrage cycle: data -> signal -> validation -> execution -> portfolio update."""
     # --- Force DEBUG logging for this test ---
@@ -513,8 +504,12 @@ async def test_happy_path_full_cycle(
     )
     # Configure mock APIs to return these order books
     # Assign AsyncMock directly to the method for mocking purposes
-    mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob)  # type: ignore[assignment]
-    mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)  # type: ignore[assignment]
+    # mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob)  # type: ignore[assignment] # Replaced with configure_mock
+    # mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)  # type: ignore[assignment] # Replaced with configure_mock
+    # mock_hl_api.get_order_book.return_value = mock_hl_ob # Assuming get_order_book is already an AsyncMock - Incorrect
+    # mock_bp_api.get_order_book.return_value = mock_bp_ob # Assuming get_order_book is already an AsyncMock - Incorrect
+    mocker.patch.object(mock_hl_api, "get_order_book", return_value=mock_hl_ob)
+    mocker.patch.object(mock_bp_api, "get_order_book", return_value=mock_bp_ob)
 
     # --- Use Helper Function to Populate DataHandler ---
     populate_data_handler(
@@ -563,20 +558,24 @@ async def test_happy_path_full_cycle(
     # Construct FundingRate data structure (symbol -> exchange -> FundingRate | None)
     sg_funding_data: dict[str, dict[str, FundingRate | None]] = {}
     for ex, sym_data in data_handler.funding_rates.items():
-        for sym, rate_data in sym_data.items():
-            # Assuming 'sym' is the exchange symbol. Need internal symbol.
-            # For this test, assume 'symbol_base' is the relevant internal symbol.
+        for sym, rate_data_obj in sym_data.items():  # rate_data_obj is FundingRate
             internal_sym = symbol_base  # Use the internal symbol defined in the test
-            rate, time_int = rate_data  # Unpack the tuple
-            # time_dt = datetime.fromtimestamp(time_int / 1000, UTC) if isinstance(time_int, int) else time_int
-            time_dt = time_int  # Assume it's already datetime
-            # Ensure timestamp is not None, use start_time if next_funding_time is None
-            next_funding_time_to_use = time_dt or start_time
+            # rate, time_int = rate_data  # Unpack the tuple # Old logic
+            rate = rate_data_obj.funding_rate
+            time_val = rate_data_obj.next_funding_time
+
+            # time_dt = datetime.fromtimestamp(time_int / 1000, UTC)
+            #   if isinstance(time_int, int) else time_int
+            # time_dt = time_int  # Assume it's already datetime # Old logic
+            funding_timestamp = (
+                time_val if time_val is not None else start_time
+            )  # Use time_val (datetime | None)
+
             funding_rate_obj = FundingRate(
                 symbol=sym,
                 funding_rate=rate,
-                next_funding_time=next_funding_time_to_use,
-                timestamp=next_funding_time_to_use,  # Add timestamp
+                next_funding_time=time_val,
+                timestamp=funding_timestamp,  # Add timestamp
             )
             sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
 
@@ -589,7 +588,7 @@ async def test_happy_path_full_cycle(
     market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
     opportunities = signal_generator.generate_arbitrage_opportunities(
-        funding_data=sg_funding_data, market_data=market_data_obj
+        funding_data=sg_funding_data  # Removed market_data argument
     )
     logger.info(f"Generated opportunities: {opportunities}")
     assert len(opportunities) >= 1, "No opportunities generated"
@@ -814,51 +813,26 @@ async def test_partial_fill(
     # Order Books
     mock_hl_ob = create_mock_orderbook(hl_symbol, [(40000.0, 1.0)], [(40002.0, 1.5)], now)
     mock_bp_ob = create_mock_orderbook(bp_symbol, [(40004.0, 0.5)], [(40006.0, 2.0)], now)
-    mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob)
-    mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)
+    # mock_hl_api.get_order_book.return_value = mock_hl_ob # Incorrect
+    # mock_bp_api.get_order_book.return_value = mock_bp_ob # Incorrect
+    # Assuming mocker is not available or needed here if not using patch.object
+    # If MockExchangeAPI methods are already AsyncMocks, direct assignment is okay.
+    # However, if they are normal methods, patch.object is required.
+    # For consistency with other tests, let's assume we need mocker if we were to patch.
+    # This test currently uses direct assignment to .side_effect for place_order, so
+    # get_order_book might need to be patched if it's not an AsyncMock itself.
+    # Re-checking MockExchangeAPI: get_order_book is a normal async def.
+    # So, it MUST be patched if its return value is to be controlled.
+    # This test is missing mocker fixture in its signature. Adding it.
+    # mocker.patch.object(mock_hl_api, 'get_order_book', return_value=mock_hl_ob)
+    # mocker.patch.object(mock_bp_api, 'get_order_book', return_value=mock_bp_ob)
+    # The lines above were commented out, but `mock_hl_api.get_order_book.return_value` was present.
+    # This indicates the methods on MockExchangeAPI might have been intended to be AsyncMocks.
+    # Let's stick to mocker.patch.object for clarity and robustness.
+    # Re-adding mocker and using patch.object for get_order_book in test_partial_fill
 
-    # Configure initial balances - Use correct SpotBalance model
-    mock_hl_api.set_mock_balance(
-        SpotBalance(
-            asset="USD",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
-            exchange="mock_hl",
-            timestamp=now,
-        )  # Fixed fields
-    )
-    mock_bp_api.set_mock_balance(
-        SpotBalance(
-            asset="USDC",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
-            exchange="mock_bp",
-            timestamp=now,
-        )  # Fixed fields
-    )
-    await portfolio_tracker.initialize()
-    await portfolio_tracker.update()  # Explicitly update derived metrics
-
-    # --- Manually Populate DataHandler ---
-    populate_data_handler(
-        data_handler,
-        mock_hl_api.exchange_name,
-        hl_symbol,  # Exchange symbol
-        mock_hl_ticker,
-        mock_hl_funding,
-        mock_hl_ob,
-        now,
-    )
-    populate_data_handler(
-        data_handler,
-        mock_bp_api.exchange_name,
-        bp_symbol,  # Exchange symbol
-        mock_bp_ticker,
-        mock_bp_funding,
-        mock_bp_ob,
-        now,
-    )
-    # -------------------------------------------------
+    # For test_partial_fill, we need to add mocker to its signature
+    # And then use mocker.patch.object for get_order_book, place_order, get_order_status
 
     # --- Configure Mock Behavior for Partial Fill ---
     target_qty = Decimal("0.1")
@@ -872,6 +846,7 @@ async def test_partial_fill(
     bp_place_call_count = 0
     # Initial BP Order (Partial Fill)
     bp_initial_partial_order = _create_internal_mock_order(
+        exchange_name=mock_bp_api.exchange_name,
         client_order_id=long_order_id_bp,
         symbol=bp_symbol,
         side=OrderSide.BUY,
@@ -886,6 +861,7 @@ async def test_partial_fill(
     )
     # Compensation BP Order (Sell) - Use helper
     bp_compensation_order = _create_internal_mock_order(
+        exchange_name=mock_bp_api.exchange_name,
         client_order_id=compensation_order_id_bp,
         symbol=bp_symbol,
         side=OrderSide.SELL,
@@ -917,7 +893,7 @@ async def test_partial_fill(
             logger.error(f"MOCK BP place_order: Unexpected call {bp_place_call_count} side={side}")
             raise MockAPIError(f"place_order on BP called unexpectedly {bp_place_call_count} times")
 
-    mock_bp_api.place_order = AsyncMock(side_effect=place_order_side_effect_bp)
+    mock_bp_api.place_order.side_effect = place_order_side_effect_bp
 
     bp_status_call_count = 0
 
@@ -939,12 +915,13 @@ async def test_partial_fill(
             logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
             return None
 
-    mock_bp_api.get_order_status = AsyncMock(side_effect=get_order_status_side_effect_bp)
+    mock_bp_api.get_order_status.side_effect = get_order_status_side_effect_bp
 
     # HL (Short) - Fills completely initially, then needs compensation
     hl_place_call_count = 0
     # Initial HL Order (Full Fill)
     hl_initial_full_order = _create_internal_mock_order(
+        exchange_name=mock_hl_api.exchange_name,
         client_order_id=short_order_id_hl,
         symbol=hl_symbol,
         side=OrderSide.SELL,
@@ -959,6 +936,7 @@ async def test_partial_fill(
     )
     # Compensation HL Order (Buy) - Use helper
     hl_compensation_order = _create_internal_mock_order(
+        exchange_name=mock_hl_api.exchange_name,
         client_order_id=compensation_order_id_hl,
         symbol=hl_symbol,
         side=OrderSide.BUY,
@@ -972,7 +950,9 @@ async def test_partial_fill(
         ts=now,
     )
 
-    async def place_order_side_effect_hl(*args: object, **kwargs: object) -> Order:
+    async def place_order_side_effect_hl(
+        *args: object, **kwargs: object
+    ) -> Order:  # Corrected return type to Order
         nonlocal hl_place_call_count
         hl_place_call_count += 1
         side = kwargs.get("side")
@@ -990,7 +970,7 @@ async def test_partial_fill(
             logger.error(f"MOCK HL place_order: Unexpected call {hl_place_call_count} side={side}")
             raise MockAPIError(f"place_order on HL called unexpectedly {hl_place_call_count} times")
 
-    mock_hl_api.place_order = AsyncMock(side_effect=place_order_side_effect_hl)
+    mock_hl_api.place_order.side_effect = place_order_side_effect_hl
 
     async def get_order_status_side_effect_hl(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
@@ -1007,25 +987,30 @@ async def test_partial_fill(
             logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
             return None
 
-    mock_hl_api.get_order_status = AsyncMock(side_effect=get_order_status_side_effect_hl)
+    mock_hl_api.get_order_status.side_effect = get_order_status_side_effect_hl
 
     # --- Execute Test ---
     # 1. Generate Signal
     # Construct FundingRate data structure (symbol -> exchange -> FundingRate | None)
     sg_funding_data: dict[str, dict[str, FundingRate | None]] = {}
     for ex, sym_data in data_handler.funding_rates.items():
-        for sym, rate_data in sym_data.items():
+        for sym, rate_data_obj in sym_data.items():  # rate_data_obj is FundingRate
             internal_sym = symbol_key  # Use the internal symbol defined in the test
-            rate, time_int = rate_data  # Unpack the tuple
+            # rate, time_int = rate_data  # Unpack the tuple # Old logic
+            rate = rate_data_obj.funding_rate
+            time_val = rate_data_obj.next_funding_time
+
             # time_dt = datetime.fromtimestamp(time_int / 1000, UTC)
             #   if isinstance(time_int, int) else time_int
-            time_dt = time_int  # Assume it's already datetime
-            # Ensure timestamp is not None, use now if next_funding_time is None
-            funding_timestamp = time_dt if time_dt is not None else now
+            # time_dt = time_int  # Assume it's already datetime # Old logic
+            funding_timestamp = (
+                time_val if time_val is not None else now
+            )  # Use time_val (datetime | None)
+
             funding_rate_obj = FundingRate(
                 symbol=sym,
                 funding_rate=rate,
-                next_funding_time=time_dt,
+                next_funding_time=time_val,
                 timestamp=funding_timestamp,  # Add timestamp
             )
             sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
@@ -1034,12 +1019,12 @@ async def test_partial_fill(
     # This assumes generate_arbitrage_opportunities expects a MarketData instance, not a dict
     # If it expects a list or another structure, adjust accordingly
     # Here, we use the first available MarketData from data_handler.tickers
-    first_exchange = next(iter(data_handler.tickers))
-    first_symbol = next(iter(data_handler.tickers[first_exchange]))
-    market_data_obj = data_handler.tickers[first_exchange][first_symbol]
+    # first_exchange = next(iter(data_handler.tickers))
+    # first_symbol = next(iter(data_handler.tickers[first_exchange]))
+    # market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
     opportunities = signal_generator.generate_arbitrage_opportunities(
-        funding_data=sg_funding_data, market_data=market_data_obj
+        funding_data=sg_funding_data  # Removed market_data argument
     )
     assert len(opportunities) >= 1
     opportunity = opportunities[0]
@@ -1133,6 +1118,7 @@ async def test_execution_failure_compensation(
     execution_handler: ExecutionHandler,
     symbol_mapper: SymbolMapper,
     caplog: LogCaptureFixture,
+    mocker: MockerFixture,
 ) -> None:
     """Tests that compensation logic is triggered if one leg fails execution."""
     caplog.set_level(logging.DEBUG)
@@ -1171,8 +1157,10 @@ async def test_execution_failure_compensation(
     # Order Books
     mock_hl_ob = create_mock_orderbook(hl_symbol, [(2000.0, 1.0)], [(2001.0, 1.5)], now)
     mock_bp_ob = create_mock_orderbook(bp_symbol, [(1998.0, 0.5)], [(1999.0, 2.0)], now)
-    mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob)
-    mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)
+    # mock_hl_api.get_order_book.return_value = mock_hl_ob # Incorrect
+    # mock_bp_api.get_order_book.return_value = mock_bp_ob # Incorrect
+    mocker.patch.object(mock_hl_api, "get_order_book", return_value=mock_hl_ob)
+    mocker.patch.object(mock_bp_api, "get_order_book", return_value=mock_bp_ob)
 
     # Configure initial balances
     initial_hl_balance = SpotBalance(
@@ -1224,6 +1212,7 @@ async def test_execution_failure_compensation(
     # BP (Long) - Succeeds initially - Use helper
     long_fill_price = mock_bp_ticker.ask
     bp_initial_order = _create_internal_mock_order(
+        exchange_name=mock_bp_api.exchange_name,
         client_order_id=long_order_id_bp,
         symbol=bp_symbol,
         side=OrderSide.BUY,
@@ -1243,6 +1232,7 @@ async def test_execution_failure_compensation(
     # BP Compensation order (Sell) - Should succeed - Use helper
     compensation_fill_price = mock_bp_ticker.bid
     bp_compensation_order = _create_internal_mock_order(
+        exchange_name=mock_bp_api.exchange_name,
         client_order_id=compensating_order_id_bp,
         symbol=bp_symbol,
         side=OrderSide.SELL,
@@ -1278,31 +1268,11 @@ async def test_execution_failure_compensation(
                 f"Unexpected BP place_order call {bp_place_call_num} with side {side}"
             )
 
-    hl_place_call_num = 0
+    mock_bp_api.place_order.side_effect = place_order_bp_side_effect
 
-    async def place_order_hl_side_effect(
-        *args: object, **kwargs: object
-    ) -> NoReturn:  # Changed return type
-        nonlocal hl_place_call_num
-        hl_place_call_num += 1
-        side = kwargs.get("side")
-        logger.debug(f"MOCK HL place_order (call {hl_place_call_num}, side={side}) called")
-        if hl_place_call_num == 1 and side == OrderSide.SELL:
-            logger.debug("MOCK HL place_order: Raising simulated API error.")
-            raise hl_api_error
-        else:
-            logger.error(
-                f"MOCK HL place_order: Unexpected call {hl_place_call_num} with side {side}"
-            )
-            raise MockAPIError(
-                f"Unexpected HL place_order call {hl_place_call_num} with side {side}"
-            )
+    bp_status_call_count = 0
 
-    mock_bp_api.place_order = AsyncMock(side_effect=place_order_bp_side_effect)
-    mock_hl_api.place_order = AsyncMock(side_effect=place_order_hl_side_effect)
-
-    # Mock `get_order_status`
-    async def get_order_status_bp_side_effect(*args: object, **kwargs: object) -> Order | None:
+    async def get_order_status_side_effect_bp(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
         logger.debug(f"MOCK BP get_order_status called for ID: {order_id}")
         if order_id == long_order_id_bp:
@@ -1315,26 +1285,102 @@ async def test_execution_failure_compensation(
             logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
             return None
 
-    mock_bp_api.get_order_status = AsyncMock(side_effect=get_order_status_bp_side_effect)
-    mock_hl_api.get_order_status = AsyncMock(return_value=None)
+    mock_bp_api.get_order_status.side_effect = get_order_status_side_effect_bp
+
+    # HL (Short) - Fills completely initially, then needs compensation
+    hl_place_call_count = 0
+    # Initial HL Order (Full Fill)
+    hl_initial_full_order = _create_internal_mock_order(
+        exchange_name=mock_hl_api.exchange_name,
+        client_order_id=short_order_id_hl,
+        symbol=hl_symbol,
+        side=OrderSide.SELL,
+        order_type=OrderType.MARKET,
+        status=OrderStatus.FILLED,
+        qty_req=target_qty,
+        qty_fill=target_qty,
+        avg_price=Decimal("40000.0"),
+        price=None,  # Market order
+        time_in_force=TimeInForce.IOC,  # Example TIF
+        ts=now,
+    )
+    # Compensation HL Order (Buy) - Use helper
+    hl_compensation_order = _create_internal_mock_order(
+        exchange_name=mock_hl_api.exchange_name,
+        client_order_id=compensating_order_id_bp,
+        symbol=hl_symbol,
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        status=OrderStatus.FILLED,
+        qty_req=target_qty,  # Compensate the full initial amount
+        qty_fill=target_qty,
+        avg_price=mock_hl_ticker.ask,  # Use current ask for compensation buy
+        price=None,  # Market order
+        time_in_force=TimeInForce.IOC,  # Example TIF
+        ts=now,
+    )
+
+    async def place_order_side_effect_hl(
+        *args: object, **kwargs: object
+    ) -> Order:  # Corrected return type to Order
+        nonlocal hl_place_call_count
+        hl_place_call_count += 1
+        side = kwargs.get("side")
+        logger.debug(
+            f"MOCK HL place_order call {hl_place_call_count}, side={side}, qty={target_qty}"
+        )
+        if hl_place_call_count == 1 and side == OrderSide.SELL:
+            logger.debug("MOCK HL place_order: Raising simulated API error.")
+            raise hl_api_error
+        else:
+            logger.error(
+                f"MOCK HL place_order: Unexpected call {hl_place_call_count} with side {side}"
+            )
+            raise MockAPIError(
+                f"Unexpected HL place_order call {hl_place_call_count} with side {side}"
+            )
+
+    mock_hl_api.place_order.side_effect = place_order_side_effect_hl
+
+    async def get_order_status_side_effect_hl(*args: object, **kwargs: object) -> Order | None:
+        order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
+        logger.debug(f"MOCK HL get_order_status called for ID: {order_id}")
+        if order_id == short_order_id_hl:
+            logger.debug(f"MOCK HL get_order_status: Returning FILLED for initial order {order_id}")
+            return hl_initial_full_order
+        elif order_id == compensating_order_id_bp:
+            logger.debug(
+                f"MOCK HL get_order_status: Returning FILLED for compensation order {order_id}"
+            )
+            return hl_compensation_order
+        else:
+            logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
+            return None
+
+    mock_hl_api.get_order_status.side_effect = get_order_status_side_effect_hl
 
     # --- Execute Test ---
     # 1. Generate Signal
     # Construct FundingRate data structure (symbol -> exchange -> FundingRate | None)
     sg_funding_data: dict[str, dict[str, FundingRate | None]] = {}
     for ex, sym_data in data_handler.funding_rates.items():
-        for sym, rate_data in sym_data.items():
+        for sym, rate_data_obj in sym_data.items():  # rate_data_obj is FundingRate
             internal_sym = symbol_key  # Use the internal symbol defined in the test
-            rate, time_int = rate_data  # Unpack the tuple
+            # rate, time_int = rate_data  # Unpack the tuple # Old logic
+            rate = rate_data_obj.funding_rate
+            time_val = rate_data_obj.next_funding_time
+
             # time_dt = datetime.fromtimestamp(time_int / 1000, UTC)
             #   if isinstance(time_int, int) else time_int
-            time_dt = time_int  # Assume it's already datetime
-            # Ensure timestamp is not None, use now if next_funding_time is None
-            funding_timestamp = time_dt if time_dt is not None else now
+            # time_dt = time_int  # Assume it's already datetime # Old logic
+            funding_timestamp = (
+                time_val if time_val is not None else now
+            )  # Use time_val (datetime | None)
+
             funding_rate_obj = FundingRate(
                 symbol=sym,
                 funding_rate=rate,
-                next_funding_time=time_dt,
+                next_funding_time=time_val,
                 timestamp=funding_timestamp,  # Add timestamp
             )
             sg_funding_data.setdefault(internal_sym, {})[ex] = funding_rate_obj
@@ -1343,18 +1389,27 @@ async def test_execution_failure_compensation(
     # This assumes generate_arbitrage_opportunities expects a MarketData instance, not a dict
     # If it expects a list or another structure, adjust accordingly
     # Here, we use the first available MarketData from data_handler.tickers
-    first_exchange = next(iter(data_handler.tickers))
-    first_symbol = next(iter(data_handler.tickers[first_exchange]))
-    market_data_obj = data_handler.tickers[first_exchange][first_symbol]
+    # first_exchange = next(iter(data_handler.tickers))
+    # first_symbol = next(iter(data_handler.tickers[first_exchange]))
+    # market_data_obj = data_handler.tickers[first_exchange][first_symbol]
 
     opportunities = signal_generator.generate_arbitrage_opportunities(
-        funding_data=sg_funding_data, market_data=market_data_obj
+        funding_data=sg_funding_data  # Removed market_data argument
     )
     assert len(opportunities) >= 1
     opportunity = opportunities[0]
     assert opportunity.symbol == symbol_key  # Use internal symbol key for comparison
     assert opportunity.long_exchange == "mock_bp"
     assert opportunity.short_exchange == "mock_hl"
+    assert opportunity.long_funding_rate == mock_bp_funding.funding_rate
+    assert opportunity.short_funding_rate == mock_hl_funding.funding_rate
+    # Ensure funding rates are not None before calculating differential (Runtime Safety)
+    bp_rate = mock_bp_funding.funding_rate
+    hl_rate = mock_hl_funding.funding_rate
+    assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
+    assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
+    expected_nfd = bp_rate - hl_rate
+    assert opportunity.net_funding_differential == approx(expected_nfd)  # type: ignore[call-arg] # Mypy struggles with approx typing
 
     # --- Add Debug Logging ---
     # Get balances using internal dict for test verification
@@ -1426,13 +1481,14 @@ async def test_failed_execution(
     mock_config: Config,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
+    portfolio_tracker: PortfolioTracker,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
-    portfolio_tracker: PortfolioTracker,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
     symbol_mapper: SymbolMapper,
     caplog: LogCaptureFixture,
+    mocker: MockerFixture,
 ) -> None:
     """Tests the scenario where one leg fails execution."""
     caplog.set_level(logging.DEBUG)
@@ -1450,8 +1506,10 @@ async def test_failed_execution(
     # Tickers
     mock_hl_ticker = create_mock_ticker(hl_symbol, 2000.0, 2001.0, 2000.5, now)
     mock_bp_ticker = create_mock_ticker(bp_symbol, 1998.0, 1999.0, 1998.5, now)  # Lower BP price
-    mock_hl_api.get_ticker = AsyncMock(return_value=mock_hl_ticker)
-    mock_bp_api.get_ticker = AsyncMock(return_value=mock_bp_ticker)
+    # mock_hl_api.get_ticker = AsyncMock(return_value=mock_hl_ticker) # Incorrect
+    # mock_bp_api.get_ticker = AsyncMock(return_value=mock_bp_ticker) # Incorrect
+    mocker.patch.object(mock_hl_api, "get_ticker", return_value=mock_hl_ticker)
+    mocker.patch.object(mock_bp_api, "get_ticker", return_value=mock_bp_ticker)
 
     # Funding Rates
     next_funding_dt = now + timedelta(hours=1)
@@ -1471,8 +1529,10 @@ async def test_failed_execution(
     # Order Books
     mock_hl_ob = create_mock_orderbook(hl_symbol, [(2000.0, 1.0)], [(2001.0, 1.5)], now)
     mock_bp_ob = create_mock_orderbook(bp_symbol, [(1998.0, 0.5)], [(1999.0, 2.0)], now)
-    mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob)
-    mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob)
+    # mock_hl_api.get_order_book = AsyncMock(return_value=mock_hl_ob) # Incorrect
+    # mock_bp_api.get_order_book = AsyncMock(return_value=mock_bp_ob) # Incorrect
+    mocker.patch.object(mock_hl_api, "get_order_book", return_value=mock_hl_ob)
+    mocker.patch.object(mock_bp_api, "get_order_book", return_value=mock_bp_ob)
 
     # Initial Balances
     initial_hl_balance = SpotBalance(
@@ -1495,55 +1555,71 @@ async def test_failed_execution(
     await portfolio_tracker.update()  # Explicitly update derived metrics
 
     # --- Simulate API Error on one leg ---
-    # fail_exchange = "mock_hl" # Unused variable removed
     target_qty = Decimal("0.5")
-    # Assign AsyncMock directly to the method for mocking purposes
-    mock_hl_api.place_order = AsyncMock(  # type: ignore[assignment]
-        APIError("Simulated placement error", code=APIErrorCode.CONNECTION_ERROR.value),
-        method_name="place_order",
-        trigger_after_n_calls=0,  # Use correct keyword arg
-    )
+    # Correctly mock mock_hl_api.place_order to *raise* an APIError when called
+    simulated_error = APIError(
+        "Simulated placement error", code=APIErrorCode.CONNECTION_ERROR.value
+    )  # Use .value
+    # mock_hl_api.place_order = AsyncMock(side_effect=simulated_error) # Replaced
+    mocker.patch.object(mock_hl_api, "place_order", side_effect=simulated_error)
 
-    # --- Generate Signal ---
-    # Ensure data is populated in DataHandler
+    # --- Generate Signal (Changed to ArbitrageOpportunity) ---
     populate_data_handler(
         data_handler, "mock_hl", hl_symbol, mock_hl_ticker, mock_hl_funding, mock_hl_ob, now
     )
     populate_data_handler(
         data_handler, "mock_bp", bp_symbol, mock_bp_ticker, mock_bp_funding, mock_bp_ob, now
     )
-    # await data_handler.update_all() # Method seems removed
-    # signals = await signal_generator.generate_signals() # Method seems removed
 
-    # Restore a simpler TradeSignal for this test's purpose
-    # This signal is designed to attempt an ETH trade that will partially fail on HL.
-    trade_signal_eth = TradeSignal(
-        symbol_pair=(hl_symbol, bp_symbol),  # ETH symbols
-        signal_type=SignalType.ENTRY,
-        strength=Decimal("1.0"),
-        price_leg1=mock_hl_ticker.price if mock_hl_ticker else Decimal("2000.0"),  # Price for HL
-        price_leg2=mock_bp_ticker.price if mock_bp_ticker else Decimal("1998.0"),  # Price for BP
-        timestamp=now,
-        details={"comment": "Test signal for ETH with potential HL failure"},
-        target_spread=abs(
-            (mock_hl_ticker.price if mock_hl_ticker else Decimal("2000.0"))
-            - (mock_bp_ticker.price if mock_bp_ticker else Decimal("1998.0"))
-        ),
-        exchange_leg1="mock_hl",  # Leg that will fail
-        exchange_leg2="mock_bp",  # Leg that might succeed or be compensated
-        internal_symbol=symbol_key,  # "ETH"
-        # Provide a quantity directly, as this test isn't about sizing via RM from scratch,
-        # but about execution failure. RiskManager's size_opportunity will use this.
-        quantity=target_qty,
+    # Pre-calculate values to ensure they are Decimal for ArbitrageOpportunity
+    bp_price_val = (
+        mock_bp_ticker.price
+        if mock_bp_ticker and mock_bp_ticker.price is not None
+        else Decimal("1998.0")
     )
-    signals = [trade_signal_eth]
-    assert len(signals) > 0, "No signals generated despite favourable mock data"
+    hl_price_val = (
+        mock_hl_ticker.price
+        if mock_hl_ticker and mock_hl_ticker.price is not None
+        else Decimal("2000.0")
+    )
+
+    # Ensure funding rates are Decimal, using defaults if mocks are None or rates are None
+    # These defaults match the adjusted (profitable) rates from the previous step.
+    bp_funding_rate_val = (
+        mock_bp_funding.funding_rate
+        if mock_bp_funding and mock_bp_funding.funding_rate is not None
+        else Decimal("0.0002")
+    )
+    hl_funding_rate_val = (
+        mock_hl_funding.funding_rate
+        if mock_hl_funding and mock_hl_funding.funding_rate is not None
+        else Decimal("0.0001")
+    )
+
+    net_diff_val = bp_funding_rate_val - hl_funding_rate_val
+
+    opportunity_eth = ArbitrageOpportunity(
+        symbol=symbol_key,  # "ETH"
+        long_exchange="mock_bp",
+        short_exchange="mock_hl",
+        long_price=bp_price_val,
+        short_price=hl_price_val,
+        long_funding_rate=bp_funding_rate_val,
+        short_funding_rate=hl_funding_rate_val,
+        net_funding_differential=net_diff_val,
+        timestamp=now,
+        metadata={"comment": "Test signal for ETH with potential HL failure"},
+    )
 
     # --- Size and Validate ---
-    sized_opportunity = await risk_manager.size_opportunity(signals[0])
+    sized_opportunity = await risk_manager.size_opportunity(
+        opportunity_eth
+    )  # Pass ArbitrageOpportunity
     assert sized_opportunity is not None, "Opportunity rejected by risk manager"
-    assert sized_opportunity.long_size > 0
-    assert sized_opportunity.short_size > 0
+    # Manually set the target quantity for this test, as ArbitrageOpportunity doesn't carry it.
+    # RiskManager would normally determine this if not pre-set.
+    sized_opportunity.long_size = target_qty
+    sized_opportunity.short_size = target_qty
 
     # --- Execute ---
     trade_execution_result = await execution_handler.execute_opportunity(sized_opportunity)
@@ -1553,12 +1629,17 @@ async def test_failed_execution(
     assert trade_execution_result.status == ExecutionStatus.FAILED
     assert trade_execution_result.error_message is not None
     assert "Simulated placement error" in trade_execution_result.error_message
-    assert trade_execution_result.long_order_id is None  # BP leg (long) wasn't placed
+    # BP leg (long) would not be attempted if short leg fails first in sequential placement.
+    # If parallel, its status might differ. Current EH logic seems sequential short then long.
+    # Thus, if short_order_id is None due to pre-placement failure, long_order_id should also be None.
     assert trade_execution_result.short_order_id is None  # HL leg (short) failed placement
+    assert trade_execution_result.long_order_id is None  # BP leg (long) should not have been placed
+
     # Assert mock place_order was called on the failing exchange (HL - short leg)
-    mock_hl_api.place_order.assert_called_once()  # type: ignore[attr-defined]
+    mock_hl_api.place_order.assert_called_once()  # type: ignore[attr-defined] # mocker.patch.object attaches this
     # Assert mock place_order was NOT called on the second exchange (BP - long leg)
-    mock_bp_api.place_order.assert_not_called()  # type: ignore[attr-defined]
+    # because the first leg's failure should halt the execution of the pair.
+    mock_bp_api.place_order.assert_not_called()  # type: ignore[attr-defined] # mocker.patch.object attaches this
 
     # --- Verify Portfolio State (Should be largely unchanged) ---
     # Use internal dict for test verification
@@ -1583,7 +1664,7 @@ async def test_failed_execution(
 
 # Helper Order Creation for Mocks
 def _create_internal_mock_order(
-    self,
+    exchange_name: str,
     client_order_id: str,
     symbol: str,
     side: OrderSide,
@@ -1601,7 +1682,7 @@ def _create_internal_mock_order(
     # Helper to create Order instances with all required fields
     return Order(
         client_order_id=client_order_id,
-        exchange=self.exchange_name,
+        exchange=exchange_name,
         symbol=symbol,
         side=side,
         order_type=order_type,

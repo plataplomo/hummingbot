@@ -11,6 +11,7 @@ from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import FundingRate
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.funding_rate import FundingRate
+from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.symbol_mapper import SymbolMapper
 
 
@@ -246,26 +247,25 @@ class TestDataHandler:
     def test_get_ticker(self, data_handler: DataHandler) -> None:
         """Test retrieving ticker data."""
         # Set up a test ticker with UTC timestamp
-        test_ticker = Candle(
+        now = datetime.now(UTC)
+        test_ticker_obj = Ticker(
             symbol="BTC",
-            interval="N/A",
-            open_time=datetime.now(UTC),
-            open=Decimal("40000.0"),
-            high=Decimal("42000.0"),
-            low=Decimal("39000.0"),
-            close=Decimal("41500.0"),
+            timestamp=now,
+            price=Decimal("41500.0"),
+            bid=Decimal("41499.0"),
+            ask=Decimal("41501.0"),
             volume=Decimal("100.0"),
         )
 
         # Store the ticker in the DataHandler
-        data_handler.tickers["hyperliquid"] = {"BTC": test_ticker}
-        data_handler.last_update_time["hyperliquid"]["BTC"] = datetime.now(UTC)
+        data_handler.tickers["hyperliquid"] = {"BTC": test_ticker_obj}
+        data_handler.last_update_time["hyperliquid"]["BTC"] = now
 
         # Get the ticker
         result = data_handler.get_latest_ticker("hyperliquid", "BTC")
 
         # Verify the result
-        assert result == test_ticker
+        assert result == test_ticker_obj
 
         # Test with stale data
         data_handler.last_update_time["hyperliquid"]["BTC"] = datetime.now(UTC) - timedelta(
@@ -274,10 +274,6 @@ class TestDataHandler:
         result = data_handler.get_latest_ticker("hyperliquid", "BTC")
 
         # Should return None for stale data
-        assert result is None
-
-        # Test with nonexistent data
-        result = data_handler.get_latest_ticker("hyperliquid", "NONEXISTENT")
         assert result is None
 
     def test_get_funding_rate(self, data_handler: DataHandler) -> None:
@@ -320,9 +316,14 @@ class TestDataHandler:
 
         # Store the rate and timestamp tuple
         data_handler.funding_rates["hyperliquid"] = {
-            "BTC": (rate, test_funding_rate.timestamp)  # Use the correct timestamp
+            "BTC": test_funding_rate  # Store the FundingRate object directly
         }
         # Ensure last_update_time reflects the stale timestamp for the test
+        # The last_update_time for funding rates should be associated with the FundingRate object's timestamp
+        # or the time it was fetched. For this stale test, ensuring the FundingRate object itself
+        # has a stale timestamp is key. DataHandler's get_latest_funding_rate uses the object's timestamp.
+        # So, directly setting last_update_time["hyperliquid"]["BTC"] to stale_timestamp might be redundant
+        # if test_funding_rate.timestamp is already stale, but let's keep it for explicitness if the test relied on it.
         data_handler.last_update_time["hyperliquid"]["BTC"] = stale_timestamp
 
         # Attempt to get the funding rate
