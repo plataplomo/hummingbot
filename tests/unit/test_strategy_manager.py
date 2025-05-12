@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import unittest
 from datetime import datetime
 from decimal import Decimal
 from typing import NoReturn
-from unittest.mock import MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 import pytz
 
+from cyberdelta.config import ConfigManager
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.models.market import Candle
@@ -20,6 +22,18 @@ from cyberdelta.core.strategy_manager import StrategyManager
 
 # Define UTC timezone
 UTC = pytz.UTC
+
+
+# Mock configuration object
+@pytest.fixture
+def mock_config() -> ConfigManager:
+    """Fixture for a mock ConfigManager object."""
+    config_manager = MagicMock(spec=ConfigManager)
+    config_manager.get.side_effect = lambda key, default=None: {
+        "strategy_paths": ["tests.unit.mocks.mock_strategy.MockStrategy"],
+        "strategies": {"MockStrategy": {"enabled": True, "param1": "value1"}},
+    }.get(key, default)
+    return config_manager
 
 
 class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
@@ -568,6 +582,41 @@ class TestStrategyManager(unittest.IsolatedAsyncioTestCase):
         # The error should be handled, and signals still returned
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0], valid_signal)
+
+    @pytest.mark.asyncio
+    async def test_strategy_manager_load_and_run(
+        mock_config: ConfigManager, event_loop: asyncio.AbstractEventLoop
+    ) -> None:
+        """Test loading strategies and running them."""
+        mock_execution_handler = AsyncMock(spec=ExecutionHandler)
+        mock_signal_queue = MagicMock(spec=PrioritySignalQueue)
+
+        manager = StrategyManager(mock_config, mock_signal_queue, mock_execution_handler)
+
+        # Mock the dynamic import
+        mock_strategy_class = MagicMock(spec=Strategy)
+        mock_strategy_instance = AsyncMock(spec=Strategy)
+        mock_strategy_class.return_value = mock_strategy_instance
+
+        with patch("importlib.import_module") as mock_import:
+            # Mock the module structure expected by import_module
+            mock_module = MagicMock()
+            mock_module.MockStrategy = mock_strategy_class
+            mock_import.return_value = mock_module
+
+            await manager.initialize_strategies()
+
+            # Assert strategy was loaded and initialized
+            assert "MockStrategy" in manager.strategies
+            mock_strategy_class.assert_called_once_with(
+                mock_config, mock_signal_queue, mock_execution_handler, name="MockStrategy"
+            )
+
+            # Run strategies
+            await manager.run_strategies()
+
+            # Assert run_async was called
+            mock_strategy_instance.run_async.assert_awaited_once()
 
 
 if __name__ == "__main__":

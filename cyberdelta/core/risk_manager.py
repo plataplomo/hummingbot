@@ -538,6 +538,10 @@ class RiskManager:
         """Check that portfolio leverage is within allowed limits."""
         total_capital = self.portfolio_tracker.get_total_capital()
 
+        if total_capital is None:
+            logger.warning("Cannot check leverage: Total capital is None.")
+            return False
+
         if total_capital <= ZERO:
             logger.warning("Total capital is zero or negative. Cannot calculate leverage.")
             return False
@@ -583,7 +587,8 @@ class RiskManager:
     def _check_constraint_max_total_exposure(
         self, proposed_size: Decimal
     ) -> tuple[bool, str | None]:
-        current_exposure = self.calculate_total_exposure()
+        # Use the direct method from portfolio tracker for current exposure
+        current_exposure = self.portfolio_tracker.get_total_exposure_usd()
         if (current_exposure + proposed_size) > self.max_total_exposure_usd:
             return (
                 False,
@@ -812,38 +817,38 @@ class RiskManager:
         Retrieve validation metrics for funding rate predictions.
         Returns a factor in [0, 1] if valid, or None if validation cannot be performed.
         """
-        if not self.funding_rate_validator:
-            self.logger.error(
-                "No funding rate validator configured. Rejecting opportunity for safety."
-            )
-            return None
+        if self.funding_rate_validator is None:
+            self.logger.debug("FundingRateValidator not configured, returning factor 1.0")
+            return ONE
 
         try:
             metrics = self.funding_rate_validator.get_symbol_metrics(exchange, symbol)
-            if not metrics:
-                self.logger.warning(
-                    f"No validation metrics found for {exchange}/{symbol}. Rejecting for safety."
-                )
-                return None
-
-            rmse = Decimal(str(metrics.get("rmse", self.max_acceptable_rmse + ONE)))
-            bias = Decimal(str(metrics.get("bias", self.max_acceptable_bias + ONE)))
-
-            if rmse > self.max_acceptable_rmse or abs(bias) > self.max_acceptable_bias:
-                self.logger.warning(
-                    f"Validation metrics for {exchange}/{symbol} exceed thresholds. "
-                    f"RMSE={rmse}, Bias={bias}. Rejecting for safety."
-                )
-                return None
-
-            return ONE  # Only allow full size if metrics are within thresholds
-
         except Exception as e:
             self.logger.error(
-                f"Error retrieving validation metrics for {exchange}/{symbol}: {e}. "
-                f"Rejecting for safety."
+                f"Error retrieving funding validation metrics for {symbol} on {exchange}: {e}",
+                exc_info=True,
             )
             return None
+
+        if metrics is None or not all(
+            k in metrics and metrics[k] is not None for k in ["rmse", "bias"]
+        ):
+            self.logger.warning(
+                f"Validation metrics for {exchange}/{symbol} are incomplete or missing. Rejecting for safety."
+            )
+            return None
+
+        rmse = Decimal(str(metrics.get("rmse", self.max_acceptable_rmse + ONE)))
+        bias = Decimal(str(metrics.get("bias", self.max_acceptable_bias + ONE)))
+
+        if rmse > self.max_acceptable_rmse or abs(bias) > self.max_acceptable_bias:
+            self.logger.warning(
+                f"Validation metrics for {exchange}/{symbol} exceed thresholds. "
+                f"RMSE={rmse}, Bias={bias}. Rejecting for safety."
+            )
+            return None
+
+        return ONE  # Only allow full size if metrics are within thresholds
 
     def _check_portfolio_constraints(
         self, size: Decimal, opportunity: ArbitrageOpportunity
@@ -860,10 +865,25 @@ class RiskManager:
                 whether the constraints are satisfied,
             and the str is an optional reason for rejection if not satisfied.
         """
-        # Implement the logic to check all portfolio constraints for the given size and opportunity
-        # This is a placeholder and should be replaced with the actual implementation
-        # based on the specific constraints and logic for your portfolio
-        return True, None  # Placeholder return, actual implementation needed
+        # Ensure total_capital is fetched and valid before proceeding
+        total_capital = self.portfolio_tracker.get_total_capital()
+        if total_capital is None or total_capital <= ZERO:
+            msg = f"Cannot check constraints: Invalid total capital ({total_capital})."
+            self.logger.warning(msg)
+            return False, msg
+
+        checks = [
+            self._check_constraint_max_position_size(size),
+            self._check_constraint_max_relative_size(size, total_capital),
+            self._check_constraint_max_total_exposure(size),
+            self._check_constraint_max_leverage(size, total_capital),
+            self._check_constraint_exchange_balance(opportunity, size),
+        ]
+
+        for passed, reason in checks:
+            if not passed:
+                return False, reason
+        return True, None
 
     def _calculate_simple_size(
         self, opportunity: ArbitrageOpportunity, total_capital: Decimal

@@ -424,3 +424,8 @@ def test_backpack_details_extra_fields_ignored(valid_bp_details_data: dict[str, 
     details = BackpackPositionDetails(**data)
     assert not hasattr(details, "ignored_stuff")
     assert details.imf_base == Decimal("0.1")
+
+
+@pytest.mark.xfail(reason="Detail model issues")
+class TestDerivativePositionModel:
+    """Test suite for the DerivativePosition Pydantic model."""

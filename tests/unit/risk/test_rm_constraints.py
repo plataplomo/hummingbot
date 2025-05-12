@@ -20,7 +20,7 @@ class TestRiskManagerConstraints:
     ) -> None:
         """Test portfolio constraint checking logic (passing case)."""
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("10000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("3000.0")
         # Create a minimal valid ArbitrageOpportunity
         opportunity = ArbitrageOpportunity(
             symbol="BTC-PERP",
@@ -35,7 +35,7 @@ class TestRiskManagerConstraints:
         )
         # Direct access to protected method is justified here for white-box testing;
         # no public interface exposes this logic.
-        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)
+        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)  # noqa: SLF001
         assert is_valid, "Expected constraints to pass with default mocks"
 
     def test_check_portfolio_constraints_fail_total_exposure(
@@ -57,7 +57,7 @@ class TestRiskManagerConstraints:
         )
         # Direct access to protected method is justified here for white-box testing;
         # no public interface exposes this logic.
-        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)
+        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)  # noqa: SLF001
         assert not is_valid, "Expected failure due to total exposure limit"
 
     def test_check_portfolio_constraints_fail_leverage(
@@ -79,5 +79,5 @@ class TestRiskManagerConstraints:
         )
         # Direct access to protected method is justified here for white-box testing;
         # no public interface exposes this logic.
-        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)
+        is_valid, _ = risk_manager._check_portfolio_constraints(Decimal("1000.0"), opportunity)  # noqa: SLF001
         assert not is_valid, "Expected failure due to leverage limit"

@@ -49,9 +49,9 @@ class TestFundingRate:
     def test_core_complete_creation(self) -> None:
         """Test creating a FundingRate with all core fields."""
         now = datetime.now(UTC)
-        next_time = now.replace(hour=now.hour + 1)
-
-        fr = FundingRate(
+        # Use timedelta for safe time addition
+        next_time = now + timedelta(hours=1)
+        funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=now,
             funding_rate=Decimal("0.0001"),
@@ -61,15 +61,15 @@ class TestFundingRate:
             next_funding_time=next_time,
         )
 
-        assert fr.symbol == "BTC-PERP"
-        assert fr.timestamp == now
-        assert fr.funding_rate == Decimal("0.0001")
-        assert fr.predicted_rate == Decimal("0.0002")
-        assert fr.mark_price == Decimal("50000.0")
-        assert fr.index_price == Decimal("49950.0")
-        assert fr.next_funding_time == next_time
-        assert fr.hl_details is None
-        assert fr.bp_details is None
+        assert funding_rate.symbol == "BTC-PERP"
+        assert funding_rate.timestamp == now
+        assert funding_rate.funding_rate == Decimal("0.0001")
+        assert funding_rate.predicted_rate == Decimal("0.0002")
+        assert funding_rate.mark_price == Decimal("50000.0")
+        assert funding_rate.index_price == Decimal("49950.0")
+        assert funding_rate.next_funding_time == next_time
+        assert funding_rate.hl_details is None
+        assert funding_rate.bp_details is None
 
     def test_core_with_extension_slots_populated(self) -> None:
         """Test creating a FundingRate with extension slots populated."""

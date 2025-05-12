@@ -664,11 +664,11 @@ class DataHandler:
     # --- Public Data Access Methods ---
 
     def get_latest_ticker(self, exchange_id: str, symbol: str) -> Ticker | None:
-        """Returns the latest Ticker for a given exchange and symbol."""
-        exchange_tickers = self.tickers.get(exchange_id)
-        if not exchange_tickers:
+        """Get the latest ticker data for a specific symbol on an exchange."""
+        if self._is_data_stale(exchange_id, symbol, "ticker"):
+            logger.warning(f"Ticker data for {exchange_id}:{symbol} is stale.")
             return None
-        return exchange_tickers.get(symbol)
+        return self.tickers.get(exchange_id, {}).get(symbol)
 
     def get_latest_order_book(self, exchange_id: str, symbol: str) -> OrderBook | None:
         """Get the latest order book for a symbol, checking for staleness."""

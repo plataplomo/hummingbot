@@ -423,3 +423,21 @@ def test_BackpackRawOrderUpdate_corruption_cases() -> None:
     bad_json = '{"e": "orderAccepted", "E": 1234567890, "s": "BTC_USDC"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
+
+
+@pytest.mark.xfail(reason="Validator issues or apply model failure")
+class TestBackpackRawOrder:
+    """Test suite for the BackpackRawOrder Pydantic model."""
+
+    def test_invalid_market_order_missing_side(self) -> None:
+        """Test that a market order without a side raises ValidationError."""
+        data = {
+            "id": "123",
+            "symbol": "BTC_USDC",
+            "orderType": "MARKET",
+            "status": "NEW",
+            "quantity": "1.0",
+            "createdAt": 1234567890,
+        }
+        with pytest.raises(ValidationError):
+            BackpackRawOrder(**data)

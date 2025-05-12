@@ -1139,8 +1139,15 @@ class PortfolioTracker:
             )
             return None
 
-        # Try direct pair: ASSET-BASE (e.g., BTC-USDC)
-        symbol_direct = f"{asset}-{base_currency}"
+        # DEBUG LOGGING START
+        logger.info(
+            f"_get_asset_price_in_base CALLED for {exchange_id}: asset='{asset}', "
+            f"base_currency='{base_currency}', price_override={price_override}"
+        )
+        # DEBUG LOGGING END
+
+        # 1. Direct match (e.g., BTC/USDC)
+        symbol_direct = f"{asset.upper()}-{base_currency.upper()}"
         logger.debug(
             f"[{exchange_id}] _get_asset_price_in_base: Attempting direct lookup for {symbol_direct}"
         )

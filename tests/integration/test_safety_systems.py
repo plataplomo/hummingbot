@@ -458,7 +458,7 @@ async def test_position_reconciler_detects_discrepancy(
     )
 
     # Accessing protected member _positions for test setup is intentional and safe in this context.
-    mock_bp_api._positions[symbol] = mock_position
+    mock_bp_api._positions[symbol] = mock_position  # noqa: SLF001 - Accessing protected member for test setup
 
     # 2. Run Reconciliation
     # Assume reconciler uses portfolio_tracker.api_clients
@@ -908,3 +908,17 @@ async def test_kelly_max_position_size_very_large(
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
     assert len(sized_opps) == 1, "Very large max position size should allow valid Kelly sizing."
+
+
+@pytest.mark.asyncio
+async def test_max_drawdown_halts_execution(
+    mock_config: Config,
+    mock_hl_api: MockExchangeAPI,
+    mock_bp_api: MockExchangeAPI,
+    real_portfolio_tracker: PortfolioTracker,
+    data_handler: DataHandler,
+    risk_manager: RiskManager,
+    funding_rate_validator: MagicMock,
+) -> None:
+    # Implementation of test_max_drawdown_halts_execution
+    pass

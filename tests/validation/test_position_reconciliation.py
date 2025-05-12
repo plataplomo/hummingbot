@@ -505,7 +505,8 @@ class TestPositionReconciliationSystem:
         mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
         mock_bp_api_client.get_positions = AsyncMock(return_value=api_positions_bp)
 
-        reconciliation_system._portfolio_tracker.api_clients = {
+        portfolio_tracker = reconciliation_system._portfolio_tracker
+        portfolio_tracker.api_clients = {
             "hyperliquid": mock_hl_api_client,
             "backpack": mock_bp_api_client,
         }
@@ -548,7 +549,7 @@ class TestPositionReconciliationSystem:
                 return True
             return default
 
-        config.get.side_effect = config_get
+        config.get.side_effect = config_get  # Assign side_effect to the mock object's method
 
         system = PositionReconciliationSystem(config, portfolio_tracker)
 
@@ -590,7 +591,7 @@ class TestPositionReconciliationSystem:
             ]
             mock_bp_api_client.get_positions.return_value = []
 
-            system.portfolio_tracker.api_clients = {
+            portfolio_tracker.api_clients = {
                 "hyperliquid": mock_hl_api_client,
                 "backpack": mock_bp_api_client,
             }
@@ -718,7 +719,10 @@ class TestPositionReconciliationSystem:
         )  # type: ignore[attr-defined, reportUnknownMemberType]
 
         # Verify results structure
-        assert results["success"] is True
+        assert results is not None  # Check if None was returned
+        assert results["success"] is True  # Now safe to access if not None
+        # Check if specific discrepancies were found and logged/returned
+        # (adjust assertions based on expected output format)
         assert results["symbols_checked"] == 3
         assert len(results["discrepancies"]) == 1
 
