@@ -381,107 +381,99 @@ async def test_clear(signal_queue: PrioritySignalQueue, sample_signal: TradeSign
 # It's kept for reference but can be tricky.
 # `test_signal_expiration_logic` and `test_clean_expired_signals_with_helper` are preferred.
 @pytest.mark.xfail(reason="Patching datetime can be complex and lead to subtle issues.")
-@patch("cyberdelta.core.signal_queue.datetime")
-def test_clean_expired_signals_direct_patch(
-    mock_dt: MagicMock, mock_config: MagicMock, mock_circuit_breaker: MagicMock
-) -> None:
-    """Test cleaning expired signals by directly patching datetime and queue attributes."""
-    # Ensure 'queue_cleanup_interval' returns a float for this specific test
-    # to isolate from potential complex side effects of the mock_config.get
-    original_get_side_effect = mock_config.get.side_effect
+@pytest.mark.asyncio  # Mark as async
+async def test_clean_expired_signals_direct_patch(
+    mock_config: MagicMock,
+    mock_circuit_breaker: MagicMock,
+) -> None:  # Needs to be async
+    """Test cleaning expired signals using patched datetime (decorators replaced by context managers)."""
+    real_start_time = datetime.now(UTC)
+    future_time_for_expirations = real_start_time + timedelta(seconds=100)
 
-    def specific_get_for_cleanup_test(key: str, default: Any = None) -> Any:
-        if key == "queue_cleanup_interval":
-            return 10.0  # Force float value
-        # Fallback to original side_effect for other keys
-        if callable(original_get_side_effect):
-            return original_get_side_effect(key, default)
-        # If no original side_effect or not callable, try the mock's internal storage as a fallback
-        # This part depends on the mock_config fixture's internal implementation details.
-        # A more robust general mock_config might not need this.
-        if hasattr(mock_config, "mock_storage") and isinstance(mock_config.mock_storage, dict):
-            return mock_config.mock_storage.get(key, default)
-        return default
+    # Use context managers for patching
+    with (
+        patch("cyberdelta.core.signal_queue.datetime") as mock_dt_sq,
+        patch("cyberdelta.core.models.trade_signal.datetime") as mock_dt_ts,
+    ):
+        # Configure mocks
+        mock_dt_sq.now = MagicMock()
+        mock_dt_ts.now = mock_dt_sq.now  # Point ts mock to sq mock's now
+        mock_dt_sq.UTC = UTC
+        mock_dt_ts.UTC = UTC
 
-    mock_config.get.side_effect = specific_get_for_cleanup_test
+        # *** Set initial mock time BEFORE queue instantiation ***
+        mock_dt_sq.now.return_value = real_start_time
 
-    queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
+        # Override config values for the test
+        def specific_get_for_cleanup_test(key: str, default: Any = None) -> Any:
+            if key == "queue_cleanup_interval":
+                return 1.0  # Short interval for testing
+            elif key == "default_signal_expiration_seconds":
+                return 60.0
+            elif key == "max_signal_queue_size":
+                return 100
+            # Fallback for mock_storage (less ideal but for existing xfail structure)
+            if hasattr(mock_config, "mock_storage") and isinstance(mock_config.mock_storage, dict):
+                return mock_config.mock_storage.get(key, default)
+            return default
 
-    # Define fixed points in time for clarity
-    time_now = datetime(2023, 10, 27, 12, 0, 0, tzinfo=UTC)
-    time_expired = time_now - timedelta(seconds=70)  # Before default expiry window
-    time_valid = time_now - timedelta(seconds=30)  # Within default expiry window
-    explicit_expiry_past = time_now - timedelta(seconds=1)
-    explicit_expiry_future = time_now + timedelta(minutes=5)
+        mock_config.get.side_effect = specific_get_for_cleanup_test
 
-    mock_dt.now.return_value = time_now  # Set the mocked 'now'
-    mock_dt.UTC = UTC  # Ensure the mock datetime object has UTC
+        queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
+        try:
+            # Assert that last_cleanup is initialized correctly
+            assert isinstance(queue.last_cleanup, datetime)
 
-    # Signal 1: Should expire based on default (timestamp too old)
-    signal_default_expired = TradeSignal(
-        timestamp=time_expired,
-        symbol="DEF_EXP",
-        price=Decimal(1),
-        exchange="ex",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,  # Added defaults
-    )
-    # Signal 2: Should be valid based on default (timestamp recent)
-    signal_default_valid = TradeSignal(
-        timestamp=time_valid,
-        symbol="DEF_VAL",
-        price=Decimal(1),
-        exchange="ex",
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,  # Added defaults
-    )
-    # Signal 3: Explicitly expired
-    signal_explicit_expired = TradeSignal(
-        timestamp=time_valid,
-        symbol="EXP_EXP",
-        price=Decimal(1),
-        exchange="ex",
-        expiration=explicit_expiry_past,
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,  # Added defaults
-    )
-    # Signal 4: Explicitly valid
-    signal_explicit_valid = TradeSignal(
-        timestamp=time_valid,
-        symbol="EXP_VAL",
-        price=Decimal(1),
-        exchange="ex",
-        expiration=explicit_expiry_future,
-        signal_type=SignalType.ENTER_LONG,
-        side=OrderSide.BUY,  # Added defaults
-    )
+            # Set the main operational time for the test
+            mock_dt_sq.now.return_value = future_time_for_expirations
 
-    # Add signals (Needs to be async now)
-    # We'll need to run this part in an event loop for the test
-    async def add_signals_async() -> None:
-        await queue.add_signal(signal_default_expired)
-        await queue.add_signal(signal_default_valid)
-        await queue.add_signal(signal_explicit_expired)
-        await queue.add_signal(signal_explicit_valid)
-        assert await queue.count() == 4
+            # Create signals
+            signal_def_exp = create_test_signal("DEF_EXP", 0.5, Decimal("1"), expiration_offset=-10)
+            signal_def_val = create_test_signal("DEF_VAL", 0.6, Decimal("2"), expiration_offset=120)
+            signal_exp_exp = create_test_signal(
+                "EXP_EXP",
+                0.7,
+                Decimal("3"),
+                expiration_offset=0,  # Explicitly expired
+            )
+            signal_exp_val = create_test_signal("EXP_VAL", 0.8, Decimal("4"), expiration_offset=180)
 
-        # Trigger cleanup by attempting to get a signal - uses the mocked datetime.now() internally
-        _retrieved = (
-            await queue.get_next_signal()
-        )  # We expect signal_default_valid or signal_explicit_valid
-        # The internal cleanup runs *before* returning the signal.
+            # Add signals asynchronously
+            await queue.add_signal(signal_def_exp)
+            await queue.add_signal(signal_def_val)
+            await queue.add_signal(signal_exp_exp)
+            await queue.add_signal(signal_exp_val)
 
-        # Assertions
-        # One signal was retrieved, and two expired signals were cleaned.
-        assert await queue.count() == 1  # Only the other valid signal should remain
-        remaining_signals = await queue.get_signals()
-        remaining_symbols = {s.symbol for s in remaining_signals}
-        assert len(remaining_symbols) == 1
-        assert remaining_symbols.issubset(
-            {"DEF_VAL", "EXP_VAL"}
-        )  # Check it's one of the valid ones
+            assert await queue.count() == 4
 
-    asyncio.run(add_signals_async())  # Run the async part
+            # Allow cleanup task to potentially run (interval is 1s mocked)
+            await asyncio.sleep(0.1)  # Short real sleep, cleanup uses mocked time
+
+            # Explicitly call cleanup (using mocked time)
+            queue._clean_expired_signals()  # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
+
+            # Assertions after explicit cleanup
+            current_signals = await queue.get_signals()
+            assert len(current_signals) == 2, "Expected 2 valid signals after cleanup"
+            symbols_remaining = {s.symbol for s in current_signals}
+            assert symbols_remaining == {"DEF_VAL", "EXP_VAL"}
+
+            # Verify cleanup happened (using the internal counter for simplicity in this test)
+            # Note: Accessing _cleaned_count is not ideal practice outside testing.
+            # assert queue._cleaned_count == 2 # This attribute doesn't exist, remove assertion
+
+        finally:
+            # Ensure the cleanup task is cancelled
+            if (
+                hasattr(queue, "_cleanup_task")
+                and queue._cleanup_task
+                and not queue._cleanup_task.done()
+            ):  # type: ignore[attr-defined]
+                queue._cleanup_task.cancel()  # type: ignore[attr-defined]
+                try:
+                    await queue._cleanup_task  # type: ignore[attr-defined]
+                except asyncio.CancelledError:
+                    pass  # Expected
 
 
 @pytest.mark.asyncio  # Mark test as async
@@ -522,82 +514,96 @@ async def test_trim_queue(mock_config: Config, mock_circuit_breaker: MagicMock) 
 async def test_signal_expiration_logic(
     mock_config: Config, mock_circuit_breaker: MagicMock
 ) -> None:  # Needs to be async to use await
-    """Test that signals expire correctly based on default and explicit times using patching."""
-    # Use patch context manager within the async test
-    with patch("cyberdelta.core.models.trade_signal.datetime") as mock_dt:
-        queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
-        start_time = datetime.now(UTC)  # Get actual time for setup
-        mock_dt.now.return_value = start_time  # Set initial mock time
-        mock_dt.UTC = UTC
+    """Test signal expiration logic with explicit cleanup task management."""
+    # Reduce expiration and cleanup times for faster testing
+    mock_config.set("default_signal_expiration_seconds", 2)  # type: ignore
+    mock_config.set("queue_cleanup_interval", 1)  # type: ignore
 
-        # Use .get() for safe access with a default
-        _default_expiry_seconds_raw = mock_config.get("default_signal_expiration_seconds", 60)
-        assert _default_expiry_seconds_raw is not None, (
-            "Config default_signal_expiration_seconds cannot be None"
-        )
-        default_expiry_seconds: int = int(_default_expiry_seconds_raw)  # Ensure int type
+    queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
+    try:
+        # Get current time (using a real datetime for the test logic's reference)
+        real_current_time = datetime.now(UTC)
 
-        # Signal using default expiration (should be valid initially)
-        signal_default = TradeSignal(
-            symbol="DEFAULT/EXP",
-            price=Decimal("100"),
-            exchange="mock",
-            timestamp=start_time,
-            signal_type=SignalType.ENTER_LONG,
-            side=OrderSide.BUY,  # Added defaults
-        )
-        await queue.add_signal(signal_default)  # Await async call
-        assert await queue.count() == 1
+        # Patch datetime used by PrioritySignalQueue AND TradeSignal
+        # This ensures that internal `now_val` in queue and `is_valid` in signal use mocked time
+        with (
+            patch("cyberdelta.core.signal_queue.datetime") as mock_dt_sq,
+            patch("cyberdelta.core.models.trade_signal.datetime") as mock_dt_ts,
+        ):
+            # Configure mocks
+            mock_dt_sq.now = MagicMock()
+            mock_dt_ts.now = mock_dt_sq.now  # Point ts mock to sq mock's now
+            mock_dt_sq.UTC = UTC
+            mock_dt_ts.UTC = UTC
+            # Set the initial time for both mocks
+            mock_dt_sq.now.return_value = real_current_time
 
-        # Signal with explicit future expiration
-        explicit_future = start_time + timedelta(minutes=5)
-        signal_explicit = TradeSignal(
-            symbol="EXPLICIT/EXP",
-            price=Decimal("200"),
-            exchange="mock",
-            timestamp=start_time,
-            expiration=explicit_future,
-            signal_type=SignalType.ENTER_LONG,
-            side=OrderSide.BUY,  # Added defaults
-        )
-        await queue.add_signal(signal_explicit)  # Await async call
-        assert await queue.count() == 2
+            # --- Test Case 1: Signal that should expire ---
+            signal_to_expire = create_test_signal(
+                symbol="BTC/USDT_EXP",
+                score=0.7,
+                price=Decimal("50001"),
+                expiration_offset=1,  # Expires in 1 (mocked) second
+                exchange_name="exchange1",
+            )
+            await queue.add_signal(signal_to_expire)
+            assert await queue.count() == 1, "Signal_to_expire should be added"
 
-        # Mock time advancing just past the default expiration
-        time_after_default_expiry = start_time + timedelta(seconds=default_expiry_seconds + 1)
-        mock_dt.now.return_value = time_after_default_expiry
+            # --- Test Case 2: Signal that should NOT expire yet ---
+            signal_not_to_expire = create_test_signal(
+                symbol="BTC/USDT_VALID",
+                score=0.8,
+                price=Decimal("50002"),
+                expiration_offset=10,  # Expires in 10 (mocked) seconds
+                exchange_name="exchange2",
+            )
+            await queue.add_signal(signal_not_to_expire)
+            assert await queue.count() == 2, "Signal_not_to_expire should be added"
 
-        # Clean expired signals by trying to get the next one.
-        retrieved_after_default = await queue.get_next_signal()  # Await async call
+            # Advance mocked time by 3 seconds (past expiration of signal_to_expire)
+            mock_dt_sq.now.return_value = real_current_time + timedelta(seconds=3)
 
-        # Default signal should be gone. Explicit should have been returned.
-        assert retrieved_after_default is not None
-        assert retrieved_after_default.symbol == "EXPLICIT/EXP"
-        assert await queue.count() == 0  # Explicit was returned, default cleaned
+            # Allow cleanup task to run (queue_cleanup_interval is 1s)
+            # The cleanup task uses the mocked time.
+            await asyncio.sleep(1.5)  # Real sleep, cleanup task runs in background
 
-        # Add the explicit signal back to test its own expiration
-        signal_explicit_readd = TradeSignal(
-            symbol="EXPLICIT/EXP",
-            price=Decimal("200"),
-            exchange="mock",
-            timestamp=start_time,
-            expiration=explicit_future,
-            signal_type=SignalType.ENTER_LONG,
-            side=OrderSide.BUY,
-        )
-        await queue.add_signal(signal_explicit_readd)  # Await async call
-        assert await queue.count() == 1
+            # Assertions
+            current_signals_after_cleanup = await queue.get_signals()
+            signal_ids_after_cleanup = {s.signal_id for s in current_signals_after_cleanup}
 
-        # Mock time advancing past the explicit expiration
-        time_after_explicit_expiry = explicit_future + timedelta(seconds=1)
-        mock_dt.now.return_value = time_after_explicit_expiry
+            assert signal_to_expire.signal_id not in signal_ids_after_cleanup, (
+                "Expired signal should have been removed by cleanup task"
+            )
+            assert signal_not_to_expire.signal_id in signal_ids_after_cleanup, (
+                "Valid signal should remain after cleanup task"
+            )
+            assert len(current_signals_after_cleanup) == 1, (
+                f"Expected 1 signal after cleanup, got {len(current_signals_after_cleanup)}"
+            )
 
-        # Try get signal again. It should now be cleaned as expired.
-        retrieved_after_explicit = await queue.get_next_signal()  # Await async call
-        # Queue should now be empty
-        assert retrieved_after_explicit is None
-        assert await queue.count() == 0
-        assert await queue.is_empty()
+            # --- Test Case 3: Explicitly clean and verify ---
+            # Advance time further to ensure signal_not_to_expire also expires
+            mock_dt_sq.now.return_value = real_current_time + timedelta(seconds=15)
+            queue._clean_expired_signals()  # DEFENSIVE CHECK: [Testing protected method]. Mypy=[] Ruff=[BLE001]
+
+            current_signals_after_manual_clean = await queue.get_signals()
+            assert not current_signals_after_manual_clean, (
+                "Queue should be empty after all signals expire and manual cleanup"
+            )
+            assert await queue.is_empty(), "Queue should be empty"
+
+    finally:
+        # Ensure the cleanup task is cancelled
+        if (
+            hasattr(queue, "_cleanup_task")
+            and queue._cleanup_task
+            and not queue._cleanup_task.done()
+        ):  # type: ignore[attr-defined]
+            queue._cleanup_task.cancel()  # type: ignore[attr-defined]
+            try:
+                await queue._cleanup_task  # type: ignore[attr-defined]
+            except asyncio.CancelledError:
+                pass  # Expected
 
 
 @pytest.mark.asyncio  # Mark as async

@@ -188,9 +188,10 @@ class PortfolioTracker:
                 return False
 
             logger.debug(f"[FETCH_BALANCES:{exchange_id}] Fetching balances from API...")
+            # Corrected type hint for balances_data_raw to match client.get_balances()
             balances_data_raw: (
-                dict[str, Any] | list[Any] | None
-            ) = await client.get_balances()  # Type hint for clarity
+                dict[str, SpotBalance] | list[SpotBalance] | None
+            ) = await client.get_balances()
             logger.debug(
                 (
                     f"[FETCH_BALANCES:{exchange_id}] Raw API response: {balances_data_raw} "
@@ -199,70 +200,44 @@ class PortfolioTracker:
                 stacklevel=2,
             )
 
-            # --- Type Guarding and Processing ---
+            # --- Type Guarding and Processing --- #
             updated_balances: dict[str, SpotBalance] = {}
 
             if balances_data_raw is None:
-                logger.error(f"[FETCH_BALANCES:{exchange_id}] API call returned None.")
-                return False
+                logger.info(
+                    f"[FETCH_BALANCES:{exchange_id}] API call returned None. No balances to update."
+                )
+                return True  # Successful call, no data.
 
-            if isinstance(balances_data_raw, dict):
-                # Process dictionary response
-                balances_dict: dict[str, Any] = balances_data_raw
+            elif isinstance(balances_data_raw, dict):
+                # Process dictionary response (Guaranteed dict[str, SpotBalance])
+                balances_dict: dict[str, SpotBalance] = balances_data_raw
                 for asset, balance_obj in balances_dict.items():
-                    if isinstance(balance_obj, SpotBalance):
-                        if balance_obj.exchange == exchange_id:
-                            updated_balances[asset] = balance_obj
-                        else:
-                            logger.warning(
-                                f"[{exchange_id}] Skipping balance for asset {asset} "
-                                f"due to mismatched exchange ID ({balance_obj.exchange}) "
-                                f"in received SpotBalance object."
-                            )
-                    elif isinstance(balance_obj, dict):
-                        balance_item_dict: dict[str, Any] = balance_obj
-                        if "exchange" not in balance_item_dict:
-                            balance_item_dict["exchange"] = exchange_id
-                        parsed_obj = self._parse_balance_info(exchange_id, asset, balance_item_dict)
-                        if parsed_obj:
-                            updated_balances[asset] = parsed_obj
+                    # balance_obj is guaranteed SpotBalance here based on type hint
+                    if balance_obj.exchange == exchange_id:
+                        updated_balances[asset] = balance_obj
                     else:
                         logger.warning(
-                            f"[{exchange_id}] Skipping unexpected balance data type "
-                            f"for asset {asset}: {type(balance_obj)}"
+                            f"[{exchange_id}] Skipping balance for asset {asset} "
+                            f"due to mismatched exchange ID ({balance_obj.exchange}) "
+                            f"in received SpotBalance object."
                         )
+                # Removed the inner isinstance(balance_obj, SpotBalance) check as unnecessary
 
             elif isinstance(balances_data_raw, list):
-                # Process list response
-                balances_list: list[Any] = balances_data_raw
+                # Process list response (Guaranteed list[SpotBalance])
+                balances_list: list[SpotBalance] = balances_data_raw
                 for item in balances_list:
-                    if isinstance(item, SpotBalance):
-                        if item.exchange == exchange_id:
-                            updated_balances[item.asset] = item
-                        else:
-                            logger.warning(
-                                f"[{exchange_id}] Skipping balance for asset {item.asset} "
-                                f"due to mismatched exchange ID ({item.exchange}) "
-                                f"in received SpotBalance object."
-                            )
-                    elif isinstance(item, dict) and "asset" in item:
-                        asset = str(item["asset"])
-                        item_dict: dict[str, Any] = dict(item)
-                        if "exchange" not in item_dict:
-                            item_dict["exchange"] = exchange_id
-                        parsed_obj = self._parse_balance_info(exchange_id, asset, item_dict)
-                        if parsed_obj:
-                            updated_balances[asset] = parsed_obj
+                    # item is guaranteed SpotBalance here based on type hint
+                    if item.exchange == exchange_id:
+                        updated_balances[item.asset] = item
                     else:
                         logger.warning(
-                            f"[{exchange_id}] Skipping unexpected item in balance list: {item}"
+                            f"[{exchange_id}] Skipping balance for asset {item.asset} "
+                            f"due to mismatched exchange ID ({item.exchange}) "
+                            f"in received SpotBalance object."
                         )
-            else:
-                logger.error(
-                    f"[FETCH_BALANCES:{exchange_id}] Unexpected data type received "
-                    f"for balances: {type(balances_data_raw)}"
-                )
-                return False
+            # No final 'else' needed if client.get_balances adheres to its type hint
 
             # --- Update State --- #
             if updated_balances:
@@ -272,14 +247,13 @@ class PortfolioTracker:
                     f"[FETCH_BALANCES:{exchange_id}] Successfully processed and updated "
                     f"{len(updated_balances)} balances."
                 )
-                return True  # Success, balances updated
+                return True
             else:
-                logger.warning(
-                    f"[FETCH_BALANCES:{exchange_id}] Processed response, but no valid "
-                    f"balances were found or updated. Original data: {balances_data_raw}"
+                logger.info(
+                    f"[FETCH_BALANCES:{exchange_id}] API call successful, but no balances "
+                    "were updated or parsed from the received data."
                 )
-                # Return True if API call was successful (returned dict or list) but yielded no data
-                return isinstance(balances_data_raw, (dict, list))
+                return True  # Successful call, but data didn't lead to updates.
 
         except Exception as e:
             logger.exception(
@@ -291,10 +265,7 @@ class PortfolioTracker:
         self, exchange_id: str, asset: str, balance_info: dict[str, Any] | SpotBalance
     ) -> SpotBalance | None:
         """Parse balance information into a SpotBalance object."""
-        # Handle SpotBalance object case
         if isinstance(balance_info, SpotBalance):
-            # Ensure the exchange matches if it's already a SpotBalance object
-            # (This shouldn't happen if fetched directly but good for defensive coding)
             if balance_info.exchange != exchange_id:
                 logger.error(
                     f"Mismatched exchange ID in provided SpotBalance object: expected "
@@ -303,11 +274,13 @@ class PortfolioTracker:
                 return None
             return balance_info
 
-        if not isinstance(balance_info, dict):
-            logger.error(
-                f"Invalid balance_info type: {type(balance_info)}. Expected dict or SpotBalance."
-            )
-            return None
+        # Since the type hint is dict[str, Any] | SpotBalance, and SpotBalance is handled above,
+        # balance_info must be a dict here. The isinstance check below is redundant if type hints are trusted.
+        # if not isinstance(balance_info, dict): # Linter flags as unnecessary
+        #     logger.error(
+        #         f"Invalid balance_info type: {type(balance_info)}. Expected dict or SpotBalance."
+        #     )
+        #     return None
 
         # Construct the data dictionary for SpotBalance, adding the exchange
         balance_data = balance_info.copy()
@@ -761,7 +734,7 @@ class PortfolioTracker:
         logger.info(f"Total exposure for {exchange_id}: {exchange_exposure} {valuation_asset}")
         return exchange_exposure if exchange_exposure.is_finite() else Decimal("0.0")
 
-    async def get_total_exposure(self, valuation_asset: str = "USDC") -> Decimal:
+    async def get_total_exposure_usd(self, valuation_asset: str = "USDC") -> Decimal:
         """Calculate the total market exposure across all exchanges."""
         logger.debug(f"Calculating total exposure across all exchanges in {valuation_asset}...")
         total_exposure = Decimal("0.0")
@@ -788,14 +761,9 @@ class PortfolioTracker:
 
         for exchange_id, positions in self._positions.items():
             for position_key, position in positions.items():
-                # Add position's own realized PNL (if provided by exchange and non-None)
+                # Add position's own realized PNL if it's valid
+                # Re-adding None check for safety, along with finiteness
                 if position.realized_pnl is not None and position.realized_pnl.is_finite():
-                    # Assume position.realized_pnl is already in a consistent quote currency
-                    # (needs verification)
-                    # We need to convert this to the requested base_currency
-                    # Simplified: assumes position quote currency needs conversion to base
-                    # currency
-                    # TODO: Determine actual quote currency of the position's PNL
                     pnl_quote_asset = (
                         position.symbol.split("_")[-1]
                         if "_" in position.symbol
@@ -804,15 +772,32 @@ class PortfolioTracker:
                     conversion_rate = await self._get_asset_price_in_base(
                         exchange_id, pnl_quote_asset, base_currency
                     )
-                    # DEFENSIVE CHECK: Ensure position.realized_pnl and conversion_rate are not None
-                    if position.realized_pnl is not None and conversion_rate is not None:
-                        total_realized_pnl += position.realized_pnl * conversion_rate
+
+                    # Check conversion rate validity
+                    if conversion_rate is not None and conversion_rate.is_finite():
+                        try:
+                            # Ensure we only add Decimal to Decimal
+                            converted_pnl = position.realized_pnl * conversion_rate
+                            if converted_pnl.is_finite():  # Final check before adding
+                                total_realized_pnl += converted_pnl
+                            else:
+                                logger.warning(
+                                    f"Converted realized PNL for {position_key} is not finite ({converted_pnl}). Skipping addition."
+                                )
+                        except (TypeError, InvalidOperation) as e:
+                            logger.error(
+                                f"Error during realized PNL conversion/addition for {position_key}: {e}"
+                            )
                     else:
                         logger.warning(
                             f"Cannot convert realized PNL for {position_key} on {exchange_id} "
                             f"to {base_currency}. Realized PNL: {position.realized_pnl}, "
                             f"Conversion Rate: {conversion_rate}."
                         )
+                elif position.realized_pnl is not None:  # Log if it exists but isn't finite
+                    logger.warning(
+                        f"Position {position_key} realized PNL is not finite: {position.realized_pnl}"
+                    )
 
                 # Calculate unrealized PNL
                 # DEFENSIVE CHECK: Check entry_price is not None *before* size check
@@ -907,26 +892,20 @@ class PortfolioTracker:
         )
         return finite_realized, finite_unrealized
 
-    async def get_current_drawdown(self) -> Decimal | None:
-        """
-        Calculate the current portfolio drawdown from the high watermark.
-
-        Returns:
-            The drawdown percentage as a Decimal (e.g., 0.1 for 10%),
-            or None if capital is zero or negative.
-        """
+    async def get_current_drawdown(self, base_currency: str = "USDC") -> Decimal:
+        """Calculate the current drawdown from the portfolio's high watermark."""
         current_capital = await self.get_total_capital()
 
         if self._high_watermark <= Decimal("0.0"):
             logger.warning("High watermark is not positive. Cannot calculate drawdown.")
-            return None
+            return Decimal("0.0")
 
         if not current_capital.is_finite() or current_capital <= Decimal("0.0"):
             logger.warning(
                 f"Current capital ({current_capital}) is not positive or finite. "
                 f"Cannot calculate drawdown."
             )
-            return None
+            return Decimal("0.0")
 
         drawdown = (self._high_watermark - current_capital) / self._high_watermark
         result = max(Decimal("0.0"), drawdown)
@@ -1075,13 +1054,13 @@ class PortfolioTracker:
             for _pos_key, _pos_data in positions_data.items():
                 # TODO: Parse pos_data dict into DerivativePosition
                 pass
-        elif isinstance(positions_data, list):
-            for _pos_data in positions_data:
-                # TODO: Parse pos_data (DerivativePosition object) - likely no parsing needed
+        else:  # If it wasn't a dict, it must be a list[DerivativePosition] due to type hint
+            for (
+                _pos_data
+            ) in positions_data:  # positions_data is now known to be list[DerivativePosition]
+                # TODO: Parse _pos_data (DerivativePosition object) - likely no parsing needed
                 pass
-        # else block is unreachable if type hint `list[DerivativePosition] | dict[str, Any]` is correct
-        # else:
-        #     logger.error(f"Unexpected type for positions_data: {type(positions_data)}")
+        # No else needed based on type hint
 
     def _parse_orders(self, exchange_id: str, orders_data: list[Order] | dict[str, Any]) -> None:
         logger.warning("_parse_orders needs implementation based on API data format.")
@@ -1089,11 +1068,11 @@ class PortfolioTracker:
             for _order_key, _order_data in orders_data.items():
                 # TODO: Parse order_data dict into Order
                 pass
-        elif isinstance(orders_data, list):
-            for _order_data in orders_data:
-                # TODO: Parse order_data (Order object?) - likely no parsing needed
+        else:  # If it wasn't a dict, it must be a list[Order] due to type hint
+            for _order_data in orders_data:  # orders_data is now known to be list[Order]
+                # TODO: Parse _order_data (Order object?) - likely no parsing needed
                 pass
-        # No else needed, type hint covers possibilities
+        # No else needed based on type hint
 
     def reset(self) -> None:
         """
@@ -1221,4 +1200,12 @@ class PortfolioTracker:
 
     def get_exchange_balance(self, exchange_id: str, asset: str) -> SpotBalance | None:
         """Retrieve the SpotBalance for a specific asset on a specific exchange."""
-        return self._balances.get(exchange_id, {}).get(asset)
+        # --- BEGIN ADDED LOGGING ---
+        logger.info(f"[PT_GET_EX_BAL_START] Called for exchange='{exchange_id}', asset='{asset}'")
+        exchange_balances = self._balances.get(exchange_id, {})
+        balance_obj = exchange_balances.get(asset)
+        logger.info(
+            f"[PT_GET_EX_BAL_RESULT] Found balance object for {asset} on {exchange_id}: {balance_obj}"
+        )
+        # --- END ADDED LOGGING ---
+        return balance_obj

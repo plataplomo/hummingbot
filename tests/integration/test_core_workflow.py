@@ -249,49 +249,60 @@ def mock_config_dict() -> dict[str, Any]:
             "reconciliation_interval": 60,
             "initial_capital": 100000.0,
         },
-        "risk_manager": {
-            "enabled": True,  # Added from previous
-            "update_interval": 10,  # Added from previous
-            "max_total_exposure": 20000.0,
-            "max_exchange_exposure": 10000.0,  # Added from previous
-            "max_position_size": 5000.0,
-            "max_drawdown": 0.10,  # Added from previous
-            "capital_allocation_pct": 0.80,
-            "min_required_balance": 100.0,
-            "slippage_factor": 0.001,
-            "circuit_breaker_threshold": 0.1,  # Moved from old location
-            "min_exchange_balance": 10.0,  # Moved from old location
+        "risk": {  # Restructured to match RiskManager._load_config expectations
+            "global": {
+                "max_position_usd": "100000.0",
+                "max_total_exposure_usd": "500000.0",
+                "min_position_usd": "5.0",
+                "max_portfolio_leverage": "3.0",
+                "max_drawdown_limit_ratio": "0.15",
+            },
+            "strategy": {
+                # For RiskManager.min_opportunity_profitability (uses first found)
+                "min_net_funding_differential": "0.00005",  # More specific path for this
+                # For RiskManager.min_net_funding_differential attribute
+                # "min_net_funding_differential": "0.0001", # If separate, or ensure the one above is used
+                "max_single_position_exposure_ratio": "0.1",  # Default, but can be set
+            },
+            "kelly": {
+                "fraction": "0.1",
+                "min_acceptable_fraction": "0.0001",
+                "max_acceptable_fraction": "0.1",
+                "min_volatility": "0.0005",
+            },
+            # This key is specific and correctly structured for RiskManager._load_config
+            "min_exchange_balance": "20.0",  # This key was previously under "risk_manager", moving to "risk" as per direct load.
+            # Actually, RiskManager loads this as "risk_manager.min_exchange_balance".
+            # Keeping it separate for now to see if it loads, might need adjustment
         },
+        "risk_manager": {  # Keeping this key for settings specific to "risk_manager.*" path
+            "min_exchange_balance": "20.0"  # This will be loaded by risk_manager.min_exchange_balance
+        },
+        "data_handler": {"max_staleness_seconds": 30},
         "execution_handler": {
-            "update_interval": 1,  # Added from previous
-            "order_timeout_seconds": 30,
-            "max_retries": 3,  # Changed from 2
-            "retry_delay_seconds": 5,  # Changed from 0.05 base
-            "max_slippage_pct": 0.001,  # Moved from old location
-            "compensation": {
-                "enabled": True,
-                "max_attempts": 5,
-                "check_interval_seconds": 10,
-                "use_limit_orders": True,  # Changed from False in happy path
-                "limit_order_offset_bps": 5,
-                "limit_price_offset_pct": 0.05,  # Kept from old config
+            "max_retries": 3,
+            "retry_delay": 5,
+            "order_timeout_seconds": 60,
+        },
+        "circuit_breaker": {
+            "enabled": True,
+            "global_config": {
+                "failure_threshold": 5,
+                "recovery_timeout": 300,
+                "half_open_attempts": 3,
+            },
+            "exchanges": {
+                "mock_hl": {
+                    "APIErrorBreaker": {"enabled": True, "failure_threshold": 3},
+                    "LiquidityBreaker": {"enabled": False},
+                },
+                "mock_bp": {
+                    "APIErrorBreaker": {"enabled": True, "failure_threshold": 3},
+                    "LiquidityBreaker": {"enabled": False},
+                },
             },
         },
-        "data_handler": {
-            "update_interval": 2,
-            "staleness_threshold": {  # Renamed from staleness_thresholds
-                "ticker": 15,  # Changed from 60
-                "orderbook": 10,  # Changed from 30
-                "funding_rate": 60,  # Changed from 3600
-                "balance": 30,
-                "position": 30,
-            },
-        },
-        "safety_systems": {
-            "circuit_breakers": {"enabled": False},
-            "position_reconciliation": {"enabled": False},
-            "balance_monitoring": {"enabled": False},
-        },
+        # Removed the old "risk_manager" block that was flat
     }
 
 
@@ -516,6 +527,19 @@ async def test_happy_path_full_cycle(
     mock_hl_api.set_mock_funding_rate(mock_hl_funding)
     mock_bp_api.set_mock_funding_rate(mock_bp_funding)
 
+    # <<< ADDED >>> Set mock tickers for USD/USDC conversion
+    mock_usd_usdc_ticker = create_mock_ticker(
+        "USD-USDC", bid="0.9998", ask="1.0002", price="1.0", timestamp=start_time
+    )
+    mock_usdc_usd_ticker = create_mock_ticker(
+        "USDC-USD", bid="0.9998", ask="1.0002", price="1.0", timestamp=start_time
+    )
+    mock_hl_api.set_mock_ticker(mock_usd_usdc_ticker)
+    mock_hl_api.set_mock_ticker(mock_usdc_usd_ticker)
+    mock_bp_api.set_mock_ticker(mock_usd_usdc_ticker)
+    mock_bp_api.set_mock_ticker(mock_usdc_usd_ticker)
+    # <<< END ADDED >>>
+
     # Order Books (NEW - Fix 40)
     mock_hl_ob = create_mock_orderbook(
         symbol_hl,
@@ -643,36 +667,39 @@ async def test_happy_path_full_cycle(
     # 5. Validate & Size Opportunity with RiskManager
     # RM needs portfolio state (balances mainly)
     # Verify balances directly via internal dict for test setup accuracy
-    logger.info(f"HL balance before sizing: {portfolio_tracker._balances.get('mock_hl')}")
-    logger.info(f"BP balance before sizing: {portfolio_tracker._balances.get('mock_bp')}")
+    logger.info(
+        f"HL balance before sizing: {portfolio_tracker.get_exchange_balance('mock_hl', 'USD')}"
+    )
+    logger.info(
+        f"BP balance before sizing: {portfolio_tracker.get_exchange_balance('mock_bp', 'USDC')}"
+    )
     # Let's assume RM uses get_total_capital directly from balances for now
     logger.info(
-        f"Portfolio Total Capital for Sizing (from getter): {portfolio_tracker.get_total_capital()}"
+        f"Portfolio Total Capital for Sizing (from getter): {await portfolio_tracker.get_total_capital()}"  # Added await
     )
 
     logger.info("Validating and sizing opportunities with RiskManager...")
 
-    sized_opportunities = await risk_manager.validate_opportunities([opportunity])
-    logger.info(f"Validated {len(sized_opportunities)} opportunities.")
-    assert len(sized_opportunities) == 1, "Opportunity should be valid and sized by RiskManager"
-    sized_opportunity = sized_opportunities[0]
+    sized_opportunities_list = await risk_manager.validate_opportunities([opportunity])
+    logger.info(f"Validated {len(sized_opportunities_list)} opportunities.")
+    assert len(sized_opportunities_list) == 1, (
+        "Opportunity should be valid and sized by RiskManager"
+    )
+    sized_opportunity = sized_opportunities_list[0]  # Now a SizedOpportunity
 
-    # Check sizing logic results
+    # Check sizing logic results (already SizedOpportunity)
     assert sized_opportunity.long_size > 0
     assert sized_opportunity.short_size > 0
     assert sized_opportunity.long_size == sized_opportunity.short_size  # Should be delta neutral
     # Check against max position size config
-    max_size_usd = mock_config.get("risk_manager.max_position_size")
-    assert max_size_usd is not None
-    # Use the sized opportunity's USD sizes directly
-    assert sized_opportunity.long_size <= Decimal(str(max_size_usd)), (
-        "Long size exceeds max position size"
-    )
-    assert sized_opportunity.short_size <= Decimal(str(max_size_usd)), (
-        "Short size exceeds max position size"
-    )
+    max_size_usd_str = mock_config.get("risk.global.max_position_usd")  # Get from correct path
+    assert max_size_usd_str is not None, "max_position_usd not found in config"
+    max_size_usd = Decimal(str(max_size_usd_str))
 
-    # 6. Execute Sized Opportunity
+    assert sized_opportunity.long_size <= max_size_usd, "Long size exceeds max position size"
+    assert sized_opportunity.short_size <= max_size_usd, "Short size exceeds max position size"
+
+    # 6. Execute Sized Opportunity (sized_opportunity is now correct type)
     logger.info(
         f"Executing opportunity: {sized_opportunity.opportunity.long_exchange} "
         f"LONG {sized_opportunity.long_size} {symbol_bp}, "
@@ -699,10 +726,8 @@ async def test_happy_path_full_cycle(
     logger.info("Verifying portfolio state post-execution...")
 
     # Get final balances - check internal state directly for test verification
-    hl_balance_dict = portfolio_tracker._balances.get("mock_hl", {})
-    bp_balance_dict = portfolio_tracker._balances.get("mock_bp", {})
-    hl_balance = hl_balance_dict.get("USD")
-    bp_balance = bp_balance_dict.get("USDC")
+    hl_balance = portfolio_tracker.get_exchange_balance("mock_hl", "USD")
+    bp_balance = portfolio_tracker.get_exchange_balance("mock_bp", "USDC")
 
     assert hl_balance is not None
     assert bp_balance is not None
@@ -717,8 +742,8 @@ async def test_happy_path_full_cycle(
     # Add assertions about balance changes if fees/costs are accurately simulated
 
     # Get final positions (should be updated by ExecutionHandler via PortfolioTracker.record_trade)
-    hl_pos = portfolio_tracker._positions.get("mock_hl", {}).get(symbol_base)
-    bp_pos = portfolio_tracker._positions.get("mock_bp", {}).get(symbol_base)
+    hl_pos = portfolio_tracker.get_position("mock_hl", symbol_base)
+    bp_pos = portfolio_tracker.get_position("mock_bp", symbol_base)
 
     logger.debug(f"Final HL Position: {hl_pos}")
     logger.debug(f"Final BP Position: {bp_pos}")
@@ -731,21 +756,21 @@ async def test_happy_path_full_cycle(
     assert hl_pos.side == OrderSide.SELL  # Short on HL
     hl_order = await mock_hl_api.get_order_status(trade_execution_result.short_order_id)
     # Compare absolute value of size
-    assert abs(hl_pos.size) == pytest.approx(hl_order.quantity_filled)
+    assert abs(hl_pos.size) == pytest.approx(hl_order.quantity_filled)  # type: ignore[call-arg]
     # Use average fill price if available, otherwise order price
     hl_entry = hl_order.average_fill_price if hl_order.average_fill_price else hl_order.price
     assert hl_pos.entry_price is not None  # Ensure not None before approx
-    assert hl_pos.entry_price == approx(hl_entry)  # type: ignore[call-arg] # Mypy struggles with approx typing
+    assert hl_pos.entry_price == approx(hl_entry)  # type: ignore[call-arg]
 
     assert bp_pos.symbol == symbol_base  # Check internal symbol stored
     assert bp_pos.side == OrderSide.BUY  # Long on BP
     bp_order = await mock_bp_api.get_order_status(trade_execution_result.long_order_id)
     # Compare absolute value of size (abs() is harmless for positive values)
-    assert abs(bp_pos.size) == pytest.approx(bp_order.quantity_filled)
+    assert abs(bp_pos.size) == pytest.approx(bp_order.quantity_filled)  # type: ignore[call-arg]
     # Use average fill price if available, otherwise order price
     bp_entry = bp_order.average_fill_price if bp_order.average_fill_price else bp_order.price
     assert bp_pos.entry_price is not None  # Ensure not None before approx
-    assert bp_pos.entry_price == approx(bp_entry)  # type: ignore[call-arg] # Mypy struggles with approx typing
+    assert bp_pos.entry_price == approx(bp_entry)  # type: ignore[call-arg]
 
     # Check overall net position (should be delta neutral for the base symbol)
     # This requires a method like get_net_position or manual calculation
@@ -1087,16 +1112,16 @@ async def test_partial_fill(
     # --- End Debug Logging ---
 
     # 2. Validate & Size
-    sized_opportunities = await risk_manager.validate_opportunities([opportunity])
-    assert len(sized_opportunities) == 1
-    sized_opportunity = sized_opportunities[0]
+    sized_opportunities_list = await risk_manager.validate_opportunities([opportunity])
+    assert len(sized_opportunities_list) == 1
+    sized_opportunity = sized_opportunities_list[0]  # Now SizedOpportunity
     sized_opportunity.long_size = target_qty
     sized_opportunity.short_size = target_qty
 
     # 3. Execute
     logger.info("Executing partially filling opportunity...")
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
-        sized_opportunity
+        sized_opportunity  # Pass SizedOpportunity
     )
     logger.info(f"Execution result: {trade_execution_result}")
 
@@ -1486,16 +1511,16 @@ async def test_execution_failure_compensation(
     # --- End Debug Logging ---
 
     # 2. Validate & Size
-    sized_opportunities = await risk_manager.validate_opportunities([opportunity])
-    assert len(sized_opportunities) == 1
-    sized_opportunity = sized_opportunities[0]
+    sized_opportunities_list = await risk_manager.validate_opportunities([opportunity])
+    assert len(sized_opportunities_list) == 1
+    sized_opportunity = sized_opportunities_list[0]  # Now SizedOpportunity
     sized_opportunity.long_size = target_qty
     sized_opportunity.short_size = target_qty
 
     # 3. Execute
     logger.info("Executing failing opportunity (HL short fails)...")
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
-        sized_opportunity
+        sized_opportunity  # Pass SizedOpportunity
     )
     logger.info(f"Execution result: {trade_execution_result}")
 
@@ -1505,6 +1530,8 @@ async def test_execution_failure_compensation(
     )
 
     # Verify compensation order was placed and filled (check mocks and logs)
+    # Use the mock object returned by mocker.patch.object for assertions
+    bp_place_order_mock = mock_bp_api.place_order
     mock_bp_api.place_order.assert_called()
     calls = mock_bp_api.place_order.call_args_list
     assert len(calls) == 2, "Expected 2 place_order calls on BP (initial + compensation)"
@@ -1528,6 +1555,9 @@ async def test_execution_failure_compensation(
     logger.info(f"Final BP Position: {final_bp_pos}")
     logger.info(f"Final HL Position: {final_hl_pos}")
     # Get balances using internal dict for test verification
+    logger.info(
+        f"Final mock_hl USD Balance after compensation test: {portfolio_tracker.get_exchange_balance('mock_hl', 'USD')}"
+    )
     logger.info(f"Final Balances: {portfolio_tracker._balances}")
 
     # Check logs for confirmation

@@ -617,66 +617,89 @@ class SignalGenerator:
                 if ticker_a is None or ticker_b is None:
                     continue
 
-                price_a = ticker_a.price
-                price_b = ticker_b.price
+                # Get relevant prices from tickers for opportunity construction
+                # Price to BUY on exchange A (use ask_a)
+                ask_a = ticker_a.ask
+                # Price to SELL on exchange A (use bid_a)
+                bid_a = ticker_a.bid
+                # Price to BUY on exchange B (use ask_b)
+                ask_b = ticker_b.ask
+                # Price to SELL on exchange B (use bid_b)
+                bid_b = ticker_b.bid
 
-                # Ticker.price is Decimal | None. Check needed.
-                if price_a is None or price_b is None:
+                # Ticker prices can be None, ensure they are valid Decimals
+                if ask_a is None or bid_a is None or ask_b is None or bid_b is None:
+                    logger.debug(
+                        f"Missing bid/ask for {symbol} on {exchange_a} or {exchange_b}, skipping."
+                    )
                     continue
 
-                # DEFENSIVE CHECK: Ensure prices are Decimal after check above.
-                # Mypy=[redundant-expr]
-                assert price_a is not None
-                # DEFENSIVE CHECK: Ensure prices are Decimal after check above.
-                # Mypy=[redundant-expr]
-                assert price_b is not None
+                # Original logic using ticker.price for NFD calculation (using mid-price proxy)
+                price_a_for_nfd = ticker_a.price
+                price_b_for_nfd = ticker_b.price
+                if price_a_for_nfd is None or price_b_for_nfd is None:
+                    continue  # Cannot calculate NFD based on .price if missing
 
-                # Calculate the funding payment in USD terms
-                funding_payment_a = price_a * rate_a
-                funding_payment_b = price_b * rate_b
-
-                # Calculate net funding differential
-                # Ensure Decimal type for calculation
-                net_funding_differential: Decimal = funding_payment_b - funding_payment_a
+                # Calculate price-weighted funding payments for profit estimation
+                funding_payment_a = price_a_for_nfd * rate_a
+                funding_payment_b = price_b_for_nfd * rate_b
+                # This is the net difference in *value* based on current ticker.price
+                net_funding_value_differential: Decimal = funding_payment_b - funding_payment_a
 
                 # Calculate expected profit after slippage
                 slippage_a = self.estimate_slippage(exchange_a, symbol)
                 slippage_b = self.estimate_slippage(exchange_b, symbol)
-
-                # Calculate total slippage
                 total_slippage = slippage_a + slippage_b
-                expected_profit = abs(net_funding_differential) - total_slippage
+                # Expected profit uses the *value* differential
+                expected_profit = abs(net_funding_value_differential) - total_slippage
 
-                # Check if expected profit meets our threshold
                 if expected_profit < self.min_profit_threshold:
                     continue
 
-                # Create an arbitrage opportunity
-                if funding_differential > Decimal("0"):
-                    # Short exchange_b, long exchange_a
-                    opportunity = ArbitrageOpportunity(
-                        symbol=symbol,
-                        long_exchange=exchange_a,
-                        short_exchange=exchange_b,
-                        long_price=price_a,
-                        short_price=price_b,
-                        long_funding_rate=rate_a,
-                        short_funding_rate=rate_b,
-                        net_funding_differential=net_funding_differential,
-                        expected_profit=expected_profit,
-                        timestamp=datetime.now(UTC),
+                # Determine actual long/short rates and the pure rate differential for the opportunity
+                # funding_differential was rate_b - rate_a
+                if funding_differential > Decimal("0"):  # rate_b > rate_a: Long B, Short A
+                    actual_long_rate = rate_b
+                    actual_short_rate = rate_a
+                    current_long_price = ask_b
+                    current_short_price = bid_a
+                    # Explicitly recalculate for clarity and to ensure types
+                    # actual_long_rate and actual_short_rate are already Decimal | None, and checked for None.
+                    # The explicit Decimal(str(...)) is for hyper-explicitness, though redundant.
+                    opportunity_nfd_calculated = Decimal(str(actual_long_rate)) - Decimal(
+                        str(actual_short_rate)
                     )
-                else:
-                    # Short exchange_a, long exchange_b
                     opportunity = ArbitrageOpportunity(
                         symbol=symbol,
                         long_exchange=exchange_b,
                         short_exchange=exchange_a,
-                        long_price=price_b,
-                        short_price=price_a,
-                        long_funding_rate=rate_b,
-                        short_funding_rate=rate_a,
-                        net_funding_differential=abs(net_funding_differential),
+                        long_price=current_long_price,
+                        short_price=current_short_price,
+                        long_funding_rate=actual_long_rate,
+                        short_funding_rate=actual_short_rate,
+                        net_funding_differential=opportunity_nfd_calculated,  # Use the explicitly calculated value
+                        expected_profit=expected_profit,
+                        timestamp=datetime.now(UTC),
+                    )
+                else:  # rate_a >= rate_b: Long A, Short B
+                    actual_long_rate = rate_a
+                    actual_short_rate = rate_b
+                    current_long_price = ask_a
+                    current_short_price = bid_b
+                    # Explicitly recalculate for clarity and to ensure types
+                    # actual_long_rate and actual_short_rate are already Decimal | None, and checked for None.
+                    opportunity_nfd_calculated = Decimal(str(actual_long_rate)) - Decimal(
+                        str(actual_short_rate)
+                    )
+                    opportunity = ArbitrageOpportunity(
+                        symbol=symbol,
+                        long_exchange=exchange_a,
+                        short_exchange=exchange_b,
+                        long_price=current_long_price,
+                        short_price=current_short_price,
+                        long_funding_rate=actual_long_rate,
+                        short_funding_rate=actual_short_rate,
+                        net_funding_differential=opportunity_nfd_calculated,  # Use the explicitly calculated value
                         expected_profit=expected_profit,
                         timestamp=datetime.now(UTC),
                     )

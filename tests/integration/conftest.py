@@ -3,11 +3,10 @@ from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import cast
-from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
+from unittest.mock import create_autospec, patch
 
 import pytest
 import pytest_asyncio
-from pytest_mock import MockerFixture
 
 from cyberdelta.core.data_handler import DataHandler, Ticker
 from cyberdelta.core.execution_handler import ExecutionHandler
@@ -92,93 +91,89 @@ def mock_secrets() -> dict[str, dict[str, str]]:
     }
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def mock_hl_api(
-    mock_config: Config, mock_secrets: dict[str, dict[str, str]], mocker: MockerFixture
+    mock_config: Config, mock_secrets: dict[str, dict[str, str]]
 ) -> AsyncGenerator[MockExchangeAPI]:
-    """Mock API for Hyperliquid, passes full config."""
-    # Ensure necessary keys exist, *especially* collateral_asset
-    if "mock_hl" not in mock_config.config_data["exchanges"]:
-        mock_config.config_data["exchanges"]["mock_hl"] = {}
-    # Explicitly set collateral_asset if missing, even if mock_hl key exists
-    if "collateral_asset" not in mock_config.config_data["exchanges"]["mock_hl"]:
-        mock_config.config_data["exchanges"]["mock_hl"]["collateral_asset"] = "USD"
-    # Set fee rate if missing (optional, but good practice for mocks)
-    if "fee_rate" not in mock_config.config_data["exchanges"]["mock_hl"]:
-        mock_config.config_data["exchanges"]["mock_hl"]["fee_rate"] = 0.0005
+    """Function-scoped mock HyperLiquid API with patched clients."""
+    exchange_name = "hyperliquid"
+    exchange_config_dict = mock_config.config_data["exchanges"][exchange_name]
+    exchange_secrets = mock_secrets[exchange_name]
 
-    # Convert secrets to dict[str, Optional[str]] for compatibility
-    secrets_hl: dict[str, str | None] = {k: v for k, v in mock_secrets["mock_hl"].items()}
-
-    with patch(
-        "cyberdelta.apis.base.exchange_api.WebSocketManager", new_callable=MagicMock
-    ) as MockWsManagerClass:
-        mock_ws_instance = MockWsManagerClass.return_value
-        mock_ws_instance.close = AsyncMock()
-        mock_ws_instance.connect = AsyncMock()
-        mock_ws_instance.subscribe = AsyncMock()
-        mock_ws_instance.is_connected = False
-
-        mocker.patch(
-            "cyberdelta.apis.connectivity.http_client.HttpClient.__init__",
-            lambda self, *args, **kwargs: None,  # type: ignore[misc]
-        )
-
+    with (
+        patch("cyberdelta.apis.connectivity.http_client.HttpClient.__init__", return_value=None),
+        patch("cyberdelta.apis.connectivity.ws_manager.WsManager.__init__", return_value=None),
+    ):
         api = MockExchangeAPI(
-            "mock_hl",
-            mock_config.config_data["exchanges"]["mock_hl"],
-            secrets_hl,
-            config_obj=mock_config,
+            exchange_name=exchange_name,
+            config=exchange_config_dict,
+            secrets=exchange_secrets,  # type: ignore # Dict[str, str|None] vs Dict[str, str]
+            config_obj=mock_config,  # Pass the full config object here
         )
         try:
             yield api
         finally:
-            # The defensive check here might be simplified or removed if this works
+            # Attempt to clean up, nullifying if attributes look unclosable
+            if hasattr(api, "ws_manager") and api.ws_manager:  # type: ignore[attr-defined]
+                if not (
+                    hasattr(api.ws_manager, "_ws_connection")
+                    and hasattr(api.ws_manager._ws_connection, "_closed")
+                ):  # type: ignore[attr-defined]
+                    api.ws_manager = None  # type: ignore[attr-defined]
+            else:  # If ws_manager doesn't exist or is None initially
+                api.ws_manager = None  # type: ignore[attr-defined]
+
+            if hasattr(api, "http_client") and api.http_client:  # type: ignore[attr-defined]
+                if not (
+                    hasattr(api.http_client, "_session")
+                    and hasattr(api.http_client._session, "_closed")
+                ):  # type: ignore[attr-defined]
+                    api.http_client = None  # type: ignore[attr-defined]
+            else:  # If http_client doesn't exist or is None initially
+                api.http_client = None  # type: ignore[attr-defined]
             await api.close()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def mock_bp_api(
-    mock_config: Config, mock_secrets: dict[str, dict[str, str]], mocker: MockerFixture
+    mock_config: Config, mock_secrets: dict[str, dict[str, str]]
 ) -> AsyncGenerator[MockExchangeAPI]:
-    """Mock API for Backpack, passes full config."""
-    # Ensure necessary keys exist, *especially* collateral_asset
-    if "mock_bp" not in mock_config.config_data["exchanges"]:
-        mock_config.config_data["exchanges"]["mock_bp"] = {}
-    # Explicitly set collateral_asset if missing
-    if "collateral_asset" not in mock_config.config_data["exchanges"]["mock_bp"]:
-        mock_config.config_data["exchanges"]["mock_bp"]["collateral_asset"] = "USDC"
-    # Set fee rate if missing
-    if "fee_rate" not in mock_config.config_data["exchanges"]["mock_bp"]:
-        mock_config.config_data["exchanges"]["mock_bp"]["fee_rate"] = 0.0005
+    """Function-scoped mock Backpack API with patched clients."""
+    exchange_name = "backpack"
+    exchange_config_dict = mock_config.config_data["exchanges"][exchange_name]
+    exchange_secrets = mock_secrets[exchange_name]
 
-    # Convert secrets to dict[str, Optional[str]] for compatibility
-    secrets_bp: dict[str, str | None] = {k: v for k, v in mock_secrets["mock_bp"].items()}
-
-    with patch(
-        "cyberdelta.apis.base.exchange_api.WebSocketManager", new_callable=MagicMock
-    ) as MockWsManagerClass:
-        mock_ws_instance = MockWsManagerClass.return_value
-        mock_ws_instance.close = AsyncMock()
-        mock_ws_instance.connect = AsyncMock()
-        mock_ws_instance.subscribe = AsyncMock()
-        mock_ws_instance.is_connected = False
-
-        mocker.patch(
-            "cyberdelta.apis.connectivity.http_client.HttpClient.__init__",
-            lambda self, *args, **kwargs: None,  # type: ignore[misc]
-        )
-
+    with (
+        patch("cyberdelta.apis.connectivity.http_client.HttpClient.__init__", return_value=None),
+        patch("cyberdelta.apis.connectivity.ws_manager.WsManager.__init__", return_value=None),
+    ):
         api = MockExchangeAPI(
-            "mock_bp",
-            mock_config.config_data["exchanges"]["mock_bp"],
-            secrets_bp,
-            config_obj=mock_config,
+            exchange_name=exchange_name,
+            config=exchange_config_dict,
+            secrets=exchange_secrets,  # type: ignore # Dict[str, str|None] vs Dict[str, str]
+            config_obj=mock_config,  # Pass the full config object here
         )
         try:
             yield api
         finally:
-            # The defensive check here might be simplified or removed if this works
+            # Attempt to clean up, nullifying if attributes look unclosable
+            if hasattr(api, "ws_manager") and api.ws_manager:  # type: ignore[attr-defined]
+                if not (
+                    hasattr(api.ws_manager, "_ws_connection")
+                    and hasattr(api.ws_manager._ws_connection, "_closed")
+                ):  # type: ignore[attr-defined]
+                    api.ws_manager = None  # type: ignore[attr-defined]
+            else:  # If ws_manager doesn't exist or is None initially
+                api.ws_manager = None  # type: ignore[attr-defined]
+
+            if hasattr(api, "http_client") and api.http_client:  # type: ignore[attr-defined]
+                if not (
+                    hasattr(api.http_client, "_session")
+                    and hasattr(api.http_client._session, "_closed")
+                ):  # type: ignore[attr-defined]
+                    api.http_client = None  # type: ignore[attr-defined]
+            else:  # If http_client doesn't exist or is None initially
+                api.http_client = None  # type: ignore[attr-defined]
             await api.close()
 
 
